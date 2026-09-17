@@ -5,9 +5,11 @@ import {
   ApiServiceUnavailableResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { SkipRateLimit } from '../common/throttling';
 import { HealthService } from './health.service';
 
 @ApiTags('Health')
+@SkipRateLimit()
 @Controller('health')
 export class HealthController {
   constructor(private readonly healthService: HealthService) {}

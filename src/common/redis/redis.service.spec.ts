@@ -21,6 +21,7 @@ const createRedisClient = () =>
     set: jest.fn(),
     del: jest.fn(),
     scan: jest.fn(),
+    eval: jest.fn(),
     ping: jest.fn(),
     quit: jest.fn(),
     disconnect: jest.fn(),
@@ -44,9 +45,9 @@ describe('RedisService', () => {
 
   it('should parse cached JSON values', async () => {
     const redisClient = createRedisClient();
-    jest
-      .mocked(redisClient.get)
-      .mockResolvedValue(JSON.stringify({ total: 3 }));
+    (redisClient.get as jest.Mock).mockResolvedValue(
+      JSON.stringify({ total: 3 }),
+    );
     const service = new RedisService(redisClient, createConfigService());
 
     await expect(
@@ -56,8 +57,7 @@ describe('RedisService', () => {
 
   it('should delete a cache prefix using scan instead of keys', async () => {
     const redisClient = createRedisClient();
-    jest
-      .mocked(redisClient.scan)
+    (redisClient.scan as jest.Mock)
       .mockResolvedValueOnce([
         '19',
         ['amanah:test:clinic:a', 'amanah:test:clinic:b'],
@@ -79,5 +79,51 @@ describe('RedisService', () => {
       'amanah:test:clinic:a',
       'amanah:test:clinic:b',
     );
+  });
+
+  it('should allow request when within rate limit', async () => {
+    const redisClient = createRedisClient();
+    (redisClient.eval as jest.Mock).mockResolvedValueOnce([
+      1, 10, 9, 1789661460, 0,
+    ]);
+    const service = new RedisService(redisClient, createConfigService());
+
+    const result = await service.consumeRateLimit('user:123', 10, 60);
+
+    expect(result.allowed).toBe(true);
+    expect(result.limit).toBe(10);
+    expect(result.remaining).toBe(9);
+    expect(result.resetEpochSeconds).toBe(1789661460);
+    expect(result.retryAfterSeconds).toBe(0);
+  });
+
+  it('should block request and provide retryAfter when rate limit is exceeded', async () => {
+    const redisClient = createRedisClient();
+    (redisClient.eval as jest.Mock).mockResolvedValueOnce([
+      0, 10, 0, 1789661460, 45,
+    ]);
+    const service = new RedisService(redisClient, createConfigService());
+
+    const result = await service.consumeRateLimit('user:123', 10, 60);
+
+    expect(result.allowed).toBe(false);
+    expect(result.limit).toBe(10);
+    expect(result.remaining).toBe(0);
+    expect(result.resetEpochSeconds).toBe(1789661460);
+    expect(result.retryAfterSeconds).toBe(45);
+  });
+
+  it('should fail open when redis eval fails', async () => {
+    const redisClient = createRedisClient();
+    (redisClient.eval as jest.Mock).mockRejectedValueOnce(
+      new Error('Redis connection lost'),
+    );
+    const service = new RedisService(redisClient, createConfigService());
+
+    const result = await service.consumeRateLimit('user:123', 10, 60);
+
+    expect(result.allowed).toBe(true);
+    expect(result.limit).toBe(10);
+    expect(result.remaining).toBe(10);
   });
 });

@@ -16,6 +16,7 @@ import { ProblemDetailsFilter } from './common/filters/problem-details.filter';
 import { HttpCacheInterceptor } from './common/interceptors/http-cache.interceptor';
 import { IdempotencyInterceptor } from './common/interceptors/idempotency.interceptor';
 import { RedisService } from './common/redis/redis.service';
+import { RateLimiterGuard } from './common/throttling';
 import { AllConfigType } from './config/config.type';
 import { ResolvePromisesInterceptor } from './utils/serializer.interceptor';
 import validationOptions from './utils/validation-options';
@@ -59,6 +60,7 @@ async function bootstrap() {
   app.useGlobalFilters(new ProblemDetailsFilter());
   const reflector = app.get(Reflector);
   const redisService = app.get(RedisService);
+  app.useGlobalGuards(new RateLimiterGuard(reflector, redisService));
   app.useGlobalInterceptors(
     // ResolvePromisesInterceptor is used to resolve promises in responses because class-transformer can't do it
     // https://github.com/typestack/class-transformer/issues/549

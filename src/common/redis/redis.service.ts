@@ -1,8 +1,17 @@
+import { randomUUID } from 'node:crypto';
 import { Inject, Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 import { AllConfigType } from '../../config/config.type';
 import { REDIS_CLIENT } from './redis.constants';
+
+export interface RateLimitResult {
+  allowed: boolean;
+  limit: number;
+  remaining: number;
+  resetEpochSeconds: number;
+  retryAfterSeconds: number;
+}
 
 @Injectable()
 export class RedisService implements OnModuleDestroy {
@@ -253,6 +262,79 @@ export class RedisService implements OnModuleDestroy {
       this.logger.warn(
         `Failed to invalidate tags "${tags.join(',')}": ${this.getErrorMessage(error)}`,
       );
+    }
+  }
+
+  async consumeRateLimit(
+    key: string,
+    limit: number,
+    windowSeconds: number,
+  ): Promise<RateLimitResult> {
+    const cacheKey = this.buildKey(`ratelimit:${key}`);
+    const now = Date.now();
+    const member = `${now}:${randomUUID().substring(0, 8)}`;
+
+    const luaScript = `
+local key = KEYS[1]
+local now = tonumber(ARGV[1])
+local windowSeconds = tonumber(ARGV[2])
+local limit = tonumber(ARGV[3])
+local member = ARGV[4]
+
+local clearBefore = now - (windowSeconds * 1000)
+redis.call('ZREMRANGEBYSCORE', key, '-inf', clearBefore)
+local currentCount = redis.call('ZCARD', key)
+
+if currentCount < limit then
+    redis.call('ZADD', key, now, member)
+    redis.call('EXPIRE', key, windowSeconds + 1)
+    local remaining = limit - (currentCount + 1)
+    local resetEpoch = math.ceil((now + (windowSeconds * 1000)) / 1000)
+    return { 1, limit, remaining, resetEpoch, 0 }
+else
+    local oldest = redis.call('ZRANGE', key, 0, 0, 'WITHSCORES')
+    local resetTime = now + (windowSeconds * 1000)
+    if oldest and oldest[2] then
+        resetTime = tonumber(oldest[2]) + (windowSeconds * 1000)
+    end
+    local retryAfter = math.max(1, math.ceil((resetTime - now) / 1000))
+    local resetEpoch = math.ceil(resetTime / 1000)
+    return { 0, limit, 0, resetEpoch, retryAfter }
+end
+`;
+
+    try {
+      const result = (await this.redisClient.eval(
+        luaScript,
+        1,
+        cacheKey,
+        now.toString(),
+        windowSeconds.toString(),
+        limit.toString(),
+        member,
+      )) as [number, number, number, number, number];
+
+      const [allowedNum, limitNum, remainingNum, resetEpochNum, retryAfterNum] =
+        result;
+
+      return {
+        allowed: allowedNum === 1,
+        limit: Number(limitNum),
+        remaining: Number(remainingNum),
+        resetEpochSeconds: Number(resetEpochNum),
+        retryAfterSeconds: Number(retryAfterNum),
+      };
+    } catch (error) {
+      this.logger.warn(
+        `Rate limit evaluation failed for "${key}", failing open: ${this.getErrorMessage(error)}`,
+      );
+      return {
+        allowed: true,
+        limit,
+        remaining: limit,
+        resetEpochSeconds: Math.ceil((now + windowSeconds * 1000) / 1000),
+        retryAfterSeconds: 0,
+      };
     }
   }
 
