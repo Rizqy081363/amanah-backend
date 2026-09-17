@@ -76,7 +76,6 @@ export default registerAs<DatabaseConfig>('database', () => {
   validateConfig(process.env, EnvironmentVariablesValidator);
 
   return {
-    isDocumentDatabase: false,
     url: process.env.DATABASE_URL,
     type: 'postgres',
     host: process.env.DATABASE_HOST,

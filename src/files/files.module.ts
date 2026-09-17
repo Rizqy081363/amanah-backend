@@ -1,19 +1,11 @@
 import { Module } from '@nestjs/common';
-import databaseConfig from '../database/config/database.config';
-import { DatabaseConfig } from '../database/config/database-config.type';
 import fileConfig from './config/file.config';
 import { FileConfig, FileDriver } from './config/file-config.type';
 import { FilesService } from './files.service';
-import { DocumentFilePersistenceModule } from './infrastructure/persistence/document/document-persistence.module';
 import { DrizzleFilePersistenceModule } from './infrastructure/persistence/drizzle/drizzle-persistence.module';
 import { FilesLocalModule } from './infrastructure/uploader/local/files.module';
 import { FilesS3Module } from './infrastructure/uploader/s3/files.module';
 import { FilesS3PresignedModule } from './infrastructure/uploader/s3-presigned/files.module';
-
-const infrastructurePersistenceModule = (databaseConfig() as DatabaseConfig)
-  .isDocumentDatabase
-  ? DocumentFilePersistenceModule
-  : DrizzleFilePersistenceModule;
 
 const infrastructureUploaderModule =
   (fileConfig() as FileConfig).driver === FileDriver.LOCAL
@@ -23,8 +15,8 @@ const infrastructureUploaderModule =
       : FilesS3PresignedModule;
 
 @Module({
-  imports: [infrastructurePersistenceModule, infrastructureUploaderModule],
+  imports: [DrizzleFilePersistenceModule, infrastructureUploaderModule],
   providers: [FilesService],
-  exports: [FilesService, infrastructurePersistenceModule],
+  exports: [FilesService, DrizzleFilePersistenceModule],
 })
 export class FilesModule {}

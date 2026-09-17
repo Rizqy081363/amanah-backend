@@ -18,9 +18,7 @@
     "src/statuses/**",
     "src/users/**",
     "src/database/data-source.ts",
-    "src/database/mongoose-config.service.ts",
     "src/database/typeorm-config.service.ts",
-    "src/database/seeds/document/**",
     "src/database/seeds/relational/**",
     "src/database/schema.ts",
     "src/utils/relational-entity-helper.ts"

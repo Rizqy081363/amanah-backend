@@ -8,23 +8,13 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MulterModule } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { AllConfigType } from '../../../../config/config.type';
-import databaseConfig from '../../../../database/config/database.config';
-import { DatabaseConfig } from '../../../../database/config/database-config.type';
-import { DocumentFilePersistenceModule } from '../../persistence/document/document-persistence.module';
 import { DrizzleFilePersistenceModule } from '../../persistence/drizzle/drizzle-persistence.module';
 import { FilesLocalController } from './files.controller';
 import { FilesLocalService } from './files.service';
 
-// <database-block>
-const infrastructurePersistenceModule = (databaseConfig() as DatabaseConfig)
-  .isDocumentDatabase
-  ? DocumentFilePersistenceModule
-  : DrizzleFilePersistenceModule;
-// </database-block>
-
 @Module({
   imports: [
-    infrastructurePersistenceModule,
+    DrizzleFilePersistenceModule,
     MulterModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

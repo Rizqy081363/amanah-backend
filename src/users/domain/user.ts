@@ -1,20 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Exclude, Expose } from 'class-transformer';
-import databaseConfig from '../../database/config/database.config';
-import { DatabaseConfig } from '../../database/config/database-config.type';
 import { FileType } from '../../files/domain/file';
 import { Role } from '../../roles/domain/role';
 import { Status } from '../../statuses/domain/status';
 
-// <database-block>
-const idType = (databaseConfig() as DatabaseConfig).isDocumentDatabase
-  ? String
-  : Number;
-// </database-block>
-
 export class User {
   @ApiProperty({
-    type: idType,
+    type: Number,
   })
   id: number | string;
 
