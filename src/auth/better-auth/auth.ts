@@ -1,3 +1,4 @@
+import bcrypt from 'bcryptjs';
 import { betterAuth } from 'better-auth';
 import { admin as adminPlugin, bearer } from 'better-auth/plugins';
 import { Pool } from 'pg';
@@ -40,6 +41,19 @@ export const auth = betterAuth({
   },
   emailAndPassword: {
     enabled: true,
+    password: {
+      hash: async (password: string) => bcrypt.hash(password, 10),
+      verify: async ({
+        hash,
+        password,
+      }: {
+        hash: string;
+        password: string;
+      }) => {
+        if (!hash) return false;
+        return bcrypt.compare(password, hash);
+      },
+    },
   },
   account: {
     encryptOAuthTokens: true,

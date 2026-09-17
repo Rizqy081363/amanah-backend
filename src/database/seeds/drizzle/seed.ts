@@ -175,6 +175,23 @@ const seedPermissions = async (
   }
 };
 
+const mapRoleCodeToBetterAuthRole = (roleCode: string): string => {
+  switch (roleCode) {
+    case 'admin':
+      return 'admin';
+    case 'staff_doctor':
+      return 'staffDoctor';
+    case 'staff_midwife':
+      return 'staffMidwife';
+    case 'staff_worker':
+      return 'staffWorker';
+    case 'patient':
+      return 'patient';
+    default:
+      return 'patient';
+  }
+};
+
 const seedUsers = async (
   client: PoolClient,
   roleIdsByCode: Map<string, string>,
@@ -220,6 +237,71 @@ const seedUsers = async (
             updated_at = now()
       `,
       [row.id, user.email, passwordHash],
+    );
+
+    const betterAuthRole = mapRoleCodeToBetterAuthRole(user.roleCode);
+    const existingBetterAuthUser = await queryOptional<{ id: string }>({
+      client,
+      text: 'SELECT id FROM "user" WHERE email = $1',
+      values: [user.email],
+    });
+
+    const betterAuthUserId = existingBetterAuthUser?.id ?? row.id;
+
+    if (!existingBetterAuthUser) {
+      await client.query(
+        `
+          INSERT INTO "user" (
+            id,
+            name,
+            email,
+            "emailVerified",
+            role,
+            banned,
+            "createdAt",
+            "updatedAt"
+          )
+          VALUES ($1, $2, $3, true, $4, false, now(), now())
+        `,
+        [row.id, user.name, user.email, betterAuthRole],
+      );
+    } else {
+      await client.query(
+        `
+          UPDATE "user"
+          SET name = $2,
+              role = $3,
+              "emailVerified" = true,
+              banned = false,
+              "updatedAt" = now()
+          WHERE id = $1
+        `,
+        [existingBetterAuthUser.id, user.name, betterAuthRole],
+      );
+    }
+
+    await client.query(
+      `
+        DELETE FROM account
+        WHERE "userId" = $1 AND "providerId" = 'credential'
+      `,
+      [betterAuthUserId],
+    );
+
+    await client.query(
+      `
+        INSERT INTO account (
+          id,
+          "accountId",
+          "providerId",
+          "userId",
+          password,
+          "createdAt",
+          "updatedAt"
+        )
+        VALUES (gen_random_uuid(), $1, 'credential', $2, $3, now(), now())
+      `,
+      [betterAuthUserId, betterAuthUserId, passwordHash],
     );
 
     const roleId = roleIdsByCode.get(user.roleCode);
