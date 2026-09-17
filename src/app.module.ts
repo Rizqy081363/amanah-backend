@@ -1,5 +1,6 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
 // Feature modules
 import { AuthModule } from './auth/auth.module';
 import authConfig from './auth/config/auth.config';
@@ -48,4 +49,9 @@ import { SupportTicketsModule } from './modules/support-tickets/support-tickets.
     SupportTicketsModule,
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(CorrelationIdMiddleware).forRoutes('*');
+  }
+}
+

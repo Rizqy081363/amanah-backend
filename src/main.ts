@@ -13,6 +13,7 @@ import { useContainer } from 'class-validator';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { AllConfigType } from './config/config.type';
+import { ProblemDetailsFilter } from './common/filters/problem-details.filter';
 import { ResolvePromisesInterceptor } from './utils/serializer.interceptor';
 import validationOptions from './utils/validation-options';
 
@@ -52,6 +53,7 @@ async function bootstrap() {
     type: VersioningType.URI,
   });
   app.useGlobalPipes(new ValidationPipe(validationOptions));
+  app.useGlobalFilters(new ProblemDetailsFilter());
   app.useGlobalInterceptors(
     // ResolvePromisesInterceptor is used to resolve promises in responses because class-transformer can't do it
     // https://github.com/typestack/class-transformer/issues/549
