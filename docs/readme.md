@@ -24,6 +24,12 @@ For end-to-end verification and automation scripts, refer to:
 
 ---
 
+## Feature Delivery & Delegation
+
+- **[Frontend Delegation Workflow](frontend-delegation.md)** — Required backend-to-frontend handoff structure for UI requirements, API contracts, auth, error semantics, and acceptance criteria.
+
+---
+
 ## Legacy Architectural Reference Documentation
 
 The following guides from the original project structure are preserved as architectural references:

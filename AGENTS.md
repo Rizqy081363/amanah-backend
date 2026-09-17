@@ -1108,3 +1108,807 @@ Example:
 Report the actual commands executed and their results.
 
 Never claim a command passed if it was not actually executed.
+
+---
+
+# AGENTS.md — Feature Specification & Delegation Workflow
+
+## Purpose
+
+This document defines the workflow that agents MUST follow before implementing or delegating a feature to Frontend or Backend engineering work.
+
+The primary objective is to prevent:
+
+* implementation based on assumptions
+* duplicated business logic
+* frontend/backend contract mismatch
+* undocumented architectural decisions
+* undocumented API behavior
+* scope creep
+* hallucinated requirements
+* implementation that does not respect the existing repository architecture
+
+The repository itself is the primary source of truth.
+
+**Read first. Implement second.**
+
+---
+
+# 1. Core Principle
+
+Never begin implementation immediately after receiving a feature request.
+
+First determine:
+
+1. What is being requested?
+2. What already exists?
+3. Which architectural boundaries are affected?
+4. What are the business rules?
+5. What data is required?
+6. What API contract is required?
+7. What does the frontend need?
+8. What does the backend need?
+9. How will the result be verified?
+10. What is explicitly out of scope?
+
+Do not invent missing information.
+
+If important information cannot be established from the repository, existing documentation, design files, or the user's explicit requirements, mark it as **UNKNOWN** and ask for clarification when necessary.
+
+---
+
+# 2. Repository Exploration Comes First
+
+Before proposing or implementing changes, inspect the repository.
+
+Prioritize reading over reasoning.
+
+Inspect at minimum:
+
+* repository structure
+* existing architecture
+* package/module boundaries
+* existing feature implementations
+* configuration
+* constants
+* environment handling
+* database layer
+* API layer
+* authentication/authorization
+* validation
+* error handling
+* existing documentation
+* OpenAPI/Swagger definitions
+* frontend integration patterns
+* testing conventions
+
+Do not assume that a common framework convention is being used.
+
+The existing repository architecture takes precedence over generic framework conventions.
+
+---
+
+# 3. Establish the Feature Specification
+
+Before implementation, create or update the relevant feature specification under:
+
+```text
+docs/features/
+```
+
+Example:
+
+```text
+docs/features/doctor-schedule.md
+```
+
+The specification should contain:
+
+```markdown
+# Feature Name
+
+## Goal
+
+What problem does this feature solve?
+
+## Actors
+
+Who can use this feature?
+
+## User Flow
+
+Describe the expected flow.
+
+## Functional Requirements
+
+List the required behavior.
+
+## Business Rules
+
+Describe rules that must be enforced.
+
+## Data Requirements
+
+Describe required entities, fields, relationships, and states.
+
+## API Requirements
+
+Describe required endpoints and contracts.
+
+## UI Requirements
+
+Describe required frontend behavior.
+
+## Error States
+
+Describe expected failure conditions.
+
+## Acceptance Criteria
+
+Define objectively verifiable outcomes.
+
+## Out of Scope
+
+Explicitly describe what this feature does NOT include.
+```
+
+Do not create requirements that were not established by evidence.
+
+---
+
+# 4. Separate Responsibilities
+
+Every feature must clearly distinguish ownership.
+
+Use the following model:
+
+```text
+Frontend owns:
+- presentation
+- UI state
+- user interaction
+- client-side form behavior
+- API integration
+- loading/error/empty states
+
+Backend owns:
+- business rules
+- authorization
+- validation
+- persistence
+- transactional behavior
+- domain logic
+- API behavior
+
+Shared contract:
+- request schema
+- response schema
+- HTTP semantics
+- error semantics
+- enum values
+- authentication requirements
+```
+
+Do not move business rules into the frontend merely because they are convenient to implement there.
+
+Do not move presentation concerns into the backend.
+
+---
+
+# 5. Define Business Rules Before Code
+
+Business rules must be identified before implementation.
+
+For example:
+
+```text
+A doctor cannot have overlapping schedules.
+
+A schedule cannot be created without a valid doctor.
+
+Only authorized administrators can modify schedules.
+
+A schedule marked as leave cannot accept bookings.
+```
+
+Only document rules that are actually established.
+
+If a rule is unclear:
+
+```text
+UNKNOWN — clarification required.
+```
+
+Do not silently invent behavior.
+
+---
+
+# 6. Define the Data Contract
+
+Before implementation, identify:
+
+* entities
+* fields
+* field types
+* required/optional fields
+* relationships
+* enums
+* nullable fields
+* identifiers
+* state transitions
+
+Example:
+
+```text
+DoctorSchedule
+
+id
+doctorId
+date
+startTime
+endTime
+roomId
+capacity
+status
+createdAt
+updatedAt
+```
+
+Do not introduce a new entity when an existing entity already represents the same concept.
+
+Search the repository first.
+
+---
+
+# 7. Define the API Contract
+
+Frontend and backend must share an explicit API contract.
+
+The contract should define:
+
+* HTTP method
+* endpoint
+* authentication
+* authorization
+* path parameters
+* query parameters
+* request body
+* response body
+* status codes
+* validation errors
+* business errors
+* pagination
+* filtering
+* sorting
+* enums
+
+Example:
+
+```http
+GET /api/v1/doctors/{doctorId}/schedules
+```
+
+Example response:
+
+```json
+{
+  "data": [
+    {
+      "id": "sch_123",
+      "doctorId": "doc_001",
+      "date": "2026-09-20",
+      "startTime": "09:00",
+      "endTime": "13:00",
+      "status": "AVAILABLE"
+    }
+  ]
+}
+```
+
+The actual repository conventions MUST be inspected before defining a new contract.
+
+Do not invent endpoint naming conventions if an established convention already exists.
+
+---
+
+# 8. Swagger / OpenAPI Synchronization
+
+If the project uses Swagger/OpenAPI:
+
+**OpenAPI documentation MUST remain synchronized with the actual implementation.**
+
+Before modifying API documentation:
+
+1. inspect the actual controller
+2. inspect DTOs
+3. inspect validation
+4. inspect response types
+5. inspect authentication/authorization
+6. inspect service behavior
+7. compare against existing Swagger definitions
+
+Swagger must describe reality.
+
+Never modify Swagger based on assumptions.
+
+Never use Swagger as evidence that an endpoint behaves a certain way if the implementation contradicts it.
+
+If implementation and Swagger disagree:
+
+```text
+Implementation
+      ↓
+Reality check
+      ↓
+Determine intended contract
+      ↓
+Synchronize Swagger
+```
+
+If the intended behavior cannot be established, flag the discrepancy instead of guessing.
+
+---
+
+# 9. UI Specification
+
+When a feature requires frontend work, document the UI requirements.
+
+At minimum define:
+
+```text
+Screen
+Components
+User interactions
+Loading state
+Empty state
+Error state
+Validation state
+Success state
+Disabled state
+Permission-dependent state
+```
+
+If a Figma design or screenshot exists, treat it as visual reference.
+
+Do not invent UI elements that are not present in the source material unless the requirement explicitly calls for them.
+
+---
+
+# 10. Acceptance Criteria
+
+Every feature MUST have acceptance criteria.
+
+Acceptance criteria must be objectively testable.
+
+Prefer:
+
+```text
+Given an authenticated administrator
+
+When the administrator updates a doctor's schedule
+
+Then the backend persists the new schedule
+
+And the API returns the updated schedule
+```
+
+over vague statements such as:
+
+```text
+The schedule should work correctly.
+```
+
+Acceptance criteria should cover:
+
+* happy path
+* validation
+* authorization
+* error handling
+* empty states where applicable
+* edge cases
+* integration behavior
+
+---
+
+# 11. Define Out of Scope
+
+Every non-trivial feature should explicitly define what is excluded.
+
+Example:
+
+```markdown
+## Out of Scope
+
+- WhatsApp notifications
+- automatic schedule generation
+- payroll integration
+- doctor mobile application
+- appointment billing
+```
+
+Do not implement out-of-scope functionality unless the user explicitly expands the requirement.
+
+---
+
+# 12. Technical Design
+
+For changes that affect architecture, create or update technical documentation under:
+
+```text
+docs/architecture/
+```
+
+Document:
+
+* affected modules
+* dependencies
+* data flow
+* integration points
+* architectural constraints
+* migration requirements
+* infrastructure impact
+
+For significant architectural decisions, create an ADR:
+
+```text
+docs/decisions/
+```
+
+Example:
+
+```text
+docs/decisions/ADR-001-schedule-domain.md
+```
+
+An ADR should explain:
+
+```text
+Context
+Decision
+Alternatives considered
+Consequences
+```
+
+Do not create an ADR for trivial implementation details.
+
+---
+
+# 13. Delegation Readiness Checklist
+
+A feature is ready to be delegated when the following are sufficiently defined:
+
+```text
+[ ] Goal is clear
+[ ] Actors are identified
+[ ] User flow is defined
+[ ] Functional requirements are defined
+[ ] Business rules are defined
+[ ] Data requirements are defined
+[ ] API contract is defined
+[ ] UI requirements are defined when applicable
+[ ] Error behavior is defined
+[ ] Acceptance criteria are defined
+[ ] Out-of-scope items are defined
+[ ] Existing architecture has been inspected
+[ ] Existing implementation has been inspected
+[ ] Relevant constants/configuration have been identified
+[ ] Swagger/OpenAPI impact is identified
+[ ] Database impact is identified
+[ ] Authentication/authorization impact is identified
+```
+
+Not every checkbox must produce a separate document.
+
+The goal is **clarity**, not documentation volume.
+
+---
+
+# 14. Frontend Delegation
+
+When delegating to Frontend Engineering, provide:
+
+```text
+Feature specification
++
+UI/UX design
++
+User flow
++
+API contract
++
+Authentication requirements
++
+Error semantics
++
+Acceptance criteria
+```
+
+Frontend engineers should NOT need to reverse-engineer backend behavior from source code when a stable API contract can be provided.
+
+Frontend implementation must follow the agreed API contract.
+
+If the contract is insufficient, stop and resolve the contract rather than inventing request/response behavior.
+
+---
+
+# 15. Backend Delegation
+
+When delegating to Backend Engineering, provide:
+
+```text
+Feature specification
++
+Business rules
++
+Data requirements
++
+API requirements
++
+Authorization requirements
++
+Acceptance criteria
+```
+
+Backend engineers should determine the implementation details according to the existing architecture.
+
+Do not prescribe implementation details unnecessarily.
+
+For example, prefer:
+
+```text
+The system must prevent overlapping schedules.
+```
+
+over:
+
+```text
+Create ScheduleValidationService.ts and put overlap validation there.
+```
+
+The first defines the requirement.
+
+The second prematurely dictates implementation.
+
+---
+
+# 16. Parallel Frontend and Backend Work
+
+Frontend and Backend may work in parallel only after the shared contract is sufficiently stable.
+
+Recommended flow:
+
+```text
+Feature Specification
+        ↓
+Business Rules
+        ↓
+API Contract
+        ↓
+   ┌────┴────┐
+   ↓         ↓
+Backend   Frontend
+   ↓         ↓
+   └────┬────┘
+        ↓
+Integration
+        ↓
+Acceptance Testing
+```
+
+Do not allow frontend and backend engineers to independently invent their own contract.
+
+---
+
+# 17. Change Management
+
+When requirements change:
+
+1. update the feature specification
+2. update business rules
+3. update data requirements if necessary
+4. update API contract if necessary
+5. update Swagger/OpenAPI
+6. update frontend requirements
+7. update acceptance criteria
+8. identify affected implementation
+
+Do not modify implementation alone while leaving the specification and contract stale.
+
+Documentation and implementation must remain synchronized.
+
+---
+
+# 18. Existing Architecture Has Priority
+
+Before introducing:
+
+* new modules
+* new services
+* new utilities
+* new constants
+* new configuration
+* new database patterns
+* new API patterns
+* new error handling
+* new authentication mechanisms
+
+search for an existing equivalent.
+
+If one exists, reuse it unless there is an established reason not to.
+
+Avoid:
+
+```text
+duplicate constant
+duplicate config
+duplicate utility
+duplicate service
+duplicate API pattern
+duplicate validation
+duplicate error format
+```
+
+The agent MUST respect the existing architecture.
+
+---
+
+# 19. No Hallucination Policy
+
+The agent MUST NOT fabricate:
+
+* endpoints
+* database fields
+* DTO properties
+* business rules
+* configuration values
+* environment variables
+* modules
+* services
+* existing functionality
+* API responses
+* authentication behavior
+* frontend components
+
+When something cannot be established:
+
+```text
+UNKNOWN
+```
+
+Then either:
+
+1. inspect more of the repository,
+2. inspect the relevant documentation,
+3. inspect related implementations,
+4. ask the user for clarification.
+
+Never convert uncertainty into an implementation assumption.
+
+---
+
+# 20. Definition of Ready
+
+A feature is **Ready for Implementation** when:
+
+```text
+Requirement is understood
+AND
+Architecture impact is understood
+AND
+Business rules are understood
+AND
+Data requirements are understood
+AND
+API contract is understood
+AND
+UI requirements are understood when applicable
+AND
+Acceptance criteria are testable
+AND
+Scope boundaries are clear
+```
+
+If these conditions are not satisfied, continue exploration or request clarification.
+
+---
+
+# 21. Definition of Done
+
+A feature is **Done** only when:
+
+```text
+Implementation completed
+AND
+Tests completed where applicable
+AND
+API contract matches implementation
+AND
+Swagger/OpenAPI is synchronized
+AND
+Frontend integration works where applicable
+AND
+Acceptance criteria pass
+AND
+No known architectural violation was introduced
+AND
+Relevant documentation is updated
+```
+
+A feature is not considered complete merely because the code compiles.
+
+---
+
+# 22. Agent Execution Protocol
+
+For every non-trivial feature, follow this sequence:
+
+```text
+PHASE 1 — EXPLORE
+Read repository and existing implementation.
+
+PHASE 2 — UNDERSTAND
+Identify architecture, domain, dependencies, and constraints.
+
+PHASE 3 — SPECIFY
+Create or update the feature specification.
+
+PHASE 4 — CONTRACT
+Define or verify the API/data contract.
+
+PHASE 5 — PLAN
+Identify affected modules and implementation boundaries.
+
+PHASE 6 — IMPLEMENT
+Implement according to the repository architecture.
+
+PHASE 7 — SYNCHRONIZE
+Update API documentation, Swagger/OpenAPI, and relevant docs.
+
+PHASE 8 — VERIFY
+Run tests, validation, linting, type checking, and relevant integration checks.
+
+PHASE 9 — ACCEPT
+Verify every acceptance criterion.
+
+PHASE 10 — REPORT
+Summarize:
+- what changed
+- why it changed
+- files affected
+- contracts changed
+- documentation changed
+- verification performed
+- unresolved issues
+```
+
+---
+
+# 23. Final Principle
+
+The goal is not to produce more documentation.
+
+The goal is to eliminate ambiguity before implementation.
+
+Use this hierarchy:
+
+```text
+Requirements
+    ↓
+Business Rules
+    ↓
+Architecture
+    ↓
+Data Contract
+    ↓
+API Contract
+    ↓
+UI Contract
+    ↓
+Implementation
+    ↓
+Verification
+```
+
+**Do not let implementation become the place where requirements are discovered accidentally.**
+
+**Read first. Establish the contract. Then implement.**
