@@ -27,14 +27,14 @@ export class UserMapper {
   }
 
   static toPersistence(domainEntity: User): UserEntity {
-    let role: RoleEntity | undefined = undefined;
+    let role: RoleEntity | undefined;
 
     if (domainEntity.role) {
       role = new RoleEntity();
       role.id = Number(domainEntity.role.id);
     }
 
-    let photo: FileEntity | undefined | null = undefined;
+    let photo: FileEntity | undefined | null;
 
     if (domainEntity.photo) {
       photo = new FileEntity();
@@ -44,7 +44,7 @@ export class UserMapper {
       photo = null;
     }
 
-    let status: StatusEntity | undefined = undefined;
+    let status: StatusEntity | undefined;
 
     if (domainEntity.status) {
       status = new StatusEntity();

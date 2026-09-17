@@ -1,0 +1,588 @@
+erDiagram
+  USERS {
+    uuid id PK
+    citext email UK
+    text phone UK
+    text name
+    user_status status
+    boolean email_verified
+    boolean phone_verified
+    boolean two_factor_enabled
+  }
+
+  USER_DEVICES {
+    uuid id PK
+    uuid user_id FK
+    device_platform platform
+    text device_identifier_hash
+    text push_token_hash
+    boolean biometric_enabled
+    timestamptz revoked_at
+  }
+
+  AUTH_SESSIONS {
+    uuid id PK
+    uuid user_id FK
+    uuid device_id FK
+    text token_hash UK
+    timestamptz expires_at
+    timestamptz revoked_at
+  }
+
+  AUTH_ACCOUNTS {
+    uuid id PK
+    uuid user_id FK
+    text provider_id
+    text account_id
+    text password_hash
+  }
+
+  AUTH_VERIFICATIONS {
+    uuid id PK
+    text identifier_hash
+    text value_hash
+    auth_verification_purpose purpose
+    timestamptz expires_at
+    timestamptz consumed_at
+  }
+
+  AUTH_TWO_FACTORS {
+    uuid id PK
+    uuid user_id FK
+    text secret_encrypted
+    text backup_codes_encrypted
+    boolean verified
+  }
+
+  ROLES {
+    uuid id PK
+    text code UK
+    text name
+    boolean is_system
+  }
+
+  PERMISSIONS {
+    uuid id PK
+    text code UK
+    text description
+  }
+
+  ROLE_PERMISSIONS {
+    uuid role_id "PK, FK"
+    uuid permission_id "PK, FK"
+  }
+
+  USER_ROLES {
+    uuid id PK
+    uuid user_id FK
+    uuid role_id FK
+    uuid assigned_by FK
+    timestamptz revoked_at
+  }
+
+  CLINIC_PROFILES {
+    uuid id PK
+    text name
+    text short_name
+    citext email
+    text address
+  }
+
+  CLINIC_UNITS {
+    uuid id PK
+    text code UK
+    text name
+    clinic_unit_type unit_type
+    boolean is_active
+  }
+
+  SERVICE_CATEGORIES {
+    uuid id PK
+    text code UK
+    text name
+    boolean is_active
+  }
+
+  MEDICAL_SPECIALTIES {
+    uuid id PK
+    text code UK
+    text name
+  }
+
+  CLINIC_ROOMS {
+    uuid id PK
+    uuid unit_id FK
+    text code UK
+    text name
+    boolean is_active
+  }
+
+  CLINIC_SERVICES {
+    uuid id PK
+    uuid service_category_id FK
+    uuid specialty_id FK
+    text code UK
+    text name
+    text code_prefix
+    medical_flow_type medical_flow
+  }
+
+  CLINIC_SERVICE_COMPLAINTS {
+    uuid id PK
+    uuid service_id FK
+    text complaint_text
+  }
+
+  PATIENT_PROFILES {
+    uuid id PK
+    uuid user_id FK
+    text medical_record_number UK
+    text full_name
+    text national_id_hash UK
+    date birth_date
+    gender gender
+    patient_status status
+  }
+
+  PATIENT_ADDRESSES {
+    uuid id PK
+    uuid patient_id FK
+    address_type type
+    text province_code
+    text regency_code
+    text full_address
+    boolean is_primary
+  }
+
+  PATIENT_EMERGENCY_CONTACTS {
+    uuid id PK
+    uuid patient_id FK
+    text name
+    text relationship
+    text phone
+  }
+
+  PATIENT_ALLERGIES {
+    uuid id PK
+    uuid patient_id FK
+    text substance
+    text reaction
+    uuid recorded_by FK
+  }
+
+  STAFF_PROFILES {
+    uuid id PK
+    uuid user_id FK
+    uuid primary_unit_id FK
+    text staff_code UK
+    text full_name
+    staff_type staff_type
+    staff_status status
+    text position_title
+  }
+
+  PRACTITIONERS {
+    uuid id PK
+    uuid staff_profile_id FK
+    uuid specialty_id FK
+    uuid default_room_id FK
+    text display_name
+    text license_number UK
+  }
+
+  STAFF_CREDENTIALS {
+    uuid id PK
+    uuid staff_profile_id FK
+    staff_credential_type credential_type
+    text credential_number_hash UK
+    staff_credential_status status
+  }
+
+  PRACTITIONER_AVAILABILITY {
+    uuid id PK
+    uuid practitioner_id FK
+    smallint day_of_week
+    time start_time
+    time end_time
+    integer capacity
+  }
+
+  PRACTITIONER_SCHEDULE_DAY_SETTINGS {
+    uuid id PK
+    uuid practitioner_id FK
+    date schedule_date
+    integer target_quota
+    boolean is_leave
+  }
+
+  STAFF_LEAVE_REQUESTS {
+    uuid id PK
+    uuid staff_profile_id FK
+    uuid practitioner_id FK
+    staff_leave_request_type request_type
+    date start_date
+    date end_date
+    staff_leave_request_status status
+    uuid substitute_practitioner_id FK
+    uuid reviewed_by FK
+  }
+
+  PRACTITIONER_LEAVE_PERIODS {
+    uuid id PK
+    uuid practitioner_id FK
+    uuid leave_request_id FK
+    date start_date
+    date end_date
+    text reason
+  }
+
+  PRACTITIONER_SCHEDULE_SESSIONS {
+    uuid id PK
+    uuid practitioner_id FK
+    uuid day_setting_id FK
+    uuid service_id FK
+    uuid room_id FK
+    date schedule_date
+    staff_shift session_shift
+    time start_time
+    time end_time
+    schedule_status status
+  }
+
+  APPOINTMENTS {
+    uuid id PK
+    text booking_code UK
+    uuid patient_id FK
+    uuid practitioner_id FK
+    uuid schedule_session_id FK
+    uuid service_id FK
+    uuid room_id FK
+    appointment_status status
+    date scheduled_date
+    time scheduled_start_time
+  }
+
+  APPOINTMENT_STATUS_EVENTS {
+    uuid id PK
+    uuid appointment_id FK
+    appointment_status previous_status
+    appointment_status new_status
+    uuid changed_by FK
+  }
+
+  QUEUE_TICKETS {
+    uuid id PK
+    uuid appointment_id FK
+    uuid service_id FK
+    uuid room_id FK
+    date queue_date
+    text queue_number
+    queue_priority priority
+    queue_status status
+  }
+
+  MEDICAL_INTAKE_SUBMISSIONS {
+    uuid id PK
+    uuid appointment_id FK
+    uuid patient_id FK
+    medical_flow_type flow
+    jsonb answers
+    jsonb automatic
+    uuid submitted_by FK
+  }
+
+  CLINICAL_ENCOUNTERS {
+    uuid id PK
+    uuid appointment_id FK
+    uuid patient_id FK
+    uuid practitioner_id FK
+    uuid service_id FK
+    uuid source_intake_id FK
+    encounter_status status
+    date encounter_date
+  }
+
+  ATTENDANCE_QR_SESSIONS {
+    uuid id PK
+    text code_hash UK
+    attendance_qr_session_type session_type
+    uuid staff_profile_id FK
+    uuid room_id FK
+    uuid unit_id FK
+    staff_shift shift
+    text manual_pin_hash
+    timestamptz valid_from
+    timestamptz valid_until
+    uuid created_by FK
+  }
+
+  STAFF_ATTENDANCE_RECORDS {
+    uuid id PK
+    uuid staff_profile_id FK
+    uuid qr_session_id FK
+    uuid leave_request_id FK
+    uuid unit_id FK
+    uuid room_id FK
+    uuid device_id FK
+    date attendance_date
+    staff_shift shift
+    attendance_status status
+    attendance_method recorded_method
+    integer late_minutes
+  }
+
+  NOTIFICATIONS {
+    uuid id PK
+    notification_category category
+    text title
+    text body
+    boolean is_urgent
+    text visual_key
+    uuid created_by FK
+  }
+
+  NOTIFICATION_ACTIONS {
+    uuid id PK
+    uuid notification_id FK
+    text label
+    text action_key
+    notification_action_type action_type
+  }
+
+  NOTIFICATION_RECIPIENTS {
+    uuid id PK
+    uuid notification_id FK
+    uuid user_id FK
+    timestamptz delivered_at
+    timestamptz read_at
+    timestamptz dismissed_at
+  }
+
+  CONVERSATIONS {
+    uuid id PK
+    uuid patient_id FK
+    uuid assigned_practitioner_id FK
+    uuid assigned_staff_id FK
+    appointment_status current_patient_status
+    timestamptz last_message_at
+  }
+
+  CONVERSATION_PARTICIPANTS {
+    uuid id PK
+    uuid conversation_id FK
+    uuid user_id FK
+    conversation_participant_role role
+    timestamptz last_read_at
+  }
+
+  MESSAGES {
+    uuid id PK
+    uuid conversation_id FK
+    uuid sender_user_id FK
+    message_sender_type sender_type
+    message_type type
+    text body
+  }
+
+  FILES {
+    uuid id PK
+    text storage_key UK
+    text original_name
+    text mime_type
+    bigint byte_size
+    uuid uploaded_by FK
+  }
+
+  MESSAGE_ATTACHMENTS {
+    uuid message_id "PK, FK"
+    uuid file_id "PK, FK"
+  }
+
+  SUPPORT_FAQS {
+    uuid id PK
+    text category
+    text title
+    text_array solution_steps
+    boolean is_published
+  }
+
+  SUPPORT_TICKETS {
+    uuid id PK
+    text ticket_number UK
+    uuid reporter_user_id FK
+    uuid assigned_staff_id FK
+    text title
+    support_ticket_status status
+    support_ticket_priority priority
+  }
+
+  SUPPORT_TICKET_MESSAGES {
+    uuid id PK
+    uuid ticket_id FK
+    uuid sender_user_id FK
+    support_ticket_sender_type sender_type
+    text body
+  }
+
+  SUPPORT_TICKET_ATTACHMENTS {
+    uuid message_id "PK, FK"
+    uuid file_id "PK, FK"
+  }
+
+  USER_DATA_EXPORT_JOBS {
+    uuid id PK
+    uuid requested_by FK
+    data_export_type export_type
+    data_export_status status
+    uuid file_id FK
+    jsonb parameters
+  }
+
+  PATIENT_TIMELINE_EVENTS {
+    uuid id PK
+    uuid patient_id FK
+    uuid conversation_id FK
+    uuid appointment_id FK
+    text event_type
+    text title
+    timestamptz event_at
+  }
+
+  CLINIC_FACILITIES {
+    uuid id PK
+    text slug UK
+    text title
+    boolean is_published
+  }
+
+  PUBLIC_TESTIMONIALS {
+    uuid id PK
+    uuid patient_id FK
+    text author_name
+    text quote
+    boolean is_published
+  }
+
+  PUBLIC_REVIEWS {
+    uuid id PK
+    review_source source
+    text source_review_id
+    text author_name
+    numeric rating
+    boolean is_published
+  }
+
+  AUDIT_LOGS {
+    uuid id PK
+    uuid actor_user_id FK
+    text action
+    text entity_table
+    uuid entity_id
+    jsonb old_values
+    jsonb new_values
+  }
+
+  USERS ||--o{ AUTH_SESSIONS : has
+  USERS ||--o{ USER_DEVICES : trusts
+  USER_DEVICES ||--o{ AUTH_SESSIONS : scopes
+  USERS ||--o{ AUTH_ACCOUNTS : has
+  USERS ||--o| AUTH_TWO_FACTORS : secures
+  USERS ||--o{ USER_ROLES : receives
+  USERS ||--o{ USER_ROLES : assigns
+  ROLES ||--o{ USER_ROLES : grants
+  ROLES ||--o{ ROLE_PERMISSIONS : contains
+  PERMISSIONS ||--o{ ROLE_PERMISSIONS : included_in
+
+  USERS ||--o| PATIENT_PROFILES : authenticates
+  USERS ||--o| STAFF_PROFILES : authenticates
+  USERS ||--o{ PATIENT_ALLERGIES : records
+  USERS ||--o{ STAFF_CREDENTIALS : verifies
+  USERS ||--o{ PRACTITIONER_SCHEDULE_DAY_SETTINGS : creates
+  USERS ||--o{ STAFF_LEAVE_REQUESTS : reviews
+  USERS ||--o{ APPOINTMENT_STATUS_EVENTS : changes
+  USERS ||--o{ MEDICAL_INTAKE_SUBMISSIONS : submits
+  USERS ||--o{ ATTENDANCE_QR_SESSIONS : creates
+  USERS ||--o{ STAFF_ATTENDANCE_RECORDS : records
+  USERS ||--o{ NOTIFICATIONS : creates
+  USERS ||--o{ NOTIFICATION_RECIPIENTS : receives
+  USERS ||--o{ CONVERSATION_PARTICIPANTS : participates
+  USERS ||--o{ MESSAGES : sends
+  USERS ||--o{ FILES : uploads
+  USERS ||--o{ SUPPORT_TICKETS : reports
+  USERS ||--o{ SUPPORT_TICKET_MESSAGES : sends
+  USERS ||--o{ USER_DATA_EXPORT_JOBS : requests
+  USERS ||--o{ AUDIT_LOGS : acts
+
+  CLINIC_UNITS ||--o{ CLINIC_ROOMS : contains
+  CLINIC_UNITS ||--o{ STAFF_PROFILES : assigns
+  CLINIC_UNITS ||--o{ ATTENDANCE_QR_SESSIONS : locates
+  CLINIC_UNITS ||--o{ STAFF_ATTENDANCE_RECORDS : filters
+  SERVICE_CATEGORIES ||--o{ CLINIC_SERVICES : groups
+  MEDICAL_SPECIALTIES ||--o{ CLINIC_SERVICES : classifies
+  MEDICAL_SPECIALTIES ||--o{ PRACTITIONERS : classifies
+  CLINIC_SERVICES ||--o{ CLINIC_SERVICE_COMPLAINTS : suggests
+
+  PATIENT_PROFILES ||--o{ PATIENT_ADDRESSES : has
+  PATIENT_PROFILES ||--o{ PATIENT_EMERGENCY_CONTACTS : has
+  PATIENT_PROFILES ||--o{ PATIENT_ALLERGIES : has
+  PATIENT_PROFILES ||--o{ APPOINTMENTS : books
+  PATIENT_PROFILES ||--o{ MEDICAL_INTAKE_SUBMISSIONS : submits
+  PATIENT_PROFILES ||--o{ CLINICAL_ENCOUNTERS : has
+  PATIENT_PROFILES ||--o{ CONVERSATIONS : has
+  PATIENT_PROFILES ||--o{ PATIENT_TIMELINE_EVENTS : has
+  PATIENT_PROFILES ||--o{ PUBLIC_TESTIMONIALS : may_publish
+
+  STAFF_PROFILES ||--o| PRACTITIONERS : may_be
+  STAFF_PROFILES ||--o{ STAFF_CREDENTIALS : holds
+  STAFF_PROFILES ||--o{ STAFF_LEAVE_REQUESTS : requests
+  STAFF_PROFILES ||--o{ ATTENDANCE_QR_SESSIONS : owns
+  STAFF_PROFILES ||--o{ STAFF_ATTENDANCE_RECORDS : attends
+  STAFF_PROFILES ||--o{ CONVERSATIONS : assigned
+  STAFF_PROFILES ||--o{ SUPPORT_TICKETS : assigned
+  PRACTITIONERS ||--o{ PRACTITIONER_AVAILABILITY : has
+  PRACTITIONERS ||--o{ PRACTITIONER_SCHEDULE_DAY_SETTINGS : configures
+  PRACTITIONERS ||--o{ STAFF_LEAVE_REQUESTS : requests_as
+  PRACTITIONERS ||--o{ STAFF_LEAVE_REQUESTS : substitutes
+  PRACTITIONERS ||--o{ PRACTITIONER_LEAVE_PERIODS : takes
+  PRACTITIONERS ||--o{ PRACTITIONER_SCHEDULE_SESSIONS : has
+  PRACTITIONERS ||--o{ APPOINTMENTS : attends
+  PRACTITIONERS ||--o{ CLINICAL_ENCOUNTERS : documents
+  PRACTITIONERS ||--o{ CONVERSATIONS : assigned
+
+  CLINIC_ROOMS ||--o{ PRACTITIONERS : defaults
+  CLINIC_ROOMS ||--o{ PRACTITIONER_SCHEDULE_SESSIONS : hosts
+  CLINIC_ROOMS ||--o{ APPOINTMENTS : hosts
+  CLINIC_ROOMS ||--o{ QUEUE_TICKETS : routes
+  CLINIC_ROOMS ||--o{ ATTENDANCE_QR_SESSIONS : locates
+  CLINIC_ROOMS ||--o{ STAFF_ATTENDANCE_RECORDS : records
+  PRACTITIONER_SCHEDULE_DAY_SETTINGS ||--o{ PRACTITIONER_SCHEDULE_SESSIONS : groups
+  CLINIC_SERVICES ||--o{ PRACTITIONER_SCHEDULE_SESSIONS : offers
+  CLINIC_SERVICES ||--o{ APPOINTMENTS : requested_for
+  CLINIC_SERVICES ||--o{ QUEUE_TICKETS : numbers
+  CLINIC_SERVICES ||--o{ CLINICAL_ENCOUNTERS : served_by
+  STAFF_LEAVE_REQUESTS ||--o| PRACTITIONER_LEAVE_PERIODS : creates
+
+  APPOINTMENTS ||--o{ APPOINTMENT_STATUS_EVENTS : tracks
+  APPOINTMENTS ||--o| QUEUE_TICKETS : issues
+  APPOINTMENTS ||--o{ MEDICAL_INTAKE_SUBMISSIONS : includes
+  APPOINTMENTS ||--o| CLINICAL_ENCOUNTERS : becomes
+  APPOINTMENTS ||--o{ PATIENT_TIMELINE_EVENTS : creates
+  PRACTITIONER_SCHEDULE_SESSIONS ||--o{ APPOINTMENTS : books
+  MEDICAL_INTAKE_SUBMISSIONS ||--o{ CLINICAL_ENCOUNTERS : informs
+
+  ATTENDANCE_QR_SESSIONS ||--o{ STAFF_ATTENDANCE_RECORDS : verifies
+  STAFF_LEAVE_REQUESTS ||--o{ STAFF_ATTENDANCE_RECORDS : explains
+  USER_DEVICES ||--o{ STAFF_ATTENDANCE_RECORDS : submits
+
+  NOTIFICATIONS ||--o{ NOTIFICATION_ACTIONS : has
+  NOTIFICATIONS ||--o{ NOTIFICATION_RECIPIENTS : delivered_to
+
+  CONVERSATIONS ||--o{ CONVERSATION_PARTICIPANTS : has
+  CONVERSATIONS ||--o{ MESSAGES : contains
+  CONVERSATIONS ||--o{ PATIENT_TIMELINE_EVENTS : contributes
+  MESSAGES ||--o{ MESSAGE_ATTACHMENTS : has
+  FILES ||--o{ MESSAGE_ATTACHMENTS : attaches
+  SUPPORT_TICKETS ||--o{ SUPPORT_TICKET_MESSAGES : contains
+  SUPPORT_TICKET_MESSAGES ||--o{ SUPPORT_TICKET_ATTACHMENTS : has
+  FILES ||--o{ SUPPORT_TICKET_ATTACHMENTS : attaches
+  FILES ||--o{ USER_DATA_EXPORT_JOBS : stores

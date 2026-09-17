@@ -1,11 +1,11 @@
-import { Injectable, Inject } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { eq, inArray } from 'drizzle-orm';
-import { FileRepository } from '../../file.repository';
-import { FileType } from '../../../../domain/file';
-import { NullableType } from '../../../../../utils/types/nullable.type';
 import { DRIZZLE_SOURCE } from '../../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../../database/drizzle/drizzle.provider';
 import { files } from '../../../../../database/schema';
+import { NullableType } from '../../../../../utils/types/nullable.type';
+import { FileType } from '../../../../domain/file';
+import { FileRepository } from '../../file.repository';
 import { FileMapper } from '../mappers/file.mapper';
 
 @Injectable()

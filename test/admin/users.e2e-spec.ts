@@ -1,8 +1,8 @@
-import { describe, expect, it, beforeAll } from '@jest/globals';
-import { APP_URL, ADMIN_EMAIL, ADMIN_PASSWORD } from '../utils/constants';
+import { beforeAll, describe, expect, it } from '@jest/globals';
 import request from 'supertest';
 import { RoleEnum } from '../../src/roles/roles.enum';
 import { StatusEnum } from '../../src/statuses/statuses.enum';
+import { ADMIN_EMAIL, ADMIN_PASSWORD, APP_URL } from '../utils/constants';
 
 describe('Users Module', () => {
   const app = APP_URL;

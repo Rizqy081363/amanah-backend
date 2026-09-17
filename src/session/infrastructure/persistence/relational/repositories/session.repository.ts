@@ -1,14 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Not, Repository } from 'typeorm';
-import { SessionEntity } from '../entities/session.entity';
-import { NullableType } from '../../../../../utils/types/nullable.type';
-
-import { SessionRepository } from '../../session.repository';
-import { Session } from '../../../../domain/session';
-
-import { SessionMapper } from '../mappers/session.mapper';
 import { User } from '../../../../../users/domain/user';
+import { NullableType } from '../../../../../utils/types/nullable.type';
+import { Session } from '../../../../domain/session';
+import { SessionRepository } from '../../session.repository';
+import { SessionEntity } from '../entities/session.entity';
+import { SessionMapper } from '../mappers/session.mapper';
 
 @Injectable()
 export class SessionRelationalRepository implements SessionRepository {

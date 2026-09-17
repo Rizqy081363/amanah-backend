@@ -1,4 +1,4 @@
-import { PoliklinikEntity, LayananPoliEntity } from '../entities/clinic.entity';
+import { LayananPoliEntity, PoliklinikEntity } from '../entities/clinic.entity';
 
 export const CLINIC_REPOSITORY = 'CLINIC_REPOSITORY';
 

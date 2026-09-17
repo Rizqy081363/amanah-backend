@@ -1,22 +1,20 @@
+import { S3Client } from '@aws-sdk/client-s3';
 import {
   HttpStatus,
   Module,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import { FilesS3PresignedController } from './files.controller';
-import { MulterModule } from '@nestjs/platform-express';
-import { ConfigModule, ConfigService } from '@nestjs/config';
 import { randomStringGenerator } from '@nestjs/common/utils/random-string-generator.util';
-import { S3Client } from '@aws-sdk/client-s3';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { MulterModule } from '@nestjs/platform-express';
 import multerS3 from 'multer-s3';
-
-import { FilesS3PresignedService } from './files.service';
-
+import { AllConfigType } from '../../../../config/config.type';
+import databaseConfig from '../../../../database/config/database.config';
+import { DatabaseConfig } from '../../../../database/config/database-config.type';
 import { DocumentFilePersistenceModule } from '../../persistence/document/document-persistence.module';
 import { DrizzleFilePersistenceModule } from '../../persistence/drizzle/drizzle-persistence.module';
-import { AllConfigType } from '../../../../config/config.type';
-import { DatabaseConfig } from '../../../../database/config/database-config.type';
-import databaseConfig from '../../../../database/config/database.config';
+import { FilesS3PresignedController } from './files.controller';
+import { FilesS3PresignedService } from './files.service';
 
 // <database-block>
 const infrastructurePersistenceModule = (databaseConfig() as DatabaseConfig)

@@ -1,12 +1,12 @@
-import { Injectable, Inject } from '@nestjs/common';
-import { eq, and, ne, isNull } from 'drizzle-orm';
-import { SessionRepository } from '../../session.repository';
-import { Session } from '../../../../domain/session';
-import { User } from '../../../../../users/domain/user';
-import { NullableType } from '../../../../../utils/types/nullable.type';
+import { Inject, Injectable } from '@nestjs/common';
+import { and, eq, isNull, ne } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../../database/drizzle/drizzle.provider';
 import { sessions } from '../../../../../database/schema';
+import { User } from '../../../../../users/domain/user';
+import { NullableType } from '../../../../../utils/types/nullable.type';
+import { Session } from '../../../../domain/session';
+import { SessionRepository } from '../../session.repository';
 import { SessionMapper } from '../mappers/session.mapper';
 
 @Injectable()

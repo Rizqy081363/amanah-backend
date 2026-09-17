@@ -1,35 +1,49 @@
-import { Global, Module, Provider, Logger } from '@nestjs/common';
+import { Global, Logger, Module, Provider } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
+import { AllConfigType } from '../../config/config.type';
 import { REDIS_CLIENT } from './redis.constants';
 import { RedisService } from './redis.service';
 
 const redisProvider: Provider = {
   provide: REDIS_CLIENT,
   inject: [ConfigService],
-  useFactory: (configService: ConfigService) => {
+  useFactory: async (configService: ConfigService<AllConfigType>) => {
     const logger = new Logger('RedisModule');
-    const host = configService.get<string>('REDIS_HOST') || 'localhost';
-    const port = Number(configService.get<number>('REDIS_PORT')) || 6379;
-    const password = configService.get<string>('REDIS_PASSWORD');
+    const redisUrl = configService.getOrThrow('cache.redisUrl', {
+      infer: true,
+    });
+    const readinessTimeoutMs = configService.getOrThrow(
+      'cache.readinessTimeoutMs',
+      { infer: true },
+    );
+    const maxReconnectAttempts = configService.getOrThrow(
+      'cache.maxReconnectAttempts',
+      { infer: true },
+    );
 
-    const client = new Redis({
-      host,
-      port,
-      ...(password ? { password } : {}),
+    const client = new Redis(redisUrl, {
+      connectTimeout: readinessTimeoutMs,
       lazyConnect: true,
+      maxRetriesPerRequest: 1,
       retryStrategy: (times) => {
-        if (times > 3) {
-          logger.warn('Redis reconnection stopped after 3 attempts.');
+        if (times > maxReconnectAttempts) {
+          logger.error(
+            `Redis reconnection stopped after ${maxReconnectAttempts} attempts.`,
+          );
           return null;
         }
-        return Math.min(times * 100, 2000);
+
+        return Math.min(times * 100, readinessTimeoutMs);
       },
     });
 
-    client.connect().catch((err) => {
-      logger.warn(`Redis connection failed (${err.message}). Caching disabled.`);
+    client.on('error', (error) => {
+      logger.error(`Redis client error: ${error.message}`, error.stack);
     });
+
+    await client.connect();
+    logger.log('Redis connection established.');
 
     return client;
   },

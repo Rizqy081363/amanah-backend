@@ -8,9 +8,9 @@ import {
 } from '@nestjs/common';
 import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { AuthService } from '../auth/auth.service';
+import { LoginResponseDto } from '../auth/dto/login-response.dto';
 import { AuthGoogleService } from './auth-google.service';
 import { AuthGoogleLoginDto } from './dto/auth-google-login.dto';
-import { LoginResponseDto } from '../auth/dto/login-response.dto';
 
 @ApiTags('Auth')
 @Controller({

@@ -2,21 +2,30 @@ services:
   postgres:
     image: postgres:17.9-alpine
     ports:
-      - ${DATABASE_PORT}:5432
+      - ${POSTGRES_HOST_PORT:-5433}:5432
     volumes:
-      - boilerplate-db:/var/lib/postgresql/data
+      - amanah-postgres-data:/var/lib/postgresql/data
     environment:
-      POSTGRES_USER: ${DATABASE_USERNAME}
-      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
-      POSTGRES_DB: ${DATABASE_NAME}
+      POSTGRES_USER: ${DATABASE_USERNAME:-amanah}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-amanah_secret}
+      POSTGRES_DB: ${DATABASE_NAME:-amanah_healthcare}
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${DATABASE_USERNAME:-amanah} -d ${DATABASE_NAME:-amanah_healthcare}",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 12
 
   maildev:
     build:
       context: .
       dockerfile: maildev.Dockerfile
     ports:
-      - ${MAIL_CLIENT_PORT}:1080
-      - ${MAIL_PORT}:1025
+      - ${MAIL_CLIENT_PORT:-1080}:1080
+      - ${MAIL_PORT:-1025}:1025
 
   adminer:
     image: adminer
@@ -26,15 +35,28 @@ services:
 
   redis:
     image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "no", "--save", ""]
     ports:
-      - 6379:6379
+      - ${REDIS_HOST_PORT:-6379}:6379
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
 
   api:
     build:
       context: .
       dockerfile: Dockerfile
+    env_file:
+      - env-example-relational
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     ports:
-      - ${APP_PORT}:${APP_PORT}
+      - ${APP_PORT:-3001}:${APP_PORT:-3001}
 
 volumes:
-  boilerplate-db:
+  amanah-postgres-data:

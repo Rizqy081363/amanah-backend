@@ -1,13 +1,13 @@
-import { Controller, Get, Param, UseGuards, Inject } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { Controller, Get, Inject, Param, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { RolesGuard } from '../../../common/auth/roles.guard';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { CurrentUser } from '../../../common/auth/current-user.decorator';
 import { Roles } from '../../../common/auth/roles.decorator';
+import { RolesGuard } from '../../../common/auth/roles.guard';
 import {
   PATIENT_REPOSITORY,
   PatientRepository,
 } from '../domain/repositories/patient.repository';
-import { CurrentUser } from '../../../common/auth/current-user.decorator';
 
 @ApiTags('Patients (Data Pasien & Rekam Medis)')
 @ApiBearerAuth()
@@ -45,7 +45,9 @@ export class PatientsController {
 
   @Get()
   @Roles('ADMIN', 'STAF')
-  @ApiOperation({ summary: 'Mendapatkan daftar seluruh pasien klinik (Admin & Staf)' })
+  @ApiOperation({
+    summary: 'Mendapatkan daftar seluruh pasien klinik (Admin & Staf)',
+  })
   async getPatients() {
     return this.patientRepo.findMany();
   }

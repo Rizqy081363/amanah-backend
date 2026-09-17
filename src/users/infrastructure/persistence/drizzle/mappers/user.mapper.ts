@@ -1,13 +1,13 @@
-import { User } from '../../../../domain/user';
 import {
-  UserSelect,
   FileSelect,
   RoleSelect,
   StatusSelect,
+  UserSelect,
 } from '../../../../../database/schema';
 import { FileMapper } from '../../../../../files/infrastructure/persistence/drizzle/mappers/file.mapper';
 import { Role } from '../../../../../roles/domain/role';
 import { Status } from '../../../../../statuses/domain/status';
+import { User } from '../../../../domain/user';
 
 export type RawUser = UserSelect & {
   photo?: FileSelect | null;

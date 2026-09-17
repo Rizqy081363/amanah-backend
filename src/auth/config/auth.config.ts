@@ -1,10 +1,9 @@
-import { registerAs } from '@nestjs/config';
-
 import { Logger } from '@nestjs/common';
+import { registerAs } from '@nestjs/config';
 import { IsBooleanString, IsOptional, IsString } from 'class-validator';
+import ms from 'ms';
 import validateConfig from '../../utils/validate-config';
 import { AuthConfig } from './auth-config.type';
-import ms from 'ms';
 
 const PLACEHOLDER_SECRETS = {
   AUTH_JWT_SECRET: 'secret',

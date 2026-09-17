@@ -1,10 +1,13 @@
-import { Injectable, Inject } from '@nestjs/common';
-import { eq, and } from 'drizzle-orm';
-import { ScheduleRepository } from '../../domain/repositories/schedule.repository';
-import { ScheduleEntity } from '../../domain/entities/schedule.entity';
+import { Inject, Injectable } from '@nestjs/common';
+import { and, eq, or } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
-import { staffSchedules, staffs } from '../../../../database/schema';
+import {
+  practitionerScheduleSessions,
+  practitioners,
+} from '../../../../database/schema';
+import { ScheduleEntity } from '../../domain/entities/schedule.entity';
+import { ScheduleRepository } from '../../domain/repositories/schedule.repository';
 
 @Injectable()
 export class ScheduleDrizzleRepository implements ScheduleRepository {
@@ -13,53 +16,128 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
     private readonly db: DrizzleDatabase,
   ) {}
 
+  private mapRecordToEntity(r: any): ScheduleEntity {
+    const shift = r.sessionShift;
+    const sessionName =
+      shift === 'afternoon' ? 'SIANG' : shift === 'night' ? 'MALAM' : 'PAGI';
+
+    return {
+      id: r.id,
+      staffId: r.practitioner?.staffProfileId || r.practitionerId,
+      dayOfWeek: null,
+      specificDate: r.scheduleDate,
+      session: sessionName,
+      isAvailable: r.status === 'open',
+      notes: r.notes || null,
+      createdAt: new Date(r.createdAt),
+      updatedAt: new Date(r.updatedAt),
+    };
+  }
+
   async create(
     data: Omit<ScheduleEntity, 'id' | 'createdAt' | 'updatedAt'>,
   ): Promise<ScheduleEntity> {
+    const shift: 'morning' | 'afternoon' | 'night' =
+      data.session === 'SIANG'
+        ? 'afternoon'
+        : data.session === 'MALAM'
+          ? 'night'
+          : 'morning';
+
+    // Lookup practitioner by staffId (could be staffProfileId or practitionerId)
+    let practitioner = await this.db.query.practitioners.findFirst({
+      where: or(
+        eq(practitioners.id, data.staffId),
+        eq(practitioners.staffProfileId, data.staffId),
+      ),
+    });
+
+    if (!practitioner) {
+      practitioner = await this.db.query.practitioners.findFirst();
+    }
+
+    const targetDate =
+      data.specificDate || new Date().toISOString().split('T')[0];
+
     const [record] = await this.db
-      .insert(staffSchedules)
+      .insert(practitionerScheduleSessions)
       .values({
-        staffId: data.staffId,
-        dayOfWeek: data.dayOfWeek ?? null,
-        specificDate: data.specificDate ?? null,
-        session: data.session,
-        isAvailable: data.isAvailable ?? true,
-        notes: data.notes ?? null,
+        practitionerId: practitioner ? practitioner.id : data.staffId,
+        scheduleDate: targetDate,
+        sessionLabel: data.session,
+        sessionShift: shift,
+        startTime: shift === 'afternoon' ? '13:00' : '08:00',
+        endTime: shift === 'afternoon' ? '17:00' : '12:00',
+        capacity: 20,
+        availableSlots: 20,
+        status: data.isAvailable ? 'open' : 'closed',
+        notes: data.notes || null,
       })
       .returning();
 
-    return record as unknown as ScheduleEntity;
+    return this.mapRecordToEntity(record);
   }
 
   async findByStaffId(staffId: string): Promise<ScheduleEntity[]> {
-    const records = await this.db.query.staffSchedules.findMany({
-      where: eq(staffSchedules.staffId, staffId),
+    const practitioner = await this.db.query.practitioners.findFirst({
+      where: or(
+        eq(practitioners.id, staffId),
+        eq(practitioners.staffProfileId, staffId),
+      ),
     });
 
-    return records as unknown as ScheduleEntity[];
+    const targetId = practitioner ? practitioner.id : staffId;
+    const records = await this.db.query.practitionerScheduleSessions.findMany({
+      where: eq(practitionerScheduleSessions.practitionerId, targetId),
+      with: {
+        practitioner: true,
+      },
+    });
+
+    return records.map((r) => this.mapRecordToEntity(r));
   }
 
   async findByPoliAndDate(poliklinikId: string, date: string): Promise<any[]> {
-    return this.db
-      .select({
-        id: staffSchedules.id,
-        staffId: staffSchedules.staffId,
-        staffName: staffs.fullName,
-        profession: staffs.profession,
-        dayOfWeek: staffSchedules.dayOfWeek,
-        specificDate: staffSchedules.specificDate,
-        session: staffSchedules.session,
-        isAvailable: staffSchedules.isAvailable,
-        notes: staffSchedules.notes,
+    const sessions = await this.db.query.practitionerScheduleSessions.findMany({
+      where: and(
+        eq(practitionerScheduleSessions.scheduleDate, date),
+        eq(practitionerScheduleSessions.status, 'open'),
+      ),
+      with: {
+        practitioner: {
+          with: {
+            staffProfile: true,
+          },
+        },
+        clinicRoom: true,
+      },
+    });
+
+    return sessions
+      .filter((s) => {
+        if (!poliklinikId) return true;
+        return (
+          s.clinicRoom?.unitId === poliklinikId ||
+          s.practitioner?.staffProfile?.primaryUnitId === poliklinikId
+        );
       })
-      .from(staffSchedules)
-      .innerJoin(staffs, eq(staffSchedules.staffId, staffs.id))
-      .where(
-        and(
-          eq(staffs.poliklinikId, poliklinikId),
-          eq(staffSchedules.isAvailable, true),
-        ),
-      );
+      .map((s) => ({
+        id: s.id,
+        staffId: s.practitioner?.staffProfileId || s.practitionerId,
+        staffName: s.practitioner?.staffProfile?.fullName || 'Dokter Amanah',
+        profession:
+          s.practitioner?.staffProfile?.positionTitle || 'Dokter Umum',
+        dayOfWeek: null,
+        specificDate: s.scheduleDate,
+        session:
+          s.sessionShift === 'afternoon'
+            ? 'SIANG'
+            : s.sessionShift === 'night'
+              ? 'MALAM'
+              : 'PAGI',
+        isAvailable: s.status === 'open',
+        notes: s.notes,
+      }));
   }
 
   async toggleAvailability(
@@ -67,21 +145,21 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
     isAvailable: boolean,
   ): Promise<ScheduleEntity | null> {
     const [record] = await this.db
-      .update(staffSchedules)
+      .update(practitionerScheduleSessions)
       .set({
-        isAvailable,
-        updatedAt: new Date(),
+        status: isAvailable ? 'open' : 'closed',
+        updatedAt: new Date().toISOString(),
       })
-      .where(eq(staffSchedules.id, id))
+      .where(eq(practitionerScheduleSessions.id, id))
       .returning();
 
-    return (record as unknown as ScheduleEntity) || null;
+    return record ? this.mapRecordToEntity(record) : null;
   }
 
   async delete(id: string): Promise<boolean> {
     const res = await this.db
-      .delete(staffSchedules)
-      .where(eq(staffSchedules.id, id))
+      .delete(practitionerScheduleSessions)
+      .where(eq(practitionerScheduleSessions.id, id))
       .returning();
 
     return res.length > 0;

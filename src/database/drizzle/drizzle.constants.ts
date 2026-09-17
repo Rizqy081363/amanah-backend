@@ -1,1 +1,2 @@
 export const DRIZZLE_SOURCE = 'DRIZZLE_SOURCE';
+export const POSTGRES_POOL = 'POSTGRES_POOL';

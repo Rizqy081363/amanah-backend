@@ -1,11 +1,11 @@
-import { describe, expect, it, beforeAll } from '@jest/globals';
+import { beforeAll, describe, expect, it } from '@jest/globals';
 import request from 'supertest';
 import {
   APP_URL,
-  TESTER_EMAIL,
-  TESTER_PASSWORD,
   MAIL_HOST,
   MAIL_PORT,
+  TESTER_EMAIL,
+  TESTER_PASSWORD,
 } from '../utils/constants';
 import type { MailMessage } from '../utils/types/mail-message.type';
 
@@ -67,9 +67,9 @@ describe('Auth Module', () => {
                 (letter: MailMessage) =>
                   letter.to[0].address.toLowerCase() ===
                     newUserEmail.toLowerCase() &&
-                  /.*confirm\-email\?hash\=(\S+).*/g.test(letter.text),
+                  /.*confirm-email\?hash=(\S+).*/g.test(letter.text),
               )
-              ?.text.replace(/.*confirm\-email\?hash\=(\S+).*/g, '$1'),
+              ?.text.replace(/.*confirm-email\?hash=(\S+).*/g, '$1'),
           );
 
         return request(app)
@@ -89,9 +89,9 @@ describe('Auth Module', () => {
                 (letter: MailMessage) =>
                   letter.to[0].address.toLowerCase() ===
                     newUserEmail.toLowerCase() &&
-                  /.*confirm\-email\?hash\=(\S+).*/g.test(letter.text),
+                  /.*confirm-email\?hash=(\S+).*/g.test(letter.text),
               )
-              ?.text.replace(/.*confirm\-email\?hash\=(\S+).*/g, '$1'),
+              ?.text.replace(/.*confirm-email\?hash=(\S+).*/g, '$1'),
           );
 
         return request(app)
@@ -150,9 +150,9 @@ describe('Auth Module', () => {
               (letter: MailMessage) =>
                 letter.to[0].address.toLowerCase() ===
                   userEmail.toLowerCase() &&
-                /.*password\-change\?hash\=([^&\s]+).*/g.test(letter.text),
+                /.*password-change\?hash=([^&\s]+).*/g.test(letter.text),
             )
-            ?.text.replace(/.*password\-change\?hash\=([^&\s]+).*/g, '$1'),
+            ?.text.replace(/.*password-change\?hash=([^&\s]+).*/g, '$1'),
         );
 
       await request(app)
@@ -346,10 +346,10 @@ describe('Auth Module', () => {
               return (
                 letter.to[0].address.toLowerCase() ===
                   newUserNewEmail.toLowerCase() &&
-                /.*confirm\-new\-email\?hash\=(\S+).*/g.test(letter.text)
+                /.*confirm-new-email\?hash=(\S+).*/g.test(letter.text)
               );
             })
-            ?.text.replace(/.*confirm\-new\-email\?hash\=(\S+).*/g, '$1'),
+            ?.text.replace(/.*confirm-new-email\?hash=(\S+).*/g, '$1'),
         );
 
       await request(app)

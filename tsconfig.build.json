@@ -1,4 +1,28 @@
 {
   "extends": "./tsconfig.json",
-  "exclude": ["node_modules", "test", "dist", "**/*spec.ts", ".install-scripts"]
+  "exclude": [
+    "node_modules",
+    "test",
+    "dist",
+    "**/*spec.ts",
+    ".install-scripts",
+    "src/auth-apple/**",
+    "src/auth-facebook/**",
+    "src/auth-google/**",
+    "src/files/**",
+    "src/mail/**",
+    "src/mailer/**",
+    "src/roles/**",
+    "src/session/**",
+    "src/social/**",
+    "src/statuses/**",
+    "src/users/**",
+    "src/database/data-source.ts",
+    "src/database/mongoose-config.service.ts",
+    "src/database/typeorm-config.service.ts",
+    "src/database/seeds/document/**",
+    "src/database/seeds/relational/**",
+    "src/database/schema.ts",
+    "src/utils/relational-entity-helper.ts"
+  ]
 }

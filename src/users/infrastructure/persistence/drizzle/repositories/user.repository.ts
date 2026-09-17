@@ -1,13 +1,13 @@
-import { Injectable, Inject } from '@nestjs/common';
-import { eq, and, inArray, isNull, asc, desc } from 'drizzle-orm';
-import { UserRepository } from '../../user.repository';
-import { User } from '../../../../domain/user';
-import { NullableType } from '../../../../../utils/types/nullable.type';
-import { FilterUserDto, SortUserDto } from '../../../../dto/query-user.dto';
-import { IPaginationOptions } from '../../../../../utils/types/pagination-options';
+import { Inject, Injectable } from '@nestjs/common';
+import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../../database/drizzle/drizzle.provider';
 import { users } from '../../../../../database/schema';
+import { NullableType } from '../../../../../utils/types/nullable.type';
+import { IPaginationOptions } from '../../../../../utils/types/pagination-options';
+import { User } from '../../../../domain/user';
+import { FilterUserDto, SortUserDto } from '../../../../dto/query-user.dto';
+import { UserRepository } from '../../user.repository';
 import { UserMapper } from '../mappers/user.mapper';
 
 @Injectable()
@@ -157,14 +157,22 @@ export class UsersDrizzleRepository implements UserRepository {
     };
 
     if (payload.email !== undefined) updateValues.email = payload.email;
-    if (payload.password !== undefined) updateValues.password = payload.password;
-    if (payload.provider !== undefined) updateValues.provider = payload.provider;
-    if (payload.socialId !== undefined) updateValues.socialId = payload.socialId;
-    if (payload.firstName !== undefined) updateValues.firstName = payload.firstName;
-    if (payload.lastName !== undefined) updateValues.lastName = payload.lastName;
-    if (payload.photo !== undefined) updateValues.photoId = payload.photo?.id ?? null;
-    if (payload.role !== undefined) updateValues.roleId = payload.role ? Number(payload.role.id) : null;
-    if (payload.status !== undefined) updateValues.statusId = payload.status ? Number(payload.status.id) : null;
+    if (payload.password !== undefined)
+      updateValues.password = payload.password;
+    if (payload.provider !== undefined)
+      updateValues.provider = payload.provider;
+    if (payload.socialId !== undefined)
+      updateValues.socialId = payload.socialId;
+    if (payload.firstName !== undefined)
+      updateValues.firstName = payload.firstName;
+    if (payload.lastName !== undefined)
+      updateValues.lastName = payload.lastName;
+    if (payload.photo !== undefined)
+      updateValues.photoId = payload.photo?.id ?? null;
+    if (payload.role !== undefined)
+      updateValues.roleId = payload.role ? Number(payload.role.id) : null;
+    if (payload.status !== undefined)
+      updateValues.statusId = payload.status ? Number(payload.status.id) : null;
 
     const [updated] = await this.db
       .update(users)

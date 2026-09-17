@@ -6,7 +6,7 @@ export class LeaveEntity {
   reason: string;
   documentUrl?: string | null;
   status: 'MENUNGGU_KONFIRMASI' | 'DISETUJUI' | 'DITOLAK';
-  approvedBy?: number | null;
+  approvedBy?: string | null;
   approvalNotes?: string | null;
   createdAt: Date;
   updatedAt: Date;

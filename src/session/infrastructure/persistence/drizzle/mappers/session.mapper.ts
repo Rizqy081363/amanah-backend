@@ -1,19 +1,21 @@
-import { Session } from '../../../../domain/session';
 import {
-  SessionSelect,
-  UserSelect,
   FileSelect,
   RoleSelect,
+  SessionSelect,
   StatusSelect,
+  UserSelect,
 } from '../../../../../database/schema';
 import { UserMapper } from '../../../../../users/infrastructure/persistence/drizzle/mappers/user.mapper';
+import { Session } from '../../../../domain/session';
 
 export type RawSession = SessionSelect & {
-  user?: (UserSelect & {
-    photo?: FileSelect | null;
-    role?: RoleSelect | null;
-    status?: StatusSelect | null;
-  }) | null;
+  user?:
+    | (UserSelect & {
+        photo?: FileSelect | null;
+        role?: RoleSelect | null;
+        status?: StatusSelect | null;
+      })
+    | null;
 };
 
 export class SessionMapper {

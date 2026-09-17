@@ -1,13 +1,12 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { Allow } from 'class-validator';
-import { Transform } from 'class-transformer';
-import fileConfig from '../config/file.config';
-import { FileConfig, FileDriver } from '../config/file-config.type';
-
 import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { AppConfig } from '../../config/app-config.type';
+import { ApiProperty } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
+import { Allow } from 'class-validator';
 import appConfig from '../../config/app.config';
+import { AppConfig } from '../../config/app-config.type';
+import fileConfig from '../config/file.config';
+import { FileConfig, FileDriver } from '../config/file-config.type';
 
 export class FileType {
   @ApiProperty({

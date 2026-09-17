@@ -8,6 +8,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiBearerAuth,
@@ -17,10 +18,9 @@ import {
   ApiExcludeEndpoint,
   ApiTags,
 } from '@nestjs/swagger';
-import { AuthGuard } from '@nestjs/passport';
-import { FilesLocalService } from './files.service';
-import { FileResponseDto } from './dto/file-response.dto';
 import type { Response as ExpressResponse } from 'express';
+import { FileResponseDto } from './dto/file-response.dto';
+import { FilesLocalService } from './files.service';
 
 @ApiTags('Files')
 @Controller({

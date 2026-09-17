@@ -1,11 +1,11 @@
-import { User } from '../../../../domain/user';
-import { UserSchemaClass } from '../entities/user.schema';
 import { FileSchemaClass } from '../../../../../files/infrastructure/persistence/document/entities/file.schema';
 import { FileMapper } from '../../../../../files/infrastructure/persistence/document/mappers/file.mapper';
 import { Role } from '../../../../../roles/domain/role';
-import { Status } from '../../../../../statuses/domain/status';
 import { RoleSchema } from '../../../../../roles/infrastructure/persistence/document/entities/role.schema';
+import { Status } from '../../../../../statuses/domain/status';
 import { StatusSchema } from '../../../../../statuses/infrastructure/persistence/document/entities/status.schema';
+import { User } from '../../../../domain/user';
+import { UserSchemaClass } from '../entities/user.schema';
 
 export class UserMapper {
   static toDomain(raw: UserSchemaClass): User {
@@ -41,14 +41,14 @@ export class UserMapper {
   }
 
   static toPersistence(domainEntity: User): UserSchemaClass {
-    let role: RoleSchema | undefined = undefined;
+    let role: RoleSchema | undefined;
 
     if (domainEntity.role) {
       role = new RoleSchema();
       role._id = domainEntity.role.id.toString();
     }
 
-    let photo: FileSchemaClass | undefined = undefined;
+    let photo: FileSchemaClass | undefined;
 
     if (domainEntity.photo) {
       photo = new FileSchemaClass();
@@ -56,7 +56,7 @@ export class UserMapper {
       photo.path = domainEntity.photo.path;
     }
 
-    let status: StatusSchema | undefined = undefined;
+    let status: StatusSchema | undefined;
 
     if (domainEntity.status) {
       status = new StatusSchema();

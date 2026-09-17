@@ -1,22 +1,22 @@
 import {
+  Body,
   Controller,
   Get,
-  Post,
-  Patch,
-  Body,
-  Param,
-  UseGuards,
   Inject,
+  Param,
+  Patch,
+  Post,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
-import { RolesGuard } from '../../../common/auth/roles.guard';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { CurrentUser } from '../../../common/auth/current-user.decorator';
 import { Roles } from '../../../common/auth/roles.decorator';
+import { RolesGuard } from '../../../common/auth/roles.guard';
 import {
   MEDICAL_RECORD_REPOSITORY,
   MedicalRecordRepository,
 } from '../domain/repositories/medical-record.repository';
-import { CurrentUser } from '../../../common/auth/current-user.decorator';
 
 @ApiTags('Medical Records (Rekam Medis & KIA)')
 @ApiBearerAuth()
@@ -30,7 +30,9 @@ export class MedicalRecordsController {
 
   @Post()
   @Roles('STAF', 'ADMIN')
-  @ApiOperation({ summary: 'Menyimpan data rekam medis kunjungan / formulir KIA' })
+  @ApiOperation({
+    summary: 'Menyimpan data rekam medis kunjungan / formulir KIA',
+  })
   async createRecord(
     @Body()
     body: {
@@ -53,7 +55,7 @@ export class MedicalRecordsController {
       ...body,
       formData: body.formData || {},
       computedData: body.computedData || {},
-      staffId: user.staff?.id || undefined,
+      staffId: user.staff?.practitionerId || user.staff?.id || undefined,
     });
   }
 
@@ -87,7 +89,7 @@ export class MedicalRecordsController {
   ) {
     return this.medicalRecordRepo.updateDiagnosis(id, {
       ...body,
-      staffId: user.staff?.id || undefined,
+      staffId: user.staff?.practitionerId || user.staff?.id || undefined,
     });
   }
 }

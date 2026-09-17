@@ -1,4 +1,4 @@
-import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
+import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { JwtPayloadType } from '../auth/strategies/types/jwt-payload.type';
 import type { RequestWithUser } from '../utils/types/request-with-user.type';

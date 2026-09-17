@@ -1,7 +1,8 @@
 import 'dotenv/config';
-import helmet from 'helmet';
 import {
   ClassSerializerInterceptor,
+  Logger,
+  RequestMethod,
   ValidationPipe,
   VersioningType,
 } from '@nestjs/common';
@@ -9,13 +10,15 @@ import { ConfigService } from '@nestjs/config';
 import { NestFactory, Reflector } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { useContainer } from 'class-validator';
+import helmet from 'helmet';
 import { AppModule } from './app.module';
-import validationOptions from './utils/validation-options';
 import { AllConfigType } from './config/config.type';
 import { ResolvePromisesInterceptor } from './utils/serializer.interceptor';
+import validationOptions from './utils/validation-options';
 
 async function bootstrap() {
-  console.log('⏳ Starting Amanah Healthcare NestJS Backend...');
+  const logger = new Logger('Bootstrap');
+  logger.log('Starting Amanah Healthcare NestJS Backend...');
   const app = await NestFactory.create(AppModule);
   useContainer(app.select(AppModule), { fallbackOnErrors: true });
   const configService = app.get(ConfigService<AllConfigType>);
@@ -38,7 +41,11 @@ async function bootstrap() {
   app.setGlobalPrefix(
     configService.getOrThrow('app.apiPrefix', { infer: true }),
     {
-      exclude: ['/'],
+      exclude: [
+        { path: '/', method: RequestMethod.GET },
+        { path: 'health/live', method: RequestMethod.GET },
+        { path: 'health/ready', method: RequestMethod.GET },
+      ],
     },
   );
   app.enableVersioning({
@@ -54,7 +61,9 @@ async function bootstrap() {
 
   const options = new DocumentBuilder()
     .setTitle('Amanah Healthcare API')
-    .setDescription('Enterprise Backend API for Amanah Clinic (Poli Umum, Poli KIA, Staff Mobile App, Admin Dashboard)')
+    .setDescription(
+      'Enterprise Backend API for Amanah Clinic (Poli Umum, Poli KIA, Staff Mobile App, Admin Dashboard)',
+    )
     .setVersion('1.0')
     .addBearerAuth()
     .addGlobalParameters({
@@ -72,10 +81,14 @@ async function bootstrap() {
 
   const port = configService.getOrThrow('app.port', { infer: true });
   await app.listen(port);
-  console.log(`🚀 Amanah Healthcare Backend is running on http://localhost:${port}`);
-  console.log(`📚 Swagger documentation available at http://localhost:${port}/docs`);
+  logger.log(`Amanah Healthcare Backend is running on port ${port}.`);
+  logger.log(`Swagger documentation available at /docs.`);
 }
 bootstrap().catch((err) => {
-  console.error('❌ Bootstrap Error:', err);
+  const logger = new Logger('Bootstrap');
+  logger.error(
+    'Bootstrap failed.',
+    err instanceof Error ? err.stack : String(err),
+  );
   process.exit(1);
 });

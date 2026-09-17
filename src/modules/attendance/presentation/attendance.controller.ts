@@ -1,22 +1,22 @@
 import {
-  Controller,
-  Get,
-  Post,
   Body,
+  Controller,
+  ForbiddenException,
+  Get,
+  Inject,
+  Post,
   Query,
   UseGuards,
-  Inject,
-  ForbiddenException,
 } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
-import { RolesGuard } from '../../../common/auth/roles.guard';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { CurrentUser } from '../../../common/auth/current-user.decorator';
 import { Roles } from '../../../common/auth/roles.decorator';
+import { RolesGuard } from '../../../common/auth/roles.guard';
 import {
   ATTENDANCE_REPOSITORY,
   AttendanceRepository,
 } from '../domain/repositories/attendance.repository';
-import { CurrentUser } from '../../../common/auth/current-user.decorator';
 
 @ApiTags('Attendance (Presensi QR Staf)')
 @ApiBearerAuth()
@@ -30,7 +30,9 @@ export class AttendanceController {
 
   @Post('scan')
   @Roles('STAF')
-  @ApiOperation({ summary: 'Staf melakukan scan QR Code presensi kehadiran (Mobile App)' })
+  @ApiOperation({
+    summary: 'Staf melakukan scan QR Code presensi kehadiran (Mobile App)',
+  })
   async scanQr(
     @Body()
     body: {
@@ -56,7 +58,9 @@ export class AttendanceController {
 
   @Get('my-history')
   @Roles('STAF')
-  @ApiOperation({ summary: 'Melihat riwayat presensi staf yang sedang login (Mobile App)' })
+  @ApiOperation({
+    summary: 'Melihat riwayat presensi staf yang sedang login (Mobile App)',
+  })
   async getMyHistory(@CurrentUser() user: any) {
     if (!user.staff?.id) {
       throw new ForbiddenException('User bukan staf terdaftar');
@@ -66,7 +70,9 @@ export class AttendanceController {
 
   @Get('daily')
   @Roles('ADMIN')
-  @ApiOperation({ summary: 'Admin memantau presensi harian seluruh staf (Web Dashboard)' })
+  @ApiOperation({
+    summary: 'Admin memantau presensi harian seluruh staf (Web Dashboard)',
+  })
   async getDailyAttendance(@Query('date') date: string) {
     const targetDate = date || new Date().toISOString().split('T')[0];
     return this.attendanceRepo.findDaily(targetDate);

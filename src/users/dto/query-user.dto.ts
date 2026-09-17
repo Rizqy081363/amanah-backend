@@ -1,13 +1,13 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { plainToInstance, Transform, Type } from 'class-transformer';
 import {
   IsNumber,
   IsOptional,
   IsString,
   ValidateNested,
 } from 'class-validator';
-import { Transform, Type, plainToInstance } from 'class-transformer';
-import { User } from '../domain/user';
 import { RoleDto } from '../../roles/dto/role.dto';
+import { User } from '../domain/user';
 
 export class FilterUserDto {
   @ApiPropertyOptional({ type: RoleDto })

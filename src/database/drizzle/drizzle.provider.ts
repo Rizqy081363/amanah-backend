@@ -2,20 +2,24 @@ import { Provider } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { drizzle, NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
-import * as schema from '../schema';
-import { DRIZZLE_SOURCE } from './drizzle.constants';
 import { AllConfigType } from '../../config/config.type';
+import * as relations from '../schema/amanah.relations';
+import * as tables from '../schema/amanah.schema';
+import { DRIZZLE_SOURCE, POSTGRES_POOL } from './drizzle.constants';
+
+const schema = { ...tables, ...relations };
 
 export type DrizzleDatabase = NodePgDatabase<typeof schema>;
 
-export const drizzleProvider: Provider = {
-  provide: DRIZZLE_SOURCE,
+export const postgresPoolProvider: Provider = {
+  provide: POSTGRES_POOL,
   inject: [ConfigService],
-  useFactory: (configService: ConfigService<AllConfigType>): DrizzleDatabase => {
+  useFactory: (configService: ConfigService<AllConfigType>): Pool => {
     const isSslEnabled = configService.get('database.sslEnabled', {
       infer: true,
     });
-    const pool = new Pool({
+
+    return new Pool({
       connectionString: configService.get('database.url', { infer: true }),
       host: configService.get('database.host', { infer: true }),
       port: configService.get('database.port', { infer: true }),
@@ -37,7 +41,13 @@ export const drizzleProvider: Provider = {
           }
         : undefined,
     });
+  },
+};
 
+export const drizzleProvider: Provider = {
+  provide: DRIZZLE_SOURCE,
+  inject: [POSTGRES_POOL],
+  useFactory: (pool: Pool): DrizzleDatabase => {
     return drizzle(pool, { schema });
   },
 };

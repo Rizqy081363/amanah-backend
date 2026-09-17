@@ -1,23 +1,23 @@
 import {
-  Controller,
-  Get,
-  Post,
-  Patch,
   Body,
-  Param,
-  UseGuards,
-  Inject,
+  Controller,
   ForbiddenException,
+  Get,
+  Inject,
+  Param,
+  Patch,
+  Post,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
-import { RolesGuard } from '../../../common/auth/roles.guard';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { CurrentUser } from '../../../common/auth/current-user.decorator';
 import { Roles } from '../../../common/auth/roles.decorator';
+import { RolesGuard } from '../../../common/auth/roles.guard';
 import {
   LEAVE_REPOSITORY,
   LeaveRepository,
 } from '../domain/repositories/leave.repository';
-import { CurrentUser } from '../../../common/auth/current-user.decorator';
 
 @ApiTags('Staff Leaves (Perizinan Cuti Staf)')
 @ApiBearerAuth()
@@ -31,7 +31,9 @@ export class LeavesController {
 
   @Post()
   @Roles('STAF')
-  @ApiOperation({ summary: 'Staf mengajukan permohonan cuti / izin (Mobile App)' })
+  @ApiOperation({
+    summary: 'Staf mengajukan permohonan cuti / izin (Mobile App)',
+  })
   async requestLeave(
     @Body()
     body: {
@@ -57,7 +59,9 @@ export class LeavesController {
 
   @Get('my-leaves')
   @Roles('STAF')
-  @ApiOperation({ summary: 'Melihat riwayat pengajuan cuti staf login (Mobile App)' })
+  @ApiOperation({
+    summary: 'Melihat riwayat pengajuan cuti staf login (Mobile App)',
+  })
   async getMyLeaves(@CurrentUser() user: any) {
     if (!user.staff?.id) {
       throw new ForbiddenException('User bukan staf terdaftar');
@@ -67,14 +71,19 @@ export class LeavesController {
 
   @Get('pending')
   @Roles('ADMIN')
-  @ApiOperation({ summary: 'Admin melihat daftar pengajuan cuti yang butuh persetujuan (Web Dashboard)' })
+  @ApiOperation({
+    summary:
+      'Admin melihat daftar pengajuan cuti yang butuh persetujuan (Web Dashboard)',
+  })
   async getPendingLeaves() {
     return this.leaveRepo.findAllPending();
   }
 
   @Patch(':id/status')
   @Roles('ADMIN')
-  @ApiOperation({ summary: 'Admin menyetujui atau menolak cuti staf (Web Dashboard)' })
+  @ApiOperation({
+    summary: 'Admin menyetujui atau menolak cuti staf (Web Dashboard)',
+  })
   async reviewLeave(
     @Param('id') id: string,
     @Body()

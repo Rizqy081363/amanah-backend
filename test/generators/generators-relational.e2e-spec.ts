@@ -1,8 +1,8 @@
-import { describe, expect, it, beforeAll } from '@jest/globals';
+import { beforeAll, describe, expect, it } from '@jest/globals';
 import request from 'supertest';
 
 import { APP_URL } from '../utils/constants';
-import { loginAsAdmin, type AdminSession } from './helpers/auth';
+import { type AdminSession, loginAsAdmin } from './helpers/auth';
 import { buildArticlePayload } from './helpers/payloads-relational';
 
 describe('Generators — relational CRUD on /api/v1/articles', () => {

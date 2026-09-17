@@ -1,6 +1,6 @@
 export class StaffEntity {
   id: string;
-  userId: number;
+  userId: string;
   poliklinikId: string;
   fullName: string;
   profession: string;

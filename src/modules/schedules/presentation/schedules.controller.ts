@@ -1,25 +1,25 @@
 import {
-  Controller,
-  Get,
-  Post,
-  Patch,
-  Delete,
   Body,
+  Controller,
+  Delete,
+  ForbiddenException,
+  Get,
+  Inject,
   Param,
+  Patch,
+  Post,
   Query,
   UseGuards,
-  Inject,
-  ForbiddenException,
 } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
-import { RolesGuard } from '../../../common/auth/roles.guard';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { CurrentUser } from '../../../common/auth/current-user.decorator';
 import { Roles } from '../../../common/auth/roles.decorator';
+import { RolesGuard } from '../../../common/auth/roles.guard';
 import {
   SCHEDULE_REPOSITORY,
   ScheduleRepository,
 } from '../domain/repositories/schedule.repository';
-import { CurrentUser } from '../../../common/auth/current-user.decorator';
 
 @ApiTags('Schedules (Jadwal Dokter & Bidan)')
 @ApiBearerAuth()
@@ -62,7 +62,9 @@ export class SchedulesController {
 
   @Get('my-schedules')
   @Roles('STAF')
-  @ApiOperation({ summary: 'Melihat jadwal staf yang sedang login (Mobile App)' })
+  @ApiOperation({
+    summary: 'Melihat jadwal staf yang sedang login (Mobile App)',
+  })
   async getMySchedules(@CurrentUser() user: any) {
     if (!user.staff?.id) {
       throw new ForbiddenException('User bukan staf terdaftar');
@@ -72,7 +74,9 @@ export class SchedulesController {
 
   @Get('poli/:poliklinikId')
   @Roles('ADMIN', 'STAF', 'PATIENT')
-  @ApiOperation({ summary: 'Melihat jadwal dokter/bidan aktif di poliklinik tertentu' })
+  @ApiOperation({
+    summary: 'Melihat jadwal dokter/bidan aktif di poliklinik tertentu',
+  })
   async getByPoli(
     @Param('poliklinikId') poliklinikId: string,
     @Query('date') date: string,
@@ -83,7 +87,9 @@ export class SchedulesController {
 
   @Patch(':id/availability')
   @Roles('ADMIN', 'STAF')
-  @ApiOperation({ summary: 'Mengaktifkan / menonaktifkan ketersediaan jadwal staf' })
+  @ApiOperation({
+    summary: 'Mengaktifkan / menonaktifkan ketersediaan jadwal staf',
+  })
   async toggleAvailability(
     @Param('id') id: string,
     @Body('isAvailable') isAvailable: boolean,

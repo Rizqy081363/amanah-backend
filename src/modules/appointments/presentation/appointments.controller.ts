@@ -1,23 +1,23 @@
 import {
+  Body,
   Controller,
   Get,
-  Post,
-  Patch,
-  Body,
+  Inject,
   Param,
+  Patch,
+  Post,
   Query,
   UseGuards,
-  Inject,
 } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
-import { RolesGuard } from '../../../common/auth/roles.guard';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { CurrentUser } from '../../../common/auth/current-user.decorator';
 import { Roles } from '../../../common/auth/roles.decorator';
+import { RolesGuard } from '../../../common/auth/roles.guard';
 import {
   APPOINTMENT_REPOSITORY,
   AppointmentRepository,
 } from '../domain/repositories/appointment.repository';
-import { CurrentUser } from '../../../common/auth/current-user.decorator';
 
 @ApiTags('Appointments (Kunjungan & Antrean Pasien)')
 @ApiBearerAuth()
@@ -31,7 +31,9 @@ export class AppointmentsController {
 
   @Post()
   @Roles('ADMIN', 'STAF', 'PATIENT')
-  @ApiOperation({ summary: 'Pasien mendaftar kunjungan antrean (Web / Mobile App)' })
+  @ApiOperation({
+    summary: 'Pasien mendaftar kunjungan antrean (Web / Mobile App)',
+  })
   async createAppointment(
     @Body()
     body: {
@@ -69,7 +71,9 @@ export class AppointmentsController {
 
   @Get('queue/daily')
   @Roles('ADMIN', 'STAF')
-  @ApiOperation({ summary: 'Mendapatkan daftar antrean harian per poli dan sesi (Web/App)' })
+  @ApiOperation({
+    summary: 'Mendapatkan daftar antrean harian per poli dan sesi (Web/App)',
+  })
   async getDailyQueue(
     @Query('poliklinikId') poliklinikId: string,
     @Query('date') date: string,
@@ -80,12 +84,15 @@ export class AppointmentsController {
 
   @Patch(':id/call')
   @Roles('STAF')
-  @ApiOperation({ summary: 'Staf/Dokter memanggil pasien ke ruang periksa (Mobile App)' })
-  async callPatient(
-    @Param('id') id: string,
-    @CurrentUser() user: any,
-  ) {
-    return this.appointmentRepo.updateStatus(id, 'SEDANG_DIPERIKSA', user.staff?.id);
+  @ApiOperation({
+    summary: 'Staf/Dokter memanggil pasien ke ruang periksa (Mobile App)',
+  })
+  async callPatient(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.appointmentRepo.updateStatus(
+      id,
+      'SEDANG_DIPERIKSA',
+      user.staff?.practitionerId || user.staff?.id,
+    );
   }
 
   @Patch(':id/complete')

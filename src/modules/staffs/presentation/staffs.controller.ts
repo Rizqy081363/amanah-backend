@@ -1,13 +1,13 @@
-import { Controller, Get, Param, UseGuards, Inject } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { Controller, Get, Inject, Param, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { RolesGuard } from '../../../common/auth/roles.guard';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { CurrentUser } from '../../../common/auth/current-user.decorator';
 import { Roles } from '../../../common/auth/roles.decorator';
+import { RolesGuard } from '../../../common/auth/roles.guard';
 import {
   STAFF_REPOSITORY,
   StaffRepository,
 } from '../domain/repositories/staff.repository';
-import { CurrentUser } from '../../../common/auth/current-user.decorator';
 
 @ApiTags('Staffs (Pegawai Klinis & Kartu ID Digital)')
 @ApiBearerAuth()
@@ -21,7 +21,10 @@ export class StaffsController {
 
   @Get('me')
   @Roles('STAF')
-  @ApiOperation({ summary: 'Mendapatkan profil dan data Kartu ID digital staf yang sedang login' })
+  @ApiOperation({
+    summary:
+      'Mendapatkan profil dan data Kartu ID digital staf yang sedang login',
+  })
   async getMyProfile(@CurrentUser() user: any) {
     return this.staffRepo.findByUserId(user.id);
   }
@@ -35,7 +38,9 @@ export class StaffsController {
 
   @Get('profession/:profession')
   @Roles('ADMIN', 'STAF')
-  @ApiOperation({ summary: 'Filter staf berdasarkan profesi (dokter, bidan, perawat)' })
+  @ApiOperation({
+    summary: 'Filter staf berdasarkan profesi (dokter, bidan, perawat)',
+  })
   async getStaffsByProfession(@Param('profession') profession: string) {
     return this.staffRepo.findByProfession(profession);
   }

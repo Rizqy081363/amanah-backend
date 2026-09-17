@@ -1,6 +1,6 @@
 export class PatientEntity {
   id: string;
-  userId: number;
+  userId: string;
   medicalRecordNumber: string;
   nik: string;
   fullName: string;

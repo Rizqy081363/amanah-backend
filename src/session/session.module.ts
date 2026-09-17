@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
+import databaseConfig from '../database/config/database.config';
+import { DatabaseConfig } from '../database/config/database-config.type';
 import { DocumentSessionPersistenceModule } from './infrastructure/persistence/document/document-persistence.module';
 import { DrizzleSessionPersistenceModule } from './infrastructure/persistence/drizzle/drizzle-persistence.module';
 import { SessionService } from './session.service';
-import { DatabaseConfig } from '../database/config/database-config.type';
-import databaseConfig from '../database/config/database.config';
 
 const infrastructurePersistenceModule = (databaseConfig() as DatabaseConfig)
   .isDocumentDatabase
