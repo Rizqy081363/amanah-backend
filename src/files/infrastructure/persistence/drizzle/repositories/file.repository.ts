@@ -20,7 +20,10 @@ export class FileDrizzleRepository implements FileRepository {
       .insert(files)
       .values({
         id: data.id,
-        path: data.path,
+        storageKey: data.path,
+        originalName: data.path.split('/').pop() ?? data.path,
+        mimeType: 'application/octet-stream',
+        byteSize: 1,
       })
       .returning();
 

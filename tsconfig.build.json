@@ -6,21 +6,9 @@
     "dist",
     "**/*spec.ts",
     ".install-scripts",
-    "src/auth-apple/**",
-    "src/auth-facebook/**",
-    "src/auth-google/**",
-    "src/files/**",
-    "src/mail/**",
-    "src/mailer/**",
-    "src/roles/**",
-    "src/session/**",
-    "src/social/**",
-    "src/statuses/**",
-    "src/users/**",
-    "src/database/data-source.ts",
-    "src/database/typeorm-config.service.ts",
-    "src/database/seeds/relational/**",
-    "src/database/schema.ts",
-    "src/utils/relational-entity-helper.ts"
+    "src/users/infrastructure/**",
+    "src/users/users.service.ts",
+    "src/users/users.controller.ts",
+    "src/users/users.module.ts"
   ]
 }

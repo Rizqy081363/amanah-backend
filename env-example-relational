@@ -1,6 +1,6 @@
 NODE_ENV=development
 APP_PORT=3001
-APP_NAME="NestJS API"
+APP_NAME="Amanah Healthcare Backend"
 API_PREFIX=api
 APP_FALLBACK_LANGUAGE=en
 APP_HEADER_LANGUAGE=x-custom-lang
@@ -45,8 +45,8 @@ MAIL_PASSWORD=
 MAIL_IGNORE_TLS=true
 MAIL_SECURE=false
 MAIL_REQUIRE_TLS=false
-MAIL_DEFAULT_EMAIL=noreply@example.com
-MAIL_DEFAULT_NAME=Api
+MAIL_DEFAULT_EMAIL=noreply@amanah-healthcare.local
+MAIL_DEFAULT_NAME="Amanah Healthcare"
 MAIL_CLIENT_PORT=1080
 
 AUTH_JWT_SECRET=secret
