@@ -27,6 +27,7 @@ import {
 import { Public } from '../../../common/auth/public.decorator';
 import { Roles } from '../../../common/auth/roles.decorator';
 import { RolesGuard } from '../../../common/auth/roles.guard';
+import { HttpCache } from '../../../common/decorators/http-cache.decorator';
 import { ClinicsService } from '../application/clinics.service';
 import { CreateClinicDto } from './dto/create-clinic.dto';
 import { CreateLayananDto } from './dto/create-layanan.dto';
@@ -49,6 +50,7 @@ export class ClinicsController {
   @ApiOkResponse({
     description: 'Daftar poliklinik aktif berhasil diambil',
   })
+  @HttpCache({ ttlSeconds: 300, tags: ['clinics'] })
   async getClinics() {
     return this.clinicsService.findAllPoliklinik();
   }
@@ -62,6 +64,7 @@ export class ClinicsController {
   @ApiOkResponse({
     description: 'Daftar poliklinik berhasil diambil',
   })
+  @HttpCache({ ttlSeconds: 300, tags: ['clinics'] })
   async getPoliklinik() {
     return this.clinicsService.findAllPoliklinik();
   }
@@ -213,6 +216,7 @@ export class ClinicsController {
     example: 'cd44dd7d-07a9-4e31-9441-3e0e02ddebb1',
   })
   @ApiOkResponse({ description: 'Daftar layanan berhasil diambil' })
+  @HttpCache({ ttlSeconds: 300, tags: ['clinics'] })
   async getLayananByPoli(@Param('id') id: string) {
     return this.clinicsService.findLayananByPoliId(id);
   }
@@ -230,6 +234,7 @@ export class ClinicsController {
     example: 'cd44dd7d-07a9-4e31-9441-3e0e02ddebb1',
   })
   @ApiOkResponse({ description: 'Daftar layanan berhasil diambil' })
+  @HttpCache({ ttlSeconds: 300, tags: ['clinics'] })
   async getServicesByPoli(@Param('id') id: string) {
     return this.clinicsService.findLayananByPoliId(id);
   }

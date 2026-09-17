@@ -13,6 +13,7 @@ import { useContainer } from 'class-validator';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { ProblemDetailsFilter } from './common/filters/problem-details.filter';
+import { HttpCacheInterceptor } from './common/interceptors/http-cache.interceptor';
 import { IdempotencyInterceptor } from './common/interceptors/idempotency.interceptor';
 import { RedisService } from './common/redis/redis.service';
 import { AllConfigType } from './config/config.type';
@@ -64,6 +65,7 @@ async function bootstrap() {
     new ResolvePromisesInterceptor(),
     new ClassSerializerInterceptor(reflector),
     new IdempotencyInterceptor(redisService, reflector),
+    new HttpCacheInterceptor(reflector, redisService),
   );
 
   const port = configService.getOrThrow('app.port', { infer: true });

@@ -200,6 +200,13 @@ export class AppointmentsService {
       await Promise.all([
         this.redisService.deleteByPrefix(QUEUE_DISPLAY_CACHE_PREFIX),
         this.redisService.deleteByPrefix(QUEUE_DAILY_CACHE_PREFIX),
+        this.redisService.deleteByPrefix('clinics:analytics'),
+        this.redisService.invalidateTags(
+          'queue',
+          'display',
+          'daily',
+          'analytics',
+        ),
       ]);
     } catch (err) {
       this.logger.warn(`Failed to invalidate queue caches: ${String(err)}`);

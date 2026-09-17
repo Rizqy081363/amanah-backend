@@ -218,6 +218,44 @@ export class RedisService implements OnModuleDestroy {
     await this.deleteByPrefix(prefix);
   }
 
+  async addKeyToTag(
+    tag: string,
+    key: string,
+    ttlSeconds = this.defaultTtlSeconds,
+  ): Promise<void> {
+    const tagKey = this.buildKey(`tag:${tag}`);
+    try {
+      await this.redisClient.sadd(tagKey, key);
+      await this.redisClient.expire(tagKey, ttlSeconds);
+    } catch (error) {
+      this.logger.warn(
+        `Failed to add key "${key}" to tag "${tag}": ${this.getErrorMessage(error)}`,
+      );
+    }
+  }
+
+  async invalidateTags(...tags: string[]): Promise<void> {
+    if (!tags || tags.length === 0) return;
+
+    try {
+      for (const tag of tags) {
+        const tagKey = this.buildKey(`tag:${tag}`);
+        const members = await this.redisClient.smembers(tagKey);
+
+        if (members.length > 0) {
+          const keysToDelete = members.map((k) => this.buildKey(k));
+          await this.redisClient.del(...keysToDelete);
+        }
+
+        await this.redisClient.del(tagKey);
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Failed to invalidate tags "${tags.join(',')}": ${this.getErrorMessage(error)}`,
+      );
+    }
+  }
+
   private buildKey(key: string): string {
     this.assertCacheKey(key);
     return `${this.keyPrefix}:${key}`;

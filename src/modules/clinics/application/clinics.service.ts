@@ -126,7 +126,11 @@ export class ClinicsService {
 
   private async invalidateClinicsCache(): Promise<void> {
     try {
-      await this.redisService.deleteByPrefix(CLINIC_CACHE_PREFIX);
+      await Promise.all([
+        this.redisService.deleteByPrefix(CLINIC_CACHE_PREFIX),
+        this.redisService.deleteByPrefix('clinics:analytics'),
+        this.redisService.invalidateTags('clinics', 'analytics'),
+      ]);
     } catch (err) {
       this.logger.warn(`Failed to invalidate clinic cache: ${String(err)}`);
     }

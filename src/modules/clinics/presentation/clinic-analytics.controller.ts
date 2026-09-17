@@ -16,6 +16,7 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { count, eq, sql } from 'drizzle-orm';
+import { HttpCache } from '../../../common/decorators/http-cache.decorator';
 import { DRIZZLE_SOURCE } from '../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../database/drizzle/drizzle.provider';
 import {
@@ -40,6 +41,7 @@ export class ClinicAnalyticsController {
 
   @Get('monthly')
   @HttpCode(HttpStatus.OK)
+  @HttpCache({ ttlSeconds: 300, tags: ['analytics'], isPrivate: true })
   @ApiOperation({
     summary: 'Melihat tren kunjungan pasien per bulan/hari (Mobile App & Web)',
     description:
@@ -162,6 +164,7 @@ export class ClinicAnalyticsController {
 
   @Get('summary')
   @HttpCode(HttpStatus.OK)
+  @HttpCache({ ttlSeconds: 60, tags: ['analytics'], isPrivate: true })
   @ApiOperation({
     summary: 'Ringkasan operasional harian poliklinik (Dashboard Staf & Admin)',
     description:
