@@ -9,12 +9,19 @@ import {
   BetterAuthGuard,
   BetterAuthRbacGuard,
 } from './better-auth';
+import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy';
 import { JwtStrategy } from './strategies/jwt.strategy';
 
 @Module({
   imports: [PassportModule, JwtModule.register({}), MailModule],
   controllers: [AuthController, BetterAuthController],
-  providers: [AuthService, JwtStrategy, BetterAuthGuard, BetterAuthRbacGuard],
+  providers: [
+    AuthService,
+    JwtStrategy,
+    JwtRefreshStrategy,
+    BetterAuthGuard,
+    BetterAuthRbacGuard,
+  ],
   exports: [AuthService, BetterAuthGuard, BetterAuthRbacGuard],
 })
 export class AuthModule {}

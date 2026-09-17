@@ -845,62 +845,601 @@ const seedOperationalExamples = async (context: SeedContext): Promise<void> => {
     [appointment.id],
   );
 
-  const supportUserId = context.userIdsByEmail.get(
-    'support.rani@amanah-healthcare.test',
-  );
-  const firstPatientUser = DEVELOPMENT_USER_SEEDS.find((user) => user.patient);
-  const patientUserId = firstPatientUser
-    ? context.userIdsByEmail.get(firstPatientUser.email)
-    : null;
-
-  if (!supportUserId || !patientUserId) return;
-
-  await context.client.query(
-    `
-      INSERT INTO notifications (category, title, body, is_urgent, visual_key, created_by)
-      SELECT 'appointment', 'Janji temu berhasil dibuat', 'Booking BOOK-DEV-0001 menunggu konfirmasi kehadiran.', false, 'calendar-check', $1
-      WHERE NOT EXISTS (
-        SELECT 1
-        FROM notifications
-        WHERE title = 'Janji temu berhasil dibuat'
-          AND body = 'Booking BOOK-DEV-0001 menunggu konfirmasi kehadiran.'
-      )
-    `,
-    [supportUserId],
-  );
-
-  const staffId = context.staffIdsByCode.get('STF-WRK-001');
-  await context.client.query(
-    `
-      INSERT INTO support_tickets (
-        ticket_number,
-        reporter_user_id,
-        assigned_staff_id,
-        title,
-        description,
+  // 1. Seed Additional Appointments & Clinical Encounters for Analytics & Mobile
+  const aptTodayCompleted = await queryOne<{ id: string }>({
+    client: context.client,
+    text: `
+      INSERT INTO appointments (
+        booking_code,
+        patient_id,
+        practitioner_id,
+        service_id,
+        room_id,
+        visit_type,
         status,
-        priority
+        scheduled_date,
+        scheduled_start_time,
+        scheduled_end_time,
+        complaint
       )
       VALUES (
-        'SUP-DEV-0001',
-        $1,
-        $2,
-        'Tidak bisa membuka riwayat presensi',
-        'Contoh tiket IT untuk pengujian daftar support.',
-        'open',
-        'normal'
+        'BOOK-DEV-TODAY-01',
+        $1, $2, $3, $4,
+        'new_visit',
+        'completed',
+        current_date,
+        '09:00',
+        '09:30',
+        'Pemeriksaan dan kontrol tensi rutin'
       )
-      ON CONFLICT (ticket_number) DO UPDATE
-      SET reporter_user_id = EXCLUDED.reporter_user_id,
-          assigned_staff_id = EXCLUDED.assigned_staff_id,
-          title = EXCLUDED.title,
-          description = EXCLUDED.description,
-          status = EXCLUDED.status,
-          priority = EXCLUDED.priority,
+      ON CONFLICT (booking_code) DO UPDATE
+      SET status = 'completed',
+          updated_at = now()
+      RETURNING id
+    `,
+    values: [firstPatientId, firstDoctorId, generalServiceId, firstRoomId],
+  });
+
+  await context.client.query(
+    `
+      INSERT INTO queue_tickets (
+        appointment_id,
+        service_id,
+        room_id,
+        queue_date,
+        queue_number,
+        priority,
+        status,
+        waiting_position
+      )
+      VALUES ($1, $2, $3, current_date, 'UM-002', 'regular', 'completed', null)
+      ON CONFLICT (appointment_id) DO UPDATE
+      SET status = 'completed',
           updated_at = now()
     `,
-    [patientUserId, staffId],
+    [aptTodayCompleted.id, generalServiceId, firstRoomId],
   );
+
+  await context.client.query(
+    `
+      INSERT INTO clinical_encounters (
+        appointment_id,
+        patient_id,
+        practitioner_id,
+        service_id,
+        encounter_date,
+        status,
+        subjective_notes,
+        objective_notes,
+        assessment,
+        plan
+      )
+      SELECT $1, $2, $3, $4, current_date, 'completed',
+             'Pasien merasa fit, tidak ada pusing atau mual.',
+             'Tensi 120/80 mmHg, Nadi 78x/m, Suhu 36.6 C.',
+             'Pemeriksaan kesehatan umum dalam batas normal.',
+             'Edukasi pertahankan pola makan sehat dan hidrasi cukup.'
+      WHERE NOT EXISTS (
+        SELECT 1 FROM clinical_encounters WHERE appointment_id = $1
+      )
+    `,
+    [aptTodayCompleted.id, firstPatientId, firstDoctorId, generalServiceId],
+  );
+
+  const aptTodayWaiting = await queryOne<{ id: string }>({
+    client: context.client,
+    text: `
+      INSERT INTO appointments (
+        booking_code,
+        patient_id,
+        practitioner_id,
+        service_id,
+        room_id,
+        visit_type,
+        status,
+        scheduled_date,
+        scheduled_start_time,
+        scheduled_end_time,
+        complaint
+      )
+      VALUES (
+        'BOOK-DEV-TODAY-02',
+        $1, $2, $3, $4,
+        'new_visit',
+        'waiting',
+        current_date,
+        '10:30',
+        '11:00',
+        'Batuk kering dan tenggorokan gatal sejak 3 hari'
+      )
+      ON CONFLICT (booking_code) DO UPDATE
+      SET status = 'waiting',
+          updated_at = now()
+      RETURNING id
+    `,
+    values: [firstPatientId, firstDoctorId, generalServiceId, firstRoomId],
+  });
+
+  await context.client.query(
+    `
+      INSERT INTO queue_tickets (
+        appointment_id,
+        service_id,
+        room_id,
+        queue_date,
+        queue_number,
+        priority,
+        status,
+        waiting_position
+      )
+      VALUES ($1, $2, $3, current_date, 'UM-003', 'regular', 'waiting', 1)
+      ON CONFLICT (appointment_id) DO UPDATE
+      SET status = 'waiting',
+          updated_at = now()
+    `,
+    [aptTodayWaiting.id, generalServiceId, firstRoomId],
+  );
+
+  // Past appointments for monthly analytics
+  await context.client.query(
+    `
+      INSERT INTO appointments (
+        booking_code,
+        patient_id,
+        practitioner_id,
+        service_id,
+        room_id,
+        visit_type,
+        status,
+        scheduled_date,
+        scheduled_start_time,
+        scheduled_end_time,
+        complaint
+      )
+      VALUES (
+        'BOOK-DEV-YEST-01',
+        $1, $2, $3, $4,
+        'new_visit',
+        'completed',
+        current_date - 1,
+        '09:00',
+        '09:30',
+        'Pusing berputar bila bangun tidur'
+      )
+      ON CONFLICT (booking_code) DO UPDATE
+      SET status = 'completed',
+          updated_at = now()
+    `,
+    [firstPatientId, firstDoctorId, generalServiceId, firstRoomId],
+  );
+
+  // 2. Seed Staff Attendance Records
+  const doctorStaffId = context.staffIdsByCode.get('DOC-AMANAH-001');
+  const midwifeStaffId = context.staffIdsByCode.get('BDN-AMANAH-001');
+
+  if (doctorStaffId) {
+    await context.client.query(
+      `
+        INSERT INTO staff_attendance_records (
+          staff_profile_id,
+          attendance_date,
+          shift,
+          status,
+          check_in_at,
+          recorded_method,
+          location_label
+        )
+        SELECT $1, current_date, 'morning', 'present',
+               now() - interval '4 hours', 'qr_scan', 'Poli Umum Gedung Utama'
+        WHERE NOT EXISTS (
+          SELECT 1 FROM staff_attendance_records
+          WHERE staff_profile_id = $1 AND attendance_date = current_date
+        )
+      `,
+      [doctorStaffId],
+    );
+
+    await context.client.query(
+      `
+        INSERT INTO staff_attendance_records (
+          staff_profile_id,
+          attendance_date,
+          shift,
+          status,
+          check_in_at,
+          check_out_at,
+          recorded_method,
+          location_label
+        )
+        SELECT $1, current_date - 1, 'morning', 'present',
+               (current_date - 1) + time '07:50:00',
+               (current_date - 1) + time '16:10:00',
+               'qr_scan', 'Poli Umum Gedung Utama'
+        WHERE NOT EXISTS (
+          SELECT 1 FROM staff_attendance_records
+          WHERE staff_profile_id = $1 AND attendance_date = current_date - 1
+        )
+      `,
+      [doctorStaffId],
+    );
+
+    await context.client.query(
+      `
+        INSERT INTO staff_attendance_records (
+          staff_profile_id,
+          attendance_date,
+          shift,
+          status,
+          check_in_at,
+          check_out_at,
+          late_minutes,
+          recorded_method,
+          location_label
+        )
+        SELECT $1, current_date - 2, 'morning', 'late',
+               (current_date - 2) + time '08:15:00',
+               (current_date - 2) + time '16:00:00',
+               15, 'qr_scan', 'Poli Umum Gedung Utama'
+        WHERE NOT EXISTS (
+          SELECT 1 FROM staff_attendance_records
+          WHERE staff_profile_id = $1 AND attendance_date = current_date - 2
+        )
+      `,
+      [doctorStaffId],
+    );
+  }
+
+  if (midwifeStaffId) {
+    await context.client.query(
+      `
+        INSERT INTO staff_attendance_records (
+          staff_profile_id,
+          attendance_date,
+          shift,
+          status,
+          check_in_at,
+          recorded_method,
+          location_label
+        )
+        SELECT $1, current_date, 'morning', 'present',
+               now() - interval '3 hours', 'qr_scan', 'Poli KIA Gedung Utama'
+        WHERE NOT EXISTS (
+          SELECT 1 FROM staff_attendance_records
+          WHERE staff_profile_id = $1 AND attendance_date = current_date
+        )
+      `,
+      [midwifeStaffId],
+    );
+  }
+
+  // 3. Seed Staff Leaves
+  const adminUserId = context.userIdsByEmail.get('admin@amanah.com');
+  if (doctorStaffId) {
+    await context.client.query(
+      `
+        INSERT INTO staff_leave_requests (
+          staff_profile_id,
+          request_type,
+          start_date,
+          end_date,
+          duration_days,
+          reason,
+          status
+        )
+        SELECT $1, 'seminar_symposium', current_date + 7, current_date + 8, 2,
+               'Simposium Dokter Spesialis IDI Wilayah Jawa Barat', 'pending'
+        WHERE NOT EXISTS (
+          SELECT 1 FROM staff_leave_requests
+          WHERE staff_profile_id = $1 AND reason = 'Simposium Dokter Spesialis IDI Wilayah Jawa Barat'
+        )
+      `,
+      [doctorStaffId],
+    );
+
+    await context.client.query(
+      `
+        INSERT INTO staff_leave_requests (
+          staff_profile_id,
+          request_type,
+          start_date,
+          end_date,
+          duration_days,
+          reason,
+          status,
+          reviewed_by,
+          reviewed_at,
+          reviewer_notes
+        )
+        SELECT $1, 'annual_leave', current_date - 20, current_date - 18, 3,
+               'Cuti tahunan keperluan keluarga', 'approved', $2, now() - interval '25 days',
+               'Disetujui. Tugas didelegasikan ke dokter pengganti.'
+        WHERE NOT EXISTS (
+          SELECT 1 FROM staff_leave_requests
+          WHERE staff_profile_id = $1 AND reason = 'Cuti tahunan keperluan keluarga'
+        )
+      `,
+      [doctorStaffId, adminUserId],
+    );
+
+    await context.client.query(
+      `
+        INSERT INTO staff_leave_requests (
+          staff_profile_id,
+          request_type,
+          start_date,
+          end_date,
+          duration_days,
+          reason,
+          status,
+          cancelled_at
+        )
+        SELECT $1, 'family_matter', current_date - 5, current_date - 4, 2,
+               'Izin acara syukuran keluarga', 'cancelled', now() - interval '6 days'
+        WHERE NOT EXISTS (
+          SELECT 1 FROM staff_leave_requests
+          WHERE staff_profile_id = $1 AND reason = 'Izin acara syukuran keluarga'
+        )
+      `,
+      [doctorStaffId],
+    );
+  }
+
+  // 4. Seed Notifications & Recipients & Actions
+  const doctorUserId = context.userIdsByEmail.get('dokter@amanah.com');
+  const patientUserId = context.userIdsByEmail.get('pasien@amanah.com');
+
+  const seedNotification = async (notifData: {
+    category: string;
+    title: string;
+    body: string;
+    isUrgent: boolean;
+    visualKey?: string;
+    userId: string;
+    isRead: boolean;
+    actions?: Array<{
+      label: string;
+      actionKey: string;
+      actionType: string;
+      url?: string;
+    }>;
+  }) => {
+    let notifRow = await queryOptional<{ id: string }>({
+      client: context.client,
+      text: 'SELECT id FROM notifications WHERE title = $1 AND body = $2 LIMIT 1',
+      values: [notifData.title, notifData.body],
+    });
+
+    if (!notifRow) {
+      notifRow = await queryOne<{ id: string }>({
+        client: context.client,
+        text: `
+          INSERT INTO notifications (category, title, body, is_urgent, visual_key, created_by)
+          VALUES ($1, $2, $3, $4, $5, $6)
+          RETURNING id
+        `,
+        values: [
+          notifData.category,
+          notifData.title,
+          notifData.body,
+          notifData.isUrgent,
+          notifData.visualKey || null,
+          adminUserId,
+        ],
+      });
+    }
+
+    await context.client.query(
+      `
+        INSERT INTO notification_recipients (notification_id, user_id, delivered_at, read_at)
+        VALUES ($1, $2, now(), $3)
+        ON CONFLICT (notification_id, user_id) DO UPDATE
+        SET delivered_at = EXCLUDED.delivered_at
+      `,
+      [
+        notifRow.id,
+        notifData.userId,
+        notifData.isRead ? new Date().toISOString() : null,
+      ],
+    );
+
+    if (notifData.actions) {
+      for (const act of notifData.actions) {
+        await context.client.query(
+          `
+            INSERT INTO notification_actions (notification_id, label, action_key, action_type, url)
+            SELECT $1, $2, $3, $4, $5
+            WHERE NOT EXISTS (
+              SELECT 1 FROM notification_actions
+              WHERE notification_id = $1 AND action_key = $3
+            )
+          `,
+          [
+            notifRow.id,
+            act.label,
+            act.actionKey,
+            act.actionType,
+            act.url || null,
+          ],
+        );
+      }
+    }
+  };
+
+  if (doctorUserId) {
+    await seedNotification({
+      category: 'shift',
+      title: 'Jadwal Praktik Poli Umum Ditugaskan',
+      body: 'Jadwal praktik Poli Umum Anda untuk esok hari pukul 08:00 - 12:00 WIB telah aktif.',
+      isUrgent: false,
+      visualKey: 'calendar',
+      userId: doctorUserId,
+      isRead: false,
+      actions: [
+        {
+          label: 'Lihat Jadwal',
+          actionKey: 'view_schedule',
+          actionType: 'primary',
+          url: '/schedules',
+        },
+      ],
+    });
+
+    await seedNotification({
+      category: 'clinical',
+      title: 'Hasil Lab Pasien Selesai',
+      body: 'Hasil uji laboratorium darah lengkap pasien Dewi Lestari (RM-2026-0001) telah siap ditinjau.',
+      isUrgent: true,
+      visualKey: 'flask',
+      userId: doctorUserId,
+      isRead: false,
+      actions: [
+        {
+          label: 'Buka Rekam Medis',
+          actionKey: 'view_mr',
+          actionType: 'secondary',
+          url: '/medical-records',
+        },
+      ],
+    });
+
+    await seedNotification({
+      category: 'system',
+      title: 'Kebijakan Presensi Mobile',
+      body: 'Sistem presensi GPS dan scan QR telah diperbarui ke versi standar 2026.',
+      isUrgent: false,
+      visualKey: 'info',
+      userId: doctorUserId,
+      isRead: true,
+    });
+  }
+
+  if (patientUserId) {
+    await seedNotification({
+      category: 'appointment',
+      title: 'Antrean Poliklinik Anda Siap',
+      body: 'Nomor antrean UM-001 Anda pada Poli Umum diperkirakan dipanggil dalam 15 menit.',
+      isUrgent: true,
+      visualKey: 'bell',
+      userId: patientUserId,
+      isRead: false,
+      actions: [
+        {
+          label: 'Lihat Antrean',
+          actionKey: 'view_queue',
+          actionType: 'primary',
+        },
+      ],
+    });
+  }
+
+  // 5. Seed Support Tickets & Messages
+  const seedTicket = async (ticketData: {
+    ticketNumber: string;
+    reporterUserId: string;
+    assignedStaffId?: string | null;
+    title: string;
+    description: string;
+    status: string;
+    priority: string;
+    messages: Array<{
+      senderUserId?: string | null;
+      senderType: 'reporter' | 'support_agent' | 'system';
+      body: string;
+    }>;
+  }) => {
+    const ticketRow = await queryOne<{ id: string }>({
+      client: context.client,
+      text: `
+        INSERT INTO support_tickets (
+          ticket_number,
+          reporter_user_id,
+          assigned_staff_id,
+          title,
+          description,
+          status,
+          priority
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        ON CONFLICT (ticket_number) DO UPDATE
+        SET status = EXCLUDED.status,
+            priority = EXCLUDED.priority,
+            updated_at = now()
+        RETURNING id
+      `,
+      values: [
+        ticketData.ticketNumber,
+        ticketData.reporterUserId,
+        ticketData.assignedStaffId || null,
+        ticketData.title,
+        ticketData.description,
+        ticketData.status,
+        ticketData.priority,
+      ],
+    });
+
+    for (const msg of ticketData.messages) {
+      await context.client.query(
+        `
+          INSERT INTO support_ticket_messages (ticket_id, sender_user_id, sender_type, body)
+          SELECT $1, $2, $3, $4
+          WHERE NOT EXISTS (
+            SELECT 1 FROM support_ticket_messages
+            WHERE ticket_id = $1 AND body = $4
+          )
+        `,
+        [ticketRow.id, msg.senderUserId || null, msg.senderType, msg.body],
+      );
+    }
+  };
+
+  if (doctorUserId) {
+    await seedTicket({
+      ticketNumber: 'TK-2026-0001',
+      reporterUserId: doctorUserId,
+      assignedStaffId: doctorStaffId,
+      title: 'Scanner QR Meja Poli Umum 1 Lambat',
+      description:
+        'Tablet poli membutuhkan waktu lama saat memindai QR presensi staf.',
+      status: 'open',
+      priority: 'high',
+      messages: [
+        {
+          senderUserId: doctorUserId,
+          senderType: 'reporter',
+          body: 'Tablet poli membutuhkan waktu lama saat memindai QR presensi staf.',
+        },
+        {
+          senderUserId: adminUserId,
+          senderType: 'support_agent',
+          body: 'Baik Dok, tim IT sedang memeriksa firmware dan koneksi jaringan tablet Poli Umum 1.',
+        },
+      ],
+    });
+  }
+
+  if (patientUserId) {
+    await seedTicket({
+      ticketNumber: 'TK-2026-0002',
+      reporterUserId: patientUserId,
+      title: 'Pembayaran Non-Tunai QRIS Farmasi',
+      description:
+        'Apakah kasir farmasi menerima pembayaran obat menggunakan QRIS?',
+      status: 'resolved',
+      priority: 'normal',
+      messages: [
+        {
+          senderUserId: patientUserId,
+          senderType: 'reporter',
+          body: 'Apakah kasir farmasi menerima pembayaran obat menggunakan QRIS?',
+        },
+        {
+          senderUserId: adminUserId,
+          senderType: 'support_agent',
+          body: 'Bisa Bu Dewi, kasir farmasi menerima seluruh QRIS bank dan dompet digital.',
+        },
+      ],
+    });
+  }
 };
 
 const createSeedContext = async (client: PoolClient): Promise<SeedContext> => {

@@ -2,6 +2,7 @@ import {
   HttpStatus,
   Inject,
   Injectable,
+  UnauthorizedException,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -114,6 +115,8 @@ export class AuthService {
 
     const refreshToken = await this.jwtService.signAsync(
       {
+        sessionId: user.id,
+        hash: 'session_hash',
         id: user.id,
         role: {
           id: primaryRole?.id,
@@ -209,16 +212,77 @@ export class AuthService {
   }
 
   async refreshToken(data: any): Promise<any> {
+    const user = await this.db.query.users.findFirst({
+      where: eq(users.id, String(data.sessionId)),
+      with: {
+        userRoles_userId: {
+          with: {
+            role: true,
+          },
+        },
+        staffProfiles: true,
+        patientProfiles: true,
+      },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException();
+    }
+
+    const primaryRole = user.userRoles_userId?.[0]?.role;
+    let systemRole: 'ADMIN' | 'STAF' | 'PATIENT' = 'PATIENT';
+    if (primaryRole?.code === 'admin') {
+      systemRole = 'ADMIN';
+    } else if (
+      primaryRole?.code === 'staff_doctor' ||
+      primaryRole?.code === 'staff_midwife' ||
+      primaryRole?.code === 'staff_worker' ||
+      (user.staffProfiles && user.staffProfiles.length > 0)
+    ) {
+      systemRole = 'STAF';
+    }
+
+    const tokenExpiresIn =
+      this.configService.get('auth.expires', { infer: true }) || '1d';
     const token = await this.jwtService.signAsync(
-      { id: data.sessionId },
+      {
+        id: user.id,
+        email: user.email,
+        systemRole,
+        role: {
+          id: primaryRole?.id,
+          name: systemRole,
+        },
+      },
       {
         secret: this.configService.getOrThrow('auth.secret', { infer: true }),
-        expiresIn: '1d',
+        expiresIn: tokenExpiresIn,
       },
     );
+
+    const refreshTokenExpiresIn =
+      this.configService.get('auth.refreshExpires', { infer: true }) || '7d';
+    const refreshToken = await this.jwtService.signAsync(
+      {
+        sessionId: user.id,
+        hash: 'session_hash',
+        id: user.id,
+        role: {
+          id: primaryRole?.id,
+          name: systemRole,
+        },
+      },
+      {
+        secret: this.configService.getOrThrow('auth.refreshSecret', {
+          infer: true,
+        }),
+        expiresIn: refreshTokenExpiresIn,
+      },
+    );
+
     return {
       token,
-      refreshToken: 'dummy_refresh',
+      refreshToken,
       tokenExpires: Date.now() + 86400000,
     };
   }
