@@ -84,7 +84,11 @@ export class RedisService implements OnModuleDestroy {
     }
   }
 
-  async setNx(key: string, value: string, ttlSeconds: number): Promise<boolean> {
+  async setNx(
+    key: string,
+    value: string,
+    ttlSeconds: number,
+  ): Promise<boolean> {
     const cacheKey = this.buildKey(key);
     this.assertPositiveTtl(ttlSeconds);
 

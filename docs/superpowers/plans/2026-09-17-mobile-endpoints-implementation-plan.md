@@ -135,7 +135,7 @@
 
 **Files:**
 - Modify: `src/app.module.ts`
-- Create: `test-mobile-endpoints.ps1`
+- Create: `scripts/e2e/test-mobile-endpoints.ps1`
 
 - [ ] **Step 1: Register all new modules in AppModule**
   Import `NotificationsModule`, `SupportTicketsModule` into `src/app.module.ts`.
@@ -147,7 +147,7 @@
   Run `docker compose up -d --build api`.
 
 - [ ] **Step 4: Create and run comprehensive PowerShell verification test suite**
-  Write `test-mobile-endpoints.ps1` testing:
+  Write `scripts/e2e/test-mobile-endpoints.ps1` testing:
   - Notifications list, mark as read, mark all as read.
   - Support ticket creation, list my tickets, send message, list messages.
   - Clinic analytics monthly records and daily breakdown.

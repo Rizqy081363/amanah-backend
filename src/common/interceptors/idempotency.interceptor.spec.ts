@@ -6,8 +6,8 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { of, throwError } from 'rxjs';
-import { IdempotencyInterceptor } from './idempotency.interceptor';
 import { RedisService } from '../redis/redis.service';
+import { IdempotencyInterceptor } from './idempotency.interceptor';
 
 describe('IdempotencyInterceptor', () => {
   let interceptor: IdempotencyInterceptor;
@@ -153,13 +153,20 @@ describe('IdempotencyInterceptor', () => {
     const res = ctx.switchToHttp().getResponse();
     expect(res.status).toHaveBeenCalledWith(201);
     expect(res.setHeader).toHaveBeenCalledWith('Idempotent-Replay', 'true');
-    expect(res.setHeader).toHaveBeenCalledWith('Location', '/api/v1/appointments/99');
+    expect(res.setHeader).toHaveBeenCalledWith(
+      'Location',
+      '/api/v1/appointments/99',
+    );
   });
 
   it('should throw ConflictException on payload mismatch (API-142)', async () => {
-    const ctx = createMockContext('POST', { 'idempotency-key': 'key-001' }, {
-      data: 'different-data',
-    });
+    const ctx = createMockContext(
+      'POST',
+      { 'idempotency-key': 'key-001' },
+      {
+        data: 'different-data',
+      },
+    );
     redisService.setNx.mockResolvedValue(false);
 
     const existingRecord = {
@@ -200,9 +207,9 @@ describe('IdempotencyInterceptor', () => {
     redisService.setNx.mockResolvedValue(true);
 
     const failingHandler: CallHandler = {
-      handle: jest.fn().mockReturnValue(
-        throwError(() => new Error('Business failure')),
-      ),
+      handle: jest
+        .fn()
+        .mockReturnValue(throwError(() => new Error('Business failure'))),
     };
 
     const result$ = await interceptor.intercept(ctx, failingHandler);

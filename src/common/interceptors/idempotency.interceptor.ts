@@ -1,4 +1,3 @@
-import * as crypto from 'crypto';
 import {
   BadRequestException,
   CallHandler,
@@ -9,6 +8,7 @@ import {
   NestInterceptor,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import * as crypto from 'crypto';
 import type { Request, Response } from 'express';
 import { Observable, of, throwError } from 'rxjs';
 import { catchError, tap } from 'rxjs/operators';

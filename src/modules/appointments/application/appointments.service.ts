@@ -111,10 +111,7 @@ export class AppointmentsService {
     );
   }
 
-  async findDisplayQueue(
-    date?: string,
-    poliklinikId?: string,
-  ): Promise<any> {
+  async findDisplayQueue(date?: string, poliklinikId?: string): Promise<any> {
     const targetDate = date || new Date().toISOString().split('T')[0];
     const cacheKey = `${QUEUE_DISPLAY_CACHE_PREFIX}:${targetDate}:${poliklinikId || 'all'}`;
 

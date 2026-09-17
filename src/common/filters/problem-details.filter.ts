@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import {
   ArgumentsHost,
   Catch,
@@ -7,7 +8,6 @@ import {
   Logger,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import { randomUUID } from 'node:crypto';
 import { CORRELATION_ID_HEADER } from '../middleware/correlation-id.middleware';
 
 export interface InvalidParam {

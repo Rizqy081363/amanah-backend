@@ -12,10 +12,10 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { useContainer } from 'class-validator';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
-import { AllConfigType } from './config/config.type';
-import { IdempotencyInterceptor } from './common/interceptors/idempotency.interceptor';
 import { ProblemDetailsFilter } from './common/filters/problem-details.filter';
+import { IdempotencyInterceptor } from './common/interceptors/idempotency.interceptor';
 import { RedisService } from './common/redis/redis.service';
+import { AllConfigType } from './config/config.type';
 import { ResolvePromisesInterceptor } from './utils/serializer.interceptor';
 import validationOptions from './utils/validation-options';
 

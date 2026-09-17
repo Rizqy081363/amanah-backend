@@ -1,10 +1,10 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
 // Feature modules
 import { AuthModule } from './auth/auth.module';
 import authConfig from './auth/config/auth.config';
 import cacheConfig from './cache/cache.config';
+import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
 import { RedisModule } from './common/redis/redis.module';
 import appConfig from './config/app.config';
 import databaseConfig from './database/config/database.config';
@@ -54,4 +54,3 @@ export class AppModule implements NestModule {
     consumer.apply(CorrelationIdMiddleware).forRoutes('*');
   }
 }
-

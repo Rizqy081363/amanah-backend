@@ -1,52 +1,140 @@
-# NestJS REST API boilerplate 🇺🇦
+# Amanah Healthcare — Backend Platform
 
-[![image](https://github.com/brocoders/nestjs-boilerplate/assets/72293912/197da43e-02f4-4895-8d3e-b7a42a591c26)](https://github.com/new?template_name=nestjs-boilerplate&template_owner=brocoders)
+Modern, robust, clinical-grade backend platform powering **Amanah Healthcare** operations, clinical queues, electronic medical records (EMR), patient management, staff workflows, and mobile client applications.
 
-![github action status](https://github.com/brocoders/nestjs-boilerplate/actions/workflows/docker-e2e.yml/badge.svg)
-[![renovate](https://img.shields.io/badge/renovate-enabled-%231A1F6C?logo=renovatebot)](https://app.renovatebot.com/dashboard)
-[![Static Badge](https://img.shields.io/badge/supported_by-brocoders-d91965?logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB3aWR0aD0iMTMwIiBoZWlnaHQ9IjE4NyIgdmlld0JveD0iMCAwIDEzMCAxODciIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI%2BCjxnIGNsaXAtcGF0aD0idXJsKCNjbGlwMF83NzExXzQ4OTEpIj4KPHBhdGggZD0iTTc1Ljk5NjcgNDUuNzUwNkM2NS4xMDg5IDQ2Ljg2MSA1Ny45MjMgNTguNDA5NyA2Mi4yNzgxIDY4Ljg0OEwxMDguNDQyIDE4N0w3My42MDEzIDE1NS4wMTlIMzQuODQwOUMyMC42ODY4IDE1NS4wMTkgOS4zNjM0OSAxNDMuNDcgOS4zNjM0OSAxMjkuMDM0Vjk0LjYxMDVDOS4zNjM0OSA5Mi4xNjc1IDguNDkyNDYgODkuNzI0NSA2Ljc1MDQyIDg3Ljk0NzdMMCA4MS4wNjNMNi43NTA0MiA3NC4xNzgxQzguNDkyNDYgNzIuNDAxNCA5LjM2MzQ5IDY5Ljk1ODQgOS4zNjM0OSA2Ny41MTU0VjMxLjA5MjZDOS4zNjM0OSAxMy43Njk2IDIzLjA4MjEgMCAzOS44NDkyIDBINTguMTQwN0w3NS45OTY3IDQ1Ljc1MDZaIiBmaWxsPSJ3aGl0ZSIvPgo8cGF0aCBkPSJNMTI1LjY0NiAxMTIuMzc4Vjk0LjgzMjdDMTI1LjY0NiA5My43MjIyIDEyNi4wODEgOTIuNjExOCAxMjYuOTUyIDkxLjcyMzRMMTMwLjAwMSA4OC4zOTIxTDEyNi45NTIgODUuMDYwN0MxMjYuMDgxIDg0LjE3MjQgMTI1LjY0NiA4My4wNjE5IDEyNS42NDYgODEuOTUxNFY2OS43MzY1QzEyNS42NDYgNTYuNDExMSAxMTQuOTc2IDQ1Ljc1MDcgMTAyLjEyOCA0NS43NTA3SDc1Ljk5NzNMMTA1LjYxMiAxMzAuODExQzEwNS42MTIgMTMwLjgxMSAxMTAuNjIgMTMwLjgxMSAxMTAuODM4IDEzMC44MTFDMTE5LjExMyAxMjkuMDM1IDEyNS42NDYgMTIxLjQ4NCAxMjUuNjQ2IDExMi4zNzhaIiBmaWxsPSJ3aGl0ZSIvPgo8L2c%2BCjxkZWZzPgo8Y2xpcFBhdGggaWQ9ImNsaXAwXzc3MTFfNDg5MSI%2BCjxyZWN0IHdpZHRoPSIxMzAiIGhlaWdodD0iMTg3IiBmaWxsPSJ3aGl0ZSIvPgo8L2NsaXBQYXRoPgo8L2RlZnM%2BCjwvc3ZnPgo%3D&logoColor=d91965)](https://brocoders.com/)
-[![Discord Badge](https://img.shields.io/badge/discord-NodeJS_boilerplate-d91965?style=flat&labelColor=5866f2&logo=discord&logoColor=white&link=https://discord.com/channels/520622812742811698/1197293125434093701)](https://discord.com/channels/520622812742811698/1197293125434093701)
+---
 
-<br />
-<p align="center"><a href="https://discord.com/channels/520622812742811698/1197293125434093701"><img src="https://github.com/brocoders/nestjs-boilerplate/assets/72293912/c9d5fbf0-b56d-46b5-bb30-f96f44764bae" width="300"/></a></p>
-<br />
+## Architectural Stack
 
-## Description <!-- omit in toc -->
+- **Runtime & Framework**: NestJS 11 on Bun / Node.js 24
+- **Database (Canonical Persistence)**: PostgreSQL 17 via [Drizzle ORM](https://orm.drizzle.team/)
+- **Distributed Cache & Idempotency**: Redis 7 (DB 1) for query caching and distributed lock-based request deduplication (API-139..145)
+- **Authentication & Security**: Better Auth & JWT with Role-Based Access Control (`ADMIN`, `PATIENT`, `STAF`)
+- **API Error Standard**: RFC 7807 / RFC 9457 Problem Details (`application/problem+json`) with mandatory `x-correlation-id` tracing
+- **Email Infrastructure**: Nodemailer with local [Mailpit](https://github.com/axllent/mailpit) capture sink
+- **Documentation & Spec**: OpenAPI 3.0 / Swagger UI live at `/docs` (`/docs-json`)
 
-NestJS REST API boilerplate for a typical project
+---
 
-[Full documentation here](/docs/readme.md)
+## Core Domain Modules
 
-Demo: <https://nestjs-boilerplate-test.herokuapp.com/docs>
+```
+src/
+├── app.module.ts                         # Root application module & global middleware
+├── main.ts                               # Bootstrap, Swagger UI setup & global pipes/filters
+├── auth/                                 # Better Auth & JWT authentication strategies
+├── common/                               # Cross-cutting concerns & shared infrastructure
+│   ├── auth/                             # Roles guard, current-user & public decorators
+│   ├── decorators/                       # @Idempotent() distributed concurrency decorator
+│   ├── filters/                          # Global RFC 7807 Problem Details exception filter
+│   ├── interceptors/                     # Distributed idempotency & cache interceptors
+│   ├── middleware/                       # Correlation ID request tracing middleware
+│   └── redis/                            # Redis connection pooling & health checks
+├── config/                               # Centralized environment configuration
+├── database/                             # Drizzle ORM schema, seeds & migrations
+├── health/                               # Health probe endpoints (/health/live, /health/ready)
+├── home/                                 # App gateway / info endpoint (GET /)
+├── mail/                                 # Email dispatching & HTML templates
+└── modules/                              # Domain-driven healthcare modules
+    ├── appointments/                     # Appointments & live clinic queue ticket system
+    ├── attendance/                       # QR/Geofence staff attendance tracking
+    ├── clinics/                          # Clinics, departments & operational analytics
+    ├── leaves/                           # Staff leave requests & status workflow
+    ├── medical-records/                  # Clinical records, soap notes & diagnoses
+    ├── notifications/                    # In-app user notifications & read status
+    ├── patients/                         # Patient master records & medical identifiers
+    ├── schedules/                        # Doctor practice session scheduling
+    ├── staffs/                           # Healthcare staff & practitioner profiles
+    └── support-tickets/                  # Customer care tickets & live chat replies
+```
 
-A fully compatible frontend boilerplate: <https://github.com/brocoders/extensive-react-boilerplate>
+---
 
-Belongs to the [bc boilerplates](https://bcboilerplates.com/) ecosystem
+## Getting Started
 
-<https://github.com/user-attachments/assets/a66f114a-c714-4036-8eeb-20cbf04ae985>
+### 1. Prerequisites
+- [Docker](https://www.docker.com/) & Docker Compose
+- [Bun](https://bun.sh/) (>= 1.2.0) or Node.js (>= 22.0.0)
+- PowerShell 7 (`pwsh`) for running verification suites
 
-## Table of Contents <!-- omit in toc -->
+### 2. Infrastructure Setup
 
-- [Features](#features)
-- [Contributors](#contributors)
-- [Support](#support)
+Start the PostgreSQL, Redis, Mailpit, and Adminer containers:
+```bash
+docker compose up -d
+```
 
-## Features
+### 3. Database Migration & Seed
 
-- [x] Database. Support [TypeORM](https://www.npmjs.com/package/typeorm) and [Mongoose](https://www.npmjs.com/package/mongoose).
-- [x] Seeding.
-- [x] Config Service ([@nestjs/config](https://www.npmjs.com/package/@nestjs/config)).
-- [x] Mailing ([nodemailer](https://www.npmjs.com/package/nodemailer)).
-- [x] Sign in and sign up via email.
-- [x] Social sign in (Apple, Facebook, Google).
-- [x] Admin and User roles.
-- [x] File uploads. Support local and Amazon S3 drivers.
-- [x] Swagger.
-- [x] E2E and units tests.
-- [x] Docker.
-- [x] CI (Github Actions).
+Run Drizzle migrations and seed initial development data:
+```bash
+bun run db:migrate
+bun run db:seed:dev
+```
 
-## Contributors
+### 4. Running the Application
+
+```bash
+# Start local development server (with watch mode)
+bun run start:dev
+
+# Or run with SWC compiler
+bun run start:swc
+```
+
+The API will be available at:
+- **REST API Base URL**: `http://localhost:3001`
+- **Swagger Documentation**: `http://localhost:3001/docs`
+- **Mailpit Web UI**: `http://localhost:8025`
+- **Adminer Database UI**: `http://localhost:8080`
+
+---
+
+## Automated Verification & Test Suites
+
+The codebase includes end-to-end integration test suites located in `scripts/e2e/`:
+
+```bash
+# Verify all 45 API endpoints across the system
+bun run test:e2e:all
+
+# Verify distributed idempotency, concurrency lock & payload hashing (18 assertions)
+bun run test:e2e:idempotency
+
+# Verify RFC 7807/9457 Problem Details error contracts (18 assertions)
+bun run test:e2e:problem-details
+
+# Verify mobile client endpoints (25 assertions)
+bun run test:e2e:mobile
+
+# Verify OpenAPI 3.0 / Swagger UI 'Try It Out' specifications (35 assertions)
+bun run test:e2e:swagger
+
+# Run the complete end-to-end test suite
+bun run test:e2e:full-suite
+
+# Run unit tests via Jest
+bun run test
+
+# Run Biome linter and formatter
+bun run check
+```
+
+---
+
+## Architectural Rules & Documentation
+
+Comprehensive architectural rules, database designs, and API standards are located in `docs/database-amanah-healthcare/`:
+- [`API-DESIGN-RULES.md`](docs/database-amanah-healthcare/API-DESIGN-RULES.md) — 200+ canonical REST & security rules
+- [`BACKEND-ARCHITECTURE-RULES.md`](docs/database-amanah-healthcare/BACKEND-ARCHITECTURE-RULES.md) — Clean architecture & module boundaries
+- [`RUNTIME-SECURITY-OPS-RULES.md`](docs/database-amanah-healthcare/RUNTIME-SECURITY-OPS-RULES.md) — Production runtime security
+- [`database-design.md`](docs/database-amanah-healthcare/database-design.md) — Relational schema design & foreign key relationships
+
+---
+
+## Upstream Boilerplate Attribution & Contributors
+
+This repository originated from the NestJS REST API boilerplate by Brocoders and has been extensively adapted into the Amanah Healthcare clinical platform.
 
 <!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
 <!-- prettier-ignore-start -->
@@ -61,12 +149,10 @@ Belongs to the [bc boilerplates](https://bcboilerplates.com/) ecosystem
     </tr>
   </tbody>
 </table>
-
 <!-- markdownlint-restore -->
 <!-- prettier-ignore-end -->
-
 <!-- ALL-CONTRIBUTORS-LIST:END -->
 
-## Support
+## License
 
-If you seek consulting, support, or wish to collaborate, please contact us via [boilerplates@brocoders.com](mailto:boilerplates@brocoders.com). For any inquiries regarding boilerplates, feel free to ask on [GitHub Discussions](https://github.com/brocoders/nestjs-boilerplate/discussions) or [Discord](https://discord.com/channels/520622812742811698/1197293125434093701).
+MIT License. See [LICENSE](LICENSE) for details.
