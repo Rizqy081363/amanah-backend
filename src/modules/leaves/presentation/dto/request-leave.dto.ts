@@ -38,4 +38,29 @@ export class RequestLeaveDto {
   @IsString()
   @IsOptional()
   documentUrl?: string;
+
+  @ApiPropertyOptional({
+    example: 'annual_leave',
+    description:
+      'Jenis permohonan cuti: annual_leave, sick_leave, seminar_symposium, family_matter, external_assignment, other',
+    enum: [
+      'annual_leave',
+      'sick_leave',
+      'seminar_symposium',
+      'family_matter',
+      'external_assignment',
+      'other',
+    ],
+  })
+  @IsString()
+  @IsOptional()
+  type?: string;
+
+  @ApiPropertyOptional({
+    example: '550e8400-e29b-41d4-a716-446655440000',
+    description: 'ID staf pengganti yang melimpahkan tugas selama cuti',
+  })
+  @IsString()
+  @IsOptional()
+  substituteStaffId?: string;
 }

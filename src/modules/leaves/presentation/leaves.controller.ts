@@ -14,6 +14,7 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import {
+  ApiBadRequestResponse,
   ApiBearerAuth,
   ApiCreatedResponse,
   ApiForbiddenResponse,
@@ -74,6 +75,8 @@ export class LeavesController {
       startDate: body.startDate,
       endDate: body.endDate,
       reason: body.reason,
+      type: body.type,
+      substituteStaffId: body.substituteStaffId,
       documentUrl: body.documentUrl,
     });
   }
@@ -141,6 +144,41 @@ export class LeavesController {
       user.id,
       body.approvalNotes,
     );
+    if (!updated) {
+      throw new NotFoundException(
+        `Pengajuan cuti dengan ID ${id} tidak ditemukan`,
+      );
+    }
+    return updated;
+  }
+
+  @Patch(':id/cancel')
+  @Roles('STAF')
+  @ApiOperation({
+    summary:
+      'Staf membatalkan pengajuan cuti sendiri yang masih pending (Mobile App)',
+    description:
+      'Membatalkan permohonan cuti yang telah diajukan sebelum disetujui atau ditolak oleh Admin.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID unik permohonan cuti',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
+  @ApiOkResponse({ description: 'Pengajuan cuti berhasil dibatalkan' })
+  @ApiNotFoundResponse({ description: 'Pengajuan cuti tidak ditemukan' })
+  @ApiForbiddenResponse({
+    description: 'Akses ditolak atau bukan milik staf login',
+  })
+  @ApiBadRequestResponse({
+    description: 'Hanya pengajuan cuti berstatus pending yang dapat dibatalkan',
+  })
+  async cancelLeave(@Param('id') id: string, @CurrentUser() user: any) {
+    if (!user.staff?.id) {
+      throw new ForbiddenException('User bukan staf terdaftar');
+    }
+
+    const updated = await this.leaveRepo.cancel(id, user.staff.id);
     if (!updated) {
       throw new NotFoundException(
         `Pengajuan cuti dengan ID ${id} tidak ditemukan`,

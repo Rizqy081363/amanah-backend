@@ -10,10 +10,12 @@ export interface LeaveRepository {
       | 'status'
       | 'approvedBy'
       | 'approvalNotes'
+      | 'cancelledAt'
       | 'createdAt'
       | 'updatedAt'
     >,
   ): Promise<LeaveEntity>;
+  findById(id: string): Promise<LeaveEntity | null>;
   findByStaffId(staffId: string): Promise<LeaveEntity[]>;
   findAllPending(): Promise<any[]>;
   updateStatus(
@@ -22,4 +24,5 @@ export interface LeaveRepository {
     approvedBy: string,
     approvalNotes?: string,
   ): Promise<LeaveEntity | null>;
+  cancel(id: string, staffId: string): Promise<LeaveEntity | null>;
 }

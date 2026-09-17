@@ -17,9 +17,11 @@ import { AttendanceModule } from './modules/attendance/attendance.module';
 import { ClinicsModule } from './modules/clinics/clinics.module';
 import { LeavesModule } from './modules/leaves/leaves.module';
 import { MedicalRecordsModule } from './modules/medical-records/medical-records.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 import { PatientsModule } from './modules/patients/patients.module';
 import { SchedulesModule } from './modules/schedules/schedules.module';
 import { StaffsModule } from './modules/staffs/staffs.module';
+import { SupportTicketsModule } from './modules/support-tickets/support-tickets.module';
 
 @Module({
   imports: [
@@ -42,6 +44,8 @@ import { StaffsModule } from './modules/staffs/staffs.module';
     MedicalRecordsModule,
     AttendanceModule,
     LeavesModule,
+    NotificationsModule,
+    SupportTicketsModule,
   ],
 })
 export class AppModule {}

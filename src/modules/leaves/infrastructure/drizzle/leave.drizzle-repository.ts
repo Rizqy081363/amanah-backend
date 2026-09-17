@@ -1,8 +1,13 @@
-import { Inject, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+} from '@nestjs/common';
 import { desc, eq } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
-import { staffLeaveRequests, staffProfiles } from '../../../../database/schema';
+import { staffLeaveRequests } from '../../../../database/schema';
 import { LeaveEntity } from '../../domain/entities/leave.entity';
 import { LeaveRepository } from '../../domain/repositories/leave.repository';
 
@@ -19,7 +24,9 @@ export class LeaveDrizzleRepository implements LeaveRepository {
         ? 'DISETUJUI'
         : r.status === 'rejected'
           ? 'DITOLAK'
-          : 'MENUNGGU_KONFIRMASI';
+          : r.status === 'cancelled'
+            ? 'DIBATALKAN'
+            : 'MENUNGGU_KONFIRMASI';
 
     return {
       id: r.id,
@@ -27,10 +34,13 @@ export class LeaveDrizzleRepository implements LeaveRepository {
       startDate: r.startDate,
       endDate: r.endDate,
       reason: r.reason,
+      type: r.requestType,
+      substituteStaffId: r.substitutePractitionerId || null,
       documentUrl: null,
       status: statusName,
       approvedBy: r.reviewedBy || null,
       approvalNotes: r.reviewerNotes || null,
+      cancelledAt: r.cancelledAt ? new Date(r.cancelledAt) : null,
       createdAt: new Date(r.createdAt),
       updatedAt: new Date(r.updatedAt),
     };
@@ -43,6 +53,7 @@ export class LeaveDrizzleRepository implements LeaveRepository {
       | 'status'
       | 'approvedBy'
       | 'approvalNotes'
+      | 'cancelledAt'
       | 'createdAt'
       | 'updatedAt'
     >,
@@ -54,15 +65,34 @@ export class LeaveDrizzleRepository implements LeaveRepository {
       Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1,
     );
 
+    let reqType: any = 'other';
+    if (data.type) {
+      const lower = data.type.toLowerCase();
+      if (lower.includes('annual') || lower.includes('tahunan')) {
+        reqType = 'annual_leave';
+      } else if (lower.includes('sick') || lower.includes('sakit')) {
+        reqType = 'sick_leave';
+      } else if (lower.includes('seminar')) {
+        reqType = 'seminar_symposium';
+      } else if (lower.includes('family') || lower.includes('keluarga')) {
+        reqType = 'family_matter';
+      } else if (lower.includes('external') || lower.includes('tugas')) {
+        reqType = 'external_assignment';
+      } else {
+        reqType = 'other';
+      }
+    }
+
     const [record] = await this.db
       .insert(staffLeaveRequests)
       .values({
         staffProfileId: data.staffId,
-        requestType: 'other',
+        requestType: reqType,
         startDate: data.startDate,
         endDate: data.endDate,
         durationDays,
         reason: data.reason,
+        substitutePractitionerId: data.substituteStaffId || null,
         status: 'pending',
       })
       .returning();
@@ -116,6 +146,51 @@ export class LeaveDrizzleRepository implements LeaveRepository {
         reviewedBy: approvedBy || null,
         reviewerNotes: approvalNotes || null,
         reviewedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(staffLeaveRequests.id, id))
+      .returning();
+
+    return updated ? this.mapRecordToEntity(updated) : null;
+  }
+
+  async findById(id: string): Promise<LeaveEntity | null> {
+    const records = await this.db.query.staffLeaveRequests.findMany({
+      where: eq(staffLeaveRequests.id, id),
+      limit: 1,
+    });
+    if (!records.length) return null;
+    return this.mapRecordToEntity(records[0]);
+  }
+
+  async cancel(id: string, staffId: string): Promise<LeaveEntity | null> {
+    const records = await this.db.query.staffLeaveRequests.findMany({
+      where: eq(staffLeaveRequests.id, id),
+      limit: 1,
+    });
+
+    if (!records.length) {
+      return null;
+    }
+
+    const record = records[0];
+    if (record.staffProfileId !== staffId) {
+      throw new ForbiddenException(
+        'Anda tidak memiliki izin membatalkan pengajuan cuti ini',
+      );
+    }
+
+    if (record.status !== 'pending') {
+      throw new BadRequestException(
+        'Hanya pengajuan cuti berstatus pending yang dapat dibatalkan',
+      );
+    }
+
+    const [updated] = await this.db
+      .update(staffLeaveRequests)
+      .set({
+        status: 'cancelled',
+        cancelledAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       })
       .where(eq(staffLeaveRequests.id, id))

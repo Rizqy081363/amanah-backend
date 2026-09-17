@@ -78,7 +78,7 @@ foreach ($pathProp in $spec.paths.PSObject.Properties) {
 
 Assert-Test "All operations have summary and description (missing: $missingDocs)" ($missingDocs -eq 0)
 Assert-Test "All secured operations use unified 'access-token' scheme (mismatches: $securityMismatches)" ($securityMismatches -eq 0)
-Assert-Test "Total documented operations count is 81" ($opsCount -eq 81)
+Assert-Test "Total documented operations count is 92" ($opsCount -eq 92)
 
 # Check broken $refs
 $regex = [regex]'"\$ref":\s*"([^"]+)"'
@@ -165,6 +165,18 @@ Assert-Test "Try-it-out [Attendance]: GET /api/v1/attendance/daily -> returns da
 # 3.12 Tag: Staff Leaves
 $leavesRes = Invoke-RestMethod -Uri "$baseUrl/api/v1/leaves/pending" -Method Get -Headers $authHeaders
 Assert-Test "Try-it-out [Staff Leaves]: GET /api/v1/leaves/pending -> returns pending leave applications" ($null -ne $leavesRes)
+
+# 3.13 Tag: Notifications
+$notifsRes = Invoke-RestMethod -Uri "$baseUrl/api/v1/notifications/me" -Method Get -Headers $authHeaders
+Assert-Test "Try-it-out [Notifications]: GET /api/v1/notifications/me -> returns notifications list" ($null -ne $notifsRes.data)
+
+# 3.14 Tag: Support Tickets
+$ticketsRes = Invoke-RestMethod -Uri "$baseUrl/api/v1/support-tickets/my-tickets" -Method Get -Headers $authHeaders
+Assert-Test "Try-it-out [Support Tickets]: GET /api/v1/support-tickets/my-tickets -> returns my support tickets" ($null -ne $ticketsRes)
+
+# 3.15 Tag: Clinic Analytics
+$analyticsRes = Invoke-RestMethod -Uri "$baseUrl/api/v1/clinics/analytics/summary" -Method Get -Headers $authHeaders
+Assert-Test "Try-it-out [Clinic Analytics]: GET /api/v1/clinics/analytics/summary -> returns clinic operational analytics" ($null -ne $analyticsRes.totalClinics)
 
 Write-Host "`n==============================================================================" -ForegroundColor Cyan
 Write-Host "OpenAPI / Swagger Spec Suite Results: Passed = $passed, Failed = $failed" -ForegroundColor $(if ($failed -eq 0) { "Green" } else { "Red" })
