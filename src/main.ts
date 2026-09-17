@@ -59,13 +59,30 @@ async function bootstrap() {
     new ClassSerializerInterceptor(app.get(Reflector)),
   );
 
+  const port = configService.getOrThrow('app.port', { infer: true });
+  const backendDomain =
+    configService.get('app.backendDomain', { infer: true }) ||
+    `http://localhost:${port}`;
+
   const options = new DocumentBuilder()
     .setTitle('Amanah Healthcare API')
     .setDescription(
       'Enterprise Backend API for Amanah Clinic (Poli Umum, Poli KIA, Staff Mobile App, Admin Dashboard)',
     )
     .setVersion('1.0')
-    .addBearerAuth()
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        name: 'JWT',
+        description: 'Masukkan JWT Bearer token untuk autentikasi API',
+        in: 'header',
+      },
+      'access-token',
+    )
+    .addServer(`http://localhost:${port}`, 'Local Development Server')
+    .addServer(backendDomain, 'Application Gateway')
     .addGlobalParameters({
       in: 'header',
       required: false,
@@ -77,9 +94,13 @@ async function bootstrap() {
     .build();
 
   const document = SwaggerModule.createDocument(app, options);
-  SwaggerModule.setup('docs', app, document);
-
-  const port = configService.getOrThrow('app.port', { infer: true });
+  SwaggerModule.setup('docs', app, document, {
+    swaggerOptions: {
+      persistAuthorization: true,
+      displayRequestDuration: true,
+      filter: true,
+    },
+  });
   await app.listen(port);
   logger.log(`Amanah Healthcare Backend is running on port ${port}.`);
   logger.log(`Swagger documentation available at /docs.`);

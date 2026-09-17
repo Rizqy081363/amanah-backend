@@ -16,13 +16,16 @@ import {
   ApiConsumes,
   ApiCreatedResponse,
   ApiExcludeEndpoint,
+  ApiOperation,
   ApiTags,
+  ApiUnauthorizedResponse,
+  ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
 import type { Response as ExpressResponse } from 'express';
 import { FileResponseDto } from './dto/file-response.dto';
 import { FilesLocalService } from './files.service';
 
-@ApiTags('Files')
+@ApiTags('Files (Pengunggahan Berkas Medis)')
 @Controller({
   path: 'files',
   version: '1',
@@ -32,8 +35,20 @@ export class FilesLocalController {
 
   @ApiCreatedResponse({
     type: FileResponseDto,
+    description: 'Berkas berhasil diunggah dan disimpan di storage lokal',
   })
-  @ApiBearerAuth()
+  @ApiUnauthorizedResponse({
+    description: 'Sesi token tidak valid atau tidak disertakan',
+  })
+  @ApiUnprocessableEntityResponse({
+    description: 'Berkas tidak dipilih atau format berkas tidak diizinkan',
+  })
+  @ApiOperation({
+    summary: 'Unggah berkas ke penyimpanan lokal',
+    description:
+      'Mengunggah file (foto profil, surat rujukan, lampiran izin) berformat multipart/form-data ke server.',
+  })
+  @ApiBearerAuth('access-token')
   @UseGuards(AuthGuard('jwt'))
   @Post('upload')
   @ApiConsumes('multipart/form-data')
@@ -44,6 +59,7 @@ export class FilesLocalController {
         file: {
           type: 'string',
           format: 'binary',
+          description: 'Berkas biner yang diunggah',
         },
       },
     },

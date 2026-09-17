@@ -12,12 +12,15 @@ import {
   ApiBody,
   ApiConsumes,
   ApiCreatedResponse,
+  ApiOperation,
   ApiTags,
+  ApiUnauthorizedResponse,
+  ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
 import { FileResponseDto } from './dto/file-response.dto';
 import { FilesS3Service } from './files.service';
 
-@ApiTags('Files')
+@ApiTags('Files (Pengunggahan Berkas Medis)')
 @Controller({
   path: 'files',
   version: '1',
@@ -25,10 +28,22 @@ import { FilesS3Service } from './files.service';
 export class FilesS3Controller {
   constructor(private readonly filesService: FilesS3Service) {}
 
+  @ApiOperation({
+    summary: 'Unggah berkas ke AWS S3',
+    description:
+      'Mengunggah berkas multipart/form-data langsung ke AWS S3 bucket terkonfigurasi.',
+  })
   @ApiCreatedResponse({
     type: FileResponseDto,
+    description: 'Berkas berhasil diunggah ke S3',
   })
-  @ApiBearerAuth()
+  @ApiUnauthorizedResponse({
+    description: 'Sesi token tidak valid atau tidak disertakan',
+  })
+  @ApiUnprocessableEntityResponse({
+    description: 'Format berkas tidak valid atau gagal diproses',
+  })
+  @ApiBearerAuth('access-token')
   @UseGuards(AuthGuard('jwt'))
   @Post('upload')
   @ApiConsumes('multipart/form-data')
