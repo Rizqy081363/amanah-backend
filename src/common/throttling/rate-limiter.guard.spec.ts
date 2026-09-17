@@ -1,4 +1,4 @@
-import { ExecutionContext, HttpException, HttpStatus } from '@nestjs/common';
+import { ExecutionContext, HttpException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import {
   RATE_LIMIT_HEADER_LIMIT,
@@ -8,9 +8,7 @@ import {
   RETRY_AFTER_HEADER,
 } from '../constants/rate-limit.constants';
 import { RedisService } from '../redis/redis.service';
-import { RATE_LIMIT_METADATA_KEY } from './rate-limit.decorator';
 import { RateLimiterGuard } from './rate-limiter.guard';
-import { SKIP_RATE_LIMIT_METADATA_KEY } from './skip-rate-limit.decorator';
 
 describe('RateLimiterGuard', () => {
   let guard: RateLimiterGuard;

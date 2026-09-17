@@ -5,7 +5,6 @@ import {
   HttpException,
   HttpStatus,
   Injectable,
-  Logger,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { Request, Response } from 'express';
@@ -23,8 +22,6 @@ import { SKIP_RATE_LIMIT_METADATA_KEY } from './skip-rate-limit.decorator';
 
 @Injectable()
 export class RateLimiterGuard implements CanActivate {
-  private readonly logger = new Logger(RateLimiterGuard.name);
-
   constructor(
     private readonly reflector: Reflector,
     private readonly redisService: RedisService,
