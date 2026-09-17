@@ -26,6 +26,9 @@ export interface ProblemDetails {
   instance: string;
   code: string;
   invalidParams?: InvalidParam[];
+  currentVersion?: string;
+  expectedVersion?: string;
+  retryAfter?: number;
   traceId: string;
   timestamp: string;
 }
@@ -50,6 +53,7 @@ export class ProblemDetailsFilter implements ExceptionFilter {
     let detail = 'An internal server error occurred.';
     let code = 'INTERNAL_SERVER_ERROR';
     let invalidParams: InvalidParam[] | undefined;
+    const extraFields: Record<string, any> = {};
 
     if (exception instanceof HttpException) {
       status = exception.getStatus();
@@ -88,6 +92,16 @@ export class ProblemDetailsFilter implements ExceptionFilter {
           detail = 'Form validation failed for one or more fields.';
           code = 'VALIDATION_FAILED';
         }
+
+        if (typeof resObj.currentVersion === 'string') {
+          extraFields.currentVersion = resObj.currentVersion;
+        }
+        if (typeof resObj.expectedVersion === 'string') {
+          extraFields.expectedVersion = resObj.expectedVersion;
+        }
+        if (typeof resObj.retryAfter === 'number') {
+          extraFields.retryAfter = resObj.retryAfter;
+        }
       }
     } else if (exception instanceof Error) {
       this.logger.error(
@@ -112,6 +126,7 @@ export class ProblemDetailsFilter implements ExceptionFilter {
       traceId,
       timestamp: new Date().toISOString(),
       ...(invalidParams && invalidParams.length > 0 ? { invalidParams } : {}),
+      ...extraFields,
     };
 
     response.setHeader('Content-Type', 'application/problem+json');
@@ -133,6 +148,8 @@ export class ProblemDetailsFilter implements ExceptionFilter {
         return 'Not Found';
       case HttpStatus.CONFLICT:
         return 'Conflict';
+      case HttpStatus.PRECONDITION_FAILED:
+        return 'Precondition Failed';
       case HttpStatus.UNPROCESSABLE_ENTITY:
         return 'Unprocessable Entity';
       case HttpStatus.TOO_MANY_REQUESTS:
@@ -154,6 +171,8 @@ export class ProblemDetailsFilter implements ExceptionFilter {
         return 'RESOURCE_NOT_FOUND';
       case HttpStatus.CONFLICT:
         return 'CONFLICT';
+      case HttpStatus.PRECONDITION_FAILED:
+        return 'PRECONDITION_FAILED';
       case HttpStatus.UNPROCESSABLE_ENTITY:
         return 'VALIDATION_FAILED';
       case HttpStatus.TOO_MANY_REQUESTS:

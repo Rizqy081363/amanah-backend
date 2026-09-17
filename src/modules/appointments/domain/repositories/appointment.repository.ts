@@ -46,6 +46,7 @@ export interface AppointmentRepository {
     status: AppointmentEntity['status'],
     staffId?: string,
     cancellationReason?: string,
+    expectedVersion?: string,
   ): Promise<AppointmentEntity | null>;
   getNextQueueIndex(
     poliklinikId: string,

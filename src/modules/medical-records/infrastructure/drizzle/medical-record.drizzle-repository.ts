@@ -1,5 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { and, count, desc, eq, gte, ilike, lt, lte, or } from 'drizzle-orm';
+import {
+  ConcurrentModificationConflictException,
+  generateEntityVersion,
+  matchesVersion,
+  PreconditionFailedException,
+} from '../../../../common/occ';
 import { decodeCursor, encodeCursor } from '../../../../common/pagination';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
@@ -114,6 +120,7 @@ export class MedicalRecordDrizzleRepository implements MedicalRecordRepository {
 
       createdAt: new Date(r.createdAt),
       updatedAt: new Date(r.updatedAt),
+      version: generateEntityVersion(r.updatedAt),
     };
   }
 
@@ -442,11 +449,29 @@ export class MedicalRecordDrizzleRepository implements MedicalRecordRepository {
   async update(
     id: string,
     data: Partial<MedicalRecordEntity>,
+    expectedVersion?: string,
   ): Promise<MedicalRecordEntity | null> {
     const existing = await this.db.query.clinicalEncounters.findFirst({
       where: eq(clinicalEncounters.id, id),
     });
     if (!existing) return null;
+
+    if (
+      expectedVersion !== undefined &&
+      expectedVersion !== null &&
+      expectedVersion !== ''
+    ) {
+      const currentVersion = generateEntityVersion(existing.updatedAt);
+      if (
+        !matchesVersion(expectedVersion, currentVersion, existing.updatedAt)
+      ) {
+        throw new PreconditionFailedException(
+          currentVersion,
+          expectedVersion,
+          `Precondition failed: Medical record with ID ${id} has been modified since version "${expectedVersion}". Current version is "${currentVersion}".`,
+        );
+      }
+    }
 
     let parsedPlan: Record<string, any> = {};
     if (existing.plan) {
@@ -499,7 +524,18 @@ export class MedicalRecordDrizzleRepository implements MedicalRecordRepository {
       practitionerId = prac ? prac.id : data.staffId;
     }
 
-    await this.db
+    const whereConditions = [eq(clinicalEncounters.id, id)];
+    if (
+      expectedVersion !== undefined &&
+      expectedVersion !== null &&
+      expectedVersion !== ''
+    ) {
+      whereConditions.push(
+        eq(clinicalEncounters.updatedAt, existing.updatedAt),
+      );
+    }
+
+    const [updatedRow] = await this.db
       .update(clinicalEncounters)
       .set({
         subjectiveNotes:
@@ -522,7 +558,28 @@ export class MedicalRecordDrizzleRepository implements MedicalRecordRepository {
             : existing.encounterDate,
         updatedAt: new Date().toISOString(),
       })
-      .where(eq(clinicalEncounters.id, id));
+      .where(and(...whereConditions))
+      .returning();
+
+    if (!updatedRow) {
+      if (
+        expectedVersion !== undefined &&
+        expectedVersion !== null &&
+        expectedVersion !== ''
+      ) {
+        const latest = await this.db.query.clinicalEncounters.findFirst({
+          where: eq(clinicalEncounters.id, id),
+        });
+        if (latest) {
+          const latestVersion = generateEntityVersion(latest.updatedAt);
+          throw new ConcurrentModificationConflictException(
+            latestVersion,
+            `Concurrent modification detected: Medical record with ID ${id} was modified by another transaction. Current version is "${latestVersion}".`,
+          );
+        }
+      }
+      return null;
+    }
 
     return this.findById(id);
   }
@@ -530,11 +587,29 @@ export class MedicalRecordDrizzleRepository implements MedicalRecordRepository {
   async updateDiagnosis(
     id: string,
     data: UpdateDiagnosisData,
+    expectedVersion?: string,
   ): Promise<MedicalRecordEntity | null> {
     const existing = await this.db.query.clinicalEncounters.findFirst({
       where: eq(clinicalEncounters.id, id),
     });
     if (!existing) return null;
+
+    if (
+      expectedVersion !== undefined &&
+      expectedVersion !== null &&
+      expectedVersion !== ''
+    ) {
+      const currentVersion = generateEntityVersion(existing.updatedAt);
+      if (
+        !matchesVersion(expectedVersion, currentVersion, existing.updatedAt)
+      ) {
+        throw new PreconditionFailedException(
+          currentVersion,
+          expectedVersion,
+          `Precondition failed: Medical record with ID ${id} has been modified since version "${expectedVersion}". Current version is "${currentVersion}".`,
+        );
+      }
+    }
 
     let parsedPlan: Record<string, any> = {};
     if (existing.plan) {
@@ -576,7 +651,18 @@ export class MedicalRecordDrizzleRepository implements MedicalRecordRepository {
       practitionerId = prac ? prac.id : data.staffId;
     }
 
-    await this.db
+    const whereConditions = [eq(clinicalEncounters.id, id)];
+    if (
+      expectedVersion !== undefined &&
+      expectedVersion !== null &&
+      expectedVersion !== ''
+    ) {
+      whereConditions.push(
+        eq(clinicalEncounters.updatedAt, existing.updatedAt),
+      );
+    }
+
+    const [updatedRow] = await this.db
       .update(clinicalEncounters)
       .set({
         assessment,
@@ -585,7 +671,28 @@ export class MedicalRecordDrizzleRepository implements MedicalRecordRepository {
         practitionerId,
         updatedAt: new Date().toISOString(),
       })
-      .where(eq(clinicalEncounters.id, id));
+      .where(and(...whereConditions))
+      .returning();
+
+    if (!updatedRow) {
+      if (
+        expectedVersion !== undefined &&
+        expectedVersion !== null &&
+        expectedVersion !== ''
+      ) {
+        const latest = await this.db.query.clinicalEncounters.findFirst({
+          where: eq(clinicalEncounters.id, id),
+        });
+        if (latest) {
+          const latestVersion = generateEntityVersion(latest.updatedAt);
+          throw new ConcurrentModificationConflictException(
+            latestVersion,
+            `Concurrent modification detected: Medical record with ID ${id} was modified by another transaction. Current version is "${latestVersion}".`,
+          );
+        }
+      }
+      return null;
+    }
 
     return this.findById(id);
   }

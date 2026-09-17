@@ -26,4 +26,5 @@ export class AppointmentEntity {
   completedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
+  version?: string;
 }

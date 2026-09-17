@@ -3,15 +3,20 @@ import {
   Controller,
   Delete,
   Get,
+  Headers,
   HttpCode,
   HttpStatus,
+  NotFoundException,
   Param,
   Patch,
   Post,
   Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import type { Response } from 'express';
+import { formatETag } from '../../../common/occ';
 import {
   ApiBearerAuth,
   ApiBody,
@@ -160,8 +165,18 @@ export class AppointmentsController {
   @ApiOkResponse({ description: 'Detail janji temu berhasil ditemukan' })
   @ApiNotFoundResponse({ description: 'Kunjungan tidak ditemukan' })
   @ApiUnauthorizedResponse({ description: 'Sesi token tidak valid' })
-  async getAppointmentById(@Param('id') id: string) {
-    return this.appointmentsService.findById(id);
+  async getAppointmentById(
+    @Param('id') id: string,
+    @Res({ passthrough: true }) res?: Response,
+  ) {
+    const appointment = await this.appointmentsService.findById(id);
+    if (!appointment) {
+      throw new NotFoundException(`Kunjungan tidak ditemukan`);
+    }
+    if (res && appointment.version) {
+      res.setHeader('ETag', formatETag(appointment.version));
+    }
+    return appointment;
   }
 
   @ApiBearerAuth('access-token')
@@ -182,8 +197,22 @@ export class AppointmentsController {
   @ApiNotFoundResponse({ description: 'Kunjungan tidak ditemukan' })
   @ApiUnauthorizedResponse({ description: 'Sesi token tidak valid' })
   @Idempotent()
-  async checkInAppointment(@Param('id') id: string, @CurrentUser() user?: any) {
-    return this.appointmentsService.checkIn(id, user);
+  async checkInAppointment(
+    @Param('id') id: string,
+    @CurrentUser() user?: any,
+    @Headers('if-match') ifMatch?: string,
+    @Body('version') bodyVersion?: string,
+    @Res({ passthrough: true }) res?: Response,
+  ) {
+    const result = await this.appointmentsService.checkIn(
+      id,
+      user,
+      ifMatch || bodyVersion,
+    );
+    if (res && result.version) {
+      res.setHeader('ETag', formatETag(result.version));
+    }
+    return result;
   }
 
   @ApiBearerAuth('access-token')
@@ -206,12 +235,23 @@ export class AppointmentsController {
   @ApiNotFoundResponse({ description: 'Kunjungan tidak ditemukan' })
   @ApiUnauthorizedResponse({ description: 'Sesi token tidak valid' })
   @ApiForbiddenResponse({ description: 'Hanya Staf/Dokter yang diizinkan' })
-  async callPatient(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.appointmentsService.callPatient(
+  async callPatient(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+    @Headers('if-match') ifMatch?: string,
+    @Body('version') bodyVersion?: string,
+    @Res({ passthrough: true }) res?: Response,
+  ) {
+    const result = await this.appointmentsService.callPatient(
       id,
       user.staff?.practitionerId || user.staff?.id,
       user,
+      ifMatch || bodyVersion,
     );
+    if (res && result.version) {
+      res.setHeader('ETag', formatETag(result.version));
+    }
+    return result;
   }
 
   @ApiBearerAuth('access-token')
@@ -235,8 +275,19 @@ export class AppointmentsController {
   async completeAppointment(
     @Param('id') id: string,
     @CurrentUser() user?: any,
+    @Headers('if-match') ifMatch?: string,
+    @Body('version') bodyVersion?: string,
+    @Res({ passthrough: true }) res?: Response,
   ) {
-    return this.appointmentsService.complete(id, user);
+    const result = await this.appointmentsService.complete(
+      id,
+      user,
+      ifMatch || bodyVersion,
+    );
+    if (res && result.version) {
+      res.setHeader('ETag', formatETag(result.version));
+    }
+    return result;
   }
 
   @ApiBearerAuth('access-token')
@@ -272,8 +323,20 @@ export class AppointmentsController {
     @Param('id') id: string,
     @Body('reason') reason?: string,
     @CurrentUser() user?: any,
+    @Headers('if-match') ifMatch?: string,
+    @Body('version') bodyVersion?: string,
+    @Res({ passthrough: true }) res?: Response,
   ) {
-    return this.appointmentsService.cancel(id, reason, user);
+    const result = await this.appointmentsService.cancel(
+      id,
+      reason,
+      user,
+      ifMatch || bodyVersion,
+    );
+    if (res && result.version) {
+      res.setHeader('ETag', formatETag(result.version));
+    }
+    return result;
   }
 
   @ApiBearerAuth('access-token')
@@ -299,8 +362,20 @@ export class AppointmentsController {
     @Param('id') id: string,
     @Body() body: UpdateAppointmentStatusDto,
     @CurrentUser() user?: any,
+    @Headers('if-match') ifMatch?: string,
+    @Res({ passthrough: true }) res?: Response,
   ) {
-    return this.appointmentsService.updateStatus(id, body, user);
+    const expectedVersion = ifMatch || (body as any)?.version;
+    const result = await this.appointmentsService.updateStatus(
+      id,
+      body,
+      user,
+      expectedVersion,
+    );
+    if (res && result.version) {
+      res.setHeader('ETag', formatETag(result.version));
+    }
+    return result;
   }
 
   @ApiBearerAuth('access-token')

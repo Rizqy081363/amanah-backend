@@ -79,4 +79,5 @@ export class MedicalRecordEntity {
 
   createdAt: Date;
   updatedAt: Date;
+  version?: string;
 }

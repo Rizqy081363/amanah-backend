@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Headers,
   HttpCode,
   HttpStatus,
   Inject,
@@ -11,9 +12,12 @@ import {
   Patch,
   Post,
   Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import type { Response } from 'express';
+import { formatETag } from '../../../common/occ';
 import {
   ApiBearerAuth,
   ApiCreatedResponse,
@@ -263,12 +267,18 @@ export class MedicalRecordsController {
   })
   @ApiOkResponse({ description: 'Detail rekam medis berhasil ditemukan' })
   @ApiNotFoundResponse({ description: 'Rekam medis tidak ditemukan' })
-  async getById(@Param('id') id: string) {
+  async getById(
+    @Param('id') id: string,
+    @Res({ passthrough: true }) res?: Response,
+  ) {
     const record = await this.medicalRecordRepo.findById(id);
     if (!record) {
       throw new NotFoundException(
         `Rekam medis dengan ID ${id} tidak ditemukan`,
       );
+    }
+    if (res && record.version) {
+      res.setHeader('ETag', formatETag(record.version));
     }
     return record;
   }
@@ -293,6 +303,8 @@ export class MedicalRecordsController {
     @Param('id') id: string,
     @Body() body: UpdateMedicalRecordDto,
     @CurrentUser() user: any,
+    @Headers('if-match') ifMatch?: string,
+    @Res({ passthrough: true }) res?: Response,
   ) {
     const practitionerId =
       body.staffId ||
@@ -300,15 +312,24 @@ export class MedicalRecordsController {
       user?.staff?.id ||
       undefined;
 
-    const updated = await this.medicalRecordRepo.update(id, {
-      ...body,
-      staffId: practitionerId,
-    });
+    const expectedVersion = ifMatch || (body as any)?.version;
+
+    const updated = await this.medicalRecordRepo.update(
+      id,
+      {
+        ...body,
+        staffId: practitionerId,
+      },
+      expectedVersion,
+    );
 
     if (!updated) {
       throw new NotFoundException(
         `Rekam medis dengan ID ${id} tidak ditemukan`,
       );
+    }
+    if (res && updated.version) {
+      res.setHeader('ETag', formatETag(updated.version));
     }
     return updated;
   }
@@ -334,19 +355,30 @@ export class MedicalRecordsController {
     @Param('id') id: string,
     @Body() body: UpdateDiagnosisDto,
     @CurrentUser() user: any,
+    @Headers('if-match') ifMatch?: string,
+    @Res({ passthrough: true }) res?: Response,
   ) {
     const practitionerId =
       user?.staff?.practitionerId || user?.staff?.id || undefined;
 
-    const updated = await this.medicalRecordRepo.updateDiagnosis(id, {
-      ...body,
-      staffId: practitionerId,
-    });
+    const expectedVersion = ifMatch || (body as any)?.version;
+
+    const updated = await this.medicalRecordRepo.updateDiagnosis(
+      id,
+      {
+        ...body,
+        staffId: practitionerId,
+      },
+      expectedVersion,
+    );
 
     if (!updated) {
       throw new NotFoundException(
         `Rekam medis dengan ID ${id} tidak ditemukan`,
       );
+    }
+    if (res && updated.version) {
+      res.setHeader('ETag', formatETag(updated.version));
     }
     return updated;
   }

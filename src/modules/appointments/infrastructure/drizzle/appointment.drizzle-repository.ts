@@ -1,5 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { and, count, desc, eq, lt, or } from 'drizzle-orm';
+import {
+  ConcurrentModificationConflictException,
+  generateEntityVersion,
+  matchesVersion,
+  PreconditionFailedException,
+} from '../../../../common/occ';
 import { decodeCursor, encodeCursor } from '../../../../common/pagination';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
@@ -77,6 +83,7 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
       completedAt: apt.completedAt ? new Date(apt.completedAt) : null,
       createdAt: new Date(apt.createdAt),
       updatedAt: new Date(apt.updatedAt),
+      version: generateEntityVersion(apt.updatedAt),
     };
   }
 
@@ -397,7 +404,30 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
     status: AppointmentEntity['status'],
     staffId?: string,
     cancellationReason?: string,
+    expectedVersion?: string,
   ): Promise<AppointmentEntity | null> {
+    const existing = await this.db.query.appointments.findFirst({
+      where: eq(appointments.id, id),
+    });
+    if (!existing) return null;
+
+    if (
+      expectedVersion !== undefined &&
+      expectedVersion !== null &&
+      expectedVersion !== ''
+    ) {
+      const currentVersion = generateEntityVersion(existing.updatedAt);
+      if (
+        !matchesVersion(expectedVersion, currentVersion, existing.updatedAt)
+      ) {
+        throw new PreconditionFailedException(
+          currentVersion,
+          expectedVersion,
+          `Precondition failed: Appointment with ID ${id} has been modified since version "${expectedVersion}". Current version is "${currentVersion}".`,
+        );
+      }
+    }
+
     let dbStatus: typeof appointments.$inferSelect.status = 'booked';
     let ticketStatus: typeof queueTickets.$inferSelect.status = 'waiting';
     const nowStr = new Date().toISOString();
@@ -449,13 +479,40 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
       updateTicket.status = ticketStatus;
     }
 
+    const whereConditions = [eq(appointments.id, id)];
+    if (
+      expectedVersion !== undefined &&
+      expectedVersion !== null &&
+      expectedVersion !== ''
+    ) {
+      whereConditions.push(eq(appointments.updatedAt, existing.updatedAt));
+    }
+
     const [updatedApt] = await this.db
       .update(appointments)
       .set(updateApt)
-      .where(eq(appointments.id, id))
+      .where(and(...whereConditions))
       .returning();
 
-    if (!updatedApt) return null;
+    if (!updatedApt) {
+      if (
+        expectedVersion !== undefined &&
+        expectedVersion !== null &&
+        expectedVersion !== ''
+      ) {
+        const latest = await this.db.query.appointments.findFirst({
+          where: eq(appointments.id, id),
+        });
+        if (latest) {
+          const latestVersion = generateEntityVersion(latest.updatedAt);
+          throw new ConcurrentModificationConflictException(
+            latestVersion,
+            `Concurrent modification detected: Appointment with ID ${id} was modified by another transaction. Current version is "${latestVersion}".`,
+          );
+        }
+      }
+      return null;
+    }
 
     const [updatedTicket] = await this.db
       .update(queueTickets)

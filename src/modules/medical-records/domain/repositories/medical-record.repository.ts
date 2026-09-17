@@ -65,11 +65,13 @@ export interface MedicalRecordRepository {
   update(
     id: string,
     data: Partial<MedicalRecordEntity>,
+    expectedVersion?: string,
   ): Promise<MedicalRecordEntity | null>;
 
   updateDiagnosis(
     id: string,
     data: UpdateDiagnosisData,
+    expectedVersion?: string,
   ): Promise<MedicalRecordEntity | null>;
 
   delete(id: string): Promise<boolean>;

@@ -158,9 +158,19 @@ export class AppointmentsService {
     );
   }
 
-  async checkIn(id: string, user?: any): Promise<AppointmentEntity> {
+  async checkIn(
+    id: string,
+    user?: any,
+    expectedVersion?: string,
+  ): Promise<AppointmentEntity> {
     const current = await this.appointmentRepo.findById(id);
-    const updated = await this.appointmentRepo.updateStatus(id, 'MENUNGGU');
+    const updated = await this.appointmentRepo.updateStatus(
+      id,
+      'MENUNGGU',
+      undefined,
+      undefined,
+      expectedVersion,
+    );
     if (!updated) {
       throw new NotFoundException(`Kunjungan dengan ID ${id} tidak ditemukan`);
     }
@@ -188,12 +198,15 @@ export class AppointmentsService {
     id: string,
     practitionerId?: string,
     user?: any,
+    expectedVersion?: string,
   ): Promise<AppointmentEntity> {
     const current = await this.appointmentRepo.findById(id);
     const updated = await this.appointmentRepo.updateStatus(
       id,
       'SEDANG_DIPERIKSA',
       practitionerId,
+      undefined,
+      expectedVersion,
     );
     if (!updated) {
       throw new NotFoundException(`Kunjungan dengan ID ${id} tidak ditemukan`);
@@ -218,9 +231,19 @@ export class AppointmentsService {
     return updated;
   }
 
-  async complete(id: string, user?: any): Promise<AppointmentEntity> {
+  async complete(
+    id: string,
+    user?: any,
+    expectedVersion?: string,
+  ): Promise<AppointmentEntity> {
     const current = await this.appointmentRepo.findById(id);
-    const updated = await this.appointmentRepo.updateStatus(id, 'SELESAI');
+    const updated = await this.appointmentRepo.updateStatus(
+      id,
+      'SELESAI',
+      undefined,
+      undefined,
+      expectedVersion,
+    );
     if (!updated) {
       throw new NotFoundException(`Kunjungan dengan ID ${id} tidak ditemukan`);
     }
@@ -248,6 +271,7 @@ export class AppointmentsService {
     id: string,
     reason?: string,
     user?: any,
+    expectedVersion?: string,
   ): Promise<AppointmentEntity> {
     const current = await this.appointmentRepo.findById(id);
     const updated = await this.appointmentRepo.updateStatus(
@@ -255,6 +279,7 @@ export class AppointmentsService {
       'BATAL',
       undefined,
       reason || 'Dibatalkan oleh pasien',
+      expectedVersion,
     );
     if (!updated) {
       throw new NotFoundException(`Kunjungan dengan ID ${id} tidak ditemukan`);
@@ -283,6 +308,7 @@ export class AppointmentsService {
     id: string,
     dto: UpdateAppointmentStatusDto,
     user?: any,
+    expectedVersion?: string,
   ): Promise<AppointmentEntity> {
     const current = await this.appointmentRepo.findById(id);
     const updated = await this.appointmentRepo.updateStatus(
@@ -290,6 +316,7 @@ export class AppointmentsService {
       dto.status,
       undefined,
       dto.cancellationReason,
+      expectedVersion,
     );
     if (!updated) {
       throw new NotFoundException(`Kunjungan dengan ID ${id} tidak ditemukan`);
