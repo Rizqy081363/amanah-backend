@@ -1,14 +1,11 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { HeaderResolver, I18nModule } from 'nestjs-i18n';
-import path from 'path';
+import { ConfigModule } from '@nestjs/config';
 // Feature modules
 import { AuthModule } from './auth/auth.module';
 import authConfig from './auth/config/auth.config';
 import cacheConfig from './cache/cache.config';
 import { RedisModule } from './common/redis/redis.module';
 import appConfig from './config/app.config';
-import { AllConfigType } from './config/config.type';
 import databaseConfig from './database/config/database.config';
 import { DrizzleModule } from './database/drizzle/drizzle.module';
 import { HealthModule } from './health/health.module';
@@ -31,29 +28,6 @@ import { StaffsModule } from './modules/staffs/staffs.module';
     }),
     DrizzleModule,
     RedisModule,
-    I18nModule.forRootAsync({
-      useFactory: (configService: ConfigService<AllConfigType>) => ({
-        fallbackLanguage: configService.getOrThrow('app.fallbackLanguage', {
-          infer: true,
-        }),
-        loaderOptions: { path: path.join(__dirname, '/i18n/'), watch: true },
-      }),
-      resolvers: [
-        {
-          use: HeaderResolver,
-          useFactory: (configService: ConfigService<AllConfigType>) => {
-            return [
-              configService.get('app.headerLanguage', {
-                infer: true,
-              }),
-            ];
-          },
-          inject: [ConfigService],
-        },
-      ],
-      imports: [ConfigModule],
-      inject: [ConfigService],
-    }),
     HealthModule,
     HomeModule,
     AuthModule,

@@ -7,6 +7,4 @@ export type AppConfig = {
   corsOrigins: string[];
   port: number;
   apiPrefix: string;
-  fallbackLanguage: string;
-  headerLanguage: string;
 };
