@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { eq, or } from 'drizzle-orm';
+import { eq, ilike, or } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import { patientAddresses, patientProfiles } from '../../../../database/schema';
@@ -44,11 +44,15 @@ export class PatientDrizzleRepository implements PatientRepository {
   async create(
     data: Omit<PatientEntity, 'id' | 'createdAt' | 'updatedAt'>,
   ): Promise<PatientEntity> {
+    const rmNumber =
+      data.medicalRecordNumber ||
+      `RM-${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(Math.floor(Math.random() * 9000) + 1000)}`;
+
     const [record] = await this.db
       .insert(patientProfiles)
       .values({
         userId: data.userId || null,
-        medicalRecordNumber: data.medicalRecordNumber,
+        medicalRecordNumber: rmNumber,
         nationalIdEncrypted: data.nik,
         nationalIdHash: data.nik,
         fullName: data.fullName,
@@ -75,7 +79,7 @@ export class PatientDrizzleRepository implements PatientRepository {
       });
     }
 
-    return this.mapRecordToEntity(record);
+    return this.findById(record.id) as Promise<PatientEntity>;
   }
 
   async findById(id: string): Promise<PatientEntity | null> {
@@ -121,8 +125,21 @@ export class PatientDrizzleRepository implements PatientRepository {
     return record ? this.mapRecordToEntity(record) : null;
   }
 
-  async findMany(limit = 20, offset = 0): Promise<PatientEntity[]> {
+  async findMany(
+    limit = 20,
+    offset = 0,
+    search?: string,
+  ): Promise<PatientEntity[]> {
+    let whereClause = eq(patientProfiles.status, 'active');
+    if (search?.trim()) {
+      whereClause = or(
+        ilike(patientProfiles.fullName, `%${search.trim()}%`),
+        ilike(patientProfiles.medicalRecordNumber, `%${search.trim()}%`),
+      ) as any;
+    }
+
     const records = await this.db.query.patientProfiles.findMany({
+      where: whereClause,
       limit,
       offset,
       with: {
@@ -141,6 +158,9 @@ export class PatientDrizzleRepository implements PatientRepository {
     };
     if (data.fullName !== undefined) updateValues.fullName = data.fullName;
     if (data.phoneNumber !== undefined) updateValues.phone = data.phoneNumber;
+    if (data.medicalHistory !== undefined)
+      updateValues.medicalHistorySummary = data.medicalHistory;
+    if (data.pekerjaan !== undefined) updateValues.occupation = data.pekerjaan;
     if (data.nik !== undefined) {
       updateValues.nationalIdEncrypted = data.nik;
       updateValues.nationalIdHash = data.nik;
@@ -152,6 +172,39 @@ export class PatientDrizzleRepository implements PatientRepository {
       .where(eq(patientProfiles.id, id))
       .returning();
 
+    if (data.address && updated) {
+      const existingAddress = await this.db.query.patientAddresses.findFirst({
+        where: eq(patientAddresses.patientId, id),
+      });
+      if (existingAddress) {
+        await this.db
+          .update(patientAddresses)
+          .set({
+            line1: data.address,
+            fullAddress: data.address,
+            updatedAt: new Date().toISOString(),
+          })
+          .where(eq(patientAddresses.id, existingAddress.id));
+      } else {
+        await this.db.insert(patientAddresses).values({
+          patientId: id,
+          type: 'domicile',
+          line1: data.address,
+          fullAddress: data.address,
+          isPrimary: true,
+        });
+      }
+    }
+
     return updated ? this.findById(updated.id) : null;
+  }
+
+  async delete(id: string): Promise<boolean> {
+    await this.db
+      .update(patientProfiles)
+      .set({ status: 'inactive', updatedAt: new Date().toISOString() })
+      .where(eq(patientProfiles.id, id));
+
+    return true;
   }
 }

@@ -36,6 +36,28 @@ export class ClinicDrizzleRepository implements ClinicRepository {
     };
   }
 
+  async createPoliklinik(data: {
+    namaPoli: string;
+    kodePoli: string;
+    deskripsi?: string | null;
+    isActive?: boolean;
+  }): Promise<PoliklinikEntity> {
+    const normalizedCode = data.kodePoli.toLowerCase().replace(/-/g, '_');
+    const [record] = await this.db
+      .insert(clinicUnits)
+      .values({
+        code: normalizedCode,
+        name: data.namaPoli,
+        unitType: 'polyclinic',
+        location: data.deskripsi || null,
+        isActive: data.isActive ?? true,
+      })
+      .returning();
+
+    await this.redis.del('clinics:poliklinik:all');
+    return this.mapUnitToPoli(record);
+  }
+
   async findAllPoliklinik(): Promise<PoliklinikEntity[]> {
     return this.redis.getOrSet(
       'clinics:poliklinik:all',
@@ -54,6 +76,14 @@ export class ClinicDrizzleRepository implements ClinicRepository {
     );
   }
 
+  async findPoliklinikById(id: string): Promise<PoliklinikEntity | null> {
+    const record = await this.db.query.clinicUnits.findFirst({
+      where: eq(clinicUnits.id, id),
+    });
+    if (!record) return null;
+    return this.mapUnitToPoli(record);
+  }
+
   async findPoliklinikByKode(kode: string): Promise<PoliklinikEntity | null> {
     const normalized = kode.toLowerCase().replace(/-/g, '_');
     const record = await this.db.query.clinicUnits.findFirst({
@@ -64,6 +94,86 @@ export class ClinicDrizzleRepository implements ClinicRepository {
     });
     if (!record) return null;
     return this.mapUnitToPoli(record);
+  }
+
+  async updatePoliklinik(
+    id: string,
+    data: Partial<PoliklinikEntity>,
+  ): Promise<PoliklinikEntity | null> {
+    const updateValues: Record<string, any> = {
+      updatedAt: new Date().toISOString(),
+    };
+    if (data.namaPoli !== undefined) updateValues.name = data.namaPoli;
+    if (data.deskripsi !== undefined) updateValues.location = data.deskripsi;
+    if (data.isActive !== undefined) updateValues.isActive = data.isActive;
+
+    const [updated] = await this.db
+      .update(clinicUnits)
+      .set(updateValues)
+      .where(eq(clinicUnits.id, id))
+      .returning();
+
+    await this.redis.del('clinics:poliklinik:all');
+    return updated ? this.mapUnitToPoli(updated) : null;
+  }
+
+  async deletePoliklinik(id: string): Promise<boolean> {
+    await this.db
+      .update(clinicUnits)
+      .set({ isActive: false, updatedAt: new Date().toISOString() })
+      .where(eq(clinicUnits.id, id));
+
+    await this.redis.del('clinics:poliklinik:all');
+    return true;
+  }
+
+  async createLayanan(
+    poliklinikId: string,
+    data: {
+      namaLayanan: string;
+      deskripsi?: string | null;
+      medicalFlow?: 'general' | 'pregnancy' | 'immunization';
+    },
+  ): Promise<LayananPoliEntity> {
+    const slug = data.namaLayanan
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .slice(0, 30);
+    const code = `srv_${slug}_${Date.now().toString().slice(-4)}`;
+    const prefix =
+      data.medicalFlow === 'pregnancy'
+        ? 'KIA'
+        : data.medicalFlow === 'immunization'
+          ? 'IM'
+          : 'UM';
+
+    const [record] = await this.db
+      .insert(clinicServices)
+      .values({
+        code,
+        name: data.namaLayanan,
+        description: data.deskripsi || null,
+        codePrefix: prefix,
+        medicalFlow:
+          data.medicalFlow === 'pregnancy' ||
+          data.medicalFlow === 'immunization'
+            ? data.medicalFlow
+            : null,
+        isBookable: true,
+        isActive: true,
+      })
+      .returning();
+
+    await this.redis.del(`clinics:layanan:poli:${poliklinikId}`);
+    return {
+      id: record.id,
+      poliklinikId,
+      namaLayanan: record.name,
+      deskripsi: record.description || null,
+      medicalFlow: (record.medicalFlow as any) || 'general',
+      isActive: record.isActive,
+      createdAt: new Date(record.createdAt),
+    };
   }
 
   async findLayananByPoliId(
@@ -127,5 +237,53 @@ export class ClinicDrizzleRepository implements ClinicRepository {
       isActive: record.isActive,
       createdAt: new Date(record.createdAt),
     };
+  }
+
+  async updateLayanan(
+    id: string,
+    data: Partial<LayananPoliEntity>,
+  ): Promise<LayananPoliEntity | null> {
+    const updateValues: Record<string, any> = {
+      updatedAt: new Date().toISOString(),
+    };
+    if (data.namaLayanan !== undefined) updateValues.name = data.namaLayanan;
+    if (data.deskripsi !== undefined) updateValues.description = data.deskripsi;
+    if (data.medicalFlow !== undefined)
+      updateValues.medicalFlow =
+        data.medicalFlow === 'pregnancy' || data.medicalFlow === 'immunization'
+          ? data.medicalFlow
+          : null;
+    if (data.isActive !== undefined) updateValues.isActive = data.isActive;
+
+    const [updated] = await this.db
+      .update(clinicServices)
+      .set(updateValues)
+      .where(eq(clinicServices.id, id))
+      .returning();
+
+    if (data.poliklinikId) {
+      await this.redis.del(`clinics:layanan:poli:${data.poliklinikId}`);
+    }
+
+    return updated
+      ? {
+          id: updated.id,
+          poliklinikId: data.poliklinikId || '',
+          namaLayanan: updated.name,
+          deskripsi: updated.description || null,
+          medicalFlow: (updated.medicalFlow as any) || 'general',
+          isActive: updated.isActive,
+          createdAt: new Date(updated.createdAt),
+        }
+      : null;
+  }
+
+  async deleteLayanan(id: string): Promise<boolean> {
+    await this.db
+      .update(clinicServices)
+      .set({ isActive: false, updatedAt: new Date().toISOString() })
+      .where(eq(clinicServices.id, id));
+
+    return true;
   }
 }

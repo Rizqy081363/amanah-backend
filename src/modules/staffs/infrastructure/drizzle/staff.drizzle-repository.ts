@@ -2,7 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { eq, ilike } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
-import { staffProfiles } from '../../../../database/schema';
+import { staffCredentials, staffProfiles } from '../../../../database/schema';
 import { StaffEntity } from '../../domain/entities/staff.entity';
 import { StaffRepository } from '../../domain/repositories/staff.repository';
 
@@ -40,6 +40,9 @@ export class StaffDrizzleRepository implements StaffRepository {
         ? 'doctor'
         : 'worker';
 
+    const staffCode =
+      data.idCardNumber || `STF-AMANAH-${Date.now().toString().slice(-4)}`;
+
     const [record] = await this.db
       .insert(staffProfiles)
       .values({
@@ -47,7 +50,7 @@ export class StaffDrizzleRepository implements StaffRepository {
         primaryUnitId: data.poliklinikId || null,
         fullName: data.fullName,
         positionTitle: data.profession,
-        staffCode: data.idCardNumber,
+        staffCode,
         staffType: staffTypeVal,
         avatarUrl: data.photoUrl || null,
         phone: data.phoneNumber,
@@ -94,7 +97,90 @@ export class StaffDrizzleRepository implements StaffRepository {
   }
 
   async findAll(): Promise<StaffEntity[]> {
-    const records = await this.db.query.staffProfiles.findMany();
+    const records = await this.db.query.staffProfiles.findMany({
+      where: eq(staffProfiles.status, 'active'),
+    });
     return records.map((r) => this.mapRecordToEntity(r));
+  }
+
+  async update(
+    id: string,
+    data: Partial<StaffEntity>,
+  ): Promise<StaffEntity | null> {
+    const updateValues: Record<string, any> = {
+      updatedAt: new Date().toISOString(),
+    };
+    if (data.fullName !== undefined) updateValues.fullName = data.fullName;
+    if (data.profession !== undefined)
+      updateValues.positionTitle = data.profession;
+    if (data.phoneNumber !== undefined) updateValues.phone = data.phoneNumber;
+    if (data.poliklinikId !== undefined)
+      updateValues.primaryUnitId = data.poliklinikId;
+    if (data.photoUrl !== undefined) updateValues.avatarUrl = data.photoUrl;
+    if (data.isActive !== undefined)
+      updateValues.status = data.isActive ? 'active' : 'inactive';
+
+    const [updated] = await this.db
+      .update(staffProfiles)
+      .set(updateValues)
+      .where(eq(staffProfiles.id, id))
+      .returning();
+
+    return updated ? this.mapRecordToEntity(updated) : null;
+  }
+
+  async delete(id: string): Promise<boolean> {
+    await this.db
+      .update(staffProfiles)
+      .set({ status: 'inactive', updatedAt: new Date().toISOString() })
+      .where(eq(staffProfiles.id, id));
+
+    return true;
+  }
+
+  async findCredentials(staffId: string): Promise<any[]> {
+    const records = await this.db.query.staffCredentials.findMany({
+      where: eq(staffCredentials.staffProfileId, staffId),
+    });
+    return records.map((r) => ({
+      id: r.id,
+      staffProfileId: r.staffProfileId,
+      credentialType: r.credentialType,
+      credentialNumber: r.credentialNumberEncrypted || r.credentialNumberHash,
+      issuer: r.issuer,
+      issuedAt: r.issuedAt,
+      expiresAt: r.expiresAt,
+      status: r.status,
+      createdAt: r.createdAt,
+    }));
+  }
+
+  async addCredential(staffId: string, credential: any): Promise<any> {
+    const [record] = await this.db
+      .insert(staffCredentials)
+      .values({
+        staffProfileId: staffId,
+        credentialType: credential.credentialType,
+        credentialNumberHash: credential.credentialNumber,
+        credentialNumberEncrypted: credential.credentialNumber,
+        issuer: credential.issuer || null,
+        issuedAt: credential.issuedAt || null,
+        expiresAt: credential.expiresAt || null,
+        status: 'verified',
+      })
+      .returning();
+
+    return {
+      id: record.id,
+      staffProfileId: record.staffProfileId,
+      credentialType: record.credentialType,
+      credentialNumber:
+        record.credentialNumberEncrypted || record.credentialNumberHash,
+      issuer: record.issuer,
+      issuedAt: record.issuedAt,
+      expiresAt: record.expiresAt,
+      status: record.status,
+      createdAt: record.createdAt,
+    };
   }
 }

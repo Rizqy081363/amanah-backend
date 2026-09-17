@@ -10,9 +10,14 @@ export interface PatientRepository {
   findByUserId(userId: string): Promise<PatientEntity | null>;
   findByNik(nik: string): Promise<PatientEntity | null>;
   findByRecordNumber(rm: string): Promise<PatientEntity | null>;
-  findMany(limit?: number, offset?: number): Promise<PatientEntity[]>;
+  findMany(
+    limit?: number,
+    offset?: number,
+    search?: string,
+  ): Promise<PatientEntity[]>;
   update(
     id: string,
     data: Partial<PatientEntity>,
   ): Promise<PatientEntity | null>;
+  delete(id: string): Promise<boolean>;
 }

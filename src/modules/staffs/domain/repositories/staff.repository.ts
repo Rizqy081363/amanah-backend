@@ -12,4 +12,8 @@ export interface StaffRepository {
   findByProfession(profession: string): Promise<StaffEntity[]>;
   findByPoliklinik(poliId: string): Promise<StaffEntity[]>;
   findAll(): Promise<StaffEntity[]>;
+  update(id: string, data: Partial<StaffEntity>): Promise<StaffEntity | null>;
+  delete(id: string): Promise<boolean>;
+  findCredentials(staffId: string): Promise<any[]>;
+  addCredential(staffId: string, credential: any): Promise<any>;
 }
