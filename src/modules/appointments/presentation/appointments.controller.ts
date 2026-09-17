@@ -182,8 +182,11 @@ export class AppointmentsController {
   @ApiNotFoundResponse({ description: 'Kunjungan tidak ditemukan' })
   @ApiUnauthorizedResponse({ description: 'Sesi token tidak valid' })
   @Idempotent()
-  async checkInAppointment(@Param('id') id: string) {
-    return this.appointmentsService.checkIn(id);
+  async checkInAppointment(
+    @Param('id') id: string,
+    @CurrentUser() user?: any,
+  ) {
+    return this.appointmentsService.checkIn(id, user);
   }
 
   @ApiBearerAuth('access-token')
@@ -210,6 +213,7 @@ export class AppointmentsController {
     return this.appointmentsService.callPatient(
       id,
       user.staff?.practitionerId || user.staff?.id,
+      user,
     );
   }
 
@@ -231,8 +235,11 @@ export class AppointmentsController {
   @ApiNotFoundResponse({ description: 'Kunjungan tidak ditemukan' })
   @ApiUnauthorizedResponse({ description: 'Sesi token tidak valid' })
   @ApiForbiddenResponse({ description: 'Hanya Staf/Dokter yang diizinkan' })
-  async completeAppointment(@Param('id') id: string) {
-    return this.appointmentsService.complete(id);
+  async completeAppointment(
+    @Param('id') id: string,
+    @CurrentUser() user?: any,
+  ) {
+    return this.appointmentsService.complete(id, user);
   }
 
   @ApiBearerAuth('access-token')
@@ -267,8 +274,9 @@ export class AppointmentsController {
   async cancelAppointment(
     @Param('id') id: string,
     @Body('reason') reason?: string,
+    @CurrentUser() user?: any,
   ) {
-    return this.appointmentsService.cancel(id, reason);
+    return this.appointmentsService.cancel(id, reason, user);
   }
 
   @ApiBearerAuth('access-token')
@@ -293,8 +301,9 @@ export class AppointmentsController {
   async updateStatus(
     @Param('id') id: string,
     @Body() body: UpdateAppointmentStatusDto,
+    @CurrentUser() user?: any,
   ) {
-    return this.appointmentsService.updateStatus(id, body);
+    return this.appointmentsService.updateStatus(id, body, user);
   }
 
   @ApiBearerAuth('access-token')
@@ -316,7 +325,10 @@ export class AppointmentsController {
   @ApiNotFoundResponse({ description: 'Kunjungan tidak ditemukan' })
   @ApiUnauthorizedResponse({ description: 'Sesi token tidak valid' })
   @ApiForbiddenResponse({ description: 'Hanya Admin yang diizinkan' })
-  async deleteAppointment(@Param('id') id: string) {
-    await this.appointmentsService.delete(id);
+  async deleteAppointment(
+    @Param('id') id: string,
+    @CurrentUser() user?: any,
+  ) {
+    await this.appointmentsService.delete(id, user);
   }
 }

@@ -78,7 +78,7 @@ foreach ($pathProp in $spec.paths.PSObject.Properties) {
 
 Assert-Test "All operations have summary and description (missing: $missingDocs)" ($missingDocs -eq 0)
 Assert-Test "All secured operations use unified 'access-token' scheme (mismatches: $securityMismatches)" ($securityMismatches -eq 0)
-Assert-Test "Total documented operations count is 92" ($opsCount -eq 92)
+Assert-Test "Total documented operations count is 94" ($opsCount -eq 94)
 
 # Check broken $refs
 $regex = [regex]'"\$ref":\s*"([^"]+)"'
@@ -177,6 +177,10 @@ Assert-Test "Try-it-out [Support Tickets]: GET /api/v1/support-tickets/my-ticket
 # 3.15 Tag: Clinic Analytics
 $analyticsRes = Invoke-RestMethod -Uri "$baseUrl/api/v1/clinics/analytics/summary" -Method Get -Headers $authHeaders
 Assert-Test "Try-it-out [Clinic Analytics]: GET /api/v1/clinics/analytics/summary -> returns clinic operational analytics" ($null -ne $analyticsRes.totalClinics)
+
+# 3.16 Tag: Audit Logs
+$auditLogsRes = Invoke-RestMethod -Uri "$baseUrl/api/v1/audit-logs" -Method Get -Headers $authHeaders
+Assert-Test "Try-it-out [Audit Logs]: GET /api/v1/audit-logs -> returns audit logs list" ($null -ne $auditLogsRes.data)
 
 Write-Host "`n==============================================================================" -ForegroundColor Cyan
 Write-Host "OpenAPI / Swagger Spec Suite Results: Passed = $passed, Failed = $failed" -ForegroundColor $(if ($failed -eq 0) { "Green" } else { "Red" })

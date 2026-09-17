@@ -1,5 +1,6 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 // Feature modules
 import { AuthModule } from './auth/auth.module';
 import authConfig from './auth/config/auth.config';
@@ -15,6 +16,7 @@ import mailConfig from './mail/config/mail.config';
 import { MailModule } from './mail/mail.module';
 import { AppointmentsModule } from './modules/appointments/appointments.module';
 import { AttendanceModule } from './modules/attendance/attendance.module';
+import { AuditModule } from './modules/audit/audit.module';
 import { ClinicsModule } from './modules/clinics/clinics.module';
 import { LeavesModule } from './modules/leaves/leaves.module';
 import { MedicalRecordsModule } from './modules/medical-records/medical-records.module';
@@ -31,12 +33,18 @@ import { SupportTicketsModule } from './modules/support-tickets/support-tickets.
       load: [databaseConfig, appConfig, cacheConfig, authConfig, mailConfig],
       envFilePath: ['.env', 'env-example-relational'],
     }),
+    EventEmitterModule.forRoot({
+      wildcard: true,
+      delimiter: '.',
+      verboseMemoryLeak: true,
+    }),
     DrizzleModule,
     RedisModule,
     HealthModule,
     HomeModule,
     MailModule,
     AuthModule,
+    AuditModule,
     ClinicsModule,
     PatientsModule,
     StaffsModule,

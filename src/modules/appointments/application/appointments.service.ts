@@ -5,6 +5,11 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import {
+  AppointmentCreatedEvent,
+  AppointmentStatusChangedEvent,
+} from '../../../common/events';
 import { RedisService } from '../../../common/redis/redis.service';
 import { AppointmentEntity } from '../domain/entities/appointment.entity';
 import {
@@ -27,6 +32,7 @@ export class AppointmentsService {
     @Inject(APPOINTMENT_REPOSITORY)
     private readonly appointmentRepo: AppointmentRepository,
     private readonly redisService: RedisService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async createAppointment(
@@ -60,6 +66,25 @@ export class AppointmentsService {
       visitType: body.visitType || 'Pemeriksaan Baru',
       complaint: body.complaint || null,
     });
+
+    // Emit domain event for asynchronous auditing and status history (ARC-119..122, ARC-136)
+    this.eventEmitter.emit(
+      AppointmentCreatedEvent.EVENT_NAME,
+      new AppointmentCreatedEvent(
+        created.id,
+        created.patientId,
+        created.poliklinikId,
+        created.appointmentDate,
+        created.session,
+        created.queueNumber,
+        created.status,
+        undefined,
+        {
+          userId: user?.id || user?.sub,
+          roleCode: user?.role,
+        },
+      ),
+    );
 
     // Proactive cache invalidation by writer (ARC-088, API-155)
     await this.invalidateQueueCaches();
@@ -122,11 +147,28 @@ export class AppointmentsService {
     );
   }
 
-  async checkIn(id: string): Promise<AppointmentEntity> {
+  async checkIn(id: string, user?: any): Promise<AppointmentEntity> {
+    const current = await this.appointmentRepo.findById(id);
     const updated = await this.appointmentRepo.updateStatus(id, 'MENUNGGU');
     if (!updated) {
       throw new NotFoundException(`Kunjungan dengan ID ${id} tidak ditemukan`);
     }
+
+    this.eventEmitter.emit(
+      AppointmentStatusChangedEvent.EVENT_NAME,
+      new AppointmentStatusChangedEvent(
+        id,
+        current?.status || null,
+        'MENUNGGU',
+        'Check-in kedatangan pasien',
+        undefined,
+        {
+          userId: user?.id || user?.sub,
+          roleCode: user?.role,
+        },
+      ),
+    );
+
     await this.invalidateQueueCaches();
     return updated;
   }
@@ -134,7 +176,9 @@ export class AppointmentsService {
   async callPatient(
     id: string,
     practitionerId?: string,
+    user?: any,
   ): Promise<AppointmentEntity> {
+    const current = await this.appointmentRepo.findById(id);
     const updated = await this.appointmentRepo.updateStatus(
       id,
       'SEDANG_DIPERIKSA',
@@ -143,20 +187,58 @@ export class AppointmentsService {
     if (!updated) {
       throw new NotFoundException(`Kunjungan dengan ID ${id} tidak ditemukan`);
     }
+
+    this.eventEmitter.emit(
+      AppointmentStatusChangedEvent.EVENT_NAME,
+      new AppointmentStatusChangedEvent(
+        id,
+        current?.status || null,
+        'SEDANG_DIPERIKSA',
+        'Panggilan pasien masuk ruang periksa',
+        undefined,
+        {
+          userId: user?.id || user?.sub,
+          roleCode: user?.role,
+        },
+      ),
+    );
+
     await this.invalidateQueueCaches();
     return updated;
   }
 
-  async complete(id: string): Promise<AppointmentEntity> {
+  async complete(id: string, user?: any): Promise<AppointmentEntity> {
+    const current = await this.appointmentRepo.findById(id);
     const updated = await this.appointmentRepo.updateStatus(id, 'SELESAI');
     if (!updated) {
       throw new NotFoundException(`Kunjungan dengan ID ${id} tidak ditemukan`);
     }
+
+    this.eventEmitter.emit(
+      AppointmentStatusChangedEvent.EVENT_NAME,
+      new AppointmentStatusChangedEvent(
+        id,
+        current?.status || null,
+        'SELESAI',
+        'Pemeriksaan medis selesai',
+        undefined,
+        {
+          userId: user?.id || user?.sub,
+          roleCode: user?.role,
+        },
+      ),
+    );
+
     await this.invalidateQueueCaches();
     return updated;
   }
 
-  async cancel(id: string, reason?: string): Promise<AppointmentEntity> {
+  async cancel(
+    id: string,
+    reason?: string,
+    user?: any,
+  ): Promise<AppointmentEntity> {
+    const current = await this.appointmentRepo.findById(id);
     const updated = await this.appointmentRepo.updateStatus(
       id,
       'BATAL',
@@ -166,6 +248,22 @@ export class AppointmentsService {
     if (!updated) {
       throw new NotFoundException(`Kunjungan dengan ID ${id} tidak ditemukan`);
     }
+
+    this.eventEmitter.emit(
+      AppointmentStatusChangedEvent.EVENT_NAME,
+      new AppointmentStatusChangedEvent(
+        id,
+        current?.status || null,
+        'BATAL',
+        reason || 'Dibatalkan oleh pasien',
+        undefined,
+        {
+          userId: user?.id || user?.sub,
+          roleCode: user?.role,
+        },
+      ),
+    );
+
     await this.invalidateQueueCaches();
     return updated;
   }
@@ -173,7 +271,9 @@ export class AppointmentsService {
   async updateStatus(
     id: string,
     dto: UpdateAppointmentStatusDto,
+    user?: any,
   ): Promise<AppointmentEntity> {
+    const current = await this.appointmentRepo.findById(id);
     const updated = await this.appointmentRepo.updateStatus(
       id,
       dto.status,
@@ -183,15 +283,48 @@ export class AppointmentsService {
     if (!updated) {
       throw new NotFoundException(`Kunjungan dengan ID ${id} tidak ditemukan`);
     }
+
+    this.eventEmitter.emit(
+      AppointmentStatusChangedEvent.EVENT_NAME,
+      new AppointmentStatusChangedEvent(
+        id,
+        current?.status || null,
+        dto.status,
+        dto.cancellationReason,
+        undefined,
+        {
+          userId: user?.id || user?.sub,
+          roleCode: user?.role,
+        },
+      ),
+    );
+
     await this.invalidateQueueCaches();
     return updated;
   }
 
-  async delete(id: string): Promise<void> {
+  async delete(id: string, user?: any): Promise<void> {
+    const current = await this.appointmentRepo.findById(id);
     const success = await this.appointmentRepo.delete(id);
     if (!success) {
       throw new NotFoundException(`Kunjungan dengan ID ${id} tidak ditemukan`);
     }
+
+    this.eventEmitter.emit(
+      AppointmentStatusChangedEvent.EVENT_NAME,
+      new AppointmentStatusChangedEvent(
+        id,
+        current?.status || null,
+        'BATAL',
+        'Dihapus oleh admin',
+        undefined,
+        {
+          userId: user?.id || user?.sub,
+          roleCode: user?.role,
+        },
+      ),
+    );
+
     await this.invalidateQueueCaches();
   }
 
