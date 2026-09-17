@@ -182,10 +182,7 @@ export class AppointmentsController {
   @ApiNotFoundResponse({ description: 'Kunjungan tidak ditemukan' })
   @ApiUnauthorizedResponse({ description: 'Sesi token tidak valid' })
   @Idempotent()
-  async checkInAppointment(
-    @Param('id') id: string,
-    @CurrentUser() user?: any,
-  ) {
+  async checkInAppointment(@Param('id') id: string, @CurrentUser() user?: any) {
     return this.appointmentsService.checkIn(id, user);
   }
 
@@ -325,10 +322,7 @@ export class AppointmentsController {
   @ApiNotFoundResponse({ description: 'Kunjungan tidak ditemukan' })
   @ApiUnauthorizedResponse({ description: 'Sesi token tidak valid' })
   @ApiForbiddenResponse({ description: 'Hanya Admin yang diizinkan' })
-  async deleteAppointment(
-    @Param('id') id: string,
-    @CurrentUser() user?: any,
-  ) {
+  async deleteAppointment(@Param('id') id: string, @CurrentUser() user?: any) {
     await this.appointmentsService.delete(id, user);
   }
 }

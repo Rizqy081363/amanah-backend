@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { DEFAULT_PAGE_SIZE } from '../../../common/constants';
 import {
   AppointmentCreatedEvent,
   AppointmentStatusChangedEvent,
@@ -14,6 +15,7 @@ import { RedisService } from '../../../common/redis/redis.service';
 import { AppointmentEntity } from '../domain/entities/appointment.entity';
 import {
   APPOINTMENT_REPOSITORY,
+  AppointmentFindAllResult,
   AppointmentRepository,
 } from '../domain/repositories/appointment.repository';
 import { CreateAppointmentDto } from '../presentation/dto/create-appointment.dto';
@@ -92,18 +94,27 @@ export class AppointmentsService {
     return created;
   }
 
-  async findAll(query: QueryAppointmentDto): Promise<AppointmentEntity[]> {
+  async findAll(query: QueryAppointmentDto): Promise<AppointmentFindAllResult> {
     const page = query.page || 1;
-    const limit = query.limit || 20;
+    const limit = query.limit || DEFAULT_PAGE_SIZE;
     const offset = (page - 1) * limit;
 
-    return this.appointmentRepo.findAll(limit, offset, {
+    const result = await this.appointmentRepo.findAll(limit, offset, {
       poliklinikId: query.poliklinikId,
       date: query.date,
       session: query.session,
       status: query.status,
       patientId: query.patientId,
+      cursor: query.cursor,
     });
+
+    return {
+      data: result.data,
+      meta: {
+        ...result.meta,
+        page,
+      },
+    };
   }
 
   async findByPatientId(patientId: string): Promise<AppointmentEntity[]> {

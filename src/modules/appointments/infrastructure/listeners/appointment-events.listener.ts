@@ -24,7 +24,9 @@ export class AppointmentEventsListener {
   ) {}
 
   @OnEvent(AppointmentCreatedEvent.EVENT_NAME, { async: true })
-  async handleAppointmentCreated(event: AppointmentCreatedEvent): Promise<void> {
+  async handleAppointmentCreated(
+    event: AppointmentCreatedEvent,
+  ): Promise<void> {
     try {
       // 1. Record initial status history in appointment_status_events (database-design.md:212)
       await this.db.insert(appointmentStatusEvents).values({

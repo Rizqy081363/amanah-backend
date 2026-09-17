@@ -71,7 +71,9 @@ describe('HttpCacheInterceptor', () => {
 
   it('should pass through non-GET requests without caching', async () => {
     const ctx = createMockContext('POST');
-    const handler = { handle: jest.fn().mockReturnValue(of({ success: true })) };
+    const handler = {
+      handle: jest.fn().mockReturnValue(of({ success: true })),
+    };
 
     const result$ = await interceptor.intercept(ctx, handler);
     const emitted = await firstValueFrom(result$);
@@ -195,12 +197,17 @@ describe('HttpCacheInterceptor', () => {
 
     const ctx = createMockContext('GET', {}, { id: 'user-uuid-999' });
     const res = ctx.switchToHttp().getResponse();
-    const handler = { handle: jest.fn().mockReturnValue(of({ userRecord: 1 })) };
+    const handler = {
+      handle: jest.fn().mockReturnValue(of({ userRecord: 1 })),
+    };
 
     const result$ = await interceptor.intercept(ctx, handler);
     await firstValueFrom(result$);
 
-    expect(res.setHeader).toHaveBeenCalledWith('Cache-Control', 'private, no-cache');
+    expect(res.setHeader).toHaveBeenCalledWith(
+      'Cache-Control',
+      'private, no-cache',
+    );
     expect(res.setHeader).toHaveBeenCalledWith('Vary', 'Accept, Authorization');
     expect(redisService.getJson).toHaveBeenCalledWith(
       expect.stringContaining('httpcache:private:user-uuid-999:GET'),
@@ -213,7 +220,9 @@ describe('HttpCacheInterceptor', () => {
     redisService.getJson.mockRejectedValue(new Error('Redis connection down'));
 
     const ctx = createMockContext('GET');
-    const handler = { handle: jest.fn().mockReturnValue(of({ fallback: 'data' })) };
+    const handler = {
+      handle: jest.fn().mockReturnValue(of({ fallback: 'data' })),
+    };
 
     const result$ = await interceptor.intercept(ctx, handler);
     const emitted = await firstValueFrom(result$);

@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, count, desc, eq } from 'drizzle-orm';
+import { and, count, desc, eq, lt, or } from 'drizzle-orm';
+import { decodeCursor, encodeCursor } from '../../../../common/pagination';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import { auditLogs } from '../../../../database/schema';
@@ -40,7 +41,12 @@ export class AuditLogDrizzleRepository implements AuditLogRepository {
     limit: number,
     offset: number,
     filters?: QueryAuditLogFilters,
-  ): Promise<{ items: AuditLogEntity[]; total: number }> {
+  ): Promise<{
+    items: AuditLogEntity[];
+    total: number;
+    nextCursor?: string | null;
+    hasNextPage?: boolean;
+  }> {
     const conditions = [];
 
     if (filters?.entityTable) {
@@ -56,6 +62,20 @@ export class AuditLogDrizzleRepository implements AuditLogRepository {
       conditions.push(eq(auditLogs.action, filters.action));
     }
 
+    if (filters?.cursor) {
+      const cursorPayload = decodeCursor(filters.cursor);
+      const cursorIso = cursorPayload.createdAt.toISOString();
+      conditions.push(
+        or(
+          lt(auditLogs.createdAt, cursorIso),
+          and(
+            eq(auditLogs.createdAt, cursorIso),
+            lt(auditLogs.id, cursorPayload.id),
+          ),
+        ),
+      );
+    }
+
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
     const [totalResult] = await this.db
@@ -65,18 +85,32 @@ export class AuditLogDrizzleRepository implements AuditLogRepository {
 
     const total = Number(totalResult?.val || 0);
 
+    const fetchLimit = limit + 1;
     // ARC-082: Deterministic sort with primary key tiebreaker
     const rows = await this.db
       .select()
       .from(auditLogs)
       .where(whereClause)
       .orderBy(desc(auditLogs.createdAt), desc(auditLogs.id))
-      .limit(limit)
-      .offset(offset);
+      .limit(fetchLimit)
+      .offset(filters?.cursor ? 0 : offset);
+
+    const hasNextPage = rows.length > limit;
+    const pageRows = hasNextPage ? rows.slice(0, limit) : rows;
+    let nextCursor: string | null = null;
+    if (hasNextPage && pageRows.length > 0) {
+      const lastRow = pageRows[pageRows.length - 1];
+      nextCursor = encodeCursor({
+        createdAt: lastRow.createdAt,
+        id: lastRow.id,
+      });
+    }
 
     return {
-      items: rows.map((r) => this.mapToEntity(r)),
+      items: pageRows.map((r) => this.mapToEntity(r)),
       total,
+      nextCursor,
+      hasNextPage,
     };
   }
 

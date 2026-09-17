@@ -21,6 +21,7 @@ export interface UpdateDiagnosisData {
 export interface MedicalRecordFilterOptions {
   page?: number;
   limit?: number;
+  cursor?: string;
   patientId?: string;
   practitionerId?: string;
   serviceId?: string;
@@ -47,6 +48,14 @@ export interface MedicalRecordRepository {
     total: number;
     page: number;
     limit: number;
+    meta: {
+      nextCursor: string | null;
+      hasNextPage: boolean;
+      limit: number;
+      total: number;
+      page: number;
+      totalPages: number;
+    };
   }>;
 
   findByKunjunganId(kunjunganId: string): Promise<MedicalRecordEntity | null>;

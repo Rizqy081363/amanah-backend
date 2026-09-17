@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, or } from 'drizzle-orm';
+import { and, asc, desc, eq, or } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
@@ -146,6 +146,11 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
       where: conditions.length > 0 ? and(...conditions) : undefined,
       limit,
       offset,
+      orderBy: [
+        desc(practitionerScheduleSessions.scheduleDate),
+        asc(practitionerScheduleSessions.startTime),
+        desc(practitionerScheduleSessions.id),
+      ],
       with: {
         practitioner: {
           with: {

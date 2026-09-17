@@ -19,6 +19,7 @@ export interface QueryAuditLogFilters {
   entityId?: string;
   actorUserId?: string;
   action?: string;
+  cursor?: string;
 }
 
 export interface AuditLogRepository {
@@ -27,6 +28,11 @@ export interface AuditLogRepository {
     limit: number,
     offset: number,
     filters?: QueryAuditLogFilters,
-  ): Promise<{ items: AuditLogEntity[]; total: number }>;
+  ): Promise<{
+    items: AuditLogEntity[];
+    total: number;
+    nextCursor?: string | null;
+    hasNextPage?: boolean;
+  }>;
   findById(id: string): Promise<AuditLogEntity | null>;
 }

@@ -43,6 +43,10 @@ class EnvironmentVariablesValidator {
   @IsString()
   @IsOptional()
   API_PREFIX: string;
+
+  @IsString()
+  @IsOptional()
+  APP_HEADER_LANGUAGE: string;
 }
 
 export default registerAs<AppConfig>('app', () => {
@@ -68,5 +72,6 @@ export default registerAs<AppConfig>('app', () => {
         ? parseInt(process.env.PORT, 10)
         : 3000,
     apiPrefix: process.env.API_PREFIX || 'api',
+    headerLanguage: process.env.APP_HEADER_LANGUAGE || 'x-custom-lang',
   };
 });

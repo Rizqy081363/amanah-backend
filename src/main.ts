@@ -96,7 +96,9 @@ async function bootstrap() {
       {
         in: 'header',
         required: false,
-        name: process.env.APP_HEADER_LANGUAGE || 'x-custom-lang',
+        name:
+          configService.get('app.headerLanguage', { infer: true }) ||
+          'x-custom-lang',
         schema: {
           example: 'en',
         },

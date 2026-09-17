@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, count, desc, eq, gte, ilike, lte, or } from 'drizzle-orm';
+import { and, count, desc, eq, gte, ilike, lt, lte, or } from 'drizzle-orm';
+import { decodeCursor, encodeCursor } from '../../../../common/pagination';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
@@ -268,6 +269,14 @@ export class MedicalRecordDrizzleRepository implements MedicalRecordRepository {
     total: number;
     page: number;
     limit: number;
+    meta: {
+      nextCursor: string | null;
+      hasNextPage: boolean;
+      limit: number;
+      total: number;
+      page: number;
+      totalPages: number;
+    };
   }> {
     const page = filters?.page && filters.page > 0 ? filters.page : 1;
     const limit = filters?.limit && filters.limit > 0 ? filters.limit : 20;
@@ -306,6 +315,20 @@ export class MedicalRecordDrizzleRepository implements MedicalRecordRepository {
       );
     }
 
+    if (filters?.cursor) {
+      const cursorPayload = decodeCursor(filters.cursor);
+      const cursorIso = cursorPayload.createdAt.toISOString();
+      conditions.push(
+        or(
+          lt(clinicalEncounters.createdAt, cursorIso),
+          and(
+            eq(clinicalEncounters.createdAt, cursorIso),
+            lt(clinicalEncounters.id, cursorPayload.id),
+          ),
+        ),
+      );
+    }
+
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
     const totalRes = await this.db
@@ -314,6 +337,7 @@ export class MedicalRecordDrizzleRepository implements MedicalRecordRepository {
       .where(whereClause);
     const total = Number(totalRes[0]?.count || 0);
 
+    const fetchLimit = limit + 1;
     const records = await this.db.query.clinicalEncounters.findMany({
       where: whereClause,
       with: {
@@ -328,16 +352,36 @@ export class MedicalRecordDrizzleRepository implements MedicalRecordRepository {
       orderBy: [
         desc(clinicalEncounters.encounterDate),
         desc(clinicalEncounters.createdAt),
+        desc(clinicalEncounters.id),
       ],
-      limit,
-      offset,
+      limit: fetchLimit,
+      offset: filters?.cursor ? 0 : offset,
     });
 
+    const hasNextPage = records.length > limit;
+    const pageRecords = hasNextPage ? records.slice(0, limit) : records;
+    let nextCursor: string | null = null;
+    if (hasNextPage && pageRecords.length > 0) {
+      const lastItem = pageRecords[pageRecords.length - 1];
+      nextCursor = encodeCursor({
+        createdAt: lastItem.createdAt,
+        id: lastItem.id,
+      });
+    }
+
     return {
-      data: records.map((r) => this.mapRecordToEntity(r)),
+      data: pageRecords.map((r) => this.mapRecordToEntity(r)),
       total,
       page,
       limit,
+      meta: {
+        nextCursor,
+        hasNextPage,
+        limit,
+        total,
+        page,
+        totalPages: Math.ceil(total / limit),
+      },
     };
   }
 

@@ -2,6 +2,17 @@ import { AppointmentEntity } from '../entities/appointment.entity';
 
 export const APPOINTMENT_REPOSITORY = 'APPOINTMENT_REPOSITORY';
 
+export interface AppointmentFindAllResult {
+  data: AppointmentEntity[];
+  meta: {
+    nextCursor: string | null;
+    hasNextPage: boolean;
+    limit: number;
+    total?: number;
+    page?: number;
+  };
+}
+
 export interface AppointmentRepository {
   create(
     data: Omit<AppointmentEntity, 'id' | 'createdAt' | 'updatedAt'>,
@@ -16,8 +27,9 @@ export interface AppointmentRepository {
       session?: string;
       status?: string;
       patientId?: string;
+      cursor?: string;
     },
-  ): Promise<AppointmentEntity[]>;
+  ): Promise<AppointmentFindAllResult>;
   findByQueueNumber(
     queueNumber: string,
     date: string,

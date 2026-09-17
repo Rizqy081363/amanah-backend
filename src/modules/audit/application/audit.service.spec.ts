@@ -84,9 +84,12 @@ describe('AuditService', () => {
         entityId: undefined,
         actorUserId: undefined,
         action: undefined,
+        cursor: undefined,
       });
       expect(result.data).toHaveLength(1);
       expect(result.meta).toEqual({
+        nextCursor: null,
+        hasNextPage: false,
         page: 1,
         limit: 10,
         total: 1,

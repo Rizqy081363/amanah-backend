@@ -125,7 +125,7 @@ Write-Host "`n--- 5. Proactive Cache Invalidation on Mutation (ARC-088, API-155)
 # Fetch first appointment
 $aptsRes = Invoke-WebRequest -Uri "$BaseUrl/api/v1/appointments" -Method Get -Headers $authHeaders -SkipHttpErrorCheck
 $apts = $aptsRes.Content | ConvertFrom-Json
-$targetApt = $apts[0]
+$targetApt = if ($null -ne $apts.data) { $apts.data[0] } else { $apts[0] }
 
 # Mutate appointment status (e.g. check-in)
 $mutateRes = Invoke-WebRequest -Uri "$BaseUrl/api/v1/appointments/$($targetApt.id)/check-in" `

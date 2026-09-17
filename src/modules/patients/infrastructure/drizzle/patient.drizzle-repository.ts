@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { eq, ilike, or } from 'drizzle-orm';
+import { desc, eq, ilike, or } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import { patientAddresses, patientProfiles } from '../../../../database/schema';
@@ -142,6 +142,7 @@ export class PatientDrizzleRepository implements PatientRepository {
       where: whereClause,
       limit,
       offset,
+      orderBy: [desc(patientProfiles.createdAt), desc(patientProfiles.id)],
       with: {
         patientAddresses: true,
       },

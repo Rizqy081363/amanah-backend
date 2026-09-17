@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, count, desc, eq, or } from 'drizzle-orm';
+import { and, count, desc, eq, lt, or } from 'drizzle-orm';
+import { decodeCursor, encodeCursor } from '../../../../common/pagination';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
@@ -12,7 +13,10 @@ import {
   queueTickets,
 } from '../../../../database/schema';
 import { AppointmentEntity } from '../../domain/entities/appointment.entity';
-import { AppointmentRepository } from '../../domain/repositories/appointment.repository';
+import {
+  AppointmentFindAllResult,
+  AppointmentRepository,
+} from '../../domain/repositories/appointment.repository';
 
 @Injectable()
 export class AppointmentDrizzleRepository implements AppointmentRepository {
@@ -182,8 +186,9 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
       session?: string;
       status?: string;
       patientId?: string;
+      cursor?: string;
     },
-  ): Promise<AppointmentEntity[]> {
+  ): Promise<AppointmentFindAllResult> {
     const conditions: any[] = [];
     if (filters?.date) {
       conditions.push(eq(appointments.scheduledDate, filters.date));
@@ -192,11 +197,26 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
       conditions.push(eq(appointments.patientId, filters.patientId));
     }
 
+    if (filters?.cursor) {
+      const cursorPayload = decodeCursor(filters.cursor);
+      const cursorIso = cursorPayload.createdAt.toISOString();
+      conditions.push(
+        or(
+          lt(appointments.createdAt, cursorIso),
+          and(
+            eq(appointments.createdAt, cursorIso),
+            lt(appointments.id, cursorPayload.id),
+          ),
+        ),
+      );
+    }
+
+    const fetchLimit = limit + 1;
     const records = await this.db.query.appointments.findMany({
       where: conditions.length > 0 ? and(...conditions) : undefined,
-      limit,
-      offset,
-      orderBy: [desc(appointments.createdAt)],
+      limit: fetchLimit,
+      offset: filters?.cursor ? 0 : offset,
+      orderBy: [desc(appointments.createdAt), desc(appointments.id)],
       with: {
         queueTickets: true,
         patientProfile: true,
@@ -228,7 +248,25 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
       results = results.filter((a) => a.status === filters.status);
     }
 
-    return results;
+    const hasNextPage = results.length > limit;
+    const pageData = hasNextPage ? results.slice(0, limit) : results;
+    let nextCursor: string | null = null;
+    if (hasNextPage && pageData.length > 0) {
+      const lastItem = pageData[pageData.length - 1];
+      nextCursor = encodeCursor({
+        createdAt: lastItem.createdAt,
+        id: lastItem.id,
+      });
+    }
+
+    return {
+      data: pageData,
+      meta: {
+        nextCursor,
+        hasNextPage,
+        limit,
+      },
+    };
   }
 
   async findByQueueNumber(

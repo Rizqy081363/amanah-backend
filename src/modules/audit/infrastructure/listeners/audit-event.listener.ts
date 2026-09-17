@@ -14,7 +14,9 @@ export class AuditEventListener {
   constructor(private readonly auditService: AuditService) {}
 
   @OnEvent(AppointmentCreatedEvent.EVENT_NAME, { async: true })
-  async handleAppointmentCreated(event: AppointmentCreatedEvent): Promise<void> {
+  async handleAppointmentCreated(
+    event: AppointmentCreatedEvent,
+  ): Promise<void> {
     try {
       await this.auditService.recordLog({
         action: 'create_appointment',

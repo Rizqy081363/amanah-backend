@@ -7,4 +7,5 @@ export type AppConfig = {
   corsOrigins: string[];
   port: number;
   apiPrefix: string;
+  headerLanguage: string;
 };

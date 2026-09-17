@@ -5,20 +5,23 @@ import {
   DEFAULT_PAGE_SIZE,
   MAX_PAGE_SIZE,
   MIN_PAGE_SIZE,
-} from '../../../../common/constants';
+} from '../constants/pagination.constants';
 
-export class QueryPatientDto {
-  @ApiPropertyOptional({ default: 1, minimum: 1 })
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
+export class CursorPaginationDto {
+  @ApiPropertyOptional({
+    description:
+      'Opaque cursor base64url untuk keyset pagination (API-089, ARC-081). Client tidak boleh merekayasa token ini.',
+    example: 'eyJ0IjoiMjAyNi0wOS0xOFQwMDowMDowMC4wMDBaIiwiaWQiOiIxMjMifQ',
+  })
+  @IsString()
   @IsOptional()
-  page?: number = 1;
+  cursor?: string;
 
   @ApiPropertyOptional({
     default: DEFAULT_PAGE_SIZE,
     minimum: MIN_PAGE_SIZE,
     maximum: MAX_PAGE_SIZE,
+    description: `Batas jumlah record per halaman (ARC-080). Default: ${DEFAULT_PAGE_SIZE}, Maksimum: ${MAX_PAGE_SIZE}.`,
   })
   @Type(() => Number)
   @IsInt()
@@ -26,14 +29,4 @@ export class QueryPatientDto {
   @Max(MAX_PAGE_SIZE)
   @IsOptional()
   limit?: number = DEFAULT_PAGE_SIZE;
-
-  @ApiPropertyOptional({ description: 'Pencarian nama atau No. Rekam Medis' })
-  @IsString()
-  @IsOptional()
-  search?: string;
-
-  @ApiPropertyOptional({ description: 'Filter spesifik NIK' })
-  @IsString()
-  @IsOptional()
-  nik?: string;
 }

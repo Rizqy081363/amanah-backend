@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { DEFAULT_PAGE_SIZE } from '../../../common/constants';
 import { AuditLogEntity } from '../domain/entities/audit-log.entity';
 import {
   AUDIT_LOG_REPOSITORY,
@@ -29,19 +30,23 @@ export class AuditService {
 
   async findAll(query: QueryAuditLogDto) {
     const page = query.page || 1;
-    const limit = query.limit || 20;
+    const limit = query.limit || DEFAULT_PAGE_SIZE;
     const offset = (page - 1) * limit;
 
-    const { items, total } = await this.auditLogRepo.findAll(limit, offset, {
-      entityTable: query.entityTable,
-      entityId: query.entityId,
-      actorUserId: query.actorUserId,
-      action: query.action,
-    });
+    const { items, total, nextCursor, hasNextPage } =
+      await this.auditLogRepo.findAll(limit, offset, {
+        entityTable: query.entityTable,
+        entityId: query.entityId,
+        actorUserId: query.actorUserId,
+        action: query.action,
+        cursor: query.cursor,
+      });
 
     return {
       data: items,
       meta: {
+        nextCursor: nextCursor ?? null,
+        hasNextPage: hasNextPage ?? false,
         page,
         limit,
         total,

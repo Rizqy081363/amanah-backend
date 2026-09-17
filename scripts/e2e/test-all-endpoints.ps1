@@ -138,8 +138,9 @@ Assert-Test "GET /api/v1/appointments/queue/daily -> returns clinic queue" ($nul
 
 # 7.3 List Appointments
 $apts = Invoke-RestMethod -Uri "$baseUrl/api/v1/appointments" -Method Get -Headers $docHeaders
-Assert-Test "GET /api/v1/appointments -> returns appointments list" ($apts.Count -gt 0)
-$aptId = $apts[0].id
+$aptList = if ($null -ne $apts.data) { $apts.data } else { $apts }
+Assert-Test "GET /api/v1/appointments -> returns appointments list" ($aptList.Count -gt 0)
+$aptId = $aptList[0].id
 
 # 7.4 Get Single Appointment
 $aptDetail = Invoke-RestMethod -Uri "$baseUrl/api/v1/appointments/$aptId" -Method Get -Headers $docHeaders
