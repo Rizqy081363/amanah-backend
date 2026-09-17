@@ -13,7 +13,9 @@ import { useContainer } from 'class-validator';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { AllConfigType } from './config/config.type';
+import { IdempotencyInterceptor } from './common/interceptors/idempotency.interceptor';
 import { ProblemDetailsFilter } from './common/filters/problem-details.filter';
+import { RedisService } from './common/redis/redis.service';
 import { ResolvePromisesInterceptor } from './utils/serializer.interceptor';
 import validationOptions from './utils/validation-options';
 
@@ -54,11 +56,14 @@ async function bootstrap() {
   });
   app.useGlobalPipes(new ValidationPipe(validationOptions));
   app.useGlobalFilters(new ProblemDetailsFilter());
+  const reflector = app.get(Reflector);
+  const redisService = app.get(RedisService);
   app.useGlobalInterceptors(
     // ResolvePromisesInterceptor is used to resolve promises in responses because class-transformer can't do it
     // https://github.com/typestack/class-transformer/issues/549
     new ResolvePromisesInterceptor(),
-    new ClassSerializerInterceptor(app.get(Reflector)),
+    new ClassSerializerInterceptor(reflector),
+    new IdempotencyInterceptor(redisService, reflector),
   );
 
   const port = configService.getOrThrow('app.port', { infer: true });

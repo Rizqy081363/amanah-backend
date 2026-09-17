@@ -2,12 +2,9 @@ import {
   Body,
   Controller,
   Delete,
-  ForbiddenException,
   Get,
   HttpCode,
   HttpStatus,
-  Inject,
-  NotFoundException,
   Param,
   Patch,
   Post,
@@ -33,10 +30,7 @@ import { CurrentUser } from '../../../common/auth/current-user.decorator';
 import { Public } from '../../../common/auth/public.decorator';
 import { Roles } from '../../../common/auth/roles.decorator';
 import { RolesGuard } from '../../../common/auth/roles.guard';
-import {
-  APPOINTMENT_REPOSITORY,
-  AppointmentRepository,
-} from '../domain/repositories/appointment.repository';
+import { AppointmentsService } from '../application/appointments.service';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { QueryAppointmentDto } from './dto/query-appointment.dto';
 import { UpdateAppointmentStatusDto } from './dto/update-appointment-status.dto';
@@ -44,10 +38,7 @@ import { UpdateAppointmentStatusDto } from './dto/update-appointment-status.dto'
 @ApiTags('Appointments (Kunjungan & Antrean Pasien)')
 @Controller({ path: 'appointments', version: '1' })
 export class AppointmentsController {
-  constructor(
-    @Inject(APPOINTMENT_REPOSITORY)
-    private readonly appointmentRepo: AppointmentRepository,
-  ) {}
+  constructor(private readonly appointmentsService: AppointmentsService) {}
 
   @ApiBearerAuth('access-token')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
@@ -74,33 +65,7 @@ export class AppointmentsController {
     @Body() body: CreateAppointmentDto,
     @CurrentUser() user: any,
   ) {
-    const patientId = body.patientId || user.patient?.id;
-    if (!patientId) {
-      throw new ForbiddenException(
-        'Patient ID wajib disertakan atau akun harus terhubung ke data pasien',
-      );
-    }
-
-    const nextIndex = await this.appointmentRepo.getNextQueueIndex(
-      body.poliklinikId,
-      body.appointmentDate,
-      body.session,
-    );
-    const prefix = body.session.charAt(0);
-    const queueNumber = `${prefix}-${String(nextIndex).padStart(3, '0')}`;
-
-    return this.appointmentRepo.create({
-      patientId,
-      poliklinikId: body.poliklinikId,
-      layananId: body.layananId,
-      staffId: body.staffId,
-      appointmentDate: body.appointmentDate,
-      session: body.session,
-      queueNumber,
-      status: 'SUDAH_BUAT_JANJI',
-      visitType: body.visitType || 'Pemeriksaan Baru',
-      complaint: body.complaint || null,
-    });
+    return this.appointmentsService.createAppointment(body, user);
   }
 
   @ApiBearerAuth('access-token')
@@ -116,17 +81,7 @@ export class AppointmentsController {
   @ApiUnauthorizedResponse({ description: 'Sesi token tidak valid' })
   @ApiForbiddenResponse({ description: 'Hanya Admin atau Staf yang diizinkan' })
   async getAppointments(@Query() query: QueryAppointmentDto) {
-    const page = query.page || 1;
-    const limit = query.limit || 20;
-    const offset = (page - 1) * limit;
-
-    return this.appointmentRepo.findAll(limit, offset, {
-      poliklinikId: query.poliklinikId,
-      date: query.date,
-      session: query.session,
-      status: query.status,
-      patientId: query.patientId,
-    });
+    return this.appointmentsService.findAll(query);
   }
 
   @ApiBearerAuth('access-token')
@@ -145,7 +100,7 @@ export class AppointmentsController {
     if (!patientId) {
       return [];
     }
-    return this.appointmentRepo.findByPatientId(patientId);
+    return this.appointmentsService.findByPatientId(patientId);
   }
 
   @ApiBearerAuth('access-token')
@@ -165,12 +120,7 @@ export class AppointmentsController {
     @Query('date') date: string,
     @Query('session') session?: string,
   ) {
-    const targetDate = date || new Date().toISOString().split('T')[0];
-    return this.appointmentRepo.findDailyQueue(
-      poliklinikId,
-      targetDate,
-      session,
-    );
+    return this.appointmentsService.findDailyQueue(poliklinikId, date, session);
   }
 
   @Public()
@@ -185,8 +135,7 @@ export class AppointmentsController {
     @Query('date') date?: string,
     @Query('poliklinikId') poliklinikId?: string,
   ) {
-    const targetDate = date || new Date().toISOString().split('T')[0];
-    return this.appointmentRepo.findDisplayQueue(targetDate, poliklinikId);
+    return this.appointmentsService.findDisplayQueue(date, poliklinikId);
   }
 
   @ApiBearerAuth('access-token')
@@ -207,13 +156,7 @@ export class AppointmentsController {
   @ApiNotFoundResponse({ description: 'Kunjungan tidak ditemukan' })
   @ApiUnauthorizedResponse({ description: 'Sesi token tidak valid' })
   async getAppointmentById(@Param('id') id: string) {
-    const appointment = await this.appointmentRepo.findById(id);
-    if (!appointment) {
-      throw new NotFoundException(
-        `Kunjungan/Janji temu dengan ID ${id} tidak ditemukan`,
-      );
-    }
-    return appointment;
+    return this.appointmentsService.findById(id);
   }
 
   @ApiBearerAuth('access-token')
@@ -234,11 +177,7 @@ export class AppointmentsController {
   @ApiNotFoundResponse({ description: 'Kunjungan tidak ditemukan' })
   @ApiUnauthorizedResponse({ description: 'Sesi token tidak valid' })
   async checkInAppointment(@Param('id') id: string) {
-    const updated = await this.appointmentRepo.updateStatus(id, 'MENUNGGU');
-    if (!updated) {
-      throw new NotFoundException(`Kunjungan dengan ID ${id} tidak ditemukan`);
-    }
-    return updated;
+    return this.appointmentsService.checkIn(id);
   }
 
   @ApiBearerAuth('access-token')
@@ -262,15 +201,10 @@ export class AppointmentsController {
   @ApiUnauthorizedResponse({ description: 'Sesi token tidak valid' })
   @ApiForbiddenResponse({ description: 'Hanya Staf/Dokter yang diizinkan' })
   async callPatient(@Param('id') id: string, @CurrentUser() user: any) {
-    const updated = await this.appointmentRepo.updateStatus(
+    return this.appointmentsService.callPatient(
       id,
-      'SEDANG_DIPERIKSA',
       user.staff?.practitionerId || user.staff?.id,
     );
-    if (!updated) {
-      throw new NotFoundException(`Kunjungan dengan ID ${id} tidak ditemukan`);
-    }
-    return updated;
   }
 
   @ApiBearerAuth('access-token')
@@ -292,11 +226,7 @@ export class AppointmentsController {
   @ApiUnauthorizedResponse({ description: 'Sesi token tidak valid' })
   @ApiForbiddenResponse({ description: 'Hanya Staf/Dokter yang diizinkan' })
   async completeAppointment(@Param('id') id: string) {
-    const updated = await this.appointmentRepo.updateStatus(id, 'SELESAI');
-    if (!updated) {
-      throw new NotFoundException(`Kunjungan dengan ID ${id} tidak ditemukan`);
-    }
-    return updated;
+    return this.appointmentsService.complete(id);
   }
 
   @ApiBearerAuth('access-token')
@@ -331,16 +261,7 @@ export class AppointmentsController {
     @Param('id') id: string,
     @Body('reason') reason?: string,
   ) {
-    const updated = await this.appointmentRepo.updateStatus(
-      id,
-      'BATAL',
-      undefined,
-      reason || 'Dibatalkan oleh pasien',
-    );
-    if (!updated) {
-      throw new NotFoundException(`Kunjungan dengan ID ${id} tidak ditemukan`);
-    }
-    return updated;
+    return this.appointmentsService.cancel(id, reason);
   }
 
   @ApiBearerAuth('access-token')
@@ -366,16 +287,7 @@ export class AppointmentsController {
     @Param('id') id: string,
     @Body() body: UpdateAppointmentStatusDto,
   ) {
-    const updated = await this.appointmentRepo.updateStatus(
-      id,
-      body.status,
-      undefined,
-      body.cancellationReason,
-    );
-    if (!updated) {
-      throw new NotFoundException(`Kunjungan dengan ID ${id} tidak ditemukan`);
-    }
-    return updated;
+    return this.appointmentsService.updateStatus(id, body);
   }
 
   @ApiBearerAuth('access-token')
@@ -398,9 +310,6 @@ export class AppointmentsController {
   @ApiUnauthorizedResponse({ description: 'Sesi token tidak valid' })
   @ApiForbiddenResponse({ description: 'Hanya Admin yang diizinkan' })
   async deleteAppointment(@Param('id') id: string) {
-    const success = await this.appointmentRepo.delete(id);
-    if (!success) {
-      throw new NotFoundException(`Kunjungan dengan ID ${id} tidak ditemukan`);
-    }
+    await this.appointmentsService.delete(id);
   }
 }

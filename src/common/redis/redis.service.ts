@@ -84,6 +84,57 @@ export class RedisService implements OnModuleDestroy {
     }
   }
 
+  async setNx(key: string, value: string, ttlSeconds: number): Promise<boolean> {
+    const cacheKey = this.buildKey(key);
+    this.assertPositiveTtl(ttlSeconds);
+
+    try {
+      const result = await this.redisClient.set(
+        cacheKey,
+        value,
+        'EX',
+        ttlSeconds,
+        'NX',
+      );
+      return result === 'OK';
+    } catch (error) {
+      this.logger.warn(
+        `Cache setNx failed for "${key}": ${this.getErrorMessage(error)}`,
+      );
+      return false;
+    }
+  }
+
+  async getString(key: string): Promise<string | null> {
+    const cacheKey = this.buildKey(key);
+
+    try {
+      return await this.redisClient.get(cacheKey);
+    } catch (error) {
+      this.logger.warn(
+        `Cache read string failed for "${key}": ${this.getErrorMessage(error)}`,
+      );
+      return null;
+    }
+  }
+
+  async setString(
+    key: string,
+    value: string,
+    ttlSeconds = this.defaultTtlSeconds,
+  ): Promise<void> {
+    const cacheKey = this.buildKey(key);
+    this.assertPositiveTtl(ttlSeconds);
+
+    try {
+      await this.redisClient.set(cacheKey, value, 'EX', ttlSeconds);
+    } catch (error) {
+      this.logger.warn(
+        `Cache setString failed for "${key}": ${this.getErrorMessage(error)}`,
+      );
+    }
+  }
+
   async delete(key: string): Promise<void> {
     const cacheKey = this.buildKey(key);
 

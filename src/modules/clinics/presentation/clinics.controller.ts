@@ -5,8 +5,6 @@ import {
   Get,
   HttpCode,
   HttpStatus,
-  Inject,
-  NotFoundException,
   Param,
   Patch,
   Post,
@@ -29,10 +27,7 @@ import {
 import { Public } from '../../../common/auth/public.decorator';
 import { Roles } from '../../../common/auth/roles.decorator';
 import { RolesGuard } from '../../../common/auth/roles.guard';
-import {
-  CLINIC_REPOSITORY,
-  ClinicRepository,
-} from '../domain/repositories/clinic.repository';
+import { ClinicsService } from '../application/clinics.service';
 import { CreateClinicDto } from './dto/create-clinic.dto';
 import { CreateLayananDto } from './dto/create-layanan.dto';
 import { UpdateClinicDto } from './dto/update-clinic.dto';
@@ -41,10 +36,7 @@ import { UpdateLayananDto } from './dto/update-layanan.dto';
 @ApiTags('Clinics (Poliklinik & Layanan)')
 @Controller({ path: 'clinics', version: '1' })
 export class ClinicsController {
-  constructor(
-    @Inject(CLINIC_REPOSITORY)
-    private readonly clinicRepo: ClinicRepository,
-  ) {}
+  constructor(private readonly clinicsService: ClinicsService) {}
 
   @Public()
   @Get()
@@ -58,7 +50,7 @@ export class ClinicsController {
     description: 'Daftar poliklinik aktif berhasil diambil',
   })
   async getClinics() {
-    return this.clinicRepo.findAllPoliklinik();
+    return this.clinicsService.findAllPoliklinik();
   }
 
   @Public()
@@ -71,7 +63,7 @@ export class ClinicsController {
     description: 'Daftar poliklinik berhasil diambil',
   })
   async getPoliklinik() {
-    return this.clinicRepo.findAllPoliklinik();
+    return this.clinicsService.findAllPoliklinik();
   }
 
   @Public()
@@ -93,11 +85,7 @@ export class ClinicsController {
     description: 'Poliklinik dengan ID yang diminta tidak ditemukan',
   })
   async getClinicById(@Param('id') id: string) {
-    const clinic = await this.clinicRepo.findPoliklinikById(id);
-    if (!clinic) {
-      throw new NotFoundException(`Poliklinik dengan ID ${id} tidak ditemukan`);
-    }
-    return clinic;
+    return this.clinicsService.findPoliklinikById(id);
   }
 
   @ApiBearerAuth('access-token')
@@ -118,12 +106,7 @@ export class ClinicsController {
     description: 'Validasi form poliklinik gagal',
   })
   async createClinic(@Body() body: CreateClinicDto) {
-    return this.clinicRepo.createPoliklinik({
-      namaPoli: body.namaPoli,
-      kodePoli: body.kodePoli,
-      deskripsi: body.deskripsi,
-      isActive: body.isActive,
-    });
+    return this.clinicsService.createPoliklinik(body);
   }
 
   @ApiBearerAuth('access-token')
@@ -149,13 +132,7 @@ export class ClinicsController {
     @Param('layananId') layananId: string,
     @Body() body: UpdateLayananDto,
   ) {
-    const updated = await this.clinicRepo.updateLayanan(layananId, body);
-    if (!updated) {
-      throw new NotFoundException(
-        `Layanan dengan ID ${layananId} tidak ditemukan`,
-      );
-    }
-    return updated;
+    return this.clinicsService.updateLayanan(layananId, body);
   }
 
   @ApiBearerAuth('access-token')
@@ -176,7 +153,7 @@ export class ClinicsController {
   @ApiUnauthorizedResponse({ description: 'Sesi token tidak valid' })
   @ApiForbiddenResponse({ description: 'Hanya peran Admin yang diizinkan' })
   async deleteLayanan(@Param('layananId') layananId: string) {
-    await this.clinicRepo.deleteLayanan(layananId);
+    await this.clinicsService.deleteLayanan(layananId);
   }
 
   @ApiBearerAuth('access-token')
@@ -198,11 +175,7 @@ export class ClinicsController {
   @ApiForbiddenResponse({ description: 'Hanya peran Admin yang diizinkan' })
   @ApiUnprocessableEntityResponse({ description: 'Validasi data gagal' })
   async updateClinic(@Param('id') id: string, @Body() body: UpdateClinicDto) {
-    const updated = await this.clinicRepo.updatePoliklinik(id, body);
-    if (!updated) {
-      throw new NotFoundException(`Poliklinik dengan ID ${id} tidak ditemukan`);
-    }
-    return updated;
+    return this.clinicsService.updatePoliklinik(id, body);
   }
 
   @ApiBearerAuth('access-token')
@@ -224,10 +197,7 @@ export class ClinicsController {
   @ApiUnauthorizedResponse({ description: 'Sesi token tidak valid' })
   @ApiForbiddenResponse({ description: 'Hanya peran Admin yang diizinkan' })
   async deleteClinic(@Param('id') id: string) {
-    const success = await this.clinicRepo.deletePoliklinik(id);
-    if (!success) {
-      throw new NotFoundException(`Poliklinik dengan ID ${id} tidak ditemukan`);
-    }
+    await this.clinicsService.deletePoliklinik(id);
   }
 
   @Public()
@@ -244,7 +214,7 @@ export class ClinicsController {
   })
   @ApiOkResponse({ description: 'Daftar layanan berhasil diambil' })
   async getLayananByPoli(@Param('id') id: string) {
-    return this.clinicRepo.findLayananByPoliId(id);
+    return this.clinicsService.findLayananByPoliId(id);
   }
 
   @Public()
@@ -261,7 +231,7 @@ export class ClinicsController {
   })
   @ApiOkResponse({ description: 'Daftar layanan berhasil diambil' })
   async getServicesByPoli(@Param('id') id: string) {
-    return this.clinicRepo.findLayananByPoliId(id);
+    return this.clinicsService.findLayananByPoliId(id);
   }
 
   @ApiBearerAuth('access-token')
@@ -289,10 +259,6 @@ export class ClinicsController {
     @Param('id') poliklinikId: string,
     @Body() body: CreateLayananDto,
   ) {
-    return this.clinicRepo.createLayanan(poliklinikId, {
-      namaLayanan: body.namaLayanan,
-      deskripsi: body.deskripsi,
-      medicalFlow: body.medicalFlow,
-    });
+    return this.clinicsService.createLayanan(poliklinikId, body);
   }
 }
