@@ -12,6 +12,7 @@ import { AllConfigType } from '../config/config.type';
 import { DRIZZLE_SOURCE } from '../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../database/drizzle/drizzle.provider';
 import { users } from '../database/schema';
+import { MailService } from '../mail/mail.service';
 import { AuthEmailLoginDto } from './dto/auth-email-login.dto';
 import { LoginResponseDto } from './dto/login-response.dto';
 
@@ -20,6 +21,7 @@ export class AuthService {
   constructor(
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService<AllConfigType>,
+    private readonly mailService: MailService,
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,
   ) {}
@@ -52,7 +54,7 @@ export class AuthService {
       (acc) => acc.providerId === 'credential',
     );
 
-    if (!credentialAccount || !credentialAccount.passwordHash) {
+    if (!credentialAccount?.passwordHash) {
       throw new UnprocessableEntityException({
         status: HttpStatus.UNPROCESSABLE_ENTITY,
         errors: {
@@ -163,7 +165,42 @@ export class AuthService {
 
   async confirmNewEmail(_hash: string): Promise<void> {}
 
-  async forgotPassword(_email: string): Promise<void> {}
+  async forgotPassword(email: string): Promise<void> {
+    const user = await this.db.query.users.findFirst({
+      where: eq(users.email, email),
+    });
+
+    if (!user) {
+      throw new UnprocessableEntityException({
+        status: HttpStatus.UNPROCESSABLE_ENTITY,
+        errors: {
+          email: 'emailNotExists',
+        },
+      });
+    }
+
+    const tokenExpires = Date.now() + 1800000; // 30 minutes
+    const hash = await this.jwtService.signAsync(
+      {
+        id: user.id,
+        email: user.email,
+      },
+      {
+        secret: this.configService.getOrThrow('auth.forgotSecret', {
+          infer: true,
+        }),
+        expiresIn: '30m',
+      },
+    );
+
+    await this.mailService.forgotPassword({
+      to: email,
+      data: {
+        hash,
+        tokenExpires,
+      },
+    });
+  }
 
   async resetPassword(_hash: string, _password: string): Promise<void> {}
 

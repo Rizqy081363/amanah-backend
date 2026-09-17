@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { betterAuth } from 'better-auth';
 import { admin as adminPlugin, bearer } from 'better-auth/plugins';
+import nodemailer from 'nodemailer';
 import { Pool } from 'pg';
 import {
   ac,
@@ -16,6 +17,48 @@ const pool = new Pool({
     process.env.DATABASE_URL ||
     'postgresql://amanah:amanah_secret@127.0.0.1:5433/amanah_healthcare',
 });
+
+const smtpHost = process.env.SMTP_HOST || process.env.MAIL_HOST || '127.0.0.1';
+const smtpPort = parseInt(
+  process.env.SMTP_PORT || process.env.MAIL_PORT || '1025',
+  10,
+);
+const mailFrom =
+  process.env.MAIL_FROM ||
+  process.env.MAIL_DEFAULT_EMAIL ||
+  'noreply@amanah-healthcare.local';
+const mailFromName = process.env.MAIL_DEFAULT_NAME || 'Amanah Healthcare';
+
+const mailTransporter = nodemailer.createTransport({
+  host: smtpHost,
+  port: smtpPort,
+  secure: (process.env.SMTP_SECURE || process.env.MAIL_SECURE) === 'true',
+  ignoreTLS: true,
+});
+
+async function sendSmtpEmail({
+  to,
+  subject,
+  html,
+  text,
+}: {
+  to: string;
+  subject: string;
+  html: string;
+  text?: string;
+}) {
+  try {
+    await mailTransporter.sendMail({
+      from: `"${mailFromName}" <${mailFrom}>`,
+      to,
+      subject,
+      html,
+      text,
+    });
+  } catch (err) {
+    console.error(`[BetterAuth:SMTP] Failed to send email to ${to}:`, err);
+  }
+}
 
 export const auth = betterAuth({
   appName: 'Amanah Healthcare',
@@ -41,6 +84,18 @@ export const auth = betterAuth({
   },
   emailAndPassword: {
     enabled: true,
+    requireEmailVerification: false,
+    autoSignIn: true,
+    revokeSessionsOnPasswordReset: true,
+    resetPasswordTokenExpiresIn: 60 * 60,
+    sendResetPassword: async ({ user, url }) => {
+      void sendSmtpEmail({
+        to: user.email,
+        subject: 'Reset Password - Amanah Healthcare',
+        html: `<p>Halo <strong>${user.name}</strong>,</p><p>Kami menerima permintaan untuk mereset kata sandi akun Anda di Amanah Healthcare. Klik tautan berikut untuk membuat kata sandi baru:</p><p><a href="${url}">Reset Kata Sandi</a></p><p>Tautan ini berlaku selama 1 jam.</p>`,
+        text: `Reset kata sandi: ${url}`,
+      });
+    },
     password: {
       hash: async (password: string) => bcrypt.hash(password, 10),
       verify: async ({
@@ -53,6 +108,19 @@ export const auth = betterAuth({
         if (!hash) return false;
         return bcrypt.compare(password, hash);
       },
+    },
+  },
+  emailVerification: {
+    sendOnSignUp: false,
+    autoSignInAfterVerification: true,
+    expiresIn: 60 * 60,
+    sendVerificationEmail: async ({ user, url }) => {
+      void sendSmtpEmail({
+        to: user.email,
+        subject: 'Verifikasi Email - Amanah Healthcare',
+        html: `<p>Halo <strong>${user.name}</strong>,</p><p>Terima kasih telah mendaftar di Amanah Healthcare. Klik tautan di bawah untuk memverifikasi email Anda:</p><p><a href="${url}">Verifikasi Email</a></p>`,
+        text: `Verifikasi email: ${url}`,
+      });
     },
   },
   account: {
@@ -70,10 +138,13 @@ export const auth = betterAuth({
     cookieCache: { enabled: false },
   },
   rateLimit: {
-    enabled: true,
+    enabled:
+      process.env.NODE_ENV === 'production' ||
+      process.env.RATE_LIMIT_ENABLED === 'true',
     customRules: {
       '/sign-in/social': { window: 60, max: 10 },
       '/sign-in/email': { window: 60, max: 5 },
+      '/send-verification-email': { window: 60, max: 20 },
     },
   },
   advanced: {

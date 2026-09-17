@@ -1,16 +1,108 @@
-import { Injectable } from '@nestjs/common';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import path from 'path';
 import { AllConfigType } from '../config/config.type';
 import { MailerService } from '../mailer/mailer.service';
 import { MailData } from './interfaces/mail-data.interface';
 
+export type SendMailOptions<T = Record<string, unknown>> = {
+  to: string | string[];
+  subject: string;
+  template?: string;
+  data?: T;
+  text?: string;
+  html?: string;
+};
+
 @Injectable()
 export class MailService {
+  private readonly logger = new Logger(MailService.name);
+
   constructor(
     private readonly mailerService: MailerService,
     private readonly configService: ConfigService<AllConfigType>,
   ) {}
+
+  async send<T = Record<string, unknown>>(
+    options: SendMailOptions<T>,
+  ): Promise<void> {
+    const { to, subject, template, data = {} as T, text, html } = options;
+
+    let templatePath: string | undefined;
+    if (template) {
+      const templateFileName = template.endsWith('.hbs')
+        ? template
+        : `${template}.hbs`;
+
+      const workingDir =
+        this.configService.get('app.workingDirectory', { infer: true }) ||
+        process.cwd();
+
+      const possiblePaths = [
+        path.join(
+          workingDir,
+          'src',
+          'mail',
+          'mail-templates',
+          templateFileName,
+        ),
+        path.join(
+          workingDir,
+          'dist',
+          'mail',
+          'mail-templates',
+          templateFileName,
+        ),
+        path.join(__dirname, 'mail-templates', templateFileName),
+      ];
+
+      for (const p of possiblePaths) {
+        try {
+          await fs.access(p);
+          templatePath = p;
+          break;
+        } catch {
+          // try next path
+        }
+      }
+
+      if (!templatePath) {
+        templatePath = possiblePaths[0];
+      }
+    }
+
+    const appName =
+      this.configService.get('app.name', { infer: true }) ||
+      'Amanah Healthcare';
+
+    const context = {
+      app_name: appName,
+      title: subject,
+      actionTitle: subject,
+      ...(typeof data === 'object' && data !== null ? data : {}),
+    };
+
+    try {
+      await this.mailerService.sendMail({
+        to,
+        subject,
+        text,
+        html,
+        templatePath,
+        context,
+      });
+      this.logger.log(
+        `Email '${subject}' dispatched successfully to: ${Array.isArray(to) ? to.join(', ') : to}`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to send email '${subject}' to ${Array.isArray(to) ? to.join(', ') : to}:`,
+        error instanceof Error ? error.stack : String(error),
+      );
+      throw error;
+    }
+  }
 
   async userSignUp(mailData: MailData<{ hash: string }>): Promise<void> {
     const emailConfirmTitle = 'Confirm email';
@@ -26,24 +118,16 @@ export class MailService {
     );
     url.searchParams.set('hash', mailData.data.hash);
 
-    await this.mailerService.sendMail({
+    await this.send({
       to: mailData.to,
       subject: emailConfirmTitle,
+      template: 'activation',
       text: `${url.toString()} ${emailConfirmTitle}`,
-      templatePath: path.join(
-        this.configService.getOrThrow('app.workingDirectory', {
-          infer: true,
-        }),
-        'src',
-        'mail',
-        'mail-templates',
-        'activation.hbs',
-      ),
-      context: {
+      data: {
         title: emailConfirmTitle,
         url: url.toString(),
+        verificationUrl: url.toString(),
         actionTitle: emailConfirmTitle,
-        app_name: this.configService.get('app.name', { infer: true }),
         text1,
         text2,
         text3,
@@ -70,26 +154,15 @@ export class MailService {
     url.searchParams.set('hash', mailData.data.hash);
     url.searchParams.set('expires', mailData.data.tokenExpires.toString());
 
-    await this.mailerService.sendMail({
+    await this.send({
       to: mailData.to,
       subject: resetPasswordTitle,
+      template: 'reset-password',
       text: `${url.toString()} ${resetPasswordTitle}`,
-      templatePath: path.join(
-        this.configService.getOrThrow('app.workingDirectory', {
-          infer: true,
-        }),
-        'src',
-        'mail',
-        'mail-templates',
-        'reset-password.hbs',
-      ),
-      context: {
+      data: {
         title: resetPasswordTitle,
         url: url.toString(),
         actionTitle: resetPasswordTitle,
-        app_name: this.configService.get('app.name', {
-          infer: true,
-        }),
         text1,
         text2,
         text3,
@@ -112,24 +185,15 @@ export class MailService {
     );
     url.searchParams.set('hash', mailData.data.hash);
 
-    await this.mailerService.sendMail({
+    await this.send({
       to: mailData.to,
       subject: emailConfirmTitle,
+      template: 'confirm-new-email',
       text: `${url.toString()} ${emailConfirmTitle}`,
-      templatePath: path.join(
-        this.configService.getOrThrow('app.workingDirectory', {
-          infer: true,
-        }),
-        'src',
-        'mail',
-        'mail-templates',
-        'confirm-new-email.hbs',
-      ),
-      context: {
+      data: {
         title: emailConfirmTitle,
         url: url.toString(),
         actionTitle: emailConfirmTitle,
-        app_name: this.configService.get('app.name', { infer: true }),
         text1,
         text2,
         text3,

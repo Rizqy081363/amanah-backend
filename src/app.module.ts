@@ -10,6 +10,8 @@ import databaseConfig from './database/config/database.config';
 import { DrizzleModule } from './database/drizzle/drizzle.module';
 import { HealthModule } from './health/health.module';
 import { HomeModule } from './home/home.module';
+import mailConfig from './mail/config/mail.config';
+import { MailModule } from './mail/mail.module';
 import { AppointmentsModule } from './modules/appointments/appointments.module';
 import { AttendanceModule } from './modules/attendance/attendance.module';
 import { ClinicsModule } from './modules/clinics/clinics.module';
@@ -23,13 +25,14 @@ import { StaffsModule } from './modules/staffs/staffs.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [databaseConfig, appConfig, cacheConfig, authConfig],
+      load: [databaseConfig, appConfig, cacheConfig, authConfig, mailConfig],
       envFilePath: ['.env', 'env-example-relational'],
     }),
     DrizzleModule,
     RedisModule,
     HealthModule,
     HomeModule,
+    MailModule,
     AuthModule,
     ClinicsModule,
     PatientsModule,
