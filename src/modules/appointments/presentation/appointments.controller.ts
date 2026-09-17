@@ -30,6 +30,7 @@ import { CurrentUser } from '../../../common/auth/current-user.decorator';
 import { Public } from '../../../common/auth/public.decorator';
 import { Roles } from '../../../common/auth/roles.decorator';
 import { RolesGuard } from '../../../common/auth/roles.guard';
+import { Idempotent } from '../../../common/decorators/idempotent.decorator';
 import { AppointmentsService } from '../application/appointments.service';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { QueryAppointmentDto } from './dto/query-appointment.dto';
@@ -61,6 +62,7 @@ export class AppointmentsController {
   @ApiUnprocessableEntityResponse({
     description: 'Validasi jadwal poli atau tanggal kunjungan gagal',
   })
+  @Idempotent()
   async createAppointment(
     @Body() body: CreateAppointmentDto,
     @CurrentUser() user: any,
@@ -176,6 +178,7 @@ export class AppointmentsController {
   @ApiOkResponse({ description: 'Pasien berhasil check-in' })
   @ApiNotFoundResponse({ description: 'Kunjungan tidak ditemukan' })
   @ApiUnauthorizedResponse({ description: 'Sesi token tidak valid' })
+  @Idempotent()
   async checkInAppointment(@Param('id') id: string) {
     return this.appointmentsService.checkIn(id);
   }
@@ -257,6 +260,7 @@ export class AppointmentsController {
   @ApiOkResponse({ description: 'Kunjungan berhasil dibatalkan' })
   @ApiNotFoundResponse({ description: 'Kunjungan tidak ditemukan' })
   @ApiUnauthorizedResponse({ description: 'Sesi token tidak valid' })
+  @Idempotent()
   async cancelAppointment(
     @Param('id') id: string,
     @Body('reason') reason?: string,

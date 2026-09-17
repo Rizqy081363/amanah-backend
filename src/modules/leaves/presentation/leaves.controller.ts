@@ -29,6 +29,7 @@ import {
 import { CurrentUser } from '../../../common/auth/current-user.decorator';
 import { Roles } from '../../../common/auth/roles.decorator';
 import { RolesGuard } from '../../../common/auth/roles.guard';
+import { Idempotent } from '../../../common/decorators/idempotent.decorator';
 import {
   LEAVE_REPOSITORY,
   LeaveRepository,
@@ -65,6 +66,7 @@ export class LeavesController {
   @ApiUnprocessableEntityResponse({
     description: 'Validasi rentang tanggal atau alasan cuti gagal',
   })
+  @Idempotent()
   async requestLeave(@Body() body: RequestLeaveDto, @CurrentUser() user: any) {
     if (!user.staff?.id) {
       throw new ForbiddenException('User bukan staf terdaftar');

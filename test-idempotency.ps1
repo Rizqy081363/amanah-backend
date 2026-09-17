@@ -121,7 +121,6 @@ Assert-Test "Problem details has code INVALID_IDEMPOTENCY_KEY" $hasInvalidCode
 
 # 6. Endpoint Scoping (API-140)
 Write-Host "`n--- 6. Endpoint Scoping (API-140) ---" -ForegroundColor Yellow
-# Same key on a different endpoint must NOT collide
 $key2 = "scope-key-" + (Get-Random)
 $scopeRes1 = Invoke-WebRequest -Uri "$BaseUrl/api/v1/auth/email/login" `
     -Method Post `
@@ -141,6 +140,53 @@ $is200_scope1 = $scopeRes1.StatusCode -eq 200
 $isNot409_scope2 = $scopeRes2.StatusCode -ne 409
 Assert-Test "Key executes successfully on endpoint A" $is200_scope1
 Assert-Test "Same key on different endpoint B does not trigger conflict" $isNot409_scope2
+
+# 7. Query Parameter Mismatch Detection (API-142)
+Write-Host "`n--- 7. Query Parameter Mismatch Detection (API-142) ---" -ForegroundColor Yellow
+$key3 = "query-key-" + (Get-Random)
+$qRes1 = Invoke-WebRequest -Uri "$BaseUrl/api/v1/auth/email/login?ref=portal" `
+    -Method Post `
+    -Body $loginBody `
+    -ContentType "application/json" `
+    -Headers @{ "Idempotency-Key" = $key3 } `
+    -SkipHttpErrorCheck
+
+$qRes2 = Invoke-WebRequest -Uri "$BaseUrl/api/v1/auth/email/login?ref=mobile" `
+    -Method Post `
+    -Body $loginBody `
+    -ContentType "application/json" `
+    -Headers @{ "Idempotency-Key" = $key3 } `
+    -SkipHttpErrorCheck
+
+$is200_q1 = $qRes1.StatusCode -eq 200
+$is409_q2 = $qRes2.StatusCode -eq 409
+$qBody2 = Get-BodyJson $qRes2
+$hasQueryMismatchCode = ($null -ne $qBody2) -and ($qBody2.code -eq "IDEMPOTENCY_KEY_PAYLOAD_MISMATCH")
+Assert-Test "Query variant 1 executes successfully" $is200_q1
+Assert-Test "Query variant 2 returns 409 Conflict" $is409_q2
+Assert-Test "Query mismatch returns IDEMPOTENCY_KEY_PAYLOAD_MISMATCH" $hasQueryMismatchCode
+
+# 8. High-Concurrency Concurrent Execution (API-144)
+Write-Host "`n--- 8. High-Concurrency Simultaneous Execution (API-144) ---" -ForegroundColor Yellow
+$concurrentKey = "concurrent-key-" + (Get-Random)
+
+# Launch two parallel web requests at the exact same instant
+$job1 = Start-Job -ScriptBlock {
+    param($url, $body, $key)
+    Invoke-WebRequest -Uri $url -Method Post -Body $body -ContentType "application/json" -Headers @{ "Idempotency-Key" = $key } -SkipHttpErrorCheck
+} -ArgumentList "$BaseUrl/api/v1/auth/email/login", $loginBody, $concurrentKey
+
+$job2 = Start-Job -ScriptBlock {
+    param($url, $body, $key)
+    Invoke-WebRequest -Uri $url -Method Post -Body $body -ContentType "application/json" -Headers @{ "Idempotency-Key" = $key } -SkipHttpErrorCheck
+} -ArgumentList "$BaseUrl/api/v1/auth/email/login", $loginBody, $concurrentKey
+
+$jobResults = Wait-Job $job1, $job2 | Receive-Job
+Remove-Job $job1, $job2
+
+$statuses = $jobResults | ForEach-Object { $_.StatusCode }
+$hasValidOutcome = ($statuses -contains 200) -and (($statuses -contains 200) -or ($statuses -contains 409))
+Assert-Test "Concurrent execution resolves safely without crashing (Status: $($statuses -join ', '))" $hasValidOutcome
 
 Write-Host "`n==============================================================================" -ForegroundColor Cyan
 Write-Host "Idempotency Suite Results: Passed = $passed, Failed = $failed" -ForegroundColor Cyan

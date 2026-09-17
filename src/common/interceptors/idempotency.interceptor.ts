@@ -22,6 +22,7 @@ interface IdempotencyRecord {
   status: 'IN_PROGRESS' | 'COMPLETED';
   payloadHash: string;
   statusCode?: number;
+  headers?: Record<string, string>;
   body?: unknown;
   createdAt: string;
   completedAt?: string;
@@ -29,6 +30,8 @@ interface IdempotencyRecord {
 
 const DEFAULT_RETENTION_TTL_SECONDS = 86400; // 24 hours (API-143)
 const DEFAULT_LOCK_TTL_SECONDS = 60; // 60 seconds (API-144)
+const DEFAULT_CONCURRENCY_WAIT_MS = 1500; // 1.5s bounded wait for in-flight requests (API-144)
+const CONCURRENCY_POLL_INTERVAL_MS = 100;
 const MAX_KEY_LENGTH = 128;
 
 @Injectable()
@@ -62,7 +65,7 @@ export class IdempotencyInterceptor implements NestInterceptor {
       req.headers['idempotency-key'] || req.headers['x-idempotency-key'];
     const idempotencyKey = Array.isArray(rawKey) ? rawKey[0] : rawKey;
 
-    // If endpoint strictly requires idempotency key
+    // Strict requirement validation
     if (options.required && !idempotencyKey) {
       throw new BadRequestException({
         code: 'IDEMPOTENCY_KEY_REQUIRED',
@@ -70,7 +73,7 @@ export class IdempotencyInterceptor implements NestInterceptor {
       });
     }
 
-    // Only apply idempotency when key is present and method is state-changing
+    // Only apply idempotency when key is present on state-changing methods
     const method = req.method.toUpperCase();
     const isStateChanging = ['POST', 'PATCH', 'PUT', 'DELETE'].includes(method);
 
@@ -78,7 +81,7 @@ export class IdempotencyInterceptor implements NestInterceptor {
       return next.handle();
     }
 
-    // Validate key format and bounds
+    // Validate key bounds and format
     const trimmedKey = idempotencyKey.trim();
     if (trimmedKey.length === 0 || trimmedKey.length > MAX_KEY_LENGTH) {
       throw new BadRequestException({
@@ -88,44 +91,52 @@ export class IdempotencyInterceptor implements NestInterceptor {
     }
 
     // Scope to caller and endpoint (API-140)
-    const callerId = (req as any).user?.id || req.ip || 'anonymous';
+    const callerId = this.extractCallerId(req);
     const path = req.path || req.url?.split('?')[0] || '/';
-    const redisKey = `idempotency:${callerId}:${method}:${path}:${trimmedKey}`;
+    const redisKey = `idempotency:${encodeURIComponent(callerId)}:${method}:${encodeURIComponent(path)}:${trimmedKey}`;
 
-    // Deterministic payload hash (API-142)
-    const payloadHash = this.computePayloadHash(req.body);
+    // Deterministic payload hash across body and query (API-142)
+    const payloadHash = this.computePayloadHash(req.body, req.query);
 
     const ttl = options.ttl ?? DEFAULT_RETENTION_TTL_SECONDS;
     const lockTtl = options.lockTtl ?? DEFAULT_LOCK_TTL_SECONDS;
+    const concurrencyWaitMs =
+      options.concurrencyWaitMs ?? DEFAULT_CONCURRENCY_WAIT_MS;
 
-    // Atomically attempt to acquire the lock (API-144, API-145)
     const initialRecord: IdempotencyRecord = {
       status: 'IN_PROGRESS',
       payloadHash,
       createdAt: new Date().toISOString(),
     };
 
-    const acquired = await this.redisService.setNx(
-      redisKey,
-      JSON.stringify(initialRecord),
-      lockTtl,
-    );
+    let acquired = false;
+    try {
+      acquired = await this.redisService.setNx(
+        redisKey,
+        JSON.stringify(initialRecord),
+        lockTtl,
+      );
+    } catch (err) {
+      // Fail-safe graceful degradation (ARC-004): do not fail request if cache storage errors
+      this.logger.error(
+        `Redis error during idempotency acquisition for key "${redisKey}": ${String(err)}`,
+      );
+      return next.handle();
+    }
 
     if (!acquired) {
-      // Key already exists - evaluate existing execution state
       const existingRaw = await this.redisService.getString(redisKey);
       if (existingRaw) {
-        let existingRecord: IdempotencyRecord;
+        let existingRecord: IdempotencyRecord | null = null;
         try {
           existingRecord = JSON.parse(existingRaw);
         } catch {
-          // In case of corrupt JSON, release key and allow re-execution
           await this.redisService.delete(redisKey);
           return next.handle();
         }
 
-        // Mismatched payload conflict check (API-142)
-        if (existingRecord.payloadHash !== payloadHash) {
+        // Mismatched payload check (API-142)
+        if (existingRecord && existingRecord.payloadHash !== payloadHash) {
           throw new ConflictException({
             code: 'IDEMPOTENCY_KEY_PAYLOAD_MISMATCH',
             message:
@@ -133,8 +144,28 @@ export class IdempotencyInterceptor implements NestInterceptor {
           });
         }
 
-        // In-flight concurrent request check (API-144)
-        if (existingRecord.status === 'IN_PROGRESS') {
+        // Concurrent execution handling: bounded wait (API-144)
+        if (existingRecord && existingRecord.status === 'IN_PROGRESS') {
+          existingRecord = await this.waitForConcurrentExecution(
+            redisKey,
+            concurrencyWaitMs,
+          );
+        }
+
+        // If request finished during wait window, replay result (API-141)
+        if (existingRecord && existingRecord.status === 'COMPLETED') {
+          if (existingRecord.payloadHash !== payloadHash) {
+            throw new ConflictException({
+              code: 'IDEMPOTENCY_KEY_PAYLOAD_MISMATCH',
+              message:
+                'The idempotency key has already been used with a different request payload.',
+            });
+          }
+          return this.replayResponse(res, existingRecord);
+        }
+
+        // If still in-progress after bounded wait, emit retry signal (API-144)
+        if (existingRecord && existingRecord.status === 'IN_PROGRESS') {
           res.setHeader('Retry-After', '2');
           throw new ConflictException({
             code: 'IDEMPOTENCY_REQUEST_IN_FLIGHT',
@@ -142,43 +173,40 @@ export class IdempotencyInterceptor implements NestInterceptor {
               'A request with this idempotency key is currently in progress. Please retry shortly.',
           });
         }
-
-        // Successfully completed prior execution replay (API-141)
-        if (existingRecord.status === 'COMPLETED') {
-          const replayStatus = existingRecord.statusCode || 200;
-          res.status(replayStatus);
-          res.setHeader('Idempotent-Replay', 'true');
-          res.setHeader('X-Cache-Lookup', 'HIT');
-          return of(existingRecord.body);
-        }
       }
     }
 
-    // First execution: proceed with handler and record result on completion
+    // Active executor: proceed with handler and record result
     return next.handle().pipe(
       tap(async (responseBody) => {
         const statusCode = res.statusCode || 200;
         if (statusCode >= 200 && statusCode < 300) {
+          const headersToSave: Record<string, string> = {};
+          const locationHeader = res.getHeader('Location');
+          if (typeof locationHeader === 'string') {
+            headersToSave.location = locationHeader;
+          }
+
           const completedRecord: IdempotencyRecord = {
             status: 'COMPLETED',
             payloadHash,
             statusCode,
+            headers: headersToSave,
             body: responseBody,
             createdAt: initialRecord.createdAt,
             completedAt: new Date().toISOString(),
           };
+
           await this.redisService.setString(
             redisKey,
             JSON.stringify(completedRecord),
             ttl,
           );
         } else {
-          // If non-2xx status code occurred, release the lock
           await this.redisService.delete(redisKey);
         }
       }),
       catchError((error) => {
-        // If an exception occurs, unlock so the client can retry
         this.redisService.delete(redisKey).catch((delError) => {
           this.logger.warn(
             `Failed to cleanup idempotency lock for key "${redisKey}": ${delError.message}`,
@@ -189,8 +217,28 @@ export class IdempotencyInterceptor implements NestInterceptor {
     );
   }
 
-  private computePayloadHash(body: unknown): string {
-    const serialized = this.deterministicStringify(body ?? {});
+  private extractCallerId(req: Request): string {
+    const user = (req as any).user;
+    if (user) {
+      if (user.id) return String(user.id);
+      if (user.sub) return String(user.sub);
+      if (user.userId) return String(user.userId);
+    }
+
+    const forwarded = req.headers['x-forwarded-for'];
+    if (typeof forwarded === 'string' && forwarded.trim().length > 0) {
+      return forwarded.split(',')[0].trim();
+    }
+
+    return req.ip || req.socket?.remoteAddress || 'anonymous';
+  }
+
+  private computePayloadHash(body: unknown, query?: unknown): string {
+    const payloadToHash = {
+      body: body ?? {},
+      query: query ?? {},
+    };
+    const serialized = this.deterministicStringify(payloadToHash);
     return crypto.createHash('sha256').update(serialized).digest('hex');
   }
 
@@ -207,5 +255,54 @@ export class IdempotencyInterceptor implements NestInterceptor {
       (k) => `${JSON.stringify(k)}:${this.deterministicStringify(record[k])}`,
     );
     return `{${parts.join(',')}}`;
+  }
+
+  private async waitForConcurrentExecution(
+    key: string,
+    timeoutMs: number,
+  ): Promise<IdempotencyRecord | null> {
+    const startTime = Date.now();
+
+    while (Date.now() - startTime < timeoutMs) {
+      await new Promise((resolve) =>
+        setTimeout(resolve, CONCURRENCY_POLL_INTERVAL_MS),
+      );
+      const raw = await this.redisService.getString(key);
+      if (!raw) {
+        return null;
+      }
+      try {
+        const record: IdempotencyRecord = JSON.parse(raw);
+        if (record.status === 'COMPLETED') {
+          return record;
+        }
+      } catch {
+        return null;
+      }
+    }
+
+    const finalRaw = await this.redisService.getString(key);
+    if (!finalRaw) return null;
+    try {
+      return JSON.parse(finalRaw);
+    } catch {
+      return null;
+    }
+  }
+
+  private replayResponse(
+    res: Response,
+    record: IdempotencyRecord,
+  ): Observable<unknown> {
+    const replayStatus = record.statusCode || 200;
+    res.status(replayStatus);
+    res.setHeader('Idempotent-Replay', 'true');
+    res.setHeader('X-Cache-Lookup', 'HIT');
+
+    if (record.headers?.location) {
+      res.setHeader('Location', record.headers.location);
+    }
+
+    return of(record.body);
   }
 }

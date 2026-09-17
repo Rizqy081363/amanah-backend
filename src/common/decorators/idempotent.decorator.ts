@@ -1,4 +1,5 @@
-import { SetMetadata } from '@nestjs/common';
+import { applyDecorators, SetMetadata } from '@nestjs/common';
+import { ApiHeader } from '@nestjs/swagger';
 
 export const IDEMPOTENT_METADATA_KEY = 'IDEMPOTENT_METADATA_KEY';
 
@@ -21,10 +22,31 @@ export interface IdempotencyOptions {
    * @default 60 (1 minute)
    */
   lockTtl?: number;
+
+  /**
+   * Max wait time in milliseconds for concurrent in-flight requests before emitting retry signal (API-144).
+   * @default 1500 (1.5 seconds)
+   */
+  concurrencyWaitMs?: number;
 }
 
 /**
  * Decorator to configure distributed idempotency on state-changing endpoints (API-139..API-145).
+ * Enriches both runtime interceptor metadata and OpenAPI Swagger documentation.
  */
-export const Idempotent = (options: IdempotencyOptions = {}) =>
-  SetMetadata(IDEMPOTENT_METADATA_KEY, options);
+export const Idempotent = (options: IdempotencyOptions = {}) => {
+  const ttl = options.ttl ?? 86400;
+  return applyDecorators(
+    SetMetadata(IDEMPOTENT_METADATA_KEY, options),
+    ApiHeader({
+      name: 'Idempotency-Key',
+      required: options.required ?? false,
+      description: `Client-supplied idempotency key (UUID or alphanumeric, max 128 chars). Retention window: ${ttl}s (API-139..API-145).`,
+      schema: {
+        type: 'string',
+        maxLength: 128,
+        example: '9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d',
+      },
+    }),
+  );
+};

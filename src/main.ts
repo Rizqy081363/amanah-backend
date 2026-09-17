@@ -90,14 +90,28 @@ async function bootstrap() {
     )
     .addServer(`http://localhost:${port}`, 'Local Development Server')
     .addServer(backendDomain, 'Application Gateway')
-    .addGlobalParameters({
-      in: 'header',
-      required: false,
-      name: process.env.APP_HEADER_LANGUAGE || 'x-custom-lang',
-      schema: {
-        example: 'en',
+    .addGlobalParameters(
+      {
+        in: 'header',
+        required: false,
+        name: process.env.APP_HEADER_LANGUAGE || 'x-custom-lang',
+        schema: {
+          example: 'en',
+        },
       },
-    })
+      {
+        in: 'header',
+        required: false,
+        name: 'Idempotency-Key',
+        description:
+          'Kunci idempotensi unik dari client untuk keamanan retry pada request mutasi (API-139..API-145). Retensi: 24 jam.',
+        schema: {
+          type: 'string',
+          maxLength: 128,
+          example: '9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d',
+        },
+      },
+    )
     .build();
 
   const document = SwaggerModule.createDocument(app, options);
