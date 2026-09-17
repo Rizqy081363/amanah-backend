@@ -1,11 +1,13 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, count, eq, or, sql } from 'drizzle-orm';
+import { and, count, desc, eq, or } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
   appointments,
   clinicRooms,
   clinicServices,
+  clinicUnits,
+  patientProfiles,
   practitioners,
   queueTickets,
 } from '../../../../database/schema';
@@ -20,9 +22,9 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
   ) {}
 
   private mapDbToEntity(
-    apt: typeof appointments.$inferSelect,
-    ticket?: typeof queueTickets.$inferSelect | null,
-    poliklinikId?: string,
+    apt: any,
+    ticket?: any | null,
+    poliklinikIdOverride?: string,
   ): AppointmentEntity {
     let entityStatus: AppointmentEntity['status'] = 'SUDAH_BUAT_JANJI';
     if (apt.status === 'in_service') {
@@ -39,19 +41,34 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
     const session: 'PAGI' | 'SIANG' | 'MALAM' =
       hour >= 18 ? 'MALAM' : hour >= 13 ? 'SIANG' : 'PAGI';
 
+    const poliId =
+      poliklinikIdOverride ||
+      apt.clinicRoom?.unitId ||
+      apt.clinicRoom?.clinicUnit?.id ||
+      '';
+
     return {
       id: apt.id,
       patientId: apt.patientId,
-      poliklinikId: poliklinikId || '',
+      patientName: apt.patientProfile?.fullName || 'Pasien Amanah',
+      poliklinikId: poliId,
+      poliklinikName: apt.clinicRoom?.clinicUnit?.name || 'Poliklinik Amanah',
       layananId: apt.serviceId,
+      layananName: apt.clinicService?.name || 'Konsultasi Dokter',
       staffId: apt.practitionerId || null,
+      doctorName:
+        apt.practitioner?.staffProfile?.fullName ||
+        apt.practitioner?.name ||
+        null,
       appointmentDate: apt.scheduledDate,
       session,
       queueNumber: ticket?.queueNumber || 'P-001',
+      ticketStatus: ticket?.status || 'waiting',
       status: entityStatus,
       visitType:
         apt.visitType === 'follow_up' ? 'Kontrol Ulang' : 'Pemeriksaan Baru',
       complaint: apt.complaint || null,
+      cancellationReason: apt.cancelReason || null,
       calledAt: ticket?.calledAt ? new Date(ticket.calledAt) : null,
       completedAt: apt.completedAt ? new Date(apt.completedAt) : null,
       createdAt: new Date(apt.createdAt),
@@ -129,7 +146,8 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
       })
       .returning();
 
-    return this.mapDbToEntity(apt, ticket, data.poliklinikId);
+    const fullApt = await this.findById(apt.id);
+    return fullApt || this.mapDbToEntity(apt, ticket, data.poliklinikId);
   }
 
   async findById(id: string): Promise<AppointmentEntity | null> {
@@ -137,10 +155,80 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
       where: eq(appointments.id, id),
       with: {
         queueTickets: true,
+        patientProfile: true,
+        clinicService: true,
+        clinicRoom: {
+          with: {
+            clinicUnit: true,
+          },
+        },
+        practitioner: {
+          with: {
+            staffProfile: true,
+          },
+        },
       },
     });
     if (!apt) return null;
     return this.mapDbToEntity(apt, apt.queueTickets?.[0]);
+  }
+
+  async findAll(
+    limit = 20,
+    offset = 0,
+    filters?: {
+      poliklinikId?: string;
+      date?: string;
+      session?: string;
+      status?: string;
+      patientId?: string;
+    },
+  ): Promise<AppointmentEntity[]> {
+    const conditions: any[] = [];
+    if (filters?.date) {
+      conditions.push(eq(appointments.scheduledDate, filters.date));
+    }
+    if (filters?.patientId) {
+      conditions.push(eq(appointments.patientId, filters.patientId));
+    }
+
+    const records = await this.db.query.appointments.findMany({
+      where: conditions.length > 0 ? and(...conditions) : undefined,
+      limit,
+      offset,
+      orderBy: [desc(appointments.createdAt)],
+      with: {
+        queueTickets: true,
+        patientProfile: true,
+        clinicService: true,
+        clinicRoom: {
+          with: {
+            clinicUnit: true,
+          },
+        },
+        practitioner: {
+          with: {
+            staffProfile: true,
+          },
+        },
+      },
+    });
+
+    let results = records.map((apt) =>
+      this.mapDbToEntity(apt, apt.queueTickets?.[0]),
+    );
+
+    if (filters?.poliklinikId) {
+      results = results.filter((a) => a.poliklinikId === filters.poliklinikId);
+    }
+    if (filters?.session) {
+      results = results.filter((a) => a.session === filters.session);
+    }
+    if (filters?.status) {
+      results = results.filter((a) => a.status === filters.status);
+    }
+
+    return results;
   }
 
   async findByQueueNumber(
@@ -153,7 +241,15 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
         eq(queueTickets.queueDate, date),
       ),
       with: {
-        appointment: true,
+        appointment: {
+          with: {
+            patientProfile: true,
+            clinicService: true,
+            clinicRoom: { with: { clinicUnit: true } },
+            practitioner: { with: { staffProfile: true } },
+            queueTickets: true,
+          },
+        },
       },
     });
     if (!ticket || !ticket.appointment) return null;
@@ -163,8 +259,13 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
   async findByPatientId(patientId: string): Promise<AppointmentEntity[]> {
     const records = await this.db.query.appointments.findMany({
       where: eq(appointments.patientId, patientId),
+      orderBy: [desc(appointments.scheduledDate)],
       with: {
         queueTickets: true,
+        patientProfile: true,
+        clinicService: true,
+        clinicRoom: { with: { clinicUnit: true } },
+        practitioner: { with: { staffProfile: true } },
       },
     });
     return records.map((apt) => this.mapDbToEntity(apt, apt.queueTickets?.[0]));
@@ -179,7 +280,10 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
       where: eq(appointments.scheduledDate, date),
       with: {
         queueTickets: true,
-        clinicRoom: true,
+        clinicRoom: { with: { clinicUnit: true } },
+        patientProfile: true,
+        clinicService: true,
+        practitioner: { with: { staffProfile: true } },
       },
     });
 
@@ -208,10 +312,53 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
       );
   }
 
+  async findDisplayQueue(date: string, poliklinikId?: string): Promise<any> {
+    const dailyAppointments = await this.findDailyQueue(
+      poliklinikId || '',
+      date,
+    );
+
+    const currentlyCalled = dailyAppointments.find(
+      (a) => a.status === 'SEDANG_DIPERIKSA',
+    );
+    const waitingList = dailyAppointments.filter(
+      (a) => a.status === 'MENUNGGU' || a.status === 'SUDAH_BUAT_JANJI',
+    );
+    const completedList = dailyAppointments.filter(
+      (a) => a.status === 'SELESAI',
+    );
+
+    return {
+      date,
+      poliklinikId: poliklinikId || null,
+      currentTicket: currentlyCalled
+        ? {
+            queueNumber: currentlyCalled.queueNumber,
+            patientName: currentlyCalled.patientName,
+            roomName: currentlyCalled.poliklinikName,
+            doctorName: currentlyCalled.doctorName,
+            calledAt: currentlyCalled.calledAt,
+          }
+        : null,
+      nextTickets: waitingList.slice(0, 5).map((w) => ({
+        queueNumber: w.queueNumber,
+        patientName: w.patientName,
+        poliklinikName: w.poliklinikName,
+      })),
+      statistics: {
+        totalQueue: dailyAppointments.length,
+        waiting: waitingList.length,
+        inService: currentlyCalled ? 1 : 0,
+        completed: completedList.length,
+      },
+    };
+  }
+
   async updateStatus(
     id: string,
     status: AppointmentEntity['status'],
     staffId?: string,
+    cancellationReason?: string,
   ): Promise<AppointmentEntity | null> {
     let dbStatus: typeof appointments.$inferSelect.status = 'booked';
     let ticketStatus: typeof queueTickets.$inferSelect.status = 'waiting';
@@ -224,7 +371,12 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
       updatedAt: nowStr,
     };
 
-    if (status === 'SEDANG_DIPERIKSA') {
+    if (status === 'SUDAH_DATANG' || status === 'MENUNGGU') {
+      dbStatus = 'waiting';
+      ticketStatus = 'waiting';
+      updateApt.status = dbStatus;
+      updateTicket.status = ticketStatus;
+    } else if (status === 'SEDANG_DIPERIKSA') {
       dbStatus = 'in_service';
       ticketStatus = 'in_service';
       updateApt.status = dbStatus;
@@ -253,6 +405,9 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
       ticketStatus = 'cancelled';
       updateApt.status = dbStatus;
       updateApt.cancelledAt = nowStr;
+      if (cancellationReason) {
+        updateApt.cancelReason = cancellationReason;
+      }
       updateTicket.status = ticketStatus;
     }
 
@@ -270,11 +425,11 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
       .where(eq(queueTickets.appointmentId, id))
       .returning();
 
-    return this.mapDbToEntity(updatedApt, updatedTicket);
+    return this.findById(id);
   }
 
   async getNextQueueIndex(
-    poliklinikId: string,
+    _poliklinikId: string,
     date: string,
     _session: string,
   ): Promise<number> {
@@ -284,5 +439,15 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
       .where(eq(queueTickets.queueDate, date));
 
     return Number(result?.val || 0) + 1;
+  }
+
+  async delete(id: string): Promise<boolean> {
+    const updated = await this.updateStatus(
+      id,
+      'BATAL',
+      undefined,
+      'Dihapus oleh pengguna',
+    );
+    return updated !== null;
   }
 }
