@@ -86,9 +86,7 @@ async function bootstrap() {
         type: 'http',
         scheme: 'bearer',
         bearerFormat: 'JWT',
-        name: 'JWT',
         description: 'Masukkan JWT Bearer token untuk autentikasi API',
-        in: 'header',
       },
       'access-token',
     )

@@ -34,6 +34,7 @@ Assert-Test "Security scheme 'access-token' is registered" ($null -ne $scheme)
 Assert-Test "Security scheme type is 'http'" ($scheme.type -eq "http")
 Assert-Test "Security scheme is 'bearer'" ($scheme.scheme -eq "bearer")
 Assert-Test "Bearer format is 'JWT'" ($scheme.bearerFormat -eq "JWT")
+Assert-Test "Bearer scheme omits API-key-only name/in fields" ($null -eq $scheme.name -and $null -eq $scheme.in)
 
 # 1.3 Servers
 $servers = $spec.servers
@@ -46,6 +47,7 @@ $opsCount = 0
 $securityMismatches = 0
 $missingDocs = 0
 $tags = @{}
+$operationTags = @{}
 
 foreach ($pathProp in $spec.paths.PSObject.Properties) {
     $path = $pathProp.Name
@@ -57,6 +59,7 @@ foreach ($pathProp in $spec.paths.PSObject.Properties) {
         if ($op.tags) {
             foreach ($t in $op.tags) {
                 if ($tags.ContainsKey($t)) { $tags[$t]++ } else { $tags[$t] = 1 }
+                $operationTags[$t] = $true
             }
         }
 
@@ -78,7 +81,7 @@ foreach ($pathProp in $spec.paths.PSObject.Properties) {
 
 Assert-Test "All operations have summary and description (missing: $missingDocs)" ($missingDocs -eq 0)
 Assert-Test "All secured operations use unified 'access-token' scheme (mismatches: $securityMismatches)" ($securityMismatches -eq 0)
-Assert-Test "Total documented operations count is 94" ($opsCount -eq 94)
+Assert-Test "Total documented operations count is 98" ($opsCount -eq 98)
 
 # Check broken $refs
 $regex = [regex]'"\$ref":\s*"([^"]+)"'
@@ -181,6 +184,37 @@ Assert-Test "Try-it-out [Clinic Analytics]: GET /api/v1/clinics/analytics/summar
 # 3.16 Tag: Audit Logs
 $auditLogsRes = Invoke-RestMethod -Uri "$baseUrl/api/v1/audit-logs" -Method Get -Headers $authHeaders
 Assert-Test "Try-it-out [Audit Logs]: GET /api/v1/audit-logs -> returns audit logs list" ($null -ne $auditLogsRes.data)
+
+# 3.17 Tag: Outbox & Event Streaming
+$outboxMetricsRes = Invoke-RestMethod -Uri "$baseUrl/api/v1/outbox/metrics" -Method Get
+Assert-Test "Try-it-out [Outbox & Event Streaming]: GET /api/v1/outbox/metrics -> returns queue metrics" ($null -ne $outboxMetricsRes.total)
+
+$exercisedTags = @(
+    "Home",
+    "Health",
+    "Auth (Kanonikal JWT)",
+    "Clinics (Poliklinik & Layanan)",
+    "Patients (Data Pasien & Rekam Medis)",
+    "Staffs (Pegawai Klinis & Kartu ID Digital)",
+    "Schedules (Jadwal Dokter & Bidan)",
+    "Appointments (Kunjungan & Antrean Pasien)",
+    "Medical Records (Rekam Medis, Diagnosa ICD-10 & Resep Obat)",
+    "Attendance (Presensi QR Staf)",
+    "Staff Leaves (Perizinan Cuti Staf)",
+    "Notifications (Notifikasi Staf & Pasien)",
+    "Support Tickets (Bantuan Teknis IT)",
+    "Clinics Analytics (Statistik & Kunjungan Poliklinik)",
+    "Audit Logs (Jejak Rekaman Audit)",
+    "Outbox & Event Streaming"
+)
+
+$untestedTags = @()
+foreach ($tag in $operationTags.Keys) {
+    if ($exercisedTags -notcontains $tag) {
+        $untestedTags += $tag
+    }
+}
+Assert-Test "Try-it-out coverage includes every emitted OpenAPI tag" ($untestedTags.Count -eq 0) ($untestedTags -join ", ")
 
 Write-Host "`n==============================================================================" -ForegroundColor Cyan
 Write-Host "OpenAPI / Swagger Spec Suite Results: Passed = $passed, Failed = $failed" -ForegroundColor $(if ($failed -eq 0) { "Green" } else { "Red" })

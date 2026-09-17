@@ -4,6 +4,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { DEFAULT_PAGE_SIZE } from '../../../common/constants';
@@ -11,6 +12,11 @@ import {
   AppointmentCreatedEvent,
   AppointmentStatusChangedEvent,
 } from '../../../common/events';
+import {
+  OutboxEventRecord,
+  OutboxService,
+  OutboxWorker,
+} from '../../../common/outbox';
 import { RedisService } from '../../../common/redis/redis.service';
 import { AppointmentEntity } from '../domain/entities/appointment.entity';
 import {
@@ -35,6 +41,10 @@ export class AppointmentsService {
     private readonly appointmentRepo: AppointmentRepository,
     private readonly redisService: RedisService,
     private readonly eventEmitter: EventEmitter2,
+    @Optional()
+    private readonly outboxService?: OutboxService,
+    @Optional()
+    private readonly outboxWorker?: OutboxWorker,
   ) {}
 
   async createAppointment(
@@ -69,9 +79,26 @@ export class AppointmentsService {
       complaint: body.complaint || null,
     });
 
-    // Emit domain event for asynchronous auditing and status history (ARC-119..122, ARC-136)
-    this.eventEmitter.emit(
-      AppointmentCreatedEvent.EVENT_NAME,
+    // Emit domain event via Transactional Outbox (ARC-089..094, OPS-159)
+    await this.dispatchDomainEvent(
+      {
+        aggregateType: 'appointment',
+        aggregateId: created.id,
+        eventType: AppointmentCreatedEvent.EVENT_NAME,
+        payload: {
+          appointmentId: created.id,
+          patientId: created.patientId,
+          poliklinikId: created.poliklinikId,
+          appointmentDate: created.appointmentDate,
+          session: created.session,
+          queueNumber: created.queueNumber,
+          status: created.status,
+          actor: {
+            userId: user?.id || user?.sub,
+            roleCode: user?.role,
+          },
+        },
+      },
       new AppointmentCreatedEvent(
         created.id,
         created.patientId,
@@ -175,8 +202,22 @@ export class AppointmentsService {
       throw new NotFoundException(`Kunjungan dengan ID ${id} tidak ditemukan`);
     }
 
-    this.eventEmitter.emit(
-      AppointmentStatusChangedEvent.EVENT_NAME,
+    await this.dispatchDomainEvent(
+      {
+        aggregateType: 'appointment',
+        aggregateId: id,
+        eventType: AppointmentStatusChangedEvent.EVENT_NAME,
+        payload: {
+          appointmentId: id,
+          previousStatus: current?.status || null,
+          newStatus: 'MENUNGGU',
+          reason: 'Check-in kedatangan pasien',
+          actor: {
+            userId: user?.id || user?.sub,
+            roleCode: user?.role,
+          },
+        },
+      },
       new AppointmentStatusChangedEvent(
         id,
         current?.status || null,
@@ -212,8 +253,22 @@ export class AppointmentsService {
       throw new NotFoundException(`Kunjungan dengan ID ${id} tidak ditemukan`);
     }
 
-    this.eventEmitter.emit(
-      AppointmentStatusChangedEvent.EVENT_NAME,
+    await this.dispatchDomainEvent(
+      {
+        aggregateType: 'appointment',
+        aggregateId: id,
+        eventType: AppointmentStatusChangedEvent.EVENT_NAME,
+        payload: {
+          appointmentId: id,
+          previousStatus: current?.status || null,
+          newStatus: 'SEDANG_DIPERIKSA',
+          reason: 'Panggilan pasien masuk ruang periksa',
+          actor: {
+            userId: user?.id || user?.sub,
+            roleCode: user?.role,
+          },
+        },
+      },
       new AppointmentStatusChangedEvent(
         id,
         current?.status || null,
@@ -248,8 +303,22 @@ export class AppointmentsService {
       throw new NotFoundException(`Kunjungan dengan ID ${id} tidak ditemukan`);
     }
 
-    this.eventEmitter.emit(
-      AppointmentStatusChangedEvent.EVENT_NAME,
+    await this.dispatchDomainEvent(
+      {
+        aggregateType: 'appointment',
+        aggregateId: id,
+        eventType: AppointmentStatusChangedEvent.EVENT_NAME,
+        payload: {
+          appointmentId: id,
+          previousStatus: current?.status || null,
+          newStatus: 'SELESAI',
+          reason: 'Pemeriksaan medis selesai',
+          actor: {
+            userId: user?.id || user?.sub,
+            roleCode: user?.role,
+          },
+        },
+      },
       new AppointmentStatusChangedEvent(
         id,
         current?.status || null,
@@ -285,8 +354,22 @@ export class AppointmentsService {
       throw new NotFoundException(`Kunjungan dengan ID ${id} tidak ditemukan`);
     }
 
-    this.eventEmitter.emit(
-      AppointmentStatusChangedEvent.EVENT_NAME,
+    await this.dispatchDomainEvent(
+      {
+        aggregateType: 'appointment',
+        aggregateId: id,
+        eventType: AppointmentStatusChangedEvent.EVENT_NAME,
+        payload: {
+          appointmentId: id,
+          previousStatus: current?.status || null,
+          newStatus: 'BATAL',
+          reason: reason || 'Dibatalkan oleh pasien',
+          actor: {
+            userId: user?.id || user?.sub,
+            roleCode: user?.role,
+          },
+        },
+      },
       new AppointmentStatusChangedEvent(
         id,
         current?.status || null,
@@ -322,8 +405,22 @@ export class AppointmentsService {
       throw new NotFoundException(`Kunjungan dengan ID ${id} tidak ditemukan`);
     }
 
-    this.eventEmitter.emit(
-      AppointmentStatusChangedEvent.EVENT_NAME,
+    await this.dispatchDomainEvent(
+      {
+        aggregateType: 'appointment',
+        aggregateId: id,
+        eventType: AppointmentStatusChangedEvent.EVENT_NAME,
+        payload: {
+          appointmentId: id,
+          previousStatus: current?.status || null,
+          newStatus: dto.status,
+          reason: dto.cancellationReason,
+          actor: {
+            userId: user?.id || user?.sub,
+            roleCode: user?.role,
+          },
+        },
+      },
       new AppointmentStatusChangedEvent(
         id,
         current?.status || null,
@@ -348,8 +445,22 @@ export class AppointmentsService {
       throw new NotFoundException(`Kunjungan dengan ID ${id} tidak ditemukan`);
     }
 
-    this.eventEmitter.emit(
-      AppointmentStatusChangedEvent.EVENT_NAME,
+    await this.dispatchDomainEvent(
+      {
+        aggregateType: 'appointment',
+        aggregateId: id,
+        eventType: AppointmentStatusChangedEvent.EVENT_NAME,
+        payload: {
+          appointmentId: id,
+          previousStatus: current?.status || null,
+          newStatus: 'BATAL',
+          reason: 'Dihapus oleh admin',
+          actor: {
+            userId: user?.id || user?.sub,
+            roleCode: user?.role,
+          },
+        },
+      },
       new AppointmentStatusChangedEvent(
         id,
         current?.status || null,
@@ -364,6 +475,23 @@ export class AppointmentsService {
     );
 
     await this.invalidateQueueCaches();
+  }
+
+  /**
+   * Dispatches domain events via Transactional Outbox when available, falling back to direct emit (ARC-089..094, OPS-159).
+   */
+  private async dispatchDomainEvent(
+    record: OutboxEventRecord,
+    fallbackEvent: any,
+  ): Promise<void> {
+    if (this.outboxService) {
+      await this.outboxService.recordEvent(record);
+      if (this.outboxWorker) {
+        void this.outboxWorker.triggerImmediate();
+      }
+    } else {
+      this.eventEmitter.emit(record.eventType, fallbackEvent);
+    }
   }
 
   private async invalidateQueueCaches(): Promise<void> {

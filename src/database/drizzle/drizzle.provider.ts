@@ -5,9 +5,10 @@ import { Pool } from 'pg';
 import { AllConfigType } from '../../config/config.type';
 import * as relations from '../schema/amanah.relations';
 import * as tables from '../schema/amanah.schema';
+import * as outboxTables from '../schema/outbox.schema';
 import { DRIZZLE_SOURCE, POSTGRES_POOL } from './drizzle.constants';
 
-const schema = { ...tables, ...relations };
+const schema = { ...tables, ...relations, ...outboxTables };
 
 export type DrizzleDatabase = NodePgDatabase<typeof schema>;
 
