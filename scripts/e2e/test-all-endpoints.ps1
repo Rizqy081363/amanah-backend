@@ -2,8 +2,14 @@
 # AMANAH HEALTHCARE BACKEND - COMPREHENSIVE ALL-ENDPOINTS VERIFICATION SUITE
 # ==============================================================================
 
+param(
+    [string]$BaseUrl = $env:E2E_BASE_URL
+)
+
+. "$PSScriptRoot\common.ps1"
+
 $ErrorActionPreference = 'Stop'
-$baseUrl = "http://localhost:3001"
+$baseUrl = if ([string]::IsNullOrWhiteSpace($BaseUrl)) { Get-E2EBaseUrl } else { $BaseUrl.TrimEnd('/') }
 $passed = 0
 $failed = 0
 
@@ -16,6 +22,9 @@ function Assert-Test([string]$name, [bool]$condition, [string]$details = "") {
         $global:failed++
     }
 }
+
+Write-Host "Waiting for API readiness at $baseUrl ..." -ForegroundColor Cyan
+Wait-E2EApiReady -url $baseUrl
 
 Write-Host "=== 1. System Info & Health Endpoints ===" -ForegroundColor Cyan
 $homeInfo = Invoke-RestMethod -Uri "$baseUrl/" -Method Get

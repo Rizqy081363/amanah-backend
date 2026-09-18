@@ -2,3 +2,7 @@
 /.data
 /dist
 /files
+.git
+.env
+.env.*
+!.env.example

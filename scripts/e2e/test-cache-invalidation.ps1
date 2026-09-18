@@ -1,5 +1,6 @@
 $ErrorActionPreference = "Continue"
-$BaseUrl = "http://localhost:3001"
+. "$PSScriptRoot\common.ps1"
+$BaseUrl = Get-E2EBaseUrl
 $passed = 0
 $failed = 0
 

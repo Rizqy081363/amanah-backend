@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { Pool, type QueryResultRow } from 'pg';
 
@@ -12,16 +12,11 @@ type DatabaseObjectExpectation = {
 
 const DEFAULT_POSTGRES_HOST_PORT = 5433;
 const DEFAULT_DATABASE_MAX_POOL_SIZE = 5;
-const FOUNDATION_MIGRATION_PATH = resolve(
-  process.cwd(),
-  'src/database/migrations/0000_amanah_foundation.sql',
-);
+const MIGRATIONS_DIR = resolve(process.cwd(), 'src/database/migrations');
 const REQUIRED_EXTENSION_NAMES = ['pgcrypto', 'citext', 'pg_trgm'] as const;
 const LEGACY_TABLE_NAMES = [
-  'user',
   'role',
   'status',
-  'session',
   'patients',
   'poliklinik',
   'layanan_poli',
@@ -41,10 +36,12 @@ const getDatabaseUrl = (): string => {
   }
 
   const host = process.env.DATABASE_HOST || 'localhost';
-  const port =
-    process.env.POSTGRES_HOST_PORT ||
-    process.env.DATABASE_PORT ||
-    String(DEFAULT_POSTGRES_HOST_PORT);
+  const isLocalHost = host === 'localhost' || host === '127.0.0.1';
+  const port = isLocalHost
+    ? (process.env.POSTGRES_HOST_PORT ||
+        process.env.DATABASE_PORT ||
+        String(DEFAULT_POSTGRES_HOST_PORT))
+    : (process.env.DATABASE_PORT || '5432');
   const username = process.env.DATABASE_USERNAME || 'amanah';
   const password = process.env.DATABASE_PASSWORD || 'amanah_secret';
   const database = process.env.DATABASE_NAME || 'amanah_healthcare';
@@ -55,42 +52,79 @@ const getDatabaseUrl = (): string => {
 const extractObjectNames = (sql: string, pattern: RegExp): string[] => {
   const names = new Set<string>();
   for (const match of sql.matchAll(pattern)) {
-    names.add(match[1]);
+    const name = match.slice(1).find(Boolean);
+    if (name) {
+      names.add(name);
+    }
   }
 
   return [...names].sort();
 };
 
 const extractUpdatedAtTriggerTables = (sql: string): string[] => {
-  const triggerBlock = sql.match(
-    /FOREACH table_name IN ARRAY ARRAY\[((?:.|\n)*?)\]\s+LOOP/,
-  )?.[1];
+  const triggerBlocks: string[] = [];
+  const startMarker = 'FOREACH table_name IN ARRAY ARRAY[';
+  let searchFromIndex = 0;
 
-  if (!triggerBlock) {
+  while (searchFromIndex < sql.length) {
+    const startIndex = sql.indexOf(startMarker, searchFromIndex);
+    if (startIndex === -1) {
+      break;
+    }
+
+    const blockStartIndex = startIndex + startMarker.length;
+    const loopIndex = sql.indexOf('LOOP', blockStartIndex);
+    const blockEndIndex = sql.lastIndexOf(']', loopIndex);
+
+    if (loopIndex === -1 || blockEndIndex === -1) {
+      throw new Error('Unable to parse updated_at trigger table list.');
+    }
+
+    triggerBlocks.push(sql.slice(blockStartIndex, blockEndIndex));
+    searchFromIndex = loopIndex + 'LOOP'.length;
+  }
+
+  if (triggerBlocks.length === 0) {
     throw new Error('Unable to find updated_at trigger table list.');
   }
 
-  return extractObjectNames(triggerBlock, /'([^']+)'/g);
+  return extractObjectNames(triggerBlocks.join('\n'), /'([^']+)'/g);
+};
+
+const readMigrationSql = (): string =>
+  readdirSync(MIGRATIONS_DIR)
+    .filter((fileName) => /^\d+.*\.sql$/.test(fileName))
+    .sort()
+    .map((fileName) => readFileSync(resolve(MIGRATIONS_DIR, fileName), 'utf8'))
+    .join('\n');
+
+const SQL_IDENTIFIER_PATTERN = '(?:"([^"]+)"|([a-z_][a-z0-9_]*))';
+
+const createObjectPattern = (prefix: string, suffix = ''): RegExp =>
+  new RegExp(`^\\s*${prefix} ${SQL_IDENTIFIER_PATTERN}${suffix}`, 'gm');
+
+const CREATE_ENUM_PATTERN = createObjectPattern('CREATE TYPE', ' AS ENUM');
+const CREATE_TABLE_PATTERN = createObjectPattern(
+  'CREATE TABLE(?: IF NOT EXISTS)?',
+  ' \\(',
+);
+const CREATE_INDEX_PATTERN = createObjectPattern(
+  'CREATE (?:UNIQUE )?INDEX(?: IF NOT EXISTS)?',
+);
+
+const extractExpectedObjects = (
+  migrationSql: string,
+): DatabaseObjectExpectation => {
+  return {
+    enumNames: extractObjectNames(migrationSql, CREATE_ENUM_PATTERN),
+    tableNames: extractObjectNames(migrationSql, CREATE_TABLE_PATTERN),
+    indexNames: extractObjectNames(migrationSql, CREATE_INDEX_PATTERN),
+    triggerTables: extractUpdatedAtTriggerTables(migrationSql),
+  };
 };
 
 const getExpectedObjects = (): DatabaseObjectExpectation => {
-  const migrationSql = readFileSync(FOUNDATION_MIGRATION_PATH, 'utf8');
-
-  return {
-    enumNames: extractObjectNames(
-      migrationSql,
-      /^CREATE TYPE ([a-z_]+) AS ENUM/gm,
-    ),
-    tableNames: extractObjectNames(
-      migrationSql,
-      /^CREATE TABLE ([a-z_]+) \(/gm,
-    ),
-    indexNames: extractObjectNames(
-      migrationSql,
-      /^CREATE (?:UNIQUE )?INDEX ([a-z_]+)\b/gm,
-    ),
-    triggerTables: extractUpdatedAtTriggerTables(migrationSql),
-  };
+  return extractExpectedObjects(readMigrationSql());
 };
 
 const queryNames = async <TRow extends QueryResultRow>(

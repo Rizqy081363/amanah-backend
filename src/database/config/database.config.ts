@@ -72,6 +72,16 @@ class EnvironmentVariablesValidator {
   DATABASE_CERT: string;
 }
 
+const getDatabasePort = (): number => {
+  const host = process.env.DATABASE_HOST || 'localhost';
+  const isLocalHost = host === 'localhost' || host === '127.0.0.1';
+  const configuredPort = isLocalHost
+    ? (process.env.POSTGRES_HOST_PORT || process.env.DATABASE_PORT)
+    : (process.env.DATABASE_PORT || '5432');
+
+  return configuredPort ? parseInt(configuredPort, 10) : 5432;
+};
+
 export default registerAs<DatabaseConfig>('database', () => {
   validateConfig(process.env, EnvironmentVariablesValidator);
 
@@ -79,9 +89,7 @@ export default registerAs<DatabaseConfig>('database', () => {
     url: process.env.DATABASE_URL,
     type: 'postgres',
     host: process.env.DATABASE_HOST,
-    port: process.env.DATABASE_PORT
-      ? parseInt(process.env.DATABASE_PORT, 10)
-      : 5432,
+    port: getDatabasePort(),
     password: process.env.DATABASE_PASSWORD,
     name: process.env.DATABASE_NAME,
     username: process.env.DATABASE_USERNAME,

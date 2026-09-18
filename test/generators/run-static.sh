@@ -39,7 +39,7 @@ trap cleanup EXIT
 source "$(dirname "$0")/_matrix.sh"
 run_matrix "$VARIANT"
 
-npm run lint
-npm run build
+bun run lint
+bun run build
 
-npx jest --config test/jest-e2e.json --testPathIgnorePatterns=/node_modules/ --testPathPatterns=generators-file-assertions --runInBand
+bun x jest --config test/jest-e2e.json --testPathIgnorePatterns=/node_modules/ --testPathPatterns=generators-file-assertions --runInBand

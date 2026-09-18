@@ -20,6 +20,22 @@ class EnvironmentVariablesValidator {
 
   @IsString()
   @IsOptional()
+  REDIS_HOST: string;
+
+  @IsInt()
+  @Min(0)
+  @Max(65535)
+  @IsOptional()
+  REDIS_PORT: number;
+
+  @IsInt()
+  @Min(0)
+  @Max(65535)
+  @IsOptional()
+  REDIS_HOST_PORT: number;
+
+  @IsString()
+  @IsOptional()
   CACHE_KEY_PREFIX: string;
 
   @IsInt()
@@ -41,14 +57,29 @@ class EnvironmentVariablesValidator {
   CACHE_MAX_RECONNECT_ATTEMPTS: number;
 }
 
+const getRedisUrl = (): string => {
+  if (process.env.CACHE_REDIS_URL?.trim()) {
+    return process.env.CACHE_REDIS_URL;
+  }
+
+  if (process.env.WORKER_HOST?.trim()) {
+    return process.env.WORKER_HOST;
+  }
+
+  const host = process.env.REDIS_HOST || 'localhost';
+  const isLocalHost = host === 'localhost' || host === '127.0.0.1';
+  const port = isLocalHost
+    ? (process.env.REDIS_HOST_PORT || process.env.REDIS_PORT || '6379')
+    : (process.env.REDIS_PORT || '6379');
+
+  return `redis://${host}:${port}/1`;
+};
+
 export default registerAs<CacheConfig>('cache', () => {
   validateConfig(process.env, EnvironmentVariablesValidator);
 
   return {
-    redisUrl:
-      process.env.CACHE_REDIS_URL ||
-      process.env.WORKER_HOST ||
-      'redis://localhost:6379/1',
+    redisUrl: getRedisUrl(),
     keyPrefix: process.env.CACHE_KEY_PREFIX || 'amanah:local',
     defaultTtlSeconds: process.env.CACHE_DEFAULT_TTL_SECONDS
       ? parseInt(process.env.CACHE_DEFAULT_TTL_SECONDS, 10)

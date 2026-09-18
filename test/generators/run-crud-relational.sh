@@ -43,11 +43,11 @@ run_matrix relational
 
 # Sanity: make sure the freshly-generated code compiles before bothering
 # with Docker, so we fail fast on local template regressions.
-npm run lint
-npm run build
+bun run lint
+bun run build
 
 docker compose -f "$COMPOSE_FILE" --env-file env-example-relational -p "$COMPOSE_PROJECT" up -d --build
 
 # Wait for the API container's port 3001 (mirrors the existing test:e2e:*:docker pattern).
 docker compose -f "$COMPOSE_FILE" -p "$COMPOSE_PROJECT" exec api /opt/wait-for-it.sh -t 0 localhost:3001 -- \
-  npx jest --config test/jest-e2e.json --testPathIgnorePatterns=/node_modules/ --testPathPatterns=generators-relational --runInBand
+  bun x jest --config test/jest-e2e.json --testPathIgnorePatterns=/node_modules/ --testPathPatterns=generators-relational --runInBand

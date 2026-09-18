@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
-set -e
+set -Eeuo pipefail
 
-/opt/wait-for-it.sh postgres:5432
-/opt/wait-for-it.sh maildev:1080
-npm install
-# Apply existing migrations against an empty DB so migration:generate has
-# a stable baseline to diff against.
-npm run migration:run
-# Capture the freshly-generated entities (Article, Tag, Comment) as a migration.
-npm run migration:generate -- src/database/migrations/GeneratorE2E
-npm run migration:run
-npm run seed:run:relational
-npm run start:dev
+trap 'echo "[startup:generators] failed at line ${LINENO}" >&2' ERR
+
+WAIT_TIMEOUT_SECONDS="${WAIT_TIMEOUT_SECONDS:-60}"
+DATABASE_HOST="${DATABASE_HOST:-postgres}"
+DATABASE_PORT="${DATABASE_PORT:-5432}"
+MAIL_HOST="${SMTP_HOST:-${MAIL_HOST:-mailpit}}"
+MAIL_WEB_PORT="${MAILPIT_INTERNAL_PORT:-8025}"
+
+/opt/wait-for-it.sh -t "${WAIT_TIMEOUT_SECONDS}" "${DATABASE_HOST}:${DATABASE_PORT}"
+/opt/wait-for-it.sh -t "${WAIT_TIMEOUT_SECONDS}" "${MAIL_HOST}:${MAIL_WEB_PORT}"
+bun run db:migrate
+bun run db:seed:dev
+exec bun run start:dev

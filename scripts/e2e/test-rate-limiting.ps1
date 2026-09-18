@@ -2,8 +2,11 @@
 # Validates X-RateLimit-* headers, tiering, 429 throttling, and RFC 7807 problem details
 
 param(
-    [string]$BaseUrl = "http://localhost:3001"
+    [string]$BaseUrl = $env:E2E_BASE_URL
 )
+
+. "$PSScriptRoot\common.ps1"
+$BaseUrl = if ([string]::IsNullOrWhiteSpace($BaseUrl)) { Get-E2EBaseUrl } else { $BaseUrl.TrimEnd('/') }
 
 $ErrorActionPreference = "Stop"
 $passed = 0

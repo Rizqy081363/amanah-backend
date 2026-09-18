@@ -35,10 +35,12 @@ const getDatabaseUrl = (): string => {
   }
 
   const host = process.env.DATABASE_HOST || 'localhost';
-  const port =
-    process.env.POSTGRES_HOST_PORT ||
-    process.env.DATABASE_PORT ||
-    String(DEFAULT_POSTGRES_HOST_PORT);
+  const isLocalHost = host === 'localhost' || host === '127.0.0.1';
+  const port = isLocalHost
+    ? (process.env.POSTGRES_HOST_PORT ||
+        process.env.DATABASE_PORT ||
+        String(DEFAULT_POSTGRES_HOST_PORT))
+    : (process.env.DATABASE_PORT || '5432');
   const username = process.env.DATABASE_USERNAME || 'amanah';
   const password = process.env.DATABASE_PASSWORD || 'amanah_secret';
   const database = process.env.DATABASE_NAME || 'amanah_healthcare';

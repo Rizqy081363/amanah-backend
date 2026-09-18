@@ -1,10 +1,11 @@
-#!/usr/bin/env pwsh
+#!/usr/bin/env powershell
 # ==============================================================================
 # Amanah Healthcare - Phase 4: Event-Driven Auditing & Status History Verification
 # Canonical Rules: ARC-041, ARC-093, ARC-119..122, ARC-136, database-design.md
 # ==============================================================================
 $ErrorActionPreference = "Stop"
-$BaseUrl = "http://localhost:3001"
+. "$PSScriptRoot\common.ps1"
+$BaseUrl = Get-E2EBaseUrl
 $ApiPrefix = "$BaseUrl/api/v1"
 
 $PassCount = 0

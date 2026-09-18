@@ -3,7 +3,8 @@
 # ==============================================================================
 
 $ErrorActionPreference = 'Stop'
-$baseUrl = "http://localhost:3001"
+. "$PSScriptRoot\common.ps1"
+$baseUrl = Get-E2EBaseUrl
 $passed = 0
 $failed = 0
 
@@ -39,7 +40,7 @@ Assert-Test "Bearer scheme omits API-key-only name/in fields" ($null -eq $scheme
 # 1.3 Servers
 $servers = $spec.servers
 Assert-Test "Servers list is defined with at least 2 environments" ($servers.Count -ge 2)
-$localServer = $servers | Where-Object { $_.url -like "*localhost:3001*" }
+$localServer = $servers | Where-Object { $_.url.TrimEnd('/') -eq $baseUrl }
 Assert-Test "Local Development Server URL is configured" ($null -ne $localServer)
 
 # 1.4 Inspect all operations, security consistency, summaries, descriptions, and broken refs

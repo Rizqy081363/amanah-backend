@@ -3,8 +3,11 @@
 # 409 Conflict on race collision, and last-write-wins fallback (API-146..148, ARC-095, OPS-138)
 
 param(
-    [string]$BaseUrl = "http://localhost:3001"
+    [string]$BaseUrl = $env:E2E_BASE_URL
 )
+
+. "$PSScriptRoot\common.ps1"
+$BaseUrl = if ([string]::IsNullOrWhiteSpace($BaseUrl)) { Get-E2EBaseUrl } else { $BaseUrl.TrimEnd('/') }
 
 $ErrorActionPreference = "Continue"
 $passed = 0

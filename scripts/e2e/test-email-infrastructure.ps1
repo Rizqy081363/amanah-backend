@@ -2,8 +2,9 @@
 # Amanah Healthcare Backend - Email Infrastructure & Mailpit Verification Suite
 # ==============================================================================
 
-$apiBaseUrl = "http://localhost:3001"
-$mailpitBaseUrl = "http://localhost:8025"
+. "$PSScriptRoot\common.ps1"
+$apiBaseUrl = Get-E2EBaseUrl
+$mailpitBaseUrl = Get-E2EMailpitBaseUrl
 $passed = 0
 $failed = 0
 

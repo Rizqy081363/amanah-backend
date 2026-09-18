@@ -11,7 +11,7 @@ RUN bun run build
 
 FROM oven/bun:1.2.19-alpine AS runner
 
-RUN apk add --no-cache bash
+RUN apk add --no-cache bash curl
 WORKDIR /usr/src/app
 
 COPY --from=builder /usr/src/app/package.json ./

@@ -1,10 +1,11 @@
-#!/usr/bin/env pwsh
+#!/usr/bin/env powershell
 # ==============================================================================
 # Amanah Healthcare - Fase 8: Transactional Outbox Pattern & Reliable Dispatcher
 # Canonical Rules: ARC-089..094, ARC-096, OPS-144..168, database-design.md
 # ==============================================================================
 $ErrorActionPreference = "Stop"
-$BaseUrl = "http://localhost:3001"
+. "$PSScriptRoot\common.ps1"
+$BaseUrl = Get-E2EBaseUrl
 $ApiPrefix = "$BaseUrl/api/v1"
 
 $PassCount = 0

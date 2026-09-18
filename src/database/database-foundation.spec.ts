@@ -71,13 +71,20 @@ const extractQuotedValues = (source: string, pattern: RegExp): string[] => {
 };
 
 const extractUpdatedAtTriggerTables = (sql: string): string[] => {
-  const triggerBlock = sql.match(
-    /FOREACH table_name IN ARRAY ARRAY\[((?:.|\n)*?)\]\s+LOOP/,
-  )?.[1];
+  const startMarker = 'FOREACH table_name IN ARRAY ARRAY[';
+  const startIndex = sql.indexOf(startMarker);
+  expect(startIndex).toBeGreaterThanOrEqual(0);
 
-  expect(triggerBlock).toBeDefined();
+  const blockStartIndex = startIndex + startMarker.length;
+  const loopIndex = sql.indexOf('LOOP', blockStartIndex);
+  const blockEndIndex = sql.lastIndexOf(']', loopIndex);
+  expect(loopIndex).toBeGreaterThan(blockStartIndex);
+  expect(blockEndIndex).toBeGreaterThan(blockStartIndex);
 
-  return extractQuotedValues(triggerBlock ?? '', /'([^']+)'/g);
+  return extractQuotedValues(
+    sql.slice(blockStartIndex, blockEndIndex),
+    /'([^']+)'/g,
+  );
 };
 
 describe('database foundation', () => {

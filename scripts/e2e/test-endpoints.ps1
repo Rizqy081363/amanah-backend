@@ -1,7 +1,8 @@
 # PowerShell TDD Test Suite for Amanah Healthcare Backend API
 $ErrorActionPreference = "Stop"
 
-$baseUrl = "http://localhost:3001/api/v1"
+. "$PSScriptRoot\common.ps1"
+$baseUrl = Get-E2EApiBaseUrl
 $totalTests = 0
 $passedTests = 0
 $failedTests = 0

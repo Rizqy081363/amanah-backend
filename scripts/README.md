@@ -28,7 +28,7 @@ scripts/
 
 ## Running Verification Suites
 
-All test suites can be executed either directly via PowerShell (`pwsh`) or through standardized `npm` / `bun` scripts configured in `package.json`.
+All test suites can be executed either directly via PowerShell (`powershell`) or through standardized `npm` / `bun` scripts configured in `package.json`.
 
 ### Using npm / bun (Recommended)
 
@@ -67,11 +67,11 @@ bun run test:e2e:full-suite
 ### Direct Execution with PowerShell
 
 ```powershell
-pwsh -ExecutionPolicy Bypass -File scripts/e2e/test-all-endpoints.ps1
-pwsh -ExecutionPolicy Bypass -File scripts/e2e/test-idempotency.ps1
-pwsh -ExecutionPolicy Bypass -File scripts/e2e/test-problem-details.ps1
-pwsh -ExecutionPolicy Bypass -File scripts/e2e/test-swagger-spec.ps1
-pwsh -ExecutionPolicy Bypass -File scripts/e2e/test-mobile-endpoints.ps1
+powershell -ExecutionPolicy Bypass -File scripts/e2e/test-all-endpoints.ps1
+powershell -ExecutionPolicy Bypass -File scripts/e2e/test-idempotency.ps1
+powershell -ExecutionPolicy Bypass -File scripts/e2e/test-problem-details.ps1
+powershell -ExecutionPolicy Bypass -File scripts/e2e/test-swagger-spec.ps1
+powershell -ExecutionPolicy Bypass -File scripts/e2e/test-mobile-endpoints.ps1
 ```
 
 ---
@@ -81,9 +81,8 @@ pwsh -ExecutionPolicy Bypass -File scripts/e2e/test-mobile-endpoints.ps1
 Before executing the E2E verification suites:
 1. Docker infrastructure must be running:
    ```bash
-   docker compose up -d
+   bun run infra:up
    ```
-2. API container must be listening on port 3001 (or local `bun run start:dev`).
-3. PostgreSQL is available on port 5433 (default).
-4. Redis is available on port 6379 (default, DB 1).
-5. Mailpit is available on port 8025 (Web UI) and 1025 (SMTP).
+2. API container must be reachable through `E2E_BASE_URL` (default: `http://localhost:3001`).
+3. PostgreSQL, Redis, Mailpit, and Adminer host ports are configured in `.env`.
+4. Mailpit must be reachable through `E2E_MAILPIT_BASE_URL` (default: `http://localhost:8025`).

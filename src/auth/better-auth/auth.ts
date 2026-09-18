@@ -12,15 +12,33 @@ import {
   staffWorker,
 } from './permissions';
 
+const getDatabaseUrl = (): string => {
+  if (process.env.DATABASE_URL?.trim()) {
+    return process.env.DATABASE_URL;
+  }
+
+  const host = process.env.DATABASE_HOST || '127.0.0.1';
+  const isLocalHost = host === 'localhost' || host === '127.0.0.1';
+  const port = isLocalHost
+    ? (process.env.POSTGRES_HOST_PORT || process.env.DATABASE_PORT || '5433')
+    : (process.env.DATABASE_PORT || '5432');
+  const username = process.env.DATABASE_USERNAME || 'amanah';
+  const password = process.env.DATABASE_PASSWORD || 'amanah_secret';
+  const database = process.env.DATABASE_NAME || 'amanah_healthcare';
+
+  return `postgresql://${username}:${password}@${host}:${port}/${database}`;
+};
+
 const pool = new Pool({
-  connectionString:
-    process.env.DATABASE_URL ||
-    'postgresql://amanah:amanah_secret@127.0.0.1:5433/amanah_healthcare',
+  connectionString: getDatabaseUrl(),
 });
 
 const smtpHost = process.env.SMTP_HOST || process.env.MAIL_HOST || '127.0.0.1';
+const isLocalSmtp = smtpHost === 'localhost' || smtpHost === '127.0.0.1';
 const smtpPort = parseInt(
-  process.env.SMTP_PORT || process.env.MAIL_PORT || '1025',
+  isLocalSmtp
+    ? (process.env.SMTP_HOST_PORT || process.env.SMTP_PORT || process.env.MAIL_PORT || '1025')
+    : (process.env.SMTP_PORT || process.env.MAIL_PORT || '1025'),
   10,
 );
 const mailFrom =

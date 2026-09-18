@@ -55,24 +55,37 @@ src/
 ### 1. Prerequisites
 - [Docker](https://www.docker.com/) & Docker Compose
 - [Bun](https://bun.sh/) (>= 1.2.0) or Node.js (>= 22.0.0)
-- PowerShell 7 (`pwsh`) for running verification suites
+- PowerShell 7 (`powershell`) for running verification suites
 
 ### 2. Infrastructure Setup
 
-Start the PostgreSQL, Redis, Mailpit, and Adminer containers:
+Create a local `.env` when you need to customize host ports or callback URLs:
+
 ```bash
-docker compose up -d
+cp .env.example .env
 ```
 
-### 3. Database Migration & Seed
+Start the PostgreSQL, Redis, Mailpit, Adminer, and API containers:
 
-Run Drizzle migrations and seed initial development data:
 ```bash
-bun run db:migrate
-bun run db:seed:dev
+bun run infra:up:build
 ```
 
-### 4. Running the Application
+The API container applies Drizzle migrations and development seed data during startup. Use these tracked defaults unless a local port is already occupied:
+
+| Service | URL / Port | Config variable |
+| --- | --- | --- |
+| API | `http://localhost:3001` | `API_HOST_PORT`, `BACKEND_DOMAIN`, `BETTER_AUTH_URL`, `E2E_BASE_URL` |
+| Swagger | `http://localhost:3001/docs` | follows API |
+| PostgreSQL | `localhost:5433` | `POSTGRES_HOST_PORT` |
+| Redis | `localhost:6379` | `REDIS_HOST_PORT` |
+| Mailpit SMTP | `localhost:1025` | `SMTP_HOST_PORT` |
+| Mailpit UI | `http://localhost:8025` | `MAILPIT_HOST_PORT`, `E2E_MAILPIT_BASE_URL` |
+| Adminer | `http://localhost:8080` | `ADMINER_HOST_PORT` |
+
+If a port conflicts, change the relevant variable in `.env`; do not edit `docker-compose.yaml` or test scripts.
+
+### 3. Running the Application Locally
 
 ```bash
 # Start local development server (with watch mode)
@@ -82,11 +95,9 @@ bun run start:dev
 bun run start:swc
 ```
 
-The API will be available at:
-- **REST API Base URL**: `http://localhost:3001`
-- **Swagger Documentation**: `http://localhost:3001/docs`
-- **Mailpit Web UI**: `http://localhost:8025`
-- **Adminer Database UI**: `http://localhost:8080`
+For the all-container development stack, use `bun run infra:up`.
+
+Detailed infrastructure rules live in [`docs/architecture/development-infrastructure.md`](docs/architecture/development-infrastructure.md).
 
 ---
 
