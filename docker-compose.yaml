@@ -11,6 +11,8 @@ services:
       POSTGRES_USER: ${DATABASE_USERNAME:-amanah}
       POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-amanah_secret}
       POSTGRES_DB: ${DATABASE_NAME:-amanah_healthcare}
+      TZ: ${APP_TIMEZONE:-Asia/Jakarta}
+      PGTZ: ${APP_TIMEZONE:-Asia/Jakarta}
     healthcheck:
       test:
         [
@@ -83,6 +85,9 @@ services:
       DATABASE_USERNAME: ${DATABASE_USERNAME:-amanah}
       DATABASE_PASSWORD: ${DATABASE_PASSWORD:-amanah_secret}
       DATABASE_NAME: ${DATABASE_NAME:-amanah_healthcare}
+      TZ: ${APP_TIMEZONE:-Asia/Jakarta}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
     depends_on:
       postgres:
         condition: service_healthy

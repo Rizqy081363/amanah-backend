@@ -8,14 +8,24 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import bcrypt from 'bcryptjs';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { AllConfigType } from '../config/config.type';
 import { DRIZZLE_SOURCE } from '../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../database/drizzle/drizzle.provider';
-import { users } from '../database/schema';
+import {
+  account,
+  authAccounts,
+  roles,
+  user,
+  userRoles,
+  users,
+} from '../database/schema';
 import { MailService } from '../mail/mail.service';
 import { AuthEmailLoginDto } from './dto/auth-email-login.dto';
+import { AuthRegisterLoginDto } from './dto/auth-register-login.dto';
+import { AuthUpdateDto } from './dto/auth-update.dto';
 import { LoginResponseDto } from './dto/login-response.dto';
+import type { JwtPayloadType } from './strategies/types/jwt-payload.type';
 
 @Injectable()
 export class AuthService {
@@ -77,6 +87,14 @@ export class AuthService {
         },
       });
     }
+
+    await this.db
+      .update(users)
+      .set({
+        lastLoginAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(users.id, user.id));
 
     const primaryRole = user.userRoles_userId?.[0]?.role;
     let systemRole: 'ADMIN' | 'STAF' | 'PATIENT' = 'PATIENT';
@@ -162,11 +180,128 @@ export class AuthService {
     return user || null;
   }
 
-  async register(_dto: any): Promise<void> {}
+  async register(dto: AuthRegisterLoginDto): Promise<void> {
+    const existingUser = await this.db.query.users.findFirst({
+      where: eq(users.email, dto.email),
+    });
 
-  async confirmEmail(_hash: string): Promise<void> {}
+    if (existingUser) {
+      throw new UnprocessableEntityException({
+        status: HttpStatus.UNPROCESSABLE_ENTITY,
+        errors: {
+          email: 'emailAlreadyExists',
+        },
+      });
+    }
 
-  async confirmNewEmail(_hash: string): Promise<void> {}
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(dto.password, salt);
+    const fullName = `${dto.firstName} ${dto.lastName}`.trim();
+
+    const [newUser] = await this.db
+      .insert(users)
+      .values({
+        name: fullName,
+        email: dto.email,
+        emailVerified: true,
+        status: 'active',
+        preferredLocale: 'id-ID',
+      })
+      .returning();
+
+    await this.db.insert(authAccounts).values({
+      userId: newUser.id,
+      providerId: 'credential',
+      accountId: dto.email,
+      passwordHash,
+    });
+
+    const patientRole = await this.db.query.roles.findFirst({
+      where: eq(roles.code, 'patient'),
+    });
+
+    if (patientRole) {
+      await this.db.insert(userRoles).values({
+        userId: newUser.id,
+        roleId: patientRole.id,
+      });
+    }
+
+    try {
+      await this.db.insert(user).values({
+        id: newUser.id,
+        name: fullName,
+        email: dto.email,
+        emailVerified: true,
+        role: 'patient',
+        banned: false,
+      });
+
+      await this.db.insert(account).values({
+        accountId: newUser.id,
+        providerId: 'credential',
+        userId: newUser.id,
+        password: passwordHash,
+        updatedAt: new Date().toISOString(),
+      });
+    } catch {
+      // Better auth sync is complementary
+    }
+  }
+
+  async confirmEmail(hash: string): Promise<void> {
+    let payload: { id: string; email: string };
+    try {
+      payload = await this.jwtService.verifyAsync(hash, {
+        secret: this.configService.getOrThrow('auth.confirmEmailSecret', {
+          infer: true,
+        }),
+      });
+    } catch {
+      throw new UnprocessableEntityException({
+        status: HttpStatus.UNPROCESSABLE_ENTITY,
+        errors: {
+          hash: 'invalidHash',
+        },
+      });
+    }
+
+    await this.db
+      .update(users)
+      .set({
+        emailVerified: true,
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(users.id, payload.id));
+  }
+
+  async confirmNewEmail(hash: string): Promise<void> {
+    let payload: { id: string; email: string; newEmail?: string };
+    try {
+      payload = await this.jwtService.verifyAsync(hash, {
+        secret: this.configService.getOrThrow('auth.confirmEmailSecret', {
+          infer: true,
+        }),
+      });
+    } catch {
+      throw new UnprocessableEntityException({
+        status: HttpStatus.UNPROCESSABLE_ENTITY,
+        errors: {
+          hash: 'invalidHash',
+        },
+      });
+    }
+
+    const emailToSet = payload.newEmail || payload.email;
+    await this.db
+      .update(users)
+      .set({
+        email: emailToSet,
+        emailVerified: true,
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(users.id, payload.id));
+  }
 
   async forgotPassword(email: string): Promise<void> {
     const user = await this.db.query.users.findFirst({
@@ -205,10 +340,179 @@ export class AuthService {
     });
   }
 
-  async resetPassword(_hash: string, _password: string): Promise<void> {}
+  async resetPassword(hash: string, password: string): Promise<void> {
+    let payload: { id: string; email: string };
+    try {
+      payload = await this.jwtService.verifyAsync(hash, {
+        secret: this.configService.getOrThrow('auth.forgotSecret', {
+          infer: true,
+        }),
+      });
+    } catch {
+      throw new UnprocessableEntityException({
+        status: HttpStatus.UNPROCESSABLE_ENTITY,
+        errors: {
+          hash: 'invalidHash',
+        },
+      });
+    }
 
-  async update(_userJwtPayload: any, _userDto: any): Promise<any> {
-    return null;
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(password, salt);
+
+    await this.db
+      .update(authAccounts)
+      .set({
+        passwordHash,
+        updatedAt: new Date().toISOString(),
+      })
+      .where(
+        and(
+          eq(authAccounts.userId, payload.id),
+          eq(authAccounts.providerId, 'credential'),
+        ),
+      );
+
+    try {
+      await this.db
+        .update(account)
+        .set({
+          password: passwordHash,
+          updatedAt: new Date().toISOString(),
+        })
+        .where(
+          and(
+            eq(account.userId, payload.id),
+            eq(account.providerId, 'credential'),
+          ),
+        );
+    } catch {
+      // Complementary
+    }
+  }
+
+  async update(
+    userJwtPayload: JwtPayloadType,
+    userDto: AuthUpdateDto,
+  ): Promise<any> {
+    const userRecord = await this.db.query.users.findFirst({
+      where: eq(users.id, userJwtPayload.id),
+    });
+
+    if (!userRecord) {
+      throw new UnauthorizedException();
+    }
+
+    const updateFields: Record<string, any> = {
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (userDto.firstName || userDto.lastName) {
+      const currentNameParts = userRecord.name
+        ? userRecord.name.split(' ')
+        : [];
+      const first = userDto.firstName ?? currentNameParts[0] ?? '';
+      const last =
+        userDto.lastName ?? currentNameParts.slice(1).join(' ') ?? '';
+      updateFields.name = `${first} ${last}`.trim();
+    }
+
+    if (userDto.password) {
+      if (!userDto.oldPassword) {
+        throw new UnprocessableEntityException({
+          status: HttpStatus.UNPROCESSABLE_ENTITY,
+          errors: {
+            oldPassword: 'missingOldPassword',
+          },
+        });
+      }
+
+      const credentialAcc = await this.db.query.authAccounts.findFirst({
+        where: and(
+          eq(authAccounts.userId, userRecord.id),
+          eq(authAccounts.providerId, 'credential'),
+        ),
+      });
+
+      if (!credentialAcc?.passwordHash) {
+        throw new UnprocessableEntityException({
+          status: HttpStatus.UNPROCESSABLE_ENTITY,
+          errors: {
+            oldPassword: 'incorrectOldPassword',
+          },
+        });
+      }
+
+      const isOldPasswordValid = await bcrypt.compare(
+        userDto.oldPassword,
+        credentialAcc.passwordHash,
+      );
+
+      if (!isOldPasswordValid) {
+        throw new UnprocessableEntityException({
+          status: HttpStatus.UNPROCESSABLE_ENTITY,
+          errors: {
+            oldPassword: 'incorrectOldPassword',
+          },
+        });
+      }
+
+      const salt = await bcrypt.genSalt(10);
+      const newHash = await bcrypt.hash(userDto.password, salt);
+
+      await this.db
+        .update(authAccounts)
+        .set({
+          passwordHash: newHash,
+          updatedAt: new Date().toISOString(),
+        })
+        .where(
+          and(
+            eq(authAccounts.userId, userRecord.id),
+            eq(authAccounts.providerId, 'credential'),
+          ),
+        );
+
+      try {
+        await this.db
+          .update(account)
+          .set({
+            password: newHash,
+            updatedAt: new Date().toISOString(),
+          })
+          .where(
+            and(
+              eq(account.userId, userRecord.id),
+              eq(account.providerId, 'credential'),
+            ),
+          );
+      } catch {
+        // Complementary
+      }
+    }
+
+    if (Object.keys(updateFields).length > 1) {
+      await this.db
+        .update(users)
+        .set(updateFields)
+        .where(eq(users.id, userRecord.id));
+
+      try {
+        if (updateFields.name) {
+          await this.db
+            .update(user)
+            .set({
+              name: updateFields.name,
+              updatedAt: updateFields.updatedAt,
+            })
+            .where(eq(user.id, userRecord.id));
+        }
+      } catch {
+        // Complementary
+      }
+    }
+
+    return this.me(userJwtPayload);
   }
 
   async refreshToken(data: any): Promise<any> {
@@ -287,7 +591,28 @@ export class AuthService {
     };
   }
 
-  async softDelete(_userJwtPayload: any): Promise<void> {}
+  async softDelete(userJwtPayload: JwtPayloadType): Promise<void> {
+    await this.db
+      .update(users)
+      .set({
+        status: 'inactive',
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(users.id, userJwtPayload.id));
+
+    try {
+      await this.db
+        .update(user)
+        .set({
+          banned: true,
+          banReason: 'Akun dinonaktifkan oleh pengguna',
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(user.id, userJwtPayload.id));
+    } catch {
+      // Complementary
+    }
+  }
 
   async logout(_data: any): Promise<void> {}
 }

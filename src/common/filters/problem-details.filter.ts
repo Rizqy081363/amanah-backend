@@ -132,6 +132,11 @@ export class ProblemDetailsFilter implements ExceptionFilter {
     response.setHeader('Content-Type', 'application/problem+json');
     response.setHeader('Cache-Control', 'no-store');
     response.setHeader(CORRELATION_ID_HEADER, traceId);
+    if (status >= 400 && status < 500) {
+      this.logger.warn(
+        `[${traceId}] ${request.method} ${request.originalUrl || request.url} -> ${status} ${code}: ${detail}`,
+      );
+    }
 
     response.status(status).json(problem);
   }
