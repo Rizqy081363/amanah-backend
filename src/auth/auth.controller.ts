@@ -40,6 +40,7 @@ import { AuthResetPasswordOtpDto } from './dto/auth-reset-password-otp.dto';
 import { AuthResetPasswordDto } from './dto/auth-reset-password.dto';
 import { AuthUpdateDto } from './dto/auth-update.dto';
 import { AuthVerifyOtpDto } from './dto/auth-verify-otp.dto';
+import { DeleteAccountResponseDto } from './dto/delete-account-response.dto';
 import { LoginResponseDto } from './dto/login-response.dto';
 import { RefreshResponseDto } from './dto/refresh-response.dto';
 import type { JwtPayloadType } from './strategies/types/jwt-payload.type';
@@ -349,19 +350,22 @@ export class AuthController {
   @Delete('me')
   @UseGuards(HybridAuthGuard)
   @ApiOperation({
-    summary: 'Hapus akun sendiri (Soft delete)',
-    description: 'Menonaktifkan akun pengguna yang sedang login.',
+    summary: 'Hapus akun sendiri secara permanen (Systemic Account Purge)',
+    description:
+      'Menghapus akun pengguna beserta seluruh data profil, rekam medis, riwayat antrean, sesi login, dan cache Redis secara permanen dan sistemik (GDPR Right to Erasure).',
   })
-  @ApiNoContentResponse({
-    description: 'Akun berhasil dinonaktifkan',
+  @ApiOkResponse({
+    type: DeleteAccountResponseDto,
+    description:
+      'Akun dan seluruh data pengguna berhasil dihapus secara permanen dari sistem',
   })
   @ApiUnauthorizedResponse({
-    description: 'Sesi tidak valid',
+    description: 'Sesi tidak valid atau token tidak disertakan',
   })
-  @HttpCode(HttpStatus.NO_CONTENT)
+  @HttpCode(HttpStatus.OK)
   public async delete(
     @Request() request: RequestWithUser<JwtPayloadType>,
-  ): Promise<void> {
-    return this.service.softDelete(request.user);
+  ): Promise<DeleteAccountResponseDto> {
+    return this.service.purgeAccount(request.user);
   }
 }

@@ -9,7 +9,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import bcrypt from 'bcryptjs';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { AllConfigType } from '../config/config.type';
 import { DRIZZLE_SOURCE } from '../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../database/drizzle/drizzle.provider';
@@ -31,6 +31,7 @@ import { AuthResendOtpDto, ResendOtpResponseDto } from './dto/auth-resend-otp.dt
 import { AuthResetPasswordOtpDto } from './dto/auth-reset-password-otp.dto';
 import { AuthUpdateDto } from './dto/auth-update.dto';
 import { AuthVerifyOtpDto } from './dto/auth-verify-otp.dto';
+import { DeleteAccountResponseDto } from './dto/delete-account-response.dto';
 import { LoginResponseDto } from './dto/login-response.dto';
 import type { JwtPayloadType } from './strategies/types/jwt-payload.type';
 
@@ -733,6 +734,51 @@ export class AuthService {
     } catch {
       // Complementary
     }
+  }
+
+  async purgeAccount(
+    userJwtPayload: JwtPayloadType,
+  ): Promise<DeleteAccountResponseDto> {
+    const userId = userJwtPayload.id;
+    let email = userJwtPayload.email;
+
+    if (!email) {
+      const userRecord = await this.db.query.users.findFirst({
+        where: eq(users.id, userId),
+      });
+      email = userRecord?.email;
+    }
+
+    try {
+      await this.db.execute(sql`SELECT purge_user_systemic(${userId})`);
+      if (email) {
+        await this.db.execute(sql`SELECT purge_user_systemic(${email})`);
+      }
+    } catch (error) {
+      await this.softDelete(userJwtPayload);
+      throw new HttpException(
+        {
+          message: 'Gagal membersihkan data akun secara sistemik.',
+          error: error instanceof Error ? error.message : String(error),
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+
+    if (this.redisService) {
+      await this.redisService.purgeUserData(userId, email);
+    }
+
+    return {
+      success: true,
+      message:
+        'Akun dan seluruh data pengguna terkait telah berhasil dihapus secara permanen dari sistem.',
+      purgedAt: new Date().toISOString(),
+      details: {
+        userId,
+        email,
+      },
+    };
   }
 
   async resendOtp(dto: AuthResendOtpDto): Promise<ResendOtpResponseDto> {
