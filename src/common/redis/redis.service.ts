@@ -351,6 +351,42 @@ end
     }
   }
 
+  async purgeUserData(userId: string, email?: string): Promise<number> {
+    const patterns: string[] = [`*${userId}*`];
+    if (email && email.trim().length > 0) {
+      patterns.push(`*${email.trim().toLowerCase()}*`);
+    }
+
+    let totalDeleted = 0;
+    for (const pattern of patterns) {
+      try {
+        let cursor = '0';
+        do {
+          const [nextCursor, keys] = await this.redisClient.scan(
+            cursor,
+            'MATCH',
+            pattern,
+            'COUNT',
+            100,
+          );
+
+          if (keys.length > 0) {
+            const count = await this.redisClient.del(...keys);
+            totalDeleted += count;
+          }
+
+          cursor = nextCursor;
+        } while (cursor !== '0');
+      } catch (error) {
+        this.logger.warn(
+          `Redis user purge failed for pattern "${pattern}": ${this.getErrorMessage(error)}`,
+        );
+      }
+    }
+
+    return totalDeleted;
+  }
+
   private buildKey(key: string): string {
     this.assertCacheKey(key);
     return `${this.keyPrefix}:${key}`;
