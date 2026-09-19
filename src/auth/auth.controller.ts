@@ -12,6 +12,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { HybridAuthGuard } from '../common/auth';
 import {
   ApiBearerAuth,
   ApiNoContentResponse,
@@ -245,7 +246,7 @@ export class AuthController {
     groups: ['me'],
   })
   @Get('me')
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(HybridAuthGuard)
   @ApiOperation({
     summary: 'Mendapatkan data profil pengguna saat ini',
     description:
@@ -295,7 +296,7 @@ export class AuthController {
 
   @ApiBearerAuth('access-token')
   @Post('logout')
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(HybridAuthGuard)
   @ApiOperation({
     summary: 'Logout pengguna',
     description: 'Membatalkan sesi token saat ini.',
@@ -320,7 +321,7 @@ export class AuthController {
     groups: ['me'],
   })
   @Patch('me')
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(HybridAuthGuard)
   @ApiOperation({
     summary: 'Memperbarui profil diri sendiri',
     description:
@@ -346,7 +347,7 @@ export class AuthController {
 
   @ApiBearerAuth('access-token')
   @Delete('me')
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(HybridAuthGuard)
   @ApiOperation({
     summary: 'Hapus akun sendiri (Soft delete)',
     description: 'Menonaktifkan akun pengguna yang sedang login.',

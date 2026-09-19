@@ -28,9 +28,12 @@ import {
   ApiUnauthorizedResponse,
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
-import { CurrentUser } from '../../../common/auth/current-user.decorator';
-import { Roles } from '../../../common/auth/roles.decorator';
-import { RolesGuard } from '../../../common/auth/roles.guard';
+import {
+  CurrentUser,
+  HybridAuthGuard,
+  Roles,
+  RolesGuard,
+} from '../../../common/auth';
 import {
   PATIENT_REPOSITORY,
   PatientRepository,
@@ -42,7 +45,7 @@ import { UpdatePatientDto } from './dto/update-patient.dto';
 
 @ApiTags('Patients (Data Pasien & Rekam Medis)')
 @ApiBearerAuth('access-token')
-@UseGuards(AuthGuard('jwt'), RolesGuard)
+@UseGuards(HybridAuthGuard, RolesGuard)
 @ApiUnauthorizedResponse({
   description: 'Sesi autentikasi tidak valid atau token tidak disertakan',
 })

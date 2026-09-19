@@ -9,6 +9,7 @@ import {
   BetterAuthGuard,
   BetterAuthRbacGuard,
 } from './better-auth';
+import { HybridAuthGuard } from '../common/auth/hybrid-auth.guard';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy';
 
@@ -21,7 +22,8 @@ import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy';
     JwtRefreshStrategy,
     BetterAuthGuard,
     BetterAuthRbacGuard,
+    HybridAuthGuard,
   ],
-  exports: [AuthService, BetterAuthGuard, BetterAuthRbacGuard],
+  exports: [AuthService, BetterAuthGuard, BetterAuthRbacGuard, HybridAuthGuard],
 })
 export class AuthModule {}
