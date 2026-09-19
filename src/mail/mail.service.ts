@@ -135,6 +135,30 @@ export class MailService {
     });
   }
 
+  buildResetPasswordUrl(params: {
+    hash: string;
+    expires: number;
+    email?: string;
+  }): string {
+    const frontendDomain = this.configService.getOrThrow('app.frontendDomain', {
+      infer: true,
+    });
+    const configuredPath =
+      this.configService.get('auth.resetPasswordPath', { infer: true }) ||
+      '/auth/sign-in/reset-password';
+    const normalizedPath = configuredPath.startsWith('/')
+      ? configuredPath
+      : `/${configuredPath}`;
+
+    const url = new URL(`${frontendDomain}${normalizedPath}`);
+    url.searchParams.set('hash', params.hash);
+    url.searchParams.set('expires', params.expires.toString());
+    if (params.email) {
+      url.searchParams.set('email', params.email);
+    }
+    return url.toString();
+  }
+
   async forgotPassword(
     mailData: MailData<{ hash: string; tokenExpires: number }>,
   ): Promise<void> {
@@ -146,22 +170,22 @@ export class MailService {
     const text4 =
       'If you did not make this request then please ignore this email.';
 
-    const url = new URL(
-      this.configService.getOrThrow('app.frontendDomain', {
-        infer: true,
-      }) + '/password-change',
-    );
-    url.searchParams.set('hash', mailData.data.hash);
-    url.searchParams.set('expires', mailData.data.tokenExpires.toString());
+    const emailRecipient =
+      typeof mailData.to === 'string' ? mailData.to : undefined;
+    const resetUrl = this.buildResetPasswordUrl({
+      hash: mailData.data.hash,
+      expires: mailData.data.tokenExpires,
+      email: emailRecipient,
+    });
 
     await this.send({
       to: mailData.to,
       subject: resetPasswordTitle,
       template: 'reset-password',
-      text: `${url.toString()} ${resetPasswordTitle}`,
+      text: `${resetUrl} ${resetPasswordTitle}`,
       data: {
         title: resetPasswordTitle,
-        url: url.toString(),
+        url: resetUrl,
         actionTitle: resetPasswordTitle,
         text1,
         text2,

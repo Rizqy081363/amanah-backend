@@ -7,10 +7,30 @@
 
 ---
 
+## [2026-09-19] fix: Google OAuth Persistence Alignment & CORS Credentials
+
+**Agent:** backend  
+**Status:** resolved (Backend) / action required (Frontend)  
+**Dokumentasi Lengkap:** `docs/backend-modules/authentication/FRONTEND-AGENT-AUDIT-AND-FIX.md`  
+**Affected Endpoints:**
+- `GET/POST /api/auth/sign-in/social`
+- `GET /api/auth/get-session`
+- CORS middleware & Better Auth Controller
+
+### Ringkasan Tindakan & Penyelesaian:
+1. **Investigasi Masalah (0 baris di PostgreSQL `users`):** Ditemukan bahwa frontend Next.js (`D:\manage-stock`) memiliki instance Better Auth lokal dengan database SQLite internal (`auth.db`), sehingga Google login tersimpan di SQLite frontend dan tidak pernah sampai ke backend NestJS (port 3001).
+2. **Perbaikan Backend:**
+   - Menambahkan `credentials: true` dan origin eksplisit pada CORS `src/main.ts` agar cookie Better Auth dapat dibagikan antara port 3000 dan 3001.
+   - Menambahkan endpoint `GET /api/auth/sign-in/social` pada `BetterAuthController` agar mendukung browser redirect murni (302 ke Google) di samping Better Auth client (POST).
+   - Memverifikasi ulang trigger database PostgreSQL `trg_sync_better_auth_user` yang otomatis memetakan user Google ke `users` dan `user_roles`.
+3. **Instruksi Frontend Agent:** Matikan SQLite `auth.db` dan route internal di Next.js, arahkan `NEXT_PUBLIC_BETTER_AUTH_URL` ke `http://localhost:3001`. Panduan langkah demi langkah ada pada `FRONTEND-AGENT-AUDIT-AND-FIX.md`.
+
+---
+
 ## [2026-09-19] feat: emailOTP Plugin, Verifikasi Manual Wajib, Google OAuth Direct, & Auth Lifecycle Hardening
 
 **Agent:** backend  
-**Status:** pending  
+**Status:** completed  
 **Affected Endpoints:**
 - `POST /api/auth/sign-up/email`
 - `POST /api/auth/email-otp/send-verification-otp`

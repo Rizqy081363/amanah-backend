@@ -22,6 +22,7 @@ import {
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
 import { User } from '../users/domain/user';
+import { RateLimit } from '../common/throttling';
 import { NullableType } from '../utils/types/nullable.type';
 import type { RequestWithUser } from '../utils/types/request-with-user.type';
 import { AuthService } from './auth.service';
@@ -29,8 +30,15 @@ import { AuthConfirmEmailDto } from './dto/auth-confirm-email.dto';
 import { AuthEmailLoginDto } from './dto/auth-email-login.dto';
 import { AuthForgotPasswordDto } from './dto/auth-forgot-password.dto';
 import { AuthRegisterLoginDto } from './dto/auth-register-login.dto';
+import {
+  AuthResendOtpDto,
+  ResendOtpResponseDto,
+} from './dto/auth-resend-otp.dto';
+import { AuthResendVerificationDto } from './dto/auth-resend-verification.dto';
+import { AuthResetPasswordOtpDto } from './dto/auth-reset-password-otp.dto';
 import { AuthResetPasswordDto } from './dto/auth-reset-password.dto';
 import { AuthUpdateDto } from './dto/auth-update.dto';
+import { AuthVerifyOtpDto } from './dto/auth-verify-otp.dto';
 import { LoginResponseDto } from './dto/login-response.dto';
 import { RefreshResponseDto } from './dto/refresh-response.dto';
 import type { JwtPayloadType } from './strategies/types/jwt-payload.type';
@@ -120,16 +128,15 @@ export class AuthController {
   }
 
   @Post('forgot/password')
+  @RateLimit({ limit: 10, windowSeconds: 60 })
   @ApiOperation({
     summary: 'Permintaan pemulihan kata sandi',
     description:
-      'Mengirimkan email instruksi pemulihan kata sandi dengan token reset yang aman via SMTP/Mailpit.',
+      'Mengirimkan email instruksi pemulihan kata sandi dengan token reset yang aman via SMTP/Mailpit (anti-enumeration: selalu mengembalikan status 204).',
   })
   @ApiNoContentResponse({
-    description: 'Email pemulihan kata sandi berhasil dikirim',
-  })
-  @ApiUnprocessableEntityResponse({
-    description: 'Email pengguna tidak ditemukan',
+    description:
+      'Email pemulihan kata sandi berhasil dikirim jika alamat email terdaftar di sistem',
   })
   @HttpCode(HttpStatus.NO_CONTENT)
   async forgotPassword(
@@ -156,6 +163,81 @@ export class AuthController {
       resetPasswordDto.hash,
       resetPasswordDto.password,
     );
+  }
+
+  @Post('otp/resend')
+  @RateLimit({ limit: 5, windowSeconds: 60 })
+  @ApiOperation({
+    summary: 'Kirim ulang kode OTP (Verifikasi Email atau Lupa Password)',
+    description:
+      'Mengirimkan ulang kode OTP 6-digit ke email pengguna dengan proteksi cooldown 60 detik dan batas frekuensi permintaan.',
+  })
+  @ApiOkResponse({
+    type: ResendOtpResponseDto,
+    description: 'Permintaan kirim ulang kode OTP berhasil diproses',
+  })
+  @HttpCode(HttpStatus.OK)
+  async resendOtp(@Body() dto: AuthResendOtpDto): Promise<ResendOtpResponseDto> {
+    return this.service.resendOtp(dto);
+  }
+
+  @Post('email/resend-verification')
+  @RateLimit({ limit: 5, windowSeconds: 60 })
+  @ApiOperation({
+    summary: 'Kirim ulang kode verifikasi email akun baru',
+    description:
+      'Alias khusus untuk mengirimkan ulang kode verifikasi OTP aktivasi akun email baru dengan proteksi cooldown.',
+  })
+  @ApiOkResponse({
+    type: ResendOtpResponseDto,
+    description: 'Kode verifikasi email baru berhasil dikirim',
+  })
+  @HttpCode(HttpStatus.OK)
+  async resendEmailVerification(
+    @Body() dto: AuthResendVerificationDto,
+  ): Promise<ResendOtpResponseDto> {
+    return this.service.resendOtp({
+      email: dto.email,
+      type: 'email-verification',
+    });
+  }
+
+  @Post('email/verify-otp')
+  @ApiOperation({
+    summary: 'Verifikasi email dengan kode OTP 6-digit',
+    description:
+      'Mengaktifkan status verifikasi email akun menggunakan kode OTP numerik 6 digit.',
+  })
+  @ApiOkResponse({
+    description: 'Email berhasil diverifikasi',
+  })
+  @ApiUnprocessableEntityResponse({
+    description: 'Kode OTP tidak valid atau telah kedaluwarsa',
+  })
+  @HttpCode(HttpStatus.OK)
+  async verifyEmailOtp(
+    @Body() dto: AuthVerifyOtpDto,
+  ): Promise<{ success: boolean; message: string }> {
+    return this.service.verifyEmailOtp(dto);
+  }
+
+  @Post('otp/reset-password')
+  @ApiOperation({
+    summary: 'Reset kata sandi menggunakan kode OTP 6-digit',
+    description:
+      'Memperbarui kata sandi pengguna langsung menggunakan kode OTP 6-digit yang diterima via email.',
+  })
+  @ApiNoContentResponse({
+    description: 'Kata sandi berhasil diperbarui dengan kode OTP',
+  })
+  @ApiUnprocessableEntityResponse({
+    description: 'Kode OTP tidak valid atau akun tidak ditemukan',
+  })
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async resetPasswordWithOtp(
+    @Body() dto: AuthResetPasswordOtpDto,
+  ): Promise<void> {
+    return this.service.resetPasswordWithOtp(dto);
   }
 
   @ApiBearerAuth('access-token')

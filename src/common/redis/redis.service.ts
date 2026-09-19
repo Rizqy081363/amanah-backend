@@ -148,6 +148,19 @@ export class RedisService implements OnModuleDestroy {
     }
   }
 
+  async getTtl(key: string): Promise<number> {
+    const cacheKey = this.buildKey(key);
+
+    try {
+      return await this.redisClient.ttl(cacheKey);
+    } catch (error) {
+      this.logger.warn(
+        `Failed to get TTL for "${key}": ${this.getErrorMessage(error)}`,
+      );
+      return -1;
+    }
+  }
+
   async delete(key: string): Promise<void> {
     const cacheKey = this.buildKey(key);
 

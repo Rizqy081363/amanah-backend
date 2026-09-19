@@ -9,5 +9,6 @@ export type AuthConfig = {
   forgotExpires?: ms.StringValue;
   confirmEmailSecret?: string;
   confirmEmailExpires?: ms.StringValue;
+  resetPasswordPath: string;
   uniformErrors: boolean;
 };

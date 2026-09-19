@@ -58,6 +58,10 @@ class EnvironmentVariablesValidator {
   @IsBooleanString()
   @IsOptional()
   AUTH_UNIFORM_ERRORS: string;
+
+  @IsString()
+  @IsOptional()
+  AUTH_RESET_PASSWORD_PATH?: string;
 }
 
 export default registerAs<AuthConfig>('auth', () => {
@@ -74,6 +78,8 @@ export default registerAs<AuthConfig>('auth', () => {
     confirmEmailSecret: process.env.AUTH_CONFIRM_EMAIL_SECRET,
     confirmEmailExpires: process.env
       .AUTH_CONFIRM_EMAIL_TOKEN_EXPIRES_IN as ms.StringValue,
+    resetPasswordPath:
+      process.env.AUTH_RESET_PASSWORD_PATH || '/auth/sign-in/reset-password',
     uniformErrors: process.env.AUTH_UNIFORM_ERRORS === 'true',
   };
 });

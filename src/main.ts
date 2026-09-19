@@ -39,7 +39,18 @@ async function bootstrap() {
     infer: true,
   });
   app.enableCors({
-    origin: corsOrigins.includes('*') ? '*' : corsOrigins,
+    origin: corsOrigins.includes('*') ? true : corsOrigins,
+    credentials: true,
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'x-custom-lang',
+      'Idempotency-Key',
+      'Cookie',
+      'X-Requested-With',
+    ],
+    exposedHeaders: ['Set-Cookie'],
   });
 
   app.enableShutdownHooks();

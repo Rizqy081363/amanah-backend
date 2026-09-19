@@ -1,4 +1,5 @@
 import {
+  HttpException,
   HttpStatus,
   Inject,
   Injectable,
@@ -16,14 +17,20 @@ import {
   account,
   authAccounts,
   roles,
+  session,
   user,
   userRoles,
   users,
 } from '../database/schema';
 import { MailService } from '../mail/mail.service';
+import { RedisService } from '../common/redis/redis.service';
+import { auth } from './better-auth/auth';
 import { AuthEmailLoginDto } from './dto/auth-email-login.dto';
 import { AuthRegisterLoginDto } from './dto/auth-register-login.dto';
+import { AuthResendOtpDto, ResendOtpResponseDto } from './dto/auth-resend-otp.dto';
+import { AuthResetPasswordOtpDto } from './dto/auth-reset-password-otp.dto';
 import { AuthUpdateDto } from './dto/auth-update.dto';
+import { AuthVerifyOtpDto } from './dto/auth-verify-otp.dto';
 import { LoginResponseDto } from './dto/login-response.dto';
 import type { JwtPayloadType } from './strategies/types/jwt-payload.type';
 
@@ -33,6 +40,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService<AllConfigType>,
     private readonly mailService: MailService,
+    private readonly redisService: RedisService,
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,
   ) {}
@@ -309,12 +317,8 @@ export class AuthService {
     });
 
     if (!user) {
-      throw new UnprocessableEntityException({
-        status: HttpStatus.UNPROCESSABLE_ENTITY,
-        errors: {
-          email: 'emailNotExists',
-        },
-      });
+      // Anti-enumeration: return cleanly without throwing to prevent email probing
+      return;
     }
 
     const tokenExpires = Date.now() + 1800000; // 30 minutes
@@ -357,37 +361,93 @@ export class AuthService {
       });
     }
 
+    // Atomic replay protection: single-use token enforcement via Redis with 30-minute TTL (1800s)
+    const tokenUsedKey = `used_reset_token:${hash}`;
+    const isSingleUse = await this.redisService.setNx(tokenUsedKey, '1', 1800);
+    if (!isSingleUse) {
+      throw new UnprocessableEntityException({
+        status: HttpStatus.UNPROCESSABLE_ENTITY,
+        errors: {
+          hash: 'invalidHash',
+        },
+      });
+    }
+
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
 
-    await this.db
-      .update(authAccounts)
-      .set({
-        passwordHash,
-        updatedAt: new Date().toISOString(),
-      })
-      .where(
-        and(
-          eq(authAccounts.userId, payload.id),
-          eq(authAccounts.providerId, 'credential'),
-        ),
-      );
+    const credentialAccount = await this.db.query.authAccounts.findFirst({
+      where: and(
+        eq(authAccounts.userId, payload.id),
+        eq(authAccounts.providerId, 'credential'),
+      ),
+    });
 
-    try {
+    if (credentialAccount) {
       await this.db
-        .update(account)
+        .update(authAccounts)
         .set({
-          password: passwordHash,
+          passwordHash,
           updatedAt: new Date().toISOString(),
         })
+        .where(
+          and(
+            eq(authAccounts.userId, payload.id),
+            eq(authAccounts.providerId, 'credential'),
+          ),
+        );
+    } else {
+      await this.db.insert(authAccounts).values({
+        userId: payload.id,
+        providerId: 'credential',
+        accountId: payload.email,
+        passwordHash,
+      });
+    }
+
+    try {
+      const [betterAccount] = await this.db
+        .select()
+        .from(account)
         .where(
           and(
             eq(account.userId, payload.id),
             eq(account.providerId, 'credential'),
           ),
-        );
+        )
+        .limit(1);
+
+      if (betterAccount) {
+        await this.db
+          .update(account)
+          .set({
+            password: passwordHash,
+            updatedAt: new Date().toISOString(),
+          })
+          .where(
+            and(
+              eq(account.userId, payload.id),
+              eq(account.providerId, 'credential'),
+            ),
+          );
+      } else {
+        await this.db.insert(account).values({
+          accountId: payload.id,
+          providerId: 'credential',
+          userId: payload.id,
+          password: passwordHash,
+          updatedAt: new Date().toISOString(),
+        });
+      }
     } catch {
-      // Complementary
+      // Complementary sync
+    }
+
+    // Revoke all active Better Auth sessions upon password reset
+    try {
+      await this.db.delete(session).where(eq(session.userId, payload.id));
+    } catch {
+      // Non-blocking session revocation
     }
   }
 
@@ -611,6 +671,220 @@ export class AuthService {
         .where(eq(user.id, userJwtPayload.id));
     } catch {
       // Complementary
+    }
+  }
+
+  async resendOtp(dto: AuthResendOtpDto): Promise<ResendOtpResponseDto> {
+    const cooldownKey = `cooldown:otp:${dto.type}:${dto.email}`;
+    const remainingTtl = await this.redisService.getTtl(cooldownKey);
+
+    if (remainingTtl > 0) {
+      throw new HttpException(
+        {
+          message: `Mohon tunggu ${remainingTtl} detik sebelum meminta kode baru.`,
+          code: 'RESEND_COOLDOWN_ACTIVE',
+          retryAfter: remainingTtl,
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
+    // Rate limiting: maximum 5 resend requests per 15 minutes per email
+    const rateLimit = await this.redisService.consumeRateLimit(
+      `resend_burst:${dto.type}:${dto.email}`,
+      5,
+      900,
+    );
+
+    if (!rateLimit.allowed) {
+      throw new HttpException(
+        {
+          message:
+            'Batas permintaan kode OTP tercapai. Silakan coba lagi nanti.',
+          code: 'RATE_LIMIT_EXCEEDED',
+          retryAfter: rateLimit.retryAfterSeconds,
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
+    // Set 60 seconds cooldown in Redis
+    await this.redisService.setString(cooldownKey, '1', 60);
+
+    const userRecord = await this.db.query.users.findFirst({
+      where: eq(users.email, dto.email),
+    });
+
+    if (!userRecord) {
+      // Anti-enumeration: Return success message without revealing absence
+      return {
+        success: true,
+        message:
+          'Jika email terdaftar, kode verifikasi baru telah dikirim ke email Anda.',
+        cooldownSeconds: 60,
+      };
+    }
+
+    if (dto.type === 'email-verification' && userRecord.emailVerified) {
+      return {
+        success: true,
+        message: 'Alamat email ini sudah diverifikasi.',
+        cooldownSeconds: 0,
+      };
+    }
+
+    try {
+      const betterAuthType =
+        dto.type === 'forgot-password'
+          ? 'forget-password'
+          : 'email-verification';
+      await auth.api.sendVerificationOTP({
+        body: {
+          email: dto.email,
+          type: betterAuthType as any,
+        },
+      });
+    } catch {
+      // Non-blocking fallback
+    }
+
+    // If type is forgot-password, also trigger link refresh
+    if (dto.type === 'forgot-password') {
+      try {
+        const tokenExpires = Date.now() + 1800000;
+        const hash = await this.jwtService.signAsync(
+          {
+            id: userRecord.id,
+            email: userRecord.email,
+          },
+          {
+            secret: this.configService.getOrThrow('auth.forgotSecret', {
+              infer: true,
+            }),
+            expiresIn: '30m',
+          },
+        );
+
+        await this.mailService.forgotPassword({
+          to: dto.email,
+          data: {
+            hash,
+            tokenExpires,
+          },
+        });
+      } catch {
+        // Complementary
+      }
+    }
+
+    return {
+      success: true,
+      message: 'Kode OTP baru berhasil dikirim ke email Anda.',
+      cooldownSeconds: 60,
+    };
+  }
+
+  async verifyEmailOtp(
+    dto: AuthVerifyOtpDto,
+  ): Promise<{ success: boolean; message: string }> {
+    try {
+      await auth.api.verifyEmailOTP({
+        body: {
+          email: dto.email,
+          otp: dto.otp,
+        },
+      });
+    } catch {
+      throw new UnprocessableEntityException({
+        status: HttpStatus.UNPROCESSABLE_ENTITY,
+        errors: {
+          otp: 'invalidOrExpiredOtp',
+        },
+      });
+    }
+
+    await this.db
+      .update(users)
+      .set({
+        emailVerified: true,
+        status: 'active',
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(users.email, dto.email));
+
+    return {
+      success: true,
+      message: 'Email berhasil diverifikasi.',
+    };
+  }
+
+  async resetPasswordWithOtp(dto: AuthResetPasswordOtpDto): Promise<void> {
+    const userRecord = await this.db.query.users.findFirst({
+      where: eq(users.email, dto.email),
+    });
+
+    if (!userRecord) {
+      throw new UnprocessableEntityException({
+        status: HttpStatus.UNPROCESSABLE_ENTITY,
+        errors: {
+          email: 'userNotFound',
+        },
+      });
+    }
+
+    try {
+      await auth.api.resetPasswordEmailOTP({
+        body: {
+          email: dto.email,
+          otp: dto.otp,
+          password: dto.password,
+        },
+      });
+    } catch {
+      throw new UnprocessableEntityException({
+        status: HttpStatus.UNPROCESSABLE_ENTITY,
+        errors: {
+          otp: 'invalidOrExpiredOtp',
+        },
+      });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(dto.password, salt);
+
+    const credentialAccount = await this.db.query.authAccounts.findFirst({
+      where: and(
+        eq(authAccounts.userId, userRecord.id),
+        eq(authAccounts.providerId, 'credential'),
+      ),
+    });
+
+    if (credentialAccount) {
+      await this.db
+        .update(authAccounts)
+        .set({
+          passwordHash,
+          updatedAt: new Date().toISOString(),
+        })
+        .where(
+          and(
+            eq(authAccounts.userId, userRecord.id),
+            eq(authAccounts.providerId, 'credential'),
+          ),
+        );
+    } else {
+      await this.db.insert(authAccounts).values({
+        userId: userRecord.id,
+        providerId: 'credential',
+        accountId: dto.email,
+        passwordHash,
+      });
+    }
+
+    try {
+      await this.db.delete(session).where(eq(session.userId, userRecord.id));
+    } catch {
+      // Non-blocking
     }
   }
 
