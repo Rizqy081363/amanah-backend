@@ -7,6 +7,22 @@
 
 ---
 
+## [2026-09-19] feat: Systemic Self-Account Deletion (Purge) on `DELETE /api/v1/auth/me`
+
+**Agent:** backend  
+**Status:** completed (Live & Verified)  
+**Dokumentasi Lengkap:** `docs/backend-modules/authentication/ACCOUNT-DELETION-CHANGELOG.md`  
+**Affected Endpoints:**
+- `DELETE /api/v1/auth/me`
+
+### Ringkasan Perubahan:
+1. **Fitur Penghapusan Akun Total (Hard-Purge / GDPR):** Endpoint `DELETE /api/v1/auth/me` kini melakukan pembersihan sistemik menyeluruh di seluruh 59 tabel database PostgreSQL (menghapus user, Better Auth session/account, profil pasien, rekam medis, tiket antrean, kontak darurat, dsb.) secara aman tanpa melanggar relasi *foreign key*.
+2. **Pembersihan Redis Cache:** Otomatis menghapus seluruh kunci Redis (sesi, OTP cooldown, rate limiting) yang terikat dengan user ID maupun email terkait via SCAN pattern matching.
+3. **Fresh Slate Guarantee:** Pengguna dapat mendaftar kembali dengan email atau akun Google yang sama di masa mendatang seolah-olah merupakan pengguna yang baru pertama kali mendaftar (*fresh account*).
+4. **Dukungan Dual-Engine:** Dilindungi oleh `HybridAuthGuard`, sehingga pengguna yang masuk dengan email/password (Passport JWT) maupun Google OAuth (Better Auth) dapat melakukan penghapusan akun.
+
+---
+
 ## [2026-09-19] feat: Dual-Engine `HybridAuthGuard` Support for `/api/v1/*` (Unlocking Google OAuth)
 
 **Agent:** backend  
