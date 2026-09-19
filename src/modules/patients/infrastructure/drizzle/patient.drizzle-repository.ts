@@ -1,10 +1,15 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { ConflictException, Inject, Injectable } from '@nestjs/common';
 import { desc, eq, ilike, or } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
-import { patientAddresses, patientProfiles } from '../../../../database/schema';
+import {
+  patientAddresses,
+  patientProfiles,
+  users,
+} from '../../../../database/schema';
 import { PatientEntity } from '../../domain/entities/patient.entity';
 import { PatientRepository } from '../../domain/repositories/patient.repository';
+import { RegisterPatientDto } from '../../presentation/dto/register-patient.dto';
 
 @Injectable()
 export class PatientDrizzleRepository implements PatientRepository {
@@ -14,6 +19,11 @@ export class PatientDrizzleRepository implements PatientRepository {
   ) {}
 
   private mapRecordToEntity(record: any): PatientEntity {
+    let bloodTypeDisplay = 'Belum Tahu';
+    if (record.bloodType && record.bloodType !== 'unknown') {
+      bloodTypeDisplay = record.bloodType.toUpperCase();
+    }
+
     return {
       id: record.id,
       userId: record.userId || '',
@@ -26,7 +36,7 @@ export class PatientDrizzleRepository implements PatientRepository {
         typeof record.birthDate === 'string'
           ? record.birthDate
           : record.birthDate?.toISOString?.()?.slice(0, 10) || '',
-      bloodType: record.bloodType || 'unknown',
+      bloodType: bloodTypeDisplay,
       namaIbuKandung: record.motherName || null,
       pekerjaan: record.occupation || null,
       phoneNumber: record.phone || '',
@@ -80,6 +90,109 @@ export class PatientDrizzleRepository implements PatientRepository {
     }
 
     return this.findById(record.id) as Promise<PatientEntity>;
+  }
+
+  async register(
+    userId: string,
+    dto: RegisterPatientDto,
+  ): Promise<PatientEntity> {
+    const existingForUser = await this.findByUserId(userId);
+    if (existingForUser) {
+      throw new ConflictException({
+        code: 'PATIENT_ALREADY_REGISTERED',
+        message: 'Akun Anda sudah memiliki profil pasien terdaftar.',
+      });
+    }
+
+    const existingNik = await this.findByNik(dto.nik);
+    if (existingNik) {
+      throw new ConflictException({
+        code: 'DUPLICATE_NIK',
+        message: 'NIK ini sudah terdaftar pada rekam medis pasien lain.',
+      });
+    }
+
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const prefix = `RM-${year}${month}-`;
+
+    const [latestRecord] = await this.db
+      .select({ mrn: patientProfiles.medicalRecordNumber })
+      .from(patientProfiles)
+      .where(ilike(patientProfiles.medicalRecordNumber, `${prefix}%`))
+      .orderBy(desc(patientProfiles.medicalRecordNumber))
+      .limit(1);
+
+    let nextSequence = 1;
+    if (latestRecord?.mrn) {
+      const parts = latestRecord.mrn.split('-');
+      const lastSeq = parseInt(parts[parts.length - 1], 10);
+      if (!isNaN(lastSeq)) {
+        nextSequence = lastSeq + 1;
+      }
+    }
+    const rmNumber = `${prefix}${String(nextSequence).padStart(4, '0')}`;
+
+    const dbGender = dto.gender === 'Perempuan' ? 'female' : 'male';
+    const bloodTypeMap: Record<string, 'a' | 'b' | 'ab' | 'o' | 'unknown'> = {
+      A: 'a',
+      B: 'b',
+      AB: 'ab',
+      O: 'o',
+      'Belum Tahu': 'unknown',
+    };
+    const dbBloodType = bloodTypeMap[dto.blood_type] || 'unknown';
+
+    let phoneToUse = dto.phone?.trim() || '';
+    if (!phoneToUse) {
+      const userRecord = await this.db.query.users.findFirst({
+        where: eq(users.id, userId),
+      });
+      phoneToUse = userRecord?.phone || '';
+    }
+
+    const fullAddress = `${dto.alamat_detail}, Kel. ${dto.kelurahan}, Kec. ${dto.kecamatan}, ${dto.kabupaten}, Prov. ${dto.provinsi}`;
+
+    const [record] = await this.db
+      .insert(patientProfiles)
+      .values({
+        userId,
+        medicalRecordNumber: rmNumber,
+        nationalIdEncrypted: dto.nik,
+        nationalIdHash: dto.nik,
+        fullName: dto.name.trim(),
+        gender: dbGender,
+        birthPlace: dto.tempat_lahir.trim(),
+        birthDate: dto.birth_date,
+        bloodType: dbBloodType,
+        phone: phoneToUse,
+        motherName: dto.nama_ibu_kandung.trim(),
+        occupation: dto.pekerjaan.trim(),
+        status: 'active',
+        registeredAt: new Date().toISOString(),
+        firstLoginAt: new Date().toISOString(),
+      })
+      .returning();
+
+    await this.db.insert(patientAddresses).values({
+      patientId: record.id,
+      type: 'domicile',
+      provinceCode: dto.provinsi_id,
+      provinceName: dto.provinsi,
+      regencyCode: dto.kabupaten_id,
+      regencyName: dto.kabupaten,
+      districtCode: dto.kecamatan_id,
+      districtName: dto.kecamatan,
+      villageCode: dto.kelurahan_id,
+      villageName: dto.kelurahan,
+      line1: dto.alamat_detail.trim(),
+      fullAddress,
+      isPrimary: true,
+    });
+
+    const result = await this.findById(record.id);
+    return result!;
   }
 
   async findById(id: string): Promise<PatientEntity | null> {

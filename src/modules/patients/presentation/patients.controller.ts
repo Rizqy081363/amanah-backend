@@ -16,6 +16,7 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import {
   ApiBearerAuth,
+  ApiConflictResponse,
   ApiCreatedResponse,
   ApiForbiddenResponse,
   ApiNoContentResponse,
@@ -36,6 +37,7 @@ import {
 } from '../domain/repositories/patient.repository';
 import { CreatePatientDto } from './dto/create-patient.dto';
 import { QueryPatientDto } from './dto/query-patient.dto';
+import { RegisterPatientDto } from './dto/register-patient.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
 
 @ApiTags('Patients (Data Pasien & Rekam Medis)')
@@ -91,6 +93,32 @@ export class PatientsController {
       allergies: [],
       avatarUrl: null,
     });
+  }
+
+  @Post('registration')
+  @Roles('PATIENT', 'ADMIN')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Registrasi mandiri profil pasien (Onboarding Modal Barrier)',
+    description:
+      'Pasien pertama kali login melengkapi 17 atribut data kependudukan dan domisili untuk pembentukan rekam medis resmi klinik.',
+  })
+  @ApiCreatedResponse({
+    description:
+      'Profil rekam medis pasien berhasil dibuat dan ditautkan ke akun pengguna',
+  })
+  @ApiConflictResponse({
+    description:
+      'NIK sudah terdaftar pada pasien lain, atau akun pengguna sudah memiliki profil pasien',
+  })
+  @ApiUnprocessableEntityResponse({
+    description: 'Validasi form data pasien gagal',
+  })
+  async registerPatient(
+    @CurrentUser() user: any,
+    @Body() body: RegisterPatientDto,
+  ) {
+    return this.patientRepo.register(user.id, body);
   }
 
   @Get('me')

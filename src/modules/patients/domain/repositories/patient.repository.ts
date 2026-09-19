@@ -1,3 +1,4 @@
+import { RegisterPatientDto } from '../../presentation/dto/register-patient.dto';
 import { PatientEntity } from '../entities/patient.entity';
 
 export const PATIENT_REPOSITORY = 'PATIENT_REPOSITORY';
@@ -5,6 +6,10 @@ export const PATIENT_REPOSITORY = 'PATIENT_REPOSITORY';
 export interface PatientRepository {
   create(
     data: Omit<PatientEntity, 'id' | 'createdAt' | 'updatedAt'>,
+  ): Promise<PatientEntity>;
+  register(
+    userId: string,
+    dto: RegisterPatientDto,
   ): Promise<PatientEntity>;
   findById(id: string): Promise<PatientEntity | null>;
   findByUserId(userId: string): Promise<PatientEntity | null>;

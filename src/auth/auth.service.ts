@@ -161,14 +161,75 @@ export class AuthService {
       token,
       refreshToken,
       tokenExpires: Date.now() + 86400000,
-      user: {
-        id: user.id as any,
-        email: user.email,
-        systemRole: systemRole as any,
-        role: { id: primaryRole?.id as any, name: systemRole } as any,
-        staff: user.staffProfiles?.[0] as any,
-        patient: user.patientProfiles?.[0] as any,
-      } as any,
+      user: this.formatUser(user) as any,
+    };
+  }
+
+  private formatUser(userRecord: any) {
+    const { authAccounts: _authAccounts, ...sanitizedUser } = userRecord;
+
+    const primaryRole = sanitizedUser.userRoles_userId?.[0]?.role;
+    let systemRole: 'ADMIN' | 'STAF' | 'PATIENT' = 'PATIENT';
+    if (primaryRole?.code === 'admin') {
+      systemRole = 'ADMIN';
+    } else if (
+      primaryRole?.code === 'staff_doctor' ||
+      primaryRole?.code === 'staff_midwife' ||
+      primaryRole?.code === 'staff_worker' ||
+      (sanitizedUser.staffProfiles && sanitizedUser.staffProfiles.length > 0)
+    ) {
+      systemRole = 'STAF';
+    }
+
+    const p = sanitizedUser.patientProfiles?.[0];
+    const patient = p
+      ? {
+          id: p.id,
+          userId: p.userId,
+          medicalRecordNumber: p.medicalRecordNumber,
+          nik: p.nationalIdEncrypted || p.nationalIdHash || '',
+          fullName: p.fullName,
+          gender: p.gender,
+          birthPlace: p.birthPlace,
+          birthDate:
+            typeof p.birthDate === 'string'
+              ? p.birthDate
+              : p.birthDate?.toISOString?.()?.slice(0, 10) || null,
+          bloodType:
+            p.bloodType === 'unknown'
+              ? 'Belum Tahu'
+              : (p.bloodType?.toUpperCase() ?? p.bloodType ?? null),
+          phoneNumber: p.phone,
+          status: p.status,
+        }
+      : null;
+
+    const s = sanitizedUser.staffProfiles?.[0];
+    const staff = s
+      ? {
+          id: s.id,
+          userId: s.userId,
+          practitionerId: s.practitionerId,
+          poliklinikId: s.poliklinikId,
+          fullName: s.fullName,
+          profession: s.profession,
+          idCardNumber: s.idCardNumber,
+          photoUrl: s.photoUrl,
+          phoneNumber: s.phone,
+          isActive: s.status === 'active',
+        }
+      : null;
+
+    return {
+      ...sanitizedUser,
+      systemRole,
+      role: {
+        id: primaryRole?.id,
+        code: primaryRole?.code,
+        name: systemRole,
+      },
+      staff,
+      patient,
     };
   }
 
@@ -185,7 +246,7 @@ export class AuthService {
         patientProfiles: true,
       },
     });
-    return user || null;
+    return user ? this.formatUser(user) : null;
   }
 
   async register(dto: AuthRegisterLoginDto): Promise<void> {
