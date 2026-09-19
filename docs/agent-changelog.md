@@ -7,6 +7,45 @@
 
 ---
 
+## [2026-09-19] feat: Dual-Engine `HybridAuthGuard` Support for `/api/v1/*` (Unlocking Google OAuth)
+
+**Agent:** backend  
+**Status:** completed (Live & Verified)  
+**Dokumentasi Lengkap:** `docs/backend-modules/authentication/HYBRID-AUTH-GUARD-CHANGELOG.md`  
+**Affected Endpoints:**
+- `POST /api/v1/patients/registration`
+- `GET /api/v1/auth/me`
+- `GET /api/v1/patients/me`
+- `POST /api/v1/auth/logout`
+- `PATCH /api/v1/auth/me`
+- `DELETE /api/v1/auth/me`
+
+### Ringkasan Perubahan:
+1. **Akar Masalah:** Pengguna login via Google OAuth memiliki token sesi Better Auth (bukan Passport JWT HS256). Controller `/api/v1/*` sebelumnya diproteksi secara kaku oleh `@UseGuards(AuthGuard('jwt'))` sehingga request Google OAuth selalu ditolak 401 Unauthorized.
+2. **Solusi `HybridAuthGuard`:** Backend kini menyediakan guard cerdas yang mendukung autentikasi ganda:
+   - Prioritas 1: Memeriksa Passport JWT HS256 (untuk pengguna login email/password).
+   - Prioritas 2: Memeriksa token sesi Better Auth (baik via header `Authorization: Bearer <session_token>` maupun cookie `better-auth.session_token`).
+   - Menyuntikkan user context identik ke `request.user` sehingga `@Roles()` dan `@CurrentUser()` berjalan normal dan seragam.
+3. **Instruksi Frontend:** Kode frontend yang mengirim `session.session.token` sebagai fallback Bearer token kini **100% didukung dan berjalan sukses tanpa error 401**.
+
+---
+
+## [2026-09-19] feat: Post-Authentication Mandatory Patient Registration Modal Barrier
+
+**Agent:** backend  
+**Status:** completed (Live & Verified)  
+**Dokumentasi Lengkap:** `docs/backend-modules/patients/PATIENT-REGISTRATION-MODAL-INTEGRATION.md`  
+**Affected Endpoints:**
+- `POST /api/v1/patients/registration`
+- `GET /api/v1/auth/me`
+
+### Ringkasan Perubahan:
+1. Meng-expose endpoint `POST /api/v1/patients/registration` menerima 17 field data demografi kependudukan & alamat domisili.
+2. Auto-generate Nomor Rekam Medis (MRN) sekuensial kanonikal `RM-YYYYMM-XXXX`.
+3. Memetakan status kelengkapan profil pada `GET /api/v1/auth/me`: `patient: null` jika belum melengkapi data (barrier aktif), dan `patient: { ... }` jika sudah lengkap (barrier terangkat permanen).
+
+---
+
 ## [2026-09-19] fix: Google OAuth Persistence Alignment & CORS Credentials
 
 **Agent:** backend  
