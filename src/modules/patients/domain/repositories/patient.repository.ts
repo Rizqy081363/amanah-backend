@@ -22,7 +22,7 @@ export interface PatientRepository {
   ): Promise<PatientEntity[]>;
   update(
     id: string,
-    data: Partial<PatientEntity>,
+    data: Partial<PatientEntity> | Record<string, any>,
   ): Promise<PatientEntity | null>;
   delete(id: string): Promise<boolean>;
 }

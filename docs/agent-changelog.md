@@ -7,6 +7,25 @@
 
 ---
 
+## [2026-09-20] feat: Full Patient Profile CRUD & Exposure (`GET/PATCH /api/v1/patients/me`)
+
+**Agent:** backend  
+**Status:** completed (Live & Verified)  
+**Dokumentasi Lengkap:** `docs/backend-modules/patients/PATIENT-PROFILE-CRUD-CHANGELOG.md`  
+**Affected Endpoints:**
+- `GET /api/v1/patients/me`
+- `PATCH /api/v1/patients/me`
+- `GET /api/v1/auth/me`
+- `GET /api/v1/patients/:id`
+- `PATCH /api/v1/patients/:id`
+
+### Ringkasan Perubahan:
+1. **Ekspos Lengkap Seluruh Atribut Pasien:** `GET /api/v1/patients/me` dan `GET /api/v1/auth/me` kini mengembalikan seluruh 17 atribut demografi kependudukan yang diisi saat registrasi, Nomor Rekam Medis (`medicalRecordNumber`), alamat terpadu & komponen terstruktur (`alamatDetail`, `provinsi`, `kabupaten`, `kecamatan`, `kelurahan`, beserta kode wilayah), serta kontak darurat.
+2. **Pembaruan Mandiri Profil Pasien (`PATCH /api/v1/patients/me`):** Pasien yang telah login dapat mengedit data demografi, alamat domisili, kontak darurat, dan profesi secara mandiri. Mendukung payload camelCase maupun snake_case.
+3. **Proteksi Otorisasi HIPAA/Permenkes:** Pasien dengan peran `PATIENT` diproteksi secara ketat sehingga hanya dapat melihat dan memperbarui rekam medis miliknya sendiri. Akses ke ID pasien lain akan menghasilkan `403 Forbidden`.
+
+---
+
 ## [2026-09-19] feat: Systemic Self-Account Deletion (Purge) on `DELETE /api/v1/auth/me`
 
 **Agent:** backend  

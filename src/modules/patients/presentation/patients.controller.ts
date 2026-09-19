@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   HttpCode,
   HttpStatus,
@@ -129,16 +130,54 @@ export class PatientsController {
   @ApiOperation({
     summary: 'Mendapatkan profil pasien login saat ini',
     description:
-      'Mengambil data profil rekam medis pasien yang sedang masuk ke portal pasien.',
+      'Mengambil seluruh data profil rekam medis pasien yang sedang masuk, termasuk 17 atribut demografi, alamat terstruktur, dan kontak darurat.',
   })
   @ApiOkResponse({
-    description: 'Profil pasien berhasil diambil',
+    description: 'Profil lengkap pasien berhasil diambil',
+  })
+  @ApiNotFoundResponse({
+    description: 'Profil pasien belum terdaftar untuk akun ini',
   })
   async getMyProfile(@CurrentUser() user: any) {
-    if (user.patient) {
-      return user.patient;
+    const patient = await this.patientRepo.findByUserId(user.id);
+    if (!patient) {
+      throw new NotFoundException({
+        code: 'PATIENT_NOT_FOUND',
+        message: 'Profil pasien belum terdaftar untuk akun ini.',
+      });
     }
-    return this.patientRepo.findByUserId(user.id);
+    return patient;
+  }
+
+  @Patch('me')
+  @Roles('ADMIN', 'STAF', 'PATIENT')
+  @ApiOperation({
+    summary: 'Memperbarui profil pasien login saat ini (Self-Update)',
+    description:
+      'Pasien memperbarui informasi demografi, alamat domisili terstruktur, kontak darurat, atau nomor telepon sendiri.',
+  })
+  @ApiOkResponse({
+    description: 'Profil pasien berhasil diperbarui',
+  })
+  @ApiNotFoundResponse({
+    description: 'Profil pasien tidak ditemukan untuk akun ini',
+  })
+  @ApiUnprocessableEntityResponse({
+    description: 'Validasi form data pembaruan gagal',
+  })
+  async updateMyProfile(
+    @CurrentUser() user: any,
+    @Body() body: UpdatePatientDto,
+  ) {
+    const patient = await this.patientRepo.findByUserId(user.id);
+    if (!patient) {
+      throw new NotFoundException({
+        code: 'PATIENT_NOT_FOUND',
+        message: 'Profil pasien belum terdaftar untuk akun ini.',
+      });
+    }
+    const updated = await this.patientRepo.update(patient.id, body as any);
+    return updated;
   }
 
   @Get('by-nik/:nik')
@@ -214,7 +253,7 @@ export class PatientsController {
   @ApiOperation({
     summary: 'Mendapatkan profil detail pasien berdasarkan ID',
     description:
-      'Mengambil informasi lengkap data demografi dan kontak darurat pasien.',
+      'Mengambil informasi lengkap data demografi dan kontak darurat pasien. Pasien hanya dapat melihat profil miliknya sendiri.',
   })
   @ApiParam({
     name: 'id',
@@ -225,11 +264,21 @@ export class PatientsController {
   @ApiNotFoundResponse({
     description: 'Pasien dengan ID tersebut tidak ditemukan',
   })
-  async getPatientById(@Param('id') id: string) {
+  @ApiForbiddenResponse({
+    description: 'Pasien tidak diizinkan mengakses data pasien lain',
+  })
+  async getPatientById(@Param('id') id: string, @CurrentUser() user: any) {
     const patient = await this.patientRepo.findById(id);
     if (!patient) {
       throw new NotFoundException(`Pasien dengan ID ${id} tidak ditemukan`);
     }
+
+    if (user.systemRole === 'PATIENT' && patient.userId !== user.id) {
+      throw new ForbiddenException(
+        'Anda tidak memiliki wewenang untuk mengakses data pasien lain.',
+      );
+    }
+
     return patient;
   }
 
@@ -238,7 +287,7 @@ export class PatientsController {
   @ApiOperation({
     summary: 'Memperbarui data profil pasien',
     description:
-      'Mengubah alamat domisili, nomor telepon, atau data demografi pasien.',
+      'Mengubah alamat domisili, nomor telepon, atau data demografi pasien. Pasien hanya dapat memperbarui profil miliknya sendiri.',
   })
   @ApiParam({
     name: 'id',
@@ -247,14 +296,29 @@ export class PatientsController {
   })
   @ApiOkResponse({ description: 'Data pasien berhasil diperbarui' })
   @ApiNotFoundResponse({ description: 'Pasien tidak ditemukan' })
+  @ApiForbiddenResponse({
+    description: 'Pasien tidak diizinkan memperbarui profil pasien lain',
+  })
   @ApiUnprocessableEntityResponse({
     description: 'Validasi data pembaruan gagal',
   })
-  async updatePatient(@Param('id') id: string, @Body() body: UpdatePatientDto) {
-    const updated = await this.patientRepo.update(id, body);
-    if (!updated) {
+  async updatePatient(
+    @Param('id') id: string,
+    @Body() body: UpdatePatientDto,
+    @CurrentUser() user: any,
+  ) {
+    const existing = await this.patientRepo.findById(id);
+    if (!existing) {
       throw new NotFoundException(`Pasien dengan ID ${id} tidak ditemukan`);
     }
+
+    if (user.systemRole === 'PATIENT' && existing.userId !== user.id) {
+      throw new ForbiddenException(
+        'Anda tidak memiliki wewenang untuk mengubah data pasien lain.',
+      );
+    }
+
+    const updated = await this.patientRepo.update(id, body as any);
     return updated;
   }
 
@@ -276,3 +340,4 @@ export class PatientsController {
     await this.patientRepo.delete(id);
   }
 }
+

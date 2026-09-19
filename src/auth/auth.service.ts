@@ -57,7 +57,12 @@ export class AuthService {
           },
         },
         staffProfiles: true,
-        patientProfiles: true,
+        patientProfiles: {
+          with: {
+            patientAddresses: true,
+            patientEmergencyContacts: true,
+          },
+        },
       },
     });
 
@@ -183,6 +188,11 @@ export class AuthService {
     }
 
     const p = sanitizedUser.patientProfiles?.[0];
+    const primaryAddress =
+      p?.patientAddresses?.find((a: any) => a.isPrimary) ||
+      p?.patientAddresses?.[0];
+    const primaryEmergency = p?.patientEmergencyContacts?.[0];
+
     const patient = p
       ? {
           id: p.id,
@@ -190,7 +200,7 @@ export class AuthService {
           medicalRecordNumber: p.medicalRecordNumber,
           nik: p.nationalIdEncrypted || p.nationalIdHash || '',
           fullName: p.fullName,
-          gender: p.gender,
+          gender: p.gender === 'female' ? 'Perempuan' : 'Laki-laki',
           birthPlace: p.birthPlace,
           birthDate:
             typeof p.birthDate === 'string'
@@ -201,6 +211,21 @@ export class AuthService {
               ? 'Belum Tahu'
               : (p.bloodType?.toUpperCase() ?? p.bloodType ?? null),
           phoneNumber: p.phone,
+          namaIbuKandung: p.motherName || null,
+          pekerjaan: p.occupation || null,
+          address: primaryAddress?.fullAddress || '',
+          alamatDetail: primaryAddress?.line1 || null,
+          provinsi: primaryAddress?.provinceName || null,
+          provinsiId: primaryAddress?.provinceCode || null,
+          kabupaten: primaryAddress?.regencyName || null,
+          kabupatenId: primaryAddress?.regencyCode || null,
+          kecamatan: primaryAddress?.districtName || null,
+          kecamatanId: primaryAddress?.districtCode || null,
+          kelurahan: primaryAddress?.villageName || null,
+          kelurahanId: primaryAddress?.villageCode || null,
+          emergencyContactName: primaryEmergency?.name || null,
+          emergencyContactPhone: primaryEmergency?.phone || null,
+          emergencyContactRelationship: primaryEmergency?.relationship || null,
           status: p.status,
         }
       : null;
@@ -244,7 +269,12 @@ export class AuthService {
           },
         },
         staffProfiles: true,
-        patientProfiles: true,
+        patientProfiles: {
+          with: {
+            patientAddresses: true,
+            patientEmergencyContacts: true,
+          },
+        },
       },
     });
     return user ? this.formatUser(user) : null;
@@ -647,7 +677,12 @@ export class AuthService {
           },
         },
         staffProfiles: true,
-        patientProfiles: true,
+        patientProfiles: {
+          with: {
+            patientAddresses: true,
+            patientEmergencyContacts: true,
+          },
+        },
       },
     });
 
