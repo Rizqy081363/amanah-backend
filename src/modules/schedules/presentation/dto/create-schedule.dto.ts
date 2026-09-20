@@ -1,8 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsBoolean,
-  IsEnum,
-  IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
@@ -21,50 +19,91 @@ export class CreateScheduleDto {
 
   @ApiPropertyOptional({
     description: 'ID Unit Poliklinik tempat praktek',
+    example: 'cd44dd7d-07a9-4e31-9441-3e0e02ddebb1',
   })
   @IsString()
   @IsOptional()
   poliklinikId?: string;
 
-  @ApiProperty({
-    description: 'Tanggal spesifik jadwal (YYYY-MM-DD)',
-    example: '2026-09-18',
+  @ApiPropertyOptional({
+    description: 'ID Ruangan tempat praktek',
+    example: 'room-uuid-201',
   })
   @IsString()
-  @IsNotEmpty()
-  specificDate: string;
+  @IsOptional()
+  roomId?: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
+    description: 'Nama Ruangan tempat praktek',
+    example: 'Ruang 201',
+  })
+  @IsString()
+  @IsOptional()
+  roomName?: string;
+
+  @ApiPropertyOptional({
+    description: 'ID Layanan Medis',
+    example: 'service-uuid-001',
+  })
+  @IsString()
+  @IsOptional()
+  serviceId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Tanggal spesifik jadwal (YYYY-MM-DD)',
+    example: '2026-08-26',
+  })
+  @IsString()
+  @IsOptional()
+  specificDate?: string;
+
+  @ApiPropertyOptional({
+    description: 'Alias untuk specificDate (YYYY-MM-DD)',
+    example: '2026-08-26',
+  })
+  @IsString()
+  @IsOptional()
+  date?: string;
+
+  @ApiPropertyOptional({
     enum: ['PAGI', 'SIANG', 'MALAM'],
     example: 'PAGI',
-    description: 'Sesi giliran praktek dokter',
+    description: 'Sesi giliran praktek dokter (PAGI / SIANG / MALAM)',
   })
-  @IsEnum(['PAGI', 'SIANG', 'MALAM'])
-  @IsNotEmpty()
-  session: 'PAGI' | 'SIANG' | 'MALAM';
+  @IsString()
+  @IsOptional()
+  session?: 'PAGI' | 'SIANG' | 'MALAM';
 
-  @ApiPropertyOptional({ example: '08:00', description: 'Jam mulai' })
+  @ApiPropertyOptional({
+    example: 'Pagi',
+    description: 'Label sesi praktek (Pagi, Siang, Malam, Dini Hari)',
+  })
+  @IsString()
+  @IsOptional()
+  sessionType?: string;
+
+  @ApiPropertyOptional({ example: '07:00', description: 'Jam mulai' })
   @IsString()
   @IsOptional()
   startTime?: string;
 
-  @ApiPropertyOptional({ example: '12:00', description: 'Jam selesai' })
+  @ApiPropertyOptional({ example: '11:00', description: 'Jam selesai' })
   @IsString()
   @IsOptional()
   endTime?: string;
 
   @ApiPropertyOptional({
-    example: 20,
-    default: 20,
+    example: 8,
+    default: 8,
     description: 'Kapasitas maksimal kuota antrean pasien',
   })
   @IsNumber()
   @Min(1)
   @IsOptional()
-  capacity?: number = 20;
+  capacity?: number = 8;
 
   @ApiPropertyOptional({
-    example: 'Praktek spesialis anak reguler',
+    example: 'Praktek spesialis reguler',
     description: 'Catatan tambahan jadwal',
   })
   @IsString()

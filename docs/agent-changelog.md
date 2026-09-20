@@ -7,6 +7,38 @@
 
 ---
 
+## [2026-09-20] feat: Doctor Schedule Management ("Jadwal Dokter") API & Mobile Integration Contract
+
+**Agent:** backend  
+**Status:** completed (Live, Tested, & Verified)  
+**Dokumentasi Lengkap:** `docs/backend-modules/schedules/DOCTOR-SCHEDULE-CONTRACT.md`  
+**Affected Endpoints:**
+- `GET /api/v1/schedules/my-schedules`
+- `GET /api/v1/schedules/calendar-summary`
+- `GET /api/v1/schedules/day-settings`
+- `PUT /api/v1/schedules/day-settings`
+- `GET /api/v1/schedules/reference/rooms`
+- `GET /api/v1/schedules/booked-patients`
+- `GET /api/v1/schedules/:id/booked-patients`
+- `POST /api/v1/schedules`
+- `PATCH /api/v1/schedules/:id`
+- `DELETE /api/v1/schedules/:id`
+
+### Ringkasan Perubahan:
+1. **Schema Compatibility Matrix (100% Ready):** Seluruh kebutuhan mobile Flutter ("Jadwal Dokter") terverifikasi 100% kompatibel dengan skema PostgreSQL `amanah.schema.ts` (`practitioner_schedule_sessions`, `practitioner_schedule_day_settings`, `appointments`, `clinic_rooms`, `queue_tickets`). Tidak ada migrasi database yang diperlukan.
+2. **Endpoint Manajemen Jadwal Dokter:**
+   - `GET /api/v1/schedules/my-schedules`: Mengambil jadwal dinas dokter terautentikasi (filter per tanggal atau rentang tanggal).
+   - `GET /api/v1/schedules/calendar-summary`: Ringkasan kalender bulanan (`YYYY-MM`) mencakup status kehadiran, status cuti, dan akumulasi pasien per hari.
+   - `GET/PUT /api/v1/schedules/day-settings`: Mengatur target kuota pasien per hari dan status/alasan cuti dokter.
+   - `GET /api/v1/schedules/reference/rooms`: Daftar ruangan periksa aktif dengan deteksi okupansi real-time (`isOccupied`, `occupiedBy`).
+   - `GET /api/v1/schedules/:id/booked-patients`: Mengambil daftar pasien terdaftar pada sesi tertentu lengkap dengan nomor antrean, usia, jenis kelamin, keluhan medis, dan wali.
+3. **Validasi & Proteksi Relasional:**
+   - **Pencegahan Tumpang Tindih (Collision Detection):** Menolak jadwal jika dokter atau ruangan sudah memiliki jadwal aktif pada jam yang bertabrakan (`PRACTITIONER_ALREADY_SCHEDULED`, `ROOM_ALREADY_OCCUPIED`).
+   - **Proteksi Hapus dengan Pasien Aktif:** Menolak penghapusan jadwal (`409 Conflict: SCHEDULE_HAS_ACTIVE_BOOKINGS`) jika sesi telah memiliki pasien terdaftar demi keselamatan klinis.
+4. **Keamanan & Guard:** Diproteksi menggunakan `HybridAuthGuard` dan `RolesGuard` (`@Roles('STAF', 'ADMIN')`).
+
+---
+
 ## [2026-09-20] feat: Full Patient Profile CRUD & Exposure (`GET/PATCH /api/v1/patients/me`)
 
 **Agent:** backend  

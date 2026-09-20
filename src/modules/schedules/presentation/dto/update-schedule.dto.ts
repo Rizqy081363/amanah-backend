@@ -1,7 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsBoolean,
-  IsEnum,
   IsNumber,
   IsOptional,
   IsString,
@@ -13,9 +12,17 @@ export class UpdateScheduleDto {
     enum: ['PAGI', 'SIANG', 'MALAM'],
     example: 'SIANG',
   })
-  @IsEnum(['PAGI', 'SIANG', 'MALAM'])
+  @IsString()
   @IsOptional()
   session?: 'PAGI' | 'SIANG' | 'MALAM';
+
+  @ApiPropertyOptional({
+    example: 'Siang',
+    description: 'Label sesi praktek (Pagi, Siang, Malam)',
+  })
+  @IsString()
+  @IsOptional()
+  sessionType?: string;
 
   @ApiPropertyOptional({ example: '13:00' })
   @IsString()
@@ -27,7 +34,31 @@ export class UpdateScheduleDto {
   @IsOptional()
   endTime?: string;
 
-  @ApiPropertyOptional({ example: 25 })
+  @ApiPropertyOptional({
+    description: 'ID Ruangan tempat praktek',
+    example: 'room-uuid-201',
+  })
+  @IsString()
+  @IsOptional()
+  roomId?: string;
+
+  @ApiPropertyOptional({
+    description: 'ID Poliklinik',
+    example: 'cd44dd7d-07a9-4e31-9441-3e0e02ddebb1',
+  })
+  @IsString()
+  @IsOptional()
+  poliklinikId?: string;
+
+  @ApiPropertyOptional({
+    description: 'ID Layanan Medis',
+    example: 'service-uuid-001',
+  })
+  @IsString()
+  @IsOptional()
+  serviceId?: string;
+
+  @ApiPropertyOptional({ example: 10 })
   @IsNumber()
   @Min(1)
   @IsOptional()
@@ -37,6 +68,14 @@ export class UpdateScheduleDto {
   @IsBoolean()
   @IsOptional()
   isAvailable?: boolean;
+
+  @ApiPropertyOptional({
+    example: 'Buka',
+    description: 'Status jadwal (Buka / Tutup / open / closed)',
+  })
+  @IsString()
+  @IsOptional()
+  status?: string;
 
   @ApiPropertyOptional({ example: 'Jadwal dimajukan 30 menit' })
   @IsString()

@@ -1,0 +1,15 @@
+import { ApiPropertyOptional } from '@nestjs/swagger';
+import { IsOptional, IsString, Matches } from 'class-validator';
+
+export class BookedPatientsQueryDto {
+  @ApiPropertyOptional({
+    description: 'Filter berdasarkan tanggal booking (YYYY-MM-DD)',
+    example: '2026-08-26',
+  })
+  @IsString()
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'Format tanggal harus YYYY-MM-DD',
+  })
+  date?: string;
+}
