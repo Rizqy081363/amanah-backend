@@ -16,8 +16,10 @@ import { DrizzleDatabase } from '../database/drizzle/drizzle.provider';
 import {
   account,
   authAccounts,
+  practitioners,
   roles,
   session,
+  staffProfiles,
   user,
   userRoles,
   users,
@@ -29,6 +31,10 @@ import { AuthEmailLoginDto } from './dto/auth-email-login.dto';
 import { AuthRegisterLoginDto } from './dto/auth-register-login.dto';
 import { AuthResendOtpDto, ResendOtpResponseDto } from './dto/auth-resend-otp.dto';
 import { AuthResetPasswordOtpDto } from './dto/auth-reset-password-otp.dto';
+import {
+  AuthStaffOnboardingDto,
+  StaffOnboardingRole,
+} from './dto/auth-staff-onboarding.dto';
 import { AuthUpdateDto } from './dto/auth-update.dto';
 import { AuthVerifyOtpDto } from './dto/auth-verify-otp.dto';
 import { DeleteAccountResponseDto } from './dto/delete-account-response.dto';
@@ -56,7 +62,11 @@ export class AuthService {
             role: true,
           },
         },
-        staffProfiles: true,
+        staffProfiles: {
+          with: {
+            practitioners: true,
+          },
+        },
         patientProfiles: {
           with: {
             patientAddresses: true,
@@ -235,16 +245,18 @@ export class AuthService {
       ? {
           id: s.id,
           userId: s.userId,
-          practitionerId: s.practitionerId,
-          poliklinikId: s.poliklinikId,
+          practitionerId: s.practitioners?.[0]?.id || s.practitionerId || null,
+          poliklinikId: s.primaryUnitId || s.poliklinikId || null,
           fullName: s.fullName,
-          profession: s.profession,
-          idCardNumber: s.idCardNumber,
-          photoUrl: s.photoUrl,
+          profession: s.positionTitle || s.profession || null,
+          idCardNumber: s.staffCode || s.idCardNumber || null,
+          photoUrl: s.avatarUrl || s.photoUrl || null,
           phoneNumber: s.phone,
           isActive: s.status === 'active',
         }
       : null;
+
+    const needsOnboarding = systemRole !== 'ADMIN' && !staff;
 
     return {
       ...sanitizedUser,
@@ -256,6 +268,7 @@ export class AuthService {
       },
       staff,
       patient,
+      needsOnboarding,
     };
   }
 
@@ -268,7 +281,11 @@ export class AuthService {
             role: true,
           },
         },
-        staffProfiles: true,
+        staffProfiles: {
+          with: {
+            practitioners: true,
+          },
+        },
         patientProfiles: {
           with: {
             patientAddresses: true,
@@ -676,7 +693,11 @@ export class AuthService {
             role: true,
           },
         },
-        staffProfiles: true,
+        staffProfiles: {
+          with: {
+            practitioners: true,
+          },
+        },
         patientProfiles: {
           with: {
             patientAddresses: true,
@@ -1028,6 +1049,171 @@ export class AuthService {
     } catch {
       // Non-blocking
     }
+  }
+
+  async completeStaffOnboarding(
+    userJwtPayload: JwtPayloadType,
+    dto: AuthStaffOnboardingDto,
+  ): Promise<any> {
+    const userRecord = await this.db.query.users.findFirst({
+      where: eq(users.id, userJwtPayload.id),
+      with: {
+        userRoles_userId: true,
+        staffProfiles: true,
+      },
+    });
+
+    if (!userRecord) {
+      throw new UnauthorizedException('Pengguna tidak ditemukan di sistem.');
+    }
+
+    let betterAuthRole: 'staffDoctor' | 'staffMidwife' | 'staffWorker' =
+      'staffDoctor';
+    let rolesCode: 'staff_doctor' | 'staff_midwife' | 'staff_worker' =
+      'staff_doctor';
+    let staffTypeVal: 'doctor' | 'midwife' | 'worker' = 'doctor';
+
+    if (dto.role === StaffOnboardingRole.DOCTOR) {
+      betterAuthRole = 'staffDoctor';
+      rolesCode = 'staff_doctor';
+      staffTypeVal = 'doctor';
+    } else if (dto.role === StaffOnboardingRole.MIDWIFE) {
+      betterAuthRole = 'staffMidwife';
+      rolesCode = 'staff_midwife';
+      staffTypeVal = 'midwife';
+    } else {
+      betterAuthRole = 'staffWorker';
+      rolesCode = 'staff_worker';
+      staffTypeVal = 'worker';
+    }
+
+    const defaultPrefix =
+      staffTypeVal === 'doctor'
+        ? 'STF-DOK'
+        : staffTypeVal === 'midwife'
+          ? 'STF-BDN'
+          : 'STF-ADM';
+    const finalStaffCode =
+      dto.staffCode?.trim() ||
+      `${defaultPrefix}-${Date.now().toString().slice(-4)}`;
+
+    const positionTitle =
+      dto.profession?.trim() ||
+      (staffTypeVal === 'doctor'
+        ? 'Dokter'
+        : staffTypeVal === 'midwife'
+          ? 'Bidan'
+          : 'Staf Administrasi');
+
+    await this.db.transaction(async (tx) => {
+      // 1. Update Better Auth "user" table
+      try {
+        await tx
+          .update(user)
+          .set({
+            role: betterAuthRole,
+            name: dto.fullName.trim(),
+            updatedAt: new Date().toISOString(),
+          })
+          .where(eq(user.id, userRecord.id));
+      } catch {
+        // Non-blocking if record is managed exclusively in users
+      }
+
+      // 2. Update users table
+      await tx
+        .update(users)
+        .set({
+          name: dto.fullName.trim(),
+          phone: dto.phoneNumber?.trim() || userRecord.phone,
+          status: 'active',
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(users.id, userRecord.id));
+
+      // 3. Update user_roles
+      const targetRole = await tx.query.roles.findFirst({
+        where: eq(roles.code, rolesCode),
+      });
+
+      if (targetRole) {
+        await tx
+          .delete(userRoles)
+          .where(eq(userRoles.userId, userRecord.id));
+
+        await tx.insert(userRoles).values({
+          userId: userRecord.id,
+          roleId: targetRole.id,
+        });
+      }
+
+      // 4. Create or update staff_profiles
+      let existingStaff = await tx.query.staffProfiles.findFirst({
+        where: eq(staffProfiles.userId, userRecord.id),
+      });
+
+      if (existingStaff) {
+        const [updated] = await tx
+          .update(staffProfiles)
+          .set({
+            fullName: dto.fullName.trim(),
+            staffCode: finalStaffCode,
+            staffType: staffTypeVal,
+            positionTitle,
+            phone: dto.phoneNumber?.trim() || existingStaff.phone,
+            primaryUnitId: dto.poliklinikId || existingStaff.primaryUnitId,
+            status: 'active',
+            updatedAt: new Date().toISOString(),
+          })
+          .where(eq(staffProfiles.id, existingStaff.id))
+          .returning();
+        existingStaff = updated;
+      } else {
+        const [created] = await tx
+          .insert(staffProfiles)
+          .values({
+            userId: userRecord.id,
+            staffCode: finalStaffCode,
+            fullName: dto.fullName.trim(),
+            staffType: staffTypeVal,
+            positionTitle,
+            phone: dto.phoneNumber?.trim(),
+            email: userRecord.email,
+            primaryUnitId: dto.poliklinikId,
+            status: 'active',
+          })
+          .returning();
+        existingStaff = created;
+      }
+
+      // 5. If doctor, create or update practitioner record
+      if (staffTypeVal === 'doctor' && existingStaff) {
+        const existingPractitioner = await tx.query.practitioners.findFirst({
+          where: eq(practitioners.staffProfileId, existingStaff.id),
+        });
+
+        if (!existingPractitioner) {
+          await tx.insert(practitioners).values({
+            staffProfileId: existingStaff.id,
+            displayName: dto.fullName.trim(),
+            licenseNumber: dto.licenseNumber?.trim() || null,
+            isAcceptingAppointments: true,
+          });
+        } else if (dto.licenseNumber || dto.fullName) {
+          await tx
+            .update(practitioners)
+            .set({
+              displayName: dto.fullName.trim(),
+              licenseNumber:
+                dto.licenseNumber?.trim() || existingPractitioner.licenseNumber,
+              updatedAt: new Date().toISOString(),
+            })
+            .where(eq(practitioners.id, existingPractitioner.id));
+        }
+      }
+    });
+
+    return this.me(userJwtPayload);
   }
 
   async logout(_data: any): Promise<void> {}

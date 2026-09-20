@@ -38,6 +38,7 @@ import {
 import { AuthResendVerificationDto } from './dto/auth-resend-verification.dto';
 import { AuthResetPasswordOtpDto } from './dto/auth-reset-password-otp.dto';
 import { AuthResetPasswordDto } from './dto/auth-reset-password.dto';
+import { AuthStaffOnboardingDto } from './dto/auth-staff-onboarding.dto';
 import { AuthUpdateDto } from './dto/auth-update.dto';
 import { AuthVerifyOtpDto } from './dto/auth-verify-otp.dto';
 import { DeleteAccountResponseDto } from './dto/delete-account-response.dto';
@@ -344,6 +345,32 @@ export class AuthController {
     @Body() userDto: AuthUpdateDto,
   ): Promise<NullableType<User>> {
     return this.service.update(request.user, userDto);
+  }
+
+  @ApiBearerAuth('access-token')
+  @SerializeOptions({
+    groups: ['me'],
+  })
+  @Post('onboarding/staff')
+  @UseGuards(HybridAuthGuard)
+  @ApiOperation({
+    summary: 'Penyelesaian onboarding peran staf klinis (Dokter, Bidan, Staf)',
+    description:
+      'Menetapkan peran klinis, profil staf, dan registrasi praktisi setelah autentikasi akun baru (Google OAuth atau email/password).',
+  })
+  @ApiOkResponse({
+    type: User,
+    description: 'Profil staf berhasil ditetapkan dan akun siap digunakan',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Sesi tidak valid atau token tidak disertakan',
+  })
+  @HttpCode(HttpStatus.OK)
+  public completeStaffOnboarding(
+    @Request() request: RequestWithUser<JwtPayloadType>,
+    @Body() dto: AuthStaffOnboardingDto,
+  ): Promise<NullableType<User>> {
+    return this.service.completeStaffOnboarding(request.user, dto);
   }
 
   @ApiBearerAuth('access-token')
