@@ -24,6 +24,7 @@ import {
   ClinicRoomReferenceEntity,
   DayScheduleSettingEntity,
   ScheduleEntity,
+  ScheduleOptionsReferenceEntity,
 } from '../../domain/entities/schedule.entity';
 import { ScheduleRepository } from '../../domain/repositories/schedule.repository';
 
@@ -1016,4 +1017,39 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
       location: u.location || null,
     }));
   }
+
+  async getScheduleOptions(): Promise<ScheduleOptionsReferenceEntity> {
+    return {
+      shifts: [
+        {
+          id: 'PAGI',
+          label: 'Pagi',
+          shift: 'morning',
+          startTime: '07:00',
+          endTime: '12:00',
+        },
+        {
+          id: 'SIANG',
+          label: 'Siang',
+          shift: 'afternoon',
+          startTime: '12:00',
+          endTime: '17:00',
+        },
+        {
+          id: 'MALAM',
+          label: 'Malam',
+          shift: 'night',
+          startTime: '17:00',
+          endTime: '21:00',
+        },
+      ],
+      statuses: [
+        { id: 'open', label: 'Buka' },
+        { id: 'closed', label: 'Tutup' },
+        { id: 'pending', label: 'Menunggu' },
+      ],
+      timeSlotIntervals: [15, 30, 45, 60],
+    };
+  }
 }
+

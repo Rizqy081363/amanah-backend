@@ -4,6 +4,7 @@ import {
   ClinicRoomReferenceEntity,
   DayScheduleSettingEntity,
   ScheduleEntity,
+  ScheduleOptionsReferenceEntity,
 } from '../entities/schedule.entity';
 
 export const SCHEDULE_REPOSITORY = 'SCHEDULE_REPOSITORY';
@@ -74,4 +75,5 @@ export interface ScheduleRepository {
   getPolikliniks(): Promise<
     { id: string; code: string; name: string; location?: string | null }[]
   >;
+  getScheduleOptions(): Promise<ScheduleOptionsReferenceEntity>;
 }

@@ -68,6 +68,7 @@ describe('SchedulesController', () => {
       getBookedPatients: jest.fn(),
       getRooms: jest.fn(),
       getPolikliniks: jest.fn(),
+      getScheduleOptions: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -353,6 +354,28 @@ describe('SchedulesController', () => {
 
       const result = await controller.getPolikliniks();
       expect(result).toEqual(mockPolis);
+    });
+  });
+
+  describe('getScheduleOptions', () => {
+    it('should return master shifts, statuses, and time intervals', async () => {
+      const mockOptions = {
+        shifts: [
+          {
+            id: 'PAGI' as const,
+            label: 'Pagi',
+            shift: 'morning' as const,
+            startTime: '07:00',
+            endTime: '12:00',
+          },
+        ],
+        statuses: [{ id: 'open', label: 'Buka' }],
+        timeSlotIntervals: [15, 30, 45, 60],
+      };
+      mockScheduleRepo.getScheduleOptions.mockResolvedValue(mockOptions);
+
+      const result = await controller.getScheduleOptions();
+      expect(result).toEqual(mockOptions);
     });
   });
 });

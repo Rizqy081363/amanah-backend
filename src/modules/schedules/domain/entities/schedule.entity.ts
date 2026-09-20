@@ -83,3 +83,19 @@ export class ClinicRoomReferenceEntity {
   isOccupied: boolean;
   occupiedBy?: string | null;
 }
+
+export class ScheduleOptionsReferenceEntity {
+  shifts: {
+    id: 'PAGI' | 'SIANG' | 'MALAM';
+    label: string;
+    shift: 'morning' | 'afternoon' | 'night';
+    startTime: string;
+    endTime: string;
+  }[];
+  statuses: {
+    id: string;
+    label: string;
+  }[];
+  timeSlotIntervals: number[];
+}
+

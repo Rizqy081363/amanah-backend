@@ -312,6 +312,22 @@ export class SchedulesController {
     return this.scheduleRepo.getPolikliniks();
   }
 
+  @Get('reference/options')
+  @Roles('ADMIN', 'STAF', 'PATIENT')
+  @ApiOperation({
+    summary:
+      'Mendapatkan opsi konfigurasi referensi jadwal dokter (shifts, status, time intervals)',
+    description:
+      'Mengambil master shift praktek, status sesi, dan interval durasi waktu yang berlaku di klinik untuk dropdown dinamis di mobile dan web.',
+  })
+  @ApiOkResponse({
+    description: 'Opsi referensi jadwal berhasil diambil',
+  })
+  async getScheduleOptions() {
+    return this.scheduleRepo.getScheduleOptions();
+  }
+
+
   @Get('booked-patients')
   @Roles('STAF', 'ADMIN')
   @ApiOperation({
