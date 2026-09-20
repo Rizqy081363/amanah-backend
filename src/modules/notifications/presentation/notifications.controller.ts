@@ -10,7 +10,6 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
 import {
   ApiBearerAuth,
   ApiNotFoundResponse,
@@ -22,6 +21,7 @@ import {
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
 import { CurrentUser } from '../../../common/auth/current-user.decorator';
+import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
 import {
   NOTIFICATION_REPOSITORY,
   NotificationRepository,
@@ -30,7 +30,7 @@ import { QueryNotificationDto } from './dto/query-notification.dto';
 
 @ApiTags('Notifications (Notifikasi Staf & Pasien)')
 @ApiBearerAuth('access-token')
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(HybridAuthGuard)
 @ApiUnauthorizedResponse({
   description: 'Sesi autentikasi tidak valid atau token tidak disertakan',
 })

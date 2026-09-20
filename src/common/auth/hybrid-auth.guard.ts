@@ -13,18 +13,36 @@ import { auth as betterAuth } from '../../auth/better-auth/auth';
 import { DRIZZLE_SOURCE } from '../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../database/drizzle/drizzle.provider';
 import { users } from '../../database/schema';
+import { RedisService } from '../redis/redis.service';
 
 @Injectable()
 export class HybridAuthGuard extends AuthGuard('jwt') implements CanActivate {
   constructor(
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,
+    private readonly redisService: RedisService,
   ) {
     super();
   }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<Request>();
+
+    // 0. Verify token blacklist in Redis (logout revocation)
+    const authHeader = request.headers.authorization;
+    if (typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.slice(7).trim();
+      if (token) {
+        const isBlacklisted = await this.redisService.getString(
+          `blacklist:token:${token}`,
+        );
+        if (isBlacklisted) {
+          throw new UnauthorizedException(
+            'Sesi autentikasi telah berakhir atau token telah dicabut',
+          );
+        }
+      }
+    }
 
     // 1. First attempt: Passport JWT validation (Canonical JWT from email/password login)
     try {

@@ -37,7 +37,11 @@ export class BetterAuthRbacGuard implements CanActivate {
       throw new ForbiddenException('User context not available');
     }
 
-    const userRole = user.role as RoleName | undefined;
+    const userRole = (
+      typeof user.role === 'object' && user.role !== null
+        ? user.role.code || user.role.name
+        : user.role
+    ) as RoleName | undefined;
 
     if (requiredRoles && requiredRoles.length > 0) {
       if (!userRole || !requiredRoles.includes(userRole)) {

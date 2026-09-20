@@ -1216,5 +1216,34 @@ export class AuthService {
     return this.me(userJwtPayload);
   }
 
-  async logout(_data: any): Promise<void> {}
+  async logout(data: {
+    sessionId?: string;
+    userId?: string;
+    token?: string;
+  }): Promise<void> {
+    if (data.token) {
+      // Blacklist token in Redis for 24 hours (86400s)
+      await this.redisService.setString(
+        `blacklist:token:${data.token}`,
+        '1',
+        86400,
+      );
+    }
+
+    if (data.sessionId) {
+      try {
+        await this.db.delete(session).where(eq(session.id, data.sessionId));
+      } catch {
+        // Non-blocking
+      }
+    }
+
+    if (data.userId) {
+      try {
+        await this.db.delete(session).where(eq(session.userId, data.userId));
+      } catch {
+        // Non-blocking
+      }
+    }
+  }
 }

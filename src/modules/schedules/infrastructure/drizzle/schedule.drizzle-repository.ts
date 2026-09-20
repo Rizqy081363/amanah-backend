@@ -1,4 +1,9 @@
-import { ConflictException, Inject, Injectable } from '@nestjs/common';
+import {
+  ConflictException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { and, asc, desc, eq, gte, inArray, lte, not, or, sql } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
@@ -30,7 +35,8 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
   ) {}
 
   private async resolvePractitioner(staffOrPractitionerId: string) {
-    let practitioner = await this.db.query.practitioners.findFirst({
+    if (!staffOrPractitionerId) return null;
+    return this.db.query.practitioners.findFirst({
       where: or(
         eq(practitioners.id, staffOrPractitionerId),
         eq(practitioners.staffProfileId, staffOrPractitionerId),
@@ -39,16 +45,6 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
         staffProfile: true,
       },
     });
-
-    if (!practitioner) {
-      practitioner = await this.db.query.practitioners.findFirst({
-        with: {
-          staffProfile: true,
-        },
-      });
-    }
-
-    return practitioner;
   }
 
   private mapRecordToEntity(r: any): ScheduleEntity {
@@ -202,7 +198,12 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
     data: Omit<ScheduleEntity, 'id' | 'createdAt' | 'updatedAt'>,
   ): Promise<ScheduleEntity> {
     const practitioner = await this.resolvePractitioner(data.staffId);
-    const practitionerId = practitioner ? practitioner.id : data.staffId;
+    if (!practitioner) {
+      throw new NotFoundException(
+        `Praktisi medis dengan ID staf ${data.staffId} tidak ditemukan`,
+      );
+    }
+    const practitionerId = practitioner.id;
 
     const shift: 'morning' | 'afternoon' | 'night' =
       data.session === 'SIANG' || data.sessionShift === 'afternoon'
@@ -370,7 +371,10 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
     },
   ): Promise<ScheduleEntity[]> {
     const practitioner = await this.resolvePractitioner(staffId);
-    const targetId = practitioner ? practitioner.id : staffId;
+    if (!practitioner) {
+      return [];
+    }
+    const targetId = practitioner.id;
 
     const conditions: any[] = [
       eq(practitionerScheduleSessions.practitionerId, targetId),
@@ -599,7 +603,13 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
     month: string,
   ): Promise<CalendarSummaryResponse> {
     const practitioner = await this.resolvePractitioner(staffId);
-    const practitionerId = practitioner ? practitioner.id : staffId;
+    if (!practitioner) {
+      return {
+        month,
+        days: [],
+      };
+    }
+    const practitionerId = practitioner.id;
 
     // Month format: YYYY-MM
     const [yearStr, monthStr] = month.split('-');
@@ -676,7 +686,18 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
     date: string,
   ): Promise<DayScheduleSettingEntity> {
     const practitioner = await this.resolvePractitioner(staffId);
-    const practitionerId = practitioner ? practitioner.id : staffId;
+    if (!practitioner) {
+      return {
+        practitionerId: staffId,
+        scheduleDate: date,
+        targetQuota: 8,
+        isCuti: false,
+        cutiReason: null,
+        totalBookedPatients: 0,
+        capacityPercentage: 0,
+      };
+    }
+    const practitionerId = practitioner.id;
 
     const daySetting =
       await this.db.query.practitionerScheduleDaySettings.findFirst({
@@ -730,7 +751,12 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
     },
   ): Promise<DayScheduleSettingEntity> {
     const practitioner = await this.resolvePractitioner(staffId);
-    const practitionerId = practitioner ? practitioner.id : staffId;
+    if (!practitioner) {
+      throw new NotFoundException(
+        `Praktisi medis dengan ID staf ${staffId} tidak ditemukan`,
+      );
+    }
+    const practitionerId = practitioner.id;
 
     const existing =
       await this.db.query.practitionerScheduleDaySettings.findFirst({
@@ -807,6 +833,8 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
       const practitioner = await this.resolvePractitioner(staffId);
       if (practitioner) {
         conditions.push(eq(appointments.practitionerId, practitioner.id));
+      } else {
+        return [];
       }
     }
 
@@ -971,5 +999,21 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
         occupiedBy: null,
       };
     });
+  }
+
+  async getPolikliniks(): Promise<
+    { id: string; code: string; name: string; location?: string | null }[]
+  > {
+    const units = await this.db.query.clinicUnits.findMany({
+      where: eq(clinicUnits.isActive, true),
+      orderBy: [asc(clinicUnits.name)],
+    });
+
+    return units.map((u) => ({
+      id: u.id,
+      code: u.code,
+      name: u.name,
+      location: u.location || null,
+    }));
   }
 }

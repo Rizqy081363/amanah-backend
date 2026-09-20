@@ -172,6 +172,9 @@ export const auth = betterAuth({
       '/send-verification-email': { window: 60, max: 20 },
       '/email-otp/send-verification-otp': { window: 60, max: 5 },
       '/email-otp/verify-email': { window: 60, max: 5 },
+      '/email-otp/request-password-reset': { window: 60, max: 5 },
+      '/email-otp/check-verification-otp': { window: 60, max: 10 },
+      '/email-otp/reset-password': { window: 60, max: 5 },
     },
   },
   advanced: {

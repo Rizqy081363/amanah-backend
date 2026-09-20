@@ -64,6 +64,21 @@ export class SchedulesController {
     private readonly scheduleRepo: ScheduleRepository,
   ) {}
 
+  private assertScheduleOwnership(schedule: any, user: any) {
+    if (user.systemRole === 'ADMIN') return;
+    const userStaffId = user.staff?.practitionerId || user.staff?.id;
+    if (
+      !userStaffId ||
+      (schedule.staffId !== userStaffId &&
+        schedule.staffId !== user.staff?.id &&
+        schedule.staffId !== user.staff?.practitionerId)
+    ) {
+      throw new ForbiddenException(
+        'Akses ditolak: Anda hanya berwenang mengelola jadwal praktek Anda sendiri',
+      );
+    }
+  }
+
   @Post()
   @Roles('ADMIN', 'STAF')
   @HttpCode(HttpStatus.CREATED)
@@ -82,11 +97,25 @@ export class SchedulesController {
     @Body() body: CreateScheduleDto,
     @CurrentUser() user: any,
   ) {
-    const staffId =
-      body.staffId || user.staff?.practitionerId || user.staff?.id;
+    let staffId: string;
+    if (user.systemRole === 'ADMIN') {
+      staffId = body.staffId || user.staff?.practitionerId || user.staff?.id;
+    } else {
+      staffId = user.staff?.practitionerId || user.staff?.id;
+      if (
+        body.staffId &&
+        body.staffId !== staffId &&
+        body.staffId !== user.staff?.id &&
+        body.staffId !== user.staff?.practitionerId
+      ) {
+        throw new ForbiddenException(
+          'Akses ditolak: Staf hanya dapat membuat jadwal praktek untuk akun sendiri',
+        );
+      }
+    }
     if (!staffId) {
       throw new ForbiddenException(
-        'Staff ID wajib disertakan atau akun harus terhubung dengan staf/praktisi terdaftar',
+        'Akun Anda belum terhubung dengan profil staf atau praktisi medis klinik',
       );
     }
 
@@ -269,6 +298,20 @@ export class SchedulesController {
     );
   }
 
+  @Get('reference/polikliniks')
+  @Roles('ADMIN', 'STAF', 'PATIENT')
+  @ApiOperation({
+    summary: 'Mendapatkan daftar unit poliklinik aktif untuk referensi jadwal',
+    description:
+      'Mengambil seluruh unit poliklinik aktif sebagai opsi pilihan poliklinik pada form jadwal dokter.',
+  })
+  @ApiOkResponse({
+    description: 'Daftar poliklinik aktif berhasil diambil',
+  })
+  async getPolikliniks() {
+    return this.scheduleRepo.getPolikliniks();
+  }
+
   @Get('booked-patients')
   @Roles('STAF', 'ADMIN')
   @ApiOperation({
@@ -338,7 +381,15 @@ export class SchedulesController {
   @ApiOkResponse({
     description: 'Daftar pasien terdaftar pada sesi ini berhasil diambil',
   })
-  async getBookedPatientsForSession(@Param('id') id: string) {
+  async getBookedPatientsForSession(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+  ) {
+    const schedule = await this.scheduleRepo.findById(id);
+    if (!schedule) {
+      throw new NotFoundException(`Jadwal dengan ID ${id} tidak ditemukan`);
+    }
+    this.assertScheduleOwnership(schedule, user);
     return this.scheduleRepo.getBookedPatients(id);
   }
 
@@ -395,7 +446,14 @@ export class SchedulesController {
   async toggleAvailability(
     @Param('id') id: string,
     @Body('isAvailable') isAvailable: boolean,
+    @CurrentUser() user: any,
   ) {
+    const existing = await this.scheduleRepo.findById(id);
+    if (!existing) {
+      throw new NotFoundException(`Jadwal dengan ID ${id} tidak ditemukan`);
+    }
+    this.assertScheduleOwnership(existing, user);
+
     const updated = await this.scheduleRepo.toggleAvailability(id, isAvailable);
     if (!updated) {
       throw new NotFoundException(`Jadwal dengan ID ${id} tidak ditemukan`);
@@ -423,7 +481,14 @@ export class SchedulesController {
   async updateSchedule(
     @Param('id') id: string,
     @Body() body: UpdateScheduleDto,
+    @CurrentUser() user: any,
   ) {
+    const existing = await this.scheduleRepo.findById(id);
+    if (!existing) {
+      throw new NotFoundException(`Jadwal dengan ID ${id} tidak ditemukan`);
+    }
+    this.assertScheduleOwnership(existing, user);
+
     const updated = await this.scheduleRepo.update(id, {
       session: body.session,
       sessionLabel: body.sessionType || body.session,
@@ -458,7 +523,16 @@ export class SchedulesController {
   })
   @ApiNoContentResponse({ description: 'Jadwal berhasil dihapus' })
   @ApiNotFoundResponse({ description: 'Jadwal tidak ditemukan' })
-  async deleteSchedule(@Param('id') id: string) {
+  async deleteSchedule(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+  ) {
+    const existing = await this.scheduleRepo.findById(id);
+    if (!existing) {
+      throw new NotFoundException(`Jadwal dengan ID ${id} tidak ditemukan`);
+    }
+    this.assertScheduleOwnership(existing, user);
+
     const success = await this.scheduleRepo.delete(id);
     if (!success) {
       throw new NotFoundException(`Jadwal dengan ID ${id} tidak ditemukan`);

@@ -59,6 +59,7 @@ export class AuthController {
     groups: ['me'],
   })
   @Post('email/login')
+  @RateLimit({ limit: 5, windowSeconds: 60 })
   @ApiOperation({
     summary: 'Login dengan email dan kata sandi',
     description:
@@ -77,6 +78,7 @@ export class AuthController {
   }
 
   @Post('email/register')
+  @RateLimit({ limit: 5, windowSeconds: 60 })
   @ApiOperation({
     summary: 'Registrasi pengguna baru',
     description: 'Mendaftarkan akun baru dengan verifikasi email opsional.',
@@ -206,6 +208,7 @@ export class AuthController {
   }
 
   @Post('email/verify-otp')
+  @RateLimit({ limit: 5, windowSeconds: 60 })
   @ApiOperation({
     summary: 'Verifikasi email dengan kode OTP 6-digit',
     description:
@@ -225,6 +228,7 @@ export class AuthController {
   }
 
   @Post('otp/reset-password')
+  @RateLimit({ limit: 5, windowSeconds: 60 })
   @ApiOperation({
     summary: 'Reset kata sandi menggunakan kode OTP 6-digit',
     description:
@@ -313,8 +317,16 @@ export class AuthController {
   public async logout(
     @Request() request: RequestWithUser<JwtPayloadType>,
   ): Promise<void> {
+    const authHeader = (request as any).headers?.authorization;
+    const token =
+      typeof authHeader === 'string' && authHeader.startsWith('Bearer ')
+        ? authHeader.slice(7).trim()
+        : undefined;
+
     await this.service.logout({
-      sessionId: request.user.sessionId,
+      sessionId: (request as any).session?.id || request.user?.sessionId,
+      userId: request.user?.id,
+      token,
     });
   }
 

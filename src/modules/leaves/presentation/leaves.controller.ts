@@ -12,7 +12,6 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
@@ -29,6 +28,7 @@ import {
 import { CurrentUser } from '../../../common/auth/current-user.decorator';
 import { Roles } from '../../../common/auth/roles.decorator';
 import { RolesGuard } from '../../../common/auth/roles.guard';
+import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
 import { Idempotent } from '../../../common/decorators/idempotent.decorator';
 import {
   LEAVE_REPOSITORY,
@@ -39,7 +39,7 @@ import { ReviewLeaveDto } from './dto/review-leave.dto';
 
 @ApiTags('Staff Leaves (Perizinan Cuti Staf)')
 @ApiBearerAuth('access-token')
-@UseGuards(AuthGuard('jwt'), RolesGuard)
+@UseGuards(HybridAuthGuard, RolesGuard)
 @ApiUnauthorizedResponse({
   description: 'Sesi autentikasi tidak valid atau token tidak disertakan',
 })

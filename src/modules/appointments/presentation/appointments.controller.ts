@@ -14,9 +14,9 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
 import type { Response } from 'express';
 import { formatETag } from '../../../common/occ';
+import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
 import {
   ApiBearerAuth,
   ApiBody,
@@ -48,7 +48,7 @@ export class AppointmentsController {
   constructor(private readonly appointmentsService: AppointmentsService) {}
 
   @ApiBearerAuth('access-token')
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @UseGuards(HybridAuthGuard, RolesGuard)
   @Roles('ADMIN', 'STAF', 'PATIENT')
   @Post()
   @HttpCode(HttpStatus.CREATED)
@@ -77,7 +77,7 @@ export class AppointmentsController {
   }
 
   @ApiBearerAuth('access-token')
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @UseGuards(HybridAuthGuard, RolesGuard)
   @Roles('ADMIN', 'STAF')
   @Get()
   @ApiOperation({
@@ -93,7 +93,7 @@ export class AppointmentsController {
   }
 
   @ApiBearerAuth('access-token')
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @UseGuards(HybridAuthGuard, RolesGuard)
   @Roles('ADMIN', 'STAF', 'PATIENT')
   @Get('me')
   @ApiOperation({
@@ -112,7 +112,7 @@ export class AppointmentsController {
   }
 
   @ApiBearerAuth('access-token')
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @UseGuards(HybridAuthGuard, RolesGuard)
   @Roles('ADMIN', 'STAF')
   @Get('queue/daily')
   @ApiOperation({
@@ -149,7 +149,7 @@ export class AppointmentsController {
   }
 
   @ApiBearerAuth('access-token')
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @UseGuards(HybridAuthGuard, RolesGuard)
   @Roles('ADMIN', 'STAF', 'PATIENT')
   @Get(':id')
   @ApiOperation({
@@ -180,7 +180,7 @@ export class AppointmentsController {
   }
 
   @ApiBearerAuth('access-token')
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @UseGuards(HybridAuthGuard, RolesGuard)
   @Roles('ADMIN', 'STAF', 'PATIENT')
   @Patch(':id/check-in')
   @ApiOperation({
@@ -216,7 +216,7 @@ export class AppointmentsController {
   }
 
   @ApiBearerAuth('access-token')
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @UseGuards(HybridAuthGuard, RolesGuard)
   @Roles('STAF')
   @Patch(':id/call')
   @ApiOperation({
@@ -255,7 +255,7 @@ export class AppointmentsController {
   }
 
   @ApiBearerAuth('access-token')
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @UseGuards(HybridAuthGuard, RolesGuard)
   @Roles('STAF')
   @Patch(':id/complete')
   @ApiOperation({
@@ -291,7 +291,7 @@ export class AppointmentsController {
   }
 
   @ApiBearerAuth('access-token')
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @UseGuards(HybridAuthGuard, RolesGuard)
   @Roles('ADMIN', 'STAF', 'PATIENT')
   @Patch(':id/cancel')
   @ApiOperation({
@@ -340,7 +340,7 @@ export class AppointmentsController {
   }
 
   @ApiBearerAuth('access-token')
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @UseGuards(HybridAuthGuard, RolesGuard)
   @Roles('ADMIN', 'STAF')
   @Patch(':id/status')
   @ApiOperation({
@@ -379,7 +379,7 @@ export class AppointmentsController {
   }
 
   @ApiBearerAuth('access-token')
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @UseGuards(HybridAuthGuard, RolesGuard)
   @Roles('ADMIN')
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)

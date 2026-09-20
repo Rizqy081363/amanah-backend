@@ -10,7 +10,7 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
+import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
 import {
   ApiBearerAuth,
   ApiCreatedResponse,
@@ -92,7 +92,7 @@ export class ClinicsController {
   }
 
   @ApiBearerAuth('access-token')
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @UseGuards(HybridAuthGuard, RolesGuard)
   @Roles('ADMIN')
   @Post()
   @HttpCode(HttpStatus.CREATED)
@@ -113,7 +113,7 @@ export class ClinicsController {
   }
 
   @ApiBearerAuth('access-token')
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @UseGuards(HybridAuthGuard, RolesGuard)
   @Roles('ADMIN')
   @Patch('layanan/:layananId')
   @ApiOperation({
@@ -139,7 +139,7 @@ export class ClinicsController {
   }
 
   @ApiBearerAuth('access-token')
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @UseGuards(HybridAuthGuard, RolesGuard)
   @Roles('ADMIN')
   @Delete('layanan/:layananId')
   @HttpCode(HttpStatus.NO_CONTENT)
@@ -160,7 +160,7 @@ export class ClinicsController {
   }
 
   @ApiBearerAuth('access-token')
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @UseGuards(HybridAuthGuard, RolesGuard)
   @Roles('ADMIN')
   @Patch(':id')
   @ApiOperation({
@@ -182,7 +182,7 @@ export class ClinicsController {
   }
 
   @ApiBearerAuth('access-token')
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @UseGuards(HybridAuthGuard, RolesGuard)
   @Roles('ADMIN')
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
@@ -240,7 +240,7 @@ export class ClinicsController {
   }
 
   @ApiBearerAuth('access-token')
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @UseGuards(HybridAuthGuard, RolesGuard)
   @Roles('ADMIN')
   @Post(':id/layanan')
   @HttpCode(HttpStatus.CREATED)

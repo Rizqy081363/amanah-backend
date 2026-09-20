@@ -7,7 +7,6 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
 import {
   ApiBearerAuth,
   ApiForbiddenResponse,
@@ -19,12 +18,13 @@ import {
 } from '@nestjs/swagger';
 import { Roles } from '../../../common/auth/roles.decorator';
 import { RolesGuard } from '../../../common/auth/roles.guard';
+import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
 import { AuditService } from '../application/audit.service';
 import { QueryAuditLogDto } from './dto/query-audit-log.dto';
 
 @ApiTags('Audit Logs (Jejak Rekaman Audit)')
 @ApiBearerAuth('access-token')
-@UseGuards(AuthGuard('jwt'), RolesGuard)
+@UseGuards(HybridAuthGuard, RolesGuard)
 @Controller({
   path: 'audit-logs',
   version: '1',

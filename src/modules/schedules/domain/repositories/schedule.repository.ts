@@ -71,4 +71,7 @@ export interface ScheduleRepository {
     startTime?: string,
     endTime?: string,
   ): Promise<ClinicRoomReferenceEntity[]>;
+  getPolikliniks(): Promise<
+    { id: string; code: string; name: string; location?: string | null }[]
+  >;
 }

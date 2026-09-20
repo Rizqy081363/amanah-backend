@@ -15,7 +15,6 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
 import type { Response } from 'express';
 import { formatETag } from '../../../common/occ';
 import {
@@ -34,6 +33,7 @@ import {
 import { CurrentUser } from '../../../common/auth/current-user.decorator';
 import { Roles } from '../../../common/auth/roles.decorator';
 import { RolesGuard } from '../../../common/auth/roles.guard';
+import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
 import {
   MEDICAL_RECORD_REPOSITORY,
   MedicalRecordRepository,
@@ -46,7 +46,7 @@ import { UpdateMedicalRecordDto } from './dto/update-medical-record.dto';
 
 @ApiTags('Medical Records (Rekam Medis, Diagnosa ICD-10 & Resep Obat)')
 @ApiBearerAuth('access-token')
-@UseGuards(AuthGuard('jwt'), RolesGuard)
+@UseGuards(HybridAuthGuard, RolesGuard)
 @ApiUnauthorizedResponse({
   description: 'Sesi autentikasi tidak valid atau token tidak disertakan',
 })

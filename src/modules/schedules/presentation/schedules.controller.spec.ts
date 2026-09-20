@@ -1,5 +1,7 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
+import { RolesGuard } from '../../../common/auth/roles.guard';
 
 jest.mock('better-auth/node', () => ({
   fromNodeHeaders: jest.fn(),
@@ -31,6 +33,16 @@ describe('SchedulesController', () => {
     },
   };
 
+  const mockOtherDoctorUser = {
+    id: 'user-uuid-3',
+    systemRole: 'STAF',
+    staff: {
+      id: 'staff-uuid-2',
+      practitionerId: 'practitioner-uuid-2',
+      fullName: 'dr. Rayhan Pratama, Sp.A',
+    },
+  };
+
   const mockPatientUser = {
     id: 'user-uuid-2',
     systemRole: 'PATIENT',
@@ -55,6 +67,7 @@ describe('SchedulesController', () => {
       upsertDaySettings: jest.fn(),
       getBookedPatients: jest.fn(),
       getRooms: jest.fn(),
+      getPolikliniks: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -65,7 +78,12 @@ describe('SchedulesController', () => {
           useValue: mockScheduleRepo,
         },
       ],
-    }).compile();
+    })
+      .overrideGuard(HybridAuthGuard)
+      .useValue({ canActivate: () => true })
+      .overrideGuard(RolesGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
 
     controller = module.get<SchedulesController>(SchedulesController);
   });
@@ -248,33 +266,93 @@ describe('SchedulesController', () => {
   });
 
   describe('getBookedPatientsForSession', () => {
-    it('should return booked patients for specific session id', async () => {
+    it('should return booked patients for specific session id if user is owner', async () => {
+      const mockSchedule: any = {
+        id: 'session-1',
+        staffId: 'practitioner-uuid-1',
+      };
       const mockPatients: any = [
         { id: 'patient-1', fullName: 'Siti Rahma', queueNumber: '#01' },
       ];
+      mockScheduleRepo.findById.mockResolvedValue(mockSchedule);
       mockScheduleRepo.getBookedPatients.mockResolvedValue(mockPatients);
 
-      const result = await controller.getBookedPatientsForSession('session-1');
+      const result = await controller.getBookedPatientsForSession(
+        'session-1',
+        mockStaffUser,
+      );
 
+      expect(mockScheduleRepo.findById).toHaveBeenCalledWith('session-1');
       expect(mockScheduleRepo.getBookedPatients).toHaveBeenCalledWith('session-1');
       expect(result).toEqual(mockPatients);
+    });
+
+    it('should throw ForbiddenException if session belongs to another doctor', async () => {
+      const mockSchedule: any = {
+        id: 'session-1',
+        staffId: 'practitioner-uuid-2',
+      };
+      mockScheduleRepo.findById.mockResolvedValue(mockSchedule);
+
+      await expect(
+        controller.getBookedPatientsForSession('session-1', mockStaffUser),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should throw NotFoundException if schedule does not exist', async () => {
+      mockScheduleRepo.findById.mockResolvedValue(null);
+
+      await expect(
+        controller.getBookedPatientsForSession('session-missing', mockStaffUser),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 
   describe('deleteSchedule', () => {
-    it('should delete schedule successfully', async () => {
+    it('should delete schedule successfully if user is owner', async () => {
+      const mockSchedule: any = {
+        id: 'session-1',
+        staffId: 'practitioner-uuid-1',
+      };
+      mockScheduleRepo.findById.mockResolvedValue(mockSchedule);
       mockScheduleRepo.delete.mockResolvedValue(true);
 
-      await expect(controller.deleteSchedule('session-1')).resolves.toBeUndefined();
+      await expect(
+        controller.deleteSchedule('session-1', mockStaffUser),
+      ).resolves.toBeUndefined();
       expect(mockScheduleRepo.delete).toHaveBeenCalledWith('session-1');
     });
 
-    it('should throw NotFoundException if schedule does not exist', async () => {
-      mockScheduleRepo.delete.mockResolvedValue(false);
+    it('should throw ForbiddenException if schedule belongs to another doctor', async () => {
+      const mockSchedule: any = {
+        id: 'session-1',
+        staffId: 'practitioner-uuid-2',
+      };
+      mockScheduleRepo.findById.mockResolvedValue(mockSchedule);
 
-      await expect(controller.deleteSchedule('session-missing')).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        controller.deleteSchedule('session-1', mockStaffUser),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should throw NotFoundException if schedule does not exist', async () => {
+      mockScheduleRepo.findById.mockResolvedValue(null);
+
+      await expect(
+        controller.deleteSchedule('session-missing', mockStaffUser),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('getPolikliniks', () => {
+    it('should return active polikliniks reference', async () => {
+      const mockPolis = [
+        { id: 'poli-1', code: 'POLI-UMUM', name: 'Poli Umum' },
+      ];
+      mockScheduleRepo.getPolikliniks.mockResolvedValue(mockPolis);
+
+      const result = await controller.getPolikliniks();
+      expect(result).toEqual(mockPolis);
     });
   });
 });
