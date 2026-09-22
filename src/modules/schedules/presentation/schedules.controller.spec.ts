@@ -16,7 +16,10 @@ jest.mock('../../../auth/better-auth/auth', () => ({
   },
 }));
 
-import { SCHEDULE_REPOSITORY, ScheduleRepository } from '../domain/repositories/schedule.repository';
+import {
+  SCHEDULE_REPOSITORY,
+  ScheduleRepository,
+} from '../domain/repositories/schedule.repository';
 import { SchedulesController } from './schedules.controller';
 
 describe('SchedulesController', () => {
@@ -33,7 +36,7 @@ describe('SchedulesController', () => {
     },
   };
 
-  const mockOtherDoctorUser = {
+  const _mockOtherDoctorUser = {
     id: 'user-uuid-3',
     systemRole: 'STAF',
     staff: {
@@ -69,6 +72,12 @@ describe('SchedulesController', () => {
       getRooms: jest.fn(),
       getPolikliniks: jest.fn(),
       getScheduleOptions: jest.fn(),
+      findAdminDoctorSchedules: jest.fn(),
+      findAdminDoctorScheduleDetail: jest.fn(),
+      updateAdminDoctorSchedule: jest.fn(),
+      updateAdminDayStatus: jest.fn(),
+      createAdminDoctorSession: jest.fn(),
+      findClinicalPractitioners: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -161,9 +170,9 @@ describe('SchedulesController', () => {
     });
 
     it('should throw ForbiddenException if user has no staff profile', async () => {
-      await expect(
-        controller.getMySchedules(mockPatientUser),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(controller.getMySchedules(mockPatientUser)).rejects.toThrow(
+        ForbiddenException,
+      );
     });
   });
 
@@ -284,7 +293,9 @@ describe('SchedulesController', () => {
       );
 
       expect(mockScheduleRepo.findById).toHaveBeenCalledWith('session-1');
-      expect(mockScheduleRepo.getBookedPatients).toHaveBeenCalledWith('session-1');
+      expect(mockScheduleRepo.getBookedPatients).toHaveBeenCalledWith(
+        'session-1',
+      );
       expect(result).toEqual(mockPatients);
     });
 
@@ -304,7 +315,10 @@ describe('SchedulesController', () => {
       mockScheduleRepo.findById.mockResolvedValue(null);
 
       await expect(
-        controller.getBookedPatientsForSession('session-missing', mockStaffUser),
+        controller.getBookedPatientsForSession(
+          'session-missing',
+          mockStaffUser,
+        ),
       ).rejects.toThrow(NotFoundException);
     });
   });

@@ -15,5 +15,8 @@ export interface StaffRepository {
   update(id: string, data: Partial<StaffEntity>): Promise<StaffEntity | null>;
   delete(id: string): Promise<boolean>;
   findCredentials(staffId: string): Promise<any[]>;
+  findCredentialById(credentialId: string): Promise<any | null>;
   addCredential(staffId: string, credential: any): Promise<any>;
+  updateCredential(credentialId: string, credential: any): Promise<any | null>;
+  deleteCredential(credentialId: string): Promise<boolean>;
 }

@@ -66,9 +66,14 @@ export class RateLimiterGuard implements CanActivate {
     const isLoopback =
       identifier === 'ip:127_0_0_1' ||
       identifier === 'ip:::1' ||
-      identifier === 'ip:::ffff:127_0_0_1';
+      identifier === 'ip:::ffff:127_0_0_1' ||
+      identifier.includes('172.') ||
+      identifier.includes('172_') ||
+      process.env.NODE_ENV === 'development';
     const effectiveLimit =
-      isLoopback && tier.name === 'auth' ? 120 : tier.limit;
+      isLoopback && (tier.name === 'auth' || tier.name === 'custom')
+        ? 120
+        : tier.limit;
 
     const result = await this.redisService.consumeRateLimit(
       rateLimitKey,

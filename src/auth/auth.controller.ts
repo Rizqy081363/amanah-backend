@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -9,12 +10,17 @@ import {
   Post,
   Request,
   SerializeOptions,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { AuthGuard } from '@nestjs/passport';
-import { HybridAuthGuard } from '../common/auth';
+import { CurrentUser, HybridAuthGuard } from '../common/auth';
 import {
   ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
   ApiNoContentResponse,
   ApiOkResponse,
   ApiOperation,
@@ -22,6 +28,7 @@ import {
   ApiUnauthorizedResponse,
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
+import { AvatarService } from '../modules/avatar/avatar.service';
 import { User } from '../users/domain/user';
 import { RateLimit } from '../common/throttling';
 import { NullableType } from '../utils/types/nullable.type';
@@ -53,7 +60,10 @@ import type { JwtRefreshPayloadType } from './strategies/types/jwt-refresh-paylo
   version: '1',
 })
 export class AuthController {
-  constructor(private readonly service: AuthService) {}
+  constructor(
+    private readonly service: AuthService,
+    private readonly avatarService: AvatarService,
+  ) {}
 
   @SerializeOptions({
     groups: ['me'],
@@ -406,5 +416,80 @@ export class AuthController {
     @Request() request: RequestWithUser<JwtPayloadType>,
   ): Promise<DeleteAccountResponseDto> {
     return this.service.purgeAccount(request.user);
+  }
+
+  private async handleAvatarUpload(user: any, file?: Express.Multer.File) {
+    if (!file || !file.buffer) {
+      throw new BadRequestException('Berkas gambar (file) wajib disertakan');
+    }
+    return this.avatarService.uploadAvatar(user.id, file.buffer);
+  }
+
+  @ApiBearerAuth('access-token')
+  @Patch('me/avatar')
+  @UseGuards(HybridAuthGuard)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 5 * 1024 * 1024 },
+    }),
+  )
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({
+    summary: 'Upload atau perbarui avatar profil akun (PATCH Alias Auth)',
+    description:
+      'Endpoint alias untuk klien mobile atau web selama alur onboarding maupun dari pengaturan profil.',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'Berkas gambar avatar (JPEG, PNG, WebP max 5MB)',
+        },
+      },
+    },
+  })
+  @HttpCode(HttpStatus.OK)
+  public async uploadAvatarPatch(
+    @CurrentUser() user: any,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    return this.handleAvatarUpload(user, file);
+  }
+
+  @ApiBearerAuth('access-token')
+  @Post('me/avatar')
+  @UseGuards(HybridAuthGuard)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 5 * 1024 * 1024 },
+    }),
+  )
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({
+    summary: 'Upload atau perbarui avatar profil akun (POST Alias Auth)',
+    description:
+      'Endpoint alias untuk klien mobile atau web selama alur onboarding maupun dari pengaturan profil.',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'Berkas gambar avatar (JPEG, PNG, WebP max 5MB)',
+        },
+      },
+    },
+  })
+  @HttpCode(HttpStatus.OK)
+  public async uploadAvatarPost(
+    @CurrentUser() user: any,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    return this.handleAvatarUpload(user, file);
   }
 }

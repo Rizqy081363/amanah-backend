@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   HttpException,
   HttpStatus,
   Inject,
@@ -10,12 +11,15 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import bcrypt from 'bcryptjs';
 import { and, eq, sql } from 'drizzle-orm';
+import { RedisService } from '../common/redis/redis.service';
+import { NameInitialsHelper } from '../common/utils/name-initials.helper';
 import { AllConfigType } from '../config/config.type';
 import { DRIZZLE_SOURCE } from '../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../database/drizzle/drizzle.provider';
 import {
   account,
   authAccounts,
+  clinicUnits,
   practitioners,
   roles,
   session,
@@ -25,11 +29,13 @@ import {
   users,
 } from '../database/schema';
 import { MailService } from '../mail/mail.service';
-import { RedisService } from '../common/redis/redis.service';
 import { auth } from './better-auth/auth';
 import { AuthEmailLoginDto } from './dto/auth-email-login.dto';
 import { AuthRegisterLoginDto } from './dto/auth-register-login.dto';
-import { AuthResendOtpDto, ResendOtpResponseDto } from './dto/auth-resend-otp.dto';
+import {
+  AuthResendOtpDto,
+  ResendOtpResponseDto,
+} from './dto/auth-resend-otp.dto';
 import { AuthResetPasswordOtpDto } from './dto/auth-reset-password-otp.dto';
 import {
   AuthStaffOnboardingDto,
@@ -51,6 +57,33 @@ export class AuthService {
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,
   ) {}
+
+  private isUuid(value: string): boolean {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+  }
+
+  private async resolveOnboardingPoliklinikId(
+    poliklinikId?: string,
+  ): Promise<string | undefined> {
+    const value = poliklinikId?.trim();
+    if (!value) {
+      return undefined;
+    }
+
+    const clinicUnit = await this.db.query.clinicUnits.findFirst({
+      where: this.isUuid(value)
+        ? eq(clinicUnits.id, value)
+        : eq(clinicUnits.code, value),
+    });
+
+    if (!clinicUnit?.isActive) {
+      throw new BadRequestException(
+        'Poliklinik tidak valid. Pilih Poli Umum atau Poli KIA.',
+      );
+    }
+
+    return clinicUnit.id;
+  }
 
   async validateLogin(loginDto: AuthEmailLoginDto): Promise<LoginResponseDto> {
     const user = await this.db.query.users.findFirst({
@@ -241,6 +274,45 @@ export class AuthService {
       : null;
 
     const s = sanitizedUser.staffProfiles?.[0];
+
+    // Compute canonical avatar object and initials
+    const fullName = s?.fullName || p?.fullName || sanitizedUser.name || '';
+    const initials = NameInitialsHelper.getInitials(fullName);
+
+    const storedImageUrl = sanitizedUser.imageUrl || s?.avatarUrl || null;
+    let avatarType: 'custom' | 'oauth' | 'initials' = 'initials';
+    let hasCustomAvatar = false;
+
+    if (storedImageUrl) {
+      if (
+        storedImageUrl.startsWith('http://') ||
+        storedImageUrl.startsWith('https://')
+      ) {
+        if (
+          storedImageUrl.includes('/api/v1/users/') &&
+          storedImageUrl.includes('/avatar')
+        ) {
+          avatarType = 'custom';
+          hasCustomAvatar = true;
+        } else {
+          avatarType = 'oauth';
+          hasCustomAvatar = false;
+        }
+      } else {
+        avatarType = 'custom';
+        hasCustomAvatar = true;
+      }
+    }
+
+    const canonicalAvatarUrl = `/api/v1/users/${sanitizedUser.id}/avatar`;
+    const avatar = {
+      url: canonicalAvatarUrl,
+      initials,
+      type: avatarType,
+      hasCustomAvatar,
+      directUrl: storedImageUrl || canonicalAvatarUrl,
+    };
+
     const staff = s
       ? {
           id: s.id,
@@ -250,7 +322,7 @@ export class AuthService {
           fullName: s.fullName,
           profession: s.positionTitle || s.profession || null,
           idCardNumber: s.staffCode || s.idCardNumber || null,
-          photoUrl: s.avatarUrl || s.photoUrl || null,
+          photoUrl: avatar.url,
           phoneNumber: s.phone,
           isActive: s.status === 'active',
         }
@@ -260,6 +332,8 @@ export class AuthService {
 
     return {
       ...sanitizedUser,
+      imageUrl: avatar.url,
+      avatar,
       systemRole,
       role: {
         id: primaryRole?.id,
@@ -570,6 +644,17 @@ export class AuthService {
 
     if (!userRecord) {
       throw new UnauthorizedException();
+    }
+
+    if (
+      userDto.email &&
+      userRecord.email &&
+      userDto.email.trim().toLowerCase() !==
+        userRecord.email.trim().toLowerCase()
+    ) {
+      throw new BadRequestException(
+        'Alamat email akun bersifat permanen dan tidak dapat diubah.',
+      );
     }
 
     const updateFields: Record<string, any> = {
@@ -1104,6 +1189,10 @@ export class AuthService {
         : staffTypeVal === 'midwife'
           ? 'Bidan'
           : 'Staf Administrasi');
+    const resolvedPoliklinikId = await this.resolveOnboardingPoliklinikId(
+      dto.poliklinikId,
+    );
+    const userImageUrl = userRecord.imageUrl?.trim() || null;
 
     await this.db.transaction(async (tx) => {
       // 1. Update Better Auth "user" table
@@ -1137,9 +1226,7 @@ export class AuthService {
       });
 
       if (targetRole) {
-        await tx
-          .delete(userRoles)
-          .where(eq(userRoles.userId, userRecord.id));
+        await tx.delete(userRoles).where(eq(userRoles.userId, userRecord.id));
 
         await tx.insert(userRoles).values({
           userId: userRecord.id,
@@ -1161,7 +1248,8 @@ export class AuthService {
             staffType: staffTypeVal,
             positionTitle,
             phone: dto.phoneNumber?.trim() || existingStaff.phone,
-            primaryUnitId: dto.poliklinikId || existingStaff.primaryUnitId,
+            primaryUnitId: resolvedPoliklinikId || existingStaff.primaryUnitId,
+            avatarUrl: existingStaff.avatarUrl || userImageUrl,
             status: 'active',
             updatedAt: new Date().toISOString(),
           })
@@ -1179,7 +1267,8 @@ export class AuthService {
             positionTitle,
             phone: dto.phoneNumber?.trim(),
             email: userRecord.email,
-            primaryUnitId: dto.poliklinikId,
+            primaryUnitId: resolvedPoliklinikId,
+            avatarUrl: userImageUrl,
             status: 'active',
           })
           .returning();

@@ -37,10 +37,10 @@ const getDatabaseUrl = (): string => {
   const host = process.env.DATABASE_HOST || 'localhost';
   const isLocalHost = host === 'localhost' || host === '127.0.0.1';
   const port = isLocalHost
-    ? (process.env.POSTGRES_HOST_PORT ||
-        process.env.DATABASE_PORT ||
-        String(DEFAULT_POSTGRES_HOST_PORT))
-    : (process.env.DATABASE_PORT || '5432');
+    ? process.env.POSTGRES_HOST_PORT ||
+      process.env.DATABASE_PORT ||
+      String(DEFAULT_POSTGRES_HOST_PORT)
+    : process.env.DATABASE_PORT || '5432';
   const username = process.env.DATABASE_USERNAME || 'amanah';
   const password = process.env.DATABASE_PASSWORD || 'amanah_secret';
   const database = process.env.DATABASE_NAME || 'amanah_healthcare';
@@ -709,6 +709,142 @@ const firstValue = <TValue>(values: Iterable<TValue>): TValue => {
   }
 
   return value;
+};
+
+type PractitionerShowcaseRow = {
+  id: string;
+  defaultRoomId: string | null;
+  specialtyCode: string | null;
+};
+
+const seedAdminScheduleShowcase = async (
+  context: SeedContext,
+): Promise<void> => {
+  const generalServiceId = context.serviceIdsByCode.get('general_checkup');
+  const kiaServiceId = context.serviceIdsByCode.get('pregnancy_checkup');
+  const fallbackRoomId =
+    context.roomIdsByCode.get('room_umum_1') ??
+    firstValue(context.roomIdsByCode.values());
+  const fallbackServiceId =
+    generalServiceId ?? firstValue(context.serviceIdsByCode.values());
+
+  const seededPractitionerIds = Array.from(
+    context.practitionerIdsByEmail.values(),
+  );
+  if (seededPractitionerIds.length === 0) return;
+
+  const practitionersResult =
+    await context.client.query<PractitionerShowcaseRow>(
+      `
+      SELECT
+        p.id,
+        p.default_room_id AS "defaultRoomId",
+        ms.code AS "specialtyCode"
+      FROM practitioners p
+      LEFT JOIN medical_specialties ms ON ms.id = p.specialty_id
+      WHERE p.id = ANY($1::uuid[])
+      ORDER BY p.display_name
+    `,
+      [seededPractitionerIds],
+    );
+
+  const sessionTemplates = [
+    {
+      label: 'Pagi',
+      shift: 'morning',
+      startTime: '08:00',
+      endTime: '11:30',
+      capacity: 12,
+      availableSlots: 10,
+    },
+    {
+      label: 'Siang',
+      shift: 'afternoon',
+      startTime: '13:00',
+      endTime: '16:30',
+      capacity: 10,
+      availableSlots: 8,
+    },
+    {
+      label: 'Malam',
+      shift: 'night',
+      startTime: '18:00',
+      endTime: '20:30',
+      capacity: 8,
+      availableSlots: 8,
+    },
+  ] as const;
+  const roomTemplateUsage = new Map<string, number>();
+
+  for (const practitioner of practitionersResult.rows) {
+    const existingSessions = await queryOne<{ count: string }>({
+      client: context.client,
+      text: `
+        SELECT COUNT(*)::text AS count
+        FROM practitioner_schedule_sessions
+        WHERE practitioner_id = $1
+          AND schedule_date = current_date
+      `,
+      values: [practitioner.id],
+    });
+
+    if (Number(existingSessions.count) > 0) continue;
+
+    const roomId = practitioner.defaultRoomId ?? fallbackRoomId;
+    const roomUsage = roomTemplateUsage.get(roomId) ?? 0;
+    const template = sessionTemplates[roomUsage % sessionTemplates.length];
+    roomTemplateUsage.set(roomId, roomUsage + 1);
+
+    const serviceId =
+      practitioner.specialtyCode === 'maternal_child_health'
+        ? (kiaServiceId ?? fallbackServiceId)
+        : fallbackServiceId;
+
+    await context.client.query(
+      `
+        INSERT INTO practitioner_schedule_sessions (
+          practitioner_id,
+          service_id,
+          room_id,
+          schedule_date,
+          session_label,
+          session_shift,
+          start_time,
+          end_time,
+          capacity,
+          available_slots,
+          status,
+          notes
+        )
+        VALUES (
+          $1,
+          $2,
+          $3,
+          current_date,
+          $4,
+          $5,
+          $6,
+          $7,
+          $8,
+          $9,
+          'open',
+          'Development admin schedule showcase seed'
+        )
+        ON CONFLICT (practitioner_id, schedule_date, start_time) DO NOTHING
+      `,
+      [
+        practitioner.id,
+        serviceId,
+        roomId,
+        template.label,
+        template.shift,
+        template.startTime,
+        template.endTime,
+        template.capacity,
+        template.availableSlots,
+      ],
+    );
+  }
 };
 
 const seedOperationalExamples = async (context: SeedContext): Promise<void> => {
@@ -1473,6 +1609,7 @@ const runSeed = async (): Promise<void> => {
     const context = await createSeedContext(client);
     await seedStaffProfiles(context);
     await seedPatients(context);
+    await seedAdminScheduleShowcase(context);
     await seedOperationalExamples(context);
     await client.query('COMMIT');
     console.log(`Seeded ${DEVELOPMENT_USER_SEEDS.length} development users.`);

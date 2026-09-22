@@ -257,7 +257,8 @@ export class SchedulesController {
   @Put('day-settings')
   @Roles('STAF', 'ADMIN')
   @ApiOperation({
-    summary: 'Menyimpan atau memperbarui pengaturan kuota dan cuti harian dokter',
+    summary:
+      'Menyimpan atau memperbarui pengaturan kuota dan cuti harian dokter',
     description:
       'Menetapkan target kuota pasien per hari atau mengaktifkan status cuti dokter pada tanggal tertentu.',
   })
@@ -327,7 +328,6 @@ export class SchedulesController {
     return this.scheduleRepo.getScheduleOptions();
   }
 
-
   @Get('booked-patients')
   @Roles('STAF', 'ADMIN')
   @ApiOperation({
@@ -346,11 +346,7 @@ export class SchedulesController {
     if (!staffId) {
       throw new ForbiddenException('User bukan staf atau praktisi terdaftar');
     }
-    return this.scheduleRepo.getBookedPatients(
-      undefined,
-      query.date,
-      staffId,
-    );
+    return this.scheduleRepo.getBookedPatients(undefined, query.date, staffId);
   }
 
   @Get('poli/:poliklinikId')
@@ -539,10 +535,7 @@ export class SchedulesController {
   })
   @ApiNoContentResponse({ description: 'Jadwal berhasil dihapus' })
   @ApiNotFoundResponse({ description: 'Jadwal tidak ditemukan' })
-  async deleteSchedule(
-    @Param('id') id: string,
-    @CurrentUser() user: any,
-  ) {
+  async deleteSchedule(@Param('id') id: string, @CurrentUser() user: any) {
     const existing = await this.scheduleRepo.findById(id);
     if (!existing) {
       throw new NotFoundException(`Jadwal dengan ID ${id} tidak ditemukan`);

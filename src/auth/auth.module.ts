@@ -10,11 +10,12 @@ import {
   BetterAuthRbacGuard,
 } from './better-auth';
 import { HybridAuthGuard } from '../common/auth/hybrid-auth.guard';
+import { AvatarModule } from '../modules/avatar/avatar.module';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy';
 
 @Module({
-  imports: [PassportModule, JwtModule.register({}), MailModule],
+  imports: [PassportModule, JwtModule.register({}), MailModule, AvatarModule],
   controllers: [AuthController, BetterAuthController],
   providers: [
     AuthService,

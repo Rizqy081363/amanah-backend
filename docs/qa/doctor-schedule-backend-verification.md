@@ -1,156 +1,172 @@
-# Reality Verification Report: Doctor Schedule Management Backend
+# Reality Verification Report: Doctor Schedule Management ("Jadwal Dokter")
 
-**Feature:** Doctor Schedule Management ("Jadwal Dokter")  
-**Module:** `src/modules/schedules`  
-**Auditor:** NestJS Backend Completion & Reality-Check Agent  
-**Date:** 2026-09-21  
-**Environment:** Docker Compose (Bun runner + PostgreSQL 17.9-alpine + Redis 7 + Mailpit)  
-**Host Runtime:** Windows (pwsh), Node/npm (testing/linting), Bun 1.2.19 (Docker & seeding)  
-**Verification Verdict:** **READY TO ANNOUNCE TO FRONTEND**  
-**Total Blockers:** 0  
-
----
-
-## 1. Executive Summary & Forensic Audit Verdict
-
-Claims of completion were audited directly against the live running Docker container (`amanah-healthcare-backend-api-1`), the physical PostgreSQL database (`amanah-healthcare-backend-postgres-1`), the applied Drizzle migration history, and live HTTP requests using real Bearer session tokens.
-
-### Key Forensic Findings:
-1. **Runtime & Container Reality:**
-   - The application in Docker runs using **Bun 1.2.19** (`oven/bun:1.2.19-alpine`) as defined in `Dockerfile` and `docker-compose.yaml`.
-   - Host developer tooling supports both `npm` and `bun`.
-   - The container was freshly rebuilt (`docker compose up --build -d api`) and verified healthy (`/health/ready` returns `200 OK`).
-2. **Database Table Reality (Not Artificial / Not Mocked):**
-   - **All schedule data originates from physical PostgreSQL tables.**
-   - Physical tables verified in database `amanah_healthcare`:
-     - `practitioner_schedule_sessions` (stores individual doctor practice sessions)
-     - `practitioner_schedule_day_settings` (stores daily quota and cuti/leave status)
-     - `practitioners` & `staff_profiles` (stores doctor medical identities)
-     - `clinic_rooms` (stores real rooms and occupancy status)
-     - `clinic_units` (stores real active poliklinik units)
-     - `appointments`, `patient_profiles`, `queue_tickets` (stores booked patient appointments)
-   - Zero hardcoded mock sessions or fake data in production repository code.
-3. **Multi-Tenancy Isolation & Active Booking Shield (Live Verified):**
-   - Non-owner doctors attempting to delete or edit another doctor's schedule are rejected with `403 Forbidden` (`FORBIDDEN`).
-   - Doctors or Admins attempting to delete a schedule with active booked patients are strictly rejected with `409 Conflict` (`SCHEDULE_HAS_ACTIVE_BOOKINGS`).
-   - Overlapping schedules on the same doctor are rejected with `409 Conflict` (`PRACTITIONER_ALREADY_SCHEDULED`).
+> **Document Type:** Backend QA & Reality-Check Verification Report
+> **Target Feature:** Doctor Schedule Management (`BE-SCHED-001`)
+> **Auditor:** Senior Backend Completion & Reality-Check QA Agent (NestJS)
+> **Verification Date:** 22 September 2026
+> **Environment:** NestJS v11, PostgreSQL 17 (Docker), Drizzle ORM, Bun v1.2.19 Runtime
+> **Contract Ref:** `docs/backend/DOCTOR-SCHEDULE-CONTRACT.md`
+> **Handoff Changelog:** `docs/backend/DOCTOR-SCHEDULE-HANDOFF-CHANGELOG.md`
 
 ---
 
-## 2. Comprehensive Domain Audit Matrix
+## 1. Executive Summary & Verification Verdict
 
-| Domain | Question / Check | Method Actually Used | Result | Concrete Evidence Attached |
-| :--- | :--- | :--- | :--- | :--- |
-| **A. Functional Completeness** | Are all endpoints from manifest implemented without mocks? | Grep search for `TODO\|FIXME\|mock\|placeholder` in `src/modules/schedules/**/*.ts` | **PASS** | 0 matches in production code; all queries use `this.db.query.*` or `this.db.insert/update/delete`. |
-| **A. Functional Completeness** | Does `POST /schedules` actually persist to the database? | Live HTTP POST with Bearer token, followed by direct SQL query | **PASS** | HTTP 201 created session `0362ef2a-d7ee-4c2e-be79-001725cdd098`. Verified row in `practitioner_schedule_sessions` via `psql`. |
-| **B. Deploy / Install Reality** | Is the exact latest code running in the container? | Rebuilt Docker container via `docker compose up --build -d api` | **PASS** | Container `1aa523646cbe` restarted; new endpoints `/reference/polikliniks` and `/reference/options` returned HTTP 200. |
-| **B. Deploy / Install Reality** | Do required tables physically exist in PostgreSQL? | Queried `information_schema.tables` and `\dt` via `docker exec psql` | **PASS** | 59 tables verified in `public` schema, including `practitioner_schedule_sessions`, `clinic_rooms`, `clinic_units`. |
-| **C. Migration Reality** | Have migrations applied cleanly in PostgreSQL? | Queried `drizzle.__drizzle_migrations` table | **PASS** | 5 migration hashes recorded; container boot log: `[✓] migrations applied successfully!`. |
-| **D. Test Execution Reality** | Do unit tests pass with zero skips? | Ran `npm test -- schedules.controller.spec.ts` | **PASS** | 16/16 passed, 0 failed, 0 skipped, time: 23.4s. |
-| **E. Security Audit** | Are unauthenticated requests rejected? | Live HTTP GET to `/schedules/reference/rooms` without token | **PASS** | Rejected with `HTTP 401 Unauthorized`, `code: "UNAUTHORIZED"`. |
-| **E. Security Audit** | Is doctor schedule ownership enforced? | Dr. Zikri Ahmad (token) attempted `DELETE` on Dr. Ahmad's session | **PASS** | Rejected with `HTTP 403 Forbidden` (`Akses ditolak: Anda hanya berwenang mengelola jadwal praktek Anda sendiri`). |
-| **E. Security Audit** | Is rate limiting active on schedule routes? | Inspected HTTP response headers | **PASS** | Headers present: `X-RateLimit-Limit: 120`, `X-RateLimit-Remaining: 119`. |
-| **F. Sloppy-Gap Audit** | Is there protection against deleting schedules with active patients? | Live HTTP `DELETE` with Admin token on booked session `dda30fde-5e16-41c3-93e6-5b014b539d02` | **PASS** | Rejected with `HTTP 409 Conflict`, `code: "SCHEDULE_HAS_ACTIVE_BOOKINGS"`. |
-| **F. Sloppy-Gap Audit** | Are queries free from N+1 query loops? | Code inspection of `getRooms`, `getCalendarSummary`, `getBookedPatients` | **PASS** | Relational joins (`with`) and single-batch date queries used throughout. |
-| **G. Code Quality & Build** | Does TypeScript compile without errors? | Executed `npm run build` | **PASS** | `nest build` finished with exit code 0. |
-| **H. Well-Definedness** | Are error responses standardized? | Examined live error JSON payloads | **PASS** | Uniform RFC 7807 problem details envelope (`type`, `title`, `status`, `detail`, `code`, `traceId`, `timestamp`). |
-| **I. Handoff Readiness** | Is there a written contract for frontend? | Inspected `docs/frontend/doctor-schedule-management-backend-contract.md` | **PASS** | Comprehensive markdown contract with 13 endpoints, schemas, and 5 open questions resolutions. |
-| **J. Contract Delivery** | Has the contract reached the mobile repo? | Checked filesystem path in `D:\amanah-healthcare-mobile` | **PASS** | File committed directly into mobile repo at `docs/frontend/doctor-schedule-management-backend-contract.md`. |
-| **K. Docker Sync** | Are all Docker services healthy? | Ran `docker ps` | **PASS** | `api` (healthy), `postgres` (healthy), `redis` (healthy), `mailpit` (healthy). |
-| **L. Server Health** | Does health check respond? | Checked container log for `/health/ready` | **PASS** | `GET /health/ready 200 +10ms` recorded in logs. |
+This audit rigorously verifies every requirement, endpoint, database relation, authorization guard, and business constraint implemented for **Doctor Schedule Management ("Jadwal Dokter")** against concrete test executions and code inspection.
+
+* **Stack & Runtime:** Bun v1.2.19, Docker Compose (`postgres:17.9-alpine`, `redis:7-alpine`, `api:3001` healthy)
+* **Total Test Suites Verified:** 4 / 4 PASSED (`node .\node_modules\jest\bin\jest.js --runInBand schedules`)
+* **Total Unit & Integration Tests:** 24 / 24 PASSED
+* **TypeScript Compilation:** Clean (`bun run build` - Exit Code 0, Zero Compiler Errors)
+* **Code Formatting & Linting:** Clean (`bun x @biomejs/biome check src/modules/schedules` - 0 warnings, 0 errors)
+* **Database Migrations Needed:** 0 (Zero Breaking Schema Changes, Zero Redundancy)
+* **Docker Runtime Sync:** API image rebuilt and `amanah-healthcare-backend-api-1` recreated on 22 September 2026.
 
 ---
 
-## 3. Live Evidence Log
+## 2. Comprehensive Domain Verification Matrix
 
-### A. Live Session Creation (`POST /api/v1/schedules`)
-```http
-POST /api/v1/schedules HTTP/1.1
-Authorization: Bearer WYaZJJobxaVaZj9yup1fI1ixjiDlctyW
-Content-Type: application/json
+| Domain | Check Description | Method Actually Used | Result | Concrete Evidence & Verification Details |
+| :--- | :--- | :--- | :---: | :--- |
+| **A. Functional Completeness** | `GET /api/v1/admin/doctor-schedules` implemented with filters and pagination | Code inspection & Unit tests | **PASS** | `AdminDoctorSchedulesController.getDoctorSchedules` wired to `ScheduleDrizzleRepository.findAdminDoctorSchedules`. Tested in `admin-doctor-schedules.controller.spec.ts`. |
+| **A. Functional Completeness** | `GET /api/v1/admin/doctor-schedules/:id` with monthly calendar matrix and 24h grid | Code inspection & Unit tests | **PASS** | `AdminDoctorSchedulesController.getDoctorScheduleDetail` projects 1..31 days for requested month. Tested in `admin-doctor-schedules.controller.spec.ts`. |
+| **A. Functional Completeness** | `PUT /api/v1/admin/doctor-schedules/:id` operational schedule & cuti mutation | Code inspection & Unit tests | **PASS** | `AdminDoctorSchedulesController.updateDoctorSchedule` updates day settings, leave periods, and zeroes available slots. |
+| **A. Functional Completeness** | `PATCH /api/v1/admin/doctor-schedules/:id/day-status` single day override | Code inspection & Unit tests | **PASS** | `AdminDoctorSchedulesController.updateDayStatus` updates day status (`Buka`, `Penuh`, `Cuti`, `Tutup`). |
+| **A. Functional Completeness** | `POST /api/v1/admin/doctor-schedules/:id/sessions` append clinical session | Code inspection & Unit tests | **PASS** | `AdminDoctorSchedulesController.createSession` validates time sequence and conflict before insert. |
+| **A. Functional Completeness** | `GET /api/v1/clinical/practitioners` patient lookup | Code inspection & Unit tests | **PASS** | `ClinicalPractitionersController.getPractitioners` wired to `ScheduleDrizzleRepository.findClinicalPractitioners`. Tested in `clinical-practitioners.controller.spec.ts`. |
+| **B. Zero Redundancy Audit** | No duplicate tables or parallel entities created | Inspection of schema & git diff | **PASS** | All queries and mutations reuse existing normalized tables (`practitioners`, `staff_profiles`, `medical_specialties`, `clinic_rooms`, `practitioner_schedule_sessions`, `practitioner_schedule_day_settings`, `practitioner_leave_periods`). |
+| **B. Zero Redundancy Audit** | Strict prohibition of "Tambah Dokter" ("Add Doctor") | Endpoint & controller inspection | **PASS** | Verified that neither `AdminDoctorSchedulesController` nor `SchedulesController` exposes doctor creation endpoints. Doctor onboarding remains in HR/practitioner registry. |
+| **C. Migration Reality** | Database schema readiness and migration status | Drizzle schema audit (`amanah.schema.ts`) | **PASS** | 0 migration files required. All relational foreign keys and indices physically exist. |
+| **D. Test Execution Reality** | Real test runner execution output | Executed `node .\node_modules\jest\bin\jest.js --runInBand schedules` | **PASS** | Output: `Test Suites: 4 passed, 4 total. Tests: 24 passed, 24 total. Time: 17.777s`. |
+| **E. Security & RBAC Audit** | Admin routes protected with fail-closed authentication | Code inspection of controller guards | **PASS** | `@UseGuards(HybridAuthGuard, RolesGuard)` and `@Roles('ADMIN')` on `AdminDoctorSchedulesController`. Non-admin access is rejected with HTTP 403. |
+| **E. Security & RBAC Audit** | Patient clinical lookup accessible to patients | Code inspection | **PASS** | `@Public()` allows patient appointment wizard to verify doctor availability without admin credentials. |
+| **F. Sloppy-Gap Audit** | Conflict detection & concurrency safety | Code inspection | **PASS** | `checkScheduleConflicts` prevents overlapping doctor shifts on the same date and overlapping room occupancy across practitioners. |
+| **F. Sloppy-Gap Audit** | Active booking protection | Code inspection | **PASS** | Relational check in `ScheduleDrizzleRepository.delete` prevents deletion of schedules with active booked/checked-in patients (HTTP 409). |
+| **G. Code Quality & Optimization** | TypeScript build and linter status | Executed `bun run build` and `bun x @biomejs/biome check src/modules/schedules` | **PASS** | `bun run build` succeeded with Exit Code 0. Biome check passed with 0 warnings and 0 errors. |
+| **H. Contract Consistency** | Request & response shapes conform to frontend manifest | Schema comparison | **PASS** | DTOs in `presentation/dto/*` conform to the verified frontend specifications. |
+| **H. Contract Consistency** | Doctor-card `avatar` is non-null for admin and clinical list consumers | Unit regression test & live HTTP verification | **PASS** | `ScheduleDrizzleRepository` normalizes missing `staff_profiles.avatar_url` to `avatar: ""` for `/api/v1/admin/doctor-schedules`, `/api/v1/admin/doctor-schedules/:id`, and `/api/v1/clinical/practitioners`. |
+| **I. Handoff Readiness** | Formal contract and changelog published | File existence | **PASS** | `docs/backend/DOCTOR-SCHEDULE-CONTRACT.md` and `docs/backend/DOCTOR-SCHEDULE-HANDOFF-CHANGELOG.md` created with complete endpoints, DTOs, and integration paths. |
+| **J. Container Infrastructure & Live Sync** | Docker API container rebuilt, running & healthy | Executed `docker compose up -d --build api` & live HTTP tests | **PASS** | `amanah-healthcare-backend-api-1` rebuilt and recreated. Live test `GET /health/ready` returned `status: up`. Live admin and clinical practitioner endpoints returned `avatar: ""` for practitioners without stored avatars. |
 
-{
-  "date": "2026-09-25",
-  "sessionType": "Pagi",
-  "startTime": "08:00",
-  "endTime": "11:00",
-  "roomId": "590be133-107b-476e-bab3-a3ccd2d875dd",
-  "capacity": 10
-}
-```
-**Response: `201 Created`**
-```json
-{
-  "id": "0362ef2a-d7ee-4c2e-be79-001725cdd098",
-  "staffId": "21a4613a-77e6-4f7d-a741-c5a1a8b3a100",
-  "staffName": "dr. Zikri Ahmad, Sp.A",
-  "scheduleDate": "2026-09-25",
-  "roomName": "Ruang KIA 1",
-  "capacity": 10,
-  "status": "Buka"
-}
-```
+---
 
-### B. PostgreSQL Row Verification (`practitioner_schedule_sessions`)
-```sql
-SELECT id, practitioner_id, schedule_date, start_time, end_time, capacity, room_id, status 
-FROM practitioner_schedule_sessions 
-WHERE id = '0362ef2a-d7ee-4c2e-be79-001725cdd098';
+## 3. Verified Test Execution Log
 
--- Output:
--- id: 0362ef2a-d7ee-4c2e-be79-001725cdd098
--- practitioner_id: c8ea1b11-26c7-47a4-9669-803476114fdb
--- schedule_date: 2026-09-25
--- start_time: 08:00:00
--- end_time: 11:00:00
--- capacity: 10
--- room_id: 590be133-107b-476e-bab3-a3ccd2d875dd
--- status: open
+```text
+$ node .\node_modules\jest\bin\jest.js --runInBand schedules
+
+Test Suites: 4 passed, 4 total
+Tests:       24 passed, 24 total
+Snapshots:   0 total
+Time:        17.777 s
+Ran all test suites matching schedules.
 ```
 
-### C. Live Overlap Conflict Detection (`HTTP 409`)
-```json
-{
-  "type": "https://amanah.health/errors/practitioner_already_scheduled",
-  "title": "Conflict",
-  "status": 409,
-  "statusCode": 409,
-  "detail": "Dokter sudah memiliki jadwal praktek lain pada jam 08:00 - 11:00 WIB.",
-  "code": "PRACTITIONER_ALREADY_SCHEDULED",
-  "traceId": "01094176-3a16-4262-93db-b01cc6e40d43"
-}
+## 3.1 Live Container HTTP Verification
+
+```bash
+# 0. Docker API rebuild / runtime sync
+$ docker compose up -d --build api
+amanah-healthcare-backend-api  Built
+Container amanah-healthcare-backend-api-1  Recreated
+Container amanah-healthcare-backend-api-1  Started
+
+# 1. Health check
+$ curl -s http://localhost:3001/health/ready
+{"status":"up","dependencies":[{"name":"database","status":"up"},{"name":"redis","status":"up"}]}
+
+# 2. Patient-facing clinical practitioners (Live 200 OK with PostgreSQL data)
+$ curl -s http://localhost:3001/api/v1/clinical/practitioners
+{"success":true,"data":[{"id":"d1937893-4dce-43f6-9858-9eaebd15e4a8","name":"Ahmadamikom Zikri",...}]}
+
+# 3. Admin doctor schedules RBAC enforcement (Live 401 Problem Details)
+$ curl -s -i http://localhost:3001/api/v1/admin/doctor-schedules
+HTTP/1.1 401 Unauthorized
+Content-Type: application/problem+json; charset=utf-8
+{"type":"https://amanah.health/errors/unauthorized","title":"Unauthorized","status":401,"detail":"Sesi autentikasi tidak valid atau token tidak disertakan"}
+
+# 4. Admin doctor schedule avatar contract from rebuilt container
+$ GET /api/v1/admin/doctor-schedules?page=1&limit=6 with admin token
+[
+  {"nama_dokter":"Ahmadamikom Zikri","avatar":""},
+  {"nama_dokter":"Bdn. Laras Wulandari","avatar":""}
+]
+
+# 5. Clinical practitioners avatar contract from rebuilt container
+$ GET /api/v1/clinical/practitioners?date=2026-09-22
+[
+  {"name":"Ahmadamikom Zikri","avatar":""},
+  {"name":"Bdn. Laras Wulandari","avatar":""}
+]
 ```
 
-### D. Live Active Booking Deletion Shield (`HTTP 409`)
-```json
-{
-  "type": "https://amanah.health/errors/schedule_has_active_bookings",
-  "title": "Conflict",
-  "status": 409,
-  "statusCode": 409,
-  "detail": "Jadwal tidak dapat dihapus karena sudah memiliki 1 pasien terdaftar. Batalkan atau jadwalkan ulang janji temu pasien terlebih dahulu.",
-  "code": "SCHEDULE_HAS_ACTIVE_BOOKINGS",
-  "traceId": "828c2f8c-a255-44d2-9178-0eaf0af2b1c2"
-}
-```
+## 3.2 Live E2E Reality Suite Verification (`test-admin-doctor-schedules-reality.ps1`)
 
-### E. Live Multi-Tenancy Doctor Isolation (`HTTP 403`)
-```json
-{
-  "type": "https://amanah.health/errors/forbidden",
-  "title": "Forbidden",
-  "status": 403,
-  "statusCode": 403,
-  "detail": "Akses ditolak: Anda hanya berwenang mengelola jadwal praktek Anda sendiri",
-  "code": "FORBIDDEN",
-  "traceId": "dd8de040-d0cb-485e-b431-926a03e492d3"
-}
+Executed against live Docker container at `http://localhost:3001` and PostgreSQL on port `5433`:
+
+```text
+================================================================================
+ STARTING REAL LIVE ENDPOINT VERIFICATION (TICKET: BE-SCHED-001)
+ Target Base URL: http://localhost:3001
+================================================================================
+
+=== 1. Security & RBAC Enforcement Gate ===
+ [PASS] GET /api/v1/admin/doctor-schedules (No Token) -> 401 Unauthorized
+ [PASS] GET /api/v1/admin/doctor-schedules (Doctor Token) -> 403 Forbidden
+ [PASS] Admin Login -> Bearer Token Acquired
+
+=== 2. Testing GET /api/v1/admin/doctor-schedules (Live Admin Card Overview) ===
+ [PASS] GET /api/v1/admin/doctor-schedules succeeds (200 OK)
+ [PASS] Response latency under operational budget (< 500ms)
+ [PASS] Overview contains doctors array
+ [PASS] Overview contains pagination metadata
+ [PASS] Doctor card has required fields (nama_dokter, spesialisasi, status_dokter, slot_tersedia, kapasitas_per_hari)
+ [PASS] GET /api/v1/admin/doctor-schedules?search=... returns matching doctor
+
+=== 3. Testing GET /api/v1/admin/doctor-schedules/:practitionerId (Monthly & 24h Grid) ===
+ [PASS] GET /api/v1/admin/doctor-schedules/:id succeeds (200 OK)
+ [PASS] Detail has monthly_schedule matrix with 30 days for September
+ [PASS] Day cells have day, date, status, notes
+ [PASS] Detail has sesi_harian array
+ [PASS] GET with non-existent UUID -> 404 Not Found
+
+=== 4. Testing PUT /api/v1/admin/doctor-schedules/:practitionerId (Cuti Mutation & Persistence) ===
+ [PASS] PUT /api/v1/admin/doctor-schedules/:id succeeds
+ [PASS] PostgreSQL direct query verifies is_leave=t in Docker database
+ [PASS] Revert Cuti succeeds and resets is_cuti to false
+
+=== 5. Testing PATCH /api/v1/admin/doctor-schedules/:practitionerId/day-status ===
+ [PASS] PATCH /day-status succeeds (200 OK)
+ [PASS] PostgreSQL verifies day-status persisted as LEAVE
+
+=== 6. Testing POST /api/v1/admin/doctor-schedules/:practitionerId/sessions ===
+ [PASS] POST session with missing required times -> 422 Unprocessable Entity (Validation Error)
+ [PASS] POST session succeeds (201 Created) and returns UUID
+ [PASS] PostgreSQL verifies session row persisted in database
+ [PASS] POST overlapping session rejected with 409 Conflict
+
+=== 7. Testing GET /api/v1/clinical/practitioners (Patient Booking Domain) ===
+ [PASS] GET /api/v1/clinical/practitioners accessible without auth (200 OK)
+ [PASS] Clinical practitioners returns non-empty list
+ [PASS] Patient practitioner card has required fields (id, name, spec, schedule, is_available)
+
+=== 8. Operational Stability & Rate Limit Probe ===
+ [PASS] 20 rapid clinical requests handled cleanly without 500 errors
+
+================================================================================
+ REALITY VERIFICATION SUMMARY
+ Passed: 27, Failed: 0
+================================================================================
+ ALL CHECKS PASSED: Real system behaves as specified in BE-SCHED-001.
 ```
 
 ---
 
 ## 4. Final Verdict
 
-**Verdict:** `READY TO ANNOUNCE TO FRONTEND`  
-**Blockers:** 0  
-**Artifact Published:** `docs/frontend/doctor-schedule-management-backend-contract.md` (in `amanah-healthcare-mobile`)
+### **VERDICT: READY TO ANNOUNCE TO FRONTEND**
+* **Blocker Count:** 0
+* **Contract Specification:** `docs/backend/DOCTOR-SCHEDULE-CONTRACT.md`
+* **Handoff Changelog Document:** `docs/backend/DOCTOR-SCHEDULE-HANDOFF-CHANGELOG.md`
+* **Implementation Location:** `src/modules/schedules/`
+* **Status:** Complete, zero-redundancy, production ready. Verified against running Docker container and PostgreSQL database.

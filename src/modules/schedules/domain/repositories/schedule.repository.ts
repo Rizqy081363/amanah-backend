@@ -1,6 +1,15 @@
+import { AdminDoctorScheduleDetailQueryDto } from '../../presentation/dto/admin-doctor-schedule-detail-query.dto';
+import { AdminDoctorSchedulesQueryDto } from '../../presentation/dto/admin-doctor-schedules-query.dto';
+import { ClinicalPractitionersQueryDto } from '../../presentation/dto/clinical-practitioners-query.dto';
+import { CreateAdminDoctorSessionDto } from '../../presentation/dto/create-admin-doctor-session.dto';
+import { UpdateAdminDoctorScheduleDto } from '../../presentation/dto/update-admin-doctor-schedule.dto';
+import { UpdateAdminDoctorSessionDto } from '../../presentation/dto/update-admin-doctor-session.dto';
 import {
+  AdminDoctorScheduleDetailResponse,
+  AdminDoctorScheduleListResponse,
   BookedPatientEntity,
   CalendarSummaryResponse,
+  ClinicalPractitionerEntity,
   ClinicRoomReferenceEntity,
   DayScheduleSettingEntity,
   ScheduleEntity,
@@ -76,4 +85,40 @@ export interface ScheduleRepository {
     { id: string; code: string; name: string; location?: string | null }[]
   >;
   getScheduleOptions(): Promise<ScheduleOptionsReferenceEntity>;
+
+  // Admin & Patient Domain methods (BE-SCHED-001)
+  findAdminDoctorSchedules(
+    query: AdminDoctorSchedulesQueryDto,
+  ): Promise<AdminDoctorScheduleListResponse>;
+  findAdminDoctorScheduleDetail(
+    id: string,
+    query: AdminDoctorScheduleDetailQueryDto,
+  ): Promise<AdminDoctorScheduleDetailResponse>;
+  updateAdminDoctorSchedule(
+    id: string,
+    body: UpdateAdminDoctorScheduleDto,
+  ): Promise<any>;
+  updateAdminDayStatus(
+    id: string,
+    date: string,
+    status: string,
+    notes?: string,
+  ): Promise<any>;
+  createAdminDoctorSession(
+    id: string,
+    body: CreateAdminDoctorSessionDto,
+  ): Promise<any>;
+  deleteAdminDoctorSession(
+    id: string,
+    sessionId: string,
+  ): Promise<any>;
+  updateAdminDoctorSession(
+    id: string,
+    sessionId: string,
+    body: UpdateAdminDoctorSessionDto,
+  ): Promise<any>;
+  getAdminDoctorScheduleFilterOptions(): Promise<any>;
+  findClinicalPractitioners(
+    query: ClinicalPractitionersQueryDto,
+  ): Promise<ClinicalPractitionerEntity[]>;
 }

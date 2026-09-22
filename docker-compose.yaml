@@ -97,6 +97,8 @@ services:
         condition: service_healthy
     ports:
       - "127.0.0.1:${API_HOST_PORT:-3001}:${APP_PORT:-3001}"
+    volumes:
+      - ./data/uploads:/usr/src/app/data/uploads
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:$${APP_PORT:-3001}/health/ready >/dev/null"]
       interval: 10s

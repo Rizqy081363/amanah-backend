@@ -183,4 +183,82 @@ export class StaffDrizzleRepository implements StaffRepository {
       createdAt: record.createdAt,
     };
   }
+
+  async findCredentialById(credentialId: string): Promise<any | null> {
+    const record = await this.db.query.staffCredentials.findFirst({
+      where: eq(staffCredentials.id, credentialId),
+    });
+    if (!record) return null;
+    return {
+      id: record.id,
+      staffProfileId: record.staffProfileId,
+      credentialType: record.credentialType,
+      credentialNumber:
+        record.credentialNumberEncrypted || record.credentialNumberHash,
+      issuer: record.issuer,
+      issuedAt: record.issuedAt,
+      expiresAt: record.expiresAt,
+      status: record.status,
+      createdAt: record.createdAt,
+      updatedAt: record.updatedAt,
+    };
+  }
+
+  async updateCredential(
+    credentialId: string,
+    credential: any,
+  ): Promise<any | null> {
+    const updateValues: Record<string, any> = {
+      updatedAt: new Date().toISOString(),
+    };
+    if (credential.credentialType !== undefined) {
+      updateValues.credentialType = credential.credentialType;
+    }
+    if (credential.credentialNumber !== undefined) {
+      updateValues.credentialNumberHash = credential.credentialNumber;
+      updateValues.credentialNumberEncrypted = credential.credentialNumber;
+    }
+    if (credential.issuer !== undefined) {
+      updateValues.issuer = credential.issuer;
+    }
+    if (credential.issuedAt !== undefined) {
+      updateValues.issuedAt = credential.issuedAt;
+    }
+    if (credential.expiresAt !== undefined) {
+      updateValues.expiresAt = credential.expiresAt;
+    }
+    if (credential.status !== undefined) {
+      updateValues.status = credential.status;
+    }
+
+    const [updated] = await this.db
+      .update(staffCredentials)
+      .set(updateValues)
+      .where(eq(staffCredentials.id, credentialId))
+      .returning();
+
+    if (!updated) return null;
+
+    return {
+      id: updated.id,
+      staffProfileId: updated.staffProfileId,
+      credentialType: updated.credentialType,
+      credentialNumber:
+        updated.credentialNumberEncrypted || updated.credentialNumberHash,
+      issuer: updated.issuer,
+      issuedAt: updated.issuedAt,
+      expiresAt: updated.expiresAt,
+      status: updated.status,
+      createdAt: updated.createdAt,
+      updatedAt: updated.updatedAt,
+    };
+  }
+
+  async deleteCredential(credentialId: string): Promise<boolean> {
+    const [deleted] = await this.db
+      .delete(staffCredentials)
+      .where(eq(staffCredentials.id, credentialId))
+      .returning();
+    return Boolean(deleted);
+  }
 }

@@ -52,6 +52,30 @@ export class User {
   photo?: FileType | null;
 
   @ApiProperty({
+    type: String,
+    nullable: true,
+    example: '/api/v1/users/00000000-0000-0000-0000-000000000000/avatar',
+    description: 'URL kanonikal avatar profil pengguna',
+  })
+  @Expose({ groups: ['me', 'admin'] })
+  imageUrl?: string | null;
+
+  @ApiProperty({
+    type: Object,
+    nullable: true,
+    description:
+      'Informasi avatar terpadu (url, inisial, jenis avatar, status custom)',
+  })
+  @Expose({ groups: ['me', 'admin'] })
+  avatar?: {
+    url: string;
+    initials: string;
+    type: 'custom' | 'oauth' | 'initials';
+    hasCustomAvatar: boolean;
+    directUrl?: string | null;
+  } | null;
+
+  @ApiProperty({
     type: () => Role,
   })
   role?: Role | null;
