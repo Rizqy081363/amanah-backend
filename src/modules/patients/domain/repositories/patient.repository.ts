@@ -7,10 +7,7 @@ export interface PatientRepository {
   create(
     data: Omit<PatientEntity, 'id' | 'createdAt' | 'updatedAt'>,
   ): Promise<PatientEntity>;
-  register(
-    userId: string,
-    dto: RegisterPatientDto,
-  ): Promise<PatientEntity>;
+  register(userId: string, dto: RegisterPatientDto): Promise<PatientEntity>;
   findById(id: string): Promise<PatientEntity | null>;
   findByUserId(userId: string): Promise<PatientEntity | null>;
   findByNik(nik: string): Promise<PatientEntity | null>;

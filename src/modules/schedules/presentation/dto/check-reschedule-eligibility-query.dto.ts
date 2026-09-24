@@ -1,0 +1,33 @@
+import { ApiPropertyOptional } from '@nestjs/swagger';
+import { IsDateString, IsOptional, IsUUID, Matches } from 'class-validator';
+
+export class CheckRescheduleEligibilityQueryDto {
+  @ApiPropertyOptional({
+    description:
+      'Tanggal target baru yang ingin divalidasi (opsional, format: YYYY-MM-DD)',
+    example: '2026-10-15',
+  })
+  @IsOptional()
+  @IsDateString({}, { message: 'targetDate harus berformat YYYY-MM-DD' })
+  targetDate?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Jam mulai target baru yang ingin divalidasi (opsional, format: HH:mm)',
+    example: '09:00',
+  })
+  @IsOptional()
+  @Matches(/^([01]\d|2[0-3]):([0-5]\d)$/, {
+    message: 'targetStartTime harus berformat HH:mm (00:00 - 23:59)',
+  })
+  targetStartTime?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'ID ruangan target baru yang ingin divalidasi ketersediaannya (opsional)',
+    example: 'e3067341-a185-484d-91d6-84848fcff1ef',
+  })
+  @IsOptional()
+  @IsUUID('4', { message: 'targetRoomId harus berformat UUID v4' })
+  targetRoomId?: string;
+}

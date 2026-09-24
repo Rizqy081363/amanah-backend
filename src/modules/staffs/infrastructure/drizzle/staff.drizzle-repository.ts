@@ -2,7 +2,12 @@ import { Inject, Injectable } from '@nestjs/common';
 import { eq, ilike } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
-import { staffCredentials, staffProfiles } from '../../../../database/schema';
+import {
+  staffCredentials,
+  staffProfiles,
+  user,
+  users,
+} from '../../../../database/schema';
 import { StaffEntity } from '../../domain/entities/staff.entity';
 import { StaffRepository } from '../../domain/repositories/staff.repository';
 
@@ -126,7 +131,26 @@ export class StaffDrizzleRepository implements StaffRepository {
       .where(eq(staffProfiles.id, id))
       .returning();
 
-    return updated ? this.mapRecordToEntity(updated) : null;
+    if (!updated) return null;
+
+    // Sync name change to canonical users and Better Auth user tables
+    if (data.fullName !== undefined && updated.userId) {
+      const now = new Date().toISOString();
+      await this.db
+        .update(users)
+        .set({ name: data.fullName, updatedAt: now })
+        .where(eq(users.id, updated.userId));
+      try {
+        await this.db
+          .update(user)
+          .set({ name: data.fullName, updatedAt: now as any })
+          .where(eq(user.id, updated.userId));
+      } catch {
+        // Better Auth parity non-blocking
+      }
+    }
+
+    return this.mapRecordToEntity(updated);
   }
 
   async delete(id: string): Promise<boolean> {

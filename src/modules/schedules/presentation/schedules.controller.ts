@@ -34,16 +34,21 @@ import { CurrentUser } from '../../../common/auth/current-user.decorator';
 import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
 import { Roles } from '../../../common/auth/roles.decorator';
 import { RolesGuard } from '../../../common/auth/roles.guard';
+import { ScheduleOccupancyOverviewResponse } from '../domain/entities/schedule.entity';
 import {
   SCHEDULE_REPOSITORY,
   ScheduleRepository,
 } from '../domain/repositories/schedule.repository';
 import { BookedPatientsQueryDto } from './dto/booked-patients-query.dto';
 import { CalendarSummaryQueryDto } from './dto/calendar-summary-query.dto';
+import { CreateAvailabilityDto } from './dto/create-availability.dto';
 import { CreateScheduleDto } from './dto/create-schedule.dto';
 import { GetDaySettingQueryDto } from './dto/get-day-setting-query.dto';
 import { QueryScheduleDto } from './dto/query-schedule.dto';
 import { RoomReferenceQueryDto } from './dto/room-reference-query.dto';
+import { ScheduleContextQueryDto } from './dto/schedule-context-query.dto';
+import { ScheduleOccupancyQueryDto } from './dto/schedule-occupancy-query.dto';
+import { ScheduleProjectionQueryDto } from './dto/schedule-projection-query.dto';
 import { UpdateScheduleDto } from './dto/update-schedule.dto';
 import { UpsertDaySettingDto } from './dto/upsert-day-setting.dto';
 
@@ -77,6 +82,33 @@ export class SchedulesController {
         'Akses ditolak: Anda hanya berwenang mengelola jadwal praktek Anda sendiri',
       );
     }
+  }
+
+  private resolveTargetStaffId(user: any, requestedStaffId?: string): string {
+    const userStaffId = user.staff?.practitionerId || user.staff?.id;
+    if (user.systemRole === 'ADMIN') {
+      const targetId = requestedStaffId || userStaffId;
+      if (!targetId) {
+        throw new ForbiddenException(
+          'Parameter staffId wajib disertakan ketika diakses oleh akun Administrator non-praktisi',
+        );
+      }
+      return targetId;
+    }
+    if (!userStaffId) {
+      throw new ForbiddenException('User bukan staf atau praktisi terdaftar');
+    }
+    if (
+      requestedStaffId &&
+      requestedStaffId !== userStaffId &&
+      requestedStaffId !== user.staff?.id &&
+      requestedStaffId !== user.staff?.practitionerId
+    ) {
+      throw new ForbiddenException(
+        'Akses ditolak: Staf hanya dapat mengakses jadwal untuk akun sendiri',
+      );
+    }
+    return userStaffId;
   }
 
   @Post()
@@ -281,6 +313,52 @@ export class SchedulesController {
     });
   }
 
+  @Patch('days/:date')
+  @Roles('STAF', 'ADMIN')
+  @ApiOperation({
+    summary:
+      'Menutup atau membuka seluruh jadwal pada hari/tanggal tertentu (Mobile & Web Staf)',
+    description:
+      'Dokter atau staf dapat menonaktifkan (CLOSED) atau mengaktifkan kembali (OPEN) seluruh sesi pada tanggal kalender tertentu secara cascading.',
+  })
+  @ApiParam({
+    name: 'date',
+    description: 'Tanggal kalender target (YYYY-MM-DD)',
+    example: '2026-10-24',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        status: {
+          type: 'string',
+          enum: ['OPEN', 'CLOSED'],
+          example: 'CLOSED',
+          description: 'Canonical operating status for the day',
+        },
+        notes: {
+          type: 'string',
+          nullable: true,
+          example: 'Dokter berhalangan hadir',
+          description: 'Catatan alasan penutupan hari',
+        },
+      },
+      required: ['status'],
+    },
+  })
+  @ApiOkResponse({
+    description: 'Status hari berhasil diperbarui dan sesi di-cascade',
+  })
+  async updateDayStatus(
+    @Param('date') date: string,
+    @Body('status') status: string,
+    @Body('notes') notes: string,
+    @CurrentUser() user: any,
+  ) {
+    const staffId = this.resolveTargetStaffId(user);
+    return this.scheduleRepo.updateAdminDayStatus(staffId, date, status, notes);
+  }
+
   @Get('reference/rooms')
   @Roles('ADMIN', 'STAF', 'PATIENT')
   @ApiOperation({
@@ -326,6 +404,97 @@ export class SchedulesController {
   })
   async getScheduleOptions() {
     return this.scheduleRepo.getScheduleOptions();
+  }
+
+  @Get('contexts')
+  @Roles('STAF', 'ADMIN')
+  @ApiOperation({
+    summary: 'Mendapatkan konteks jadwal dan durasi efektif dokter',
+    description:
+      'Mengembalikan konteks praktik backend-owned beserta batas waktu, presisi start, dan durasi konsultasi efektif.',
+  })
+  @ApiOkResponse({
+    description: 'Konteks jadwal berhasil diambil',
+  })
+  async getScheduleContexts(
+    @Query() query: ScheduleContextQueryDto,
+    @CurrentUser() user: any,
+  ) {
+    const staffId = this.resolveTargetStaffId(user, query.staffId);
+    return this.scheduleRepo.getScheduleContexts(
+      staffId,
+      query.date,
+      user.systemRole === 'ADMIN',
+    );
+  }
+
+  @Get('projection')
+  @Roles('STAF', 'ADMIN')
+  @ApiOperation({
+    summary: 'Preview projection interval dari start time dokter',
+    description:
+      'Memproyeksikan interval availability dari start time arbitrary tanpa membulatkan jam mulai.',
+  })
+  @ApiOkResponse({
+    description: 'Projection availability berhasil dihitung',
+  })
+  async previewScheduleProjection(
+    @Query() query: ScheduleProjectionQueryDto,
+    @CurrentUser() user: any,
+  ) {
+    const staffId = this.resolveTargetStaffId(user, query.staffId);
+    return this.scheduleRepo.projectAvailability(
+      staffId,
+      query,
+      user.systemRole === 'ADMIN',
+    );
+  }
+
+  @Get('occupancy-overview')
+  @Roles('STAF', 'ADMIN')
+  @ApiOperation({
+    summary:
+      'Melihat ringkasan okupansi slot jadwal per shift (Anti-Collision Grid)',
+    description:
+      'Menampilkan status ketersediaan setiap slot konsultasi di seluruh 4 shift (dini hari, pagi, siang, malam) untuk mencegah bentrok jadwal dokter atau ruangan sebelum submit.',
+  })
+  @ApiOkResponse({
+    description: 'Ringkasan okupansi slot berhasil diambil',
+    type: ScheduleOccupancyOverviewResponse,
+  })
+  async getOccupancyOverview(
+    @Query() query: ScheduleOccupancyQueryDto,
+    @CurrentUser() user: any,
+  ) {
+    const staffId = this.resolveTargetStaffId(user, query.staffId);
+    const data = await this.scheduleRepo.getOccupancyOverview(staffId, query);
+    return {
+      success: true,
+      data,
+    };
+  }
+
+  @Post('availability')
+  @Roles('STAF', 'ADMIN')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Membuat availability dokter tanpa input endTime manual',
+    description:
+      'Menerima tanggal, konteks jadwal, dan startTime. Backend menghitung endTime, kapasitas, dan interval canonical.',
+  })
+  @ApiCreatedResponse({
+    description: 'Availability berhasil dibuat beserta projection canonical',
+  })
+  async createAvailability(
+    @Body() body: CreateAvailabilityDto,
+    @CurrentUser() user: any,
+  ) {
+    const staffId = this.resolveTargetStaffId(user, body.staffId);
+
+    return this.scheduleRepo.createAvailability(staffId, body, {
+      userId: user.id,
+      durationEditableByCurrentUser: user.systemRole === 'ADMIN',
+    });
   }
 
   @Get('booked-patients')
@@ -431,7 +600,7 @@ export class SchedulesController {
   @ApiOperation({
     summary: 'Mengaktifkan / menonaktifkan ketersediaan jadwal staf',
     description:
-      'Buka atau tutup kuota penerimaan janji temu pasien pada jadwal terkait.',
+      'Mengaktifkan atau menonaktifkan kuota penerimaan janji temu pasien pada jadwal terkait.',
   })
   @ApiParam({
     name: 'id',

@@ -57,4 +57,3 @@ export class PatientEntity {
   createdAt: Date;
   updatedAt: Date;
 }
-

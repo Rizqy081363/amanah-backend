@@ -10,7 +10,8 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import bcrypt from 'bcryptjs';
-import { and, eq, sql } from 'drizzle-orm';
+import { isUUID } from 'class-validator';
+import { and, eq, or, sql } from 'drizzle-orm';
 import { RedisService } from '../common/redis/redis.service';
 import { NameInitialsHelper } from '../common/utils/name-initials.helper';
 import { AllConfigType } from '../config/config.type';
@@ -58,10 +59,6 @@ export class AuthService {
     private readonly db: DrizzleDatabase,
   ) {}
 
-  private isUuid(value: string): boolean {
-    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
-  }
-
   private async resolveOnboardingPoliklinikId(
     poliklinikId?: string,
   ): Promise<string | undefined> {
@@ -70,11 +67,23 @@ export class AuthService {
       return undefined;
     }
 
-    const clinicUnit = await this.db.query.clinicUnits.findFirst({
-      where: this.isUuid(value)
-        ? eq(clinicUnits.id, value)
-        : eq(clinicUnits.code, value),
-    });
+    let clinicUnit: any = undefined;
+    if (isUUID(value)) {
+      clinicUnit = await this.db.query.clinicUnits.findFirst({
+        where: eq(clinicUnits.id, value),
+      });
+    }
+
+    if (!clinicUnit) {
+      const normalizedCode = value.toLowerCase().replace(/-/g, '_');
+      clinicUnit = await this.db.query.clinicUnits.findFirst({
+        where: or(
+          eq(clinicUnits.code, value),
+          eq(clinicUnits.code, normalizedCode),
+          eq(sql`lower(${clinicUnits.name})`, value.toLowerCase()),
+        ),
+      });
+    }
 
     if (!clinicUnit?.isActive) {
       throw new BadRequestException(

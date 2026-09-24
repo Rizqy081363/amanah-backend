@@ -181,13 +181,7 @@ export const queueStatus = pgEnum('queue_status', [
   'cancelled',
 ]);
 export const reviewSource = pgEnum('review_source', ['google', 'manual']);
-export const scheduleStatus = pgEnum('schedule_status', [
-  'pending',
-  'open',
-  'full',
-  'leave',
-  'closed',
-]);
+export const scheduleStatus = pgEnum('schedule_status', ['open', 'closed']);
 export const staffCredentialStatus = pgEnum('staff_credential_status', [
   'unverified',
   'verified',
@@ -1051,6 +1045,12 @@ export const practitioners = pgTable(
     isAcceptingAppointments: boolean('is_accepting_appointments')
       .default(true)
       .notNull(),
+    consultationDurationMinutes: integer('consultation_duration_minutes')
+      .default(30)
+      .notNull(),
+    startPrecisionMinutes: integer('start_precision_minutes')
+      .default(1)
+      .notNull(),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
       .notNull(),
@@ -1087,6 +1087,14 @@ export const practitioners = pgTable(
     check(
       'practitioners_rating_range',
       sql`(rating IS NULL) OR ((rating >= (0)::numeric) AND (rating <= (5)::numeric))`,
+    ),
+    check(
+      'practitioners_consultation_duration_positive',
+      sql`consultation_duration_minutes > 0`,
+    ),
+    check(
+      'practitioners_start_precision_positive',
+      sql`start_precision_minutes > 0`,
     ),
   ],
 );
@@ -1411,6 +1419,18 @@ export const practitionerScheduleSessions = pgTable(
       table.practitionerId.asc().nullsLast().op('enum_ops'),
       table.scheduleDate.asc().nullsLast().op('uuid_ops'),
       table.status.asc().nullsLast().op('enum_ops'),
+    ),
+    index('practitioner_schedule_sessions_date_room_idx').using(
+      'btree',
+      table.scheduleDate.asc().nullsLast(),
+      table.roomId.asc().nullsLast(),
+      table.status.asc().nullsLast(),
+    ),
+    index('practitioner_schedule_sessions_date_time_idx').using(
+      'btree',
+      table.scheduleDate.asc().nullsLast(),
+      table.startTime.asc().nullsLast(),
+      table.endTime.asc().nullsLast(),
     ),
     foreignKey({
       columns: [table.daySettingId],

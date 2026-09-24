@@ -32,7 +32,12 @@ import {
   ApiUnauthorizedResponse,
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
-import { CurrentUser, HybridAuthGuard, Roles, RolesGuard } from '../../../common/auth';
+import {
+  CurrentUser,
+  HybridAuthGuard,
+  Roles,
+  RolesGuard,
+} from '../../../common/auth';
 import { AvatarService } from '../../avatar/avatar.service';
 import {
   STAFF_REPOSITORY,
@@ -89,7 +94,9 @@ export class StaffsController {
       'Staf atau dokter memperbarui nama lengkap, nomor telepon, atau foto profil staf miliknya.',
   })
   @ApiOkResponse({ description: 'Profil staf berhasil diperbarui' })
-  @ApiNotFoundResponse({ description: 'Profil staf tidak ditemukan untuk akun ini' })
+  @ApiNotFoundResponse({
+    description: 'Profil staf tidak ditemukan untuk akun ini',
+  })
   @ApiUnprocessableEntityResponse({ description: 'Validasi pembaruan gagal' })
   async updateMyProfile(
     @CurrentUser() user: any,
@@ -104,7 +111,8 @@ export class StaffsController {
     }
     const updatePayload: Partial<any> = {};
     if (body.fullName !== undefined) updatePayload.fullName = body.fullName;
-    if (body.phoneNumber !== undefined) updatePayload.phoneNumber = body.phoneNumber;
+    if (body.phoneNumber !== undefined)
+      updatePayload.phoneNumber = body.phoneNumber;
     if (body.photoUrl !== undefined) updatePayload.photoUrl = body.photoUrl;
 
     const updated = await this.staffRepo.update(staff.id, updatePayload);
@@ -121,7 +129,8 @@ export class StaffsController {
   @ApiConsumes('multipart/form-data')
   @ApiOperation({
     summary: 'Upload atau perbarui avatar profil staf login (PATCH)',
-    description: 'Mengunggah file gambar avatar (JPEG, PNG, WebP hingga 5MB) untuk staf yang sedang login.',
+    description:
+      'Mengunggah file gambar avatar (JPEG, PNG, WebP hingga 5MB) untuk staf yang sedang login.',
   })
   @ApiBody({
     schema: {
@@ -181,9 +190,12 @@ export class StaffsController {
   @Roles('ADMIN', 'STAF')
   @ApiOperation({
     summary: 'Melihat kredensial legalitas staf yang sedang login (SIP/STR)',
-    description: 'Mengambil riwayat Surat Izin Praktik (SIP) dan Surat Tanda Registrasi (STR) untuk staf yang login.',
+    description:
+      'Mengambil riwayat Surat Izin Praktik (SIP) dan Surat Tanda Registrasi (STR) untuk staf yang login.',
   })
-  @ApiOkResponse({ description: 'Daftar kredensial staf login berhasil diambil' })
+  @ApiOkResponse({
+    description: 'Daftar kredensial staf login berhasil diambil',
+  })
   async getMyCredentials(@CurrentUser() user: any) {
     const staff = await this.staffRepo.findByUserId(user.id);
     if (!staff) {
@@ -200,7 +212,8 @@ export class StaffsController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Menambahkan kredensial SIP/STR untuk staf yang sedang login',
-    description: 'Mencatat nomor izin praktik dan masa berlaku legalitas tenaga medis staf yang sedang login.',
+    description:
+      'Mencatat nomor izin praktik dan masa berlaku legalitas tenaga medis staf yang sedang login.',
   })
   @ApiCreatedResponse({ description: 'Kredensial berhasil dicatat' })
   async addMyCredential(
@@ -221,7 +234,8 @@ export class StaffsController {
   @Roles('ADMIN', 'STAF')
   @ApiOperation({
     summary: 'Memperbarui kredensial SIP/STR staf login',
-    description: 'Mengubah nomor izin praktik, penerbit, masa berlaku, atau status legalitas staf login.',
+    description:
+      'Mengubah nomor izin praktik, penerbit, masa berlaku, atau status legalitas staf login.',
   })
   @ApiParam({
     name: 'credentialId',
@@ -407,7 +421,8 @@ export class StaffsController {
   )
   @ApiConsumes('multipart/form-data')
   @ApiOperation({
-    summary: 'Upload atau perbarui avatar staf berdasarkan ID staf (PATCH Admin)',
+    summary:
+      'Upload atau perbarui avatar staf berdasarkan ID staf (PATCH Admin)',
     description:
       'Administrator mengunggah foto profil baru untuk staf/dokter berdasarkan UUID profil staf.',
   })
@@ -440,7 +455,9 @@ export class StaffsController {
       throw new NotFoundException(`Staf dengan ID ${id} tidak ditemukan`);
     }
     if (!staff.userId) {
-      throw new BadRequestException('Staf ini tidak terhubung dengan akun pengguna sistem');
+      throw new BadRequestException(
+        'Staf ini tidak terhubung dengan akun pengguna sistem',
+      );
     }
     return this.avatarService.uploadAvatar(staff.userId, file.buffer);
   }
@@ -454,7 +471,8 @@ export class StaffsController {
   )
   @ApiConsumes('multipart/form-data')
   @ApiOperation({
-    summary: 'Upload atau perbarui avatar staf berdasarkan ID staf (POST Alias Admin)',
+    summary:
+      'Upload atau perbarui avatar staf berdasarkan ID staf (POST Alias Admin)',
   })
   @ApiParam({
     name: 'id',
@@ -553,8 +571,10 @@ export class StaffsController {
   @Patch(':id/credentials/:credentialId')
   @Roles('ADMIN', 'STAF')
   @ApiOperation({
-    summary: 'Memperbarui kredensial SIP/STR staf berdasarkan ID staf dan ID kredensial',
-    description: 'Mengubah rincian izin praktik, nomor registrasi, masa berlaku, atau status legalitas.',
+    summary:
+      'Memperbarui kredensial SIP/STR staf berdasarkan ID staf dan ID kredensial',
+    description:
+      'Mengubah rincian izin praktik, nomor registrasi, masa berlaku, atau status legalitas.',
   })
   @ApiParam({
     name: 'id',
@@ -583,7 +603,9 @@ export class StaffsController {
     }
     const cred = await this.staffRepo.findCredentialById(credentialId);
     if (!cred || cred.staffProfileId !== id) {
-      throw new NotFoundException(`Kredensial dengan ID ${credentialId} tidak ditemukan untuk staf ini`);
+      throw new NotFoundException(
+        `Kredensial dengan ID ${credentialId} tidak ditemukan untuk staf ini`,
+      );
     }
     return this.staffRepo.updateCredential(credentialId, body);
   }
@@ -620,7 +642,9 @@ export class StaffsController {
     }
     const cred = await this.staffRepo.findCredentialById(credentialId);
     if (!cred || cred.staffProfileId !== id) {
-      throw new NotFoundException(`Kredensial dengan ID ${credentialId} tidak ditemukan untuk staf ini`);
+      throw new NotFoundException(
+        `Kredensial dengan ID ${credentialId} tidak ditemukan untuk staf ini`,
+      );
     }
     await this.staffRepo.deleteCredential(credentialId);
   }

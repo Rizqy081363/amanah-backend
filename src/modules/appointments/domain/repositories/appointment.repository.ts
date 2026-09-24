@@ -1,4 +1,6 @@
 import { AppointmentEntity } from '../entities/appointment.entity';
+import { CancelAppointmentDto } from '../../presentation/dto/cancel-appointment.dto';
+import { AdminUpdateAppointmentStatusDto } from '../../presentation/dto/admin-update-appointment-status.dto';
 
 export const APPOINTMENT_REPOSITORY = 'APPOINTMENT_REPOSITORY';
 
@@ -54,4 +56,22 @@ export interface AppointmentRepository {
     session: string,
   ): Promise<number>;
   delete(id: string): Promise<boolean>;
+  cancelAdminAppointment(
+    appointmentId: string,
+    dto: CancelAppointmentDto,
+    actorUserId?: string,
+  ): Promise<{
+    success: boolean;
+    message: string;
+    data: any;
+  }>;
+  updateAdminAppointmentStatus(
+    appointmentId: string,
+    dto: AdminUpdateAppointmentStatusDto,
+    actorUserId?: string,
+  ): Promise<{
+    success: boolean;
+    message: string;
+    data: any;
+  }>;
 }

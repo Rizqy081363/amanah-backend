@@ -24,7 +24,9 @@ describe('NameInitialsHelper', () => {
 
   it('should strip clinical specialty suffixes (, Sp.A, , Sp.OG, M.Kes, etc.)', () => {
     expect(NameInitialsHelper.extract('dr. Ahmad Santoso, Sp.A')).toBe('AS');
-    expect(NameInitialsHelper.extract('Bdn. Laras Wulandari, S.Tr.Keb')).toBe('LW');
+    expect(NameInitialsHelper.extract('Bdn. Laras Wulandari, S.Tr.Keb')).toBe(
+      'LW',
+    );
   });
 
   it('should handle fallback for empty or whitespace-only names', () => {

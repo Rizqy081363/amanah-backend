@@ -14,7 +14,13 @@ describe('LocalAvatarStorageAdapter', () => {
   afterAll(async () => {
     // Cleanup test files
     await adapter.deleteAvatar(`avatars/${testUserId}/avatar.webp`);
-    const testDir = path.resolve(process.cwd(), 'data', 'uploads', 'avatars', testUserId);
+    const testDir = path.resolve(
+      process.cwd(),
+      'data',
+      'uploads',
+      'avatars',
+      testUserId,
+    );
     if (fs.existsSync(testDir)) {
       await fs.promises.rm(testDir, { recursive: true, force: true });
     }
@@ -31,7 +37,14 @@ describe('LocalAvatarStorageAdapter', () => {
     const streamObj = await adapter.getAvatarStream(saved.storageKey);
     expect(streamObj).not.toBeNull();
     expect(streamObj?.byteSize).toBe(testData.length);
-    streamObj?.stream.destroy();
+    if (streamObj) {
+      await new Promise<void>((resolve) => {
+        streamObj.stream.on('end', resolve);
+        streamObj.stream.on('close', resolve);
+        streamObj.stream.on('error', () => resolve());
+        streamObj.stream.resume();
+      });
+    }
   });
 
   it('should throw an error on path traversal attempts', async () => {

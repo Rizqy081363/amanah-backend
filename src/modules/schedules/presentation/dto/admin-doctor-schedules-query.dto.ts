@@ -1,6 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { ScheduleOperationalStatus } from '../../domain/entities/schedule.entity';
 
 export class AdminDoctorSchedulesQueryDto {
   @ApiPropertyOptional({
@@ -43,8 +44,10 @@ export class AdminDoctorSchedulesQueryDto {
   poli?: string;
 
   @ApiPropertyOptional({
-    description: 'Filter status jadwal (Buka, Penuh, Cuti)',
-    example: 'Buka',
+    description:
+      'Filter canonical effective schedule status. Comma-separated values are allowed.',
+    enum: ScheduleOperationalStatus,
+    example: ScheduleOperationalStatus.OPEN,
   })
   @IsOptional()
   @IsString()

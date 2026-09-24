@@ -1,6 +1,14 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsBoolean, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import {
+  IsBoolean,
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsString,
+  Min,
+} from 'class-validator';
+import { AdminScheduleStatusRequest } from '../../domain/schedule-status';
 
 export class UpdateAdminDoctorScheduleDto {
   @ApiPropertyOptional({
@@ -36,12 +44,14 @@ export class UpdateAdminDoctorScheduleDto {
   cuti_end?: string;
 
   @ApiPropertyOptional({
-    description: 'Status operasional jadwal (Buka, Penuh, Cuti, Tutup)',
-    example: 'Cuti',
+    description:
+      'Canonical schedule operating status. Leave/cuti is controlled by is_cuti, not this field.',
+    enum: AdminScheduleStatusRequest,
+    example: AdminScheduleStatusRequest.CLOSED,
   })
   @IsOptional()
-  @IsString()
-  status_jadwal?: string;
+  @IsEnum(AdminScheduleStatusRequest)
+  status_jadwal?: AdminScheduleStatusRequest;
 
   @ApiPropertyOptional({
     description: 'Jumlah slot pasien yang tersedia',

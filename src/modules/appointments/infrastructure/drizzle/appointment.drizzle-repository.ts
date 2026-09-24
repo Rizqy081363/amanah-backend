@@ -1,4 +1,9 @@
-import { Inject, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { and, count, desc, eq, lt, or } from 'drizzle-orm';
 import {
   ConcurrentModificationConflictException,
@@ -11,11 +16,13 @@ import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
   appointments,
+  appointmentStatusEvents,
   clinicRooms,
   clinicServices,
   clinicUnits,
   patientProfiles,
   practitioners,
+  practitionerScheduleSessions,
   queueTickets,
 } from '../../../../database/schema';
 import { AppointmentEntity } from '../../domain/entities/appointment.entity';
@@ -23,6 +30,8 @@ import {
   AppointmentFindAllResult,
   AppointmentRepository,
 } from '../../domain/repositories/appointment.repository';
+import { CancelAppointmentDto } from '../../presentation/dto/cancel-appointment.dto';
+import { AdminUpdateAppointmentStatusDto } from '../../presentation/dto/admin-update-appointment-status.dto';
 
 @Injectable()
 export class AppointmentDrizzleRepository implements AppointmentRepository {
@@ -477,6 +486,28 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
         updateApt.cancelReason = cancellationReason;
       }
       updateTicket.status = ticketStatus;
+
+      if (existing.scheduleSessionId && existing.status !== 'cancelled') {
+        const [session] = await this.db
+          .select()
+          .from(practitionerScheduleSessions)
+          .where(
+            eq(practitionerScheduleSessions.id, existing.scheduleSessionId),
+          );
+        if (session) {
+          const newAvailable = Math.min(
+            session.capacity,
+            session.availableSlots + 1,
+          );
+          await this.db
+            .update(practitionerScheduleSessions)
+            .set({
+              availableSlots: newAvailable,
+              updatedAt: nowStr,
+            })
+            .where(eq(practitionerScheduleSessions.id, session.id));
+        }
+      }
     }
 
     const whereConditions = [eq(appointments.id, id)];
@@ -544,5 +575,260 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
       'Dihapus oleh pengguna',
     );
     return updated !== null;
+  }
+
+  async cancelAdminAppointment(
+    appointmentId: string,
+    dto: CancelAppointmentDto,
+    actorUserId?: string,
+  ): Promise<{
+    success: boolean;
+    message: string;
+    data: any;
+  }> {
+    return await this.db.transaction(async (tx) => {
+      // 1. Fetch current appointment with row-level lock
+      const [apt] = await tx
+        .select()
+        .from(appointments)
+        .where(eq(appointments.id, appointmentId))
+        .for('update');
+
+      if (!apt) {
+        throw new NotFoundException('Janji temu tidak ditemukan');
+      }
+
+      // Guard: Reject if already in service or completed (AC-06 & AC-07)
+      if (apt.status === 'in_service' || apt.status === 'completed') {
+        throw new BadRequestException(
+          'Janji temu tidak dapat dibatalkan karena pasien sedang dalam pemeriksaan dokter atau telah selesai.',
+        );
+      }
+
+      // Idempotent: If already cancelled, return existing record without double-increment (AC-08)
+      if (apt.status === 'cancelled') {
+        return {
+          success: true,
+          message: 'Janji temu sudah berstatus dibatalkan',
+          data: {
+            appointmentId: apt.id,
+            previousStatus: apt.status,
+            newStatus: 'cancelled',
+            cancelledAt: apt.cancelledAt,
+            cancelReason: apt.cancelReason,
+            scheduleSession: null,
+          },
+        };
+      }
+
+      const nowIso = new Date().toISOString();
+      const newStatus: typeof appointments.$inferSelect.status = dto.isNoShow
+        ? 'no_show'
+        : 'cancelled';
+
+      // 2. Mark appointment as cancelled / no_show
+      await tx
+        .update(appointments)
+        .set({
+          status: newStatus,
+          cancelledAt: nowIso,
+          cancelReason: dto.reason,
+          updatedAt: nowIso,
+          updatedBy: actorUserId || null,
+        })
+        .where(eq(appointments.id, appointmentId));
+
+      // 3. Mark queue ticket as cancelled
+      await tx
+        .update(queueTickets)
+        .set({
+          status: 'cancelled',
+        })
+        .where(eq(queueTickets.appointmentId, appointmentId));
+
+      // 4. Atomically restore available slot in practitioner_schedule_sessions (AC-04 & AC-05)
+      let sessionResult: any = null;
+      if (apt.scheduleSessionId) {
+        const [session] = await tx
+          .select()
+          .from(practitionerScheduleSessions)
+          .where(eq(practitionerScheduleSessions.id, apt.scheduleSessionId))
+          .for('update');
+
+        if (session) {
+          const newAvailable = Math.min(
+            session.capacity,
+            session.availableSlots + 1,
+          );
+          await tx
+            .update(practitionerScheduleSessions)
+            .set({
+              availableSlots: newAvailable,
+              updatedAt: nowIso,
+            })
+            .where(eq(practitionerScheduleSessions.id, session.id));
+
+          sessionResult = {
+            sessionId: session.id,
+            restoredAvailableSlots: newAvailable,
+            totalCapacity: session.capacity,
+            sessionStatus: session.status,
+          };
+        }
+      }
+
+      // 5. Record audit and history log (appointment_status_events)
+      await tx.insert(appointmentStatusEvents).values({
+        appointmentId,
+        previousStatus: apt.status,
+        newStatus,
+        changedBy: actorUserId || null,
+        reason: dto.reason,
+      });
+
+      return {
+        success: true,
+        message:
+          'Janji temu berhasil dibatalkan dan 1 slot kuota sesi telah dipulihkan',
+        data: {
+          appointmentId: apt.id,
+          previousStatus: apt.status,
+          newStatus,
+          cancelledAt: nowIso,
+          cancelReason: dto.reason,
+          scheduleSession: sessionResult,
+        },
+      };
+    });
+  }
+
+  async updateAdminAppointmentStatus(
+    appointmentId: string,
+    dto: AdminUpdateAppointmentStatusDto,
+    actorUserId?: string,
+  ): Promise<{
+    success: boolean;
+    message: string;
+    data: any;
+  }> {
+    return await this.db.transaction(async (tx) => {
+      const [apt] = await tx
+        .select()
+        .from(appointments)
+        .where(eq(appointments.id, appointmentId))
+        .for('update');
+
+      if (!apt) {
+        throw new NotFoundException('Janji temu tidak ditemukan');
+      }
+
+      const previousStatus = apt.status;
+      const targetStatus = dto.status as typeof appointments.$inferSelect.status;
+
+      if (
+        (targetStatus === 'cancelled' || targetStatus === 'no_show') &&
+        (previousStatus === 'in_service' || previousStatus === 'completed')
+      ) {
+        throw new BadRequestException(
+          'Janji temu tidak dapat dibatalkan karena pasien sedang dalam pemeriksaan dokter atau telah selesai.',
+        );
+      }
+
+      const nowIso = new Date().toISOString();
+      const updateFields: Record<string, any> = {
+        status: targetStatus,
+        updatedAt: nowIso,
+        updatedBy: actorUserId || null,
+      };
+
+      if (targetStatus === 'cancelled' || targetStatus === 'no_show') {
+        updateFields.cancelledAt = nowIso;
+        updateFields.cancelReason = dto.reason || 'Dibatalkan oleh staf/admin';
+      } else if (targetStatus === 'in_service') {
+        updateFields.startedAt = nowIso;
+      } else if (targetStatus === 'completed') {
+        updateFields.completedAt = nowIso;
+      } else if (targetStatus === 'checked_in' || targetStatus === 'waiting') {
+        updateFields.checkedInAt = apt.checkedInAt || nowIso;
+      }
+
+      await tx
+        .update(appointments)
+        .set(updateFields)
+        .where(eq(appointments.id, appointmentId));
+
+      let ticketStatus: typeof queueTickets.$inferSelect.status = 'waiting';
+      if (targetStatus === 'in_service') ticketStatus = 'in_service';
+      else if (targetStatus === 'completed') ticketStatus = 'completed';
+      else if (targetStatus === 'cancelled') ticketStatus = 'cancelled';
+      else if (targetStatus === 'no_show') ticketStatus = 'skipped';
+
+      await tx
+        .update(queueTickets)
+        .set({
+          status: ticketStatus,
+          ...(targetStatus === 'in_service'
+            ? { calledAt: nowIso, startedAt: nowIso }
+            : {}),
+          ...(targetStatus === 'completed' ? { completedAt: nowIso } : {}),
+        })
+        .where(eq(queueTickets.appointmentId, appointmentId));
+
+      let sessionResult: any = null;
+      if (
+        (targetStatus === 'cancelled' || targetStatus === 'no_show') &&
+        previousStatus !== 'cancelled' &&
+        previousStatus !== 'no_show' &&
+        apt.scheduleSessionId
+      ) {
+        const [session] = await tx
+          .select()
+          .from(practitionerScheduleSessions)
+          .where(eq(practitionerScheduleSessions.id, apt.scheduleSessionId))
+          .for('update');
+
+        if (session) {
+          const newAvailable = Math.min(
+            session.capacity,
+            session.availableSlots + 1,
+          );
+          await tx
+            .update(practitionerScheduleSessions)
+            .set({
+              availableSlots: newAvailable,
+              updatedAt: nowIso,
+            })
+            .where(eq(practitionerScheduleSessions.id, session.id));
+
+          sessionResult = {
+            sessionId: session.id,
+            restoredAvailableSlots: newAvailable,
+            totalCapacity: session.capacity,
+            sessionStatus: session.status,
+          };
+        }
+      }
+
+      await tx.insert(appointmentStatusEvents).values({
+        appointmentId,
+        previousStatus,
+        newStatus: targetStatus,
+        changedBy: actorUserId || null,
+        reason: dto.reason || null,
+      });
+
+      return {
+        success: true,
+        message: `Status janji temu berhasil diubah menjadi ${targetStatus}`,
+        data: {
+          appointmentId,
+          previousStatus,
+          newStatus: targetStatus,
+          updatedAt: nowIso,
+          reason: dto.reason || null,
+          scheduleSession: sessionResult,
+        },
+      };
+    });
   }
 }

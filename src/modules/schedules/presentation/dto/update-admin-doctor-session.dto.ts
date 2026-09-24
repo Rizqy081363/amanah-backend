@@ -1,6 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsEnum, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { AdminScheduleStatusRequest } from '../../domain/schedule-status';
 
 export class UpdateAdminDoctorSessionDto {
   @ApiPropertyOptional({
@@ -48,12 +49,13 @@ export class UpdateAdminDoctorSessionDto {
   slot_tersedia?: number;
 
   @ApiPropertyOptional({
-    description: 'Status sesi operasional (Buka, Penuh, Cuti, Tutup)',
-    example: 'Buka',
+    description: 'Canonical session operating status',
+    enum: AdminScheduleStatusRequest,
+    example: AdminScheduleStatusRequest.OPEN,
   })
   @IsOptional()
-  @IsString()
-  status_sesi?: string;
+  @IsEnum(AdminScheduleStatusRequest)
+  status_sesi?: AdminScheduleStatusRequest;
 
   @ApiPropertyOptional({
     description: 'ID Ruangan klinik (UUID) atau nama ruangan',

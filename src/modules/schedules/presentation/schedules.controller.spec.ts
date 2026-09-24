@@ -72,12 +72,24 @@ describe('SchedulesController', () => {
       getRooms: jest.fn(),
       getPolikliniks: jest.fn(),
       getScheduleOptions: jest.fn(),
+      getScheduleContexts: jest.fn(),
+      projectAvailability: jest.fn(),
+      createAvailability: jest.fn(),
+      updatePractitionerSchedulePolicy: jest.fn(),
       findAdminDoctorSchedules: jest.fn(),
       findAdminDoctorScheduleDetail: jest.fn(),
       updateAdminDoctorSchedule: jest.fn(),
       updateAdminDayStatus: jest.fn(),
       createAdminDoctorSession: jest.fn(),
+      deleteAdminDoctorSession: jest.fn(),
+      updateAdminDoctorSession: jest.fn(),
+      rescheduleAdminDoctorSession: jest.fn(),
+      checkRescheduleEligibility: jest.fn(),
+      getAdminDoctorScheduleFilterOptions: jest.fn(),
       findClinicalPractitioners: jest.fn(),
+      getOccupancyOverview: jest.fn(),
+      getAdminSessionPatients: jest.fn(),
+      getAdminDoctorPatientsByDate: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -251,6 +263,33 @@ describe('SchedulesController', () => {
       );
       expect(result).toEqual(mockSetting);
     });
+
+    it('should update day status (close/open whole day) for doctor', async () => {
+      const mockResult: any = {
+        success: true,
+        data: {
+          date: '2026-10-24',
+          status: 'Tutup',
+          affectedSessionsCount: 2,
+        },
+      };
+      mockScheduleRepo.updateAdminDayStatus.mockResolvedValue(mockResult);
+
+      const result = await controller.updateDayStatus(
+        '2026-10-24',
+        'Tutup',
+        'Cuti darurat',
+        mockStaffUser,
+      );
+
+      expect(mockScheduleRepo.updateAdminDayStatus).toHaveBeenCalledWith(
+        'practitioner-uuid-1',
+        '2026-10-24',
+        'Tutup',
+        'Cuti darurat',
+      );
+      expect(result).toEqual(mockResult);
+    });
   });
 
   describe('getRooms', () => {
@@ -390,6 +429,132 @@ describe('SchedulesController', () => {
 
       const result = await controller.getScheduleOptions();
       expect(result).toEqual(mockOptions);
+    });
+  });
+
+  describe('schedule v2 projection contract', () => {
+    it('returns backend-owned contexts and effective duration for the authenticated practitioner', async () => {
+      const contexts: any = [
+        {
+          contextId: 'morning',
+          contextLabel: 'Pagi',
+          boundaryStartTime: '06:00',
+          boundaryEndTime: '12:00',
+          effectiveConsultationDurationMinutes: 30,
+          durationEditableByCurrentUser: false,
+        },
+      ];
+      mockScheduleRepo.getScheduleContexts.mockResolvedValue(contexts);
+
+      const result = await controller.getScheduleContexts(
+        { date: '2026-09-23' },
+        mockStaffUser,
+      );
+
+      expect(mockScheduleRepo.getScheduleContexts).toHaveBeenCalledWith(
+        'practitioner-uuid-1',
+        '2026-09-23',
+        false,
+      );
+      expect(result).toEqual(contexts);
+    });
+
+    it('previews projection without rounding arbitrary start times', async () => {
+      const projection: any = {
+        selectedStartTime: '08:45',
+        effectiveConsultationDurationMinutes: 30,
+        intervals: [{ startTime: '08:45', endTime: '09:15', status: 'OPEN' }],
+      };
+      mockScheduleRepo.projectAvailability.mockResolvedValue(projection);
+
+      const result = await controller.previewScheduleProjection(
+        {
+          date: '2026-09-23',
+          scheduleContextId: 'morning',
+          startTime: '08:45',
+        },
+        mockStaffUser,
+      );
+
+      expect(mockScheduleRepo.projectAvailability).toHaveBeenCalledWith(
+        'practitioner-uuid-1',
+        {
+          date: '2026-09-23',
+          scheduleContextId: 'morning',
+          startTime: '08:45',
+        },
+        false,
+      );
+      expect(result).toEqual(projection);
+    });
+
+    it('creates availability without client-supplied endTime', async () => {
+      const response: any = {
+        schedule: {
+          id: 'schedule-1',
+          startTime: '08:45',
+          endTime: '12:00',
+        },
+        projection: {
+          selectedStartTime: '08:45',
+          intervals: [],
+        },
+      };
+      mockScheduleRepo.createAvailability.mockResolvedValue(response);
+
+      const result = await controller.createAvailability(
+        {
+          date: '2026-09-23',
+          scheduleContextId: 'morning',
+          startTime: '08:45',
+        },
+        mockStaffUser,
+      );
+
+      expect(mockScheduleRepo.createAvailability).toHaveBeenCalledWith(
+        'practitioner-uuid-1',
+        {
+          date: '2026-09-23',
+          scheduleContextId: 'morning',
+          startTime: '08:45',
+        },
+        {
+          userId: 'user-uuid-1',
+          durationEditableByCurrentUser: false,
+        },
+      );
+      expect(result).toEqual(response);
+    });
+
+    it('returns occupancy overview for the authenticated practitioner with anti-collision grid', async () => {
+      const mockOverview: any = {
+        date: '2026-09-25',
+        practitionerId: 'practitioner-uuid-1',
+        practitionerName: 'dr. Sarah Jenkins, Sp.A',
+        effectiveConsultationDurationMinutes: 30,
+        summary: {
+          totalShifts: 4,
+          totalSlots: 42,
+          availableSlots: 40,
+          occupiedSlots: 2,
+        },
+        shifts: [],
+      };
+      mockScheduleRepo.getOccupancyOverview.mockResolvedValue(mockOverview);
+
+      const result = await controller.getOccupancyOverview(
+        { date: '2026-09-25', roomId: 'room-uuid-1' },
+        mockStaffUser,
+      );
+
+      expect(mockScheduleRepo.getOccupancyOverview).toHaveBeenCalledWith(
+        'practitioner-uuid-1',
+        { date: '2026-09-25', roomId: 'room-uuid-1' },
+      );
+      expect(result).toEqual({
+        success: true,
+        data: mockOverview,
+      });
     });
   });
 });

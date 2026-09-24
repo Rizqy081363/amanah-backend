@@ -149,11 +149,15 @@ export class HybridAuthGuard extends AuthGuard('jwt') implements CanActivate {
               birthDate:
                 typeof patientProfile.birthDate === 'string'
                   ? patientProfile.birthDate
-                  : (patientProfile.birthDate as any)?.toISOString?.()?.slice(0, 10) || null,
+                  : (patientProfile.birthDate as any)
+                      ?.toISOString?.()
+                      ?.slice(0, 10) || null,
               bloodType:
                 patientProfile.bloodType === 'unknown'
                   ? 'Belum Tahu'
-                  : (patientProfile.bloodType?.toUpperCase() ?? patientProfile.bloodType ?? null),
+                  : (patientProfile.bloodType?.toUpperCase() ??
+                    patientProfile.bloodType ??
+                    null),
               phoneNumber: patientProfile.phone,
               status: patientProfile.status,
             }

@@ -77,7 +77,9 @@ describe('MailService (Password Reset URL Contract & SSOT Tests)', () => {
         expires: 999999,
       });
 
-      expect(url).toContain('http://localhost:3000/auth/sign-in/reset-password?');
+      expect(url).toContain(
+        'http://localhost:3000/auth/sign-in/reset-password?',
+      );
     });
 
     it('should respect custom AUTH_RESET_PASSWORD_PATH from configuration', () => {
@@ -112,7 +114,9 @@ describe('MailService (Password Reset URL Contract & SSOT Tests)', () => {
 
   describe('forgotPassword dispatch', () => {
     it('should dispatch email with the SSOT canonical reset URL in context', async () => {
-      const sendSpy = jest.spyOn(mailService, 'send').mockResolvedValue(undefined);
+      const sendSpy = jest
+        .spyOn(mailService, 'send')
+        .mockResolvedValue(undefined);
 
       await mailService.forgotPassword({
         to: 'pasien@amanah.id',

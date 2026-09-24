@@ -69,8 +69,8 @@ const getRedisUrl = (): string => {
   const host = process.env.REDIS_HOST || 'localhost';
   const isLocalHost = host === 'localhost' || host === '127.0.0.1';
   const port = isLocalHost
-    ? (process.env.REDIS_HOST_PORT || process.env.REDIS_PORT || '6379')
-    : (process.env.REDIS_PORT || '6379');
+    ? process.env.REDIS_HOST_PORT || process.env.REDIS_PORT || '6379'
+    : process.env.REDIS_PORT || '6379';
 
   return `redis://${host}:${port}/1`;
 };

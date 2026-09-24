@@ -192,7 +192,9 @@ export class AuthController {
     description: 'Permintaan kirim ulang kode OTP berhasil diproses',
   })
   @HttpCode(HttpStatus.OK)
-  async resendOtp(@Body() dto: AuthResendOtpDto): Promise<ResendOtpResponseDto> {
+  async resendOtp(
+    @Body() dto: AuthResendOtpDto,
+  ): Promise<ResendOtpResponseDto> {
     return this.service.resendOtp(dto);
   }
 

@@ -43,10 +43,7 @@ import { AvatarService } from './avatar.service';
 export class AvatarController {
   constructor(private readonly avatarService: AvatarService) {}
 
-  private async handleUpload(
-    userId: string,
-    file?: Express.Multer.File,
-  ) {
+  private async handleUpload(userId: string, file?: Express.Multer.File) {
     if (!file || !file.buffer) {
       throw new BadRequestException('Berkas gambar (file) wajib disertakan');
     }
@@ -138,7 +135,8 @@ export class AvatarController {
   )
   @ApiConsumes('multipart/form-data')
   @ApiOperation({
-    summary: 'Upload atau perbarui avatar pengguna berdasarkan ID (PATCH Admin)',
+    summary:
+      'Upload atau perbarui avatar pengguna berdasarkan ID (PATCH Admin)',
     description:
       'Administrator mengunggah berkas foto profil (JPEG, PNG, WebP hingga 5MB) untuk pengguna/dokter berdasarkan UUID pengguna.',
   })
@@ -183,7 +181,8 @@ export class AvatarController {
   )
   @ApiConsumes('multipart/form-data')
   @ApiOperation({
-    summary: 'Upload atau perbarui avatar pengguna berdasarkan ID (POST Alias Admin)',
+    summary:
+      'Upload atau perbarui avatar pengguna berdasarkan ID (POST Alias Admin)',
     description:
       'Administrator mengunggah berkas foto profil untuk pengguna/dokter berdasarkan UUID pengguna.',
   })

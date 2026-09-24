@@ -27,6 +27,8 @@ import {
 import { CreateAppointmentDto } from '../presentation/dto/create-appointment.dto';
 import { QueryAppointmentDto } from '../presentation/dto/query-appointment.dto';
 import { UpdateAppointmentStatusDto } from '../presentation/dto/update-appointment-status.dto';
+import { CancelAppointmentDto } from '../presentation/dto/cancel-appointment.dto';
+import { AdminUpdateAppointmentStatusDto } from '../presentation/dto/admin-update-appointment-status.dto';
 
 const QUEUE_CACHE_TTL_SECONDS = 30; // High-frequency views cached with 30s TTL
 const QUEUE_DISPLAY_CACHE_PREFIX = 'queue:display';
@@ -436,6 +438,96 @@ export class AppointmentsService {
 
     await this.invalidateQueueCaches();
     return updated;
+  }
+
+  async cancelAdminAppointment(
+    appointmentId: string,
+    dto: CancelAppointmentDto,
+    user?: any,
+  ): Promise<any> {
+    const actorUserId = user?.id || user?.sub;
+    const result = await this.appointmentRepo.cancelAdminAppointment(
+      appointmentId,
+      dto,
+      actorUserId,
+    );
+
+    await this.dispatchDomainEvent(
+      {
+        aggregateType: 'appointment',
+        aggregateId: appointmentId,
+        eventType: AppointmentStatusChangedEvent.EVENT_NAME,
+        payload: {
+          appointmentId,
+          previousStatus: result.data.previousStatus,
+          newStatus: result.data.newStatus,
+          reason: dto.reason,
+          actor: {
+            userId: actorUserId,
+            roleCode: user?.role,
+          },
+        },
+      },
+      new AppointmentStatusChangedEvent(
+        appointmentId,
+        result.data.previousStatus,
+        result.data.newStatus,
+        dto.reason,
+        undefined,
+        {
+          userId: actorUserId,
+          roleCode: user?.role,
+        },
+      ),
+    );
+
+    await this.invalidateQueueCaches();
+    return result;
+  }
+
+  async updateAdminAppointmentStatus(
+    appointmentId: string,
+    dto: AdminUpdateAppointmentStatusDto,
+    user?: any,
+  ): Promise<any> {
+    const actorUserId = user?.id || user?.sub;
+    const result = await this.appointmentRepo.updateAdminAppointmentStatus(
+      appointmentId,
+      dto,
+      actorUserId,
+    );
+
+    await this.dispatchDomainEvent(
+      {
+        aggregateType: 'appointment',
+        aggregateId: appointmentId,
+        eventType: AppointmentStatusChangedEvent.EVENT_NAME,
+        payload: {
+          appointmentId,
+          previousStatus: result.data.previousStatus,
+          newStatus: result.data.newStatus,
+          reason: dto.reason,
+          actor: {
+            userId: actorUserId,
+            roleCode: user?.role,
+          },
+        },
+      },
+      new AppointmentStatusChangedEvent(
+        appointmentId,
+        result.data.previousStatus,
+        result.data.newStatus,
+        dto.reason,
+        undefined,
+        {
+          userId: actorUserId,
+          roleCode: user?.role,
+        },
+      ),
+    );
+
+    await this.invalidateQueueCaches();
+    return result;
   }
 
   async delete(id: string, user?: any): Promise<void> {

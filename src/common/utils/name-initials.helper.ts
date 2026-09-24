@@ -25,7 +25,10 @@ export class NameInitialsHelper {
     }
 
     // 3. Remove punctuation and extra whitespace
-    cleaned = cleaned.replace(/[^\p{L}\s]/gu, '').replace(/\s+/g, ' ').trim();
+    cleaned = cleaned
+      .replace(/[^\p{L}\s]/gu, '')
+      .replace(/\s+/g, ' ')
+      .trim();
 
     if (!cleaned) {
       return 'AH';

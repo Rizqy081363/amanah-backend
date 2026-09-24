@@ -1,15 +1,16 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { AdminScheduleStatusRequest } from '../../domain/schedule-status';
 
 export class UpdateAdminDayStatusDto {
   @ApiProperty({
-    description:
-      'Status jadwal pada tanggal terkait (Buka, Penuh, Cuti, Tutup)',
-    example: 'Cuti',
+    description: 'Canonical day operating status',
+    enum: AdminScheduleStatusRequest,
+    example: AdminScheduleStatusRequest.CLOSED,
   })
   @IsNotEmpty()
-  @IsString()
-  status: string;
+  @IsEnum(AdminScheduleStatusRequest)
+  status: AdminScheduleStatusRequest;
 
   @ApiPropertyOptional({
     description: 'Catatan operasional atau alasan cuti',

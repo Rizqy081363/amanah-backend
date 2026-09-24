@@ -375,8 +375,7 @@ export class PatientDrizzleRepository implements PatientRepository {
       updateValues.bloodType = bloodTypeMap[bloodType] || 'unknown';
     }
 
-    if (d.pekerjaan !== undefined)
-      updateValues.occupation = d.pekerjaan.trim();
+    if (d.pekerjaan !== undefined) updateValues.occupation = d.pekerjaan.trim();
     if (d.medicalHistory !== undefined)
       updateValues.medicalHistorySummary = d.medicalHistory;
     if (d.avatarUrl !== undefined) updateValues.avatarUrl = d.avatarUrl;
@@ -506,8 +505,7 @@ export class PatientDrizzleRepository implements PatientRepository {
 
     // Emergency contact handling
     const emergencyName = d.emergencyContactName ?? d.nama_kontak_darurat;
-    const emergencyPhone =
-      d.emergencyContactPhone ?? d.nomor_kontak_darurat;
+    const emergencyPhone = d.emergencyContactPhone ?? d.nomor_kontak_darurat;
     const emergencyRel =
       d.emergencyContactRelationship ?? d.hubungan_kontak_darurat;
 
@@ -562,4 +560,3 @@ export class PatientDrizzleRepository implements PatientRepository {
     return true;
   }
 }
-

@@ -40,7 +40,8 @@ export class ResendOtpResponseDto {
 
   @ApiProperty({
     example: 60,
-    description: 'Durasi cooldown dalam detik sebelum permintaan berikutnya diizinkan',
+    description:
+      'Durasi cooldown dalam detik sebelum permintaan berikutnya diizinkan',
   })
   cooldownSeconds: number;
 }

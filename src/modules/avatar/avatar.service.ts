@@ -10,7 +10,7 @@ import { Readable } from 'stream';
 import { NameInitialsHelper } from '../../common/utils/name-initials.helper';
 import { DRIZZLE_SOURCE } from '../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../database/drizzle/drizzle.provider';
-import { user, users } from '../../database/schema';
+import { staffProfiles, user, users } from '../../database/schema';
 import { AvatarProcessingService } from './avatar-processing.service';
 import { AvatarSvgService } from './avatar-svg.service';
 import {
@@ -64,7 +64,7 @@ export class AvatarService {
    * Upload and process a new custom avatar for a user:
    * 1. Validates magic bytes & converts to 512x512 WebP (stripping EXIF)
    * 2. Atomically writes to storage
-   * 3. Synchronizes user.image and users.image_url (DB trigger auto-syncs staff_profiles.avatar_url)
+   * 3. Updates users.image_url, user.image (Better Auth), and staff_profiles.avatar_url directly
    */
   async uploadAvatar(
     userId: string,
@@ -87,7 +87,11 @@ export class AvatarService {
     const processed = await this.processingService.process(rawBuffer);
 
     // Save to storage atomically
-    await this.storagePort.saveAvatar(userId, processed.buffer, processed.mimeType);
+    await this.storagePort.saveAvatar(
+      userId,
+      processed.buffer,
+      processed.mimeType,
+    );
 
     // Canonical avatar URL with version query param to invalidate HTTP/client caches
     const timestamp = Date.now();
@@ -114,6 +118,22 @@ export class AvatarService {
     } catch (err) {
       this.logger.warn(
         `Failed to update Better Auth user.image parity for ${userId}:`,
+        err,
+      );
+    }
+
+    // Update staff_profiles.avatar_url directly (if staff profile exists for this user)
+    try {
+      await this.db
+        .update(staffProfiles)
+        .set({
+          avatarUrl: avatarUrl,
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(staffProfiles.userId, userId));
+    } catch (err) {
+      this.logger.warn(
+        `Failed to update staff_profiles.avatar_url for user ${userId}:`,
         err,
       );
     }
@@ -221,6 +241,19 @@ export class AvatarService {
         .where(eq(user.id, userId));
     } catch {
       // parity update non-blocking
+    }
+
+    // Clear staff_profiles.avatar_url directly
+    try {
+      await this.db
+        .update(staffProfiles)
+        .set({
+          avatarUrl: null,
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(staffProfiles.userId, userId));
+    } catch {
+      // non-blocking
     }
   }
 }

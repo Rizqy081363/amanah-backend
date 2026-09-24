@@ -130,20 +130,17 @@ describe('RedisService', () => {
   it('should purge all redis keys matching userId and email patterns via scan', async () => {
     const redisClient = createRedisClient();
     (redisClient.scan as jest.Mock)
-      .mockResolvedValueOnce([
-        '0',
-        ['ratelimit:user:u-123', 'session:u-123'],
-      ])
-      .mockResolvedValueOnce([
-        '0',
-        ['cooldown:otp:email:patient@test.com'],
-      ]);
+      .mockResolvedValueOnce(['0', ['ratelimit:user:u-123', 'session:u-123']])
+      .mockResolvedValueOnce(['0', ['cooldown:otp:email:patient@test.com']]);
     (redisClient.del as jest.Mock)
       .mockResolvedValueOnce(2)
       .mockResolvedValueOnce(1);
 
     const service = new RedisService(redisClient, createConfigService());
-    const deletedCount = await service.purgeUserData('u-123', 'patient@test.com');
+    const deletedCount = await service.purgeUserData(
+      'u-123',
+      'patient@test.com',
+    );
 
     expect(deletedCount).toBe(3);
     expect(redisClient.scan).toHaveBeenCalledTimes(2);

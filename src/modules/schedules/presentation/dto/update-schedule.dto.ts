@@ -1,11 +1,13 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsBoolean,
+  IsEnum,
   IsNumber,
   IsOptional,
   IsString,
   Min,
 } from 'class-validator';
+import { AdminScheduleStatusRequest } from '../../domain/schedule-status';
 
 export class UpdateScheduleDto {
   @ApiPropertyOptional({
@@ -70,12 +72,13 @@ export class UpdateScheduleDto {
   isAvailable?: boolean;
 
   @ApiPropertyOptional({
-    example: 'Buka',
-    description: 'Status jadwal (Buka / Tutup / open / closed)',
+    enum: AdminScheduleStatusRequest,
+    example: AdminScheduleStatusRequest.OPEN,
+    description: 'Canonical schedule operating status',
   })
-  @IsString()
+  @IsEnum(AdminScheduleStatusRequest)
   @IsOptional()
-  status?: string;
+  status?: AdminScheduleStatusRequest;
 
   @ApiPropertyOptional({ example: 'Jadwal dimajukan 30 menit' })
   @IsString()

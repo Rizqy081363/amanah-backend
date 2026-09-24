@@ -26,7 +26,9 @@ export class LocalAvatarStorageAdapter implements AvatarStoragePort {
   }
 
   private resolveSafePath(storageKey: string): string {
-    const normalizedKey = path.normalize(storageKey).replace(/^(\.\.(\/|\\|$))+/, '');
+    const normalizedKey = path
+      .normalize(storageKey)
+      .replace(/^(\.\.(\/|\\|$))+/, '');
     const absolutePath = path.resolve(this.storageRoot, normalizedKey);
 
     if (!absolutePath.startsWith(this.storageRoot)) {
@@ -83,7 +85,10 @@ export class LocalAvatarStorageAdapter implements AvatarStoragePort {
         mtime: stat.mtime,
       };
     } catch (err) {
-      this.logger.error(`Failed to get avatar stream for key ${storageKey}`, err);
+      this.logger.error(
+        `Failed to get avatar stream for key ${storageKey}`,
+        err,
+      );
       return null;
     }
   }
@@ -95,7 +100,10 @@ export class LocalAvatarStorageAdapter implements AvatarStoragePort {
         await fs.promises.unlink(filePath);
       }
     } catch (err) {
-      this.logger.warn(`Failed to unlink obsolete avatar at ${storageKey}:`, err);
+      this.logger.warn(
+        `Failed to unlink obsolete avatar at ${storageKey}:`,
+        err,
+      );
     }
   }
 

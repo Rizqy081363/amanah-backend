@@ -27,7 +27,7 @@ export class AvatarSvgService {
           return '&gt;';
         case '&':
           return '&amp;';
-        case '\'':
+        case "'":
           return '&apos;';
         case '"':
           return '&quot;';

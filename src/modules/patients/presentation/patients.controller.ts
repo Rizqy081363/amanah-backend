@@ -340,4 +340,3 @@ export class PatientsController {
     await this.patientRepo.delete(id);
   }
 }
-
