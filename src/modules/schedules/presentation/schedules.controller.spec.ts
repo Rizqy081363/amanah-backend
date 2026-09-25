@@ -88,6 +88,8 @@ describe('SchedulesController', () => {
       getAdminDoctorScheduleFilterOptions: jest.fn(),
       findClinicalPractitioners: jest.fn(),
       getOccupancyOverview: jest.fn(),
+      getFormBootstrap: jest.fn(),
+      getSlotAvailability: jest.fn(),
       getAdminSessionPatients: jest.fn(),
       getAdminDoctorPatientsByDate: jest.fn(),
     };
@@ -554,6 +556,71 @@ describe('SchedulesController', () => {
       expect(result).toEqual({
         success: true,
         data: mockOverview,
+      });
+    });
+
+    it('returns form bootstrap data for authenticated practitioner', async () => {
+      const mockBootstrap: any = {
+        doctor: {
+          id: 'practitioner-uuid-1',
+          name: 'dr. Sarah Jenkins, Sp.A',
+          defaultRoomId: 'room-1',
+          defaultRoomName: 'Ruang Poli Umum 1',
+          defaultPoliklinikId: 'poli-1',
+          defaultPoliklinikName: 'Poli Umum',
+          consultationDurationMinutes: 30,
+        },
+        rooms: [],
+        polikliniks: [],
+        shifts: [],
+      };
+      mockScheduleRepo.getFormBootstrap.mockResolvedValue(mockBootstrap);
+
+      const result = await controller.getFormBootstrap(
+        { date: '2026-09-25' },
+        mockStaffUser,
+      );
+
+      expect(mockScheduleRepo.getFormBootstrap).toHaveBeenCalledWith(
+        'practitioner-uuid-1',
+        { date: '2026-09-25' },
+      );
+      expect(result).toEqual({
+        success: true,
+        statusCode: 200,
+        message: 'Form bootstrap data berhasil dimuat',
+        data: mockBootstrap,
+      });
+    });
+
+    it('returns slot availability anti-collision grid for authenticated practitioner', async () => {
+      const mockAvailability: any = {
+        date: '2026-09-25',
+        shift: 'night',
+        shiftLabel: 'Sesi Malam',
+        roomId: 'room-1',
+        roomName: 'Ruang Poli Umum 1',
+        boundary: { startTime: '18:00', endTime: '24:00' },
+        intervalMinutes: 30,
+        summary: { totalSlots: 12, availableSlots: 10, occupiedSlots: 2 },
+        slots: [],
+      };
+      mockScheduleRepo.getSlotAvailability.mockResolvedValue(mockAvailability);
+
+      const result = await controller.getSlotAvailability(
+        { date: '2026-09-25', shift: 'night', roomId: 'room-1' },
+        mockStaffUser,
+      );
+
+      expect(mockScheduleRepo.getSlotAvailability).toHaveBeenCalledWith(
+        'practitioner-uuid-1',
+        { date: '2026-09-25', shift: 'night', roomId: 'room-1' },
+      );
+      expect(result).toEqual({
+        success: true,
+        statusCode: 200,
+        message: 'Ketersediaan slot berhasil dihitung',
+        data: mockAvailability,
       });
     });
   });

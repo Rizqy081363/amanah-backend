@@ -12,6 +12,7 @@ import type {
   BookedPatientEntity,
 } from '@modules/schedules/domain/entities/schedule.entity';
 import { BookedPatientMapper } from '@modules/schedules/infrastructure/drizzle/mappers/booked-patient.mapper';
+import { resolveCanonicalShift } from '@modules/schedules/domain/constants/schedule-shift.constants';
 import { PractitionerResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/practitioner.resolver';
 import type { GetAdminDoctorPatientsQueryDto } from '@modules/schedules/presentation/dto/get-admin-doctor-patients-query.dto';
 import type { GetSessionPatientsQueryDto } from '@modules/schedules/presentation/dto/get-session-patients-query.dto';
@@ -289,16 +290,11 @@ export class DrizzleSchedulePatientRepository {
       (a) => a.status !== 'cancelled',
     ).length;
 
-    const shift = session.sessionShift || 'morning';
-    const shiftLabel =
-      session.sessionLabel ||
-      (shift === 'afternoon'
-        ? 'Sesi Sore'
-        : shift === 'night'
-          ? 'Sesi Malam'
-          : shift === 'early_morning'
-            ? 'Shift Dini Hari'
-            : 'Sesi Pagi');
+    const resolvedShift = resolveCanonicalShift({
+      session: session.sessionLabel,
+      sessionShift: session.sessionShift,
+    });
+    const shiftLabel = session.sessionLabel || resolvedShift.label;
 
     return {
       success: true,
@@ -353,19 +349,11 @@ export class DrizzleSchedulePatientRepository {
     ];
 
     if (query.sessionShift) {
-      const shiftNorm = query.sessionShift.toLowerCase();
-      const mappedShift =
-        shiftNorm === 'pagi' || shiftNorm === 'morning'
-          ? 'morning'
-          : shiftNorm === 'siang' || shiftNorm === 'afternoon'
-            ? 'afternoon'
-            : shiftNorm === 'malam' || shiftNorm === 'night'
-              ? 'night'
-              : shiftNorm === 'dini_hari' || shiftNorm === 'early_morning'
-                ? 'early_morning'
-                : query.sessionShift;
+      const resolved = resolveCanonicalShift({
+        sessionShift: query.sessionShift,
+      });
       sessionConditions.push(
-        eq(practitionerScheduleSessions.sessionShift, mappedShift as any),
+        eq(practitionerScheduleSessions.sessionShift, resolved.shift as any),
       );
     }
 

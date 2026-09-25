@@ -1,4 +1,5 @@
 import {
+  CLINIC_TIMEZONE,
   INDO_DAYS,
   INDO_MONTHS,
   INDO_MONTHS_SHORT,
@@ -85,3 +86,32 @@ export function computeUpcomingSchedule(
   const lastSession = sesiHarian[sesiHarian.length - 1];
   return `${lastSession.nama_sesi} (${lastSession.waktu}) - Selesai`;
 }
+
+export function getClinicNow(): {
+  date: string;
+  time: string;
+  currentMinutes: number;
+} {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: CLINIC_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+  const parts = formatter.formatToParts(new Date());
+  const year = parts.find((p) => p.type === 'year')?.value || '2026';
+  const month = parts.find((p) => p.type === 'month')?.value || '01';
+  const day = parts.find((p) => p.type === 'day')?.value || '01';
+  let hour = parts.find((p) => p.type === 'hour')?.value || '00';
+  if (hour === '24') hour = '00';
+  const minute = parts.find((p) => p.type === 'minute')?.value || '00';
+
+  const date = `${year}-${month}-${day}`;
+  const time = `${hour}:${minute}`;
+  const currentMinutes = parseInt(hour, 10) * 60 + parseInt(minute, 10);
+  return { date, time, currentMinutes };
+}
+

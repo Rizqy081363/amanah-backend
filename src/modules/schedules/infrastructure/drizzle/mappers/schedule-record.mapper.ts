@@ -3,6 +3,11 @@ import {
   type ScheduleEntity,
   ScheduleOperationalStatus,
 } from '@modules/schedules/domain/entities/schedule.entity';
+import {
+  type CanonicalStaffShift,
+  SHIFT_DISPLAY_LABELS,
+  SHIFT_TO_SESSION_MAP,
+} from '@modules/schedules/domain/constants/schedule-shift.constants';
 import type { SessionShiftType } from '@modules/schedules/domain/factories/schedule-slot.factory';
 import { resolveSessionOperationalStatus } from '@modules/schedules/domain/schedule-status';
 
@@ -62,12 +67,10 @@ const RESCHEDULE_CLOSED_REASON =
 export function mapScheduleRecordToEntity(
   record: ScheduleRecordMapperInput,
 ): ScheduleEntity {
-  const shift = record.sessionShift;
-  const sessionName =
-    shift === 'afternoon' ? 'SIANG' : shift === 'night' ? 'MALAM' : 'PAGI';
+  const shift = record.sessionShift as CanonicalStaffShift;
+  const sessionName = shift ? SHIFT_TO_SESSION_MAP[shift] || 'PAGI' : 'PAGI';
   const sessionLabel =
-    record.sessionLabel ||
-    (shift === 'afternoon' ? 'Siang' : shift === 'night' ? 'Malam' : 'Pagi');
+    record.sessionLabel || (shift ? SHIFT_DISPLAY_LABELS[shift] || 'Pagi' : 'Pagi');
 
   const startTimeFormatted = record.startTime
     ? record.startTime.slice(0, 5)

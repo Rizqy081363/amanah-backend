@@ -1,3 +1,9 @@
+import {
+  type CanonicalStaffShift,
+  resolveCanonicalShift,
+  SHIFT_TIMING_CONFIGS,
+} from '@modules/schedules/domain/constants/schedule-shift.constants';
+
 export const SESSION_RECORD_RELATIONS = {
   practitioner: {
     with: {
@@ -17,7 +23,7 @@ export const SESSION_RECORD_RELATIONS = {
   clinicService: true,
 } as const;
 
-export type SessionShiftType = 'morning' | 'afternoon' | 'night';
+export type SessionShiftType = CanonicalStaffShift;
 
 export function resolveSessionShift(input: {
   session?: string | null;
@@ -26,28 +32,20 @@ export function resolveSessionShift(input: {
   shift: SessionShiftType;
   defaultLabel: string;
 } {
-  const isAfternoon =
-    input.session === 'SIANG' || input.sessionShift === 'afternoon';
-  const isNight = input.session === 'MALAM' || input.sessionShift === 'night';
-
-  if (isAfternoon) {
-    return { shift: 'afternoon', defaultLabel: 'Siang' };
-  }
-  if (isNight) {
-    return { shift: 'night', defaultLabel: 'Malam' };
-  }
-  return { shift: 'morning', defaultLabel: 'Pagi' };
+  const resolved = resolveCanonicalShift(input);
+  return {
+    shift: resolved.shift,
+    defaultLabel: resolved.label,
+  };
 }
 
 export function resolveDefaultSessionTimes(shift: SessionShiftType): {
   startTime: string;
   endTime: string;
 } {
-  if (shift === 'afternoon') {
-    return { startTime: '13:00', endTime: '17:00' };
-  }
-  if (shift === 'night') {
-    return { startTime: '18:00', endTime: '21:00' };
-  }
-  return { startTime: '07:00', endTime: '11:00' };
+  const config = SHIFT_TIMING_CONFIGS[shift] || SHIFT_TIMING_CONFIGS.morning;
+  return {
+    startTime: config.defaultStartTime,
+    endTime: config.defaultEndTime,
+  };
 }

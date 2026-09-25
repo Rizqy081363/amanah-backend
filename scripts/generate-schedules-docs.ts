@@ -185,6 +185,38 @@ async function run() {
   // SECTION 2: Schedule Contexts & Dynamic Slot Projection
   console.log('\n[3/7] Capturing Contexts, Dynamic Slot Math & Projection...');
 
+  const bootstrapRes = await jsonRequest('GET', `/schedules/form-bootstrap?date=${scheduleDate}`, doctorToken);
+  docs.push({
+    section: '2. Context, Dynamic Slot Math & Projection',
+    title: 'Inisialisasi Form Jadwal Dokter 1-Roundtrip (Form Bootstrap)',
+    method: 'GET',
+    endpoint: `/api/v1/schedules/form-bootstrap?date=${scheduleDate}`,
+    role: 'STAF, ADMIN (Bearer Token)',
+    purpose: 'Menggantikan 4 pemanggilan HTTP terpisah (/options, /rooms, /polikliniks, /contexts) menjadi 1 roundtrip terpadu saat membuka form Tambah/Edit Jadwal. Menyediakan profil dokter (defaultRoomId, defaultPoliklinikId, consultationDurationMinutes), seluruh ruangan aktif beserta status okupansinya untuk tanggal target, daftar poliklinik aktif, dan 4 shift kanonikal 24 jam beserta jadwal dokter yang telah ada.',
+    clientUsage: 'Dipanggil saat drawer/modal Tambah atau Edit Jadwal dibuka. Frontend menginisialisasi form secara instan dengan defaultRoomId dan defaultPoliklinikId tanpa fallback buta ke ruangan pertama.',
+    requestParams: { date: scheduleDate },
+    responseStatus: bootstrapRes.status,
+    responseBody: bootstrapRes.data,
+  });
+
+  const slotAvailRes = await jsonRequest(
+    'GET',
+    `/schedules/slot-availability?date=${scheduleDate}&shift=morning&roomId=${defaultRoomId}`,
+    doctorToken,
+  );
+  docs.push({
+    section: '2. Context, Dynamic Slot Math & Projection',
+    title: 'SSOT Anti-Collision Slot Grid & Ketersediaan Slot Otomatis (Slot Availability)',
+    method: 'GET',
+    endpoint: `/api/v1/schedules/slot-availability?date=${scheduleDate}&shift=morning&roomId=${defaultRoomId}`,
+    role: 'STAF, ADMIN (Bearer Token)',
+    purpose: 'Menghitung matriks ketersediaan slot 30 menit (12 slot per shift 6 jam) secara 100% di backend. Menghilangkan seluruh kalkulasi bentrok di frontend dengan sistem resolusi prioritas: TEMPORAL_PAST (Sudah Selesai), CLOSED_LEAVE (Cuti), PRACTITIONER_OVERLAP (Jadwal Anda), ROOM_OCCUPIED (Nama Dokter Lain), dan AVAILABLE (Tersedia).',
+    clientUsage: 'Dipanggil saat tanggal, shift, atau ruangan dipilih pada form. Frontend murni merender array slot sesuai flag isAvailable dan displayLabel tanpa kalkulasi matematika atau logika bentrok lokal.',
+    requestParams: { date: scheduleDate, shift: 'morning', roomId: defaultRoomId },
+    responseStatus: slotAvailRes.status,
+    responseBody: slotAvailRes.data,
+  });
+
   const contextRes = await jsonRequest('GET', `/schedules/contexts?date=${scheduleDate}`, doctorToken);
   docs.push({
     section: '2. Context, Dynamic Slot Math & Projection',
@@ -973,6 +1005,8 @@ Untuk mendelegasikan dokumen ini ke tim Mobile Engineer (Flutter/React Native):
 
 | Komponen Mobile | Endpoint yang Dipanggil | User Action |
 |---|---|---|
+| **Form Bootstrap (Tambah/Edit)** | \`GET /schedules/form-bootstrap?date=YYYY-MM-DD\` | Buka modal form tambah / edit, muat data dokter, default ruangan, poliklinik, dan shift dalam 1 roundtrip. |
+| **Anti-Collision Slot Grid** | \`GET /schedules/slot-availability?date=YYYY-MM-DD&shift=morning&roomId=UUID\` | Pilih shift/ruangan, render 12 slot 30 menit 100% siap render tanpa kalkulasi bentrok di client. |
 | **Agenda Hari Ini (Home)** | \`GET /schedules/my-schedules\` | Membuka tab home, melihat sesi pagi & siang beserta sisa slot. |
 | **Kalender Bulanan** | \`GET /schedules/calendar-summary?month=YYYY-MM\` | Geser bulan di kalender, render dot marker (hijau/merah/kuning). |
 | **Drawer Daftar Pasien** | \`GET /schedules/sessions/:sessionId/patients\` | Klik kartu jadwal yang ada pasiennya. Tampilkan 5 kolom pasien. |

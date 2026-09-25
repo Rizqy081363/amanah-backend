@@ -56,6 +56,10 @@ export function createMockDb() {
         findFirst: jest.fn(),
         findMany: jest.fn(),
       },
+      clinicUnits: {
+        findFirst: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([]),
+      },
     },
     update: jest.fn().mockReturnValue({
       set: jest.fn().mockReturnValue({

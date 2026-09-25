@@ -1,10 +1,14 @@
 import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
+  appointments,
   practitionerScheduleDaySettings,
   practitionerScheduleSessions,
 } from '@database/schema';
-import { DEFAULT_TARGET_QUOTA } from '@modules/schedules/domain/constants/schedule.constants';
+import {
+  ACTIVE_APPOINTMENT_STATUSES,
+  DEFAULT_TARGET_QUOTA,
+} from '@modules/schedules/domain/constants/schedule.constants';
 import {
   type CalendarSummaryResponse,
   type DayScheduleSettingEntity,
@@ -16,7 +20,7 @@ import {
 } from '@modules/schedules/domain/schedule-status';
 import { PractitionerResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/practitioner.resolver';
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { and, eq, gte, lte } from 'drizzle-orm';
+import { and, count, eq, gte, inArray, lte } from 'drizzle-orm';
 
 @Injectable()
 export class DrizzleScheduleDayRepository {
@@ -65,6 +69,34 @@ export class DrizzleScheduleDayRepository {
       }),
     ]);
 
+    // Fetch actual appointment counts per session in one batch query.
+    // The formula `capacity - availableSlots` is incorrect for CLOSED sessions
+    // because availableSlots is forced to 0 on close, falsely reporting
+    // bookedPatientCount = capacity (e.g. 12) even when no patients booked.
+    const sessionIds = sessions.map((s) => s.id);
+    const appointmentCountRows =
+      sessionIds.length > 0
+        ? await this.db
+            .select({
+              sessionId: appointments.scheduleSessionId,
+              appointmentCount: count(appointments.id),
+            })
+            .from(appointments)
+            .where(
+              and(
+                inArray(appointments.scheduleSessionId, sessionIds),
+                inArray(appointments.status, [...ACTIVE_APPOINTMENT_STATUSES]),
+              ),
+            )
+            .groupBy(appointments.scheduleSessionId)
+        : [];
+
+    const appointmentCountBySessionId = new Map<string, number>(
+      appointmentCountRows
+        .filter((r) => r.sessionId !== null)
+        .map((r) => [r.sessionId as string, Number(r.appointmentCount)]),
+    );
+
     const days = [];
     for (let day = 1; day <= daysInMonth; day++) {
       const date = `${month}-${String(day).padStart(2, '0')}`;
@@ -78,14 +110,10 @@ export class DrizzleScheduleDayRepository {
       const targetQuota =
         daySetting?.targetQuota ?? (hasSchedule ? DEFAULT_TARGET_QUOTA : 0);
 
+      // Use actual appointment count (source of truth) instead of
+      // capacity - availableSlots which is wrong for CLOSED sessions.
       const bookedPatientCount = daySessions.reduce(
-        (acc, s) =>
-          acc +
-          Math.max(
-            0,
-            (s.capacity ?? DEFAULT_TARGET_QUOTA) -
-              (s.availableSlots ?? DEFAULT_TARGET_QUOTA),
-          ),
+        (acc, s) => acc + (appointmentCountBySessionId.get(s.id) ?? 0),
         0,
       );
 
@@ -177,14 +205,30 @@ export class DrizzleScheduleDayRepository {
       }),
     ]);
 
-    const totalBookedPatients = sessions.reduce(
-      (acc, s) =>
-        acc +
-        Math.max(
-          0,
-          (s.capacity ?? DEFAULT_TARGET_QUOTA) -
-            (s.availableSlots ?? DEFAULT_TARGET_QUOTA),
-        ),
+    // Use actual appointment count (source of truth).
+    // The formula `capacity - availableSlots` is incorrect for CLOSED sessions
+    // because availableSlots is forced to 0 on close, falsely reporting
+    // totalBookedPatients = capacity even when no patients booked.
+    const sessionIds = sessions.map((s) => s.id);
+    const appointmentCountRows =
+      sessionIds.length > 0
+        ? await this.db
+            .select({
+              sessionId: appointments.scheduleSessionId,
+              appointmentCount: count(appointments.id),
+            })
+            .from(appointments)
+            .where(
+              and(
+                inArray(appointments.scheduleSessionId, sessionIds),
+                inArray(appointments.status, [...ACTIVE_APPOINTMENT_STATUSES]),
+              ),
+            )
+            .groupBy(appointments.scheduleSessionId)
+        : [];
+
+    const totalBookedPatients = appointmentCountRows.reduce(
+      (acc, r) => acc + Number(r.appointmentCount),
       0,
     );
 

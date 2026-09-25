@@ -33,6 +33,12 @@ import type { ScheduleProjectionQueryDto } from '@modules/schedules/presentation
 import type { UpdateAdminDoctorScheduleDto } from '@modules/schedules/presentation/dto/update-admin-doctor-schedule.dto';
 import type { UpdateAdminDoctorSessionDto } from '@modules/schedules/presentation/dto/update-admin-doctor-session.dto';
 import type { UpdatePractitionerSchedulePolicyDto } from '@modules/schedules/presentation/dto/update-practitioner-schedule-policy.dto';
+import type {
+  ScheduleFormBootstrapData,
+  ScheduleSlotAvailabilityData,
+} from '@modules/schedules/domain/entities/schedule-bootstrap.entity';
+import type { ScheduleFormBootstrapQueryDto } from '@modules/schedules/presentation/dto/schedule-form-bootstrap-query.dto';
+import type { ScheduleSlotAvailabilityQueryDto } from '@modules/schedules/presentation/dto/schedule-slot-availability-query.dto';
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import { AppointmentOccupationQuery } from './queries/appointment-occupation.query';
 import { ScheduleConflictQuery } from './queries/schedule-conflict.query';
@@ -43,6 +49,7 @@ import {
   DrizzleAdminScheduleMutationRepository,
   DrizzleClinicalPractitionerRepository,
   DrizzleScheduleAvailabilityRepository,
+  DrizzleScheduleBootstrapRepository,
   DrizzleScheduleDayRepository,
   DrizzleScheduleOccupancyRepository,
   DrizzleSchedulePatientRepository,
@@ -63,6 +70,7 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
   private readonly rescheduleRepo: DrizzleScheduleRescheduleRepository;
   private readonly patientRepo: DrizzleSchedulePatientRepository;
   private readonly clinicalPractitionerRepo: DrizzleClinicalPractitionerRepository;
+  private readonly bootstrapRepo: DrizzleScheduleBootstrapRepository;
   private readonly adminListQuery: DrizzleAdminDoctorScheduleListQuery;
   private readonly adminDetailQuery: DrizzleAdminDoctorScheduleDetailQuery;
   private readonly adminMutationRepo: DrizzleAdminScheduleMutationRepository;
@@ -80,6 +88,7 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
     @Optional() refRepo?: DrizzleScheduleReferenceRepository,
     @Optional() availabilityRepo?: DrizzleScheduleAvailabilityRepository,
     @Optional() occupancyRepo?: DrizzleScheduleOccupancyRepository,
+    @Optional() bootstrapRepo?: DrizzleScheduleBootstrapRepository,
     @Optional() rescheduleRepo?: DrizzleScheduleRescheduleRepository,
     @Optional() patientRepo?: DrizzleSchedulePatientRepository,
     @Optional()
@@ -120,6 +129,13 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
     this.occupancyRepo =
       occupancyRepo ??
       new DrizzleScheduleOccupancyRepository(
+        db,
+        resolvedPractitioner,
+        resolvedPolicy,
+      );
+    this.bootstrapRepo =
+      bootstrapRepo ??
+      new DrizzleScheduleBootstrapRepository(
         db,
         resolvedPractitioner,
         resolvedPolicy,
@@ -318,6 +334,21 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
     query: ScheduleOccupancyQueryDto,
   ): Promise<ScheduleOccupancyOverviewData> {
     return this.occupancyRepo.getOccupancyOverview(staffId, query);
+  }
+
+  // Form Bootstrap & Slot Availability (SSOT Zero-Client-Calculation)
+  getFormBootstrap(
+    staffId: string,
+    query: ScheduleFormBootstrapQueryDto,
+  ): Promise<ScheduleFormBootstrapData> {
+    return this.bootstrapRepo.getFormBootstrap(staffId, query);
+  }
+
+  getSlotAvailability(
+    staffId: string,
+    query: ScheduleSlotAvailabilityQueryDto,
+  ): Promise<ScheduleSlotAvailabilityData> {
+    return this.bootstrapRepo.getSlotAvailability(staffId, query);
   }
 
   // Patients

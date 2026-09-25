@@ -1,11 +1,11 @@
 # Amanah Healthcare — Schedule Management API Contract Specification
 
 > **Auto-Generated Manifest for Mobile & Frontend Engineers**  
-> **Generation Timestamp:** `2026-09-25T07:47:15.763Z`  
+> **Generation Timestamp:** `2026-09-25T15:06:22.902Z`  
 > **Target Base URL:** `http://localhost:3001/api/v1`  
 > **Environment:** Docker Production/Dev Container (`amanah-healthcare-backend-api-1`)  
 > **Showcase Doctor:** `dr. Ahmadamikom Zikri` (`c518facb-372e-4f07-9766-f3eacf54221f`)  
-> **Showcase Session:** `99b8adba-b0e3-4015-9ddd-363a1d75d34d`
+> **Showcase Session:** `2d0ffab9-2ad8-43b1-9946-0f9fa7eb3ed8`
 
 ---
 
@@ -176,7 +176,7 @@ Render ruangan sebagai selector pilihan ruang periksa. Jika isOccupied === true,
     "location": "Gedung Utama",
     "floor": null,
     "isOccupied": true,
-    "occupiedBy": "fadhiilah ahmad zikri (06:00 - 12:00 WIB)"
+    "occupiedBy": "Ahmadamikom Zikri (06:00 - 12:00 WIB)"
   },
   {
     "id": "ce282b3b-cb35-484b-bf5a-4b26ae747dc8",
@@ -356,7 +356,7 @@ Katalog dokter pada fitur reservasi janji temu pasien.
       "is_available": true
     },
     {
-      "id": "cfc88fab-46f8-4e71-bf72-00858ea0c885",
+      "id": "2e5b90fd-1ffb-4cdf-aa0c-f13a834a0816",
       "name": "Bdn. Siti Rahmawati",
       "spec": "Kesehatan Ibu dan Anak",
       "avatar": "",
@@ -370,7 +370,7 @@ Katalog dokter pada fitur reservasi janji temu pasien.
       "is_available": true
     },
     {
-      "id": "2e5b90fd-1ffb-4cdf-aa0c-f13a834a0816",
+      "id": "cfc88fab-46f8-4e71-bf72-00858ea0c885",
       "name": "Bdn. Siti Rahmawati",
       "spec": "Kesehatan Ibu dan Anak",
       "avatar": "",
@@ -499,155 +499,7 @@ Menampilkan jadwal dokter jaga ketika pasien memilih poliklinik spesifik.
 ```json
 [
   {
-    "id": "4d51f1d7-81e7-4c9d-bbf8-e2202ab96a7c",
-    "staffId": "21a4613a-77e6-4f7d-a741-c5a1a8b3a100",
-    "staffName": "dr. Zikri Ahmad, Sp.A",
-    "profession": "Dokter Spesialis Anak",
-    "scheduleDate": "2026-09-24",
-    "specificDate": "2026-09-24",
-    "poliklinikId": "53fa8088-46c8-4611-9dea-99a54f4a45ab",
-    "poliklinikName": "Poli Umum",
-    "serviceId": "59c6b882-5a93-487d-945d-fd08d2a7bb82",
-    "serviceName": "Pemeriksaan Umum",
-    "dayOfWeek": null,
-    "session": "PAGI",
-    "sessionLabel": "Dini Hari",
-    "sessionShift": "early_morning",
-    "startTime": "00:00",
-    "endTime": "06:00",
-    "timeRange": "00:00 - 06:00 WIB",
-    "roomId": "b77d141b-2fa5-4481-9f47-a5a040faf57a",
-    "roomName": "Ruang Poli Umum 1",
-    "capacity": 12,
-    "availableSlots": 12,
-    "bookedPatientCount": 0,
-    "status": "OPEN",
-    "rawStatus": "open",
-    "isAvailable": true,
-    "notes": "Factory-generated canonical schedule session",
-    "createdAt": "2026-09-25T07:43:05.919Z",
-    "updatedAt": "2026-09-25T07:43:05.919Z",
-    "doctorId": "c8ea1b11-26c7-47a4-9669-803476114fdb",
-    "practitionerId": "c8ea1b11-26c7-47a4-9669-803476114fdb",
-    "isRescheduleEligible": true,
-    "is_reschedule_eligible": true,
-    "rescheduleIneligibilityReason": null,
-    "reschedule_ineligibility_reason": null,
-    "version": "1790322185919"
-  },
-  {
-    "id": "ce0398b3-5ea8-41ed-a2bf-631b32710015",
-    "staffId": "55fbcc11-1846-4933-aa4f-65b975247730",
-    "staffName": "fadhiilah ahmad zikri",
-    "profession": "Dokter Umum",
-    "scheduleDate": "2026-09-24",
-    "specificDate": "2026-09-24",
-    "poliklinikId": "53fa8088-46c8-4611-9dea-99a54f4a45ab",
-    "poliklinikName": "Poli Umum",
-    "serviceId": "59c6b882-5a93-487d-945d-fd08d2a7bb82",
-    "serviceName": "Pemeriksaan Umum",
-    "dayOfWeek": null,
-    "session": "PAGI",
-    "sessionLabel": "Pagi",
-    "sessionShift": "morning",
-    "startTime": "06:00",
-    "endTime": "12:00",
-    "timeRange": "06:00 - 12:00 WIB",
-    "roomId": "b77d141b-2fa5-4481-9f47-a5a040faf57a",
-    "roomName": "Ruang Poli Umum 1",
-    "capacity": 12,
-    "availableSlots": 12,
-    "bookedPatientCount": 0,
-    "status": "OPEN",
-    "rawStatus": "open",
-    "isAvailable": true,
-    "notes": "Factory-generated canonical schedule session",
-    "createdAt": "2026-09-25T07:43:05.919Z",
-    "updatedAt": "2026-09-25T07:43:05.919Z",
-    "doctorId": "7e7d473d-3771-4784-aedf-8e3bafded51c",
-    "practitionerId": "7e7d473d-3771-4784-aedf-8e3bafded51c",
-    "isRescheduleEligible": true,
-    "is_reschedule_eligible": true,
-    "rescheduleIneligibilityReason": null,
-    "reschedule_ineligibility_reason": null,
-    "version": "1790322185919"
-  },
-  {
-    "id": "920239af-39fc-4330-9f7c-b4faaae6c4f2",
-    "staffId": "12ec44ea-3583-4f53-ba54-a7fdc5ed1a3f",
-    "staffName": "mobile test",
-    "profession": "Dokter Umum",
-    "scheduleDate": "2026-09-24",
-    "specificDate": "2026-09-24",
-    "poliklinikId": "53fa8088-46c8-4611-9dea-99a54f4a45ab",
-    "poliklinikName": "Poli Umum",
-    "serviceId": "59c6b882-5a93-487d-945d-fd08d2a7bb82",
-    "serviceName": "Pemeriksaan Umum",
-    "dayOfWeek": null,
-    "session": "SIANG",
-    "sessionLabel": "Siang",
-    "sessionShift": "afternoon",
-    "startTime": "12:00",
-    "endTime": "18:00",
-    "timeRange": "12:00 - 18:00 WIB",
-    "roomId": "b77d141b-2fa5-4481-9f47-a5a040faf57a",
-    "roomName": "Ruang Poli Umum 1",
-    "capacity": 12,
-    "availableSlots": 12,
-    "bookedPatientCount": 0,
-    "status": "OPEN",
-    "rawStatus": "open",
-    "isAvailable": true,
-    "notes": "Factory-generated canonical schedule session",
-    "createdAt": "2026-09-25T07:43:05.919Z",
-    "updatedAt": "2026-09-25T07:43:05.919Z",
-    "doctorId": "f996d696-30c8-4fcf-ba77-babfd7c36dca",
-    "practitionerId": "f996d696-30c8-4fcf-ba77-babfd7c36dca",
-    "isRescheduleEligible": true,
-    "is_reschedule_eligible": true,
-    "rescheduleIneligibilityReason": null,
-    "reschedule_ineligibility_reason": null,
-    "version": "1790322185919"
-  },
-  {
-    "id": "d04f58dd-8000-4c3a-814c-ce3e3dcaa194",
-    "staffId": "c83ddf06-96ba-43b4-b751-4c540cd20e12",
-    "staffName": "dr. Ahmad Santoso",
-    "profession": "Dokter Umum",
-    "scheduleDate": "2026-09-24",
-    "specificDate": "2026-09-24",
-    "poliklinikId": "53fa8088-46c8-4611-9dea-99a54f4a45ab",
-    "poliklinikName": "Poli Umum",
-    "serviceId": "59c6b882-5a93-487d-945d-fd08d2a7bb82",
-    "serviceName": "Pemeriksaan Umum",
-    "dayOfWeek": null,
-    "session": "SIANG",
-    "sessionLabel": "Siang",
-    "sessionShift": "afternoon",
-    "startTime": "12:00",
-    "endTime": "18:00",
-    "timeRange": "12:00 - 18:00 WIB",
-    "roomId": "b77d141b-2fa5-4481-9f47-a5a040faf57a",
-    "roomName": "Ruang Poli Umum 1",
-    "capacity": 12,
-    "availableSlots": 12,
-    "bookedPatientCount": 0,
-    "status": "OPEN",
-    "rawStatus": "open",
-    "isAvailable": true,
-    "notes": "Factory-generated canonical schedule session",
-    "createdAt": "2026-09-25T07:43:05.919Z",
-    "updatedAt": "2026-09-25T07:43:05.919Z",
-    "doctorId": "e0d4d8c5-412d-4915-8b4c-b06b9d84ac65",
-    "practitionerId": "e0d4d8c5-412d-4915-8b4c-b06b9d84ac65",
-    "isRescheduleEligible": true,
-    "is_reschedule_eligible": true,
-    "rescheduleIneligibilityReason": null,
-    "reschedule_ineligibility_reason": null,
-    "version": "1790322185919"
-  },
-  {
-    "id": "99b8adba-b0e3-4015-9ddd-363a1d75d34d",
+    "id": "2d0ffab9-2ad8-43b1-9946-0f9fa7eb3ed8",
     "staffId": "ae6bc447-677d-407e-a93f-31b9ee333b6b",
     "staffName": "Ahmadamikom Zikri",
     "profession": "Dokter Umum",
@@ -673,19 +525,56 @@ Menampilkan jadwal dokter jaga ketika pasien memilih poliklinik spesifik.
     "rawStatus": "open",
     "isAvailable": true,
     "notes": "Factory-generated canonical schedule session",
-    "createdAt": "2026-09-25T07:43:05.919Z",
-    "updatedAt": "2026-09-25T07:46:23.997Z",
+    "createdAt": "2026-09-25T15:06:04.260Z",
+    "updatedAt": "2026-09-25T15:06:04.260Z",
     "doctorId": "c518facb-372e-4f07-9766-f3eacf54221f",
     "practitionerId": "c518facb-372e-4f07-9766-f3eacf54221f",
     "isRescheduleEligible": true,
     "is_reschedule_eligible": true,
     "rescheduleIneligibilityReason": null,
     "reschedule_ineligibility_reason": null,
-    "version": "1790322383997"
+    "version": "1790348764260"
   },
   {
-    "id": "89e33591-4077-4239-83e4-beae6831a50a",
+    "id": "0013c926-5e7a-458a-8f02-d87e1038dfa6",
     "staffId": "debcd9f6-db99-4221-b09c-d306c5a802fc",
+    "staffName": "dr. Ahmad Santoso",
+    "profession": "Dokter Umum",
+    "scheduleDate": "2026-09-24",
+    "specificDate": "2026-09-24",
+    "poliklinikId": "53fa8088-46c8-4611-9dea-99a54f4a45ab",
+    "poliklinikName": "Poli Umum",
+    "serviceId": "59c6b882-5a93-487d-945d-fd08d2a7bb82",
+    "serviceName": "Pemeriksaan Umum",
+    "dayOfWeek": null,
+    "session": "SIANG",
+    "sessionLabel": "Siang",
+    "sessionShift": "afternoon",
+    "startTime": "12:00",
+    "endTime": "18:00",
+    "timeRange": "12:00 - 18:00 WIB",
+    "roomId": "b77d141b-2fa5-4481-9f47-a5a040faf57a",
+    "roomName": "Ruang Poli Umum 1",
+    "capacity": 12,
+    "availableSlots": 12,
+    "bookedPatientCount": 0,
+    "status": "OPEN",
+    "rawStatus": "open",
+    "isAvailable": true,
+    "notes": "Factory-generated canonical schedule session",
+    "createdAt": "2026-09-25T15:06:04.260Z",
+    "updatedAt": "2026-09-25T15:06:04.260Z",
+    "doctorId": "77bbb45a-18df-4311-b2a4-a4b6f22870ca",
+    "practitionerId": "77bbb45a-18df-4311-b2a4-a4b6f22870ca",
+    "isRescheduleEligible": true,
+    "is_reschedule_eligible": true,
+    "rescheduleIneligibilityReason": null,
+    "reschedule_ineligibility_reason": null,
+    "version": "1790348764260"
+  },
+  {
+    "id": "4c283801-2fac-46d1-aa11-09f60d466cbf",
+    "staffId": "c83ddf06-96ba-43b4-b751-4c540cd20e12",
     "staffName": "dr. Ahmad Santoso",
     "profession": "Dokter Umum",
     "scheduleDate": "2026-09-24",
@@ -710,18 +599,18 @@ Menampilkan jadwal dokter jaga ketika pasien memilih poliklinik spesifik.
     "rawStatus": "open",
     "isAvailable": true,
     "notes": "Factory-generated canonical schedule session",
-    "createdAt": "2026-09-25T07:43:05.919Z",
-    "updatedAt": "2026-09-25T07:43:05.919Z",
-    "doctorId": "77bbb45a-18df-4311-b2a4-a4b6f22870ca",
-    "practitionerId": "77bbb45a-18df-4311-b2a4-a4b6f22870ca",
+    "createdAt": "2026-09-25T15:06:04.260Z",
+    "updatedAt": "2026-09-25T15:06:04.260Z",
+    "doctorId": "e0d4d8c5-412d-4915-8b4c-b06b9d84ac65",
+    "practitionerId": "e0d4d8c5-412d-4915-8b4c-b06b9d84ac65",
     "isRescheduleEligible": true,
     "is_reschedule_eligible": true,
     "rescheduleIneligibilityReason": null,
     "reschedule_ineligibility_reason": null,
-    "version": "1790322185919"
+    "version": "1790348764260"
   },
   {
-    "id": "ca67a614-c6ad-4a41-bd1b-9a55984c899e",
+    "id": "e18b910f-9584-4b05-9b67-432ee55f14cc",
     "staffId": "5760c4e0-2b47-491e-b411-b4a75e02474c",
     "staffName": "dr. Maya Putri",
     "profession": "Dokter Umum",
@@ -747,15 +636,126 @@ Menampilkan jadwal dokter jaga ketika pasien memilih poliklinik spesifik.
     "rawStatus": "open",
     "isAvailable": true,
     "notes": "Factory-generated canonical schedule session",
-    "createdAt": "2026-09-25T07:43:05.919Z",
-    "updatedAt": "2026-09-25T07:43:05.919Z",
+    "createdAt": "2026-09-25T15:06:04.260Z",
+    "updatedAt": "2026-09-25T15:06:04.260Z",
     "doctorId": "ea70f2d2-6471-49da-8797-49b315388687",
     "practitionerId": "ea70f2d2-6471-49da-8797-49b315388687",
     "isRescheduleEligible": true,
     "is_reschedule_eligible": true,
     "rescheduleIneligibilityReason": null,
     "reschedule_ineligibility_reason": null,
-    "version": "1790322185919"
+    "version": "1790348764260"
+  },
+  {
+    "id": "7d802b5e-dba4-4ef1-9129-0b39615b79a1",
+    "staffId": "21a4613a-77e6-4f7d-a741-c5a1a8b3a100",
+    "staffName": "dr. Zikri Ahmad, Sp.A",
+    "profession": "Dokter Spesialis Anak",
+    "scheduleDate": "2026-09-24",
+    "specificDate": "2026-09-24",
+    "poliklinikId": "53fa8088-46c8-4611-9dea-99a54f4a45ab",
+    "poliklinikName": "Poli Umum",
+    "serviceId": "59c6b882-5a93-487d-945d-fd08d2a7bb82",
+    "serviceName": "Pemeriksaan Umum",
+    "dayOfWeek": null,
+    "session": "DINI_HARI",
+    "sessionLabel": "Dini Hari",
+    "sessionShift": "early_morning",
+    "startTime": "00:00",
+    "endTime": "06:00",
+    "timeRange": "00:00 - 06:00 WIB",
+    "roomId": "b77d141b-2fa5-4481-9f47-a5a040faf57a",
+    "roomName": "Ruang Poli Umum 1",
+    "capacity": 12,
+    "availableSlots": 12,
+    "bookedPatientCount": 0,
+    "status": "OPEN",
+    "rawStatus": "open",
+    "isAvailable": true,
+    "notes": "Factory-generated canonical schedule session",
+    "createdAt": "2026-09-25T15:06:04.260Z",
+    "updatedAt": "2026-09-25T15:06:04.260Z",
+    "doctorId": "c8ea1b11-26c7-47a4-9669-803476114fdb",
+    "practitionerId": "c8ea1b11-26c7-47a4-9669-803476114fdb",
+    "isRescheduleEligible": true,
+    "is_reschedule_eligible": true,
+    "rescheduleIneligibilityReason": null,
+    "reschedule_ineligibility_reason": null,
+    "version": "1790348764260"
+  },
+  {
+    "id": "795e14a6-0c90-4649-ad8e-541c6d58fec3",
+    "staffId": "55fbcc11-1846-4933-aa4f-65b975247730",
+    "staffName": "fadhiilah ahmad zikri",
+    "profession": "Dokter Umum",
+    "scheduleDate": "2026-09-24",
+    "specificDate": "2026-09-24",
+    "poliklinikId": "53fa8088-46c8-4611-9dea-99a54f4a45ab",
+    "poliklinikName": "Poli Umum",
+    "serviceId": "59c6b882-5a93-487d-945d-fd08d2a7bb82",
+    "serviceName": "Pemeriksaan Umum",
+    "dayOfWeek": null,
+    "session": "PAGI",
+    "sessionLabel": "Pagi",
+    "sessionShift": "morning",
+    "startTime": "06:00",
+    "endTime": "12:00",
+    "timeRange": "06:00 - 12:00 WIB",
+    "roomId": "b77d141b-2fa5-4481-9f47-a5a040faf57a",
+    "roomName": "Ruang Poli Umum 1",
+    "capacity": 12,
+    "availableSlots": 12,
+    "bookedPatientCount": 0,
+    "status": "OPEN",
+    "rawStatus": "open",
+    "isAvailable": true,
+    "notes": "Factory-generated canonical schedule session",
+    "createdAt": "2026-09-25T15:06:04.260Z",
+    "updatedAt": "2026-09-25T15:06:04.260Z",
+    "doctorId": "7e7d473d-3771-4784-aedf-8e3bafded51c",
+    "practitionerId": "7e7d473d-3771-4784-aedf-8e3bafded51c",
+    "isRescheduleEligible": true,
+    "is_reschedule_eligible": true,
+    "rescheduleIneligibilityReason": null,
+    "reschedule_ineligibility_reason": null,
+    "version": "1790348764260"
+  },
+  {
+    "id": "ddd81515-30ee-4cfb-a8e7-35bd0aae4bc4",
+    "staffId": "12ec44ea-3583-4f53-ba54-a7fdc5ed1a3f",
+    "staffName": "mobile test",
+    "profession": "Dokter Umum",
+    "scheduleDate": "2026-09-24",
+    "specificDate": "2026-09-24",
+    "poliklinikId": "53fa8088-46c8-4611-9dea-99a54f4a45ab",
+    "poliklinikName": "Poli Umum",
+    "serviceId": "59c6b882-5a93-487d-945d-fd08d2a7bb82",
+    "serviceName": "Pemeriksaan Umum",
+    "dayOfWeek": null,
+    "session": "SIANG",
+    "sessionLabel": "Siang",
+    "sessionShift": "afternoon",
+    "startTime": "12:00",
+    "endTime": "18:00",
+    "timeRange": "12:00 - 18:00 WIB",
+    "roomId": "b77d141b-2fa5-4481-9f47-a5a040faf57a",
+    "roomName": "Ruang Poli Umum 1",
+    "capacity": 12,
+    "availableSlots": 12,
+    "bookedPatientCount": 0,
+    "status": "OPEN",
+    "rawStatus": "open",
+    "isAvailable": true,
+    "notes": "Factory-generated canonical schedule session",
+    "createdAt": "2026-09-25T15:06:04.260Z",
+    "updatedAt": "2026-09-25T15:06:04.260Z",
+    "doctorId": "f996d696-30c8-4fcf-ba77-babfd7c36dca",
+    "practitionerId": "f996d696-30c8-4fcf-ba77-babfd7c36dca",
+    "isRescheduleEligible": true,
+    "is_reschedule_eligible": true,
+    "rescheduleIneligibilityReason": null,
+    "reschedule_ineligibility_reason": null,
+    "version": "1790348764260"
   }
 ]
 ```
@@ -764,6 +764,352 @@ Menampilkan jadwal dokter jaga ketika pasien memilih poliklinik spesifik.
 
 
 ## 2. Context, Dynamic Slot Math & Projection
+
+### GET `/api/v1/schedules/form-bootstrap?date=2026-09-24`
+
+**Judul:** Inisialisasi Form Jadwal Dokter 1-Roundtrip (Form Bootstrap)  
+**Otorisasi Role:** `STAF, ADMIN (Bearer Token)`  
+
+#### 1. Fungsi & Tujuan Endpoint
+Menggantikan 4 pemanggilan HTTP terpisah (/options, /rooms, /polikliniks, /contexts) menjadi 1 roundtrip terpadu saat membuka form Tambah/Edit Jadwal. Menyediakan profil dokter (defaultRoomId, defaultPoliklinikId, consultationDurationMinutes), seluruh ruangan aktif beserta status okupansinya untuk tanggal target, daftar poliklinik aktif, dan 4 shift kanonikal 24 jam beserta jadwal dokter yang telah ada.
+
+#### 2. Ekspektasi Implementasi di Sisi Client (Mobile/Web)
+Dipanggil saat drawer/modal Tambah atau Edit Jadwal dibuka. Frontend menginisialisasi form secara instan dengan defaultRoomId dan defaultPoliklinikId tanpa fallback buta ke ruangan pertama.
+
+#### 3. Parameter Query String
+```json
+{
+  "date": "2026-09-24"
+}
+```
+
+#### 5. Live Response JSON Payload (HTTP Status: `200`)
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Form bootstrap data berhasil dimuat",
+  "data": {
+    "doctor": {
+      "id": "c518facb-372e-4f07-9766-f3eacf54221f",
+      "name": "Ahmadamikom Zikri",
+      "defaultRoomId": "b77d141b-2fa5-4481-9f47-a5a040faf57a",
+      "defaultRoomName": "Ruang Poli Umum 1",
+      "defaultPoliklinikId": "53fa8088-46c8-4611-9dea-99a54f4a45ab",
+      "defaultPoliklinikName": "Poli Umum",
+      "consultationDurationMinutes": 30
+    },
+    "rooms": [
+      {
+        "id": "590be133-107b-476e-bab3-a3ccd2d875dd",
+        "name": "Ruang KIA 1",
+        "code": "room_kia_1",
+        "isOccupied": true,
+        "occupiedBy": "dr. Rizky Maulana"
+      },
+      {
+        "id": "4c19daa5-0e45-460b-a7c9-d51d33fcd5bc",
+        "name": "Ruang KIA 2",
+        "code": "room_kia_2",
+        "isOccupied": true,
+        "occupiedBy": "Bdn. Laras Wulandari"
+      },
+      {
+        "id": "b77d141b-2fa5-4481-9f47-a5a040faf57a",
+        "name": "Ruang Poli Umum 1",
+        "code": "room_umum_1",
+        "isOccupied": true,
+        "occupiedBy": "Ahmadamikom Zikri"
+      },
+      {
+        "id": "ce282b3b-cb35-484b-bf5a-4b26ae747dc8",
+        "name": "Ruang Poli Umum 2",
+        "code": "room_umum_2",
+        "isOccupied": true,
+        "occupiedBy": "dr. Maya Putri"
+      }
+    ],
+    "polikliniks": [
+      {
+        "id": "c4fdf447-ff4a-4298-81a9-24fdd55839c5",
+        "name": "Front Desk",
+        "code": "front_desk"
+      },
+      {
+        "id": "dfb1dd2c-9635-441d-86c2-d117a4ee123d",
+        "name": "IT Support",
+        "code": "it_support"
+      },
+      {
+        "id": "c7df1666-5bb1-4c89-b0f7-9d62a6b96c75",
+        "name": "Poli KIA",
+        "code": "poli_kia"
+      },
+      {
+        "id": "53fa8088-46c8-4611-9dea-99a54f4a45ab",
+        "name": "Poli Umum",
+        "code": "poli_umum"
+      }
+    ],
+    "shifts": [
+      {
+        "id": "dini_hari",
+        "code": "early_morning",
+        "name": "Sesi Dini Hari",
+        "startTime": "00:00",
+        "endTime": "06:00",
+        "isPast": true,
+        "existingSchedule": null
+      },
+      {
+        "id": "pagi",
+        "code": "morning",
+        "name": "Sesi Pagi",
+        "startTime": "06:00",
+        "endTime": "12:00",
+        "isPast": true,
+        "existingSchedule": {
+          "id": "2d0ffab9-2ad8-43b1-9946-0f9fa7eb3ed8",
+          "startTime": "06:00",
+          "endTime": "12:00",
+          "status": "OPEN",
+          "roomId": "b77d141b-2fa5-4481-9f47-a5a040faf57a",
+          "roomName": "Ruang Poli Umum 1",
+          "capacity": 12,
+          "availableSlots": 12,
+          "notes": "Factory-generated canonical schedule session"
+        }
+      },
+      {
+        "id": "siang",
+        "code": "afternoon",
+        "name": "Sesi Siang",
+        "startTime": "12:00",
+        "endTime": "18:00",
+        "isPast": true,
+        "existingSchedule": null
+      },
+      {
+        "id": "malam",
+        "code": "night",
+        "name": "Sesi Malam",
+        "startTime": "18:00",
+        "endTime": "24:00",
+        "isPast": true,
+        "existingSchedule": null
+      }
+    ]
+  }
+}
+```
+
+---
+
+### GET `/api/v1/schedules/slot-availability?date=2026-09-24&shift=morning&roomId=b77d141b-2fa5-4481-9f47-a5a040faf57a`
+
+**Judul:** SSOT Anti-Collision Slot Grid & Ketersediaan Slot Otomatis (Slot Availability)  
+**Otorisasi Role:** `STAF, ADMIN (Bearer Token)`  
+
+#### 1. Fungsi & Tujuan Endpoint
+Menghitung matriks ketersediaan slot 30 menit (12 slot per shift 6 jam) secara 100% di backend. Menghilangkan seluruh kalkulasi bentrok di frontend dengan sistem resolusi prioritas: TEMPORAL_PAST (Sudah Selesai), CLOSED_LEAVE (Cuti), PRACTITIONER_OVERLAP (Jadwal Anda), ROOM_OCCUPIED (Nama Dokter Lain), dan AVAILABLE (Tersedia).
+
+#### 2. Ekspektasi Implementasi di Sisi Client (Mobile/Web)
+Dipanggil saat tanggal, shift, atau ruangan dipilih pada form. Frontend murni merender array slot sesuai flag isAvailable dan displayLabel tanpa kalkulasi matematika atau logika bentrok lokal.
+
+#### 3. Parameter Query String
+```json
+{
+  "date": "2026-09-24",
+  "shift": "morning",
+  "roomId": "b77d141b-2fa5-4481-9f47-a5a040faf57a"
+}
+```
+
+#### 5. Live Response JSON Payload (HTTP Status: `200`)
+```json
+{
+  "success": true,
+  "statusCode": 200,
+  "message": "Ketersediaan slot berhasil dihitung",
+  "data": {
+    "date": "2026-09-24",
+    "shift": "morning",
+    "shiftLabel": "Sesi Pagi",
+    "roomId": "b77d141b-2fa5-4481-9f47-a5a040faf57a",
+    "roomName": "Ruang Poli Umum 1",
+    "boundary": {
+      "startTime": "06:00",
+      "endTime": "12:00"
+    },
+    "intervalMinutes": 30,
+    "summary": {
+      "totalSlots": 12,
+      "availableSlots": 0,
+      "occupiedSlots": 12
+    },
+    "slots": [
+      {
+        "slotIndex": 0,
+        "time": "06:00",
+        "endTime": "06:30",
+        "isAvailable": false,
+        "status": "PAST",
+        "displayLabel": "Sudah Selesai",
+        "conflict": {
+          "type": "TEMPORAL_PAST",
+          "occupantName": null,
+          "reason": "Slot waktu ini telah melewati jam operasional saat ini."
+        }
+      },
+      {
+        "slotIndex": 1,
+        "time": "06:30",
+        "endTime": "07:00",
+        "isAvailable": false,
+        "status": "PAST",
+        "displayLabel": "Sudah Selesai",
+        "conflict": {
+          "type": "TEMPORAL_PAST",
+          "occupantName": null,
+          "reason": "Slot waktu ini telah melewati jam operasional saat ini."
+        }
+      },
+      {
+        "slotIndex": 2,
+        "time": "07:00",
+        "endTime": "07:30",
+        "isAvailable": false,
+        "status": "PAST",
+        "displayLabel": "Sudah Selesai",
+        "conflict": {
+          "type": "TEMPORAL_PAST",
+          "occupantName": null,
+          "reason": "Slot waktu ini telah melewati jam operasional saat ini."
+        }
+      },
+      {
+        "slotIndex": 3,
+        "time": "07:30",
+        "endTime": "08:00",
+        "isAvailable": false,
+        "status": "PAST",
+        "displayLabel": "Sudah Selesai",
+        "conflict": {
+          "type": "TEMPORAL_PAST",
+          "occupantName": null,
+          "reason": "Slot waktu ini telah melewati jam operasional saat ini."
+        }
+      },
+      {
+        "slotIndex": 4,
+        "time": "08:00",
+        "endTime": "08:30",
+        "isAvailable": false,
+        "status": "PAST",
+        "displayLabel": "Sudah Selesai",
+        "conflict": {
+          "type": "TEMPORAL_PAST",
+          "occupantName": null,
+          "reason": "Slot waktu ini telah melewati jam operasional saat ini."
+        }
+      },
+      {
+        "slotIndex": 5,
+        "time": "08:30",
+        "endTime": "09:00",
+        "isAvailable": false,
+        "status": "PAST",
+        "displayLabel": "Sudah Selesai",
+        "conflict": {
+          "type": "TEMPORAL_PAST",
+          "occupantName": null,
+          "reason": "Slot waktu ini telah melewati jam operasional saat ini."
+        }
+      },
+      {
+        "slotIndex": 6,
+        "time": "09:00",
+        "endTime": "09:30",
+        "isAvailable": false,
+        "status": "PAST",
+        "displayLabel": "Sudah Selesai",
+        "conflict": {
+          "type": "TEMPORAL_PAST",
+          "occupantName": null,
+          "reason": "Slot waktu ini telah melewati jam operasional saat ini."
+        }
+      },
+      {
+        "slotIndex": 7,
+        "time": "09:30",
+        "endTime": "10:00",
+        "isAvailable": false,
+        "status": "PAST",
+        "displayLabel": "Sudah Selesai",
+        "conflict": {
+          "type": "TEMPORAL_PAST",
+          "occupantName": null,
+          "reason": "Slot waktu ini telah melewati jam operasional saat ini."
+        }
+      },
+      {
+        "slotIndex": 8,
+        "time": "10:00",
+        "endTime": "10:30",
+        "isAvailable": false,
+        "status": "PAST",
+        "displayLabel": "Sudah Selesai",
+        "conflict": {
+          "type": "TEMPORAL_PAST",
+          "occupantName": null,
+          "reason": "Slot waktu ini telah melewati jam operasional saat ini."
+        }
+      },
+      {
+        "slotIndex": 9,
+        "time": "10:30",
+        "endTime": "11:00",
+        "isAvailable": false,
+        "status": "PAST",
+        "displayLabel": "Sudah Selesai",
+        "conflict": {
+          "type": "TEMPORAL_PAST",
+          "occupantName": null,
+          "reason": "Slot waktu ini telah melewati jam operasional saat ini."
+        }
+      },
+      {
+        "slotIndex": 10,
+        "time": "11:00",
+        "endTime": "11:30",
+        "isAvailable": false,
+        "status": "PAST",
+        "displayLabel": "Sudah Selesai",
+        "conflict": {
+          "type": "TEMPORAL_PAST",
+          "occupantName": null,
+          "reason": "Slot waktu ini telah melewati jam operasional saat ini."
+        }
+      },
+      {
+        "slotIndex": 11,
+        "time": "11:30",
+        "endTime": "12:00",
+        "isAvailable": false,
+        "status": "PAST",
+        "displayLabel": "Sudah Selesai",
+        "conflict": {
+          "type": "TEMPORAL_PAST",
+          "occupantName": null,
+          "reason": "Slot waktu ini telah melewati jam operasional saat ini."
+        }
+      }
+    ]
+  }
+}
+```
+
+---
 
 ### GET `/api/v1/schedules/contexts?date=2026-09-24`
 
@@ -882,8 +1228,8 @@ Live preview slot saat dokter atau admin menggeser time-picker jam mulai praktik
   "message": "Form validation failed for one or more fields.",
   "instance": "/api/v1/schedules/projection?date=2026-09-24&startTime=08:00&contextType=morning",
   "code": "VALIDATION_FAILED",
-  "traceId": "d5762525-c83a-4034-bf07-2a0a709a6d9a",
-  "timestamp": "2026-09-25T07:47:15.109Z",
+  "traceId": "15114b25-4ccc-4c85-8405-0cb2582f3c58",
+  "timestamp": "2026-09-25T15:06:21.714Z",
   "invalidParams": [
     {
       "name": "scheduleContextId",
@@ -1089,7 +1435,7 @@ Visual timeline grid 24 jam pada dashboard dokter / admin.
             "conflictInfo": {
               "type": "SELF",
               "message": "Anda telah memiliki jadwal pada jam ini",
-              "sessionId": "99b8adba-b0e3-4015-9ddd-363a1d75d34d",
+              "sessionId": "2d0ffab9-2ad8-43b1-9946-0f9fa7eb3ed8",
               "practitionerId": "c518facb-372e-4f07-9766-f3eacf54221f",
               "practitionerName": "Ahmadamikom Zikri",
               "roomId": "b77d141b-2fa5-4481-9f47-a5a040faf57a",
@@ -1107,7 +1453,7 @@ Visual timeline grid 24 jam pada dashboard dokter / admin.
             "conflictInfo": {
               "type": "SELF",
               "message": "Anda telah memiliki jadwal pada jam ini",
-              "sessionId": "99b8adba-b0e3-4015-9ddd-363a1d75d34d",
+              "sessionId": "2d0ffab9-2ad8-43b1-9946-0f9fa7eb3ed8",
               "practitionerId": "c518facb-372e-4f07-9766-f3eacf54221f",
               "practitionerName": "Ahmadamikom Zikri",
               "roomId": "b77d141b-2fa5-4481-9f47-a5a040faf57a",
@@ -1125,7 +1471,7 @@ Visual timeline grid 24 jam pada dashboard dokter / admin.
             "conflictInfo": {
               "type": "SELF",
               "message": "Anda telah memiliki jadwal pada jam ini",
-              "sessionId": "99b8adba-b0e3-4015-9ddd-363a1d75d34d",
+              "sessionId": "2d0ffab9-2ad8-43b1-9946-0f9fa7eb3ed8",
               "practitionerId": "c518facb-372e-4f07-9766-f3eacf54221f",
               "practitionerName": "Ahmadamikom Zikri",
               "roomId": "b77d141b-2fa5-4481-9f47-a5a040faf57a",
@@ -1143,7 +1489,7 @@ Visual timeline grid 24 jam pada dashboard dokter / admin.
             "conflictInfo": {
               "type": "SELF",
               "message": "Anda telah memiliki jadwal pada jam ini",
-              "sessionId": "99b8adba-b0e3-4015-9ddd-363a1d75d34d",
+              "sessionId": "2d0ffab9-2ad8-43b1-9946-0f9fa7eb3ed8",
               "practitionerId": "c518facb-372e-4f07-9766-f3eacf54221f",
               "practitionerName": "Ahmadamikom Zikri",
               "roomId": "b77d141b-2fa5-4481-9f47-a5a040faf57a",
@@ -1161,7 +1507,7 @@ Visual timeline grid 24 jam pada dashboard dokter / admin.
             "conflictInfo": {
               "type": "SELF",
               "message": "Anda telah memiliki jadwal pada jam ini",
-              "sessionId": "99b8adba-b0e3-4015-9ddd-363a1d75d34d",
+              "sessionId": "2d0ffab9-2ad8-43b1-9946-0f9fa7eb3ed8",
               "practitionerId": "c518facb-372e-4f07-9766-f3eacf54221f",
               "practitionerName": "Ahmadamikom Zikri",
               "roomId": "b77d141b-2fa5-4481-9f47-a5a040faf57a",
@@ -1179,7 +1525,7 @@ Visual timeline grid 24 jam pada dashboard dokter / admin.
             "conflictInfo": {
               "type": "SELF",
               "message": "Anda telah memiliki jadwal pada jam ini",
-              "sessionId": "99b8adba-b0e3-4015-9ddd-363a1d75d34d",
+              "sessionId": "2d0ffab9-2ad8-43b1-9946-0f9fa7eb3ed8",
               "practitionerId": "c518facb-372e-4f07-9766-f3eacf54221f",
               "practitionerName": "Ahmadamikom Zikri",
               "roomId": "b77d141b-2fa5-4481-9f47-a5a040faf57a",
@@ -1197,7 +1543,7 @@ Visual timeline grid 24 jam pada dashboard dokter / admin.
             "conflictInfo": {
               "type": "SELF",
               "message": "Anda telah memiliki jadwal pada jam ini",
-              "sessionId": "99b8adba-b0e3-4015-9ddd-363a1d75d34d",
+              "sessionId": "2d0ffab9-2ad8-43b1-9946-0f9fa7eb3ed8",
               "practitionerId": "c518facb-372e-4f07-9766-f3eacf54221f",
               "practitionerName": "Ahmadamikom Zikri",
               "roomId": "b77d141b-2fa5-4481-9f47-a5a040faf57a",
@@ -1215,7 +1561,7 @@ Visual timeline grid 24 jam pada dashboard dokter / admin.
             "conflictInfo": {
               "type": "SELF",
               "message": "Anda telah memiliki jadwal pada jam ini",
-              "sessionId": "99b8adba-b0e3-4015-9ddd-363a1d75d34d",
+              "sessionId": "2d0ffab9-2ad8-43b1-9946-0f9fa7eb3ed8",
               "practitionerId": "c518facb-372e-4f07-9766-f3eacf54221f",
               "practitionerName": "Ahmadamikom Zikri",
               "roomId": "b77d141b-2fa5-4481-9f47-a5a040faf57a",
@@ -1233,7 +1579,7 @@ Visual timeline grid 24 jam pada dashboard dokter / admin.
             "conflictInfo": {
               "type": "SELF",
               "message": "Anda telah memiliki jadwal pada jam ini",
-              "sessionId": "99b8adba-b0e3-4015-9ddd-363a1d75d34d",
+              "sessionId": "2d0ffab9-2ad8-43b1-9946-0f9fa7eb3ed8",
               "practitionerId": "c518facb-372e-4f07-9766-f3eacf54221f",
               "practitionerName": "Ahmadamikom Zikri",
               "roomId": "b77d141b-2fa5-4481-9f47-a5a040faf57a",
@@ -1251,7 +1597,7 @@ Visual timeline grid 24 jam pada dashboard dokter / admin.
             "conflictInfo": {
               "type": "SELF",
               "message": "Anda telah memiliki jadwal pada jam ini",
-              "sessionId": "99b8adba-b0e3-4015-9ddd-363a1d75d34d",
+              "sessionId": "2d0ffab9-2ad8-43b1-9946-0f9fa7eb3ed8",
               "practitionerId": "c518facb-372e-4f07-9766-f3eacf54221f",
               "practitionerName": "Ahmadamikom Zikri",
               "roomId": "b77d141b-2fa5-4481-9f47-a5a040faf57a",
@@ -1269,7 +1615,7 @@ Visual timeline grid 24 jam pada dashboard dokter / admin.
             "conflictInfo": {
               "type": "SELF",
               "message": "Anda telah memiliki jadwal pada jam ini",
-              "sessionId": "99b8adba-b0e3-4015-9ddd-363a1d75d34d",
+              "sessionId": "2d0ffab9-2ad8-43b1-9946-0f9fa7eb3ed8",
               "practitionerId": "c518facb-372e-4f07-9766-f3eacf54221f",
               "practitionerName": "Ahmadamikom Zikri",
               "roomId": "b77d141b-2fa5-4481-9f47-a5a040faf57a",
@@ -1287,7 +1633,7 @@ Visual timeline grid 24 jam pada dashboard dokter / admin.
             "conflictInfo": {
               "type": "SELF",
               "message": "Anda telah memiliki jadwal pada jam ini",
-              "sessionId": "99b8adba-b0e3-4015-9ddd-363a1d75d34d",
+              "sessionId": "2d0ffab9-2ad8-43b1-9946-0f9fa7eb3ed8",
               "practitionerId": "c518facb-372e-4f07-9766-f3eacf54221f",
               "practitionerName": "Ahmadamikom Zikri",
               "roomId": "b77d141b-2fa5-4481-9f47-a5a040faf57a",
@@ -1594,7 +1940,7 @@ Home screen / agenda tab aplikasi mobile dokter.
 ```json
 [
   {
-    "id": "99b8adba-b0e3-4015-9ddd-363a1d75d34d",
+    "id": "2d0ffab9-2ad8-43b1-9946-0f9fa7eb3ed8",
     "staffId": "ae6bc447-677d-407e-a93f-31b9ee333b6b",
     "staffName": "Ahmadamikom Zikri",
     "profession": "Dokter Umum",
@@ -1620,15 +1966,15 @@ Home screen / agenda tab aplikasi mobile dokter.
     "rawStatus": "open",
     "isAvailable": true,
     "notes": "Factory-generated canonical schedule session",
-    "createdAt": "2026-09-25T07:43:05.919Z",
-    "updatedAt": "2026-09-25T07:46:23.997Z",
+    "createdAt": "2026-09-25T15:06:04.260Z",
+    "updatedAt": "2026-09-25T15:06:04.260Z",
     "doctorId": "c518facb-372e-4f07-9766-f3eacf54221f",
     "practitionerId": "c518facb-372e-4f07-9766-f3eacf54221f",
     "isRescheduleEligible": true,
     "is_reschedule_eligible": true,
     "rescheduleIneligibilityReason": null,
     "reschedule_ineligibility_reason": null,
-    "version": "1790322383997"
+    "version": "1790348764260"
   }
 ]
 ```
@@ -2111,7 +2457,7 @@ Tombol simpan pada modal pengaturan harian mobile app.
 #### 5. Live Response JSON Payload (HTTP Status: `200`)
 ```json
 {
-  "id": "602d6de9-e679-413e-9def-73bd1c85defe",
+  "id": "1054dcb2-1c74-45fe-a1df-41e11dee3839",
   "practitionerId": "c518facb-372e-4f07-9766-f3eacf54221f",
   "scheduleDate": "2026-10-15",
   "targetQuota": 15,
@@ -2182,19 +2528,82 @@ Form Cepat Tambah Jadwal di aplikasi dokter: dokter cukup pilih jam mulai dan ru
 }
 ```
 
-#### 5. Live Response JSON Payload (HTTP Status: `409`)
+#### 5. Live Response JSON Payload (HTTP Status: `201`)
 ```json
 {
-  "type": "https://amanah.health/errors/practitioner_already_scheduled",
-  "title": "Conflict",
-  "status": 409,
-  "statusCode": 409,
-  "detail": "Dokter sudah memiliki jadwal praktek lain pada jam 08:00 - 08:30 WIB.",
-  "message": "Dokter sudah memiliki jadwal praktek lain pada jam 08:00 - 08:30 WIB.",
-  "instance": "/api/v1/schedules/availability",
-  "code": "PRACTITIONER_ALREADY_SCHEDULED",
-  "traceId": "aa08423d-5637-40e4-bf0b-50b1ab1a1475",
-  "timestamp": "2026-09-25T07:47:15.275Z"
+  "schedule": {
+    "id": "9637df02-e37e-4424-8b7b-6f254001d06d",
+    "staffId": "ae6bc447-677d-407e-a93f-31b9ee333b6b",
+    "staffName": "Ahmadamikom Zikri",
+    "profession": "Dokter Umum",
+    "scheduleDate": "2026-10-20",
+    "specificDate": "2026-10-20",
+    "poliklinikId": "53fa8088-46c8-4611-9dea-99a54f4a45ab",
+    "poliklinikName": "Poli Umum",
+    "serviceId": null,
+    "serviceName": null,
+    "dayOfWeek": null,
+    "session": "PAGI",
+    "sessionLabel": "Pagi",
+    "sessionShift": "morning",
+    "startTime": "08:00",
+    "endTime": "08:30",
+    "timeRange": "08:00 - 08:30 WIB",
+    "roomId": "b77d141b-2fa5-4481-9f47-a5a040faf57a",
+    "roomName": "Ruang Poli Umum 1",
+    "capacity": 1,
+    "availableSlots": 1,
+    "bookedPatientCount": 0,
+    "status": "OPEN",
+    "rawStatus": "open",
+    "isAvailable": true,
+    "notes": null,
+    "createdAt": "2026-09-25T15:06:22.007Z",
+    "updatedAt": "2026-09-25T15:06:22.007Z",
+    "doctorId": "c518facb-372e-4f07-9766-f3eacf54221f",
+    "practitionerId": "c518facb-372e-4f07-9766-f3eacf54221f",
+    "isRescheduleEligible": true,
+    "is_reschedule_eligible": true,
+    "rescheduleIneligibilityReason": null,
+    "reschedule_ineligibility_reason": null,
+    "version": "1790348782007"
+  },
+  "projection": {
+    "scheduleId": "9637df02-e37e-4424-8b7b-6f254001d06d",
+    "practitionerId": "c518facb-372e-4f07-9766-f3eacf54221f",
+    "date": "2026-10-20",
+    "scheduleContextId": "morning",
+    "contextLabel": "Pagi",
+    "selectedStartTime": "08:00",
+    "boundaryStartTime": "06:00",
+    "boundaryEndTime": "08:30",
+    "shiftBoundary": {
+      "startTime": "06:00",
+      "endTime": "08:30"
+    },
+    "projectedEndTime": "08:30",
+    "effectiveConsultationDurationMinutes": 30,
+    "durationSource": "PRACTITIONER_CONFIG",
+    "durationScope": "practitioner-specific",
+    "durationEditableByCurrentUser": false,
+    "allowedStartPrecisionMinutes": 1,
+    "timezone": "Asia/Jakarta",
+    "capacity": 1,
+    "remainingShiftSlots": 7,
+    "intervals": [
+      {
+        "intervalId": "9637df02-e37e-4424-8b7b-6f254001d06d:08:00-08:30",
+        "intervalIndex": 1,
+        "startTime": "08:00",
+        "endTime": "08:30",
+        "status": "OPEN",
+        "displayLabel": "Buka",
+        "isOccupied": false
+      }
+    ],
+    "version": "1790348782007",
+    "updatedAt": "2026-09-25 22:06:22.007983+07"
+  }
 }
 ```
 
@@ -2224,7 +2633,7 @@ Tabel jadwal poliklinik di web dashboard atau pencarian jadwal di aplikasi pasie
 ```json
 [
   {
-    "id": "cc01d286-7bb1-4b1e-b7b9-62a8d2324280",
+    "id": "9637df02-e37e-4424-8b7b-6f254001d06d",
     "staffId": "ae6bc447-677d-407e-a93f-31b9ee333b6b",
     "staffName": "Ahmadamikom Zikri",
     "profession": "Dokter Umum",
@@ -2250,55 +2659,18 @@ Tabel jadwal poliklinik di web dashboard atau pencarian jadwal di aplikasi pasie
     "rawStatus": "open",
     "isAvailable": true,
     "notes": null,
-    "createdAt": "2026-09-25T07:43:54.948Z",
-    "updatedAt": "2026-09-25T07:43:54.948Z",
+    "createdAt": "2026-09-25T15:06:22.007Z",
+    "updatedAt": "2026-09-25T15:06:22.007Z",
     "doctorId": "c518facb-372e-4f07-9766-f3eacf54221f",
     "practitionerId": "c518facb-372e-4f07-9766-f3eacf54221f",
     "isRescheduleEligible": true,
     "is_reschedule_eligible": true,
     "rescheduleIneligibilityReason": null,
     "reschedule_ineligibility_reason": null,
-    "version": "1790322234948"
+    "version": "1790348782007"
   },
   {
-    "id": "8539fa52-7159-4ae9-b5f8-9e519352b795",
-    "staffId": "c83ddf06-96ba-43b4-b751-4c540cd20e12",
-    "staffName": "dr. Ahmad Santoso",
-    "profession": "Dokter Umum",
-    "scheduleDate": "2026-09-26",
-    "specificDate": "2026-09-26",
-    "poliklinikId": "53fa8088-46c8-4611-9dea-99a54f4a45ab",
-    "poliklinikName": "Poli Umum",
-    "serviceId": "59c6b882-5a93-487d-945d-fd08d2a7bb82",
-    "serviceName": "Pemeriksaan Umum",
-    "dayOfWeek": null,
-    "session": "PAGI",
-    "sessionLabel": "Dini Hari",
-    "sessionShift": "early_morning",
-    "startTime": "00:00",
-    "endTime": "06:00",
-    "timeRange": "00:00 - 06:00 WIB",
-    "roomId": "b77d141b-2fa5-4481-9f47-a5a040faf57a",
-    "roomName": "Ruang Poli Umum 1",
-    "capacity": 12,
-    "availableSlots": 12,
-    "bookedPatientCount": 0,
-    "status": "OPEN",
-    "rawStatus": "open",
-    "isAvailable": true,
-    "notes": "Factory-generated canonical schedule session",
-    "createdAt": "2026-09-25T07:43:05.919Z",
-    "updatedAt": "2026-09-25T07:43:05.919Z",
-    "doctorId": "e0d4d8c5-412d-4915-8b4c-b06b9d84ac65",
-    "practitionerId": "e0d4d8c5-412d-4915-8b4c-b06b9d84ac65",
-    "isRescheduleEligible": true,
-    "is_reschedule_eligible": true,
-    "rescheduleIneligibilityReason": null,
-    "reschedule_ineligibility_reason": null,
-    "version": "1790322185919"
-  },
-  {
-    "id": "0f64ffa2-d4c9-447c-bec4-ca5372b0822b",
+    "id": "b59bf90f-196d-41b3-9905-ef45684d0582",
     "staffId": "12ec44ea-3583-4f53-ba54-a7fdc5ed1a3f",
     "staffName": "mobile test",
     "profession": "Dokter Umum",
@@ -2309,7 +2681,7 @@ Tabel jadwal poliklinik di web dashboard atau pencarian jadwal di aplikasi pasie
     "serviceId": "59c6b882-5a93-487d-945d-fd08d2a7bb82",
     "serviceName": "Pemeriksaan Umum",
     "dayOfWeek": null,
-    "session": "PAGI",
+    "session": "DINI_HARI",
     "sessionLabel": "Dini Hari",
     "sessionShift": "early_morning",
     "startTime": "00:00",
@@ -2324,22 +2696,59 @@ Tabel jadwal poliklinik di web dashboard atau pencarian jadwal di aplikasi pasie
     "rawStatus": "open",
     "isAvailable": true,
     "notes": "Factory-generated canonical schedule session",
-    "createdAt": "2026-09-25T07:43:05.919Z",
-    "updatedAt": "2026-09-25T07:43:05.919Z",
+    "createdAt": "2026-09-25T15:06:04.260Z",
+    "updatedAt": "2026-09-25T15:06:04.260Z",
     "doctorId": "f996d696-30c8-4fcf-ba77-babfd7c36dca",
     "practitionerId": "f996d696-30c8-4fcf-ba77-babfd7c36dca",
     "isRescheduleEligible": true,
     "is_reschedule_eligible": true,
     "rescheduleIneligibilityReason": null,
     "reschedule_ineligibility_reason": null,
-    "version": "1790322185919"
+    "version": "1790348764260"
+  },
+  {
+    "id": "126d14ed-cd89-484a-aae1-2447d7430bd2",
+    "staffId": "debcd9f6-db99-4221-b09c-d306c5a802fc",
+    "staffName": "dr. Ahmad Santoso",
+    "profession": "Dokter Umum",
+    "scheduleDate": "2026-09-26",
+    "specificDate": "2026-09-26",
+    "poliklinikId": "53fa8088-46c8-4611-9dea-99a54f4a45ab",
+    "poliklinikName": "Poli Umum",
+    "serviceId": "59c6b882-5a93-487d-945d-fd08d2a7bb82",
+    "serviceName": "Pemeriksaan Umum",
+    "dayOfWeek": null,
+    "session": "DINI_HARI",
+    "sessionLabel": "Dini Hari",
+    "sessionShift": "early_morning",
+    "startTime": "00:00",
+    "endTime": "06:00",
+    "timeRange": "00:00 - 06:00 WIB",
+    "roomId": "b77d141b-2fa5-4481-9f47-a5a040faf57a",
+    "roomName": "Ruang Poli Umum 1",
+    "capacity": 12,
+    "availableSlots": 12,
+    "bookedPatientCount": 0,
+    "status": "OPEN",
+    "rawStatus": "open",
+    "isAvailable": true,
+    "notes": "Factory-generated canonical schedule session",
+    "createdAt": "2026-09-25T15:06:04.260Z",
+    "updatedAt": "2026-09-25T15:06:04.260Z",
+    "doctorId": "77bbb45a-18df-4311-b2a4-a4b6f22870ca",
+    "practitionerId": "77bbb45a-18df-4311-b2a4-a4b6f22870ca",
+    "isRescheduleEligible": true,
+    "is_reschedule_eligible": true,
+    "rescheduleIneligibilityReason": null,
+    "reschedule_ineligibility_reason": null,
+    "version": "1790348764260"
   }
 ]
 ```
 
 ---
 
-### GET `/api/v1/schedules/99b8adba-b0e3-4015-9ddd-363a1d75d34d`
+### GET `/api/v1/schedules/2d0ffab9-2ad8-43b1-9946-0f9fa7eb3ed8`
 
 **Judul:** Detail Sesi Jadwal Praktik Berdasarkan ID  
 **Otorisasi Role:** `ADMIN, STAF, PATIENT (Bearer Token)`  
@@ -2353,7 +2762,7 @@ Halaman rincian sesi jadwal di mobile app.
 #### 5. Live Response JSON Payload (HTTP Status: `200`)
 ```json
 {
-  "id": "99b8adba-b0e3-4015-9ddd-363a1d75d34d",
+  "id": "2d0ffab9-2ad8-43b1-9946-0f9fa7eb3ed8",
   "staffId": "ae6bc447-677d-407e-a93f-31b9ee333b6b",
   "staffName": "Ahmadamikom Zikri",
   "profession": "Dokter Umum",
@@ -2379,21 +2788,21 @@ Halaman rincian sesi jadwal di mobile app.
   "rawStatus": "open",
   "isAvailable": true,
   "notes": "Factory-generated canonical schedule session",
-  "createdAt": "2026-09-25T07:43:05.919Z",
-  "updatedAt": "2026-09-25T07:46:23.997Z",
+  "createdAt": "2026-09-25T15:06:04.260Z",
+  "updatedAt": "2026-09-25T15:06:04.260Z",
   "doctorId": "c518facb-372e-4f07-9766-f3eacf54221f",
   "practitionerId": "c518facb-372e-4f07-9766-f3eacf54221f",
   "isRescheduleEligible": true,
   "is_reschedule_eligible": true,
   "rescheduleIneligibilityReason": null,
   "reschedule_ineligibility_reason": null,
-  "version": "1790322383997"
+  "version": "1790348764260"
 }
 ```
 
 ---
 
-### PATCH `/api/v1/schedules/99b8adba-b0e3-4015-9ddd-363a1d75d34d/availability`
+### PATCH `/api/v1/schedules/2d0ffab9-2ad8-43b1-9946-0f9fa7eb3ed8/availability`
 
 **Judul:** Toggle Ketersediaan Penerimaan Pasien pada Sesi  
 **Otorisasi Role:** `STAF, ADMIN (Bearer Token)`  
@@ -2414,7 +2823,7 @@ Switch toggle "Terima Pendaftaran Pasien" di mobile app.
 #### 5. Live Response JSON Payload (HTTP Status: `200`)
 ```json
 {
-  "id": "99b8adba-b0e3-4015-9ddd-363a1d75d34d",
+  "id": "2d0ffab9-2ad8-43b1-9946-0f9fa7eb3ed8",
   "staffId": "ae6bc447-677d-407e-a93f-31b9ee333b6b",
   "staffName": "Ahmadamikom Zikri",
   "profession": "Dokter Umum",
@@ -2440,15 +2849,15 @@ Switch toggle "Terima Pendaftaran Pasien" di mobile app.
   "rawStatus": "open",
   "isAvailable": true,
   "notes": "Factory-generated canonical schedule session",
-  "createdAt": "2026-09-25T07:43:05.919Z",
-  "updatedAt": "2026-09-25T07:47:15.331Z",
+  "createdAt": "2026-09-25T15:06:04.260Z",
+  "updatedAt": "2026-09-25T15:06:22.101Z",
   "doctorId": "c518facb-372e-4f07-9766-f3eacf54221f",
   "practitionerId": "c518facb-372e-4f07-9766-f3eacf54221f",
   "isRescheduleEligible": true,
   "is_reschedule_eligible": true,
   "rescheduleIneligibilityReason": null,
   "reschedule_ineligibility_reason": null,
-  "version": "1790322435331"
+  "version": "1790348782101"
 }
 ```
 
@@ -2483,7 +2892,7 @@ Form custom jadwal di web admin atau mobile dokter.
 #### 5. Live Response JSON Payload (HTTP Status: `201`)
 ```json
 {
-  "id": "4fdcbe1b-7fa6-4f8b-9996-fa8936618f76",
+  "id": "082efbc6-60d6-4afc-8fec-f2bc4c9e8501",
   "staffId": "ae6bc447-677d-407e-a93f-31b9ee333b6b",
   "staffName": "Ahmadamikom Zikri",
   "profession": "Dokter Umum",
@@ -2509,21 +2918,21 @@ Form custom jadwal di web admin atau mobile dokter.
   "rawStatus": "open",
   "isAvailable": true,
   "notes": "Jadwal sementara uji otomasi",
-  "createdAt": "2026-09-25T07:47:15.354Z",
-  "updatedAt": "2026-09-25T07:47:15.354Z",
+  "createdAt": "2026-09-25T15:06:22.137Z",
+  "updatedAt": "2026-09-25T15:06:22.137Z",
   "doctorId": "c518facb-372e-4f07-9766-f3eacf54221f",
   "practitionerId": "c518facb-372e-4f07-9766-f3eacf54221f",
   "isRescheduleEligible": true,
   "is_reschedule_eligible": true,
   "rescheduleIneligibilityReason": null,
   "reschedule_ineligibility_reason": null,
-  "version": "1790322435354"
+  "version": "1790348782137"
 }
 ```
 
 ---
 
-### PATCH `/api/v1/schedules/4fdcbe1b-7fa6-4f8b-9996-fa8936618f76`
+### PATCH `/api/v1/schedules/082efbc6-60d6-4afc-8fec-f2bc4c9e8501`
 
 **Judul:** Update Informasi Sesi Jadwal Praktik  
 **Otorisasi Role:** `STAF, ADMIN (Bearer Token)`  
@@ -2547,7 +2956,7 @@ Form edit sesi jadwal di mobile app.
 #### 5. Live Response JSON Payload (HTTP Status: `200`)
 ```json
 {
-  "id": "4fdcbe1b-7fa6-4f8b-9996-fa8936618f76",
+  "id": "082efbc6-60d6-4afc-8fec-f2bc4c9e8501",
   "staffId": "ae6bc447-677d-407e-a93f-31b9ee333b6b",
   "staffName": "Ahmadamikom Zikri",
   "profession": "Dokter Umum",
@@ -2573,21 +2982,21 @@ Form edit sesi jadwal di mobile app.
   "rawStatus": "open",
   "isAvailable": true,
   "notes": "Jadwal diperbarui via otomasi",
-  "createdAt": "2026-09-25T07:47:15.354Z",
-  "updatedAt": "2026-09-25T07:47:15.387Z",
+  "createdAt": "2026-09-25T15:06:22.137Z",
+  "updatedAt": "2026-09-25T15:06:22.188Z",
   "doctorId": "c518facb-372e-4f07-9766-f3eacf54221f",
   "practitionerId": "c518facb-372e-4f07-9766-f3eacf54221f",
   "isRescheduleEligible": true,
   "is_reschedule_eligible": true,
   "rescheduleIneligibilityReason": null,
   "reschedule_ineligibility_reason": null,
-  "version": "1790322435387"
+  "version": "1790348782188"
 }
 ```
 
 ---
 
-### DELETE `/api/v1/schedules/4fdcbe1b-7fa6-4f8b-9996-fa8936618f76`
+### DELETE `/api/v1/schedules/082efbc6-60d6-4afc-8fec-f2bc4c9e8501`
 
 **Judul:** Hapus Sesi Jadwal Praktik Bebas Pasien  
 **Otorisasi Role:** `STAF, ADMIN (Bearer Token)`  
@@ -2610,7 +3019,7 @@ Tombol hapus jadwal di mobile app.
 
 ## 4. Interactive Patient Flow When Clicking a Schedule
 
-### GET `/api/v1/schedules/sessions/99b8adba-b0e3-4015-9ddd-363a1d75d34d/patients`
+### GET `/api/v1/schedules/sessions/2d0ffab9-2ad8-43b1-9946-0f9fa7eb3ed8/patients`
 
 **Judul:** Daftar Lengkap Pasien Sesi Terpilih (5 Kolom Demografis & Antrean)  
 **Otorisasi Role:** `STAF, ADMIN (Bearer Token) - CANONICAL MOBILE & ADMIN ROUTE`  
@@ -2626,7 +3035,7 @@ Tampilkan dalam bentuk Drawer/Modal/Bottom Sheet "Daftar Pasien Sesi Ini" dengan
 {
   "success": true,
   "data": {
-    "sessionId": "99b8adba-b0e3-4015-9ddd-363a1d75d34d",
+    "sessionId": "2d0ffab9-2ad8-43b1-9946-0f9fa7eb3ed8",
     "sessionLabel": "Pagi",
     "shift": "Pagi",
     "scheduleDate": "2026-09-24",
@@ -2672,7 +3081,7 @@ Tab "Pasien Hari Ini" di mobile app dokter.
 
 ---
 
-### GET `/api/v1/schedules/99b8adba-b0e3-4015-9ddd-363a1d75d34d/booked-patients`
+### GET `/api/v1/schedules/2d0ffab9-2ad8-43b1-9946-0f9fa7eb3ed8/booked-patients`
 
 **Judul:** Daftar Pasien Booking Berdasarkan ID Jadwal Spesifik  
 **Otorisasi Role:** `STAF, ADMIN (Bearer Token)`  
@@ -2690,7 +3099,7 @@ Sub-list pasien per kartu jadwal.
 
 ---
 
-### GET `/api/v1/admin/doctor-schedules/c518facb-372e-4f07-9766-f3eacf54221f/sessions/99b8adba-b0e3-4015-9ddd-363a1d75d34d/patients`
+### GET `/api/v1/admin/doctor-schedules/c518facb-372e-4f07-9766-f3eacf54221f/sessions/2d0ffab9-2ad8-43b1-9946-0f9fa7eb3ed8/patients`
 
 **Judul:** Daftar Pasien Sesi Dokter (Supervisi Web Admin & Paritas Staf)  
 **Otorisasi Role:** `ADMIN, STAF (Bearer Token)`  
@@ -2706,7 +3115,7 @@ Modal tabel pasien supervisi di dashboard web admin.
 {
   "success": true,
   "data": {
-    "sessionId": "99b8adba-b0e3-4015-9ddd-363a1d75d34d",
+    "sessionId": "2d0ffab9-2ad8-43b1-9946-0f9fa7eb3ed8",
     "sessionLabel": "Pagi",
     "shift": "Pagi",
     "scheduleDate": "2026-09-24",
@@ -2758,7 +3167,7 @@ Halaman audit harian pasien dokter di web admin.
     "accumulatedAvailableSlots": 12,
     "sessions": [
       {
-        "sessionId": "99b8adba-b0e3-4015-9ddd-363a1d75d34d",
+        "sessionId": "2d0ffab9-2ad8-43b1-9946-0f9fa7eb3ed8",
         "sessionLabel": "Pagi",
         "shift": "Pagi",
         "startTime": "06:00",
@@ -2863,8 +3272,8 @@ Tombol hijau "Panggil Pasien" pada baris pasien di mobile app dokter.
   "message": "Kunjungan dengan ID 0662657e-61fb-429f-a968-3e4b37f40776 tidak ditemukan",
   "instance": "/api/v1/appointments/0662657e-61fb-429f-a968-3e4b37f40776/call",
   "code": "NOT_FOUND",
-  "traceId": "8caa3f13-02d6-4961-81b7-77e027a64d56",
-  "timestamp": "2026-09-25T07:47:15.570Z"
+  "traceId": "aa1c3b1f-4e39-425d-9e36-005c8be8d497",
+  "timestamp": "2026-09-25T15:06:22.586Z"
 }
 ```
 
@@ -2895,8 +3304,8 @@ Tombol "Selesai Periksa" di akhir sesi konsultasi mobile app.
   "message": "Kunjungan dengan ID 0662657e-61fb-429f-a968-3e4b37f40776 tidak ditemukan",
   "instance": "/api/v1/appointments/0662657e-61fb-429f-a968-3e4b37f40776/complete",
   "code": "NOT_FOUND",
-  "traceId": "bc6d4222-883d-4690-a036-41e6f0015f98",
-  "timestamp": "2026-09-25T07:47:15.585Z"
+  "traceId": "339416ec-b35f-47c0-879c-49e9afdfdd02",
+  "timestamp": "2026-09-25T15:06:22.603Z"
 }
 ```
 
@@ -2941,7 +3350,7 @@ Menu opsi "Batalkan Kunjungan" dengan pop-up input alasan pembatalan.
 
 ## 6. Reschedule System & Dynamic Slot Simulation
 
-### GET `/api/v1/schedules/sessions/99b8adba-b0e3-4015-9ddd-363a1d75d34d/reschedule-eligibility?targetDate=2026-09-26&targetStartTime=08:30`
+### GET `/api/v1/schedules/sessions/2d0ffab9-2ad8-43b1-9946-0f9fa7eb3ed8/reschedule-eligibility?targetDate=2026-09-26&targetStartTime=08:30`
 
 **Judul:** Pre-check Kelayakan Reschedule Sesi & Simulasi Slot Otomatis (08:30 -> 09:00 Otomatis Backend)  
 **Otorisasi Role:** `STAF, ADMIN (Bearer Token) - CANONICAL MOBILE & ADMIN ROUTE`  
@@ -2965,12 +3374,12 @@ Jalankan pre-check secara otomatis saat dokter mengubah tanggal/jam mulai di dia
 {
   "success": true,
   "data": {
-    "sessionId": "99b8adba-b0e3-4015-9ddd-363a1d75d34d",
+    "sessionId": "2d0ffab9-2ad8-43b1-9946-0f9fa7eb3ed8",
     "practitionerId": "c518facb-372e-4f07-9766-f3eacf54221f",
     "practitionerName": "Ahmadamikom Zikri",
     "isEligible": false,
     "sourceSession": {
-      "id": "99b8adba-b0e3-4015-9ddd-363a1d75d34d",
+      "id": "2d0ffab9-2ad8-43b1-9946-0f9fa7eb3ed8",
       "scheduleDate": "2026-09-24",
       "startTime": "06:00",
       "endTime": "12:00",
@@ -2995,7 +3404,7 @@ Jalankan pre-check secara otomatis saat dokter mengubah tanggal/jam mulai di dia
       "conflictCode": "ROOM_ALREADY_OCCUPIED",
       "conflictMessage": "Ruang Poli Umum 1 sudah dijadwalkan untuk dr. Ahmad Santoso pada jam 06:00 - 12:00 WIB.",
       "conflictMetadata": {
-        "conflictingSessionId": "2f1f7f98-3c9a-4c30-87e9-44639a4b56ac",
+        "conflictingSessionId": "2684c932-a8c0-4121-9498-8a67dd207f3e",
         "scheduleDate": "2026-09-26",
         "startTime": "06:00",
         "endTime": "12:00",
@@ -3012,7 +3421,7 @@ Jalankan pre-check secara otomatis saat dokter mengubah tanggal/jam mulai di dia
 
 ---
 
-### GET `/api/v1/schedules/sessions/99b8adba-b0e3-4015-9ddd-363a1d75d34d/reschedule-eligibility?targetDate=2026-09-26&targetStartTime=10:00&targetRoomId=590be133-107b-476e-bab3-a3ccd2d875dd`
+### GET `/api/v1/schedules/sessions/2d0ffab9-2ad8-43b1-9946-0f9fa7eb3ed8/reschedule-eligibility?targetDate=2026-09-26&targetStartTime=10:00&targetRoomId=590be133-107b-476e-bab3-a3ccd2d875dd`
 
 **Judul:** Pre-check Reschedule Slot Tersedia Tanpa Bentrok (10:00 -> 10:30 Otomatis Backend)  
 **Otorisasi Role:** `STAF, ADMIN (Bearer Token)`  
@@ -3037,12 +3446,12 @@ Dipanggil otomatis saat dokter memilih ruangan alternatif pada dialog reschedule
 {
   "success": true,
   "data": {
-    "sessionId": "99b8adba-b0e3-4015-9ddd-363a1d75d34d",
+    "sessionId": "2d0ffab9-2ad8-43b1-9946-0f9fa7eb3ed8",
     "practitionerId": "c518facb-372e-4f07-9766-f3eacf54221f",
     "practitionerName": "Ahmadamikom Zikri",
     "isEligible": true,
     "sourceSession": {
-      "id": "99b8adba-b0e3-4015-9ddd-363a1d75d34d",
+      "id": "2d0ffab9-2ad8-43b1-9946-0f9fa7eb3ed8",
       "scheduleDate": "2026-09-24",
       "startTime": "06:00",
       "endTime": "12:00",
@@ -3075,7 +3484,7 @@ Dipanggil otomatis saat dokter memilih ruangan alternatif pada dialog reschedule
 
 ---
 
-### POST `/api/v1/schedules/sessions/99b8adba-b0e3-4015-9ddd-363a1d75d34d/reschedule`
+### POST `/api/v1/schedules/sessions/2d0ffab9-2ad8-43b1-9946-0f9fa7eb3ed8/reschedule`
 
 **Judul:** Eksekusi Reschedule Sesi & Auto-Shift Pasien Aktif (Mobile & Admin)  
 **Otorisasi Role:** `STAF, ADMIN (Bearer Token) - CANONICAL MOBILE & ADMIN ROUTE`  
@@ -3103,7 +3512,7 @@ Tombol "Konfirmasi Pindahkan Jadwal" pada dialog reschedule mobile app.
   "success": true,
   "message": "Jadwal dokter berhasil dijadwalkan ulang (rescheduled)",
   "data": {
-    "sessionId": "99b8adba-b0e3-4015-9ddd-363a1d75d34d",
+    "sessionId": "2d0ffab9-2ad8-43b1-9946-0f9fa7eb3ed8",
     "practitionerId": "c518facb-372e-4f07-9766-f3eacf54221f",
     "previousSchedule": {
       "date": "2026-09-25",
@@ -3112,7 +3521,7 @@ Tombol "Konfirmasi Pindahkan Jadwal" pada dialog reschedule mobile app.
       "roomId": "b77d141b-2fa5-4481-9f47-a5a040faf57a"
     },
     "rescheduledSchedule": {
-      "id": "99b8adba-b0e3-4015-9ddd-363a1d75d34d",
+      "id": "2d0ffab9-2ad8-43b1-9946-0f9fa7eb3ed8",
       "scheduleDate": "2026-09-27",
       "startTime": "08:00",
       "endTime": "08:30",
@@ -3174,7 +3583,7 @@ Tabel utama manajemen jadwal dokter pada web dashboard admin.
         "slot_tersedia": 22,
         "kapasitas_per_hari": 24,
         "jadwal_hari_ini": "06:00 - 18:00",
-        "jadwal_praktik_mendatang": "Siang (12:00 - 18:00) - Sedang Berlangsung",
+        "jadwal_praktik_mendatang": "Siang (12:00 - 18:00) - Selesai",
         "slot_terisi_akumulasi": 2,
         "slot_kapasitas_akumulasi": 24,
         "display_akumulasi_slot": "2 / 24",
@@ -3186,7 +3595,7 @@ Tabel utama manajemen jadwal dokter pada web dashboard admin.
         "cuti_end": null,
         "sesi_harian": [
           {
-            "id": "aadd3219-a284-454d-b933-204cceb76bbc",
+            "id": "e64662b7-fc2e-4a92-9843-c6a3298beb74",
             "nama_sesi": "Pagi",
             "jam_mulai": "06:00",
             "jam_selesai": "12:00",
@@ -3201,7 +3610,7 @@ Tabel utama manajemen jadwal dokter pada web dashboard admin.
             "reschedule_ineligibility_reason": null
           },
           {
-            "id": "284141cd-5c85-4695-a081-ffcae22a1226",
+            "id": "6f240165-9227-434b-8f79-69395fcf4b9a",
             "nama_sesi": "Siang",
             "jam_mulai": "12:00",
             "jam_selesai": "18:00",
@@ -3231,7 +3640,7 @@ Tabel utama manajemen jadwal dokter pada web dashboard admin.
         "slot_tersedia": 24,
         "kapasitas_per_hari": 24,
         "jadwal_hari_ini": "06:00 - 18:00",
-        "jadwal_praktik_mendatang": "Siang (12:00 - 18:00) - Sedang Berlangsung",
+        "jadwal_praktik_mendatang": "Siang (12:00 - 18:00) - Selesai",
         "slot_terisi_akumulasi": 0,
         "slot_kapasitas_akumulasi": 24,
         "display_akumulasi_slot": "0 / 24",
@@ -3243,7 +3652,7 @@ Tabel utama manajemen jadwal dokter pada web dashboard admin.
         "cuti_end": null,
         "sesi_harian": [
           {
-            "id": "18479458-a112-4407-bbe6-3fbd42c07c68",
+            "id": "6f57dbb7-01a4-4dbc-8738-989ca137b021",
             "nama_sesi": "Pagi",
             "jam_mulai": "06:00",
             "jam_selesai": "12:00",
@@ -3258,68 +3667,11 @@ Tabel utama manajemen jadwal dokter pada web dashboard admin.
             "reschedule_ineligibility_reason": null
           },
           {
-            "id": "a4ba045c-199e-4a32-bb13-1482602484d7",
+            "id": "b3fefe55-8e33-46ff-a085-8229f8f60bab",
             "nama_sesi": "Siang",
             "jam_mulai": "12:00",
             "jam_selesai": "18:00",
             "waktu": "12:00 - 18:00",
-            "kuota_pasien": 12,
-            "slot_tersedia": 12,
-            "pasien_terdaftar": 0,
-            "display_slot": "0 / 12",
-            "status_sesi": "OPEN",
-            "ruang": "Ruang KIA 2, Gedung Utama",
-            "is_reschedule_eligible": true,
-            "reschedule_ineligibility_reason": null
-          }
-        ]
-      },
-      {
-        "id": "cfc88fab-46f8-4e71-bf72-00858ea0c885",
-        "practitioner_id": "cfc88fab-46f8-4e71-bf72-00858ea0c885",
-        "nama_dokter": "Bdn. Siti Rahmawati",
-        "spesialisasi": "Kesehatan Ibu dan Anak",
-        "status_dokter": "OPEN",
-        "email": "bidan@amanah.com",
-        "nomor_telepon": "6281298765432",
-        "ruang_praktik": "Ruang KIA 2, Gedung Utama",
-        "tanggal_praktik": "Jumat, 25 Sep 2026",
-        "avatar": "",
-        "slot_tersedia": 24,
-        "kapasitas_per_hari": 24,
-        "jadwal_hari_ini": "12:00 - 24:00",
-        "jadwal_praktik_mendatang": "Siang (12:00 - 18:00) - Sedang Berlangsung",
-        "slot_terisi_akumulasi": 0,
-        "slot_kapasitas_akumulasi": 24,
-        "display_akumulasi_slot": "0 / 24",
-        "status_jadwal": "OPEN",
-        "bulan_jadwal": "September 2026",
-        "is_cuti": false,
-        "cuti_reason": null,
-        "cuti_start": null,
-        "cuti_end": null,
-        "sesi_harian": [
-          {
-            "id": "40cc83bd-0f3f-429d-8b5d-b2c13fcd8d5f",
-            "nama_sesi": "Siang",
-            "jam_mulai": "12:00",
-            "jam_selesai": "18:00",
-            "waktu": "12:00 - 18:00",
-            "kuota_pasien": 12,
-            "slot_tersedia": 12,
-            "pasien_terdaftar": 0,
-            "display_slot": "0 / 12",
-            "status_sesi": "OPEN",
-            "ruang": "Ruang KIA 2, Gedung Utama",
-            "is_reschedule_eligible": true,
-            "reschedule_ineligibility_reason": null
-          },
-          {
-            "id": "baec9b36-904a-4bdf-8905-2e58a8fe2d4b",
-            "nama_sesi": "Malam",
-            "jam_mulai": "18:00",
-            "jam_selesai": "24:00",
-            "waktu": "18:00 - 24:00",
             "kuota_pasien": 12,
             "slot_tersedia": 12,
             "pasien_terdaftar": 0,
@@ -3344,8 +3696,8 @@ Tabel utama manajemen jadwal dokter pada web dashboard admin.
         "avatar": "",
         "slot_tersedia": 24,
         "kapasitas_per_hari": 24,
-        "jadwal_hari_ini": "00:00 - 24:00",
-        "jadwal_praktik_mendatang": "Malam (18:00 - 24:00)",
+        "jadwal_hari_ini": "12:00 - 24:00",
+        "jadwal_praktik_mendatang": "Malam (18:00 - 24:00) - Sedang Berlangsung",
         "slot_terisi_akumulasi": 0,
         "slot_kapasitas_akumulasi": 24,
         "display_akumulasi_slot": "0 / 24",
@@ -3357,7 +3709,64 @@ Tabel utama manajemen jadwal dokter pada web dashboard admin.
         "cuti_end": null,
         "sesi_harian": [
           {
-            "id": "bb4d656f-4600-4002-939c-943e6fd1a81c",
+            "id": "66ec52b7-4ce6-4adb-aeb5-25645af07139",
+            "nama_sesi": "Siang",
+            "jam_mulai": "12:00",
+            "jam_selesai": "18:00",
+            "waktu": "12:00 - 18:00",
+            "kuota_pasien": 12,
+            "slot_tersedia": 12,
+            "pasien_terdaftar": 0,
+            "display_slot": "0 / 12",
+            "status_sesi": "OPEN",
+            "ruang": "Ruang KIA 2, Gedung Utama",
+            "is_reschedule_eligible": true,
+            "reschedule_ineligibility_reason": null
+          },
+          {
+            "id": "85425694-95a5-440e-990a-508c3e136d70",
+            "nama_sesi": "Malam",
+            "jam_mulai": "18:00",
+            "jam_selesai": "24:00",
+            "waktu": "18:00 - 24:00",
+            "kuota_pasien": 12,
+            "slot_tersedia": 12,
+            "pasien_terdaftar": 0,
+            "display_slot": "0 / 12",
+            "status_sesi": "OPEN",
+            "ruang": "Ruang KIA 2, Gedung Utama",
+            "is_reschedule_eligible": true,
+            "reschedule_ineligibility_reason": null
+          }
+        ]
+      },
+      {
+        "id": "cfc88fab-46f8-4e71-bf72-00858ea0c885",
+        "practitioner_id": "cfc88fab-46f8-4e71-bf72-00858ea0c885",
+        "nama_dokter": "Bdn. Siti Rahmawati",
+        "spesialisasi": "Kesehatan Ibu dan Anak",
+        "status_dokter": "OPEN",
+        "email": "bidan@amanah.com",
+        "nomor_telepon": "6281298765432",
+        "ruang_praktik": "Ruang KIA 2, Gedung Utama",
+        "tanggal_praktik": "Jumat, 25 Sep 2026",
+        "avatar": "",
+        "slot_tersedia": 24,
+        "kapasitas_per_hari": 24,
+        "jadwal_hari_ini": "00:00 - 24:00",
+        "jadwal_praktik_mendatang": "Malam (18:00 - 24:00) - Sedang Berlangsung",
+        "slot_terisi_akumulasi": 0,
+        "slot_kapasitas_akumulasi": 24,
+        "display_akumulasi_slot": "0 / 24",
+        "status_jadwal": "OPEN",
+        "bulan_jadwal": "September 2026",
+        "is_cuti": false,
+        "cuti_reason": null,
+        "cuti_start": null,
+        "cuti_end": null,
+        "sesi_harian": [
+          {
+            "id": "40c0651f-5b40-4eed-b040-5d7a2a9f1914",
             "nama_sesi": "Dini Hari",
             "jam_mulai": "00:00",
             "jam_selesai": "06:00",
@@ -3372,7 +3781,7 @@ Tabel utama manajemen jadwal dokter pada web dashboard admin.
             "reschedule_ineligibility_reason": null
           },
           {
-            "id": "f6b83fad-c7b9-4e4e-bbcc-5c423e40abbd",
+            "id": "0d41ea38-6589-4803-8fea-304a8e06b0d9",
             "nama_sesi": "Malam",
             "jam_mulai": "18:00",
             "jam_selesai": "24:00",
@@ -3401,8 +3810,8 @@ Tabel utama manajemen jadwal dokter pada web dashboard admin.
         "avatar": "",
         "slot_tersedia": 24,
         "kapasitas_per_hari": 24,
-        "jadwal_hari_ini": "00:00 - 24:00",
-        "jadwal_praktik_mendatang": "Malam (18:00 - 24:00)",
+        "jadwal_hari_ini": "12:00 - 24:00",
+        "jadwal_praktik_mendatang": "Malam (18:00 - 24:00) - Sedang Berlangsung",
         "slot_terisi_akumulasi": 0,
         "slot_kapasitas_akumulasi": 24,
         "display_akumulasi_slot": "0 / 24",
@@ -3414,11 +3823,11 @@ Tabel utama manajemen jadwal dokter pada web dashboard admin.
         "cuti_end": null,
         "sesi_harian": [
           {
-            "id": "ac766230-bd89-43b1-b913-24f865cbe019",
-            "nama_sesi": "Dini Hari",
-            "jam_mulai": "00:00",
-            "jam_selesai": "06:00",
-            "waktu": "00:00 - 06:00",
+            "id": "1fc5eee5-8520-4349-bcd8-318a8b9b96ef",
+            "nama_sesi": "Siang",
+            "jam_mulai": "12:00",
+            "jam_selesai": "18:00",
+            "waktu": "12:00 - 18:00",
             "kuota_pasien": 12,
             "slot_tersedia": 12,
             "pasien_terdaftar": 0,
@@ -3429,7 +3838,7 @@ Tabel utama manajemen jadwal dokter pada web dashboard admin.
             "reschedule_ineligibility_reason": null
           },
           {
-            "id": "8f650b9f-ab4f-4297-9fcf-36b69c0be433",
+            "id": "baaa0e16-f137-461f-8463-c3d6b5a54947",
             "nama_sesi": "Malam",
             "jam_mulai": "18:00",
             "jam_selesai": "24:00",
@@ -3891,7 +4300,7 @@ Halaman detail jadwal dokter di web admin.
     ],
     "sesi_harian": [
       {
-        "id": "aadd3219-a284-454d-b933-204cceb76bbc",
+        "id": "e64662b7-fc2e-4a92-9843-c6a3298beb74",
         "nama_sesi": "Pagi",
         "jam_mulai": "06:00",
         "jam_selesai": "12:00",
@@ -3906,7 +4315,7 @@ Halaman detail jadwal dokter di web admin.
         "reschedule_ineligibility_reason": null
       },
       {
-        "id": "284141cd-5c85-4695-a081-ffcae22a1226",
+        "id": "6f240165-9227-434b-8f79-69395fcf4b9a",
         "nama_sesi": "Siang",
         "jam_mulai": "12:00",
         "jam_selesai": "18:00",
@@ -4281,7 +4690,7 @@ Halaman detail jadwal dokter di web admin.
         "uiVariant": "muted_gray",
         "isClickable": true,
         "actionType": "VIEW_SESSION",
-        "sessionId": "aadd3219-a284-454d-b933-204cceb76bbc",
+        "sessionId": "e64662b7-fc2e-4a92-9843-c6a3298beb74",
         "patientInfo": null,
         "rescheduleInfo": null,
         "closureInfo": null
@@ -4309,7 +4718,7 @@ Halaman detail jadwal dokter di web admin.
         "uiVariant": "muted_gray",
         "isClickable": true,
         "actionType": "VIEW_SESSION",
-        "sessionId": "aadd3219-a284-454d-b933-204cceb76bbc",
+        "sessionId": "e64662b7-fc2e-4a92-9843-c6a3298beb74",
         "patientInfo": null,
         "rescheduleInfo": null,
         "closureInfo": null
@@ -4337,7 +4746,7 @@ Halaman detail jadwal dokter di web admin.
         "uiVariant": "muted_gray",
         "isClickable": true,
         "actionType": "VIEW_SESSION",
-        "sessionId": "aadd3219-a284-454d-b933-204cceb76bbc",
+        "sessionId": "e64662b7-fc2e-4a92-9843-c6a3298beb74",
         "patientInfo": null,
         "rescheduleInfo": null,
         "closureInfo": null
@@ -4365,7 +4774,7 @@ Halaman detail jadwal dokter di web admin.
         "uiVariant": "muted_gray",
         "isClickable": true,
         "actionType": "VIEW_SESSION",
-        "sessionId": "aadd3219-a284-454d-b933-204cceb76bbc",
+        "sessionId": "e64662b7-fc2e-4a92-9843-c6a3298beb74",
         "patientInfo": null,
         "rescheduleInfo": null,
         "closureInfo": null
@@ -4398,7 +4807,7 @@ Halaman detail jadwal dokter di web admin.
         "uiVariant": "muted_gray",
         "isClickable": true,
         "actionType": "VIEW_SESSION",
-        "sessionId": "aadd3219-a284-454d-b933-204cceb76bbc",
+        "sessionId": "e64662b7-fc2e-4a92-9843-c6a3298beb74",
         "patientInfo": {
           "id": "2b22bd5e-53f6-4623-9d86-7fecb89afad0",
           "bookingCode": "BOOK-ZIKRI-TODAY-01",
@@ -4446,7 +4855,7 @@ Halaman detail jadwal dokter di web admin.
         "uiVariant": "muted_gray",
         "isClickable": true,
         "actionType": "VIEW_SESSION",
-        "sessionId": "aadd3219-a284-454d-b933-204cceb76bbc",
+        "sessionId": "e64662b7-fc2e-4a92-9843-c6a3298beb74",
         "patientInfo": {
           "id": "f8ec14ea-9130-4098-b697-767b0305d203",
           "bookingCode": "BOOK-ZIKRI-TODAY-02",
@@ -4489,7 +4898,7 @@ Halaman detail jadwal dokter di web admin.
         "uiVariant": "muted_gray",
         "isClickable": true,
         "actionType": "VIEW_SESSION",
-        "sessionId": "aadd3219-a284-454d-b933-204cceb76bbc",
+        "sessionId": "e64662b7-fc2e-4a92-9843-c6a3298beb74",
         "patientInfo": null,
         "rescheduleInfo": {
           "isRescheduled": true,
@@ -4540,7 +4949,7 @@ Halaman detail jadwal dokter di web admin.
         "uiVariant": "muted_gray",
         "isClickable": true,
         "actionType": "VIEW_SESSION",
-        "sessionId": "aadd3219-a284-454d-b933-204cceb76bbc",
+        "sessionId": "e64662b7-fc2e-4a92-9843-c6a3298beb74",
         "patientInfo": null,
         "rescheduleInfo": {
           "isRescheduled": true,
@@ -4591,7 +5000,7 @@ Halaman detail jadwal dokter di web admin.
         "uiVariant": "muted_gray",
         "isClickable": true,
         "actionType": "VIEW_SESSION",
-        "sessionId": "aadd3219-a284-454d-b933-204cceb76bbc",
+        "sessionId": "e64662b7-fc2e-4a92-9843-c6a3298beb74",
         "patientInfo": null,
         "rescheduleInfo": null,
         "closureInfo": null
@@ -4619,7 +5028,7 @@ Halaman detail jadwal dokter di web admin.
         "uiVariant": "muted_gray",
         "isClickable": true,
         "actionType": "VIEW_SESSION",
-        "sessionId": "aadd3219-a284-454d-b933-204cceb76bbc",
+        "sessionId": "e64662b7-fc2e-4a92-9843-c6a3298beb74",
         "patientInfo": null,
         "rescheduleInfo": null,
         "closureInfo": null
@@ -4648,7 +5057,7 @@ Halaman detail jadwal dokter di web admin.
         "uiVariant": "danger_red",
         "isClickable": true,
         "actionType": "VIEW_SESSION",
-        "sessionId": "aadd3219-a284-454d-b933-204cceb76bbc",
+        "sessionId": "e64662b7-fc2e-4a92-9843-c6a3298beb74",
         "patientInfo": null,
         "rescheduleInfo": null,
         "closureInfo": {
@@ -4656,14 +5065,14 @@ Halaman detail jadwal dokter di web admin.
           "reasonCode": "MEETING",
           "reasonText": "Rapat Koordinasi Komite Medik",
           "sourceType": "schedule_closure",
-          "sourceId": "66761a85-919b-4cd0-9b2c-8050cbaf6272"
+          "sourceId": "a0bd584e-4b96-478f-b911-26dcb5e82dd0"
         },
         "closure": {
           "category": "OTHER",
           "reasonCode": "MEETING",
           "reasonText": "Rapat Koordinasi Komite Medik",
           "sourceType": "schedule_closure",
-          "sourceId": "66761a85-919b-4cd0-9b2c-8050cbaf6272"
+          "sourceId": "a0bd584e-4b96-478f-b911-26dcb5e82dd0"
         }
       },
       {
@@ -4689,7 +5098,7 @@ Halaman detail jadwal dokter di web admin.
         "uiVariant": "muted_gray",
         "isClickable": true,
         "actionType": "VIEW_SESSION",
-        "sessionId": "aadd3219-a284-454d-b933-204cceb76bbc",
+        "sessionId": "e64662b7-fc2e-4a92-9843-c6a3298beb74",
         "patientInfo": null,
         "rescheduleInfo": null,
         "closureInfo": null
@@ -4717,7 +5126,7 @@ Halaman detail jadwal dokter di web admin.
         "uiVariant": "muted_gray",
         "isClickable": true,
         "actionType": "VIEW_SESSION",
-        "sessionId": "284141cd-5c85-4695-a081-ffcae22a1226",
+        "sessionId": "6f240165-9227-434b-8f79-69395fcf4b9a",
         "patientInfo": null,
         "rescheduleInfo": null,
         "closureInfo": null
@@ -4745,7 +5154,7 @@ Halaman detail jadwal dokter di web admin.
         "uiVariant": "muted_gray",
         "isClickable": true,
         "actionType": "VIEW_SESSION",
-        "sessionId": "284141cd-5c85-4695-a081-ffcae22a1226",
+        "sessionId": "6f240165-9227-434b-8f79-69395fcf4b9a",
         "patientInfo": null,
         "rescheduleInfo": null,
         "closureInfo": null
@@ -4773,7 +5182,7 @@ Halaman detail jadwal dokter di web admin.
         "uiVariant": "muted_gray",
         "isClickable": true,
         "actionType": "VIEW_SESSION",
-        "sessionId": "284141cd-5c85-4695-a081-ffcae22a1226",
+        "sessionId": "6f240165-9227-434b-8f79-69395fcf4b9a",
         "patientInfo": null,
         "rescheduleInfo": null,
         "closureInfo": null
@@ -4801,7 +5210,7 @@ Halaman detail jadwal dokter di web admin.
         "uiVariant": "muted_gray",
         "isClickable": true,
         "actionType": "VIEW_SESSION",
-        "sessionId": "284141cd-5c85-4695-a081-ffcae22a1226",
+        "sessionId": "6f240165-9227-434b-8f79-69395fcf4b9a",
         "patientInfo": null,
         "rescheduleInfo": null,
         "closureInfo": null
@@ -4829,7 +5238,7 @@ Halaman detail jadwal dokter di web admin.
         "uiVariant": "muted_gray",
         "isClickable": true,
         "actionType": "VIEW_SESSION",
-        "sessionId": "284141cd-5c85-4695-a081-ffcae22a1226",
+        "sessionId": "6f240165-9227-434b-8f79-69395fcf4b9a",
         "patientInfo": null,
         "rescheduleInfo": null,
         "closureInfo": null
@@ -4843,21 +5252,21 @@ Halaman detail jadwal dokter di web admin.
         "timeEnd": "15:00",
         "startTime": "14:30",
         "endTime": "15:00",
-        "status": "OPEN",
-        "displayLabel": "Buka",
+        "status": "CLOSED",
+        "displayLabel": "Kadaluarsa",
         "isOccupied": false,
-        "temporalState": "CURRENT",
+        "temporalState": "PAST",
         "availabilityState": "AVAILABLE",
-        "effectiveStatus": "AVAILABLE",
-        "isSelectable": true,
+        "effectiveStatus": "EXPIRED",
+        "isSelectable": false,
         "timeRange": "14:30 - 15:00 WIB",
-        "uiStatus": "AVAILABLE",
-        "uiLabel": "Tersedia",
+        "uiStatus": "COMPLETED",
+        "uiLabel": "Selesai",
         "uiSubLabel": "15:00",
-        "uiVariant": "success_green",
+        "uiVariant": "muted_gray",
         "isClickable": true,
         "actionType": "VIEW_SESSION",
-        "sessionId": "284141cd-5c85-4695-a081-ffcae22a1226",
+        "sessionId": "6f240165-9227-434b-8f79-69395fcf4b9a",
         "patientInfo": null,
         "rescheduleInfo": null,
         "closureInfo": null
@@ -4871,21 +5280,21 @@ Halaman detail jadwal dokter di web admin.
         "timeEnd": "15:30",
         "startTime": "15:00",
         "endTime": "15:30",
-        "status": "OPEN",
-        "displayLabel": "Buka",
+        "status": "CLOSED",
+        "displayLabel": "Kadaluarsa",
         "isOccupied": false,
-        "temporalState": "FUTURE",
+        "temporalState": "PAST",
         "availabilityState": "AVAILABLE",
-        "effectiveStatus": "AVAILABLE",
-        "isSelectable": true,
+        "effectiveStatus": "EXPIRED",
+        "isSelectable": false,
         "timeRange": "15:00 - 15:30 WIB",
-        "uiStatus": "AVAILABLE",
-        "uiLabel": "Tersedia",
+        "uiStatus": "COMPLETED",
+        "uiLabel": "Selesai",
         "uiSubLabel": "15:30",
-        "uiVariant": "success_green",
+        "uiVariant": "muted_gray",
         "isClickable": true,
         "actionType": "VIEW_SESSION",
-        "sessionId": "284141cd-5c85-4695-a081-ffcae22a1226",
+        "sessionId": "6f240165-9227-434b-8f79-69395fcf4b9a",
         "patientInfo": null,
         "rescheduleInfo": null,
         "closureInfo": null
@@ -4899,21 +5308,21 @@ Halaman detail jadwal dokter di web admin.
         "timeEnd": "16:00",
         "startTime": "15:30",
         "endTime": "16:00",
-        "status": "OPEN",
-        "displayLabel": "Buka",
+        "status": "CLOSED",
+        "displayLabel": "Kadaluarsa",
         "isOccupied": false,
-        "temporalState": "FUTURE",
+        "temporalState": "PAST",
         "availabilityState": "AVAILABLE",
-        "effectiveStatus": "AVAILABLE",
-        "isSelectable": true,
+        "effectiveStatus": "EXPIRED",
+        "isSelectable": false,
         "timeRange": "15:30 - 16:00 WIB",
-        "uiStatus": "AVAILABLE",
-        "uiLabel": "Tersedia",
+        "uiStatus": "COMPLETED",
+        "uiLabel": "Selesai",
         "uiSubLabel": "16:00",
-        "uiVariant": "success_green",
+        "uiVariant": "muted_gray",
         "isClickable": true,
         "actionType": "VIEW_SESSION",
-        "sessionId": "284141cd-5c85-4695-a081-ffcae22a1226",
+        "sessionId": "6f240165-9227-434b-8f79-69395fcf4b9a",
         "patientInfo": null,
         "rescheduleInfo": null,
         "closureInfo": null
@@ -4927,21 +5336,21 @@ Halaman detail jadwal dokter di web admin.
         "timeEnd": "16:30",
         "startTime": "16:00",
         "endTime": "16:30",
-        "status": "OPEN",
-        "displayLabel": "Buka",
+        "status": "CLOSED",
+        "displayLabel": "Kadaluarsa",
         "isOccupied": false,
-        "temporalState": "FUTURE",
+        "temporalState": "PAST",
         "availabilityState": "AVAILABLE",
-        "effectiveStatus": "AVAILABLE",
-        "isSelectable": true,
+        "effectiveStatus": "EXPIRED",
+        "isSelectable": false,
         "timeRange": "16:00 - 16:30 WIB",
-        "uiStatus": "AVAILABLE",
-        "uiLabel": "Tersedia",
+        "uiStatus": "COMPLETED",
+        "uiLabel": "Selesai",
         "uiSubLabel": "16:30",
-        "uiVariant": "success_green",
+        "uiVariant": "muted_gray",
         "isClickable": true,
         "actionType": "VIEW_SESSION",
-        "sessionId": "284141cd-5c85-4695-a081-ffcae22a1226",
+        "sessionId": "6f240165-9227-434b-8f79-69395fcf4b9a",
         "patientInfo": null,
         "rescheduleInfo": null,
         "closureInfo": null
@@ -4955,21 +5364,21 @@ Halaman detail jadwal dokter di web admin.
         "timeEnd": "17:00",
         "startTime": "16:30",
         "endTime": "17:00",
-        "status": "OPEN",
-        "displayLabel": "Buka",
+        "status": "CLOSED",
+        "displayLabel": "Kadaluarsa",
         "isOccupied": false,
-        "temporalState": "FUTURE",
+        "temporalState": "PAST",
         "availabilityState": "AVAILABLE",
-        "effectiveStatus": "AVAILABLE",
-        "isSelectable": true,
+        "effectiveStatus": "EXPIRED",
+        "isSelectable": false,
         "timeRange": "16:30 - 17:00 WIB",
-        "uiStatus": "AVAILABLE",
-        "uiLabel": "Tersedia",
+        "uiStatus": "COMPLETED",
+        "uiLabel": "Selesai",
         "uiSubLabel": "17:00",
-        "uiVariant": "success_green",
+        "uiVariant": "muted_gray",
         "isClickable": true,
         "actionType": "VIEW_SESSION",
-        "sessionId": "284141cd-5c85-4695-a081-ffcae22a1226",
+        "sessionId": "6f240165-9227-434b-8f79-69395fcf4b9a",
         "patientInfo": null,
         "rescheduleInfo": null,
         "closureInfo": null
@@ -4983,21 +5392,21 @@ Halaman detail jadwal dokter di web admin.
         "timeEnd": "17:30",
         "startTime": "17:00",
         "endTime": "17:30",
-        "status": "OPEN",
-        "displayLabel": "Buka",
+        "status": "CLOSED",
+        "displayLabel": "Kadaluarsa",
         "isOccupied": false,
-        "temporalState": "FUTURE",
+        "temporalState": "PAST",
         "availabilityState": "AVAILABLE",
-        "effectiveStatus": "AVAILABLE",
-        "isSelectable": true,
+        "effectiveStatus": "EXPIRED",
+        "isSelectable": false,
         "timeRange": "17:00 - 17:30 WIB",
-        "uiStatus": "AVAILABLE",
-        "uiLabel": "Tersedia",
+        "uiStatus": "COMPLETED",
+        "uiLabel": "Selesai",
         "uiSubLabel": "17:30",
-        "uiVariant": "success_green",
+        "uiVariant": "muted_gray",
         "isClickable": true,
         "actionType": "VIEW_SESSION",
-        "sessionId": "284141cd-5c85-4695-a081-ffcae22a1226",
+        "sessionId": "6f240165-9227-434b-8f79-69395fcf4b9a",
         "patientInfo": null,
         "rescheduleInfo": null,
         "closureInfo": null
@@ -5011,21 +5420,21 @@ Halaman detail jadwal dokter di web admin.
         "timeEnd": "18:00",
         "startTime": "17:30",
         "endTime": "18:00",
-        "status": "OPEN",
-        "displayLabel": "Buka",
+        "status": "CLOSED",
+        "displayLabel": "Kadaluarsa",
         "isOccupied": false,
-        "temporalState": "FUTURE",
+        "temporalState": "PAST",
         "availabilityState": "AVAILABLE",
-        "effectiveStatus": "AVAILABLE",
-        "isSelectable": true,
+        "effectiveStatus": "EXPIRED",
+        "isSelectable": false,
         "timeRange": "17:30 - 18:00 WIB",
-        "uiStatus": "AVAILABLE",
-        "uiLabel": "Tersedia",
+        "uiStatus": "COMPLETED",
+        "uiLabel": "Selesai",
         "uiSubLabel": "18:00",
-        "uiVariant": "success_green",
+        "uiVariant": "muted_gray",
         "isClickable": true,
         "actionType": "VIEW_SESSION",
-        "sessionId": "284141cd-5c85-4695-a081-ffcae22a1226",
+        "sessionId": "6f240165-9227-434b-8f79-69395fcf4b9a",
         "patientInfo": null,
         "rescheduleInfo": null,
         "closureInfo": null
@@ -5042,17 +5451,17 @@ Halaman detail jadwal dokter di web admin.
         "status": "CLOSED",
         "displayLabel": "Belum Terisi",
         "isOccupied": false,
-        "temporalState": "FUTURE",
+        "temporalState": "PAST",
         "availabilityState": "UNSCHEDULED",
         "effectiveStatus": "UNSCHEDULED",
         "isSelectable": false,
         "timeRange": "18:00 - 18:30 WIB",
-        "uiStatus": "UNSCHEDULED",
+        "uiStatus": "UNSCHEDULED_PAST",
         "uiLabel": "Belum Terjadwal",
         "uiSubLabel": "18:30",
-        "uiVariant": "dashed_border",
-        "isClickable": true,
-        "actionType": "ADD_SESSION",
+        "uiVariant": "neutral_disabled",
+        "isClickable": false,
+        "actionType": "NONE",
         "sessionId": null,
         "patientInfo": null,
         "rescheduleInfo": null,
@@ -5070,17 +5479,17 @@ Halaman detail jadwal dokter di web admin.
         "status": "CLOSED",
         "displayLabel": "Belum Terisi",
         "isOccupied": false,
-        "temporalState": "FUTURE",
+        "temporalState": "PAST",
         "availabilityState": "UNSCHEDULED",
         "effectiveStatus": "UNSCHEDULED",
         "isSelectable": false,
         "timeRange": "18:30 - 19:00 WIB",
-        "uiStatus": "UNSCHEDULED",
+        "uiStatus": "UNSCHEDULED_PAST",
         "uiLabel": "Belum Terjadwal",
         "uiSubLabel": "19:00",
-        "uiVariant": "dashed_border",
-        "isClickable": true,
-        "actionType": "ADD_SESSION",
+        "uiVariant": "neutral_disabled",
+        "isClickable": false,
+        "actionType": "NONE",
         "sessionId": null,
         "patientInfo": null,
         "rescheduleInfo": null,
@@ -5098,17 +5507,17 @@ Halaman detail jadwal dokter di web admin.
         "status": "CLOSED",
         "displayLabel": "Belum Terisi",
         "isOccupied": false,
-        "temporalState": "FUTURE",
+        "temporalState": "PAST",
         "availabilityState": "UNSCHEDULED",
         "effectiveStatus": "UNSCHEDULED",
         "isSelectable": false,
         "timeRange": "19:00 - 19:30 WIB",
-        "uiStatus": "UNSCHEDULED",
+        "uiStatus": "UNSCHEDULED_PAST",
         "uiLabel": "Belum Terjadwal",
         "uiSubLabel": "19:30",
-        "uiVariant": "dashed_border",
-        "isClickable": true,
-        "actionType": "ADD_SESSION",
+        "uiVariant": "neutral_disabled",
+        "isClickable": false,
+        "actionType": "NONE",
         "sessionId": null,
         "patientInfo": null,
         "rescheduleInfo": null,
@@ -5126,17 +5535,17 @@ Halaman detail jadwal dokter di web admin.
         "status": "CLOSED",
         "displayLabel": "Belum Terisi",
         "isOccupied": false,
-        "temporalState": "FUTURE",
+        "temporalState": "PAST",
         "availabilityState": "UNSCHEDULED",
         "effectiveStatus": "UNSCHEDULED",
         "isSelectable": false,
         "timeRange": "19:30 - 20:00 WIB",
-        "uiStatus": "UNSCHEDULED",
+        "uiStatus": "UNSCHEDULED_PAST",
         "uiLabel": "Belum Terjadwal",
         "uiSubLabel": "20:00",
-        "uiVariant": "dashed_border",
-        "isClickable": true,
-        "actionType": "ADD_SESSION",
+        "uiVariant": "neutral_disabled",
+        "isClickable": false,
+        "actionType": "NONE",
         "sessionId": null,
         "patientInfo": null,
         "rescheduleInfo": null,
@@ -5154,17 +5563,17 @@ Halaman detail jadwal dokter di web admin.
         "status": "CLOSED",
         "displayLabel": "Belum Terisi",
         "isOccupied": false,
-        "temporalState": "FUTURE",
+        "temporalState": "PAST",
         "availabilityState": "UNSCHEDULED",
         "effectiveStatus": "UNSCHEDULED",
         "isSelectable": false,
         "timeRange": "20:00 - 20:30 WIB",
-        "uiStatus": "UNSCHEDULED",
+        "uiStatus": "UNSCHEDULED_PAST",
         "uiLabel": "Belum Terjadwal",
         "uiSubLabel": "20:30",
-        "uiVariant": "dashed_border",
-        "isClickable": true,
-        "actionType": "ADD_SESSION",
+        "uiVariant": "neutral_disabled",
+        "isClickable": false,
+        "actionType": "NONE",
         "sessionId": null,
         "patientInfo": null,
         "rescheduleInfo": null,
@@ -5182,17 +5591,17 @@ Halaman detail jadwal dokter di web admin.
         "status": "CLOSED",
         "displayLabel": "Belum Terisi",
         "isOccupied": false,
-        "temporalState": "FUTURE",
+        "temporalState": "PAST",
         "availabilityState": "UNSCHEDULED",
         "effectiveStatus": "UNSCHEDULED",
         "isSelectable": false,
         "timeRange": "20:30 - 21:00 WIB",
-        "uiStatus": "UNSCHEDULED",
+        "uiStatus": "UNSCHEDULED_PAST",
         "uiLabel": "Belum Terjadwal",
         "uiSubLabel": "21:00",
-        "uiVariant": "dashed_border",
-        "isClickable": true,
-        "actionType": "ADD_SESSION",
+        "uiVariant": "neutral_disabled",
+        "isClickable": false,
+        "actionType": "NONE",
         "sessionId": null,
         "patientInfo": null,
         "rescheduleInfo": null,
@@ -5210,17 +5619,17 @@ Halaman detail jadwal dokter di web admin.
         "status": "CLOSED",
         "displayLabel": "Belum Terisi",
         "isOccupied": false,
-        "temporalState": "FUTURE",
+        "temporalState": "PAST",
         "availabilityState": "UNSCHEDULED",
         "effectiveStatus": "UNSCHEDULED",
         "isSelectable": false,
         "timeRange": "21:00 - 21:30 WIB",
-        "uiStatus": "UNSCHEDULED",
+        "uiStatus": "UNSCHEDULED_PAST",
         "uiLabel": "Belum Terjadwal",
         "uiSubLabel": "21:30",
-        "uiVariant": "dashed_border",
-        "isClickable": true,
-        "actionType": "ADD_SESSION",
+        "uiVariant": "neutral_disabled",
+        "isClickable": false,
+        "actionType": "NONE",
         "sessionId": null,
         "patientInfo": null,
         "rescheduleInfo": null,
@@ -5238,17 +5647,17 @@ Halaman detail jadwal dokter di web admin.
         "status": "CLOSED",
         "displayLabel": "Belum Terisi",
         "isOccupied": false,
-        "temporalState": "FUTURE",
+        "temporalState": "PAST",
         "availabilityState": "UNSCHEDULED",
         "effectiveStatus": "UNSCHEDULED",
         "isSelectable": false,
         "timeRange": "21:30 - 22:00 WIB",
-        "uiStatus": "UNSCHEDULED",
+        "uiStatus": "UNSCHEDULED_PAST",
         "uiLabel": "Belum Terjadwal",
         "uiSubLabel": "22:00",
-        "uiVariant": "dashed_border",
-        "isClickable": true,
-        "actionType": "ADD_SESSION",
+        "uiVariant": "neutral_disabled",
+        "isClickable": false,
+        "actionType": "NONE",
         "sessionId": null,
         "patientInfo": null,
         "rescheduleInfo": null,
@@ -5266,7 +5675,7 @@ Halaman detail jadwal dokter di web admin.
         "status": "CLOSED",
         "displayLabel": "Belum Terisi",
         "isOccupied": false,
-        "temporalState": "FUTURE",
+        "temporalState": "CURRENT",
         "availabilityState": "UNSCHEDULED",
         "effectiveStatus": "UNSCHEDULED",
         "isSelectable": false,
@@ -5879,7 +6288,7 @@ Halaman detail jadwal dokter di web admin.
             "uiVariant": "muted_gray",
             "isClickable": true,
             "actionType": "VIEW_SESSION",
-            "sessionId": "aadd3219-a284-454d-b933-204cceb76bbc",
+            "sessionId": "e64662b7-fc2e-4a92-9843-c6a3298beb74",
             "closureInfo": null,
             "patientInfo": null,
             "rescheduleInfo": null
@@ -5905,7 +6314,7 @@ Halaman detail jadwal dokter di web admin.
             "uiVariant": "muted_gray",
             "isClickable": true,
             "actionType": "VIEW_SESSION",
-            "sessionId": "aadd3219-a284-454d-b933-204cceb76bbc",
+            "sessionId": "e64662b7-fc2e-4a92-9843-c6a3298beb74",
             "closureInfo": null,
             "patientInfo": null,
             "rescheduleInfo": null
@@ -5931,7 +6340,7 @@ Halaman detail jadwal dokter di web admin.
             "uiVariant": "muted_gray",
             "isClickable": true,
             "actionType": "VIEW_SESSION",
-            "sessionId": "aadd3219-a284-454d-b933-204cceb76bbc",
+            "sessionId": "e64662b7-fc2e-4a92-9843-c6a3298beb74",
             "closureInfo": null,
             "patientInfo": null,
             "rescheduleInfo": null
@@ -5957,7 +6366,7 @@ Halaman detail jadwal dokter di web admin.
             "uiVariant": "muted_gray",
             "isClickable": true,
             "actionType": "VIEW_SESSION",
-            "sessionId": "aadd3219-a284-454d-b933-204cceb76bbc",
+            "sessionId": "e64662b7-fc2e-4a92-9843-c6a3298beb74",
             "closureInfo": null,
             "patientInfo": null,
             "rescheduleInfo": null
@@ -5983,7 +6392,7 @@ Halaman detail jadwal dokter di web admin.
             "uiVariant": "muted_gray",
             "isClickable": true,
             "actionType": "VIEW_SESSION",
-            "sessionId": "aadd3219-a284-454d-b933-204cceb76bbc",
+            "sessionId": "e64662b7-fc2e-4a92-9843-c6a3298beb74",
             "closureInfo": null,
             "appointment": {
               "id": "2b22bd5e-53f6-4623-9d86-7fecb89afad0",
@@ -6024,7 +6433,7 @@ Halaman detail jadwal dokter di web admin.
             "uiVariant": "muted_gray",
             "isClickable": true,
             "actionType": "VIEW_SESSION",
-            "sessionId": "aadd3219-a284-454d-b933-204cceb76bbc",
+            "sessionId": "e64662b7-fc2e-4a92-9843-c6a3298beb74",
             "closureInfo": null,
             "appointment": {
               "id": "f8ec14ea-9130-4098-b697-767b0305d203",
@@ -6065,7 +6474,7 @@ Halaman detail jadwal dokter di web admin.
             "uiVariant": "muted_gray",
             "isClickable": true,
             "actionType": "VIEW_SESSION",
-            "sessionId": "aadd3219-a284-454d-b933-204cceb76bbc",
+            "sessionId": "e64662b7-fc2e-4a92-9843-c6a3298beb74",
             "closureInfo": null,
             "patientInfo": null,
             "reschedule": {
@@ -6114,7 +6523,7 @@ Halaman detail jadwal dokter di web admin.
             "uiVariant": "muted_gray",
             "isClickable": true,
             "actionType": "VIEW_SESSION",
-            "sessionId": "aadd3219-a284-454d-b933-204cceb76bbc",
+            "sessionId": "e64662b7-fc2e-4a92-9843-c6a3298beb74",
             "closureInfo": null,
             "patientInfo": null,
             "reschedule": {
@@ -6163,7 +6572,7 @@ Halaman detail jadwal dokter di web admin.
             "uiVariant": "muted_gray",
             "isClickable": true,
             "actionType": "VIEW_SESSION",
-            "sessionId": "aadd3219-a284-454d-b933-204cceb76bbc",
+            "sessionId": "e64662b7-fc2e-4a92-9843-c6a3298beb74",
             "closureInfo": null,
             "patientInfo": null,
             "rescheduleInfo": null
@@ -6189,7 +6598,7 @@ Halaman detail jadwal dokter di web admin.
             "uiVariant": "muted_gray",
             "isClickable": true,
             "actionType": "VIEW_SESSION",
-            "sessionId": "aadd3219-a284-454d-b933-204cceb76bbc",
+            "sessionId": "e64662b7-fc2e-4a92-9843-c6a3298beb74",
             "closureInfo": null,
             "patientInfo": null,
             "rescheduleInfo": null
@@ -6215,20 +6624,20 @@ Halaman detail jadwal dokter di web admin.
             "uiVariant": "danger_red",
             "isClickable": true,
             "actionType": "VIEW_SESSION",
-            "sessionId": "aadd3219-a284-454d-b933-204cceb76bbc",
+            "sessionId": "e64662b7-fc2e-4a92-9843-c6a3298beb74",
             "closure": {
               "category": "OTHER",
               "reasonCode": "MEETING",
               "reasonText": "Rapat Koordinasi Komite Medik",
               "sourceType": "schedule_closure",
-              "sourceId": "66761a85-919b-4cd0-9b2c-8050cbaf6272"
+              "sourceId": "a0bd584e-4b96-478f-b911-26dcb5e82dd0"
             },
             "closureInfo": {
               "category": "OTHER",
               "reasonCode": "MEETING",
               "reasonText": "Rapat Koordinasi Komite Medik",
               "sourceType": "schedule_closure",
-              "sourceId": "66761a85-919b-4cd0-9b2c-8050cbaf6272"
+              "sourceId": "a0bd584e-4b96-478f-b911-26dcb5e82dd0"
             },
             "patientInfo": null,
             "rescheduleInfo": null
@@ -6254,7 +6663,7 @@ Halaman detail jadwal dokter di web admin.
             "uiVariant": "muted_gray",
             "isClickable": true,
             "actionType": "VIEW_SESSION",
-            "sessionId": "aadd3219-a284-454d-b933-204cceb76bbc",
+            "sessionId": "e64662b7-fc2e-4a92-9843-c6a3298beb74",
             "closureInfo": null,
             "patientInfo": null,
             "rescheduleInfo": null
@@ -6284,9 +6693,9 @@ Halaman detail jadwal dokter di web admin.
           "closed": 0,
           "scheduled": 12,
           "activeBookable": 12,
-          "past": 5,
-          "current": 1,
-          "future": 6
+          "past": 12,
+          "current": 0,
+          "future": 0
         },
         "metrics": {
           "totalSlots": 12,
@@ -6294,7 +6703,7 @@ Halaman detail jadwal dokter di web admin.
           "scheduledSlots": 12,
           "unscheduledSlots": 0,
           "availableSlots": 12,
-          "completedSlots": 5,
+          "completedSlots": 12,
           "occupiedSlots": 0,
           "closedSlots": 0,
           "activeBookableSlots": 12,
@@ -6324,7 +6733,7 @@ Halaman detail jadwal dokter di web admin.
           "scheduledSlots": 12,
           "unscheduledSlots": 0,
           "availableSlots": 12,
-          "completedSlots": 5,
+          "completedSlots": 12,
           "occupiedSlots": 0,
           "closedSlots": 0,
           "activeBookableSlots": 12,
@@ -6370,7 +6779,7 @@ Halaman detail jadwal dokter di web admin.
             "uiVariant": "muted_gray",
             "isClickable": true,
             "actionType": "VIEW_SESSION",
-            "sessionId": "284141cd-5c85-4695-a081-ffcae22a1226",
+            "sessionId": "6f240165-9227-434b-8f79-69395fcf4b9a",
             "closureInfo": null,
             "patientInfo": null,
             "rescheduleInfo": null
@@ -6396,7 +6805,7 @@ Halaman detail jadwal dokter di web admin.
             "uiVariant": "muted_gray",
             "isClickable": true,
             "actionType": "VIEW_SESSION",
-            "sessionId": "284141cd-5c85-4695-a081-ffcae22a1226",
+            "sessionId": "6f240165-9227-434b-8f79-69395fcf4b9a",
             "closureInfo": null,
             "patientInfo": null,
             "rescheduleInfo": null
@@ -6422,7 +6831,7 @@ Halaman detail jadwal dokter di web admin.
             "uiVariant": "muted_gray",
             "isClickable": true,
             "actionType": "VIEW_SESSION",
-            "sessionId": "284141cd-5c85-4695-a081-ffcae22a1226",
+            "sessionId": "6f240165-9227-434b-8f79-69395fcf4b9a",
             "closureInfo": null,
             "patientInfo": null,
             "rescheduleInfo": null
@@ -6448,7 +6857,7 @@ Halaman detail jadwal dokter di web admin.
             "uiVariant": "muted_gray",
             "isClickable": true,
             "actionType": "VIEW_SESSION",
-            "sessionId": "284141cd-5c85-4695-a081-ffcae22a1226",
+            "sessionId": "6f240165-9227-434b-8f79-69395fcf4b9a",
             "closureInfo": null,
             "patientInfo": null,
             "rescheduleInfo": null
@@ -6474,7 +6883,7 @@ Halaman detail jadwal dokter di web admin.
             "uiVariant": "muted_gray",
             "isClickable": true,
             "actionType": "VIEW_SESSION",
-            "sessionId": "284141cd-5c85-4695-a081-ffcae22a1226",
+            "sessionId": "6f240165-9227-434b-8f79-69395fcf4b9a",
             "closureInfo": null,
             "patientInfo": null,
             "rescheduleInfo": null
@@ -6490,17 +6899,17 @@ Halaman detail jadwal dokter di web admin.
             "startMinutes": 870,
             "endMinutes": 900,
             "timeRange": "14:30 - 15:00 WIB",
-            "temporalState": "CURRENT",
+            "temporalState": "PAST",
             "availabilityState": "AVAILABLE",
-            "effectiveStatus": "AVAILABLE",
-            "isSelectable": true,
-            "uiStatus": "AVAILABLE",
-            "uiLabel": "Tersedia",
+            "effectiveStatus": "EXPIRED",
+            "isSelectable": false,
+            "uiStatus": "COMPLETED",
+            "uiLabel": "Selesai",
             "uiSubLabel": "15:00",
-            "uiVariant": "success_green",
+            "uiVariant": "muted_gray",
             "isClickable": true,
             "actionType": "VIEW_SESSION",
-            "sessionId": "284141cd-5c85-4695-a081-ffcae22a1226",
+            "sessionId": "6f240165-9227-434b-8f79-69395fcf4b9a",
             "closureInfo": null,
             "patientInfo": null,
             "rescheduleInfo": null
@@ -6516,17 +6925,17 @@ Halaman detail jadwal dokter di web admin.
             "startMinutes": 900,
             "endMinutes": 930,
             "timeRange": "15:00 - 15:30 WIB",
-            "temporalState": "FUTURE",
+            "temporalState": "PAST",
             "availabilityState": "AVAILABLE",
-            "effectiveStatus": "AVAILABLE",
-            "isSelectable": true,
-            "uiStatus": "AVAILABLE",
-            "uiLabel": "Tersedia",
+            "effectiveStatus": "EXPIRED",
+            "isSelectable": false,
+            "uiStatus": "COMPLETED",
+            "uiLabel": "Selesai",
             "uiSubLabel": "15:30",
-            "uiVariant": "success_green",
+            "uiVariant": "muted_gray",
             "isClickable": true,
             "actionType": "VIEW_SESSION",
-            "sessionId": "284141cd-5c85-4695-a081-ffcae22a1226",
+            "sessionId": "6f240165-9227-434b-8f79-69395fcf4b9a",
             "closureInfo": null,
             "patientInfo": null,
             "rescheduleInfo": null
@@ -6542,17 +6951,17 @@ Halaman detail jadwal dokter di web admin.
             "startMinutes": 930,
             "endMinutes": 960,
             "timeRange": "15:30 - 16:00 WIB",
-            "temporalState": "FUTURE",
+            "temporalState": "PAST",
             "availabilityState": "AVAILABLE",
-            "effectiveStatus": "AVAILABLE",
-            "isSelectable": true,
-            "uiStatus": "AVAILABLE",
-            "uiLabel": "Tersedia",
+            "effectiveStatus": "EXPIRED",
+            "isSelectable": false,
+            "uiStatus": "COMPLETED",
+            "uiLabel": "Selesai",
             "uiSubLabel": "16:00",
-            "uiVariant": "success_green",
+            "uiVariant": "muted_gray",
             "isClickable": true,
             "actionType": "VIEW_SESSION",
-            "sessionId": "284141cd-5c85-4695-a081-ffcae22a1226",
+            "sessionId": "6f240165-9227-434b-8f79-69395fcf4b9a",
             "closureInfo": null,
             "patientInfo": null,
             "rescheduleInfo": null
@@ -6568,17 +6977,17 @@ Halaman detail jadwal dokter di web admin.
             "startMinutes": 960,
             "endMinutes": 990,
             "timeRange": "16:00 - 16:30 WIB",
-            "temporalState": "FUTURE",
+            "temporalState": "PAST",
             "availabilityState": "AVAILABLE",
-            "effectiveStatus": "AVAILABLE",
-            "isSelectable": true,
-            "uiStatus": "AVAILABLE",
-            "uiLabel": "Tersedia",
+            "effectiveStatus": "EXPIRED",
+            "isSelectable": false,
+            "uiStatus": "COMPLETED",
+            "uiLabel": "Selesai",
             "uiSubLabel": "16:30",
-            "uiVariant": "success_green",
+            "uiVariant": "muted_gray",
             "isClickable": true,
             "actionType": "VIEW_SESSION",
-            "sessionId": "284141cd-5c85-4695-a081-ffcae22a1226",
+            "sessionId": "6f240165-9227-434b-8f79-69395fcf4b9a",
             "closureInfo": null,
             "patientInfo": null,
             "rescheduleInfo": null
@@ -6594,17 +7003,17 @@ Halaman detail jadwal dokter di web admin.
             "startMinutes": 990,
             "endMinutes": 1020,
             "timeRange": "16:30 - 17:00 WIB",
-            "temporalState": "FUTURE",
+            "temporalState": "PAST",
             "availabilityState": "AVAILABLE",
-            "effectiveStatus": "AVAILABLE",
-            "isSelectable": true,
-            "uiStatus": "AVAILABLE",
-            "uiLabel": "Tersedia",
+            "effectiveStatus": "EXPIRED",
+            "isSelectable": false,
+            "uiStatus": "COMPLETED",
+            "uiLabel": "Selesai",
             "uiSubLabel": "17:00",
-            "uiVariant": "success_green",
+            "uiVariant": "muted_gray",
             "isClickable": true,
             "actionType": "VIEW_SESSION",
-            "sessionId": "284141cd-5c85-4695-a081-ffcae22a1226",
+            "sessionId": "6f240165-9227-434b-8f79-69395fcf4b9a",
             "closureInfo": null,
             "patientInfo": null,
             "rescheduleInfo": null
@@ -6620,17 +7029,17 @@ Halaman detail jadwal dokter di web admin.
             "startMinutes": 1020,
             "endMinutes": 1050,
             "timeRange": "17:00 - 17:30 WIB",
-            "temporalState": "FUTURE",
+            "temporalState": "PAST",
             "availabilityState": "AVAILABLE",
-            "effectiveStatus": "AVAILABLE",
-            "isSelectable": true,
-            "uiStatus": "AVAILABLE",
-            "uiLabel": "Tersedia",
+            "effectiveStatus": "EXPIRED",
+            "isSelectable": false,
+            "uiStatus": "COMPLETED",
+            "uiLabel": "Selesai",
             "uiSubLabel": "17:30",
-            "uiVariant": "success_green",
+            "uiVariant": "muted_gray",
             "isClickable": true,
             "actionType": "VIEW_SESSION",
-            "sessionId": "284141cd-5c85-4695-a081-ffcae22a1226",
+            "sessionId": "6f240165-9227-434b-8f79-69395fcf4b9a",
             "closureInfo": null,
             "patientInfo": null,
             "rescheduleInfo": null
@@ -6646,17 +7055,17 @@ Halaman detail jadwal dokter di web admin.
             "startMinutes": 1050,
             "endMinutes": 1080,
             "timeRange": "17:30 - 18:00 WIB",
-            "temporalState": "FUTURE",
+            "temporalState": "PAST",
             "availabilityState": "AVAILABLE",
-            "effectiveStatus": "AVAILABLE",
-            "isSelectable": true,
-            "uiStatus": "AVAILABLE",
-            "uiLabel": "Tersedia",
+            "effectiveStatus": "EXPIRED",
+            "isSelectable": false,
+            "uiStatus": "COMPLETED",
+            "uiLabel": "Selesai",
             "uiSubLabel": "18:00",
-            "uiVariant": "success_green",
+            "uiVariant": "muted_gray",
             "isClickable": true,
             "actionType": "VIEW_SESSION",
-            "sessionId": "284141cd-5c85-4695-a081-ffcae22a1226",
+            "sessionId": "6f240165-9227-434b-8f79-69395fcf4b9a",
             "closureInfo": null,
             "patientInfo": null,
             "rescheduleInfo": null
@@ -6686,9 +7095,9 @@ Halaman detail jadwal dokter di web admin.
           "closed": 0,
           "scheduled": 0,
           "activeBookable": 0,
-          "past": 0,
-          "current": 0,
-          "future": 12
+          "past": 8,
+          "current": 1,
+          "future": 3
         },
         "metrics": {
           "totalSlots": 12,
@@ -6762,16 +7171,16 @@ Halaman detail jadwal dokter di web admin.
             "startMinutes": 1080,
             "endMinutes": 1110,
             "timeRange": "18:00 - 18:30 WIB",
-            "temporalState": "FUTURE",
+            "temporalState": "PAST",
             "availabilityState": "UNSCHEDULED",
             "effectiveStatus": "UNSCHEDULED",
             "isSelectable": false,
-            "uiStatus": "UNSCHEDULED",
+            "uiStatus": "UNSCHEDULED_PAST",
             "uiLabel": "Belum Terjadwal",
             "uiSubLabel": "18:30",
-            "uiVariant": "dashed_border",
-            "isClickable": true,
-            "actionType": "ADD_SESSION",
+            "uiVariant": "neutral_disabled",
+            "isClickable": false,
+            "actionType": "NONE",
             "sessionId": null,
             "closureInfo": null,
             "patientInfo": null,
@@ -6788,16 +7197,16 @@ Halaman detail jadwal dokter di web admin.
             "startMinutes": 1110,
             "endMinutes": 1140,
             "timeRange": "18:30 - 19:00 WIB",
-            "temporalState": "FUTURE",
+            "temporalState": "PAST",
             "availabilityState": "UNSCHEDULED",
             "effectiveStatus": "UNSCHEDULED",
             "isSelectable": false,
-            "uiStatus": "UNSCHEDULED",
+            "uiStatus": "UNSCHEDULED_PAST",
             "uiLabel": "Belum Terjadwal",
             "uiSubLabel": "19:00",
-            "uiVariant": "dashed_border",
-            "isClickable": true,
-            "actionType": "ADD_SESSION",
+            "uiVariant": "neutral_disabled",
+            "isClickable": false,
+            "actionType": "NONE",
             "sessionId": null,
             "closureInfo": null,
             "patientInfo": null,
@@ -6814,16 +7223,16 @@ Halaman detail jadwal dokter di web admin.
             "startMinutes": 1140,
             "endMinutes": 1170,
             "timeRange": "19:00 - 19:30 WIB",
-            "temporalState": "FUTURE",
+            "temporalState": "PAST",
             "availabilityState": "UNSCHEDULED",
             "effectiveStatus": "UNSCHEDULED",
             "isSelectable": false,
-            "uiStatus": "UNSCHEDULED",
+            "uiStatus": "UNSCHEDULED_PAST",
             "uiLabel": "Belum Terjadwal",
             "uiSubLabel": "19:30",
-            "uiVariant": "dashed_border",
-            "isClickable": true,
-            "actionType": "ADD_SESSION",
+            "uiVariant": "neutral_disabled",
+            "isClickable": false,
+            "actionType": "NONE",
             "sessionId": null,
             "closureInfo": null,
             "patientInfo": null,
@@ -6840,16 +7249,16 @@ Halaman detail jadwal dokter di web admin.
             "startMinutes": 1170,
             "endMinutes": 1200,
             "timeRange": "19:30 - 20:00 WIB",
-            "temporalState": "FUTURE",
+            "temporalState": "PAST",
             "availabilityState": "UNSCHEDULED",
             "effectiveStatus": "UNSCHEDULED",
             "isSelectable": false,
-            "uiStatus": "UNSCHEDULED",
+            "uiStatus": "UNSCHEDULED_PAST",
             "uiLabel": "Belum Terjadwal",
             "uiSubLabel": "20:00",
-            "uiVariant": "dashed_border",
-            "isClickable": true,
-            "actionType": "ADD_SESSION",
+            "uiVariant": "neutral_disabled",
+            "isClickable": false,
+            "actionType": "NONE",
             "sessionId": null,
             "closureInfo": null,
             "patientInfo": null,
@@ -6866,16 +7275,16 @@ Halaman detail jadwal dokter di web admin.
             "startMinutes": 1200,
             "endMinutes": 1230,
             "timeRange": "20:00 - 20:30 WIB",
-            "temporalState": "FUTURE",
+            "temporalState": "PAST",
             "availabilityState": "UNSCHEDULED",
             "effectiveStatus": "UNSCHEDULED",
             "isSelectable": false,
-            "uiStatus": "UNSCHEDULED",
+            "uiStatus": "UNSCHEDULED_PAST",
             "uiLabel": "Belum Terjadwal",
             "uiSubLabel": "20:30",
-            "uiVariant": "dashed_border",
-            "isClickable": true,
-            "actionType": "ADD_SESSION",
+            "uiVariant": "neutral_disabled",
+            "isClickable": false,
+            "actionType": "NONE",
             "sessionId": null,
             "closureInfo": null,
             "patientInfo": null,
@@ -6892,16 +7301,16 @@ Halaman detail jadwal dokter di web admin.
             "startMinutes": 1230,
             "endMinutes": 1260,
             "timeRange": "20:30 - 21:00 WIB",
-            "temporalState": "FUTURE",
+            "temporalState": "PAST",
             "availabilityState": "UNSCHEDULED",
             "effectiveStatus": "UNSCHEDULED",
             "isSelectable": false,
-            "uiStatus": "UNSCHEDULED",
+            "uiStatus": "UNSCHEDULED_PAST",
             "uiLabel": "Belum Terjadwal",
             "uiSubLabel": "21:00",
-            "uiVariant": "dashed_border",
-            "isClickable": true,
-            "actionType": "ADD_SESSION",
+            "uiVariant": "neutral_disabled",
+            "isClickable": false,
+            "actionType": "NONE",
             "sessionId": null,
             "closureInfo": null,
             "patientInfo": null,
@@ -6918,16 +7327,16 @@ Halaman detail jadwal dokter di web admin.
             "startMinutes": 1260,
             "endMinutes": 1290,
             "timeRange": "21:00 - 21:30 WIB",
-            "temporalState": "FUTURE",
+            "temporalState": "PAST",
             "availabilityState": "UNSCHEDULED",
             "effectiveStatus": "UNSCHEDULED",
             "isSelectable": false,
-            "uiStatus": "UNSCHEDULED",
+            "uiStatus": "UNSCHEDULED_PAST",
             "uiLabel": "Belum Terjadwal",
             "uiSubLabel": "21:30",
-            "uiVariant": "dashed_border",
-            "isClickable": true,
-            "actionType": "ADD_SESSION",
+            "uiVariant": "neutral_disabled",
+            "isClickable": false,
+            "actionType": "NONE",
             "sessionId": null,
             "closureInfo": null,
             "patientInfo": null,
@@ -6944,16 +7353,16 @@ Halaman detail jadwal dokter di web admin.
             "startMinutes": 1290,
             "endMinutes": 1320,
             "timeRange": "21:30 - 22:00 WIB",
-            "temporalState": "FUTURE",
+            "temporalState": "PAST",
             "availabilityState": "UNSCHEDULED",
             "effectiveStatus": "UNSCHEDULED",
             "isSelectable": false,
-            "uiStatus": "UNSCHEDULED",
+            "uiStatus": "UNSCHEDULED_PAST",
             "uiLabel": "Belum Terjadwal",
             "uiSubLabel": "22:00",
-            "uiVariant": "dashed_border",
-            "isClickable": true,
-            "actionType": "ADD_SESSION",
+            "uiVariant": "neutral_disabled",
+            "isClickable": false,
+            "actionType": "NONE",
             "sessionId": null,
             "closureInfo": null,
             "patientInfo": null,
@@ -6970,7 +7379,7 @@ Halaman detail jadwal dokter di web admin.
             "startMinutes": 1320,
             "endMinutes": 1350,
             "timeRange": "22:00 - 22:30 WIB",
-            "temporalState": "FUTURE",
+            "temporalState": "CURRENT",
             "availabilityState": "UNSCHEDULED",
             "effectiveStatus": "UNSCHEDULED",
             "isSelectable": false,
@@ -7578,7 +7987,7 @@ Halaman detail jadwal dokter di web admin.
             "uiVariant": "muted_gray",
             "isClickable": true,
             "actionType": "VIEW_SESSION",
-            "sessionId": "aadd3219-a284-454d-b933-204cceb76bbc",
+            "sessionId": "e64662b7-fc2e-4a92-9843-c6a3298beb74",
             "closureInfo": null,
             "patientInfo": null,
             "rescheduleInfo": null
@@ -7604,7 +8013,7 @@ Halaman detail jadwal dokter di web admin.
             "uiVariant": "muted_gray",
             "isClickable": true,
             "actionType": "VIEW_SESSION",
-            "sessionId": "aadd3219-a284-454d-b933-204cceb76bbc",
+            "sessionId": "e64662b7-fc2e-4a92-9843-c6a3298beb74",
             "closureInfo": null,
             "patientInfo": null,
             "rescheduleInfo": null
@@ -7630,7 +8039,7 @@ Halaman detail jadwal dokter di web admin.
             "uiVariant": "muted_gray",
             "isClickable": true,
             "actionType": "VIEW_SESSION",
-            "sessionId": "aadd3219-a284-454d-b933-204cceb76bbc",
+            "sessionId": "e64662b7-fc2e-4a92-9843-c6a3298beb74",
             "closureInfo": null,
             "patientInfo": null,
             "rescheduleInfo": null
@@ -7656,7 +8065,7 @@ Halaman detail jadwal dokter di web admin.
             "uiVariant": "muted_gray",
             "isClickable": true,
             "actionType": "VIEW_SESSION",
-            "sessionId": "aadd3219-a284-454d-b933-204cceb76bbc",
+            "sessionId": "e64662b7-fc2e-4a92-9843-c6a3298beb74",
             "closureInfo": null,
             "patientInfo": null,
             "rescheduleInfo": null
@@ -7682,7 +8091,7 @@ Halaman detail jadwal dokter di web admin.
             "uiVariant": "muted_gray",
             "isClickable": true,
             "actionType": "VIEW_SESSION",
-            "sessionId": "aadd3219-a284-454d-b933-204cceb76bbc",
+            "sessionId": "e64662b7-fc2e-4a92-9843-c6a3298beb74",
             "closureInfo": null,
             "appointment": {
               "id": "2b22bd5e-53f6-4623-9d86-7fecb89afad0",
@@ -7723,7 +8132,7 @@ Halaman detail jadwal dokter di web admin.
             "uiVariant": "muted_gray",
             "isClickable": true,
             "actionType": "VIEW_SESSION",
-            "sessionId": "aadd3219-a284-454d-b933-204cceb76bbc",
+            "sessionId": "e64662b7-fc2e-4a92-9843-c6a3298beb74",
             "closureInfo": null,
             "appointment": {
               "id": "f8ec14ea-9130-4098-b697-767b0305d203",
@@ -7764,7 +8173,7 @@ Halaman detail jadwal dokter di web admin.
             "uiVariant": "muted_gray",
             "isClickable": true,
             "actionType": "VIEW_SESSION",
-            "sessionId": "aadd3219-a284-454d-b933-204cceb76bbc",
+            "sessionId": "e64662b7-fc2e-4a92-9843-c6a3298beb74",
             "closureInfo": null,
             "patientInfo": null,
             "reschedule": {
@@ -7813,7 +8222,7 @@ Halaman detail jadwal dokter di web admin.
             "uiVariant": "muted_gray",
             "isClickable": true,
             "actionType": "VIEW_SESSION",
-            "sessionId": "aadd3219-a284-454d-b933-204cceb76bbc",
+            "sessionId": "e64662b7-fc2e-4a92-9843-c6a3298beb74",
             "closureInfo": null,
             "patientInfo": null,
             "reschedule": {
@@ -7862,7 +8271,7 @@ Halaman detail jadwal dokter di web admin.
             "uiVariant": "muted_gray",
             "isClickable": true,
             "actionType": "VIEW_SESSION",
-            "sessionId": "aadd3219-a284-454d-b933-204cceb76bbc",
+            "sessionId": "e64662b7-fc2e-4a92-9843-c6a3298beb74",
             "closureInfo": null,
             "patientInfo": null,
             "rescheduleInfo": null
@@ -7888,7 +8297,7 @@ Halaman detail jadwal dokter di web admin.
             "uiVariant": "muted_gray",
             "isClickable": true,
             "actionType": "VIEW_SESSION",
-            "sessionId": "aadd3219-a284-454d-b933-204cceb76bbc",
+            "sessionId": "e64662b7-fc2e-4a92-9843-c6a3298beb74",
             "closureInfo": null,
             "patientInfo": null,
             "rescheduleInfo": null
@@ -7914,20 +8323,20 @@ Halaman detail jadwal dokter di web admin.
             "uiVariant": "danger_red",
             "isClickable": true,
             "actionType": "VIEW_SESSION",
-            "sessionId": "aadd3219-a284-454d-b933-204cceb76bbc",
+            "sessionId": "e64662b7-fc2e-4a92-9843-c6a3298beb74",
             "closure": {
               "category": "OTHER",
               "reasonCode": "MEETING",
               "reasonText": "Rapat Koordinasi Komite Medik",
               "sourceType": "schedule_closure",
-              "sourceId": "66761a85-919b-4cd0-9b2c-8050cbaf6272"
+              "sourceId": "a0bd584e-4b96-478f-b911-26dcb5e82dd0"
             },
             "closureInfo": {
               "category": "OTHER",
               "reasonCode": "MEETING",
               "reasonText": "Rapat Koordinasi Komite Medik",
               "sourceType": "schedule_closure",
-              "sourceId": "66761a85-919b-4cd0-9b2c-8050cbaf6272"
+              "sourceId": "a0bd584e-4b96-478f-b911-26dcb5e82dd0"
             },
             "patientInfo": null,
             "rescheduleInfo": null
@@ -7953,7 +8362,7 @@ Halaman detail jadwal dokter di web admin.
             "uiVariant": "muted_gray",
             "isClickable": true,
             "actionType": "VIEW_SESSION",
-            "sessionId": "aadd3219-a284-454d-b933-204cceb76bbc",
+            "sessionId": "e64662b7-fc2e-4a92-9843-c6a3298beb74",
             "closureInfo": null,
             "patientInfo": null,
             "rescheduleInfo": null
@@ -7983,9 +8392,9 @@ Halaman detail jadwal dokter di web admin.
           "closed": 0,
           "scheduled": 12,
           "activeBookable": 12,
-          "past": 5,
-          "current": 1,
-          "future": 6
+          "past": 12,
+          "current": 0,
+          "future": 0
         },
         "metrics": {
           "totalSlots": 12,
@@ -7993,7 +8402,7 @@ Halaman detail jadwal dokter di web admin.
           "scheduledSlots": 12,
           "unscheduledSlots": 0,
           "availableSlots": 12,
-          "completedSlots": 5,
+          "completedSlots": 12,
           "occupiedSlots": 0,
           "closedSlots": 0,
           "activeBookableSlots": 12,
@@ -8023,7 +8432,7 @@ Halaman detail jadwal dokter di web admin.
           "scheduledSlots": 12,
           "unscheduledSlots": 0,
           "availableSlots": 12,
-          "completedSlots": 5,
+          "completedSlots": 12,
           "occupiedSlots": 0,
           "closedSlots": 0,
           "activeBookableSlots": 12,
@@ -8069,7 +8478,7 @@ Halaman detail jadwal dokter di web admin.
             "uiVariant": "muted_gray",
             "isClickable": true,
             "actionType": "VIEW_SESSION",
-            "sessionId": "284141cd-5c85-4695-a081-ffcae22a1226",
+            "sessionId": "6f240165-9227-434b-8f79-69395fcf4b9a",
             "closureInfo": null,
             "patientInfo": null,
             "rescheduleInfo": null
@@ -8095,7 +8504,7 @@ Halaman detail jadwal dokter di web admin.
             "uiVariant": "muted_gray",
             "isClickable": true,
             "actionType": "VIEW_SESSION",
-            "sessionId": "284141cd-5c85-4695-a081-ffcae22a1226",
+            "sessionId": "6f240165-9227-434b-8f79-69395fcf4b9a",
             "closureInfo": null,
             "patientInfo": null,
             "rescheduleInfo": null
@@ -8121,7 +8530,7 @@ Halaman detail jadwal dokter di web admin.
             "uiVariant": "muted_gray",
             "isClickable": true,
             "actionType": "VIEW_SESSION",
-            "sessionId": "284141cd-5c85-4695-a081-ffcae22a1226",
+            "sessionId": "6f240165-9227-434b-8f79-69395fcf4b9a",
             "closureInfo": null,
             "patientInfo": null,
             "rescheduleInfo": null
@@ -8147,7 +8556,7 @@ Halaman detail jadwal dokter di web admin.
             "uiVariant": "muted_gray",
             "isClickable": true,
             "actionType": "VIEW_SESSION",
-            "sessionId": "284141cd-5c85-4695-a081-ffcae22a1226",
+            "sessionId": "6f240165-9227-434b-8f79-69395fcf4b9a",
             "closureInfo": null,
             "patientInfo": null,
             "rescheduleInfo": null
@@ -8173,7 +8582,7 @@ Halaman detail jadwal dokter di web admin.
             "uiVariant": "muted_gray",
             "isClickable": true,
             "actionType": "VIEW_SESSION",
-            "sessionId": "284141cd-5c85-4695-a081-ffcae22a1226",
+            "sessionId": "6f240165-9227-434b-8f79-69395fcf4b9a",
             "closureInfo": null,
             "patientInfo": null,
             "rescheduleInfo": null
@@ -8189,17 +8598,17 @@ Halaman detail jadwal dokter di web admin.
             "startMinutes": 870,
             "endMinutes": 900,
             "timeRange": "14:30 - 15:00 WIB",
-            "temporalState": "CURRENT",
+            "temporalState": "PAST",
             "availabilityState": "AVAILABLE",
-            "effectiveStatus": "AVAILABLE",
-            "isSelectable": true,
-            "uiStatus": "AVAILABLE",
-            "uiLabel": "Tersedia",
+            "effectiveStatus": "EXPIRED",
+            "isSelectable": false,
+            "uiStatus": "COMPLETED",
+            "uiLabel": "Selesai",
             "uiSubLabel": "15:00",
-            "uiVariant": "success_green",
+            "uiVariant": "muted_gray",
             "isClickable": true,
             "actionType": "VIEW_SESSION",
-            "sessionId": "284141cd-5c85-4695-a081-ffcae22a1226",
+            "sessionId": "6f240165-9227-434b-8f79-69395fcf4b9a",
             "closureInfo": null,
             "patientInfo": null,
             "rescheduleInfo": null
@@ -8215,17 +8624,17 @@ Halaman detail jadwal dokter di web admin.
             "startMinutes": 900,
             "endMinutes": 930,
             "timeRange": "15:00 - 15:30 WIB",
-            "temporalState": "FUTURE",
+            "temporalState": "PAST",
             "availabilityState": "AVAILABLE",
-            "effectiveStatus": "AVAILABLE",
-            "isSelectable": true,
-            "uiStatus": "AVAILABLE",
-            "uiLabel": "Tersedia",
+            "effectiveStatus": "EXPIRED",
+            "isSelectable": false,
+            "uiStatus": "COMPLETED",
+            "uiLabel": "Selesai",
             "uiSubLabel": "15:30",
-            "uiVariant": "success_green",
+            "uiVariant": "muted_gray",
             "isClickable": true,
             "actionType": "VIEW_SESSION",
-            "sessionId": "284141cd-5c85-4695-a081-ffcae22a1226",
+            "sessionId": "6f240165-9227-434b-8f79-69395fcf4b9a",
             "closureInfo": null,
             "patientInfo": null,
             "rescheduleInfo": null
@@ -8241,17 +8650,17 @@ Halaman detail jadwal dokter di web admin.
             "startMinutes": 930,
             "endMinutes": 960,
             "timeRange": "15:30 - 16:00 WIB",
-            "temporalState": "FUTURE",
+            "temporalState": "PAST",
             "availabilityState": "AVAILABLE",
-            "effectiveStatus": "AVAILABLE",
-            "isSelectable": true,
-            "uiStatus": "AVAILABLE",
-            "uiLabel": "Tersedia",
+            "effectiveStatus": "EXPIRED",
+            "isSelectable": false,
+            "uiStatus": "COMPLETED",
+            "uiLabel": "Selesai",
             "uiSubLabel": "16:00",
-            "uiVariant": "success_green",
+            "uiVariant": "muted_gray",
             "isClickable": true,
             "actionType": "VIEW_SESSION",
-            "sessionId": "284141cd-5c85-4695-a081-ffcae22a1226",
+            "sessionId": "6f240165-9227-434b-8f79-69395fcf4b9a",
             "closureInfo": null,
             "patientInfo": null,
             "rescheduleInfo": null
@@ -8267,17 +8676,17 @@ Halaman detail jadwal dokter di web admin.
             "startMinutes": 960,
             "endMinutes": 990,
             "timeRange": "16:00 - 16:30 WIB",
-            "temporalState": "FUTURE",
+            "temporalState": "PAST",
             "availabilityState": "AVAILABLE",
-            "effectiveStatus": "AVAILABLE",
-            "isSelectable": true,
-            "uiStatus": "AVAILABLE",
-            "uiLabel": "Tersedia",
+            "effectiveStatus": "EXPIRED",
+            "isSelectable": false,
+            "uiStatus": "COMPLETED",
+            "uiLabel": "Selesai",
             "uiSubLabel": "16:30",
-            "uiVariant": "success_green",
+            "uiVariant": "muted_gray",
             "isClickable": true,
             "actionType": "VIEW_SESSION",
-            "sessionId": "284141cd-5c85-4695-a081-ffcae22a1226",
+            "sessionId": "6f240165-9227-434b-8f79-69395fcf4b9a",
             "closureInfo": null,
             "patientInfo": null,
             "rescheduleInfo": null
@@ -8293,17 +8702,17 @@ Halaman detail jadwal dokter di web admin.
             "startMinutes": 990,
             "endMinutes": 1020,
             "timeRange": "16:30 - 17:00 WIB",
-            "temporalState": "FUTURE",
+            "temporalState": "PAST",
             "availabilityState": "AVAILABLE",
-            "effectiveStatus": "AVAILABLE",
-            "isSelectable": true,
-            "uiStatus": "AVAILABLE",
-            "uiLabel": "Tersedia",
+            "effectiveStatus": "EXPIRED",
+            "isSelectable": false,
+            "uiStatus": "COMPLETED",
+            "uiLabel": "Selesai",
             "uiSubLabel": "17:00",
-            "uiVariant": "success_green",
+            "uiVariant": "muted_gray",
             "isClickable": true,
             "actionType": "VIEW_SESSION",
-            "sessionId": "284141cd-5c85-4695-a081-ffcae22a1226",
+            "sessionId": "6f240165-9227-434b-8f79-69395fcf4b9a",
             "closureInfo": null,
             "patientInfo": null,
             "rescheduleInfo": null
@@ -8319,17 +8728,17 @@ Halaman detail jadwal dokter di web admin.
             "startMinutes": 1020,
             "endMinutes": 1050,
             "timeRange": "17:00 - 17:30 WIB",
-            "temporalState": "FUTURE",
+            "temporalState": "PAST",
             "availabilityState": "AVAILABLE",
-            "effectiveStatus": "AVAILABLE",
-            "isSelectable": true,
-            "uiStatus": "AVAILABLE",
-            "uiLabel": "Tersedia",
+            "effectiveStatus": "EXPIRED",
+            "isSelectable": false,
+            "uiStatus": "COMPLETED",
+            "uiLabel": "Selesai",
             "uiSubLabel": "17:30",
-            "uiVariant": "success_green",
+            "uiVariant": "muted_gray",
             "isClickable": true,
             "actionType": "VIEW_SESSION",
-            "sessionId": "284141cd-5c85-4695-a081-ffcae22a1226",
+            "sessionId": "6f240165-9227-434b-8f79-69395fcf4b9a",
             "closureInfo": null,
             "patientInfo": null,
             "rescheduleInfo": null
@@ -8345,17 +8754,17 @@ Halaman detail jadwal dokter di web admin.
             "startMinutes": 1050,
             "endMinutes": 1080,
             "timeRange": "17:30 - 18:00 WIB",
-            "temporalState": "FUTURE",
+            "temporalState": "PAST",
             "availabilityState": "AVAILABLE",
-            "effectiveStatus": "AVAILABLE",
-            "isSelectable": true,
-            "uiStatus": "AVAILABLE",
-            "uiLabel": "Tersedia",
+            "effectiveStatus": "EXPIRED",
+            "isSelectable": false,
+            "uiStatus": "COMPLETED",
+            "uiLabel": "Selesai",
             "uiSubLabel": "18:00",
-            "uiVariant": "success_green",
+            "uiVariant": "muted_gray",
             "isClickable": true,
             "actionType": "VIEW_SESSION",
-            "sessionId": "284141cd-5c85-4695-a081-ffcae22a1226",
+            "sessionId": "6f240165-9227-434b-8f79-69395fcf4b9a",
             "closureInfo": null,
             "patientInfo": null,
             "rescheduleInfo": null
@@ -8385,9 +8794,9 @@ Halaman detail jadwal dokter di web admin.
           "closed": 0,
           "scheduled": 0,
           "activeBookable": 0,
-          "past": 0,
-          "current": 0,
-          "future": 12
+          "past": 8,
+          "current": 1,
+          "future": 3
         },
         "metrics": {
           "totalSlots": 12,
@@ -8461,16 +8870,16 @@ Halaman detail jadwal dokter di web admin.
             "startMinutes": 1080,
             "endMinutes": 1110,
             "timeRange": "18:00 - 18:30 WIB",
-            "temporalState": "FUTURE",
+            "temporalState": "PAST",
             "availabilityState": "UNSCHEDULED",
             "effectiveStatus": "UNSCHEDULED",
             "isSelectable": false,
-            "uiStatus": "UNSCHEDULED",
+            "uiStatus": "UNSCHEDULED_PAST",
             "uiLabel": "Belum Terjadwal",
             "uiSubLabel": "18:30",
-            "uiVariant": "dashed_border",
-            "isClickable": true,
-            "actionType": "ADD_SESSION",
+            "uiVariant": "neutral_disabled",
+            "isClickable": false,
+            "actionType": "NONE",
             "sessionId": null,
             "closureInfo": null,
             "patientInfo": null,
@@ -8487,16 +8896,16 @@ Halaman detail jadwal dokter di web admin.
             "startMinutes": 1110,
             "endMinutes": 1140,
             "timeRange": "18:30 - 19:00 WIB",
-            "temporalState": "FUTURE",
+            "temporalState": "PAST",
             "availabilityState": "UNSCHEDULED",
             "effectiveStatus": "UNSCHEDULED",
             "isSelectable": false,
-            "uiStatus": "UNSCHEDULED",
+            "uiStatus": "UNSCHEDULED_PAST",
             "uiLabel": "Belum Terjadwal",
             "uiSubLabel": "19:00",
-            "uiVariant": "dashed_border",
-            "isClickable": true,
-            "actionType": "ADD_SESSION",
+            "uiVariant": "neutral_disabled",
+            "isClickable": false,
+            "actionType": "NONE",
             "sessionId": null,
             "closureInfo": null,
             "patientInfo": null,
@@ -8513,16 +8922,16 @@ Halaman detail jadwal dokter di web admin.
             "startMinutes": 1140,
             "endMinutes": 1170,
             "timeRange": "19:00 - 19:30 WIB",
-            "temporalState": "FUTURE",
+            "temporalState": "PAST",
             "availabilityState": "UNSCHEDULED",
             "effectiveStatus": "UNSCHEDULED",
             "isSelectable": false,
-            "uiStatus": "UNSCHEDULED",
+            "uiStatus": "UNSCHEDULED_PAST",
             "uiLabel": "Belum Terjadwal",
             "uiSubLabel": "19:30",
-            "uiVariant": "dashed_border",
-            "isClickable": true,
-            "actionType": "ADD_SESSION",
+            "uiVariant": "neutral_disabled",
+            "isClickable": false,
+            "actionType": "NONE",
             "sessionId": null,
             "closureInfo": null,
             "patientInfo": null,
@@ -8539,16 +8948,16 @@ Halaman detail jadwal dokter di web admin.
             "startMinutes": 1170,
             "endMinutes": 1200,
             "timeRange": "19:30 - 20:00 WIB",
-            "temporalState": "FUTURE",
+            "temporalState": "PAST",
             "availabilityState": "UNSCHEDULED",
             "effectiveStatus": "UNSCHEDULED",
             "isSelectable": false,
-            "uiStatus": "UNSCHEDULED",
+            "uiStatus": "UNSCHEDULED_PAST",
             "uiLabel": "Belum Terjadwal",
             "uiSubLabel": "20:00",
-            "uiVariant": "dashed_border",
-            "isClickable": true,
-            "actionType": "ADD_SESSION",
+            "uiVariant": "neutral_disabled",
+            "isClickable": false,
+            "actionType": "NONE",
             "sessionId": null,
             "closureInfo": null,
             "patientInfo": null,
@@ -8565,16 +8974,16 @@ Halaman detail jadwal dokter di web admin.
             "startMinutes": 1200,
             "endMinutes": 1230,
             "timeRange": "20:00 - 20:30 WIB",
-            "temporalState": "FUTURE",
+            "temporalState": "PAST",
             "availabilityState": "UNSCHEDULED",
             "effectiveStatus": "UNSCHEDULED",
             "isSelectable": false,
-            "uiStatus": "UNSCHEDULED",
+            "uiStatus": "UNSCHEDULED_PAST",
             "uiLabel": "Belum Terjadwal",
             "uiSubLabel": "20:30",
-            "uiVariant": "dashed_border",
-            "isClickable": true,
-            "actionType": "ADD_SESSION",
+            "uiVariant": "neutral_disabled",
+            "isClickable": false,
+            "actionType": "NONE",
             "sessionId": null,
             "closureInfo": null,
             "patientInfo": null,
@@ -8591,16 +9000,16 @@ Halaman detail jadwal dokter di web admin.
             "startMinutes": 1230,
             "endMinutes": 1260,
             "timeRange": "20:30 - 21:00 WIB",
-            "temporalState": "FUTURE",
+            "temporalState": "PAST",
             "availabilityState": "UNSCHEDULED",
             "effectiveStatus": "UNSCHEDULED",
             "isSelectable": false,
-            "uiStatus": "UNSCHEDULED",
+            "uiStatus": "UNSCHEDULED_PAST",
             "uiLabel": "Belum Terjadwal",
             "uiSubLabel": "21:00",
-            "uiVariant": "dashed_border",
-            "isClickable": true,
-            "actionType": "ADD_SESSION",
+            "uiVariant": "neutral_disabled",
+            "isClickable": false,
+            "actionType": "NONE",
             "sessionId": null,
             "closureInfo": null,
             "patientInfo": null,
@@ -8617,16 +9026,16 @@ Halaman detail jadwal dokter di web admin.
             "startMinutes": 1260,
             "endMinutes": 1290,
             "timeRange": "21:00 - 21:30 WIB",
-            "temporalState": "FUTURE",
+            "temporalState": "PAST",
             "availabilityState": "UNSCHEDULED",
             "effectiveStatus": "UNSCHEDULED",
             "isSelectable": false,
-            "uiStatus": "UNSCHEDULED",
+            "uiStatus": "UNSCHEDULED_PAST",
             "uiLabel": "Belum Terjadwal",
             "uiSubLabel": "21:30",
-            "uiVariant": "dashed_border",
-            "isClickable": true,
-            "actionType": "ADD_SESSION",
+            "uiVariant": "neutral_disabled",
+            "isClickable": false,
+            "actionType": "NONE",
             "sessionId": null,
             "closureInfo": null,
             "patientInfo": null,
@@ -8643,16 +9052,16 @@ Halaman detail jadwal dokter di web admin.
             "startMinutes": 1290,
             "endMinutes": 1320,
             "timeRange": "21:30 - 22:00 WIB",
-            "temporalState": "FUTURE",
+            "temporalState": "PAST",
             "availabilityState": "UNSCHEDULED",
             "effectiveStatus": "UNSCHEDULED",
             "isSelectable": false,
-            "uiStatus": "UNSCHEDULED",
+            "uiStatus": "UNSCHEDULED_PAST",
             "uiLabel": "Belum Terjadwal",
             "uiSubLabel": "22:00",
-            "uiVariant": "dashed_border",
-            "isClickable": true,
-            "actionType": "ADD_SESSION",
+            "uiVariant": "neutral_disabled",
+            "isClickable": false,
+            "actionType": "NONE",
             "sessionId": null,
             "closureInfo": null,
             "patientInfo": null,
@@ -8669,7 +9078,7 @@ Halaman detail jadwal dokter di web admin.
             "startMinutes": 1320,
             "endMinutes": 1350,
             "timeRange": "22:00 - 22:30 WIB",
-            "temporalState": "FUTURE",
+            "temporalState": "CURRENT",
             "availabilityState": "UNSCHEDULED",
             "effectiveStatus": "UNSCHEDULED",
             "isSelectable": false,
@@ -8771,7 +9180,7 @@ Halaman detail jadwal dokter di web admin.
       "scheduledSlots": 24,
       "unscheduledSlots": 24,
       "availableSlots": 21,
-      "completedSlots": 16,
+      "completedSlots": 23,
       "occupiedSlots": 2,
       "closedSlots": 1,
       "activeBookableSlots": 23,
@@ -8801,7 +9210,7 @@ Halaman detail jadwal dokter di web admin.
       "scheduledSlots": 24,
       "unscheduledSlots": 24,
       "availableSlots": 21,
-      "completedSlots": 16,
+      "completedSlots": 23,
       "occupiedSlots": 2,
       "closedSlots": 1,
       "activeBookableSlots": 23,
@@ -8918,7 +9327,7 @@ Form pengaturan profil praktik dokter di admin.
 
 ---
 
-### DELETE `/api/v1/admin/doctor-schedules/c518facb-372e-4f07-9766-f3eacf54221f/sessions/99b8adba-b0e3-4015-9ddd-363a1d75d34d`
+### DELETE `/api/v1/admin/doctor-schedules/c518facb-372e-4f07-9766-f3eacf54221f/sessions/2d0ffab9-2ad8-43b1-9946-0f9fa7eb3ed8`
 
 **Judul:** Penghapusan Sesi Jadwal oleh Admin (Proteksi Audit Klinis - 403 Forbidden)  
 **Otorisasi Role:** `ADMIN (Bearer Token)`  
@@ -8938,10 +9347,10 @@ Jika admin mencoba menghapus jadwal di web, backend menolak dengan instruksi jel
   "statusCode": 403,
   "detail": "Admin tidak diizinkan menghapus sesi jadwal dokter demi integritas data dan riwayat rekam medis klinis. Silakan nonaktifkan sesi dengan status CLOSED atau lakukan Reschedule.",
   "message": "Admin tidak diizinkan menghapus sesi jadwal dokter demi integritas data dan riwayat rekam medis klinis. Silakan nonaktifkan sesi dengan status CLOSED atau lakukan Reschedule.",
-  "instance": "/api/v1/admin/doctor-schedules/c518facb-372e-4f07-9766-f3eacf54221f/sessions/99b8adba-b0e3-4015-9ddd-363a1d75d34d",
+  "instance": "/api/v1/admin/doctor-schedules/c518facb-372e-4f07-9766-f3eacf54221f/sessions/2d0ffab9-2ad8-43b1-9946-0f9fa7eb3ed8",
   "code": "ADMIN_SCHEDULE_DELETION_PROHIBITED",
-  "traceId": "c7448a10-5b40-4f43-b64c-c23060ea9932",
-  "timestamp": "2026-09-25T07:47:15.762Z"
+  "traceId": "5cd8534e-559b-4464-8827-650c05065de7",
+  "timestamp": "2026-09-25T15:06:22.897Z"
 }
 ```
 
@@ -9014,6 +9423,8 @@ Untuk mendelegasikan dokumen ini ke tim Mobile Engineer (Flutter/React Native):
 
 | Komponen Mobile | Endpoint yang Dipanggil | User Action |
 |---|---|---|
+| **Form Bootstrap (Tambah/Edit)** | `GET /schedules/form-bootstrap?date=YYYY-MM-DD` | Buka modal form tambah / edit, muat data dokter, default ruangan, poliklinik, dan shift dalam 1 roundtrip. |
+| **Anti-Collision Slot Grid** | `GET /schedules/slot-availability?date=YYYY-MM-DD&shift=morning&roomId=UUID` | Pilih shift/ruangan, render 12 slot 30 menit 100% siap render tanpa kalkulasi bentrok di client. |
 | **Agenda Hari Ini (Home)** | `GET /schedules/my-schedules` | Membuka tab home, melihat sesi pagi & siang beserta sisa slot. |
 | **Kalender Bulanan** | `GET /schedules/calendar-summary?month=YYYY-MM` | Geser bulan di kalender, render dot marker (hijau/merah/kuning). |
 | **Drawer Daftar Pasien** | `GET /schedules/sessions/:sessionId/patients` | Klik kartu jadwal yang ada pasiennya. Tampilkan 5 kolom pasien. |

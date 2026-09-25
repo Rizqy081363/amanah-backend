@@ -61,6 +61,8 @@ describe('AdminDoctorSchedulesController', () => {
       getOccupancyOverview: jest.fn(),
       getAdminSessionPatients: jest.fn(),
       getAdminDoctorPatientsByDate: jest.fn(),
+      getFormBootstrap: jest.fn(),
+      getSlotAvailability: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({

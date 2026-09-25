@@ -34,11 +34,16 @@ import {
   ApiUnauthorizedResponse,
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
+import { resolveCanonicalShift } from '../domain/constants/schedule-shift.constants';
 import {
   AdminSessionPatientsResponse,
   RescheduleEligibilityResponse,
   ScheduleOccupancyOverviewResponse,
 } from '../domain/entities/schedule.entity';
+import {
+  ScheduleFormBootstrapData,
+  ScheduleSlotAvailabilityData,
+} from '../domain/entities/schedule-bootstrap.entity';
 import {
   SCHEDULE_REPOSITORY,
   ScheduleRepository,
@@ -54,8 +59,10 @@ import { QueryScheduleDto } from './dto/query-schedule.dto';
 import { RescheduleAdminDoctorSessionDto } from './dto/reschedule-admin-doctor-session.dto';
 import { RoomReferenceQueryDto } from './dto/room-reference-query.dto';
 import { ScheduleContextQueryDto } from './dto/schedule-context-query.dto';
+import { ScheduleFormBootstrapQueryDto } from './dto/schedule-form-bootstrap-query.dto';
 import { ScheduleOccupancyQueryDto } from './dto/schedule-occupancy-query.dto';
 import { ScheduleProjectionQueryDto } from './dto/schedule-projection-query.dto';
+import { ScheduleSlotAvailabilityQueryDto } from './dto/schedule-slot-availability-query.dto';
 import { UpdateScheduleDto } from './dto/update-schedule.dto';
 import { UpsertDaySettingDto } from './dto/upsert-day-setting.dto';
 
@@ -158,13 +165,13 @@ export class SchedulesController {
       );
     }
 
-    const sessionValue: 'PAGI' | 'SIANG' | 'MALAM' =
-      body.session ||
-      (body.sessionType?.toUpperCase() === 'SIANG'
-        ? 'SIANG'
-        : body.sessionType?.toUpperCase() === 'MALAM'
-          ? 'MALAM'
-          : 'PAGI');
+    const resolvedShift = resolveCanonicalShift({
+      session: body.session,
+      sessionShift: body.sessionType,
+    });
+    const sessionValue = resolvedShift.session;
+    const sessionLabel =
+      body.sessionType || body.session || resolvedShift.label;
 
     return this.scheduleRepo.create({
       staffId,
@@ -175,7 +182,7 @@ export class SchedulesController {
       specificDate: body.date || body.specificDate,
       scheduleDate: body.date || body.specificDate,
       session: sessionValue,
-      sessionLabel: body.sessionType || body.session,
+      sessionLabel,
       startTime: body.startTime,
       endTime: body.endTime,
       capacity: body.capacity ?? 8,
@@ -477,6 +484,58 @@ export class SchedulesController {
     const data = await this.scheduleRepo.getOccupancyOverview(staffId, query);
     return {
       success: true,
+      data,
+    };
+  }
+
+  @Get('form-bootstrap')
+  @Roles('STAF', 'ADMIN')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Memuat data bootstrap form jadwal (1 Roundtrip)',
+    description:
+      'Mengembalikan profil dokter, daftar ruangan dengan status keterisian hari ini, poliklinik, dan 4 shift beserta status lampau (isPast) & jadwal eksisting.',
+  })
+  @ApiOkResponse({
+    description: 'Form bootstrap data berhasil dimuat',
+    type: ScheduleFormBootstrapData,
+  })
+  async getFormBootstrap(
+    @Query() query: ScheduleFormBootstrapQueryDto,
+    @CurrentUser() user: any,
+  ) {
+    const staffId = this.resolveTargetStaffId(user, query.staffId);
+    const data = await this.scheduleRepo.getFormBootstrap(staffId, query);
+    return {
+      success: true,
+      statusCode: HttpStatus.OK,
+      message: 'Form bootstrap data berhasil dimuat',
+      data,
+    };
+  }
+
+  @Get('slot-availability')
+  @Roles('STAF', 'ADMIN')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Menghitung ketersediaan slot anti-bentrok (SSOT Grid)',
+    description:
+      'Menghitung ketersediaan slot untuk shift dan ruangan tertentu, mendeteksi bentrok temporal lampau, cuti, jadwal dokter sendiri, dan okupansi ruangan oleh dokter lain.',
+  })
+  @ApiOkResponse({
+    description: 'Ketersediaan slot berhasil dihitung',
+    type: ScheduleSlotAvailabilityData,
+  })
+  async getSlotAvailability(
+    @Query() query: ScheduleSlotAvailabilityQueryDto,
+    @CurrentUser() user: any,
+  ) {
+    const staffId = this.resolveTargetStaffId(user, query.staffId);
+    const data = await this.scheduleRepo.getSlotAvailability(staffId, query);
+    return {
+      success: true,
+      statusCode: HttpStatus.OK,
+      message: 'Ketersediaan slot berhasil dihitung',
       data,
     };
   }

@@ -12,6 +12,12 @@ import { ScheduleProjectionQueryDto } from '@modules/schedules/presentation/dto/
 import { UpdateAdminDoctorScheduleDto } from '@modules/schedules/presentation/dto/update-admin-doctor-schedule.dto';
 import { UpdateAdminDoctorSessionDto } from '@modules/schedules/presentation/dto/update-admin-doctor-session.dto';
 import { UpdatePractitionerSchedulePolicyDto } from '@modules/schedules/presentation/dto/update-practitioner-schedule-policy.dto';
+import { ScheduleFormBootstrapQueryDto } from '@modules/schedules/presentation/dto/schedule-form-bootstrap-query.dto';
+import { ScheduleSlotAvailabilityQueryDto } from '@modules/schedules/presentation/dto/schedule-slot-availability-query.dto';
+import type {
+  ScheduleFormBootstrapData,
+  ScheduleSlotAvailabilityData,
+} from '../entities/schedule-bootstrap.entity';
 import {
   AdminDoctorAccumulatedPatientsResponse,
   AdminDoctorScheduleDetailResponse,
@@ -127,6 +133,14 @@ export interface ScheduleRepository {
     staffId: string,
     query: ScheduleOccupancyQueryDto,
   ): Promise<ScheduleOccupancyOverviewData>;
+  getFormBootstrap(
+    staffId: string,
+    query: ScheduleFormBootstrapQueryDto,
+  ): Promise<ScheduleFormBootstrapData>;
+  getSlotAvailability(
+    staffId: string,
+    query: ScheduleSlotAvailabilityQueryDto,
+  ): Promise<ScheduleSlotAvailabilityData>;
 
   // Admin & Patient Domain methods (BE-SCHED-001)
   findAdminDoctorSchedules(

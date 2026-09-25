@@ -18,7 +18,7 @@ export class ScheduleEntity {
   serviceName?: string | null;
   dayOfWeek?: number | null;
   specificDate?: string | null;
-  session: 'PAGI' | 'SIANG' | 'MALAM';
+  session: 'DINI_HARI' | 'PAGI' | 'SIANG' | 'MALAM';
   sessionLabel?: string;
   sessionShift?: 'early_morning' | 'morning' | 'afternoon' | 'night' | null;
   startTime?: string | null;

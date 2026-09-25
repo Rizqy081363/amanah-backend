@@ -10,6 +10,7 @@ import {
   ACTIVE_APPOINTMENT_STATUSES,
   DEFAULT_TARGET_QUOTA,
 } from '@modules/schedules/domain/constants/schedule.constants';
+import { count } from 'drizzle-orm';
 import type { ScheduleEntity } from '@modules/schedules/domain/entities/schedule.entity';
 import {
   AdminScheduleStatusRequest,
@@ -53,6 +54,61 @@ export class DrizzleScheduleSessionRepository {
     private readonly practitionerResolver: PractitionerResolver,
     private readonly conflictQuery: ScheduleConflictQuery,
   ) {}
+
+  /**
+   * Batch-counts active appointments per session ID.
+   * Returns a Map<sessionId, count> for accurate bookedPatientCount,
+   * replacing the broken `capacity - availableSlots` formula which
+   * returns `capacity` when a session is CLOSED (availableSlots forced to 0).
+   */
+  private async getActiveAppointmentCountsBySessionIds(
+    sessionIds: string[],
+  ): Promise<Map<string, number>> {
+    if (sessionIds.length === 0) return new Map();
+
+    const rows = await this.db
+      .select({
+        sessionId: appointments.scheduleSessionId,
+        appointmentCount: count(appointments.id),
+      })
+      .from(appointments)
+      .where(
+        and(
+          inArray(appointments.scheduleSessionId, sessionIds),
+          inArray(appointments.status, [...ACTIVE_APPOINTMENT_STATUSES]),
+        ),
+      )
+      .groupBy(appointments.scheduleSessionId);
+
+    const countMap = new Map<string, number>();
+    for (const row of rows) {
+      if (row.sessionId) {
+        countMap.set(row.sessionId, Number(row.appointmentCount));
+      }
+    }
+    return countMap;
+  }
+
+  /**
+   * Patches bookedPatientCount and availableSlots on ScheduleEntity[]
+   * using actual appointment counts from the appointments table.
+   * This is necessary because when admin closes a session,
+   * `availableSlots` is force-set to 0, making `capacity - availableSlots`
+   * incorrectly report `capacity` as bookedPatientCount.
+   */
+  private patchBookedCountFromActualAppointments(
+    entities: ScheduleEntity[],
+    countMap: Map<string, number>,
+  ): ScheduleEntity[] {
+    return entities.map((entity) => {
+      const actualCount = countMap.get(entity.id) ?? 0;
+      return {
+        ...entity,
+        bookedPatientCount: actualCount,
+        availableSlots: Math.max(0, (entity.capacity ?? 0) - actualCount),
+      };
+    });
+  }
 
   async create(
     data: Omit<ScheduleEntity, 'id' | 'createdAt' | 'updatedAt'>,
@@ -140,7 +196,10 @@ export class DrizzleScheduleSessionRepository {
       with: SESSION_RECORD_RELATIONS,
     });
 
-    return record ? ScheduleRecordMapper.toEntity(record) : null;
+    if (!record) return null;
+    const entity = ScheduleRecordMapper.toEntity(record);
+    const countMap = await this.getActiveAppointmentCountsBySessionIds([id]);
+    return this.patchBookedCountFromActualAppointments([entity], countMap)[0];
   }
 
   async findAll(
@@ -230,7 +289,11 @@ export class DrizzleScheduleSessionRepository {
       with: SESSION_RECORD_RELATIONS,
     });
 
-    return records.map((r) => ScheduleRecordMapper.toEntity(r));
+    const entities = records.map((r) => ScheduleRecordMapper.toEntity(r));
+    const sessionIds = entities.map((e) => e.id);
+    const countMap =
+      await this.getActiveAppointmentCountsBySessionIds(sessionIds);
+    return this.patchBookedCountFromActualAppointments(entities, countMap);
   }
 
   async findByPoliAndDate(poliklinikId: string, date: string): Promise<any[]> {

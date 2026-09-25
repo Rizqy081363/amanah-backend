@@ -1,4 +1,11 @@
+import {
+  CANONICAL_SESSION_NAMES,
+  type CanonicalSessionName,
+  SESSION_TO_SHIFT_MAP,
+  SHIFT_TO_SESSION_MAP,
+} from '@modules/schedules/domain/constants/schedule-shift.constants';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import {
   IsBoolean,
   IsNumber,
@@ -66,13 +73,25 @@ export class CreateScheduleDto {
   date?: string;
 
   @ApiPropertyOptional({
-    enum: ['PAGI', 'SIANG', 'MALAM'],
+    enum: CANONICAL_SESSION_NAMES,
     example: 'PAGI',
-    description: 'Sesi giliran praktek dokter (PAGI / SIANG / MALAM)',
+    description: 'Sesi giliran praktek dokter (DINI_HARI / PAGI / SIANG / MALAM)',
+  })
+  @Transform(({ value }) => {
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      const shift =
+        SESSION_TO_SHIFT_MAP[trimmed] ||
+        SESSION_TO_SHIFT_MAP[trimmed.toUpperCase()];
+      if (shift) {
+        return SHIFT_TO_SESSION_MAP[shift];
+      }
+    }
+    return value;
   })
   @IsString()
   @IsOptional()
-  session?: 'PAGI' | 'SIANG' | 'MALAM';
+  session?: CanonicalSessionName;
 
   @ApiPropertyOptional({
     example: 'Pagi',

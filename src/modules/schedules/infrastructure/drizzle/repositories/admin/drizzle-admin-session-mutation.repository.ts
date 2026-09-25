@@ -7,6 +7,7 @@ import {
   toAdminScheduleStatusRequest,
   toDaySessionPersistenceStatus,
 } from '@modules/schedules/domain/schedule-status';
+import { resolveCanonicalShift } from '@modules/schedules/domain/constants/schedule-shift.constants';
 import { ScheduleConflictQuery } from '@modules/schedules/infrastructure/drizzle/queries/schedule-conflict.query';
 import { PractitionerResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/practitioner.resolver';
 import { RoomResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/room.resolver';
@@ -70,15 +71,7 @@ export class DrizzleAdminSessionMutationRepository {
       roomId,
     );
 
-    const nameLower = body.nama_sesi.toLowerCase();
-    const shift: 'morning' | 'afternoon' | 'night' | 'early_morning' =
-      nameLower.includes('siang') || nameLower.includes('sore')
-        ? 'afternoon'
-        : nameLower.includes('malam')
-          ? 'night'
-          : nameLower.includes('dini')
-            ? 'early_morning'
-            : 'morning';
+    const { shift } = resolveCanonicalShift({ session: body.nama_sesi });
 
     const requestedStatus = toAdminScheduleStatusRequest(
       body.status_sesi ?? AdminScheduleStatusRequest.OPEN,
@@ -188,15 +181,7 @@ export class DrizzleAdminSessionMutationRepository {
 
     if (body.nama_sesi) {
       updateValues.sessionLabel = body.nama_sesi;
-      const nameLower = body.nama_sesi.toLowerCase();
-      const shift: 'morning' | 'afternoon' | 'night' | 'early_morning' =
-        nameLower.includes('siang') || nameLower.includes('sore')
-          ? 'afternoon'
-          : nameLower.includes('malam')
-            ? 'night'
-            : nameLower.includes('dini')
-              ? 'early_morning'
-              : 'morning';
+      const { shift } = resolveCanonicalShift({ session: body.nama_sesi });
       updateValues.sessionShift = shift;
     }
 

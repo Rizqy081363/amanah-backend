@@ -1,5 +1,12 @@
+import {
+  CANONICAL_SESSION_NAMES,
+  type CanonicalSessionName,
+  SESSION_TO_SHIFT_MAP,
+  SHIFT_TO_SESSION_MAP,
+} from '@modules/schedules/domain/constants/schedule-shift.constants';
 import { AdminScheduleStatusRequest } from '@modules/schedules/domain/schedule-status';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import {
   IsBoolean,
   IsEnum,
@@ -11,12 +18,25 @@ import {
 
 export class UpdateScheduleDto {
   @ApiPropertyOptional({
-    enum: ['PAGI', 'SIANG', 'MALAM'],
+    enum: CANONICAL_SESSION_NAMES,
     example: 'SIANG',
+    description: 'Sesi giliran praktek dokter (DINI_HARI / PAGI / SIANG / MALAM)',
+  })
+  @Transform(({ value }) => {
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      const shift =
+        SESSION_TO_SHIFT_MAP[trimmed] ||
+        SESSION_TO_SHIFT_MAP[trimmed.toUpperCase()];
+      if (shift) {
+        return SHIFT_TO_SESSION_MAP[shift];
+      }
+    }
+    return value;
   })
   @IsString()
   @IsOptional()
-  session?: 'PAGI' | 'SIANG' | 'MALAM';
+  session?: CanonicalSessionName;
 
   @ApiPropertyOptional({
     example: 'Siang',
@@ -74,7 +94,19 @@ export class UpdateScheduleDto {
   @ApiPropertyOptional({
     enum: AdminScheduleStatusRequest,
     example: AdminScheduleStatusRequest.OPEN,
-    description: 'Canonical schedule operating status',
+    description: 'Canonical schedule operating status (OPEN / CLOSED / Buka / Tutup)',
+  })
+  @Transform(({ value }) => {
+    if (typeof value === 'string') {
+      const normalized = value.trim().toUpperCase();
+      if (normalized === 'TUTUP' || normalized === 'CLOSED') {
+        return AdminScheduleStatusRequest.CLOSED;
+      }
+      if (normalized === 'BUKA' || normalized === 'OPEN') {
+        return AdminScheduleStatusRequest.OPEN;
+      }
+    }
+    return value;
   })
   @IsEnum(AdminScheduleStatusRequest)
   @IsOptional()
