@@ -15,11 +15,13 @@ const PERSISTENCE_STATUS_BY_VALUE: Record<string, SchedulePersistenceStatus> = {
   [SchedulePersistenceStatus.CLOSED]: SchedulePersistenceStatus.CLOSED,
 };
 
-const ADMIN_STATUS_REQUEST_BY_VALUE: Record<string, AdminScheduleStatusRequest> =
-  {
-    [AdminScheduleStatusRequest.OPEN]: AdminScheduleStatusRequest.OPEN,
-    [AdminScheduleStatusRequest.CLOSED]: AdminScheduleStatusRequest.CLOSED,
-  };
+const ADMIN_STATUS_REQUEST_BY_VALUE: Record<
+  string,
+  AdminScheduleStatusRequest
+> = {
+  [AdminScheduleStatusRequest.OPEN]: AdminScheduleStatusRequest.OPEN,
+  [AdminScheduleStatusRequest.CLOSED]: AdminScheduleStatusRequest.CLOSED,
+};
 
 const ADMIN_DAY_STATUS_RESPONSE_LABEL: Record<
   AdminScheduleStatusRequest,
@@ -68,7 +70,9 @@ export function toDaySessionPersistenceStatus(
 }
 
 export function isClosedScheduleStatus(value?: string | null): boolean {
-  return toSchedulePersistenceStatus(value) === SchedulePersistenceStatus.CLOSED;
+  return (
+    toSchedulePersistenceStatus(value) === SchedulePersistenceStatus.CLOSED
+  );
 }
 
 export function resolveSessionOperationalStatus(params: {
@@ -82,7 +86,9 @@ export function resolveSessionOperationalStatus(params: {
 
   const persistedStatus = toSchedulePersistenceStatus(params.persistedStatus);
   if (!persistedStatus) {
-    throw new Error(`Unsupported schedule persistence status: ${params.persistedStatus}`);
+    throw new Error(
+      `Unsupported schedule persistence status: ${params.persistedStatus}`,
+    );
   }
 
   if (persistedStatus === SchedulePersistenceStatus.CLOSED) {

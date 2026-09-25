@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { and, count, desc, eq, lt, or } from 'drizzle-orm';
+import { and, asc, count, desc, eq, lt, or } from 'drizzle-orm';
 import {
   ConcurrentModificationConflictException,
   generateEntityVersion,
@@ -134,12 +134,53 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
       practitionerId = prac ? prac.id : data.staffId;
     }
 
+    let scheduleSessionId: string | null = null;
+    if (practitionerId && data.appointmentDate) {
+      const candidateSessions =
+        await this.db.query.practitionerScheduleSessions.findMany({
+          where: and(
+            eq(practitionerScheduleSessions.practitionerId, practitionerId),
+            eq(practitionerScheduleSessions.scheduleDate, data.appointmentDate),
+            eq(practitionerScheduleSessions.status, 'open'),
+          ),
+          orderBy: [asc(practitionerScheduleSessions.startTime)],
+        });
+
+      const matchedSession =
+        candidateSessions.find((sess) => {
+          const sessStart =
+            sess.startTime.length === 5
+              ? `${sess.startTime}:00`
+              : sess.startTime;
+          const sessEnd =
+            sess.endTime.length === 5 ? `${sess.endTime}:00` : sess.endTime;
+          return (
+            (startTime >= sessStart && startTime < sessEnd) ||
+            (sessStart >= startTime && sessStart < endTime)
+          );
+        }) || candidateSessions[0];
+
+      if (matchedSession) {
+        scheduleSessionId = matchedSession.id;
+        if (matchedSession.availableSlots > 0) {
+          await this.db
+            .update(practitionerScheduleSessions)
+            .set({
+              availableSlots: Math.max(0, matchedSession.availableSlots - 1),
+              updatedAt: new Date().toISOString(),
+            })
+            .where(eq(practitionerScheduleSessions.id, matchedSession.id));
+        }
+      }
+    }
+
     const [apt] = await this.db
       .insert(appointments)
       .values({
         bookingCode,
         patientId: data.patientId,
         practitionerId: practitionerId || null,
+        scheduleSessionId: scheduleSessionId || null,
         serviceId: data.layananId,
         roomId: room ? room.id : null,
         visitType:
@@ -487,12 +528,42 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
       }
       updateTicket.status = ticketStatus;
 
-      if (existing.scheduleSessionId && existing.status !== 'cancelled') {
+      let targetSessionId = existing.scheduleSessionId;
+      if (!targetSessionId && existing.practitionerId && existing.scheduledDate) {
+        const apptStart =
+          existing.scheduledStartTime?.length === 5
+            ? `${existing.scheduledStartTime}:00`
+            : (existing.scheduledStartTime || '08:00:00');
+        const candidateSessions =
+          await this.db.query.practitionerScheduleSessions.findMany({
+            where: and(
+              eq(
+                practitionerScheduleSessions.practitionerId,
+                existing.practitionerId,
+              ),
+              eq(
+                practitionerScheduleSessions.scheduleDate,
+                existing.scheduledDate,
+              ),
+            ),
+          });
+        const matched =
+          candidateSessions.find((s) => {
+            const sStart =
+              s.startTime.length === 5 ? `${s.startTime}:00` : s.startTime;
+            const sEnd =
+              s.endTime.length === 5 ? `${s.endTime}:00` : s.endTime;
+            return apptStart >= sStart && apptStart < sEnd;
+          }) || candidateSessions[0];
+        if (matched) targetSessionId = matched.id;
+      }
+
+      if (targetSessionId && existing.status !== 'cancelled') {
         const [session] = await this.db
           .select()
           .from(practitionerScheduleSessions)
           .where(
-            eq(practitionerScheduleSessions.id, existing.scheduleSessionId),
+            eq(practitionerScheduleSessions.id, targetSessionId),
           );
         if (session) {
           const newAvailable = Math.min(
@@ -648,11 +719,41 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
 
       // 4. Atomically restore available slot in practitioner_schedule_sessions (AC-04 & AC-05)
       let sessionResult: any = null;
-      if (apt.scheduleSessionId) {
+      let targetSessionId = apt.scheduleSessionId;
+      if (!targetSessionId && apt.practitionerId && apt.scheduledDate) {
+        const apptStart =
+          apt.scheduledStartTime?.length === 5
+            ? `${apt.scheduledStartTime}:00`
+            : (apt.scheduledStartTime || '08:00:00');
+        const candidateSessions =
+          await tx.query.practitionerScheduleSessions.findMany({
+            where: and(
+              eq(
+                practitionerScheduleSessions.practitionerId,
+                apt.practitionerId,
+              ),
+              eq(
+                practitionerScheduleSessions.scheduleDate,
+                apt.scheduledDate,
+              ),
+            ),
+          });
+        const matched =
+          candidateSessions.find((s) => {
+            const sStart =
+              s.startTime.length === 5 ? `${s.startTime}:00` : s.startTime;
+            const sEnd =
+              s.endTime.length === 5 ? `${s.endTime}:00` : s.endTime;
+            return apptStart >= sStart && apptStart < sEnd;
+          }) || candidateSessions[0];
+        if (matched) targetSessionId = matched.id;
+      }
+
+      if (targetSessionId) {
         const [session] = await tx
           .select()
           .from(practitionerScheduleSessions)
-          .where(eq(practitionerScheduleSessions.id, apt.scheduleSessionId))
+          .where(eq(practitionerScheduleSessions.id, targetSessionId))
           .for('update');
 
         if (session) {
@@ -775,37 +876,65 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
         .where(eq(queueTickets.appointmentId, appointmentId));
 
       let sessionResult: any = null;
+      let targetSessionId = apt.scheduleSessionId;
       if (
         (targetStatus === 'cancelled' || targetStatus === 'no_show') &&
         previousStatus !== 'cancelled' &&
-        previousStatus !== 'no_show' &&
-        apt.scheduleSessionId
+        previousStatus !== 'no_show'
       ) {
-        const [session] = await tx
-          .select()
-          .from(practitionerScheduleSessions)
-          .where(eq(practitionerScheduleSessions.id, apt.scheduleSessionId))
-          .for('update');
+        if (!targetSessionId && apt.practitionerId && apt.scheduledDate) {
+          const apptStart =
+            apt.scheduledStartTime?.length === 5
+              ? `${apt.scheduledStartTime}:00`
+              : (apt.scheduledStartTime || '08:00:00');
+          const candidateSessions =
+            await tx.query.practitionerScheduleSessions.findMany({
+              where: and(
+                eq(
+                  practitionerScheduleSessions.practitionerId,
+                  apt.practitionerId,
+                ),
+                eq(practitionerScheduleSessions.scheduleDate, apt.scheduledDate),
+              ),
+            });
+          const matched =
+            candidateSessions.find((s) => {
+              const sStart =
+                s.startTime.length === 5 ? `${s.startTime}:00` : s.startTime;
+              const sEnd =
+                s.endTime.length === 5 ? `${s.endTime}:00` : s.endTime;
+              return apptStart >= sStart && apptStart < sEnd;
+            }) || candidateSessions[0];
+          if (matched) targetSessionId = matched.id;
+        }
 
-        if (session) {
-          const newAvailable = Math.min(
-            session.capacity,
-            session.availableSlots + 1,
-          );
-          await tx
-            .update(practitionerScheduleSessions)
-            .set({
-              availableSlots: newAvailable,
-              updatedAt: nowIso,
-            })
-            .where(eq(practitionerScheduleSessions.id, session.id));
+        if (targetSessionId) {
+          const [session] = await tx
+            .select()
+            .from(practitionerScheduleSessions)
+            .where(eq(practitionerScheduleSessions.id, targetSessionId))
+            .for('update');
 
-          sessionResult = {
-            sessionId: session.id,
-            restoredAvailableSlots: newAvailable,
-            totalCapacity: session.capacity,
-            sessionStatus: session.status,
-          };
+          if (session) {
+            const newAvailable = Math.min(
+              session.capacity,
+              session.availableSlots + 1,
+            );
+            await tx
+              .update(practitionerScheduleSessions)
+              .set({
+                availableSlots: newAvailable,
+                updatedAt: nowIso,
+              })
+              .where(eq(practitionerScheduleSessions.id, session.id));
+
+            sessionResult = {
+              sessionId: session.id,
+              restoredAvailableSlots: newAvailable,
+              totalCapacity: session.capacity,
+              sessionStatus: session.status,
+            };
+          }
         }
       }
 

@@ -1,11 +1,11 @@
+import { ScheduleOperationalStatus } from './entities/schedule.entity';
 import {
   AdminScheduleStatusRequest,
-  SchedulePersistenceStatus,
   resolveAggregateOperationalStatus,
   resolveSessionOperationalStatus,
+  SchedulePersistenceStatus,
   toAdminScheduleStatusRequest,
 } from './schedule-status';
-import { ScheduleOperationalStatus } from './entities/schedule.entity';
 
 describe('schedule status domain model', () => {
   it('maps persisted closed session status to CLOSED operational status', () => {

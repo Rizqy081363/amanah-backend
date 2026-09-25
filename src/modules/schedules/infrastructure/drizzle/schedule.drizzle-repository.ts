@@ -14,6 +14,7 @@ import {
   eq,
   gte,
   inArray,
+  lt,
   lte,
   not,
   or,
@@ -25,16 +26,19 @@ import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
   appointments,
   clinicRooms,
+  clinicSchedulePolicies,
   clinicUnits,
   medicalSpecialties,
   patientAddresses,
   patientEmergencyContacts,
   patientProfiles,
   practitionerLeavePeriods,
+  practitionerScheduleClosures,
   practitionerScheduleDaySettings,
   practitionerScheduleSessions,
   practitioners,
   queueTickets,
+  scheduleRescheduleEvents,
 } from '../../../../database/schema';
 import {
   AdminDoctorAccumulatedPatientsResponse,
@@ -50,21 +54,31 @@ import {
   ClinicalPractitionerEntity,
   ClinicRoomReferenceEntity,
   DayScheduleSettingEntity,
+  RescheduleEligibilityEntity,
+  RescheduleSourceSessionInfo,
   ScheduleAvailabilityMutationResponse,
   ScheduleContextEntity,
   ScheduleEntity,
   ScheduleOccupancyOverviewData,
-  ScheduleOptionsReferenceEntity,
   ScheduleOperationalStatus,
-  RescheduleEligibilityEntity,
-  RescheduleSourceSessionInfo,
+  ScheduleOptionsReferenceEntity,
   ScheduleProjectionEntity,
   ScheduleShiftOccupancyEntity,
   ScheduleShiftSlotEntity,
   ScheduleSlotConflictInfoEntity,
   ScheduleSlotStatus,
 } from '../../domain/entities/schedule.entity';
+import {
+  ScheduleSlotFactory,
+  SHIFT_DEFINITIONS,
+  type ShiftDefinition,
+} from '../../domain/factories/schedule-slot.factory';
 import { ScheduleRepository } from '../../domain/repositories/schedule.repository';
+import {
+  type ContextProjectionResult,
+  type MultiDimensionalSlotProjection,
+  ScheduleSlotStateResolver,
+} from '../../domain/resolvers/schedule-slot-state.resolver';
 import {
   AppointmentOccupation,
   formatClockTime,
@@ -74,10 +88,10 @@ import {
 } from '../../domain/schedule-projection';
 import {
   AdminScheduleStatusRequest,
-  SchedulePersistenceStatus,
   isClosedScheduleStatus,
   resolveAggregateOperationalStatus,
   resolveSessionOperationalStatus,
+  SchedulePersistenceStatus,
   toAdminDayStatusResponseLabel,
   toAdminScheduleStatusRequest,
   toDaySessionPersistenceStatus,
@@ -98,8 +112,6 @@ import { UpdateAdminDoctorSessionDto } from '../../presentation/dto/update-admin
 import { UpdatePractitionerSchedulePolicyDto } from '../../presentation/dto/update-practitioner-schedule-policy.dto';
 
 const CLINIC_TIMEZONE = 'Asia/Jakarta';
-const DEFAULT_CONSULTATION_DURATION_MINUTES = 30;
-const DEFAULT_START_PRECISION_MINUTES = 1;
 const ACTIVE_APPOINTMENT_STATUSES = [
   'booked',
   'checked_in',
@@ -107,49 +119,9 @@ const ACTIVE_APPOINTMENT_STATUSES = [
   'in_service',
 ] as const;
 
-type ScheduleContextDefinition = {
-  contextId: string;
-  contextLabel: string;
-  sessionShift: 'early_morning' | 'morning' | 'afternoon' | 'night';
-  boundaryStartTime: string;
-  boundaryEndTime: string;
-  aliases: string[];
-};
-
-const SCHEDULE_CONTEXT_DEFINITIONS: ScheduleContextDefinition[] = [
-  {
-    contextId: 'early_morning',
-    contextLabel: 'Dini Hari',
-    sessionShift: 'early_morning',
-    boundaryStartTime: '00:00',
-    boundaryEndTime: '06:00',
-    aliases: ['dini_hari', 'dini hari', 'early_morning'],
-  },
-  {
-    contextId: 'morning',
-    contextLabel: 'Pagi',
-    sessionShift: 'morning',
-    boundaryStartTime: '06:00',
-    boundaryEndTime: '12:00',
-    aliases: ['pagi', 'morning'],
-  },
-  {
-    contextId: 'afternoon',
-    contextLabel: 'Siang',
-    sessionShift: 'afternoon',
-    boundaryStartTime: '12:00',
-    boundaryEndTime: '17:00',
-    aliases: ['siang', 'sore', 'afternoon'],
-  },
-  {
-    contextId: 'night',
-    contextLabel: 'Malam',
-    sessionShift: 'night',
-    boundaryStartTime: '17:00',
-    boundaryEndTime: '21:00',
-    aliases: ['malam', 'night'],
-  },
-];
+export type ScheduleContextDefinition = ShiftDefinition;
+export const SCHEDULE_CONTEXT_DEFINITIONS: ScheduleContextDefinition[] =
+  SHIFT_DEFINITIONS;
 
 @Injectable()
 export class ScheduleDrizzleRepository implements ScheduleRepository {
@@ -190,39 +162,34 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
   private resolveScheduleContext(
     scheduleContextId: string,
   ): ScheduleContextDefinition {
-    const normalized = scheduleContextId.trim().toLowerCase();
-    const context = SCHEDULE_CONTEXT_DEFINITIONS.find(
-      (definition) =>
-        definition.contextId === normalized ||
-        definition.aliases.includes(normalized),
-    );
-
-    if (!context) {
-      throw new UnprocessableEntityException({
-        code: 'SCHEDULE_CONTEXT_NOT_FOUND',
-        message: 'Konteks jadwal yang dipilih tidak tersedia.',
-        metadata: {
-          scheduleContextId,
-          supportedContextIds: SCHEDULE_CONTEXT_DEFINITIONS.map(
-            (definition) => definition.contextId,
-          ),
-        },
-      });
-    }
-
-    return context;
+    return ScheduleSlotFactory.resolveShiftDefinition(scheduleContextId);
   }
 
-  private getPolicy(practitioner: {
+  private async getClinicSchedulePolicy(): Promise<{
+    durationMinutes: number;
+    startPrecisionMinutes: number;
+  }> {
+    const policy = await this.db.query?.clinicSchedulePolicies?.findFirst?.({
+      where: eq(clinicSchedulePolicies.code, 'default'),
+    });
+    return {
+      durationMinutes: policy?.defaultConsultationDurationMinutes ?? 30,
+      startPrecisionMinutes: policy?.defaultStartPrecisionMinutes ?? 1,
+    };
+  }
+
+  private async getPolicy(practitioner: {
     consultationDurationMinutes?: number | null;
     startPrecisionMinutes?: number | null;
-  }) {
+  }): Promise<{ durationMinutes: number; startPrecisionMinutes: number }> {
+    const clinicPolicy = await this.getClinicSchedulePolicy();
     return {
       durationMinutes:
         practitioner.consultationDurationMinutes ??
-        DEFAULT_CONSULTATION_DURATION_MINUTES,
+        clinicPolicy.durationMinutes,
       startPrecisionMinutes:
-        practitioner.startPrecisionMinutes ?? DEFAULT_START_PRECISION_MINUTES,
+        practitioner.startPrecisionMinutes ??
+        clinicPolicy.startPrecisionMinutes,
     };
   }
 
@@ -259,123 +226,13 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
       slotsCount?: number;
       fillShift?: boolean;
     },
-  ): {
-    startMinutes: number;
-    endMinutes: number;
-    endTime: string;
-    capacity: number;
-    remainingShiftSlots: number;
-  } {
-    const startMinutes = parseClockTime(selectedStartTime);
-    const boundaryStart = parseClockTime(context.boundaryStartTime);
-    const boundaryEnd = parseClockTime(context.boundaryEndTime);
-
-    if (startMinutes < boundaryStart || startMinutes >= boundaryEnd) {
-      throw new UnprocessableEntityException({
-        code: 'START_OUTSIDE_BOUNDARY',
-        message: 'Jam mulai berada di luar batas konteks jadwal yang dipilih.',
-        metadata: {
-          selectedStartTime,
-          boundaryStartTime: context.boundaryStartTime,
-          boundaryEndTime: context.boundaryEndTime,
-        },
-      });
-    }
-
-    if ((startMinutes - boundaryStart) % policy.startPrecisionMinutes !== 0) {
-      throw new UnprocessableEntityException({
-        code: 'INVALID_START_PRECISION',
-        message: 'Jam mulai tidak sesuai presisi menit yang diizinkan backend.',
-        metadata: {
-          selectedStartTime,
-          allowedStartPrecisionMinutes: policy.startPrecisionMinutes,
-        },
-      });
-    }
-
-    let endMinutes: number;
-    let capacity: number;
-
-    if (options?.endTime) {
-      const parsedEnd = parseClockTime(options.endTime);
-      if (parsedEnd <= startMinutes || parsedEnd > boundaryEnd) {
-        throw new UnprocessableEntityException({
-          code: 'END_OUTSIDE_BOUNDARY',
-          message:
-            'Jam selesai harus lebih besar dari jam mulai dan tidak melebihi batas shift.',
-          metadata: {
-            selectedStartTime,
-            endTime: options.endTime,
-            boundaryEndTime: context.boundaryEndTime,
-          },
-        });
-      }
-      endMinutes = parsedEnd;
-      capacity = Math.floor(
-        (endMinutes - startMinutes) / policy.durationMinutes,
-      );
-    } else if (options?.slotsCount && options.slotsCount > 0) {
-      endMinutes = startMinutes + options.slotsCount * policy.durationMinutes;
-      if (endMinutes > boundaryEnd) {
-        throw new UnprocessableEntityException({
-          code: 'SLOTS_EXCEED_BOUNDARY',
-          message: 'Jumlah slot yang diminta melebihi batas waktu shift.',
-          metadata: {
-            slotsCount: options.slotsCount,
-            boundaryEndTime: context.boundaryEndTime,
-          },
-        });
-      }
-      capacity = options.slotsCount;
-    } else if (options?.fillShift === true) {
-      capacity = Math.floor(
-        (boundaryEnd - startMinutes) / policy.durationMinutes,
-      );
-      endMinutes = startMinutes + capacity * policy.durationMinutes;
-    } else {
-      // DEFAULT: 1 sesi konsultasi sesuai durasi dokter (misal 30 menit)!
-      // 02:00 -> 02:30, 06:00 -> 06:30
-      endMinutes = startMinutes + policy.durationMinutes;
-      if (endMinutes > boundaryEnd) {
-        throw new UnprocessableEntityException({
-          code: 'DURATION_LEAVES_NO_CAPACITY',
-          message:
-            'Jam mulai terlalu dekat dengan akhir shift untuk satu sesi konsultasi.',
-          metadata: {
-            selectedStartTime,
-            boundaryEndTime: context.boundaryEndTime,
-            effectiveConsultationDurationMinutes: policy.durationMinutes,
-          },
-        });
-      }
-      capacity = 1;
-    }
-
-    if (capacity < 1) {
-      throw new UnprocessableEntityException({
-        code: 'DURATION_LEAVES_NO_CAPACITY',
-        message:
-          'Jam mulai dan durasi konsultasi tidak menyisakan kapasitas interval.',
-        metadata: {
-          selectedStartTime,
-          boundaryEndTime: context.boundaryEndTime,
-          effectiveConsultationDurationMinutes: policy.durationMinutes,
-        },
-      });
-    }
-
-    const remainingShiftSlots = Math.max(
-      0,
-      Math.floor((boundaryEnd - endMinutes) / policy.durationMinutes),
+  ) {
+    return ScheduleSlotFactory.calculateSessionTiming(
+      context,
+      selectedStartTime,
+      policy,
+      options,
     );
-
-    return {
-      startMinutes,
-      endMinutes,
-      endTime: formatClockTime(endMinutes),
-      capacity,
-      remainingShiftSlots,
-    };
   }
 
   private validateProjectionRequest(
@@ -491,6 +348,16 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
       notes: r.notes || null,
       createdAt: new Date(r.createdAt),
       updatedAt: new Date(r.updatedAt),
+      doctorId: r.practitionerId || r.practitioner?.staffProfileId,
+      practitionerId: r.practitionerId,
+      isRescheduleEligible: isAvailable,
+      is_reschedule_eligible: isAvailable,
+      rescheduleIneligibilityReason: !isAvailable
+        ? 'Sesi ini berstatus Tutup. Silakan aktifkan sesi terlebih dahulu melalui menu Ubah Sesi sebelum melakukan reschedule.'
+        : null,
+      reschedule_ineligibility_reason: !isAvailable
+        ? 'Sesi ini berstatus Tutup. Silakan aktifkan sesi terlebih dahulu melalui menu Ubah Sesi sebelum melakukan reschedule.'
+        : null,
       version: generateEntityVersion(r.updatedAt),
     };
   }
@@ -1037,10 +904,36 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
   }
 
   async delete(id: string): Promise<boolean> {
-    // Relational protection: check for active booked appointments
+    const existingSession =
+      await this.db.query.practitionerScheduleSessions.findFirst({
+        where: eq(practitionerScheduleSessions.id, id),
+      });
+
+    if (!existingSession) {
+      return false;
+    }
+
+    const sessStart =
+      existingSession.startTime.length === 5
+        ? `${existingSession.startTime}:00`
+        : existingSession.startTime;
+    const sessEnd =
+      existingSession.endTime.length === 5
+        ? `${existingSession.endTime}:00`
+        : existingSession.endTime;
+
+    // Relational protection: check for active booked appointments (FK or doctor+date+time window)
     const activeAppointments = await this.db.query.appointments.findMany({
       where: and(
-        eq(appointments.scheduleSessionId, id),
+        or(
+          eq(appointments.scheduleSessionId, id),
+          and(
+            eq(appointments.practitionerId, existingSession.practitionerId),
+            eq(appointments.scheduledDate, existingSession.scheduleDate),
+            gte(appointments.scheduledStartTime, sessStart),
+            lt(appointments.scheduledStartTime, sessEnd),
+          ),
+        ),
         inArray(appointments.status, [
           'booked',
           'checked_in',
@@ -1056,11 +949,6 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
         message: `Jadwal tidak dapat dihapus karena sudah memiliki ${activeAppointments.length} pasien terdaftar. Batalkan atau jadwalkan ulang janji temu pasien terlebih dahulu.`,
       });
     }
-
-    const existingSession =
-      await this.db.query.practitionerScheduleSessions.findFirst({
-        where: eq(practitionerScheduleSessions.id, id),
-      });
 
     const res = await this.db
       .delete(practitionerScheduleSessions)
@@ -1375,7 +1263,33 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
     const conditions: any[] = [];
 
     if (sessionId) {
-      conditions.push(eq(appointments.scheduleSessionId, sessionId));
+      const session =
+        await this.db.query.practitionerScheduleSessions.findFirst({
+          where: eq(practitionerScheduleSessions.id, sessionId),
+        });
+      if (session) {
+        const sessStart =
+          session.startTime.length === 5
+            ? `${session.startTime}:00`
+            : session.startTime;
+        const sessEnd =
+          session.endTime.length === 5
+            ? `${session.endTime}:00`
+            : session.endTime;
+        conditions.push(
+          or(
+            eq(appointments.scheduleSessionId, sessionId),
+            and(
+              eq(appointments.practitionerId, session.practitionerId),
+              eq(appointments.scheduledDate, session.scheduleDate),
+              gte(appointments.scheduledStartTime, sessStart),
+              lt(appointments.scheduledStartTime, sessEnd),
+            ),
+          ),
+        );
+      } else {
+        conditions.push(eq(appointments.scheduleSessionId, sessionId));
+      }
     }
     if (date) {
       conditions.push(eq(appointments.scheduledDate, date));
@@ -1570,39 +1484,23 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
   }
 
   async getScheduleOptions(): Promise<ScheduleOptionsReferenceEntity> {
+    const clinicPolicy = await this.getClinicSchedulePolicy();
     return {
-      shifts: [
-        {
-          id: 'PAGI',
-          label: 'Pagi',
-          shift: 'morning',
-          startTime: '07:00',
-          endTime: '12:00',
-        },
-        {
-          id: 'SIANG',
-          label: 'Siang',
-          shift: 'afternoon',
-          startTime: '12:00',
-          endTime: '17:00',
-        },
-        {
-          id: 'MALAM',
-          label: 'Malam',
-          shift: 'night',
-          startTime: '17:00',
-          endTime: '21:00',
-        },
-      ],
+      shifts: SHIFT_DEFINITIONS.map((def) => ({
+        id: def.shift.toUpperCase(),
+        label: def.label,
+        shift: def.shift,
+        startTime: def.boundaryStartTime,
+        endTime: def.boundaryEndTime,
+      })),
       statuses: [
         { id: 'OPEN', label: 'Buka' },
         { id: 'CLOSED', label: 'Tutup' },
       ],
-      timeSlotIntervals: [DEFAULT_CONSULTATION_DURATION_MINUTES],
-      effectiveConsultationDurationMinutes:
-        DEFAULT_CONSULTATION_DURATION_MINUTES,
-      durationSource: 'PRACTITIONER_CONFIG',
-      durationScope: 'practitioner-specific',
+      timeSlotIntervals: [clinicPolicy.durationMinutes],
+      effectiveConsultationDurationMinutes: clinicPolicy.durationMinutes,
+      durationSource: 'CLINIC_CONFIG',
+      durationScope: 'clinic-default',
       canonicalIntervalStatuses: [
         { id: 'OPEN', label: 'Buka' },
         { id: 'OCCUPIED', label: 'Terisi' },
@@ -1623,7 +1521,7 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
       );
     }
 
-    const policy = this.getPolicy(practitioner);
+    const policy = await this.getPolicy(practitioner);
     return SCHEDULE_CONTEXT_DEFINITIONS.map((context) =>
       this.toScheduleContextEntity(
         practitioner.id,
@@ -1648,13 +1546,10 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
     }
 
     const context = this.resolveScheduleContext(query.scheduleContextId);
-    const policy = this.getPolicy(practitioner);
+    const policy = await this.getPolicy(practitioner);
     this.validateProjectionRequest(context, query.startTime, policy);
 
-    const fillShift =
-      query.fillShift !== undefined
-        ? query.fillShift
-        : !query.endTime && !query.slotsCount;
+    const fillShift = query.fillShift === true;
 
     const timing = this.calculateSessionTimeAndCapacity(
       context,
@@ -1697,7 +1592,7 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
     }
 
     const context = this.resolveScheduleContext(body.scheduleContextId);
-    const policy = this.getPolicy(practitioner);
+    const policy = await this.getPolicy(practitioner);
 
     // Default: 1 session of doctor's duration (e.g. 02:00 -> 02:30, or 06:00 -> 06:30)
     // unless body.endTime, body.slotsCount, or body.fillShift is explicitly provided.
@@ -1858,7 +1753,7 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
       SCHEDULE_CONTEXT_DEFINITIONS.find(
         (definition) => definition.sessionShift === session.sessionShift,
       ) ?? SCHEDULE_CONTEXT_DEFINITIONS[1];
-    const policy = this.getPolicy(session.practitioner);
+    const policy = await this.getPolicy(session.practitioner);
     const closedReason = isClosedScheduleStatus(session.status)
       ? this.toClosedReason()
       : undefined;
@@ -1985,7 +1880,31 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
     ];
 
     if (params.sessionId) {
-      conditions.push(eq(appointments.scheduleSessionId, params.sessionId));
+      const session =
+        await this.db.query.practitionerScheduleSessions.findFirst({
+          where: eq(practitionerScheduleSessions.id, params.sessionId),
+        });
+      if (session) {
+        const sessStart =
+          session.startTime.length === 5
+            ? `${session.startTime}:00`
+            : session.startTime;
+        const sessEnd =
+          session.endTime.length === 5
+            ? `${session.endTime}:00`
+            : session.endTime;
+        conditions.push(
+          or(
+            eq(appointments.scheduleSessionId, params.sessionId),
+            and(
+              gte(appointments.scheduledStartTime, sessStart),
+              lt(appointments.scheduledStartTime, sessEnd),
+            )!,
+          )!,
+        );
+      } else {
+        conditions.push(eq(appointments.scheduleSessionId, params.sessionId));
+      }
     }
 
     const records = await this.db.query.appointments.findMany({
@@ -2020,7 +1939,7 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
       practitioner.staffProfile?.fullName ||
       practitioner.displayName ||
       'Dokter';
-    const policy = this.getPolicy(practitioner);
+    const policy = await this.getPolicy(practitioner);
     const durationMinutes = policy.durationMinutes;
 
     // 1. Check if doctor is on leave on target date
@@ -2054,128 +1973,208 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
       targetRoomName = room?.name || 'Ruangan';
     }
 
-    // 3. Fetch active sessions on target date (indexed lookup by scheduleDate)
-    const activeSessions =
-      await this.db.query.practitionerScheduleSessions.findMany({
-        where: eq(practitionerScheduleSessions.scheduleDate, query.date),
-        with: {
-          practitioner: {
-            with: {
-              staffProfile: true,
+    // 3. Fetch active sessions, appointments, closures, and reschedules on target date
+    const [activeSessions, dayAppointments, dayClosures, dayReschedules] =
+      await Promise.all([
+        this.db.query.practitionerScheduleSessions.findMany({
+          where: eq(practitionerScheduleSessions.scheduleDate, query.date),
+          with: {
+            practitioner: {
+              with: {
+                staffProfile: true,
+              },
             },
+            clinicRoom: true,
           },
-          clinicRoom: true,
-        },
-      });
+        }),
+        this.db.query.appointments.findMany({
+          where: and(
+            eq(appointments.scheduledDate, query.date),
+            inArray(appointments.status, [...ACTIVE_APPOINTMENT_STATUSES]),
+          ),
+          with: {
+            patientProfile: true,
+            queueTickets: true,
+          },
+        }),
+        this.db.query.practitionerScheduleClosures?.findMany
+          ? this.db.query.practitionerScheduleClosures.findMany({
+              where: and(
+                eq(practitionerScheduleClosures.practitionerId, practitionerId),
+                eq(practitionerScheduleClosures.scheduleDate, query.date),
+              ),
+            })
+          : Promise.resolve([]),
+        this.db.query.scheduleRescheduleEvents?.findMany
+          ? this.db.query.scheduleRescheduleEvents.findMany({
+              where: and(
+                eq(scheduleRescheduleEvents.practitionerId, practitionerId),
+                or(
+                  eq(scheduleRescheduleEvents.targetDate, query.date),
+                  eq(scheduleRescheduleEvents.sourceDate, query.date),
+                ),
+              ),
+            })
+          : Promise.resolve([]),
+      ]);
 
-    // 4. Construct the 4 shifts and their slots
+    // 4. Construct the 4 shifts and their slots using authoritative resolver
     const shifts: ScheduleShiftOccupancyEntity[] = [];
 
+    const doctorSessions = activeSessions.filter(
+      (s) => s.practitionerId === practitionerId,
+    );
+    const doctorAppts = dayAppointments.filter(
+      (a) => a.practitionerId === practitionerId,
+    );
+
     for (const ctxDef of SCHEDULE_CONTEXT_DEFINITIONS) {
-      const boundaryStartMinutes = parseClockTime(ctxDef.boundaryStartTime);
-      const boundaryEndMinutes = parseClockTime(ctxDef.boundaryEndTime);
-      const totalShiftMinutes = boundaryEndMinutes - boundaryStartMinutes;
-      const totalSlots = Math.max(
-        0,
-        Math.floor(totalShiftMinutes / durationMinutes),
-      );
+      const proj = ScheduleSlotStateResolver.resolveContextProjection({
+        scheduleDate: query.date,
+        context: ctxDef,
+        intervalMinutes: durationMinutes,
+        openedRanges: doctorSessions.map((s) => ({
+          id: s.id,
+          startTime: s.startTime ? s.startTime.slice(0, 5) : '08:00',
+          endTime: s.endTime ? s.endTime.slice(0, 5) : '12:00',
+          status: s.status,
+          sessionShift: s.sessionShift || undefined,
+          notes: s.notes,
+        })),
+        appointments: doctorAppts.map((a) => ({
+          id: a.id,
+          bookingCode: a.bookingCode || undefined,
+          patientId: a.patientId,
+          patientName: a.patientProfile?.fullName || undefined,
+          startTime: a.scheduledStartTime
+            ? a.scheduledStartTime.slice(0, 5)
+            : '08:00',
+          endTime: a.scheduledEndTime ? a.scheduledEndTime.slice(0, 5) : null,
+          status: a.status,
+          queueNumber: a.queueTickets?.[0]?.queueNumber || null,
+        })),
+        leavePeriods: isCuti
+          ? [
+              {
+                id: activeLeave?.id || daySetting?.id || 'leave',
+                startDate: activeLeave?.startDate || query.date,
+                endDate: activeLeave?.endDate || query.date,
+                reason: cutiReason,
+              },
+            ]
+          : [],
+        closures: dayClosures.map((c) => ({
+          id: c.id,
+          scheduleDate: c.scheduleDate,
+          scope: c.scope as any,
+          contextCode: c.contextCode,
+          startTime: c.startTime ? c.startTime.slice(0, 5) : null,
+          endTime: c.endTime ? c.endTime.slice(0, 5) : null,
+          category: 'OTHER',
+          reasonCode: c.reasonCode,
+          reasonText: c.reasonText,
+        })),
+        rescheduleEvents: dayReschedules.map((r) => ({
+          id: r.id,
+          scheduleSessionId: r.scheduleSessionId,
+          sourceDate: r.sourceDate,
+          sourceStartTime: r.sourceStartTime.slice(0, 5),
+          sourceEndTime: r.sourceEndTime.slice(0, 5),
+          sourceRoomId: r.sourceRoomId,
+          targetDate: r.targetDate,
+          targetStartTime: r.targetStartTime.slice(0, 5),
+          targetEndTime: r.targetEndTime.slice(0, 5),
+          targetRoomId: r.targetRoomId,
+          reasonCode: r.reasonCode,
+          reasonText: r.reasonText,
+        })),
+      });
 
-      const slots: ScheduleShiftSlotEntity[] = [];
-
-      for (let i = 0; i < totalSlots; i++) {
-        const slotStartMin = boundaryStartMinutes + i * durationMinutes;
-        const slotEndMin = slotStartMin + durationMinutes;
-        const startTimeStr = formatClockTime(slotStartMin);
-        const endTimeStr = formatClockTime(slotEndMin);
-        const timeRangeStr = `${startTimeStr} - ${endTimeStr} WIB`;
-
+      const slots: ScheduleShiftSlotEntity[] = proj.slots.map((slot) => {
         let isAvailable = true;
         let status: ScheduleSlotStatus = 'AVAILABLE';
         let displayLabel = 'Tersedia';
         let conflictInfo: ScheduleSlotConflictInfoEntity | null = null;
 
-        if (isCuti) {
+        const selfSession = activeSessions.find((s) => {
+          if (s.practitionerId !== practitionerId) return false;
+          const sessStart = parseClockTime(s.startTime.slice(0, 5));
+          const sessEnd = parseClockTime(s.endTime.slice(0, 5));
+          return sessStart < slot.endMinutes && sessEnd > slot.startMinutes;
+        });
+
+        if (slot.closure?.category === 'LEAVE' || isCuti) {
           isAvailable = false;
           status = 'CLOSED_LEAVE';
           displayLabel = 'Cuti';
           conflictInfo = {
             type: 'LEAVE',
-            message: cutiReason || 'Dokter tercatat sedang cuti',
+            message:
+              slot.closure?.reasonText ||
+              cutiReason ||
+              'Dokter tercatat sedang cuti',
             practitionerId,
             practitionerName,
           };
-        } else {
-          // Check if target doctor has a session overlapping this slot
-          const selfSession = activeSessions.find((s) => {
-            if (s.practitionerId !== practitionerId) return false;
+        } else if (selfSession) {
+          isAvailable = false;
+          status = 'OCCUPIED_BY_SELF';
+          displayLabel = `Jadwal Anda (${selfSession.clinicRoom?.name || 'Ruangan'})`;
+          conflictInfo = {
+            type: 'SELF',
+            message: 'Anda telah memiliki jadwal pada jam ini',
+            sessionId: selfSession.id,
+            practitionerId,
+            practitionerName,
+            roomId: selfSession.roomId,
+            roomName: selfSession.clinicRoom?.name,
+          };
+        } else if (query.roomId) {
+          // Check if another doctor is occupying this room
+          const otherSession = activeSessions.find((s) => {
+            if (s.roomId !== query.roomId) return false;
+            if (s.practitionerId === practitionerId) return false;
             const sessStart = parseClockTime(s.startTime.slice(0, 5));
             const sessEnd = parseClockTime(s.endTime.slice(0, 5));
-            return sessStart < slotEndMin && sessEnd > slotStartMin;
+            return sessStart < slot.endMinutes && sessEnd > slot.startMinutes;
           });
 
-          if (selfSession) {
+          if (otherSession) {
             isAvailable = false;
-            status = 'OCCUPIED_BY_SELF';
-            const roomLabel = selfSession.clinicRoom?.name
-              ? ` (${selfSession.clinicRoom.name})`
-              : '';
-            displayLabel = `Jadwal Anda${roomLabel}`;
+            status = 'OCCUPIED_BY_OTHER';
+            const otherDoctorName =
+              otherSession.practitioner?.staffProfile?.fullName ||
+              otherSession.practitioner?.displayName ||
+              'Dokter lain';
+            const roomName =
+              otherSession.clinicRoom?.name || targetRoomName || 'Ruangan';
+            displayLabel = `Terisi (${otherDoctorName} - ${roomName})`;
             conflictInfo = {
-              type: 'SELF',
-              message: 'Anda sudah memiliki jadwal di jam ini',
-              sessionId: selfSession.id,
-              practitionerId,
-              practitionerName,
-              roomId: selfSession.roomId,
-              roomName: selfSession.clinicRoom?.name || null,
+              type: 'OTHER',
+              message: `Ruangan telah digunakan oleh ${otherDoctorName}`,
+              sessionId: otherSession.id,
+              practitionerId: otherSession.practitionerId,
+              practitionerName: otherDoctorName,
+              roomId: otherSession.roomId,
+              roomName,
             };
-          } else if (query.roomId) {
-            // Check if another doctor is occupying this room
-            const otherSession = activeSessions.find((s) => {
-              if (s.roomId !== query.roomId) return false;
-              if (s.practitionerId === practitionerId) return false;
-              const sessStart = parseClockTime(s.startTime.slice(0, 5));
-              const sessEnd = parseClockTime(s.endTime.slice(0, 5));
-              return sessStart < slotEndMin && sessEnd > slotStartMin;
-            });
-
-            if (otherSession) {
-              isAvailable = false;
-              status = 'OCCUPIED_BY_OTHER';
-              const otherDoctorName =
-                otherSession.practitioner?.staffProfile?.fullName ||
-                otherSession.practitioner?.displayName ||
-                'Dokter lain';
-              const roomName =
-                otherSession.clinicRoom?.name || targetRoomName || 'Ruangan';
-              displayLabel = `Terisi (${otherDoctorName} - ${roomName})`;
-              conflictInfo = {
-                type: 'OTHER',
-                message: `Ruangan telah digunakan oleh ${otherDoctorName}`,
-                sessionId: otherSession.id,
-                practitionerId: otherSession.practitionerId,
-                practitionerName: otherDoctorName,
-                roomId: otherSession.roomId,
-                roomName,
-              };
-            }
           }
         }
 
-        slots.push({
-          slotIndex: i + 1,
-          startTime: startTimeStr,
-          endTime: endTimeStr,
-          timeRange: timeRangeStr,
+        return {
+          slotIndex: slot.slotIndex,
+          startTime: slot.startTime,
+          endTime: slot.endTime,
+          timeRange: slot.timeRange,
           isAvailable,
           status,
           displayLabel,
           conflictInfo,
-        });
-      }
+        };
+      });
 
-      const availableSlotsCount = slots.filter((s) => s.isAvailable).length;
-      const occupiedSlotsCount = totalSlots - availableSlotsCount;
+      const shiftAvailableCount = slots.filter((s) => s.isAvailable).length;
+      const shiftOccupiedCount = slots.filter((s) => !s.isAvailable).length;
 
       shifts.push({
         contextId: ctxDef.contextId,
@@ -2184,9 +2183,9 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
         timeRange: `${ctxDef.boundaryStartTime} - ${ctxDef.boundaryEndTime} WIB`,
         boundaryStartTime: ctxDef.boundaryStartTime,
         boundaryEndTime: ctxDef.boundaryEndTime,
-        totalSlots,
-        availableSlotsCount,
-        occupiedSlotsCount,
+        totalSlots: slots.length,
+        availableSlotsCount: shiftAvailableCount,
+        occupiedSlotsCount: shiftOccupiedCount,
         slots,
       });
     }
@@ -2196,7 +2195,10 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
       (acc, s) => acc + s.availableSlotsCount,
       0,
     );
-    const occupiedSlots = totalSlots - availableSlots;
+    const occupiedSlots = shifts.reduce(
+      (acc, s) => acc + s.occupiedSlotsCount,
+      0,
+    );
 
     return {
       date: query.date,
@@ -2371,37 +2373,50 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
 
     const [targetYear, targetMonth] = targetDate.split('-').map(Number);
 
-    const [pracs, allDaySettings, allActiveLeaves, allSessions] =
-      await Promise.all([
-        this.db.query.practitioners.findMany({
-          with: {
-            staffProfile: {
-              with: {
-                clinicUnit: true,
-              },
+    const [
+      pracs,
+      allDaySettings,
+      allActiveLeaves,
+      allSessions,
+      allAppointments,
+      clinicPolicy,
+    ] = await Promise.all([
+      this.db.query.practitioners.findMany({
+        with: {
+          staffProfile: {
+            with: {
+              clinicUnit: true,
             },
-            medicalSpecialty: true,
-            clinicRoom: true,
           },
-          orderBy: [asc(practitioners.displayName)],
-        }),
-        this.db.query.practitionerScheduleDaySettings.findMany({
-          where: eq(practitionerScheduleDaySettings.scheduleDate, targetDate),
-        }),
-        this.db.query.practitionerLeavePeriods.findMany({
-          where: and(
-            lte(practitionerLeavePeriods.startDate, targetDate),
-            gte(practitionerLeavePeriods.endDate, targetDate),
-          ),
-        }),
-        this.db.query.practitionerScheduleSessions.findMany({
-          where: eq(practitionerScheduleSessions.scheduleDate, targetDate),
-          with: {
-            clinicRoom: true,
-          },
-          orderBy: [asc(practitionerScheduleSessions.startTime)],
-        }),
-      ]);
+          medicalSpecialty: true,
+          clinicRoom: true,
+        },
+        orderBy: [asc(practitioners.displayName)],
+      }),
+      this.db.query.practitionerScheduleDaySettings.findMany({
+        where: eq(practitionerScheduleDaySettings.scheduleDate, targetDate),
+      }),
+      this.db.query.practitionerLeavePeriods.findMany({
+        where: and(
+          lte(practitionerLeavePeriods.startDate, targetDate),
+          gte(practitionerLeavePeriods.endDate, targetDate),
+        ),
+      }),
+      this.db.query.practitionerScheduleSessions.findMany({
+        where: eq(practitionerScheduleSessions.scheduleDate, targetDate),
+        with: {
+          clinicRoom: true,
+        },
+        orderBy: [asc(practitionerScheduleSessions.startTime)],
+      }),
+      this.db.query.appointments.findMany({
+        where: and(
+          eq(appointments.scheduledDate, targetDate),
+          not(inArray(appointments.status, ['cancelled', 'no_show'])),
+        ),
+      }),
+      this.getClinicSchedulePolicy(),
+    ]);
 
     const cards: AdminDoctorScheduleCardEntity[] = [];
 
@@ -2426,48 +2441,72 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
         : 'Belum Ditentukan';
 
       const sesiHarian: AdminDoctorDailySession[] = sessions.map((s) => {
-        const shift = s.sessionShift;
-        const sessionLabel =
-          s.sessionLabel ||
-          (shift === 'afternoon'
-            ? 'Sesi Sore'
-            : shift === 'night'
-              ? 'Sesi Malam'
-              : shift === 'early_morning'
-                ? 'Shift Dini Hari'
-                : 'Sesi Pagi');
         const jamMulai = s.startTime ? s.startTime.slice(0, 5) : '08:00';
         const jamSelesai = s.endTime ? s.endTime.slice(0, 5) : '12:00';
-        const capacity = s.capacity ?? 8;
-        const availableSlots = isCuti ? 0 : (s.availableSlots ?? capacity);
+        const sessStart = s.startTime
+          ? s.startTime.length === 5
+            ? `${s.startTime}:00`
+            : s.startTime
+          : '08:00:00';
+        const sessEnd = s.endTime
+          ? s.endTime.length === 5
+            ? `${s.endTime}:00`
+            : s.endTime
+          : '12:00:00';
+
+        const matchingAppts = allAppointments.filter((a) => {
+          if (a.scheduleSessionId && a.scheduleSessionId === s.id) return true;
+          if (a.practitionerId !== s.practitionerId) return false;
+          const aStart =
+            a.scheduledStartTime?.length === 5
+              ? `${a.scheduledStartTime}:00`
+              : a.scheduledStartTime || '08:00:00';
+          return aStart >= sessStart && aStart < sessEnd;
+        });
+
+        const durationMinutes =
+          p.consultationDurationMinutes || clinicPolicy.durationMinutes || 30;
+
+        const metrics = ScheduleSlotFactory.calculateSessionMetrics({
+          startTime: jamMulai,
+          endTime: jamSelesai,
+          durationMinutes,
+          persistedCapacity: s.capacity,
+          persistedAvailableSlots: s.availableSlots,
+          bookedCount: matchingAppts.length,
+          isCuti,
+          isClosed: s.status === 'closed',
+        });
+
         const roomName = s.clinicRoom
           ? `${s.clinicRoom.name}${s.clinicRoom.location ? `, ${s.clinicRoom.location}` : ''}`
           : defaultRoomName;
 
         const sessionOpStatus = this.toAdminSessionStatus(
           isCuti,
-          availableSlots,
+          metrics.availableSlots,
           s.status,
         );
         const statusSesi = sessionOpStatus;
 
         const isRescheduleEligible =
           !isCuti && sessionOpStatus !== ScheduleOperationalStatus.CLOSED;
-        const rescheduleIneligibilityReason =
-          isCuti
-            ? 'Sesi tidak dapat di-reschedule karena dokter sedang cuti.'
-            : sessionOpStatus === ScheduleOperationalStatus.CLOSED
-              ? 'Sesi berstatus Tutup. Sesi yang sudah ditutup tidak dapat di-reschedule. Silakan gunakan menu Edit Jadwal untuk membuka sesi.'
-              : null;
+        const rescheduleIneligibilityReason = isCuti
+          ? 'Sesi tidak dapat di-reschedule karena dokter sedang cuti.'
+          : sessionOpStatus === ScheduleOperationalStatus.CLOSED
+            ? 'Sesi berstatus Tutup. Sesi yang sudah ditutup tidak dapat di-reschedule. Silakan gunakan menu Edit Jadwal untuk membuka sesi.'
+            : null;
 
         return {
           id: s.id,
-          nama_sesi: sessionLabel,
+          nama_sesi: s.sessionLabel || metrics.sessionLabel,
           jam_mulai: jamMulai,
           jam_selesai: jamSelesai,
           waktu: `${jamMulai} - ${jamSelesai}`,
-          kuota_pasien: capacity,
-          slot_tersedia: availableSlots,
+          kuota_pasien: metrics.capacity,
+          slot_tersedia: metrics.availableSlots,
+          pasien_terdaftar: metrics.bookedCount,
+          display_slot: metrics.displaySlot,
           status_sesi: statusSesi,
           ruang: roomName,
           is_reschedule_eligible: isRescheduleEligible,
@@ -2475,11 +2514,7 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
         };
       });
 
-      const sessionOpStatuses = sessions.map((s) => {
-        const capacity = s.capacity ?? 8;
-        const availableSlots = isCuti ? 0 : (s.availableSlots ?? capacity);
-        return this.toAdminSessionStatus(isCuti, availableSlots, s.status);
-      });
+      const sessionOpStatuses = sesiHarian.map((s) => s.status_sesi);
 
       const totalCapacity =
         sesiHarian.length > 0
@@ -2488,6 +2523,9 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
       const totalAvailable = isCuti
         ? 0
         : sesiHarian.reduce((acc, s) => acc + s.slot_tersedia, 0);
+      const totalBooked = isCuti
+        ? 0
+        : sesiHarian.reduce((acc, s) => acc + s.pasien_terdaftar, 0);
 
       const aggregateOpStatus = this.toAdminAggregateStatus({
         isClosedForLeave: isCuti,
@@ -2509,7 +2547,7 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
         jadwalPraktikMendatang =
           sesiHarian.length === 0 ? 'Tidak Ada Jadwal' : 'Praktik Ditutup';
       } else {
-        slotTerisiAkumulasi = Math.max(0, totalCapacity - totalAvailable);
+        slotTerisiAkumulasi = totalBooked;
         slotKapasitasAkumulasi = totalCapacity;
         displayAkumulasiSlot = `${slotTerisiAkumulasi} / ${slotKapasitasAkumulasi}`;
         jadwalPraktikMendatang = this.computeUpcomingSchedule(
@@ -2686,7 +2724,13 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
     const startDate = `${targetYear}-${String(targetMonth).padStart(2, '0')}-01`;
     const endDate = `${targetYear}-${String(targetMonth).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
 
-    const [monthSettings, monthLeaves, monthSessions] = await Promise.all([
+    const [
+      monthSettings,
+      monthLeaves,
+      monthSessions,
+      monthAppointments,
+      clinicPolicy,
+    ] = await Promise.all([
       this.db.query.practitionerScheduleDaySettings.findMany({
         where: and(
           eq(practitionerScheduleDaySettings.practitionerId, prac.id),
@@ -2712,6 +2756,19 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
         },
         orderBy: [asc(practitionerScheduleSessions.startTime)],
       }),
+      this.db.query.appointments.findMany({
+        where: and(
+          eq(appointments.practitionerId, prac.id),
+          gte(appointments.scheduledDate, startDate),
+          lte(appointments.scheduledDate, endDate),
+          not(inArray(appointments.status, ['cancelled', 'no_show'])),
+        ),
+        with: {
+          patientProfile: true,
+          queueTickets: true,
+        },
+      }),
+      this.getClinicSchedulePolicy(),
     ]);
 
     const monthlySchedule: AdminDoctorMonthlyDayEntity[] = [];
@@ -2725,38 +2782,111 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
       const daySessions = monthSessions.filter(
         (s) => s.scheduleDate === dateStr,
       );
+      const dayAppts = monthAppointments.filter(
+        (a) => a.scheduledDate === dateStr,
+      );
 
       const isCuti = Boolean(daySetting?.isLeave || leave);
       let dayNotes: string | null = null;
 
-      const daySessionStatuses = daySessions.map((s) =>
-        this.toAdminSessionStatus(
+      const daySessionStatuses = daySessions.map((s) => {
+        const sessStart = s.startTime
+          ? s.startTime.length === 5
+            ? `${s.startTime}:00`
+            : s.startTime
+          : '08:00:00';
+        const sessEnd = s.endTime
+          ? s.endTime.length === 5
+            ? `${s.endTime}:00`
+            : s.endTime
+          : '12:00:00';
+
+        const matchingAppts = dayAppts.filter((a) => {
+          if (a.scheduleSessionId && a.scheduleSessionId === s.id) return true;
+          if (a.practitionerId !== s.practitionerId) return false;
+          const aStart =
+            a.scheduledStartTime?.length === 5
+              ? `${a.scheduledStartTime}:00`
+              : a.scheduledStartTime || '08:00:00';
+          return aStart >= sessStart && aStart < sessEnd;
+        });
+
+        const durationMinutes =
+          prac.consultationDurationMinutes ||
+          clinicPolicy.durationMinutes ||
+          30;
+
+        const metrics = ScheduleSlotFactory.calculateSessionMetrics({
+          startTime: s.startTime ? s.startTime.slice(0, 5) : '08:00',
+          endTime: s.endTime ? s.endTime.slice(0, 5) : '12:00',
+          durationMinutes,
+          persistedCapacity: s.capacity,
+          bookedCount: matchingAppts.length,
           isCuti,
-          isCuti ? 0 : (s.availableSlots ?? s.capacity ?? 8),
+          isClosed: s.status === 'closed',
+        });
+
+        return this.toAdminSessionStatus(
+          isCuti,
+          metrics.availableSlots,
           s.status,
-        ),
-      );
+        );
+      });
 
       const dayOpStatus = this.toAdminAggregateStatus({
         isClosedForLeave: isCuti,
         sessionStatuses: daySessionStatuses,
       });
 
+      let dayStatus: 'OPEN' | 'CLOSED' | 'CUTI' | 'EMPTY';
+      let statusLabel: string;
+      let badgeVariant: 'success' | 'danger' | 'warning' | 'neutral';
+
       if (isCuti) {
+        dayStatus = 'CUTI';
+        statusLabel = 'Cuti';
+        badgeVariant = 'warning';
         dayNotes = daySetting?.leaveReason || leave?.reason || 'Cuti Dokter';
       } else if (daySessions.length === 0) {
+        dayStatus = 'EMPTY';
+        statusLabel = 'Kosong';
+        badgeVariant = 'neutral';
         dayNotes = null;
       } else if (dayOpStatus === ScheduleOperationalStatus.CLOSED) {
+        dayStatus = 'CLOSED';
+        statusLabel = 'Tutup';
+        badgeVariant = 'danger';
         dayNotes = daySetting?.leaveReason || 'Jadwal ditutup oleh admin';
-      } else if (dayOpStatus === ScheduleOperationalStatus.OCCUPIED) {
-        dayNotes = 'Interval terisi oleh pasien reservasi';
+      } else {
+        dayStatus = 'OPEN';
+        statusLabel = 'Buka';
+        badgeVariant = 'success';
+        if (dayOpStatus === ScheduleOperationalStatus.OCCUPIED) {
+          dayNotes = 'Interval terisi oleh pasien reservasi';
+        }
       }
+
+      const dayActiveSessions = daySessions.filter(
+        (s) => s.status !== 'closed',
+      ).length;
+      const dayTotalCapacity = daySessions.reduce(
+        (acc, s) => acc + (s.capacity ?? 0),
+        0,
+      );
+      const dayBookedPatients = dayAppts.length;
 
       monthlySchedule.push({
         day: d,
         date: dateStr,
         status: dayOpStatus,
         notes: dayNotes,
+        dayStatus,
+        statusLabel,
+        badgeVariant,
+        activeSessions: dayActiveSessions,
+        totalCapacity: dayTotalCapacity,
+        bookedPatients: dayBookedPatients,
+        isClickable: true,
       });
     }
 
@@ -2778,6 +2908,9 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
     const evalSessions = monthSessions.filter(
       (s) => s.scheduleDate === evalDate,
     );
+    const evalAppts = monthAppointments.filter(
+      (a) => a.scheduledDate === evalDate,
+    );
 
     const isEvalCuti = Boolean(evalDaySetting?.isLeave || evalLeave);
     const evalCutiReason = isEvalCuti
@@ -2791,57 +2924,81 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
       ? `${prac.clinicRoom.name}${prac.clinicRoom.location ? `, ${prac.clinicRoom.location}` : ''}`
       : 'Belum Ditentukan';
 
-    const evalSessionOpStatuses = evalSessions.map((s) => {
-      const capacity = s.capacity ?? 8;
-      const availableSlots = isEvalCuti ? 0 : (s.availableSlots ?? capacity);
-      return this.toAdminSessionStatus(isEvalCuti, availableSlots, s.status);
-    });
-
-    const sesiHarian: AdminDoctorDailySession[] = evalSessions.map((s, idx) => {
-      const shift = s.sessionShift;
-      const sessionLabel =
-        s.sessionLabel ||
-        (shift === 'afternoon'
-          ? 'Sesi Sore'
-          : shift === 'night'
-            ? 'Sesi Malam'
-            : shift === 'early_morning'
-              ? 'Shift Dini Hari'
-              : 'Sesi Pagi');
+    const sesiHarian: AdminDoctorDailySession[] = evalSessions.map((s) => {
       const jamMulai = s.startTime ? s.startTime.slice(0, 5) : '08:00';
       const jamSelesai = s.endTime ? s.endTime.slice(0, 5) : '12:00';
-      const capacity = s.capacity ?? 8;
-      const availableSlots = isEvalCuti ? 0 : (s.availableSlots ?? capacity);
+      const sessStart = s.startTime
+        ? s.startTime.length === 5
+          ? `${s.startTime}:00`
+          : s.startTime
+        : '08:00:00';
+      const sessEnd = s.endTime
+        ? s.endTime.length === 5
+          ? `${s.endTime}:00`
+          : s.endTime
+        : '12:00:00';
+
+      const matchingAppts = evalAppts.filter((a) => {
+        if (a.scheduleSessionId && a.scheduleSessionId === s.id) return true;
+        if (a.practitionerId !== s.practitionerId) return false;
+        const aStart =
+          a.scheduledStartTime?.length === 5
+            ? `${a.scheduledStartTime}:00`
+            : a.scheduledStartTime || '08:00:00';
+        return aStart >= sessStart && aStart < sessEnd;
+      });
+
+      const durationMinutes =
+        prac.consultationDurationMinutes || clinicPolicy.durationMinutes || 30;
+
+      const metrics = ScheduleSlotFactory.calculateSessionMetrics({
+        startTime: jamMulai,
+        endTime: jamSelesai,
+        durationMinutes,
+        persistedCapacity: s.capacity,
+        persistedAvailableSlots: s.availableSlots,
+        bookedCount: matchingAppts.length,
+        isCuti: isEvalCuti,
+        isClosed: s.status === 'closed',
+      });
+
       const roomName = s.clinicRoom
         ? `${s.clinicRoom.name}${s.clinicRoom.location ? `, ${s.clinicRoom.location}` : ''}`
         : defaultRoomName;
 
-      const sessionOpStatus = evalSessionOpStatuses[idx];
+      const sessionOpStatus = this.toAdminSessionStatus(
+        isEvalCuti,
+        metrics.availableSlots,
+        s.status,
+      );
       const statusSesi = sessionOpStatus;
 
       const isRescheduleEligible =
         !isEvalCuti && sessionOpStatus !== ScheduleOperationalStatus.CLOSED;
-      const rescheduleIneligibilityReason =
-        isEvalCuti
-          ? 'Sesi tidak dapat di-reschedule karena dokter sedang cuti.'
-          : sessionOpStatus === ScheduleOperationalStatus.CLOSED
-            ? 'Sesi berstatus Tutup. Sesi yang sudah ditutup tidak dapat di-reschedule. Silakan gunakan menu Edit Jadwal untuk membuka sesi.'
-            : null;
+      const rescheduleIneligibilityReason = isEvalCuti
+        ? 'Sesi tidak dapat di-reschedule karena dokter sedang cuti.'
+        : sessionOpStatus === ScheduleOperationalStatus.CLOSED
+          ? 'Sesi berstatus Tutup. Sesi yang sudah ditutup tidak dapat di-reschedule. Silakan gunakan menu Edit Jadwal untuk membuka sesi.'
+          : null;
 
       return {
         id: s.id,
-        nama_sesi: sessionLabel,
+        nama_sesi: s.sessionLabel || metrics.sessionLabel,
         jam_mulai: jamMulai,
         jam_selesai: jamSelesai,
         waktu: `${jamMulai} - ${jamSelesai}`,
-        kuota_pasien: capacity,
-        slot_tersedia: availableSlots,
+        kuota_pasien: metrics.capacity,
+        slot_tersedia: metrics.availableSlots,
+        pasien_terdaftar: metrics.bookedCount,
+        display_slot: metrics.displaySlot,
         status_sesi: statusSesi,
         ruang: roomName,
         is_reschedule_eligible: isRescheduleEligible,
         reschedule_ineligibility_reason: rescheduleIneligibilityReason,
       };
     });
+
+    const evalSessionOpStatuses = sesiHarian.map((s) => s.status_sesi);
 
     const totalCapacity =
       sesiHarian.length > 0
@@ -2860,19 +3017,249 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
       evalAggregateOpStatus === ScheduleOperationalStatus.CLOSED;
     const statusDokter = evalAggregateOpStatus;
 
-    const timelineIntervals = (
-      await Promise.all(
-        evalSessions.map(async (session) => {
-          const projection = await this.buildProjectionForSession(
-            session.id,
-            true,
-          );
-          return projection.intervals;
-        }),
+    // Query closures and reschedule events for evalDate
+    const [evalClosures, evalReschedules] = await Promise.all([
+      this.db.query.practitionerScheduleClosures?.findMany
+        ? this.db.query.practitionerScheduleClosures.findMany({
+            where: and(
+              eq(practitionerScheduleClosures.practitionerId, prac.id),
+              eq(practitionerScheduleClosures.scheduleDate, evalDate),
+            ),
+          })
+        : Promise.resolve([]),
+      this.db.query.scheduleRescheduleEvents?.findMany
+        ? this.db.query.scheduleRescheduleEvents.findMany({
+            where: and(
+              eq(scheduleRescheduleEvents.practitionerId, prac.id),
+              or(
+                eq(scheduleRescheduleEvents.targetDate, evalDate),
+                eq(scheduleRescheduleEvents.sourceDate, evalDate),
+              ),
+            ),
+          })
+        : Promise.resolve([]),
+    ]);
+
+    const contextProjections = SCHEDULE_CONTEXT_DEFINITIONS.map((ctxDef) => {
+      return ScheduleSlotStateResolver.resolveContextProjection({
+        scheduleDate: evalDate,
+        context: ctxDef,
+        intervalMinutes:
+          prac.consultationDurationMinutes ||
+          clinicPolicy.durationMinutes ||
+          30,
+        openedRanges: evalSessions.map((s) => ({
+          id: s.id,
+          startTime: s.startTime ? s.startTime.slice(0, 5) : '08:00',
+          endTime: s.endTime ? s.endTime.slice(0, 5) : '12:00',
+          status: s.status,
+          sessionShift: s.sessionShift || undefined,
+          notes: s.notes,
+        })),
+        appointments: evalAppts.map((a) => ({
+          id: a.id,
+          bookingCode: a.bookingCode || undefined,
+          patientId: a.patientId,
+          patientName: a.patientProfile?.fullName || undefined,
+          startTime: a.scheduledStartTime
+            ? a.scheduledStartTime.slice(0, 5)
+            : '08:00',
+          endTime: a.scheduledEndTime ? a.scheduledEndTime.slice(0, 5) : null,
+          status: a.status,
+          queueNumber: a.queueTickets?.[0]?.queueNumber || null,
+        })),
+        leavePeriods: evalLeave
+          ? [
+              {
+                id: evalLeave.id,
+                startDate: evalLeave.startDate,
+                endDate: evalLeave.endDate,
+                reason: evalLeave.reason,
+              },
+            ]
+          : evalDaySetting?.isLeave
+            ? [
+                {
+                  id: evalDaySetting.id,
+                  startDate: evalDate,
+                  endDate: evalDate,
+                  reason: evalDaySetting.leaveReason || 'Cuti Dokter',
+                },
+              ]
+            : [],
+        closures: evalClosures.map((c) => ({
+          id: c.id,
+          scheduleDate: c.scheduleDate,
+          scope: c.scope as any,
+          contextCode: c.contextCode,
+          startTime: c.startTime ? c.startTime.slice(0, 5) : null,
+          endTime: c.endTime ? c.endTime.slice(0, 5) : null,
+          category: 'OTHER',
+          reasonCode: c.reasonCode,
+          reasonText: c.reasonText,
+        })),
+        rescheduleEvents: evalReschedules.map((r) => ({
+          id: r.id,
+          scheduleSessionId: r.scheduleSessionId,
+          sourceDate: r.sourceDate,
+          sourceStartTime: r.sourceStartTime.slice(0, 5),
+          sourceEndTime: r.sourceEndTime.slice(0, 5),
+          sourceRoomId: r.sourceRoomId,
+          targetDate: r.targetDate,
+          targetStartTime: r.targetStartTime.slice(0, 5),
+          targetEndTime: r.targetEndTime.slice(0, 5),
+          targetRoomId: r.targetRoomId,
+          reasonCode: r.reasonCode,
+          reasonText: r.reasonText,
+        })),
+      });
+    });
+
+    const timelineIntervals = contextProjections
+      .flatMap((cp) =>
+        cp.slots.map((slot) => ({
+          intervalId: slot.intervalId,
+          slotId: slot.slotId,
+          intervalIndex: slot.slotIndex,
+          slotIndex: slot.slotIndex,
+          timeStart: slot.startTime,
+          timeEnd: slot.endTime,
+          startTime: slot.startTime,
+          endTime: slot.endTime,
+          status: (slot.effectiveStatus === 'AVAILABLE'
+            ? 'OPEN'
+            : slot.effectiveStatus === 'OCCUPIED'
+              ? 'OCCUPIED'
+              : 'CLOSED') as 'OPEN' | 'OCCUPIED' | 'CLOSED',
+          displayLabel: (slot.effectiveStatus === 'AVAILABLE'
+            ? 'Buka'
+            : slot.effectiveStatus === 'OCCUPIED'
+              ? 'Terisi'
+              : slot.effectiveStatus === 'EXPIRED'
+                ? 'Kadaluarsa'
+                : slot.effectiveStatus === 'CLOSED'
+                  ? 'Tutup'
+                  : 'Belum Terisi') as 'Buka' | 'Terisi' | 'Tutup',
+          isOccupied: slot.availabilityState === 'OCCUPIED',
+          appointmentRef: slot.appointment
+            ? {
+                appointmentId: slot.appointment.id,
+                queueNumber: slot.appointment.queueNumber ?? null,
+                status: slot.appointment.status ?? null,
+              }
+            : undefined,
+          closedReason: slot.closure
+            ? slot.closure.category === 'LEAVE'
+              ? ('LEAVE' as const)
+              : ('SCHEDULE_CLOSED' as const)
+            : undefined,
+          // Multi-dimensional states:
+          temporalState: slot.temporalState,
+          availabilityState: slot.availabilityState,
+          effectiveStatus: slot.effectiveStatus,
+          isSelectable: slot.isSelectable,
+          timeRange: slot.timeRange,
+
+          // UI-Ready Attributes (Plug & Play)
+          uiStatus: slot.uiStatus,
+          uiLabel: slot.uiLabel,
+          uiSubLabel: slot.uiSubLabel,
+          uiVariant: slot.uiVariant,
+          isClickable: slot.isClickable,
+          actionType: slot.actionType,
+          sessionId: slot.sessionId,
+          patientInfo: slot.patientInfo,
+          rescheduleInfo: slot.rescheduleInfo,
+          closureInfo: slot.closureInfo,
+
+          closure: slot.closure,
+          appointment: slot.appointment,
+          reschedule: slot.reschedule,
+        })),
       )
-    )
-      .flat()
       .sort((a, b) => a.startTime.localeCompare(b.startTime));
+
+    const totalDayTheoreticalSlots = contextProjections.reduce(
+      (acc, cp) => acc + (cp.metrics?.totalSlots ?? cp.counts.total),
+      0,
+    );
+    const totalDayScheduledSlots = contextProjections.reduce(
+      (acc, cp) =>
+        acc +
+        (cp.metrics?.scheduledSlots ??
+          cp.counts.available + cp.counts.occupied + cp.counts.closed),
+      0,
+    );
+    const totalDayUnscheduledSlots = contextProjections.reduce(
+      (acc, cp) =>
+        acc + (cp.metrics?.unscheduledSlots ?? cp.counts.unscheduled),
+      0,
+    );
+    const totalDayAvailableSlots = contextProjections.reduce(
+      (acc, cp) => acc + (cp.metrics?.availableSlots ?? cp.counts.available),
+      0,
+    );
+    const totalDayCompletedSlots = timelineIntervals.filter(
+      (s) => s.uiStatus === 'COMPLETED',
+    ).length;
+    const totalDayOccupiedSlots = contextProjections.reduce(
+      (acc, cp) => acc + (cp.metrics?.occupiedSlots ?? cp.counts.occupied),
+      0,
+    );
+    const totalDayClosedSlots = contextProjections.reduce(
+      (acc, cp) => acc + (cp.metrics?.closedSlots ?? cp.counts.closed),
+      0,
+    );
+    const totalDayActiveBookableSlots =
+      totalDayAvailableSlots + totalDayOccupiedSlots;
+    const dayOccupancyPercentage =
+      totalDayActiveBookableSlots > 0
+        ? Number(
+            (
+              (totalDayOccupiedSlots / totalDayActiveBookableSlots) *
+              100
+            ).toFixed(2),
+          )
+        : 0;
+    const dayCoveragePercentage =
+      totalDayTheoreticalSlots > 0
+        ? Number(
+            ((totalDayScheduledSlots / totalDayTheoreticalSlots) * 100).toFixed(
+              2,
+            ),
+          )
+        : 0;
+
+    const dayMetrics = {
+      totalSlots: totalDayTheoreticalSlots,
+      totalDaySlots: totalDayTheoreticalSlots,
+      scheduledSlots: totalDayScheduledSlots,
+      unscheduledSlots: totalDayUnscheduledSlots,
+      availableSlots: totalDayAvailableSlots,
+      completedSlots: totalDayCompletedSlots,
+      occupiedSlots: totalDayOccupiedSlots,
+      closedSlots: totalDayClosedSlots,
+      activeBookableSlots: totalDayActiveBookableSlots,
+      occupancy: {
+        occupied: totalDayOccupiedSlots,
+        capacity: totalDayActiveBookableSlots,
+        percentage: dayOccupancyPercentage,
+        displayText: `Okupansi Pasien: ${totalDayOccupiedSlots}/${totalDayActiveBookableSlots} Slot (${dayOccupancyPercentage}%)`,
+      },
+      patientOccupancy: {
+        occupied: totalDayOccupiedSlots,
+        capacity: totalDayActiveBookableSlots,
+        percentage: dayOccupancyPercentage,
+        displayText: `Okupansi Pasien: ${totalDayOccupiedSlots}/${totalDayActiveBookableSlots} Slot (${dayOccupancyPercentage}%)`,
+      },
+      scheduleCoverage: {
+        scheduled: totalDayScheduledSlots,
+        total: totalDayTheoreticalSlots,
+        percentage: dayCoveragePercentage,
+        displayText: `Cakupan Jadwal: ${totalDayScheduledSlots}/${totalDayTheoreticalSlots} Slot (${dayCoveragePercentage}%)`,
+      },
+      unscheduledNotice: `${totalDayUnscheduledSlots} slot belum dijadwalkan`,
+    };
 
     return {
       success: true,
@@ -2901,6 +3288,10 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
         monthly_schedule: monthlySchedule,
         sesi_harian: sesiHarian,
         timeline_intervals: timelineIntervals,
+        shifts: contextProjections,
+        context_projections: contextProjections,
+        metrics: dayMetrics,
+        summary: dayMetrics,
       },
     };
   }
@@ -3021,9 +3412,7 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
 
     // 2. Schedule status override
     if (body.status_jadwal) {
-      const requestedStatus = toAdminScheduleStatusRequest(
-        body.status_jadwal,
-      );
+      const requestedStatus = toAdminScheduleStatusRequest(body.status_jadwal);
       if (!requestedStatus) {
         throw new BadRequestException({
           code: 'INVALID_SCHEDULE_STATUS',
@@ -3409,16 +3798,9 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
     // Determine target schedule context ID
     let targetContextId = body.targetScheduleContextId;
     if (!targetContextId) {
-      const startMin = parseClockTime(body.targetStartTime);
-      if (startMin >= 0 && startMin < 360) {
-        targetContextId = 'early_morning';
-      } else if (startMin >= 360 && startMin < 720) {
-        targetContextId = 'morning';
-      } else if (startMin >= 720 && startMin < 1020) {
-        targetContextId = 'afternoon';
-      } else {
-        targetContextId = 'night';
-      }
+      targetContextId = ScheduleSlotFactory.resolveShiftFromClockTime(
+        body.targetStartTime,
+      ).contextId;
     }
 
     const context = this.resolveScheduleContext(targetContextId);
@@ -3471,10 +3853,25 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
       sessionId,
     );
 
-    // Fetch active appointments attached to this session
+    const sessStart =
+      session.startTime.length === 5
+        ? `${session.startTime}:00`
+        : session.startTime;
+    const sessEnd =
+      session.endTime.length === 5 ? `${session.endTime}:00` : session.endTime;
+
+    // Fetch active appointments attached to this session (FK or doctor+date+time window)
     const activeAppointments = await this.db.query.appointments.findMany({
       where: and(
-        eq(appointments.scheduleSessionId, sessionId),
+        or(
+          eq(appointments.scheduleSessionId, sessionId),
+          and(
+            eq(appointments.practitionerId, practitioner.id),
+            eq(appointments.scheduledDate, session.scheduleDate),
+            gte(appointments.scheduledStartTime, sessStart),
+            lt(appointments.scheduledStartTime, sessEnd),
+          ),
+        ),
         inArray(appointments.status, [
           'booked',
           'checked_in',
@@ -3512,6 +3909,7 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
           await tx
             .update(appointments)
             .set({
+              scheduleSessionId: sessionId,
               scheduledDate: body.targetDate,
               scheduledStartTime: `${apptStartTime}:00`,
               scheduledEndTime: `${apptEndTime}:00`,
@@ -3560,7 +3958,10 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
         await tx.query.practitionerScheduleSessions.findMany({
           where: and(
             eq(practitionerScheduleSessions.practitionerId, practitioner.id),
-            eq(practitionerScheduleSessions.scheduleDate, previousSchedule.date),
+            eq(
+              practitionerScheduleSessions.scheduleDate,
+              previousSchedule.date,
+            ),
             eq(
               practitionerScheduleSessions.status,
               SchedulePersistenceStatus.OPEN,
@@ -3653,6 +4054,13 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
     }
 
     const sourceDate = session.scheduleDate;
+    const sessStart =
+      session.startTime.length === 5
+        ? `${session.startTime}:00`
+        : session.startTime;
+    const sessEnd =
+      session.endTime.length === 5 ? `${session.endTime}:00` : session.endTime;
+
     const [sourceDaySetting, sourceLeave, activeAppts] = await Promise.all([
       this.db.query.practitionerScheduleDaySettings.findFirst({
         where: and(
@@ -3669,7 +4077,15 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
       }),
       this.db.query.appointments.findMany({
         where: and(
-          eq(appointments.scheduleSessionId, sessionId),
+          or(
+            eq(appointments.scheduleSessionId, sessionId),
+            and(
+              eq(appointments.practitionerId, practitioner.id),
+              eq(appointments.scheduledDate, sourceDate),
+              gte(appointments.scheduledStartTime, sessStart),
+              lt(appointments.scheduledStartTime, sessEnd),
+            ),
+          ),
           inArray(appointments.status, [
             'booked',
             'checked_in',
@@ -3732,7 +4148,7 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
       rejectionReason,
     };
 
-    let targetValidation = {
+    const targetValidation = {
       evaluated: false,
       targetDate: query.targetDate || null,
       targetStartTime: query.targetStartTime || null,
@@ -3748,17 +4164,10 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
     if (query.targetDate && query.targetStartTime) {
       targetValidation.evaluated = true;
 
-      let targetContextId: string;
+      const targetContextId = ScheduleSlotFactory.resolveShiftFromClockTime(
+        query.targetStartTime,
+      ).contextId;
       const startMin = parseClockTime(query.targetStartTime);
-      if (startMin >= 0 && startMin < 360) {
-        targetContextId = 'early_morning';
-      } else if (startMin >= 360 && startMin < 720) {
-        targetContextId = 'morning';
-      } else if (startMin >= 720 && startMin < 1020) {
-        targetContextId = 'afternoon';
-      } else {
-        targetContextId = 'night';
-      }
 
       const sessionDurationMinutes =
         parseClockTime(session.endTime) - parseClockTime(session.startTime);
@@ -4128,7 +4537,24 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
       throw new NotFoundException(`Sesi jadwal praktik tidak ditemukan`);
     }
 
-    const conditions: any[] = [eq(appointments.scheduleSessionId, sessionId)];
+    const sessStart =
+      session.startTime.length === 5
+        ? `${session.startTime}:00`
+        : session.startTime;
+    const sessEnd =
+      session.endTime.length === 5 ? `${session.endTime}:00` : session.endTime;
+
+    const sessionMatchCondition = or(
+      eq(appointments.scheduleSessionId, sessionId),
+      and(
+        eq(appointments.practitionerId, practitioner.id),
+        eq(appointments.scheduledDate, session.scheduleDate),
+        gte(appointments.scheduledStartTime, sessStart),
+        lt(appointments.scheduledStartTime, sessEnd),
+      ),
+    );
+
+    const conditions: any[] = [sessionMatchCondition];
 
     if (query.status && query.status !== 'all') {
       if (query.status === 'waiting') {
@@ -4157,6 +4583,21 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
         clinicRoom: true,
       },
     });
+
+    // Auto-heal: backfill scheduleSessionId for unlinked appointments
+    const unlinkedApptIds = aptRecords
+      .filter((a) => !a.scheduleSessionId)
+      .map((a) => a.id);
+
+    if (unlinkedApptIds.length > 0) {
+      await this.db
+        .update(appointments)
+        .set({
+          scheduleSessionId: session.id,
+          updatedAt: new Date().toISOString(),
+        })
+        .where(inArray(appointments.id, unlinkedApptIds));
+    }
 
     let mappedPatients: AdminSessionPatientItem[] = aptRecords.map((apt) => {
       let ageStr = '-';

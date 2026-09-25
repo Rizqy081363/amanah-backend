@@ -2946,3 +2946,116 @@ export const supportTicketAttachments = pgTable(
     }),
   ],
 );
+
+export const clinicSchedulePolicies = pgTable(
+  'clinic_schedule_policies',
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    code: text().default('default').notNull(),
+    defaultConsultationDurationMinutes: integer(
+      'default_consultation_duration_minutes',
+    )
+      .default(30)
+      .notNull(),
+    defaultStartPrecisionMinutes: integer('default_start_precision_minutes')
+      .default(1)
+      .notNull(),
+    earlyMorningStart: text('early_morning_start').default('00:00').notNull(),
+    earlyMorningEnd: text('early_morning_end').default('06:00').notNull(),
+    morningStart: text('morning_start').default('06:00').notNull(),
+    morningEnd: text('morning_end').default('12:00').notNull(),
+    afternoonStart: text('afternoon_start').default('12:00').notNull(),
+    afternoonEnd: text('afternoon_end').default('18:00').notNull(),
+    nightStart: text('night_start').default('18:00').notNull(),
+    nightEnd: text('night_end').default('24:00').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    unique('clinic_schedule_policies_code_key').on(table.code),
+    check(
+      'clinic_schedule_policies_duration_positive',
+      sql`default_consultation_duration_minutes > 0`,
+    ),
+    check(
+      'clinic_schedule_policies_precision_positive',
+      sql`default_start_precision_minutes > 0`,
+    ),
+  ],
+);
+
+export const practitionerScheduleClosures = pgTable(
+  'practitioner_schedule_closures',
+  {
+    id: varchar({ length: 36 }).primaryKey().notNull(),
+    practitionerId: uuid('practitioner_id')
+      .notNull()
+      .references(() => practitioners.id, { onDelete: 'cascade' }),
+    scheduleDate: date('schedule_date').notNull(),
+    scope: varchar({ length: 20 }).default('INTERVAL').notNull(),
+    contextCode: varchar('context_code', { length: 30 }),
+    startTime: varchar('start_time', { length: 8 }),
+    endTime: varchar('end_time', { length: 8 }),
+    category: varchar({ length: 20 }).default('OTHER').notNull(),
+    reasonCode: varchar('reason_code', { length: 50 }).default('MANUAL').notNull(),
+    reasonText: text('reason_text'),
+    createdBy: uuid('created_by'),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+    cancelledAt: timestamp('cancelled_at', {
+      withTimezone: true,
+      mode: 'string',
+    }),
+  },
+  (table) => [
+    index('idx_schedule_closures_practitioner_date').on(
+      table.practitionerId,
+      table.scheduleDate,
+    ),
+  ],
+);
+
+export const scheduleRescheduleEvents = pgTable(
+  'schedule_reschedule_events',
+  {
+    id: varchar({ length: 36 }).primaryKey().notNull(),
+    scheduleSessionId: uuid('schedule_session_id'),
+    practitionerId: uuid('practitioner_id')
+      .notNull()
+      .references(() => practitioners.id, { onDelete: 'cascade' }),
+    sourceDate: date('source_date').notNull(),
+    sourceStartTime: varchar('source_start_time', { length: 8 }).notNull(),
+    sourceEndTime: varchar('source_end_time', { length: 8 }).notNull(),
+    sourceRoomId: uuid('source_room_id'),
+    targetDate: date('target_date').notNull(),
+    targetStartTime: varchar('target_start_time', { length: 8 }).notNull(),
+    targetEndTime: varchar('target_end_time', { length: 8 }).notNull(),
+    targetRoomId: uuid('target_room_id'),
+    reasonCode: varchar('reason_code', { length: 50 }),
+    reasonText: text('reason_text'),
+    movedAppointmentsCount: integer('moved_appointments_count')
+      .default(0)
+      .notNull(),
+    performedBy: uuid('performed_by'),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index('idx_schedule_reschedule_events_session').on(table.scheduleSessionId),
+    index('idx_schedule_reschedule_events_practitioner_date').on(
+      table.practitionerId,
+      table.targetDate,
+    ),
+  ],
+);
+
+

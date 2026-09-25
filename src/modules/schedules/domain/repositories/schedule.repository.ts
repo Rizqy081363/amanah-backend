@@ -1,17 +1,17 @@
 import { AdminDoctorScheduleDetailQueryDto } from '../../presentation/dto/admin-doctor-schedule-detail-query.dto';
 import { AdminDoctorSchedulesQueryDto } from '../../presentation/dto/admin-doctor-schedules-query.dto';
+import { CheckRescheduleEligibilityQueryDto } from '../../presentation/dto/check-reschedule-eligibility-query.dto';
 import { ClinicalPractitionersQueryDto } from '../../presentation/dto/clinical-practitioners-query.dto';
 import { CreateAdminDoctorSessionDto } from '../../presentation/dto/create-admin-doctor-session.dto';
 import { CreateAvailabilityDto } from '../../presentation/dto/create-availability.dto';
+import { GetAdminDoctorPatientsQueryDto } from '../../presentation/dto/get-admin-doctor-patients-query.dto';
+import { GetSessionPatientsQueryDto } from '../../presentation/dto/get-session-patients-query.dto';
 import { RescheduleAdminDoctorSessionDto } from '../../presentation/dto/reschedule-admin-doctor-session.dto';
 import { ScheduleOccupancyQueryDto } from '../../presentation/dto/schedule-occupancy-query.dto';
 import { ScheduleProjectionQueryDto } from '../../presentation/dto/schedule-projection-query.dto';
 import { UpdateAdminDoctorScheduleDto } from '../../presentation/dto/update-admin-doctor-schedule.dto';
 import { UpdateAdminDoctorSessionDto } from '../../presentation/dto/update-admin-doctor-session.dto';
-import { CheckRescheduleEligibilityQueryDto } from '../../presentation/dto/check-reschedule-eligibility-query.dto';
 import { UpdatePractitionerSchedulePolicyDto } from '../../presentation/dto/update-practitioner-schedule-policy.dto';
-import { GetSessionPatientsQueryDto } from '../../presentation/dto/get-session-patients-query.dto';
-import { GetAdminDoctorPatientsQueryDto } from '../../presentation/dto/get-admin-doctor-patients-query.dto';
 import {
   AdminDoctorAccumulatedPatientsResponse,
   AdminDoctorScheduleDetailResponse,
@@ -32,6 +32,7 @@ import {
 } from '../entities/schedule.entity';
 
 export const SCHEDULE_REPOSITORY = 'SCHEDULE_REPOSITORY';
+export const ScheduleRepository = Symbol('ScheduleRepository');
 
 export interface ScheduleRepository {
   create(

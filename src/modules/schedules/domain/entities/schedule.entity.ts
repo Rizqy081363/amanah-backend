@@ -35,6 +35,12 @@ export class ScheduleEntity {
   notes?: string | null;
   createdAt: Date;
   updatedAt: Date;
+  doctorId?: string;
+  practitionerId?: string;
+  isRescheduleEligible?: boolean;
+  is_reschedule_eligible?: boolean;
+  rescheduleIneligibilityReason?: string | null;
+  reschedule_ineligibility_reason?: string | null;
   version?: string;
 }
 
@@ -98,9 +104,9 @@ export class ClinicRoomReferenceEntity {
 
 export class ScheduleOptionsReferenceEntity {
   shifts: {
-    id: 'PAGI' | 'SIANG' | 'MALAM';
+    id: 'DINI_HARI' | 'PAGI' | 'SIANG' | 'MALAM' | string;
     label: string;
-    shift: 'morning' | 'afternoon' | 'night';
+    shift: 'early_morning' | 'morning' | 'afternoon' | 'night' | string;
     startTime: string;
     endTime: string;
   }[];
@@ -150,6 +156,48 @@ export class ScheduleProjectedIntervalEntity {
   isOccupied: boolean;
   appointmentRef?: ScheduleIntervalAppointmentRefEntity;
   closedReason?: 'LEAVE' | 'SCHEDULE_CLOSED' | 'OUTSIDE_BOUNDARY';
+  temporalState?: 'PAST' | 'CURRENT' | 'FUTURE';
+  availabilityState?: 'UNSCHEDULED' | 'AVAILABLE' | 'OCCUPIED' | 'CLOSED';
+  effectiveStatus?:
+    | 'EXPIRED'
+    | 'CLOSED'
+    | 'OCCUPIED'
+    | 'AVAILABLE'
+    | 'UNSCHEDULED';
+  isSelectable?: boolean;
+  timeRange?: string;
+  slotId?: string;
+  timeStart?: string;
+  timeEnd?: string;
+  uiStatus?:
+    | 'UNSCHEDULED_PAST'
+    | 'UNSCHEDULED'
+    | 'COMPLETED'
+    | 'AVAILABLE'
+    | 'OCCUPIED'
+    | 'RESCHEDULED'
+    | 'CLOSED_LEAVE'
+    | 'CLOSED_CLINIC';
+  uiLabel?: string;
+  uiSubLabel?: string;
+  uiVariant?:
+    | 'neutral_disabled'
+    | 'dashed_border'
+    | 'muted_gray'
+    | 'success_green'
+    | 'info_blue'
+    | 'warning_amber'
+    | 'sky_badge'
+    | 'danger_red';
+  isClickable?: boolean;
+  actionType?: 'NONE' | 'ADD_SESSION' | 'VIEW_SESSION' | 'VIEW_PATIENTS';
+  sessionId?: string | null;
+  patientInfo?: any | null;
+  rescheduleInfo?: any | null;
+  closureInfo?: any | null;
+  closure?: any;
+  appointment?: any;
+  reschedule?: any;
 }
 
 export class ScheduleShiftBoundaryEntity {
@@ -207,6 +255,20 @@ export class AdminDoctorDailySession {
 
   @ApiProperty({ description: 'Sisa kuota slot tersedia' })
   slot_tersedia: number;
+
+  @ApiProperty({
+    description:
+      'Jumlah pasien terdaftar pada sesi ini (dihitung riil dari appointment aktif oleh backend)',
+    example: 0,
+  })
+  pasien_terdaftar: number;
+
+  @ApiProperty({
+    description:
+      'Format display slot pasien terdaftar terhadap kuota sesi (misal: "0 / 10")',
+    example: '0 / 10',
+  })
+  display_slot: string;
 
   @ApiProperty({
     description: 'Canonical effective session status',
@@ -405,6 +467,35 @@ export class AdminDoctorMonthlyDayEntity {
 
   @ApiProperty({ nullable: true, type: String, example: null })
   notes: string | null;
+
+  @ApiProperty({
+    enum: ['OPEN', 'CLOSED', 'CUTI', 'EMPTY'],
+    example: 'OPEN',
+    required: false,
+  })
+  dayStatus?: 'OPEN' | 'CLOSED' | 'CUTI' | 'EMPTY';
+
+  @ApiProperty({ example: 'Buka', required: false })
+  statusLabel?: string;
+
+  @ApiProperty({
+    enum: ['success', 'danger', 'warning', 'neutral'],
+    example: 'success',
+    required: false,
+  })
+  badgeVariant?: 'success' | 'danger' | 'warning' | 'neutral';
+
+  @ApiProperty({ example: 2, required: false })
+  activeSessions?: number;
+
+  @ApiProperty({ example: 24, required: false })
+  totalCapacity?: number;
+
+  @ApiProperty({ example: 0, required: false })
+  bookedPatients?: number;
+
+  @ApiProperty({ example: true, required: false })
+  isClickable?: boolean;
 }
 
 export class AdminDoctorScheduleDetailData {
@@ -477,6 +568,33 @@ export class AdminDoctorScheduleDetailData {
     type: () => [ScheduleProjectedIntervalEntity],
   })
   timeline_intervals: ScheduleProjectedIntervalEntity[];
+
+  @ApiProperty({
+    description:
+      '4-shift 24-hour cycle projections with multi-dimensional states and counts',
+    required: false,
+  })
+  shifts?: any[];
+
+  @ApiProperty({
+    description: 'Context projections with multi-dimensional states and counts',
+    required: false,
+  })
+  context_projections?: any[];
+
+  @ApiProperty({
+    description:
+      'Whole-day aggregated slot projection metrics and dual indicators',
+    required: false,
+  })
+  metrics?: any;
+
+  @ApiProperty({
+    description:
+      'Whole-day aggregated slot projection metrics and dual indicators',
+    required: false,
+  })
+  summary?: any;
 }
 
 export class AdminDoctorScheduleDetailResponse {

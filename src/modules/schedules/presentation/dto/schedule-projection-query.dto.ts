@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
   IsInt,
@@ -53,6 +54,7 @@ export class ScheduleProjectionQueryDto {
     description: 'Jumlah slot sesi konsultasi yang ingin diproyeksikan.',
     example: 1,
   })
+  @Type(() => Number)
   @IsInt()
   @Min(1)
   @IsOptional()
@@ -63,6 +65,10 @@ export class ScheduleProjectionQueryDto {
       'Jika true, backend memproyeksikan seluruh interval hingga batas akhir shift.',
     example: false,
   })
+  @Transform(
+    ({ value }) =>
+      value === 'true' || value === true || value === 1 || value === '1',
+  )
   @IsBoolean()
   @IsOptional()
   fillShift?: boolean;

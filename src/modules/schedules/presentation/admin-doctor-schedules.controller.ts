@@ -122,7 +122,6 @@ export class AdminDoctorSchedulesController {
     return this.scheduleRepo.findAdminDoctorScheduleDetail(id, query);
   }
 
-  @Put(':id')
   @Patch(':id')
   @ApiOperation({
     summary: 'Memperbarui operasional jadwal dan status cuti dokter (Admin)',
@@ -144,6 +143,34 @@ export class AdminDoctorSchedulesController {
     description: 'Validasi form pembaruan jadwal gagal',
   })
   async updateDoctorSchedule(
+    @Param('id') id: string,
+    @Body() body: UpdateAdminDoctorScheduleDto,
+  ) {
+    return this.scheduleRepo.updateAdminDoctorSchedule(id, body);
+  }
+
+  @Put(':id')
+  @ApiOperation({
+    summary:
+      'Memperbarui operasional jadwal dan status cuti dokter via PUT (Admin)',
+    description:
+      'Menetapkan atau membatalkan cuti darurat, mengatur kapasitas pasien, slot, atau menutup praktik hari ini.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID unik dokter / praktisi medis',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
+  @ApiOkResponse({
+    description: 'Operasional jadwal dokter berhasil diperbarui',
+  })
+  @ApiNotFoundResponse({
+    description: 'Dokter tidak ditemukan',
+  })
+  @ApiUnprocessableEntityResponse({
+    description: 'Validasi form pembaruan jadwal gagal',
+  })
+  async updateDoctorSchedulePut(
     @Param('id') id: string,
     @Body() body: UpdateAdminDoctorScheduleDto,
   ) {
@@ -176,6 +203,7 @@ export class AdminDoctorSchedulesController {
   }
 
   @Patch(':id/days/:date')
+  @Roles('ADMIN', 'STAF')
   @ApiOperation({
     summary: 'Menyesuaikan status praktik untuk tanggal kalender tertentu',
     description:
@@ -301,6 +329,7 @@ export class AdminDoctorSchedulesController {
   }
 
   @Get(':id/sessions/:sessionId/reschedule-eligibility')
+  @Roles('ADMIN', 'STAF')
   @ApiOperation({
     summary:
       'Pengecekan pra-syarat (eligibility pre-check) sebelum reschedule sesi dokter (Admin)',
@@ -341,6 +370,7 @@ export class AdminDoctorSchedulesController {
   }
 
   @Post(':id/sessions/:sessionId/reschedule')
+  @Roles('ADMIN', 'STAF')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary:

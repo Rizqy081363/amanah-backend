@@ -391,7 +391,7 @@ export class SchedulesController {
     return this.scheduleRepo.getPolikliniks();
   }
 
-  @Get('reference/options')
+  @Get(['reference/options', 'options'])
   @Roles('ADMIN', 'STAF', 'PATIENT')
   @ApiOperation({
     summary:

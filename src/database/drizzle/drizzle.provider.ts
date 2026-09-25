@@ -11,6 +11,7 @@ import { DRIZZLE_SOURCE, POSTGRES_POOL } from './drizzle.constants';
 const schema = { ...tables, ...relations, ...outboxTables };
 
 export type DrizzleDatabase = NodePgDatabase<typeof schema>;
+export const DrizzleDatabase = Symbol('DrizzleDatabase');
 
 export const postgresPoolProvider: Provider = {
   provide: POSTGRES_POOL,

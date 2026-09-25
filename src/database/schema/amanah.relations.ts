@@ -30,9 +30,11 @@ import {
   permissions,
   practitionerAvailability,
   practitionerLeavePeriods,
+  practitionerScheduleClosures,
   practitionerScheduleDaySettings,
   practitionerScheduleSessions,
   practitioners,
+  scheduleRescheduleEvents,
   publicTestimonials,
   queueTickets,
   rolePermissions,
@@ -817,3 +819,28 @@ export const supportTicketAttachmentsRelations = relations(
     }),
   }),
 );
+
+export const practitionerScheduleClosuresRelations = relations(
+  practitionerScheduleClosures,
+  ({ one }) => ({
+    practitioner: one(practitioners, {
+      fields: [practitionerScheduleClosures.practitionerId],
+      references: [practitioners.id],
+    }),
+  }),
+);
+
+export const scheduleRescheduleEventsRelations = relations(
+  scheduleRescheduleEvents,
+  ({ one }) => ({
+    practitioner: one(practitioners, {
+      fields: [scheduleRescheduleEvents.practitionerId],
+      references: [practitioners.id],
+    }),
+    scheduleSession: one(practitionerScheduleSessions, {
+      fields: [scheduleRescheduleEvents.scheduleSessionId],
+      references: [practitionerScheduleSessions.id],
+    }),
+  }),
+);
+

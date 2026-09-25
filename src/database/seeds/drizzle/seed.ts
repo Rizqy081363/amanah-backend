@@ -5,6 +5,10 @@ import {
   DEVELOPMENT_ROLE_SEEDS,
   DEVELOPMENT_USER_SEEDS,
 } from './dev-seed.data';
+import {
+  ScheduleSlotFactory,
+  type SessionShiftType,
+} from '../../../modules/schedules/domain/factories/schedule-slot.factory';
 
 type QueryOneInput = {
   client: PoolClient;
@@ -714,6 +718,7 @@ const firstValue = <TValue>(values: Iterable<TValue>): TValue => {
 type PractitionerShowcaseRow = {
   id: string;
   defaultRoomId: string | null;
+  consultationDurationMinutes: number | null;
   specialtyCode: string | null;
 };
 
@@ -728,10 +733,15 @@ const seedAdminScheduleShowcase = async (
   const fallbackServiceId =
     generalServiceId ?? firstValue(context.serviceIdsByCode.values());
 
-  const seededPractitionerIds = Array.from(
-    context.practitionerIdsByEmail.values(),
-  );
-  if (seededPractitionerIds.length === 0) return;
+  // 1. Clean existing schedule data to eliminate obsolete manual/hardcoded seed artifacts
+  await context.client.query(`
+    UPDATE appointments SET schedule_session_id = NULL WHERE schedule_session_id IS NOT NULL;
+    DELETE FROM practitioner_schedule_sessions;
+    DELETE FROM practitioner_schedule_day_settings;
+    DELETE FROM practitioner_leave_periods;
+    DELETE FROM practitioner_schedule_closures;
+    DELETE FROM schedule_reschedule_events;
+  `);
 
   const practitionersResult =
     await context.client.query<PractitionerShowcaseRow>(
@@ -739,112 +749,183 @@ const seedAdminScheduleShowcase = async (
       SELECT
         p.id,
         p.default_room_id AS "defaultRoomId",
+        p.consultation_duration_minutes AS "consultationDurationMinutes",
         ms.code AS "specialtyCode"
       FROM practitioners p
       LEFT JOIN medical_specialties ms ON ms.id = p.specialty_id
-      WHERE p.id = ANY($1::uuid[])
       ORDER BY p.display_name
     `,
-      [seededPractitionerIds],
     );
 
-  const sessionTemplates = [
-    {
-      label: 'Pagi',
-      shift: 'morning',
-      startTime: '08:00',
-      endTime: '11:30',
-      capacity: 12,
-      availableSlots: 10,
-    },
-    {
-      label: 'Siang',
-      shift: 'afternoon',
-      startTime: '13:00',
-      endTime: '16:30',
-      capacity: 10,
-      availableSlots: 8,
-    },
-    {
-      label: 'Malam',
-      shift: 'night',
-      startTime: '18:00',
-      endTime: '20:30',
-      capacity: 8,
-      availableSlots: 8,
-    },
-  ] as const;
+  if (practitionersResult.rows.length === 0) return;
+
+  const shifts: SessionShiftType[] = [
+    'morning',
+    'afternoon',
+    'night',
+    'early_morning',
+  ];
   const roomTemplateUsage = new Map<string, number>();
 
   for (const practitioner of practitionersResult.rows) {
-    const existingSessions = await queryOne<{ count: string }>({
-      client: context.client,
-      text: `
-        SELECT COUNT(*)::text AS count
-        FROM practitioner_schedule_sessions
-        WHERE practitioner_id = $1
-          AND schedule_date = current_date
-      `,
-      values: [practitioner.id],
-    });
-
-    if (Number(existingSessions.count) > 0) continue;
-
     const roomId = practitioner.defaultRoomId ?? fallbackRoomId;
     const roomUsage = roomTemplateUsage.get(roomId) ?? 0;
-    const template = sessionTemplates[roomUsage % sessionTemplates.length];
+    const isTargetShowcase =
+      practitioner.id === 'c518facb-372e-4f07-9766-f3eacf54221f';
+    const selectedShift = isTargetShowcase
+      ? 'early_morning'
+      : shifts[roomUsage % shifts.length];
+    const nextShift = isTargetShowcase
+      ? 'morning'
+      : shifts[(roomUsage + 1) % shifts.length];
     roomTemplateUsage.set(roomId, roomUsage + 1);
 
+    const durationMinutes = practitioner.consultationDurationMinutes || 30;
     const serviceId =
       practitioner.specialtyCode === 'maternal_child_health'
         ? (kiaServiceId ?? fallbackServiceId)
         : fallbackServiceId;
 
-    await context.client.query(
-      `
-        INSERT INTO practitioner_schedule_sessions (
-          practitioner_id,
-          service_id,
-          room_id,
-          schedule_date,
-          session_label,
-          session_shift,
-          start_time,
-          end_time,
-          capacity,
-          available_slots,
-          status,
-          notes
-        )
-        VALUES (
-          $1,
-          $2,
-          $3,
-          current_date,
-          $4,
-          $5,
-          $6,
-          $7,
-          $8,
-          $9,
-          'open',
-          'Development admin schedule showcase seed'
-        )
-        ON CONFLICT (practitioner_id, schedule_date, start_time) DO NOTHING
-      `,
-      [
-        practitioner.id,
-        serviceId,
-        roomId,
-        template.label,
-        template.shift,
-        template.startTime,
-        template.endTime,
-        template.capacity,
-        template.availableSlots,
-      ],
-    );
+    // Seed dates with pure factory templates: 2 distinct shifts today
+    const dates = [
+      { expr: 'current_date - 1', shift: selectedShift },
+      { expr: 'current_date', shift: selectedShift },
+      { expr: 'current_date', shift: nextShift },
+      {
+        expr: 'current_date + 1',
+        shift: shifts[(roomUsage + 2) % shifts.length],
+      },
+    ];
+
+    for (const d of dates) {
+      const template = ScheduleSlotFactory.createSessionTemplate(
+        d.shift,
+        durationMinutes,
+      );
+
+      await context.client.query(
+        `
+          INSERT INTO practitioner_schedule_sessions (
+            practitioner_id,
+            service_id,
+            room_id,
+            schedule_date,
+            session_label,
+            session_shift,
+            start_time,
+            end_time,
+            capacity,
+            available_slots,
+            status,
+            notes
+          )
+          VALUES (
+            $1,
+            $2,
+            $3,
+            ${d.expr},
+            $4,
+            $5,
+            $6,
+            $7,
+            $8,
+            $9,
+            'open',
+            'Factory-generated canonical schedule session'
+          )
+          ON CONFLICT (practitioner_id, schedule_date, start_time) DO UPDATE
+          SET service_id = EXCLUDED.service_id,
+              room_id = EXCLUDED.room_id,
+              session_label = EXCLUDED.session_label,
+              session_shift = EXCLUDED.session_shift,
+              end_time = EXCLUDED.end_time,
+              capacity = EXCLUDED.capacity,
+              available_slots = EXCLUDED.available_slots,
+              status = 'open',
+              updated_at = now()
+        `,
+        [
+          practitioner.id,
+          serviceId,
+          roomId,
+          template.label,
+          template.shift,
+          template.startTime,
+          template.endTime,
+          template.capacity,
+          template.availableSlots,
+        ],
+      );
+    }
   }
+
+  // 2. Seed representative manual closure & reschedule event facts for showcase doctor
+  const showcasePractitionerId =
+    practitionersResult.rows.find(
+      (p) => p.id === 'c518facb-372e-4f07-9766-f3eacf54221f',
+    )?.id ?? practitionersResult.rows[0].id;
+
+  await context.client.query(
+    `
+      INSERT INTO practitioner_schedule_closures (
+        id,
+        practitioner_id,
+        schedule_date,
+        scope,
+        context_code,
+        start_time,
+        end_time,
+        category,
+        reason_code,
+        reason_text
+      )
+      VALUES (
+        gen_random_uuid(),
+        $1,
+        current_date,
+        'INTERVAL',
+        'morning',
+        '11:00',
+        '11:30',
+        'OTHER',
+        'MEETING',
+        'Rapat Koordinasi Komite Medik'
+      )
+    `,
+    [showcasePractitionerId],
+  );
+
+  await context.client.query(
+    `
+      INSERT INTO schedule_reschedule_events (
+        id,
+        practitioner_id,
+        source_date,
+        source_start_time,
+        source_end_time,
+        target_date,
+        target_start_time,
+        target_end_time,
+        reason_code,
+        reason_text,
+        moved_appointments_count
+      )
+      VALUES (
+        gen_random_uuid(),
+        $1,
+        current_date - 1,
+        '14:00',
+        '15:00',
+        current_date,
+        '09:00',
+        '10:00',
+        'DOCTOR_REQUEST',
+        'Permohonan reschedule dokter karena seminar',
+        1
+      )
+    `,
+    [showcasePractitionerId],
+  );
 };
 
 const seedOperationalExamples = async (context: SeedContext): Promise<void> => {
@@ -856,6 +937,13 @@ const seedOperationalExamples = async (context: SeedContext): Promise<void> => {
   if (!generalServiceId || !firstRoomId) {
     throw new Error('Missing catalog seed required for operational examples');
   }
+
+  // Pure factory template for operational example
+  const durationMinutes = 30;
+  const morningTemplate = ScheduleSlotFactory.createSessionTemplate(
+    'morning',
+    durationMinutes,
+  );
 
   const schedule = await queryOne<{ id: string }>({
     client: context.client,
@@ -873,7 +961,7 @@ const seedOperationalExamples = async (context: SeedContext): Promise<void> => {
         available_slots,
         status
       )
-      VALUES ($1, $2, $3, current_date + 1, 'Pagi', 'morning', '08:00', '12:00', 20, 18, 'open')
+      VALUES ($1, $2, $3, current_date + 1, $4, $5, $6, $7, $8, $9, 'open')
       ON CONFLICT (practitioner_id, schedule_date, start_time) DO UPDATE
       SET service_id = EXCLUDED.service_id,
           room_id = EXCLUDED.room_id,
@@ -886,7 +974,17 @@ const seedOperationalExamples = async (context: SeedContext): Promise<void> => {
           updated_at = now()
       RETURNING id
     `,
-    values: [firstDoctorId, generalServiceId, firstRoomId],
+    values: [
+      firstDoctorId,
+      generalServiceId,
+      firstRoomId,
+      morningTemplate.label,
+      morningTemplate.shift,
+      morningTemplate.startTime,
+      morningTemplate.endTime,
+      morningTemplate.capacity,
+      morningTemplate.capacity - 1, // 1 slot booked by BOOK-DEV-0001
+    ],
   });
 
   const appointment = await queryOne<{ id: string }>({
