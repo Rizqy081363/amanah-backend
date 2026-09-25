@@ -46,6 +46,7 @@
     "start": "nest start",
     "start:dev": "nest start --watch",
     "log:interface": "bun ./scripts/dev/log-interface.ts",
+    "docs:schedules": "bun ./scripts/generate-schedules-docs.ts",
     "start:swc": "nest start -b swc -w",
     "start:debug": "nest start --debug --watch",
     "start:prod": "bun dist/main.js",

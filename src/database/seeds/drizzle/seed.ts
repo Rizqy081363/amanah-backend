@@ -773,10 +773,10 @@ const seedAdminScheduleShowcase = async (
     const isTargetShowcase =
       practitioner.id === 'c518facb-372e-4f07-9766-f3eacf54221f';
     const selectedShift = isTargetShowcase
-      ? 'early_morning'
+      ? 'morning'
       : shifts[roomUsage % shifts.length];
     const nextShift = isTargetShowcase
-      ? 'morning'
+      ? 'afternoon'
       : shifts[(roomUsage + 1) % shifts.length];
     roomTemplateUsage.set(roomId, roomUsage + 1);
 
@@ -859,11 +859,206 @@ const seedAdminScheduleShowcase = async (
     }
   }
 
-  // 2. Seed representative manual closure & reschedule event facts for showcase doctor
+  // 2. Seed representative showcase doctor appointments for today
   const showcasePractitionerId =
     practitionersResult.rows.find(
       (p) => p.id === 'c518facb-372e-4f07-9766-f3eacf54221f',
     )?.id ?? practitionersResult.rows[0].id;
+
+  const todayMorningSession = await queryOptional<{
+    id: string;
+    room_id: string;
+    service_id: string;
+    capacity: number;
+  }>({
+    client: context.client,
+    text: `
+      SELECT id, room_id, service_id, capacity
+      FROM practitioner_schedule_sessions
+      WHERE practitioner_id = $1
+        AND schedule_date = current_date
+        AND session_shift = 'morning'
+      LIMIT 1
+    `,
+    values: [showcasePractitionerId],
+  });
+
+  if (todayMorningSession) {
+    const patientIds = Array.from(context.patientIdsByEmail.values());
+    const patient1Id = patientIds[0];
+    const patient2Id = patientIds[1] || patientIds[0];
+
+    const appt1 = await queryOne<{ id: string }>({
+      client: context.client,
+      text: `
+        INSERT INTO appointments (
+          booking_code,
+          patient_id,
+          practitioner_id,
+          schedule_session_id,
+          service_id,
+          room_id,
+          visit_type,
+          status,
+          scheduled_date,
+          scheduled_start_time,
+          scheduled_end_time,
+          complaint
+        )
+        VALUES (
+          'BOOK-ZIKRI-TODAY-01',
+          $1, $2, $3, $4, $5,
+          'new_visit',
+          'booked',
+          current_date,
+          '08:00',
+          '08:30',
+          'Pemeriksaan rutin gula darah dan kontrol tensi berkala'
+        )
+        ON CONFLICT (booking_code) DO UPDATE
+        SET patient_id = EXCLUDED.patient_id,
+            practitioner_id = EXCLUDED.practitioner_id,
+            schedule_session_id = EXCLUDED.schedule_session_id,
+            service_id = EXCLUDED.service_id,
+            room_id = EXCLUDED.room_id,
+            status = 'booked',
+            scheduled_date = EXCLUDED.scheduled_date,
+            scheduled_start_time = EXCLUDED.scheduled_start_time,
+            scheduled_end_time = EXCLUDED.scheduled_end_time,
+            complaint = EXCLUDED.complaint,
+            updated_at = now()
+        RETURNING id
+      `,
+      values: [
+        patient1Id,
+        showcasePractitionerId,
+        todayMorningSession.id,
+        todayMorningSession.service_id,
+        todayMorningSession.room_id,
+      ],
+    });
+
+    await context.client.query(
+      `
+        INSERT INTO queue_tickets (
+          appointment_id,
+          service_id,
+          room_id,
+          queue_date,
+          queue_number,
+          priority,
+          status,
+          waiting_position
+        )
+        VALUES ($1, $2, $3, current_date, 'UM-101', 'regular', 'waiting', 1)
+        ON CONFLICT (appointment_id) DO UPDATE
+        SET service_id = EXCLUDED.service_id,
+            room_id = EXCLUDED.room_id,
+            queue_date = EXCLUDED.queue_date,
+            queue_number = EXCLUDED.queue_number,
+            priority = EXCLUDED.priority,
+            status = EXCLUDED.status,
+            waiting_position = EXCLUDED.waiting_position,
+            updated_at = now()
+      `,
+      [
+        appt1.id,
+        todayMorningSession.service_id,
+        todayMorningSession.room_id,
+      ],
+    );
+
+    const appt2 = await queryOne<{ id: string }>({
+      client: context.client,
+      text: `
+        INSERT INTO appointments (
+          booking_code,
+          patient_id,
+          practitioner_id,
+          schedule_session_id,
+          service_id,
+          room_id,
+          visit_type,
+          status,
+          scheduled_date,
+          scheduled_start_time,
+          scheduled_end_time,
+          complaint
+        )
+        VALUES (
+          'BOOK-ZIKRI-TODAY-02',
+          $1, $2, $3, $4, $5,
+          'new_visit',
+          'waiting',
+          current_date,
+          '08:30',
+          '09:00',
+          'Konsultasi alergi kulit dan gatal-gatal kambuhan'
+        )
+        ON CONFLICT (booking_code) DO UPDATE
+        SET patient_id = EXCLUDED.patient_id,
+            practitioner_id = EXCLUDED.practitioner_id,
+            schedule_session_id = EXCLUDED.schedule_session_id,
+            service_id = EXCLUDED.service_id,
+            room_id = EXCLUDED.room_id,
+            status = 'waiting',
+            scheduled_date = EXCLUDED.scheduled_date,
+            scheduled_start_time = EXCLUDED.scheduled_start_time,
+            scheduled_end_time = EXCLUDED.scheduled_end_time,
+            complaint = EXCLUDED.complaint,
+            updated_at = now()
+        RETURNING id
+      `,
+      values: [
+        patient2Id,
+        showcasePractitionerId,
+        todayMorningSession.id,
+        todayMorningSession.service_id,
+        todayMorningSession.room_id,
+      ],
+    });
+
+    await context.client.query(
+      `
+        INSERT INTO queue_tickets (
+          appointment_id,
+          service_id,
+          room_id,
+          queue_date,
+          queue_number,
+          priority,
+          status,
+          waiting_position
+        )
+        VALUES ($1, $2, $3, current_date, 'UM-102', 'regular', 'waiting', 2)
+        ON CONFLICT (appointment_id) DO UPDATE
+        SET service_id = EXCLUDED.service_id,
+            room_id = EXCLUDED.room_id,
+            queue_date = EXCLUDED.queue_date,
+            queue_number = EXCLUDED.queue_number,
+            priority = EXCLUDED.priority,
+            status = EXCLUDED.status,
+            waiting_position = EXCLUDED.waiting_position,
+            updated_at = now()
+      `,
+      [
+        appt2.id,
+        todayMorningSession.service_id,
+        todayMorningSession.room_id,
+      ],
+    );
+
+    await context.client.query(
+      `
+        UPDATE practitioner_schedule_sessions
+        SET available_slots = GREATEST(0, capacity - 2)
+        WHERE id = $1
+      `,
+      [todayMorningSession.id],
+    );
+  }
+
+  // 3. Seed representative manual closure & reschedule event facts for showcase doctor
 
   await context.client.query(
     `

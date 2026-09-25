@@ -1,0 +1,76 @@
+The subsystem determines whether a notification should be generated.
+
+The notification is persisted if persistence is required.
+
+The appropriate delivery channel is selected.
+
+The connected client receives the notification in real time.
+
+The Flutter or Next.js client updates its state.
+
+The user opens or reads the notification.
+
+The read state is synchronized back to the backend.
+
+If the user was offline, the notification can still be retrieved from notification history after reconnection.
+
+Describe this flow properly using an industrial system-design perspective rather than treating it as a collection of unrelated implementation tricks.
+
+Docker must also be included in the architecture.
+
+Explain what services would exist inside the Docker environment, how they communicate, which services should be independent containers, what internal networking occurs, how the message broker or Redis would be accessed, what should remain stateless, what requires persistent volumes, and how the architecture behaves when a container restarts.
+
+The objective is not unnecessary microservices complexity. The objective is a clean modular architecture that can operate correctly inside the existing Docker-based development environment while preserving clear boundaries for future growth.
+
+For the final deliverable, create four separate, highly detailed Markdown documents.
+
+The first Markdown document should describe the overall paradigm and system design.
+
+It should establish the architectural foundation independently from Flutter, Next.js, or any particular UI implementation. Explain the event-driven model, terminology, event flow, message broker concepts, real-time delivery model, persistence model, adapter architecture, reliability model, scalability considerations, and the reasoning behind the selected technologies.
+
+This document should become the architectural source of truth for the notification system.
+
+The second Markdown document should focus specifically on Flutter.
+
+Explain how the Flutter mobile application participates in the notification system, how it establishes and manages real-time communication, how subscriptions and reconnections work, how notification state should be managed, how historical notifications are retrieved, what happens when the application moves between foreground and background states, and how the client remains decoupled from backend infrastructure details.
+
+Use existing mature libraries where appropriate rather than reinventing low-level mechanisms.
+
+The third Markdown document should focus on the Next.js web interface.
+
+Explain how the web application connects to the real-time notification infrastructure, how subscriptions are initialized and cleaned up, how authentication interacts with real-time connections, how notification state is synchronized, how history is retrieved, how read/unread state works, how duplicate events are prevented from corrupting client state, and how the presentation layer remains separated from transport and domain logic.
+
+Again, the frontend should consume a stable notification contract rather than understand backend infrastructure internals.
+
+The fourth Markdown document should focus on the backend architecture.
+
+The backend is currently described here as using Next.js, and the document should explain the backend notification architecture in detail: event production, event consumption, message-broker integration, notification orchestration, persistence, database schema, adapters, repositories, services, contracts, delivery mechanisms, retries, failure handling, idempotency, observability, WebSocket or equivalent real-time gateways, Docker services, and all other infrastructure required to support the architecture.
+
+This backend document should describe how individual business modules integrate with the notification subsystem without becoming coupled to its internal implementation.
+
+All four documents should be written in English and should be extremely detailed.
+
+Do not reduce the discussion to a simple tutorial such as “install WebSocket and send a message.”
+
+Treat this as a real system-design problem.
+
+Explain why each layer exists, what responsibility it owns, which responsibility it must not own, how each component communicates, what contracts exist between components, how dependencies point inward toward abstractions, how future features integrate with the system, and how the architecture avoids becoming tightly coupled over time.
+
+The end result should be a real-time notification architecture that is modular, free and open-source where possible, extensible, replaceable at the infrastructure layer, Docker-friendly, fully decoupled from individual business features, and simple for future modules to adopt.
+
+The desired integration experience should ultimately be straightforward:
+
+a feature needs notifications,
+the feature publishes the appropriate event through the established contract,
+and the notification subsystem handles everything else.Looking at this, you've written the full specification yourself inside the uploaded document — including exactly which four documents you want and what each must cover. I'll build all four now: a shared architectural foundation, then Flutter, Next.js web, and backend documents that each plug into that foundation without repeating it.
+
+Given how much ground this covers (EDA terminology, the broker-vs-bus-vs-transport distinction, Docker topology, generic/extensible schema, adapters per layer, full lifecycle), I'll work through it systematically and produce real .md files rather than a chat summary.
+
+All four documents are ready — they're built as one consistent system, not four independent write-ups:
+
+01-architecture-overview.md — the source of truth: EDA paradigm, the three-layer distinction (internal event bus vs. Redis Streams message broker vs. Socket.IO real-time transport), full lifecycle sequence diagram, the ports-and-adapters decoupling model, and the Redis-vs-Kafka/RabbitMQ and Socket.IO-vs-SSE decisions with rationale for each.
+02-flutter-notifications.md — mobile as a pure consumer: repository/socket-service layering, connection and reconnection handling, foreground/background/killed-state strategy (Socket.IO while active, FCM while not), state merge/dedup logic.
+03-nextjs-web-notifications.md — same consumer role, plus SSR-safety, React Query cache sync, and multi-tab room-broadcast behavior.
+04-backend-notifications.md — the implementation core: the Notification Rules Registry pattern (how new features plug in with zero redesign), the generic/extensible Postgres schema, delivery-channel adapters, the Redis Streams consumer-group worker, the socket.io-emitter + @socket.io/redis-adapter gateway design, retry/dead-lettering via BullMQ, observability, and a full Docker Compose topology with restart behavior.
+
+The throughline worth flagging: persistence happens before real-time delivery is attempted, so "offline recipient" isn't a failure case to handle — it's just a no-op push, with REST as the real source of truth clients reconcile against on reconnect. That one decision is what keeps most of the hard reliability problems from ever needing complex broker-level guarantees.

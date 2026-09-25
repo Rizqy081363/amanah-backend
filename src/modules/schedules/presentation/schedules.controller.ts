@@ -34,17 +34,24 @@ import {
   ApiUnauthorizedResponse,
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
-import { ScheduleOccupancyOverviewResponse } from '../domain/entities/schedule.entity';
+import {
+  AdminSessionPatientsResponse,
+  RescheduleEligibilityResponse,
+  ScheduleOccupancyOverviewResponse,
+} from '../domain/entities/schedule.entity';
 import {
   SCHEDULE_REPOSITORY,
   ScheduleRepository,
 } from '../domain/repositories/schedule.repository';
 import { BookedPatientsQueryDto } from './dto/booked-patients-query.dto';
 import { CalendarSummaryQueryDto } from './dto/calendar-summary-query.dto';
+import { CheckRescheduleEligibilityQueryDto } from './dto/check-reschedule-eligibility-query.dto';
 import { CreateAvailabilityDto } from './dto/create-availability.dto';
 import { CreateScheduleDto } from './dto/create-schedule.dto';
 import { GetDaySettingQueryDto } from './dto/get-day-setting-query.dto';
+import { GetSessionPatientsQueryDto } from './dto/get-session-patients-query.dto';
 import { QueryScheduleDto } from './dto/query-schedule.dto';
+import { RescheduleAdminDoctorSessionDto } from './dto/reschedule-admin-doctor-session.dto';
 import { RoomReferenceQueryDto } from './dto/room-reference-query.dto';
 import { ScheduleContextQueryDto } from './dto/schedule-context-query.dto';
 import { ScheduleOccupancyQueryDto } from './dto/schedule-occupancy-query.dto';
@@ -545,6 +552,135 @@ export class SchedulesController {
   ) {
     const targetDate = date || new Date().toISOString().split('T')[0];
     return this.scheduleRepo.findByPoliAndDate(poliklinikId, targetDate);
+  }
+
+  @Get('sessions/:sessionId/reschedule-eligibility')
+  @Roles('STAF', 'ADMIN')
+  @ApiOperation({
+    summary:
+      'Pengecekan pra-syarat (eligibility pre-check) sebelum reschedule sesi dokter (Mobile & Admin)',
+    description:
+      'Memeriksa apakah sesi asal eligible untuk di-reschedule. Dokter hanya dapat memeriksa sesinya sendiri, sedangkan Admin dapat memeriksa seluruh sesi.',
+  })
+  @ApiParam({
+    name: 'sessionId',
+    description: 'ID unik sesi shift jadwal dokter yang akan diperiksa',
+    example: '8489be4c-7c05-4c07-b352-7bf579b29cb1',
+  })
+  @ApiOkResponse({
+    type: RescheduleEligibilityResponse,
+    description: 'Hasil evaluasi kelayakan reschedule sesi berhasil didapatkan',
+  })
+  @ApiNotFoundResponse({
+    description: 'Sesi jadwal tidak ditemukan',
+  })
+  async checkRescheduleEligibility(
+    @Param('sessionId') sessionId: string,
+    @Query() query: CheckRescheduleEligibilityQueryDto,
+    @CurrentUser() user?: any,
+  ) {
+    const session = await this.scheduleRepo.findById(sessionId);
+    if (!session) {
+      throw new NotFoundException(
+        `Sesi jadwal dengan ID ${sessionId} tidak ditemukan`,
+      );
+    }
+    if (user) {
+      this.assertScheduleOwnership(session, user);
+    }
+    const result = await this.scheduleRepo.checkRescheduleEligibility(
+      session.staffId,
+      sessionId,
+      query,
+    );
+    return {
+      success: true,
+      data: result,
+    };
+  }
+
+  @Post('sessions/:sessionId/reschedule')
+  @Roles('STAF', 'ADMIN')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Menjadwalkan ulang (reschedule) sesi shift praktik dokter ke tanggal/jam baru (Mobile & Admin)',
+    description:
+      'Memindahkan seluruh sesi jadwal praktik dokter ke tanggal dan jam baru dengan kalkulasi projection otomatis, validasi batas shift & durasi konsultasi, pencegahan konflik jadwal/ruangan, serta sinkronisasi otomatis janji temu pasien aktif.',
+  })
+  @ApiParam({
+    name: 'sessionId',
+    description: 'ID unik sesi shift jadwal dokter yang akan di-reschedule',
+  })
+  @ApiOkResponse({
+    description: 'Sesi jadwal praktik dokter berhasil di-reschedule',
+  })
+  @ApiNotFoundResponse({
+    description: 'Sesi jadwal tidak ditemukan',
+  })
+  @ApiUnprocessableEntityResponse({
+    description: 'Validasi form gagal atau jam mulai di luar batas shift',
+  })
+  async rescheduleSession(
+    @Param('sessionId') sessionId: string,
+    @Body() body: RescheduleAdminDoctorSessionDto,
+    @CurrentUser() user?: any,
+  ) {
+    const session = await this.scheduleRepo.findById(sessionId);
+    if (!session) {
+      throw new NotFoundException(
+        `Sesi jadwal dengan ID ${sessionId} tidak ditemukan`,
+      );
+    }
+    if (user) {
+      this.assertScheduleOwnership(session, user);
+    }
+    return this.scheduleRepo.rescheduleAdminDoctorSession(
+      session.staffId,
+      sessionId,
+      body,
+    );
+  }
+
+  @Get('sessions/:sessionId/patients')
+  @Roles('STAF', 'ADMIN')
+  @ApiOperation({
+    summary:
+      'Mendapatkan daftar pasien terdaftar pada sesi shift tertentu dokter (Mobile & Admin)',
+    description:
+      'Menampilkan data pasien terdaftar (nama, keluhan, ruangan, jam/nomor antrean, status, data demografis NIK/RM/alamat/wali lengkap, dan booking metadata).',
+  })
+  @ApiParam({
+    name: 'sessionId',
+    description: 'ID unik sesi shift jadwal dokter',
+    example: '8489be4c-7c05-4c07-b352-7bf579b29cb1',
+  })
+  @ApiOkResponse({
+    type: AdminSessionPatientsResponse,
+    description: 'Daftar pasien terdaftar pada sesi berhasil diambil',
+  })
+  @ApiNotFoundResponse({
+    description: 'Sesi jadwal tidak ditemukan',
+  })
+  async getSessionPatients(
+    @Param('sessionId') sessionId: string,
+    @Query() query: GetSessionPatientsQueryDto,
+    @CurrentUser() user?: any,
+  ) {
+    const session = await this.scheduleRepo.findById(sessionId);
+    if (!session) {
+      throw new NotFoundException(
+        `Sesi jadwal dengan ID ${sessionId} tidak ditemukan`,
+      );
+    }
+    if (user) {
+      this.assertScheduleOwnership(session, user);
+    }
+    return this.scheduleRepo.getAdminSessionPatients(
+      session.staffId,
+      sessionId,
+      query,
+    );
   }
 
   @Get(':id/booked-patients')

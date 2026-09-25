@@ -31,6 +31,17 @@ export class RescheduleAdminDoctorSessionDto {
 
   @ApiPropertyOptional({
     description:
+      'Jam selesai target baru pada tanggal baru (opsional, format: HH:mm). Jika tidak diisi, backend menghitung otomatis dari durasi sesi.',
+    example: '15:00',
+  })
+  @IsOptional()
+  @Matches(/^([01]\d|2[0-3]):([0-5]\d)$/, {
+    message: 'targetEndTime harus berformat HH:mm (00:00 - 23:59)',
+  })
+  targetEndTime?: string;
+
+  @ApiPropertyOptional({
+    description:
       'ID konteks shift target baru (morning, afternoon, night, early_morning). Jika tidak diisi, backend mendeteksi otomatis dari targetStartTime.',
     example: 'morning',
   })

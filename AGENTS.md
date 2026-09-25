@@ -1,3 +1,57 @@
+# Backend API Contract Changelog Protocol
+
+## 0. Purpose
+
+This repository is the backend source of truth.
+
+Whenever a backend change affects an external client contract, the change MUST be communicated through an immutable API changelog record.
+
+External clients may include:
+
+- Web applications
+- Mobile applications
+- Internal frontend applications
+- Other API consumers
+
+The purpose of the changelog is NOT to implement client-side changes.
+
+The purpose of the changelog is to communicate:
+
+- what changed,
+- where it changed,
+- what the previous contract was,
+- what the new contract is,
+- whether the change is breaking,
+- who is affected,
+- what contract the client must now respect,
+- when the change becomes effective.
+
+The backend owns the API contract.
+
+The backend does NOT own client implementation.
+
+---
+
+# 1. Core Principle
+
+Every client-visible API contract change must produce a changelog entry.
+
+The backend engineer must be able to answer:
+
+```text
+What changed?
+Which endpoint changed?
+Which client is affected?
+Was the request contract changed?
+Was the response contract changed?
+Was status-code behavior changed?
+Was validation behavior changed?
+Was business semantics changed?
+Was an enum changed?
+Was a field added, removed, renamed, or retyped?
+Was an endpoint introduced, deprecated, replaced, or removed?
+Is the change breaking or non-breaking?
+From which contract version to which contract version?
 # Backend Architecture & Design Paradigm Catalog
 
 **Purpose:** a reference lexicon for refactoring an oversized, tightly-coupled backend (2,000–4,000+ LOC files) into small, decoupled, reusable, and **client-agnostic** modules. Each entry is a named paradigm/pattern with a one- or two-line definition. Use it as a checklist when planning a module, or as context for an AI assistant doing the refactor: "apply Repository + Unit of Work + Mapper to this module" is a much more precise instruction than "clean this up."
@@ -3225,3 +3279,3470 @@ trigger
 ```
 
 without modifying the codebase merely to understand what happened.
+Bisa. Saya akan buat ini sebagai **reinforcement architecture section untuk `AGENTS.md`** yang memaksa agent memecah kompleksitas, mencegah God Object/God Function, dan menjaga dependency direction tetap bersih.
+
+Satu koreksi konsep kecil: “100% decoupled” secara literal tidak mungkin karena komponen tetap harus berkomunikasi. Target yang benar adalah **maximally decoupled with explicit contracts**: coupling hanya boleh terjadi melalui boundary yang memang disengaja.
+
+```md
+# Complexity Decomposition, Separation of Concerns, and Decoupling Rules
+
+## 0. Purpose
+
+These rules are mandatory whenever creating, modifying, extending, or refactoring code.
+
+The objective is to prevent:
+
+- God Objects
+- God Classes
+- God Functions
+- 1,000–2,000 line files
+- business logic mixed with transport logic
+- infrastructure leaking into domain logic
+- duplicated utilities
+- random helper dumping grounds
+- deeply nested conditional logic
+- hidden side effects
+- tightly coupled modules
+- circular dependencies
+- implicit contracts
+- feature-specific implementations leaking into shared infrastructure
+
+The system must prefer:
+
+- small cohesive units
+- explicit contracts
+- narrow responsibilities
+- dependency inversion
+- composition
+- pure transformations
+- reusable helpers
+- domain ownership
+- predictable dependency direction
+- independently testable components
+
+The fundamental principle is:
+
+> Complexity must be decomposed before it becomes structural debt.
+
+Do not wait until a file becomes impossible to understand.
+
+---
+
+# 1. Primary Rule: One Unit, One Reason to Change
+
+Every:
+
+- function
+- class
+- service
+- module
+- adapter
+- utility
+- hook
+- repository
+- controller
+- interceptor
+- middleware
+
+must have one coherent responsibility.
+
+Ask:
+
+```text
+Why would this unit need to change?
+```
+
+If the answer contains several unrelated reasons, the unit is probably carrying too many responsibilities.
+
+Bad:
+
+```text
+ScheduleService
+
+- validates DTO
+- calculates slot state
+- queries database
+- formats dates
+- sends notifications
+- generates response DTO
+- logs HTTP request
+- manages cache
+- parses environment variables
+```
+
+Good:
+
+```text
+ScheduleController
+        ↓
+ScheduleApplicationService
+        ↓
+SchedulePolicy
+        ↓
+ScheduleRepository
+        ↓
+Persistence Adapter
+```
+
+With independent collaborators such as:
+
+```text
+ScheduleStateResolver
+ScheduleValidator
+ScheduleMapper
+NotificationPort
+CachePort
+```
+
+Only create these boundaries when they represent real responsibilities.
+
+Do not create abstractions merely to increase file count.
+
+---
+
+# 2. Never Create a God Object
+
+A God Object is any class/module that becomes the center of unrelated responsibilities.
+
+Warning signs:
+
+```text
+class AppService
+class CommonService
+class UtilsService
+class HelperService
+class ManagerService
+class CoreService
+```
+
+containing dozens of unrelated methods.
+
+Examples:
+
+```text
+createUser()
+sendEmail()
+calculateSchedule()
+uploadImage()
+parseDate()
+generateToken()
+formatResponse()
+checkPermission()
+writeLog()
+```
+
+This is forbidden.
+
+Split by responsibility and ownership.
+
+---
+
+# 3. Never Create a God Function
+
+A function should represent one logical operation.
+
+Bad:
+
+```ts
+async function createAppointment() {
+  // validation
+  // authentication
+  // database lookup
+  // schedule computation
+  // business rules
+  // transaction
+  // notification
+  // serialization
+  // logging
+  // cache invalidation
+  // response formatting
+}
+```
+
+The function is doing orchestration AND implementation.
+
+Prefer:
+
+```text
+createAppointment()
+    ↓
+validateAppointmentRequest()
+    ↓
+resolveAppointmentContext()
+    ↓
+appointmentPolicy.validate()
+    ↓
+appointmentRepository.create()
+    ↓
+publishAppointmentCreated()
+```
+
+The orchestration layer may coordinate several collaborators.
+
+It should not implement every collaborator internally.
+
+---
+
+# 4. Orchestration and Computation Must Be Separated
+
+A useful distinction:
+
+```text
+ORCHESTRATION
+
+decides WHAT happens and in WHAT order
+```
+
+versus:
+
+```text
+COMPUTATION
+
+implements HOW a specific operation works
+```
+
+Example:
+
+Bad:
+
+```ts
+async createAppointment(dto) {
+  const doctor = await ...
+  const schedule = await ...
+
+  if (...) {
+    ...
+  }
+
+  const start = ...
+  const end = ...
+
+  const normalized = ...
+
+  const appointment = ...
+
+  await ...
+
+  return ...
+}
+```
+
+Better conceptually:
+
+```ts
+async createAppointment(command) {
+  const context = await this.contextResolver.resolve(command);
+
+  this.policy.assertCanCreate(context);
+
+  const appointment =
+    this.appointmentFactory.create(context);
+
+  return this.repository.save(appointment);
+}
+```
+
+Complex computation belongs in dedicated collaborators.
+
+---
+
+# 5. Extract Cohesive Chunks, Not Arbitrary Chunks
+
+Do NOT split code merely because a function is long.
+
+Split by meaning.
+
+Bad decomposition:
+
+```text
+processPart1()
+processPart2()
+processPart3()
+```
+
+Good decomposition:
+
+```text
+validateSchedule()
+resolveDoctorAvailability()
+deriveSlotState()
+buildAppointment()
+persistAppointment()
+```
+
+Every extracted unit must have a semantic purpose.
+
+---
+
+# 6. Prefer Small Pure Functions for Transformations
+
+Transformations should preferably be pure.
+
+Example:
+
+```ts
+function normalizeDoctorSchedule(input) {
+  return ...
+}
+```
+
+A pure helper should:
+
+- depend only on its arguments
+- return a result
+- not mutate global state
+- not access the database
+- not access environment variables
+- not perform HTTP calls
+- not write logs as a side effect
+- not depend on framework state
+
+Pure functions are easier to:
+
+- test
+- reason about
+- reuse
+- compose
+- debug
+
+---
+
+# 7. Separate Pure and Impure Code
+
+Pure logic:
+
+```text
+validation
+mapping
+normalization
+calculation
+comparison
+state derivation
+format conversion
+policy evaluation
+```
+
+Impure operations:
+
+```text
+database
+HTTP
+filesystem
+cache
+message broker
+clock
+randomness
+environment
+logging
+```
+
+Do not mix them unnecessarily.
+
+Target structure:
+
+```text
+IMPURE SHELL
+    ↓
+PURE CORE
+    ↓
+IMPURE ADAPTER
+```
+
+Example:
+
+```text
+HTTP Controller
+    ↓
+Application Service
+    ↓
+Pure Domain Policy
+    ↓
+Repository Port
+    ↓
+Database Adapter
+```
+
+---
+
+# 8. Framework Code Must Stay at the Boundary
+
+NestJS, Next.js, Flutter, database drivers, HTTP clients, Redis clients, etc. are infrastructure concerns.
+
+Do not let framework-specific objects leak deeply into business logic.
+
+Bad:
+
+```ts
+calculateSchedule(req: Request)
+```
+
+Better:
+
+```ts
+calculateSchedule(input: ScheduleInput)
+```
+
+Bad:
+
+```ts
+domainFunction(prismaRecord)
+```
+
+Better:
+
+```ts
+domainFunction(schedule)
+```
+
+Convert infrastructure representations at the boundary.
+
+---
+
+# 9. Dependency Direction Must Be Explicit
+
+Prefer:
+
+```text
+Presentation
+    ↓
+Application
+    ↓
+Domain
+    ↑
+Infrastructure implements interfaces
+```
+
+Core business logic should not depend directly on infrastructure implementation.
+
+Example:
+
+```text
+Application Service
+    ↓
+ScheduleRepository interface
+    ↑
+DrizzleScheduleRepository
+```
+
+Not:
+
+```text
+Application Service
+    ↓
+Drizzle ORM directly
+```
+
+when repository abstraction already exists.
+
+---
+
+# 10. Depend on Contracts, Not Concrete Implementations
+
+Bad:
+
+```ts
+class AppointmentService {
+  constructor(
+    private readonly drizzleRepository:
+      DrizzleAppointmentRepository,
+  ) {}
+}
+```
+
+Prefer where an abstraction is justified:
+
+```ts
+class AppointmentService {
+  constructor(
+    private readonly appointmentRepository:
+      AppointmentRepository,
+  ) {}
+}
+```
+
+The application knows the capability.
+
+Infrastructure knows the implementation.
+
+---
+
+# 11. Do Not Over-Abstract Everything
+
+Dependency inversion is not permission to create meaningless interfaces.
+
+Bad:
+
+```text
+DateFormatterInterface
+StringConcatInterface
+BooleanCheckerInterface
+ArrayLengthInterface
+```
+
+Not every helper requires an interface.
+
+Use an interface when there is a meaningful boundary:
+
+```text
+Repository
+Storage
+Mailer
+Cache
+Payment Gateway
+External API
+Clock
+Queue
+Logger
+```
+
+Prefer a simple function when the behavior is just deterministic transformation.
+
+---
+
+# 12. Utility Is Not a Dumping Ground
+
+Never create:
+
+```text
+utils.ts
+helpers.ts
+common.ts
+misc.ts
+functions.ts
+shared.ts
+```
+
+and continuously throw unrelated functionality into it.
+
+This creates another God Object in file form.
+
+Instead use semantic ownership.
+
+Bad:
+
+```text
+utils.ts
+
+formatDate()
+calculateSlot()
+sanitizeUser()
+parsePhone()
+resolveAvatar()
+generateRequestId()
+```
+
+Better:
+
+```text
+date/
+  format-date.ts
+
+schedule/
+  calculate-slot.ts
+
+user/
+  sanitize-user.ts
+
+phone/
+  normalize-phone.ts
+
+observability/
+  generate-request-id.ts
+```
+
+---
+
+# 13. Helpers Must Have Ownership
+
+Before creating a helper, answer:
+
+```text
+Who owns this behavior?
+```
+
+Possible answers:
+
+```text
+schedule domain
+authentication domain
+network infrastructure
+logging infrastructure
+date utility
+serialization layer
+```
+
+If ownership cannot be determined, reconsider the abstraction.
+
+---
+
+# 14. Local Helper Before Global Utility
+
+Default preference:
+
+```text
+feature-local
+```
+
+before:
+
+```text
+application-global
+```
+
+Do not move a helper into shared/core infrastructure merely because two files use it.
+
+Promote functionality to shared infrastructure only when its semantics are genuinely domain-independent.
+
+Duplication of two trivial lines is often safer than a bad global abstraction.
+
+---
+
+# 15. Shared Code Must Be Truly Shared
+
+A shared utility must not know:
+
+```text
+appointment
+doctor
+patient
+schedule
+admin
+mobile
+web
+```
+
+unless shared domain ownership explicitly requires it.
+
+Example:
+
+Bad:
+
+```text
+shared/utils/getDoctorAppointmentColor.ts
+```
+
+That is not generic shared infrastructure.
+
+It belongs to the relevant domain.
+
+---
+
+# 16. Domain Logic Stays With the Domain
+
+Business semantics belong near their owning domain.
+
+Example:
+
+```text
+schedule/
+    domain/
+        schedule-state.ts
+        schedule-policy.ts
+        schedule-rules.ts
+```
+
+not:
+
+```text
+common/utils/schedule-rules.ts
+```
+
+Avoid "common" as a dumping ground for domain logic.
+
+---
+
+# 17. Use Composition Instead of Giant Inheritance Trees
+
+Prefer:
+
+```text
+Service
+    +
+Validator
+    +
+Policy
+    +
+Repository
+    +
+Mapper
+```
+
+over:
+
+```text
+BaseService
+  ↓
+AbstractCrudService
+  ↓
+GenericDomainService
+  ↓
+AppointmentBaseService
+  ↓
+AppointmentService
+```
+
+Inheritance creates hidden coupling.
+
+Prefer composition unless inheritance models a genuine substitutable relationship.
+
+---
+
+# 18. Keep Side Effects at Explicit Boundaries
+
+A function that appears to calculate something must not secretly:
+
+```text
+write database
+send HTTP request
+emit event
+write file
+invalidate cache
+```
+
+Names and behavior must align.
+
+Bad:
+
+```ts
+getScheduleState()
+```
+
+that also updates the database.
+
+Good:
+
+```text
+resolveScheduleState()
+updateScheduleState()
+```
+
+Explicit behavior improves traceability.
+
+---
+
+# 19. Separate Read and Write Responsibilities
+
+Do not mix query behavior and mutation behavior unnecessarily.
+
+Conceptually:
+
+```text
+Query
+→ retrieve / calculate information
+
+Command
+→ change state
+```
+
+A function named:
+
+```text
+getDoctorSchedule()
+```
+
+should not silently modify schedules.
+
+A function named:
+
+```text
+updateDoctorSchedule()
+```
+
+may mutate state.
+
+---
+
+# 20. Separate Mapping From Business Logic
+
+Avoid:
+
+```ts
+function createAppointment(dto) {
+  // DTO parsing
+  // business rules
+  // DB mapping
+  // response mapping
+}
+```
+
+Prefer:
+
+```text
+DTO
+ ↓
+Input Mapper
+ ↓
+Application Command
+ ↓
+Domain
+ ↓
+Persistence Mapper
+ ↓
+Repository
+```
+
+Then:
+
+```text
+Domain Result
+ ↓
+Response Mapper
+ ↓
+API Response
+```
+
+Mapping should not silently contain business decisions.
+
+---
+
+# 21. Separate Validation Categories
+
+Do not put all validation inside one function.
+
+Differentiate:
+
+```text
+Transport validation
+Domain validation
+Authorization
+Business invariants
+Persistence constraints
+```
+
+Example:
+
+```text
+DTO validation
+"is this a valid date string?"
+```
+
+versus:
+
+```text
+Domain policy
+"may this doctor open this schedule?"
+```
+
+Those are different concerns.
+
+---
+
+# 22. Separate Error Translation
+
+Domain errors should not know HTTP status codes unless the architecture explicitly treats them as HTTP-domain errors.
+
+Prefer:
+
+```text
+Domain Error
+    ↓
+Boundary Error Mapper
+    ↓
+HTTP Exception
+```
+
+This prevents domain logic from becoming coupled to NestJS.
+
+---
+
+# 23. Controllers Must Remain Thin
+
+Controllers should primarily:
+
+```text
+receive
+validate transport input
+delegate
+return
+```
+
+Controllers must not become business services.
+
+Bad controller:
+
+```text
+@Post()
+create() {
+  // 150 lines of logic
+}
+```
+
+Desired:
+
+```ts
+@Post()
+create(@Body() dto: CreateAppointmentDto) {
+  return this.createAppointment.execute(dto);
+}
+```
+
+Exact structure must respect the current architecture.
+
+---
+
+# 24. Services Must Not Become Everything
+
+The word "service" is not permission to put every responsibility into one class.
+
+Bad:
+
+```text
+AppointmentService
+1200 lines
+42 methods
+9 dependencies
+```
+
+Inspect whether it actually contains several cohesive capabilities.
+
+Possible decomposition:
+
+```text
+CreateAppointment
+CancelAppointment
+RescheduleAppointment
+AppointmentPolicy
+AppointmentQueryService
+AppointmentRepository
+```
+
+Do not blindly create one class per method.
+
+Split by use case or meaningful responsibility.
+
+---
+
+# 25. Repository Responsibility Is Persistence
+
+A repository should primarily abstract persistence operations.
+
+It must not become responsible for:
+
+```text
+HTTP response formatting
+business presentation
+UI status
+email notifications
+controller validation
+logging request bodies
+```
+
+Keep persistence concerns focused.
+
+---
+
+# 26. Mapper Responsibility Is Mapping
+
+A mapper should map representations.
+
+It must not:
+
+```text
+query database
+call external APIs
+perform authorization
+publish events
+```
+
+Avoid side effects in mappers.
+
+---
+
+# 27. Validator Responsibility Is Validation
+
+A validator should validate.
+
+It should not:
+
+```text
+persist
+notify
+format API response
+```
+
+Keep responsibilities narrow and obvious.
+
+---
+
+# 28. Policy Objects for Complex Business Decisions
+
+When conditional business rules become complex, consider a policy or specification.
+
+Instead of:
+
+```ts
+if (
+  user.role === ...
+  && schedule.status === ...
+  && ...
+  && ...
+) {
+}
+```
+
+spread across multiple services, centralize the actual business decision.
+
+Example:
+
+```text
+ScheduleModificationPolicy
+```
+
+with:
+
+```text
+canModify()
+assertCanModify()
+```
+
+where appropriate.
+
+This creates one source of truth.
+
+---
+
+# 29. Avoid Deep Conditional Nesting
+
+Bad:
+
+```ts
+if (...) {
+  if (...) {
+    if (...) {
+      if (...) {
+      }
+    }
+  }
+}
+```
+
+Prefer:
+
+```text
+guard clauses
+early returns
+policy extraction
+lookup tables
+strategy selection
+state machines
+```
+
+depending on semantics.
+
+Example:
+
+```ts
+if (!doctor) throw ...
+if (!schedule) throw ...
+if (!policy.canModify(...)) throw ...
+
+return updateSchedule(...);
+```
+
+---
+
+# 30. Avoid Boolean Explosion
+
+Warning:
+
+```ts
+processSchedule(
+  true,
+  false,
+  true,
+  false,
+  true,
+)
+```
+
+This is unreadable and tightly coupled to argument position.
+
+Prefer named options:
+
+```ts
+processSchedule({
+  includeClosed: true,
+  includeOccupied: false,
+});
+```
+
+Better still, determine whether multiple booleans represent a missing concept.
+
+---
+
+# 31. Avoid Parameter Explosion
+
+A function receiving many unrelated parameters may indicate missing grouping or abstraction.
+
+Bad:
+
+```ts
+createAppointment(
+  doctorId,
+  patientId,
+  date,
+  start,
+  end,
+  room,
+  notes,
+  status,
+  ...
+)
+```
+
+Prefer a meaningful input object:
+
+```ts
+CreateAppointmentInput
+```
+
+But do not turn every two arguments into a DTO.
+
+---
+
+# 32. Avoid Dependency Explosion
+
+A class with an excessive number of injected dependencies is a strong architectural warning.
+
+Example:
+
+```text
+Service
+├── Repository A
+├── Repository B
+├── Repository C
+├── Cache
+├── Logger
+├── Mailer
+├── Storage
+├── Queue
+├── Mapper
+├── Validator
+├── Config
+└── HTTP Client
+```
+
+Before adding another dependency, ask:
+
+```text
+Does this class actually represent several responsibilities?
+```
+
+Often the correct answer is yes.
+
+Decompose by use case or responsibility.
+
+---
+
+# 33. File Size Is a Signal, Not the Root Problem
+
+Do not mechanically split a file because it exceeds an arbitrary number of lines.
+
+However, treat large files as an architectural review trigger.
+
+Review aggressively when approximately:
+
+```text
+function > 40–60 logical lines
+class > 250–400 lines
+file > 400–600 lines
+service > 8–10 meaningful dependencies
+```
+
+These are warning thresholds, not laws.
+
+The actual question is:
+
+```text
+Does this unit contain multiple independently changing responsibilities?
+```
+
+If yes, decompose it.
+
+---
+
+# 34. Cohesion Is More Important Than File Count
+
+Do not transform:
+
+```text
+1 coherent 150-line module
+```
+
+into:
+
+```text
+15 meaningless 10-line files
+```
+
+The goal is not maximum fragmentation.
+
+The goal is:
+
+```text
+high cohesion
+low coupling
+clear ownership
+```
+
+---
+
+# 35. Prefer Feature Ownership Over Technical Dumping Grounds
+
+Where architecture permits, organize code around capabilities.
+
+Example:
+
+```text
+schedule/
+├── application/
+├── domain/
+├── infrastructure/
+└── presentation/
+```
+
+instead of dumping all unrelated domains into:
+
+```text
+services/
+repositories/
+helpers/
+utils/
+```
+
+Adapt to the existing repository architecture.
+
+Do not reorganize the entire project without explicit need.
+
+---
+
+# 36. No Cross-Domain Imports Without Justification
+
+Before importing one feature/domain directly into another, ask:
+
+```text
+Is this a legitimate dependency?
+```
+
+Bad:
+
+```text
+appointment
+    ↓
+doctor internal repository implementation
+```
+
+Better:
+
+```text
+appointment
+    ↓
+DoctorAvailabilityPort
+    ↑
+doctor/infrastructure adapter
+```
+
+when a real architectural boundary exists.
+
+Do not expose internal implementation details across domains.
+
+---
+
+# 37. No Circular Dependencies
+
+Circular dependencies are architectural defects unless strongly justified.
+
+Forbidden pattern:
+
+```text
+ScheduleService
+    ↓
+AppointmentService
+    ↓
+ScheduleService
+```
+
+Do not solve architectural cycles with:
+
+```ts
+forwardRef(...)
+```
+
+as the first response.
+
+`forwardRef` may solve NestJS wiring.
+
+It does NOT solve architectural coupling.
+
+First investigate ownership and dependency direction.
+
+---
+
+# 38. Dependency Inversion Before forwardRef
+
+When a cycle exists, consider extracting:
+
+```text
+shared contract
+domain event
+application port
+orchestrator
+policy
+query service
+```
+
+depending on actual semantics.
+
+Break the dependency at the conceptual level.
+
+---
+
+# 39. Use Ports for External Capabilities
+
+Useful boundaries:
+
+```text
+StoragePort
+EmailPort
+CachePort
+PaymentPort
+NotificationPort
+ClockPort
+ExternalApiPort
+```
+
+Infrastructure adapters implement those contracts.
+
+Example:
+
+```text
+ProfileService
+    ↓
+StoragePort
+    ↑
+S3StorageAdapter
+```
+
+This makes infrastructure replaceable.
+
+---
+
+# 40. Do Not Leak Vendor Names Into Core Logic
+
+Bad:
+
+```text
+uploadToCloudinary()
+saveToRedis()
+sendWithTwilio()
+```
+
+inside application/domain logic.
+
+Prefer capability-oriented names:
+
+```text
+storage.upload()
+cache.set()
+notification.send()
+```
+
+Vendor-specific naming belongs in infrastructure adapters.
+
+---
+
+# 41. Use Adapters at Integration Boundaries
+
+External representations should be adapted.
+
+Example:
+
+```text
+External API
+    ↓
+External DTO
+    ↓
+Adapter / Mapper
+    ↓
+Internal Representation
+```
+
+Do not let the entire application depend directly on third-party response shapes.
+
+---
+
+# 42. Keep Configuration Centralized
+
+Do not read environment variables throughout business code.
+
+Bad:
+
+```ts
+process.env.API_URL
+```
+
+inside random services.
+
+Prefer:
+
+```text
+Config module
+    ↓
+typed configuration
+    ↓
+injected where needed
+```
+
+Configuration access is infrastructure.
+
+---
+
+# 43. Keep Logging Centralized
+
+Do not introduce:
+
+```text
+console.log
+console.warn
+console.error
+```
+
+throughout feature code.
+
+Use the existing logger/observability contract.
+
+New features must mount into existing observability infrastructure.
+
+Do not create parallel logging systems.
+
+---
+
+# 44. Keep Constants Centralized by Ownership
+
+Avoid magic values:
+
+```ts
+if (status === 'somevalue')
+```
+
+Prefer authoritative constants/enums/value objects.
+
+Example:
+
+```ts
+if (status === ScheduleStatus.CLOSED)
+```
+
+Constants must live near the domain that owns them.
+
+Do not put every constant in:
+
+```text
+common/constants.ts
+```
+
+---
+
+# 45. Backend Response Is the Source of Truth
+
+Client or downstream code must not reconstruct authoritative backend state unnecessarily.
+
+If a backend response explicitly provides:
+
+```text
+status
+type
+state
+permission
+availability
+```
+
+consume that contract.
+
+Do not re-derive backend truth from presentation strings.
+
+This same principle applies internally:
+
+Do not create duplicate calculations of an already authoritative state.
+
+---
+
+# 46. One Source of Truth Per Concept
+
+Before introducing another field, helper, mapping, cache, or state representation, ask:
+
+```text
+Where is the authoritative source?
+```
+
+Avoid:
+
+```text
+users.image_url
+staff_profiles.avatar_url
+cachedAvatar
+fallbackAvatar
+```
+
+all pretending to represent the same truth.
+
+One authoritative source.
+
+Other representations must derive from it deliberately.
+
+---
+
+# 47. No Silent Fallbacks
+
+Do not hide missing data or broken integration with arbitrary fallback values.
+
+Bad:
+
+```ts
+return schedule ?? showcaseSchedule;
+```
+
+Bad:
+
+```ts
+return avatarA || avatarB || defaultFakeAvatar;
+```
+
+when fallback behavior is not a documented product rule.
+
+Prefer explicit absence or explicit failure.
+
+Fallbacks can mask architecture defects.
+
+---
+
+# 48. Helper Functions Must Be Deterministic Where Possible
+
+A helper named:
+
+```text
+resolveAvatarUrl()
+```
+
+should have clear inputs and outputs.
+
+Avoid helpers that secretly:
+
+```text
+read database
+read environment
+modify state
+call HTTP service
+```
+
+unless the name and ownership clearly communicate it.
+
+---
+
+# 49. Name Functions by Responsibility
+
+Bad:
+
+```text
+handleData()
+processStuff()
+manageThing()
+doLogic()
+helper()
+executeProcess()
+```
+
+Good:
+
+```text
+resolveScheduleState()
+normalizePhoneNumber()
+buildAppointmentResponse()
+assertScheduleEditable()
+mapDoctorRecord()
+```
+
+Names should communicate intent without opening the implementation.
+
+---
+
+# 50. Boolean Helpers Should Read Like Questions
+
+Examples:
+
+```text
+isScheduleEditable()
+hasActiveAppointment()
+canDoctorModifySchedule()
+```
+
+Avoid:
+
+```text
+checkSchedule()
+validateThing()
+statusCheck()
+```
+
+when the return value is boolean.
+
+---
+
+# 51. Commands Should Use Action Names
+
+Examples:
+
+```text
+createAppointment()
+cancelAppointment()
+closeSchedule()
+updateDoctorProfile()
+```
+
+Not:
+
+```text
+appointment()
+schedule()
+data()
+```
+
+---
+
+# 52. Mappers Should Use Mapping Names
+
+Examples:
+
+```text
+toDomain()
+toPersistence()
+toResponse()
+fromPersistence()
+```
+
+Do not hide unrelated business logic inside them.
+
+---
+
+# 53. Factories Should Construct, Not Orchestrate Infrastructure
+
+A factory may construct a valid domain object.
+
+A factory should not:
+
+```text
+query database
+send email
+perform HTTP request
+write cache
+```
+
+unless the architecture explicitly defines a higher-level factory with such ownership.
+
+---
+
+# 54. Avoid Generic "Manager" Classes
+
+Names such as:
+
+```text
+UserManager
+ScheduleManager
+SystemManager
+DataManager
+```
+
+often hide unclear responsibilities.
+
+Prefer specific capability names.
+
+---
+
+# 55. Avoid "CommonService"
+
+`CommonService` is usually an architectural smell.
+
+If functionality is shared, identify the actual capability.
+
+Examples:
+
+```text
+Clock
+IdGenerator
+UrlBuilder
+FileMetadataExtractor
+RequestContext
+```
+
+---
+
+# 56. Duplication vs Wrong Abstraction
+
+Do not prematurely abstract two superficially similar pieces of code.
+
+Ask:
+
+```text
+Do these pieces share the same semantic reason to change?
+```
+
+If not, keep them separate.
+
+A small amount of duplication is cheaper than coupling unrelated domains.
+
+---
+
+# 57. Rule of Three as a Heuristic
+
+When the same semantic behavior appears repeatedly, consider extraction.
+
+Do not mechanically apply DRY based only on textual similarity.
+
+DRY means:
+
+```text
+one authoritative representation of knowledge
+```
+
+not:
+
+```text
+never repeat a line of code
+```
+
+---
+
+# 58. Keep APIs Narrow
+
+Expose the minimum necessary public surface.
+
+Bad:
+
+```text
+Service with 37 public methods
+```
+
+Prefer capability-specific APIs.
+
+Internal helpers should remain private/local unless another module genuinely needs them.
+
+---
+
+# 59. Hide Implementation Details
+
+Consumers should know:
+
+```text
+what capability exists
+```
+
+not:
+
+```text
+how it is implemented internally
+```
+
+Example:
+
+```text
+AppointmentRepository.save()
+```
+
+rather than exposing:
+
+```text
+Drizzle table
+SQL builder
+transaction internals
+```
+
+---
+
+# 60. Avoid Propagating Database Models Everywhere
+
+Persistence representations belong to persistence.
+
+Do not make database records the universal application model.
+
+Use mapping boundaries when the distinction is meaningful.
+
+---
+
+# 61. Avoid Propagating HTTP DTOs Everywhere
+
+HTTP DTOs belong at the transport boundary.
+
+Do not make a controller DTO the central domain model unless it truly represents the same concept.
+
+---
+
+# 62. Infrastructure Must Be Replaceable
+
+A healthy boundary should make it possible to replace:
+
+```text
+Drizzle → another persistence implementation
+Pino → another logger
+Redis → another cache
+S3 → another object storage
+HTTP provider → another HTTP provider
+```
+
+without rewriting business rules.
+
+You do not need to actively support every alternative.
+
+The architecture simply must not unnecessarily couple core logic to one implementation.
+
+---
+
+# 63. Unit Testing Should Reveal Coupling Problems
+
+A cohesive pure component should be testable without:
+
+```text
+database
+Docker
+HTTP server
+Redis
+filesystem
+```
+
+when those dependencies are irrelevant to the unit's responsibility.
+
+If testing a simple policy requires booting half the application, investigate coupling.
+
+---
+
+# 64. Integration Tests Belong at Integration Boundaries
+
+Do not mock everything.
+
+Use:
+
+```text
+unit tests
+```
+
+for pure business logic.
+
+Use:
+
+```text
+integration tests
+```
+
+for repository/database adapters.
+
+Use:
+
+```text
+HTTP/e2e tests
+```
+
+for API contracts.
+
+The test boundary should match the architecture boundary.
+
+---
+
+# 65. Refactor Before Adding More Complexity
+
+When adding a feature to an already overloaded unit:
+
+DO NOT simply append another:
+
+```text
+if
+method
+dependency
+branch
+switch
+```
+
+First evaluate whether the existing unit should be decomposed.
+
+Feature work must not continuously increase structural debt.
+
+---
+
+# 66. Boy Scout Rule With Scope Control
+
+When modifying an area:
+
+improve structural clarity when directly relevant.
+
+Do NOT perform unrelated repository-wide refactors without explicit reason.
+
+Refactor enough to safely support the change.
+
+Avoid uncontrolled scope expansion.
+
+---
+
+# 67. New Feature Workflow
+
+Before implementing a new feature:
+
+```text
+1. Locate the owning domain.
+2. Inspect existing abstractions.
+3. Identify the feature's responsibilities.
+4. Identify pure business logic.
+5. Identify side effects.
+6. Identify required external capabilities.
+7. Identify existing reusable helpers.
+8. Determine correct dependency direction.
+9. Design the smallest cohesive components.
+10. Implement.
+11. Verify dependency boundaries.
+12. Verify observability.
+13. Verify tests.
+```
+
+Do not start by creating random files.
+
+---
+
+# 68. Mandatory Decomposition Questions
+
+Before adding substantial code, answer:
+
+```text
+What is the orchestration responsibility?
+
+What is the business-rule responsibility?
+
+What is the persistence responsibility?
+
+What is the mapping responsibility?
+
+What is the validation responsibility?
+
+What is the infrastructure responsibility?
+
+What can be pure?
+
+What requires side effects?
+
+What already exists?
+
+What should remain private?
+
+What needs an interface?
+
+What does NOT need an interface?
+```
+
+---
+
+# 69. Before Extracting a Helper
+
+Ask:
+
+```text
+Is this behavior coherent?
+
+Does it have a meaningful name?
+
+Is it deterministic?
+
+Who owns it?
+
+Will extraction reduce cognitive complexity?
+
+Does it remove duplication of knowledge?
+
+Will moving it create worse coupling?
+```
+
+If the answer is unclear, do not extract blindly.
+
+---
+
+# 70. Before Creating a Utility
+
+Ask:
+
+```text
+Is this truly domain-independent?
+
+Could this live closer to the feature?
+
+Will unrelated domains depend on it?
+
+Does its meaning remain identical across consumers?
+```
+
+If not, keep it local.
+
+---
+
+# 71. Before Creating an Interface
+
+Ask:
+
+```text
+Is there a real architectural boundary?
+
+Is this an external capability?
+
+Could implementations reasonably vary?
+
+Does inversion protect core logic?
+
+Will this improve testability or ownership?
+```
+
+If no, a concrete implementation or pure function may be better.
+
+---
+
+# 72. Before Injecting Another Dependency
+
+Ask:
+
+```text
+Why does this class need this?
+
+Does this new dependency reveal another responsibility?
+
+Should orchestration be split?
+
+Could this capability belong to another collaborator?
+```
+
+Do not normalize constructors with 12 dependencies.
+
+---
+
+# 73. Before Adding Another Conditional
+
+Ask:
+
+```text
+Is this a one-off guard?
+
+Or is a business policy emerging?
+```
+
+If the same state logic exists in several places, create one authoritative policy/resolver.
+
+---
+
+# 74. Before Adding Another Mapping
+
+Ask:
+
+```text
+Is this another representation of existing authoritative data?
+```
+
+Avoid parallel mapping chains that gradually diverge.
+
+---
+
+# 75. No Architecture by Copy-Paste
+
+Do not create new services/modules by copying an old oversized implementation.
+
+Existing code may contain architectural debt.
+
+Inspect first.
+
+Reuse patterns only if they are structurally sound.
+
+---
+
+# 76. No Speculative Generalization
+
+Do not design abstractions for hypothetical future requirements.
+
+Bad:
+
+```text
+UniversalEntityProcessor<T, U, V, X>
+```
+
+for one current use case.
+
+Implement today's known boundaries cleanly.
+
+Refactor when actual variation emerges.
+
+---
+
+# 77. No "Just in Case" Layers
+
+Every layer must have a purpose.
+
+Do not create:
+
+```text
+Controller
+→ Handler
+→ Manager
+→ Coordinator
+→ Processor
+→ Service
+→ Executor
+→ Repository
+```
+
+when half of them simply forward calls.
+
+Indirection without responsibility is complexity.
+
+---
+
+# 78. Forwarding Wrapper Smell
+
+Bad:
+
+```ts
+class ScheduleManager {
+  constructor(private service: ScheduleService) {}
+
+  update(input) {
+    return this.service.update(input);
+  }
+}
+```
+
+If a wrapper adds no semantic boundary, policy, adaptation, or abstraction, remove it.
+
+---
+
+# 79. Architecture Must Reduce Cognitive Load
+
+The goal is not:
+
+```text
+maximum number of patterns
+```
+
+The goal is:
+
+```text
+minimum mental context required to understand one responsibility
+```
+
+A developer should be able to open a component and understand its role without loading the entire application into their head.
+
+---
+
+# 80. Traceable Data Flow
+
+Every feature should have a readable dependency path.
+
+Example:
+
+```text
+HTTP
+ ↓
+Controller
+ ↓
+Use Case
+ ↓
+Domain Policy
+ ↓
+Repository Port
+ ↓
+Repository Adapter
+ ↓
+Database
+```
+
+Avoid invisible jumps through:
+
+```text
+global mutable state
+service locator magic
+random static singleton
+cross-module mutation
+```
+
+---
+
+# 81. Explicit Inputs and Outputs
+
+Functions must expose their dependencies through:
+
+```text
+parameters
+constructor injection
+explicit context
+```
+
+Avoid hidden dependencies.
+
+Bad:
+
+```text
+globalCurrentUser
+globalConfig
+globalDb
+```
+
+Prefer explicit dependency injection or request context.
+
+---
+
+# 82. Mutation Must Be Local and Intentional
+
+Prefer immutable transformations where practical.
+
+Do not pass an object through five functions that mutate it unpredictably.
+
+Prefer:
+
+```text
+input
+→ transformation
+→ new result
+```
+
+over:
+
+```text
+shared object
+→ mutate
+→ mutate
+→ mutate
+→ mystery state
+```
+
+---
+
+# 83. Avoid Temporal Coupling
+
+Bad API:
+
+```text
+service.initialize()
+service.setDoctor()
+service.setDate()
+service.calculate()
+service.save()
+```
+
+where methods must be called in an undocumented order.
+
+Prefer one explicit operation with required inputs.
+
+---
+
+# 84. Avoid Shared Mutable Singleton State
+
+Singleton services are acceptable for stateless infrastructure.
+
+Do not store request-specific mutable state inside application-wide singleton services.
+
+Request context belongs in appropriate scoped/context infrastructure.
+
+---
+
+# 85. State Machines for Real State Complexity
+
+If behavior depends heavily on state transitions such as:
+
+```text
+AVAILABLE
+OCCUPIED
+CLOSED
+UNSCHEDULED
+```
+
+and transitions become complex, consider an explicit state transition model.
+
+Do not scatter:
+
+```text
+if status === ...
+```
+
+across the entire codebase.
+
+One authoritative state policy should define valid transitions.
+
+---
+
+# 86. Prefer Lookup Tables Over Repetitive Conditionals
+
+When mapping stable values:
+
+Bad:
+
+```ts
+if (state === A) ...
+else if (state === B) ...
+else if (state === C) ...
+```
+
+Consider:
+
+```ts
+const mapping = {
+  [State.A]: ...,
+  [State.B]: ...,
+};
+```
+
+when semantics are truly mapping-based.
+
+Do not force lookup tables when behavior requires logic.
+
+---
+
+# 87. Strategy Pattern Only When Behavior Varies
+
+Use strategies when several implementations share one capability.
+
+Example:
+
+```text
+NotificationSender
+├── EmailNotificationSender
+├── PushNotificationSender
+└── SmsNotificationSender
+```
+
+Do not introduce Strategy Pattern for one implementation with no real behavioral variation.
+
+---
+
+# 88. Factory Pattern Only for Construction Complexity
+
+Use factories when object creation has meaningful rules.
+
+Do not create:
+
+```text
+StringFactory
+DateFactory
+BooleanFactory
+```
+
+for trivial construction.
+
+---
+
+# 89. Adapter Pattern at External Boundaries
+
+Use adapters where your application interfaces with systems it does not own.
+
+Examples:
+
+```text
+PinoLoggerAdapter
+DrizzleScheduleRepository
+S3StorageAdapter
+ExternalClinicApiAdapter
+```
+
+This is appropriate decoupling.
+
+---
+
+# 90. Facade Is Not Permission for God Object
+
+A facade may provide a simplified public API.
+
+It must delegate to cohesive components.
+
+Do not put all implementation inside the facade itself.
+
+---
+
+# 91. Modules Must Own Their Internals
+
+Avoid exporting every provider.
+
+Expose only what other modules genuinely require.
+
+Internal implementation details should remain internal.
+
+---
+
+# 92. Public API of a Module Must Be Deliberate
+
+For each module, ask:
+
+```text
+What capability does another module actually need?
+```
+
+Export that.
+
+Do not export:
+
+```text
+every repository
+every mapper
+every helper
+every internal service
+```
+
+without reason.
+
+---
+
+# 93. Avoid Barrel Files That Hide Dependency Cycles
+
+Barrel exports may simplify imports but can hide circular dependencies.
+
+If barrel imports cause ambiguous ownership or cycles, prefer explicit imports.
+
+Readability is more important than shorter import paths.
+
+---
+
+# 94. Prefer Path Aliases for Stable Architectural Boundaries
+
+If the project already supports path aliases, prefer:
+
+```ts
+import { ... } from '@/infrastructure/database';
+```
+
+over fragile chains such as:
+
+```ts
+import { ... } from '../../../../../database/...';
+```
+
+Do not introduce aliases without checking existing TypeScript configuration.
+
+Use existing namespace conventions.
+
+---
+
+# 95. Do Not Reach Into Another Module's Internals
+
+Bad:
+
+```text
+feature A
+→ feature B/internal/helpers/private-file
+```
+
+Depend on the public contract exposed by feature B.
+
+If the required capability is not exposed, reconsider ownership.
+
+---
+
+# 96. Keep Cross-Cutting Concerns Cross-Cutting
+
+Concerns such as:
+
+```text
+logging
+observability
+authentication context
+configuration
+metrics
+tracing
+```
+
+should have centralized infrastructure.
+
+Do not duplicate implementations per feature.
+
+---
+
+# 97. Every New Feature Must Be Observable
+
+A feature is not complete if it works but cannot explain what happened.
+
+Reuse the existing logging/tracing system.
+
+Do not add ad-hoc console logging.
+
+Ensure:
+
+```text
+success path
+failure path
+important state transitions
+request correlation
+```
+
+are traceable where appropriate.
+
+---
+
+# 98. Decomposition Must Preserve Observability
+
+Do not split code into so many tiny helpers that the execution flow becomes impossible to trace.
+
+There must still be a clear orchestration layer.
+
+Good:
+
+```text
+CreateAppointmentUseCase
+    ↓
+policy
+factory
+repository
+```
+
+Bad:
+
+```text
+helperA
+ ↓
+helperB
+ ↓
+helperC
+ ↓
+helperD
+ ↓
+helperE
+```
+
+with no semantic execution owner.
+
+---
+
+# 99. Decomposition Must Preserve Transaction Boundaries
+
+Do not split database mutations in ways that accidentally destroy atomicity.
+
+The orchestration layer must make transaction ownership explicit.
+
+Helpers should not independently create unrelated transactions unless intended.
+
+---
+
+# 100. Decomposition Must Preserve Error Semantics
+
+Extracted helpers must not randomly convert errors.
+
+There should be a clear boundary responsible for error translation.
+
+Avoid:
+
+```text
+repository error
+→ helper changes it
+→ another helper swallows it
+→ controller invents another error
+```
+
+Preserve diagnostic context.
+
+---
+
+# 101. Decomposition Must Preserve Performance Awareness
+
+Do not turn one efficient query into five repository calls simply for architectural aesthetics.
+
+Decoupling is not permission to create N+1 queries or excessive network calls.
+
+Architecture and performance must coexist.
+
+---
+
+# 102. Do Not Duplicate Fetching Across Helpers
+
+If several helpers need the same entity, prefer resolving shared context once where appropriate.
+
+Example:
+
+```text
+ContextResolver
+    ↓
+doctor
+schedule
+appointment
+```
+
+Then pass explicit context to pure policies.
+
+Do not repeatedly query the same data inside separate helpers.
+
+---
+
+# 103. Separate Context Resolution From Business Evaluation
+
+Useful model:
+
+```text
+Input
+ ↓
+Context Resolver
+ ↓
+Resolved Context
+ ↓
+Policy
+ ↓
+Decision
+```
+
+The policy should not need to know how context was fetched.
+
+---
+
+# 104. Keep Time as a Dependency When Important
+
+Business logic depending on "now" should not scatter:
+
+```ts
+new Date()
+```
+
+everywhere.
+
+For test-sensitive domain logic, consider a clock abstraction or explicit current time input.
+
+Do this only when time actually affects domain behavior.
+
+---
+
+# 105. Keep ID Generation Explicit When Important
+
+If IDs are business/infrastructure-relevant, centralize their generation rather than scattering random UUID generation everywhere.
+
+Again, do not abstract trivial usage unnecessarily.
+
+---
+
+# 106. Comments Must Explain Why, Not Compensate for Bad Structure
+
+Bad:
+
+```ts
+// this section calculates state
+// this section validates doctor
+// this section saves
+```
+
+inside a 600-line method.
+
+Extract meaningful units instead.
+
+Comments should explain:
+
+```text
+business reason
+non-obvious invariant
+external constraint
+architectural decision
+```
+
+not narrate obvious code.
+
+---
+
+# 107. Do Not Hide Complexity Behind "Helper"
+
+Renaming:
+
+```text
+500 lines
+```
+
+to:
+
+```text
+helper.ts
+```
+
+does not reduce complexity.
+
+Complexity is reduced only when responsibilities and dependencies become clearer.
+
+---
+
+# 108. Do Not Hide Complexity Behind "Service"
+
+Same principle:
+
+```text
+MegaService
+```
+
+is still a God Object even if the framework calls everything a service.
+
+---
+
+# 109. Do Not Hide Complexity Behind Private Methods
+
+A class with:
+
+```text
+40 private methods
+```
+
+may still have too many responsibilities.
+
+Private methods are not architectural decomposition if all responsibilities remain coupled to one class.
+
+Extract collaborators when responsibilities genuinely differ.
+
+---
+
+# 110. Use Cognitive Complexity as a Smell
+
+When understanding a function requires tracking:
+
+```text
+many branches
+many mutable variables
+multiple side effects
+several external dependencies
+nested loops
+several state transitions
+```
+
+stop extending it.
+
+Decompose it first.
+
+---
+
+# 111. Agent Must Inspect Before Refactoring
+
+Before changing architecture:
+
+```text
+search usages
+trace imports
+inspect dependency graph
+inspect existing abstractions
+inspect tests
+inspect DI registration
+inspect public exports
+```
+
+Do not create a new abstraction because you failed to discover an existing one.
+
+---
+
+# 112. Refactoring Must Preserve Behavior
+
+Unless behavior change is explicitly requested:
+
+```text
+input contract
+output contract
+status codes
+side effects
+database semantics
+event semantics
+```
+
+must remain unchanged during architectural decomposition.
+
+Refactoring and behavior modification must not be silently mixed.
+
+---
+
+# 113. Refactor in Coherent Steps
+
+For large God Objects:
+
+Do not rewrite everything blindly.
+
+Prefer:
+
+```text
+1. identify responsibilities
+2. identify dependencies
+3. identify tests
+4. extract pure logic
+5. extract infrastructure boundaries
+6. simplify orchestration
+7. verify behavior
+8. remove dead code
+```
+
+Keep each step understandable.
+
+---
+
+# 114. Delete Obsolete Code After Extraction
+
+Do not leave:
+
+```text
+old method
+new method
+fallback method
+legacy helper
+temporary adapter
+```
+
+all active indefinitely.
+
+After verification, remove obsolete implementation unless backwards compatibility explicitly requires it.
+
+---
+
+# 115. No "Fallback Architecture"
+
+Do not keep two competing implementations "just in case."
+
+Example:
+
+```text
+new schedule resolver
++
+old schedule resolver fallback
+```
+
+without a documented compatibility requirement.
+
+This destroys single source of truth.
+
+---
+
+# 116. One Canonical Path
+
+For each capability, prefer one canonical execution path.
+
+Bad:
+
+```text
+Controller A → old service
+Controller B → new service
+Worker → helper
+Admin → repository directly
+```
+
+Good:
+
+```text
+all appropriate callers
+        ↓
+canonical application capability
+```
+
+Different contexts may still have different entry points when semantics genuinely differ.
+
+---
+
+# 117. Vertical Slice Must Respect Shared Infrastructure
+
+Features may own domain/application code.
+
+Cross-cutting infrastructure should remain reusable.
+
+Example:
+
+```text
+appointment/
+schedule/
+user/
+
+infrastructure/
+    database/
+    logging/
+    cache/
+```
+
+Do not duplicate database/logging infrastructure inside every feature.
+
+---
+
+# 118. High Cohesion, Low Coupling
+
+The target architecture is:
+
+```text
+inside a module:
+HIGH COHESION
+
+between modules:
+LOW COUPLING
+```
+
+A module should contain things that change together.
+
+Modules that change for unrelated reasons should not be merged.
+
+---
+
+# 119. Explicit Contract at Every Boundary
+
+Whenever two layers/modules communicate, the interaction should have a clear contract.
+
+Examples:
+
+```text
+DTO
+interface
+type
+command
+query
+domain object
+event
+port
+```
+
+Avoid "pass any object and inspect fields dynamically" architecture.
+
+---
+
+# 120. No `any` as a Decoupling Shortcut
+
+`any` is not decoupling.
+
+It removes the contract.
+
+Prefer explicit types.
+
+If external input is unknown, validate and narrow it at the boundary.
+
+---
+
+# 121. Avoid Stringly-Typed Architecture
+
+Bad:
+
+```ts
+if (type === 'doctor')
+if (state === 'close')
+if (role === 'some admin value')
+```
+
+when authoritative enums/constants exist.
+
+Prefer:
+
+```ts
+Role.DOCTOR
+ScheduleState.CLOSED
+```
+
+or existing domain value objects.
+
+---
+
+# 122. No Duplicate Domain Constants
+
+If backend owns:
+
+```text
+ScheduleState
+```
+
+do not introduce:
+
+```text
+ScheduleStatus
+SlotStatus
+ScheduleStateValue
+```
+
+representing the same concept in different files without explicit distinction.
+
+---
+
+# 123. Avoid Bidirectional Module Knowledge
+
+Prefer:
+
+```text
+A → B
+```
+
+not:
+
+```text
+A ↔ B
+```
+
+When both domains need collaboration, introduce an orchestration boundary or event mechanism where appropriate.
+
+---
+
+# 124. Domain Events for Loose Coupling When Semantically Appropriate
+
+If one completed business event triggers secondary effects:
+
+```text
+appointment created
+    ↓
+notification
+analytics
+audit
+```
+
+consider domain/application events.
+
+Do not force synchronous direct dependencies when the behavior is naturally event-driven.
+
+Do not use events merely to avoid understandable direct calls.
+
+---
+
+# 125. Critical Operations May Remain Synchronous
+
+Do not use asynchronous events for state that must succeed atomically.
+
+Examples depend on domain semantics.
+
+Architectural decoupling must not compromise consistency guarantees.
+
+---
+
+# 126. No Hidden Runtime Magic Without Documentation
+
+Avoid dependency behavior that cannot be understood from code navigation.
+
+If decorators, interceptors, proxies, or global providers create important behavior, make the ownership discoverable and documented.
+
+---
+
+# 127. Composition Root Owns Wiring
+
+Dependency wiring belongs at the composition root.
+
+Examples:
+
+```text
+NestJS module registration
+provider registration
+adapter binding
+```
+
+Business code should not instantiate infrastructure itself.
+
+Bad:
+
+```ts
+const repo = new DrizzleRepository();
+```
+
+inside use cases.
+
+---
+
+# 128. Constructor Injection Over Service Locator
+
+Prefer explicit injection.
+
+Avoid:
+
+```text
+globalContainer.resolve(...)
+```
+
+from arbitrary business code.
+
+Hidden dependency retrieval increases coupling.
+
+---
+
+# 129. Module Boundaries Must Be Enforceable
+
+Where tooling permits, use:
+
+```text
+lint rules
+path aliases
+public exports
+dependency graph checks
+```
+
+to prevent accidental cross-layer imports.
+
+Architecture should not depend only on developer memory.
+
+---
+
+# 130. No Premature Microservices
+
+Decoupling does not mean splitting everything into separate services.
+
+A well-structured modular monolith is often preferable.
+
+Decouple logically before distributing physically.
+
+---
+
+# 131. No Premature Generic CRUD Abstraction
+
+Do not force every domain into:
+
+```text
+GenericCrudService<T>
+GenericRepository<T>
+GenericController<T>
+```
+
+when domains have different invariants.
+
+Generic CRUD often hides business semantics and creates tight coupling.
+
+Abstract only genuinely identical behavior.
+
+---
+
+# 132. Business Use Cases Deserve Explicit Names
+
+Prefer:
+
+```text
+CreateAppointment
+RescheduleAppointment
+CancelAppointment
+OpenDoctorSchedule
+CloseDoctorSchedule
+```
+
+over:
+
+```text
+AppointmentCrudService
+ScheduleCrudService
+```
+
+when behavior contains real domain rules.
+
+---
+
+# 133. Read Models May Differ From Write Models
+
+Do not force the same model everywhere.
+
+Queries may require optimized projections.
+
+Commands may require domain objects.
+
+This separation can reduce accidental coupling.
+
+Use only when it genuinely improves the design.
+
+---
+
+# 134. No Leaky Abstraction
+
+If every consumer must understand internal details of an abstraction to use it correctly, the abstraction is failing.
+
+Example:
+
+A repository should not require callers to know SQL table joins.
+
+A storage port should not require callers to know S3-specific concepts unless explicitly part of the contract.
+
+---
+
+# 135. Optimize for Change Isolation
+
+A good design should make this possible:
+
+```text
+Change persistence implementation
+→ business logic unchanged
+
+Change logger
+→ domain unchanged
+
+Change HTTP transport
+→ core use case unchanged
+
+Change response serializer
+→ persistence unchanged
+```
+
+This is the practical meaning of decoupling.
+
+---
+
+# 136. Change Impact Must Stay Local
+
+When one business rule changes, the agent should not need to modify:
+
+```text
+controller
+service
+repository
+utility
+mapper
+frontend model
+database adapter
+```
+
+unless each layer is genuinely affected.
+
+If a simple semantic change requires editing many unrelated files, investigate duplication or poor ownership.
+
+---
+
+# 137. Refactoring Acceptance Criteria
+
+A decomposition is successful when:
+
+```text
+each unit has clear ownership
+dependencies are explicit
+business logic is easier to locate
+side effects are visible
+tests become easier
+duplicate knowledge decreases
+cross-module imports decrease
+orchestration becomes readable
+no behavior is accidentally changed
+```
+
+File count alone is not evidence of improvement.
+
+---
+
+# 138. Mandatory God Object Detection
+
+Before completing substantial work, inspect modified classes/files for:
+
+```text
+multiple unrelated responsibilities
+large dependency lists
+large public API
+mixed infrastructure/domain concerns
+deep branching
+repeated state logic
+repeated mapping logic
+random utility methods
+```
+
+If detected, decompose before completion.
+
+---
+
+# 139. Mandatory Helper Review
+
+For every new helper, verify:
+
+```text
+[ ] It has one meaningful responsibility.
+[ ] Its ownership is clear.
+[ ] It is located near the correct domain/layer.
+[ ] It is not a dumping-ground utility.
+[ ] It does not hide unexpected side effects.
+[ ] It does not create circular dependencies.
+[ ] It does not duplicate an existing helper.
+```
+
+---
+
+# 140. Mandatory Dependency Review
+
+For every new dependency/import, verify:
+
+```text
+[ ] Dependency direction is correct.
+[ ] Core logic does not depend unnecessarily on infrastructure.
+[ ] No module internals are bypassed.
+[ ] No circular dependency is introduced.
+[ ] Existing public contract is used.
+```
+
+---
+
+# 141. Mandatory Service Review
+
+For every modified service, verify:
+
+```text
+[ ] It still has a coherent responsibility.
+[ ] It has not become a God Service.
+[ ] New behavior belongs here.
+[ ] Number of dependencies remains reasonable.
+[ ] Business rules are not duplicated.
+[ ] Infrastructure details have not leaked in.
+```
+
+---
+
+# 142. Mandatory Function Review
+
+For every substantial function, verify:
+
+```text
+[ ] Purpose can be described in one sentence.
+[ ] Inputs are explicit.
+[ ] Output is explicit.
+[ ] Side effects are obvious.
+[ ] Nesting is reasonable.
+[ ] Business rules are not duplicated elsewhere.
+[ ] Extraction candidates were considered.
+```
+
+---
+
+# 143. Mandatory Refactoring Report
+
+After a meaningful decomposition/refactor, report:
+
+```text
+DECOMPOSITION REPORT
+
+Original responsibility:
+...
+
+Problems found:
+...
+
+Responsibilities identified:
+...
+
+Components extracted:
+...
+
+Pure functions extracted:
+...
+
+Infrastructure boundaries introduced/reused:
+...
+
+Dependencies removed:
+...
+
+Dependency direction:
+...
+
+God Object risk:
+LOW / MEDIUM / HIGH
+
+Circular dependencies:
+NONE / describe
+
+Behavior changed:
+NO / describe explicitly
+
+Tests performed:
+...
+
+Observability preserved:
+YES / NO
+```
+
+Do not merely report:
+
+```text
+"Refactoring completed."
+```
+
+---
+
+# 144. Definition of Done
+
+A feature/refactor is NOT complete merely because:
+
+```text
+it compiles
+tests pass
+endpoint returns 200
+```
+
+It must also satisfy:
+
+```text
+[ ] Responsibilities are coherent.
+[ ] No God Object was introduced.
+[ ] No God Function was introduced.
+[ ] Existing abstractions were reused where appropriate.
+[ ] New abstractions have semantic value.
+[ ] Pure logic is separated where useful.
+[ ] Side effects are explicit.
+[ ] Dependency direction is correct.
+[ ] No unnecessary circular dependency exists.
+[ ] Shared utilities are genuinely shared.
+[ ] Domain logic stays with its domain.
+[ ] Infrastructure stays at infrastructure boundaries.
+[ ] Business logic is independently testable where practical.
+[ ] Observability remains intact.
+[ ] Existing behavior is preserved unless explicitly changed.
+```
+
+---
+
+# 145. Final Architectural Reinforcement
+
+Do not solve complexity by hiding it.
+
+Do not move 500 lines from:
+
+```text
+service.ts
+```
+
+into:
+
+```text
+helpers.ts
+```
+
+and call that refactoring.
+
+Do not solve coupling by introducing meaningless interfaces.
+
+Do not solve circular dependencies with `forwardRef()` without investigating architecture.
+
+Do not solve duplication by creating an over-generalized utility.
+
+Do not solve file size by producing dozens of meaningless files.
+
+Instead:
+
+```text
+Identify responsibility
+        ↓
+Identify owner
+        ↓
+Separate pure logic
+        ↓
+Separate side effects
+        ↓
+Define explicit contract
+        ↓
+Invert infrastructure dependency where appropriate
+        ↓
+Compose small cohesive units
+        ↓
+Keep one readable orchestrator
+        ↓
+Verify dependency direction
+        ↓
+Verify behavior
+```
+
+The desired architecture is not:
+
+```text
+everything depends on everything
+```
+
+and it is also not:
+
+```text
+nothing depends on anything
+```
+
+The desired architecture is:
+
+```text
+DEPENDENCIES ARE FEW,
+INTENTIONAL,
+ONE-DIRECTIONAL,
+EXPLICIT,
+AND BASED ON STABLE CONTRACTS.
+```
+
+The ultimate rule is:
+
+> A component should know only what it needs to perform its responsibility and nothing more.
+
+If a feature cannot be understood without opening ten unrelated modules, the boundaries are wrong.
+
+If changing one responsibility requires modifying many unrelated components, the coupling is too high.
+
+If one class understands the database, HTTP, business rules, logging, mapping, validation, caching, and notifications simultaneously, it is a God Object and must be decomposed.
+
+Build small cohesive components, compose them through explicit contracts, keep orchestration readable, and keep infrastructure replaceable.
+```
+
+Untuk agent coding, bagian yang paling penting adalah kombinasi tiga aturan: **“extract by responsibility, not by line count”**, **“keep one readable orchestrator”**, dan **“utilities are not dumping grounds.”** Itu mencegah AI melakukan refactor palsu seperti memindahkan 2.000 baris dari `service.ts` menjadi `helpers.ts` tanpa benar-benar mengurangi coupling.

@@ -24,6 +24,17 @@ export class CheckRescheduleEligibilityQueryDto {
 
   @ApiPropertyOptional({
     description:
+      'Jam selesai target baru yang ingin divalidasi (opsional, format: HH:mm). Jika tidak diisi, backend menghitung otomatis dari durasi sesi.',
+    example: '15:00',
+  })
+  @IsOptional()
+  @Matches(/^([01]\d|2[0-3]):([0-5]\d)$/, {
+    message: 'targetEndTime harus berformat HH:mm (00:00 - 23:59)',
+  })
+  targetEndTime?: string;
+
+  @ApiPropertyOptional({
+    description:
       'ID ruangan target baru yang ingin divalidasi ketersediaannya (opsional)',
     example: 'e3067341-a185-484d-91d6-84848fcff1ef',
   })

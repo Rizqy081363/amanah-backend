@@ -14,12 +14,7 @@ import {
   ScheduleOperationalStatus,
 } from '@modules/schedules/domain/entities/schedule.entity';
 import { ScheduleSlotFactory } from '@modules/schedules/domain/factories/schedule-slot.factory';
-import {
-  formatClockTime,
-  parseClockTime,
-} from '@modules/schedules/domain/schedule-projection';
 import { resolveSessionOperationalStatus } from '@modules/schedules/domain/schedule-status';
-import { ScheduleContextResolver } from '@modules/schedules/domain/services/schedule-context-resolver';
 import { ScheduleConflictQuery } from '@modules/schedules/infrastructure/drizzle/queries/schedule-conflict.query';
 import { PractitionerResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/practitioner.resolver';
 import type { CheckRescheduleEligibilityQueryDto } from '@modules/schedules/presentation/dto/check-reschedule-eligibility-query.dto';
@@ -179,34 +174,41 @@ export class DrizzleRescheduleEligibilityEvaluator {
     if (query.targetDate && query.targetStartTime) {
       targetValidation.evaluated = true;
 
-      const targetContextId = ScheduleSlotFactory.resolveShiftFromClockTime(
-        query.targetStartTime,
-      ).contextId;
-      const startMin = parseClockTime(query.targetStartTime);
-
-      const sessionDurationMinutes =
-        parseClockTime(session.endTime) - parseClockTime(session.startTime);
-      const targetEndMinutes = startMin + sessionDurationMinutes;
-      const targetEndTime = formatClockTime(targetEndMinutes);
-      targetValidation.projectedEndTime = targetEndTime;
-
-      const targetRoomId =
-        query.targetRoomId ||
-        session.roomId ||
-        practitioner.defaultRoomId ||
-        null;
-      targetValidation.targetRoomId = targetRoomId;
-
-      if (targetRoomId) {
-        const room = await this.db.query.clinicRooms.findFirst({
-          where: eq(clinicRooms.id, targetRoomId),
-        });
-        if (room) {
-          targetValidation.targetRoomName = `${room.name}${room.location ? `, ${room.location}` : ''}`;
-        }
-      }
-
       try {
+        const targetContext = ScheduleSlotFactory.resolveShiftFromClockTime(
+          query.targetStartTime,
+        );
+        const durationMinutes =
+          practitioner.consultationDurationMinutes &&
+          practitioner.consultationDurationMinutes > 0
+            ? practitioner.consultationDurationMinutes
+            : 30;
+
+        const timing = ScheduleSlotFactory.calculateSessionTiming(
+          targetContext,
+          query.targetStartTime,
+          { durationMinutes },
+        );
+
+        const targetEndTime = timing.endTime;
+        targetValidation.projectedEndTime = targetEndTime;
+
+        const targetRoomId =
+          query.targetRoomId ||
+          session.roomId ||
+          practitioner.defaultRoomId ||
+          null;
+        targetValidation.targetRoomId = targetRoomId;
+
+        if (targetRoomId) {
+          const room = await this.db.query.clinicRooms.findFirst({
+            where: eq(clinicRooms.id, targetRoomId),
+          });
+          if (room) {
+            targetValidation.targetRoomName = `${room.name}${room.location ? `, ${room.location}` : ''}`;
+          }
+        }
+
         const [targetDaySetting, targetLeave] = await Promise.all([
           this.db.query.practitionerScheduleDaySettings.findFirst({
             where: and(
@@ -239,24 +241,14 @@ export class DrizzleRescheduleEligibilityEvaluator {
             closedReason: 'LEAVE',
           };
         } else {
-          const context = ScheduleContextResolver.resolve(targetContextId);
-          const boundaryStart = parseClockTime(context.boundaryStartTime);
-          const boundaryEnd = parseClockTime(context.boundaryEndTime);
-
-          if (startMin < boundaryStart || startMin >= boundaryEnd) {
-            targetValidation.isTargetEligible = false;
-            targetValidation.conflictCode = 'START_OUTSIDE_BOUNDARY';
-            targetValidation.conflictMessage = `Jam mulai (${query.targetStartTime}) berada di luar batas operasional shift ${context.contextLabel} (${context.boundaryStartTime} - ${context.boundaryEndTime} WIB).`;
-          } else {
-            await this.conflictQuery.checkConflicts(
-              practitioner.id,
-              query.targetDate,
-              query.targetStartTime,
-              targetEndTime,
-              targetRoomId,
-              sessionId,
-            );
-          }
+          await this.conflictQuery.checkConflicts(
+            practitioner.id,
+            query.targetDate,
+            query.targetStartTime,
+            targetEndTime,
+            targetRoomId,
+            sessionId,
+          );
         }
       } catch (err: any) {
         targetValidation.isTargetEligible = false;

@@ -1,3 +1,4 @@
+import { CurrentUser } from '@common/auth/current-user.decorator';
 import { HybridAuthGuard } from '@common/auth/hybrid-auth.guard';
 import { Roles } from '@common/auth/roles.decorator';
 import { RolesGuard } from '@common/auth/roles.guard';
@@ -5,6 +6,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   HttpCode,
   HttpStatus,
@@ -54,12 +56,12 @@ import { UpdatePractitionerSchedulePolicyDto } from './dto/update-practitioner-s
 @ApiTags('Admin Doctor Schedules (Supervisi Jadwal Dokter)')
 @ApiBearerAuth('access-token')
 @UseGuards(HybridAuthGuard, RolesGuard)
-@Roles('ADMIN')
+@Roles('ADMIN', 'STAF')
 @ApiUnauthorizedResponse({
   description: 'Sesi autentikasi tidak valid atau token tidak disertakan',
 })
 @ApiForbiddenResponse({
-  description: 'Akses ditolak: Hanya administrator klinik yang berwenang',
+  description: 'Akses ditolak: Hanya administrator atau dokter terkait yang berwenang',
 })
 @Controller({ path: 'admin/doctor-schedules', version: '1' })
 export class AdminDoctorSchedulesController {
@@ -68,7 +70,23 @@ export class AdminDoctorSchedulesController {
     private readonly scheduleRepo: ScheduleRepository,
   ) {}
 
+  private assertDoctorAccess(id: string, user?: any) {
+    if (!user || user.systemRole === 'ADMIN') return;
+    const userStaffId = user.staff?.practitionerId || user.staff?.id;
+    if (
+      !userStaffId ||
+      (userStaffId !== id &&
+        user.staff?.id !== id &&
+        user.staff?.practitionerId !== id)
+    ) {
+      throw new ForbiddenException(
+        'Akses ditolak: Anda hanya berwenang mengakses data jadwal dokter Anda sendiri',
+      );
+    }
+  }
+
   @Get()
+  @Roles('ADMIN')
   @ApiOperation({
     summary: 'Mendapatkan daftar jadwal seluruh dokter untuk supervisi admin',
     description:
@@ -118,7 +136,9 @@ export class AdminDoctorSchedulesController {
   async getDoctorScheduleDetail(
     @Param('id') id: string,
     @Query() query: AdminDoctorScheduleDetailQueryDto,
+    @CurrentUser() user?: any,
   ) {
+    this.assertDoctorAccess(id, user);
     return this.scheduleRepo.findAdminDoctorScheduleDetail(id, query);
   }
 
@@ -145,7 +165,9 @@ export class AdminDoctorSchedulesController {
   async updateDoctorSchedule(
     @Param('id') id: string,
     @Body() body: UpdateAdminDoctorScheduleDto,
+    @CurrentUser() user?: any,
   ) {
+    this.assertDoctorAccess(id, user);
     return this.scheduleRepo.updateAdminDoctorSchedule(id, body);
   }
 
@@ -173,11 +195,14 @@ export class AdminDoctorSchedulesController {
   async updateDoctorSchedulePut(
     @Param('id') id: string,
     @Body() body: UpdateAdminDoctorScheduleDto,
+    @CurrentUser() user?: any,
   ) {
+    this.assertDoctorAccess(id, user);
     return this.scheduleRepo.updateAdminDoctorSchedule(id, body);
   }
 
   @Patch(':id/duration')
+  @Roles('ADMIN')
   @ApiOperation({
     summary: 'Mengubah durasi konsultasi efektif dokter (Admin)',
     description:
@@ -229,7 +254,9 @@ export class AdminDoctorSchedulesController {
     @Param('id') id: string,
     @Param('date') date: string,
     @Body() body: UpdateAdminDayStatusDto,
+    @CurrentUser() user?: any,
   ) {
+    this.assertDoctorAccess(id, user);
     return this.scheduleRepo.updateAdminDayStatus(
       id,
       date,
@@ -259,7 +286,9 @@ export class AdminDoctorSchedulesController {
   async updateDayStatusByBody(
     @Param('id') id: string,
     @Body() body: UpdateAdminDayStatusDto & { date?: string; reason?: string },
+    @CurrentUser() user?: any,
   ) {
+    this.assertDoctorAccess(id, user);
     const targetDate = body.date || new Date().toISOString().slice(0, 10);
     return this.scheduleRepo.updateAdminDayStatus(
       id,
@@ -272,7 +301,7 @@ export class AdminDoctorSchedulesController {
   @Post(':id/sessions')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
-    summary: 'Menambahkan sesi shift praktik baru untuk dokter (Admin)',
+    summary: 'Menambahkan sesi shift praktik baru untuk dokter (Admin & Dokter)',
     description:
       'Menambahkan sesi shift periksa (Pagi, Siang, Malam, Dini Hari) untuk lonjakan antrean atau jam tambahan.',
   })
@@ -293,13 +322,15 @@ export class AdminDoctorSchedulesController {
   async createSession(
     @Param('id') id: string,
     @Body() body: CreateAdminDoctorSessionDto,
+    @CurrentUser() user?: any,
   ) {
+    this.assertDoctorAccess(id, user);
     return this.scheduleRepo.createAdminDoctorSession(id, body);
   }
 
   @Patch(':id/sessions/:sessionId')
   @ApiOperation({
-    summary: 'Memperbarui sesi shift praktik dokter (Admin)',
+    summary: 'Memperbarui sesi shift praktik dokter (Admin & Dokter)',
     description:
       'Mengubah jam mulai/selesai, kuota pasien, sisa slot, status sesi, atau ruangan praktik untuk sesi tertentu.',
   })
@@ -324,7 +355,9 @@ export class AdminDoctorSchedulesController {
     @Param('id') id: string,
     @Param('sessionId') sessionId: string,
     @Body() body: UpdateAdminDoctorSessionDto,
+    @CurrentUser() user?: any,
   ) {
+    this.assertDoctorAccess(id, user);
     return this.scheduleRepo.updateAdminDoctorSession(id, sessionId, body);
   }
 
@@ -332,7 +365,7 @@ export class AdminDoctorSchedulesController {
   @Roles('ADMIN', 'STAF')
   @ApiOperation({
     summary:
-      'Pengecekan pra-syarat (eligibility pre-check) sebelum reschedule sesi dokter (Admin)',
+      'Pengecekan pra-syarat (eligibility pre-check) sebelum reschedule sesi dokter (Admin & Dokter)',
     description:
       'Memeriksa apakah sesi asal eligible untuk di-reschedule (menolak sesi CLOSED dan tanggal cuti). Jika parameter target (targetDate, targetStartTime, targetRoomId) disertakan, backend melakukan simulasi validasi konflik, cuti target, dan batas shift tanpa mengubah data.',
   })
@@ -357,7 +390,9 @@ export class AdminDoctorSchedulesController {
     @Param('id') id: string,
     @Param('sessionId') sessionId: string,
     @Query() query: CheckRescheduleEligibilityQueryDto,
+    @CurrentUser() user?: any,
   ) {
+    this.assertDoctorAccess(id, user);
     const result = await this.scheduleRepo.checkRescheduleEligibility(
       id,
       sessionId,
@@ -374,7 +409,7 @@ export class AdminDoctorSchedulesController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary:
-      'Menjadwalkan ulang (reschedule) sesi shift praktik dokter ke tanggal/jam baru (Admin)',
+      'Menjadwalkan ulang (reschedule) sesi shift praktik dokter ke tanggal/jam baru (Admin & Dokter)',
     description:
       'Memindahkan seluruh sesi jadwal praktik dokter ke tanggal dan jam baru dengan kalkulasi projection otomatis, validasi batas shift & durasi konsultasi, pencegahan konflik jadwal/ruangan, serta sinkronisasi otomatis janji temu pasien aktif.',
   })
@@ -399,11 +434,14 @@ export class AdminDoctorSchedulesController {
     @Param('id') id: string,
     @Param('sessionId') sessionId: string,
     @Body() body: RescheduleAdminDoctorSessionDto,
+    @CurrentUser() user?: any,
   ) {
+    this.assertDoctorAccess(id, user);
     return this.scheduleRepo.rescheduleAdminDoctorSession(id, sessionId, body);
   }
 
   @Delete(':id/sessions/:sessionId')
+  @Roles('ADMIN')
   @ApiOperation({
     summary:
       'Penghapusan sesi jadwal dokter oleh Admin (Dinonaktifkan demi Integritas Data)',
@@ -457,7 +495,9 @@ export class AdminDoctorSchedulesController {
     @Param('id') id: string,
     @Param('sessionId') sessionId: string,
     @Query() query: GetSessionPatientsQueryDto,
+    @CurrentUser() user?: any,
   ) {
+    this.assertDoctorAccess(id, user);
     return this.scheduleRepo.getAdminSessionPatients(id, sessionId, query);
   }
 
@@ -483,7 +523,9 @@ export class AdminDoctorSchedulesController {
   async getDoctorPatientsByDate(
     @Param('id') id: string,
     @Query() query: GetAdminDoctorPatientsQueryDto,
+    @CurrentUser() user?: any,
   ) {
+    this.assertDoctorAccess(id, user);
     return this.scheduleRepo.getAdminDoctorPatientsByDate(
       id,
       query.date,

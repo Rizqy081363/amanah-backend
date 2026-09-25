@@ -116,11 +116,20 @@ export class DrizzleScheduleRescheduleRepository {
     const targetRoomId =
       body.targetRoomId || session.roomId || practitioner.defaultRoomId || null;
 
-    const sessionDurationMinutes =
-      parseClockTime(session.endTime) - parseClockTime(session.startTime);
-    const targetEndMinutes =
-      parseClockTime(body.targetStartTime) + sessionDurationMinutes;
-    const targetEndTime = formatClockTime(targetEndMinutes);
+    const durationMinutes =
+      practitioner.consultationDurationMinutes &&
+      practitioner.consultationDurationMinutes > 0
+        ? practitioner.consultationDurationMinutes
+        : 30;
+
+    const timing = ScheduleSlotFactory.calculateSessionTiming(
+      context,
+      body.targetStartTime,
+      { durationMinutes },
+    );
+
+    const targetEndTime = timing.endTime;
+    const targetSlotsCount = timing.capacity;
 
     const preview = await this.availabilityRepo.projectAvailability(
       practitioner.id,
@@ -129,7 +138,7 @@ export class DrizzleScheduleRescheduleRepository {
         scheduleContextId: targetContextId,
         startTime: body.targetStartTime,
         endTime: targetEndTime,
-        slotsCount: session.capacity,
+        slotsCount: targetSlotsCount,
         fillShift: false,
         roomId: targetRoomId || undefined,
       },
