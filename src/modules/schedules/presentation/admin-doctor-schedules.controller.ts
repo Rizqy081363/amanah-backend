@@ -1,3 +1,6 @@
+import { HybridAuthGuard } from '@common/auth/hybrid-auth.guard';
+import { Roles } from '@common/auth/roles.decorator';
+import { RolesGuard } from '@common/auth/roles.guard';
 import {
   Body,
   Controller,
@@ -25,9 +28,6 @@ import {
   ApiUnauthorizedResponse,
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
-import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
-import { Roles } from '../../../common/auth/roles.decorator';
-import { RolesGuard } from '../../../common/auth/roles.guard';
 import {
   AdminDoctorAccumulatedPatientsResponse,
   AdminDoctorScheduleDetailResponse,

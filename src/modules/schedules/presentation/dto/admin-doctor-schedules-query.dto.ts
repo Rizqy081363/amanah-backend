@@ -1,7 +1,7 @@
+import { ScheduleOperationalStatus } from '@modules/schedules/domain/entities/schedule.entity';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsInt, IsOptional, IsString, Min } from 'class-validator';
-import { ScheduleOperationalStatus } from '../../domain/entities/schedule.entity';
 
 export class AdminDoctorSchedulesQueryDto {
   @ApiPropertyOptional({

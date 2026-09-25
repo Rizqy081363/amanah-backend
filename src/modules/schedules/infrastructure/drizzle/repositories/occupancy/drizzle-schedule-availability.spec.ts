@@ -1,5 +1,5 @@
-import { ScheduleDrizzleRepository } from '../../schedule.drizzle-repository';
-import { createMockDb } from '../../testing/schedule-test-mock';
+import { ScheduleDrizzleRepository } from '@modules/schedules/infrastructure/drizzle/schedule.drizzle-repository';
+import { createMockDb } from '@modules/schedules/infrastructure/drizzle/testing/schedule-test-mock';
 
 describe('ScheduleDrizzleRepository - Session timing & conflict metadata', () => {
   it('calculates 30-minute end time and capacity 1 by default when doctor starts at 02:00 in early morning', async () => {

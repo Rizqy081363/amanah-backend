@@ -313,3 +313,21 @@ The controllers differ only in route path, response shape (via the shared mapper
 Promote to the monorepo layout in §1: `apps/api-core` owns the services, `apps/bff-mobile` and `apps/bff-web-admin` are thin HTTP layers over it, and `packages/shared-contracts` guarantees both clients consume the exact same request/response shapes (Contract-First Design + Canonical Data Model, see the companion paradigm catalog, #82–84).
 
 Start with Option A. Only move to Option B when you have an actual scaling or deployment reason to — this is YAGNI (#4) applied to your own infrastructure.
+
+---
+
+## 7. Import Path Discipline & Path Aliases
+
+### No Deep Relative Imports / Use Path Aliases
+Never use deep relative import chains such as `../../../..`. Use project-defined absolute path aliases such as `@database`, `@modules`, `@common`, or `@/` to keep imports stable, readable, and independent from file depth.
+
+- `./something`     ✅ same/local folder
+- `../something`    ✅ one level, acceptable within same feature boundary
+- `../../something` ❌ prohibited (use path alias e.g. @modules, @common, @database)
+- `../../../...`    ❌ prohibited (use path alias)
+
+Configured path aliases in `tsconfig.json` and Jest `moduleNameMapper`:
+- `@/*` → `src/*`
+- `@database/*` → `src/database/*`
+- `@modules/*` → `src/modules/*`
+- `@common/*` → `src/common/*`

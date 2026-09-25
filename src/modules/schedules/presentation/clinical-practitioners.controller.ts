@@ -1,6 +1,6 @@
+import { Public } from '@common/auth/public.decorator';
 import { Controller, Get, Inject, Query } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { Public } from '../../../common/auth/public.decorator';
 import {
   SCHEDULE_REPOSITORY,
   ScheduleRepository,

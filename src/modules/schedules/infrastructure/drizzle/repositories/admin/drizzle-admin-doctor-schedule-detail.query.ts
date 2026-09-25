@@ -1,7 +1,5 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { and, asc, eq, gte, inArray, lte, not, or } from 'drizzle-orm';
-import { DRIZZLE_SOURCE } from '../../../../../../database/drizzle/drizzle.constants';
-import { DrizzleDatabase } from '../../../../../../database/drizzle/drizzle.provider';
+import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
+import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
   appointments,
   practitionerLeavePeriods,
@@ -10,28 +8,30 @@ import {
   practitionerScheduleSessions,
   practitioners,
   scheduleRescheduleEvents,
-} from '../../../../../../database/schema';
+} from '@database/schema';
 import {
   DEFAULT_CONSULTATION_DURATION_MINUTES,
   INACTIVE_APPOINTMENT_STATUSES,
-} from '../../../../domain/constants/schedule.constants';
-import { SCHEDULE_CONTEXT_DEFINITIONS } from '../../../../domain/constants/schedule-context.constants';
+} from '@modules/schedules/domain/constants/schedule.constants';
+import { SCHEDULE_CONTEXT_DEFINITIONS } from '@modules/schedules/domain/constants/schedule-context.constants';
 import {
   type AdminDoctorScheduleDetailResponse,
   ScheduleOperationalStatus,
-} from '../../../../domain/entities/schedule.entity';
-import { ScheduleSlotStateResolver } from '../../../../domain/resolvers/schedule-slot-state.resolver';
-import { resolveAggregateOperationalStatus } from '../../../../domain/schedule-status';
-import { formatIndoMonthYear } from '../../../../domain/services/schedule-date.formatter';
-import type { AdminDoctorScheduleDetailQueryDto } from '../../../../presentation/dto/admin-doctor-schedule-detail-query.dto';
-import { ScheduleRecordMapper } from '../../mappers/schedule-record.mapper';
+} from '@modules/schedules/domain/entities/schedule.entity';
+import { ScheduleSlotStateResolver } from '@modules/schedules/domain/resolvers/schedule-slot-state.resolver';
+import { resolveAggregateOperationalStatus } from '@modules/schedules/domain/schedule-status';
+import { formatIndoMonthYear } from '@modules/schedules/domain/services/schedule-date.formatter';
+import { ScheduleRecordMapper } from '@modules/schedules/infrastructure/drizzle/mappers/schedule-record.mapper';
 import {
   buildDailySessions,
   buildMonthlySchedule,
   buildTimelineAndMetrics,
-} from '../../queries/admin-doctor-detail-builder';
-import { SchedulePolicyReader } from '../../queries/schedule-policy.reader';
-import { PractitionerResolver } from '../../resolvers/practitioner.resolver';
+} from '@modules/schedules/infrastructure/drizzle/queries/admin-doctor-detail-builder';
+import { SchedulePolicyReader } from '@modules/schedules/infrastructure/drizzle/queries/schedule-policy.reader';
+import { PractitionerResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/practitioner.resolver';
+import type { AdminDoctorScheduleDetailQueryDto } from '@modules/schedules/presentation/dto/admin-doctor-schedule-detail-query.dto';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { and, asc, eq, gte, inArray, lte, not, or } from 'drizzle-orm';
 
 @Injectable()
 export class DrizzleAdminDoctorScheduleDetailQuery {

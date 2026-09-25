@@ -1,3 +1,17 @@
+import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
+import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
+import { clinicRooms, practitionerScheduleSessions } from '@database/schema';
+import {
+  AdminScheduleStatusRequest,
+  SchedulePersistenceStatus,
+  toAdminScheduleStatusRequest,
+  toDaySessionPersistenceStatus,
+} from '@modules/schedules/domain/schedule-status';
+import { ScheduleConflictQuery } from '@modules/schedules/infrastructure/drizzle/queries/schedule-conflict.query';
+import { PractitionerResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/practitioner.resolver';
+import { RoomResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/room.resolver';
+import type { CreateAdminDoctorSessionDto } from '@modules/schedules/presentation/dto/create-admin-doctor-session.dto';
+import type { UpdateAdminDoctorSessionDto } from '@modules/schedules/presentation/dto/update-admin-doctor-session.dto';
 import {
   BadRequestException,
   ForbiddenException,
@@ -6,23 +20,6 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { and, eq, sql } from 'drizzle-orm';
-import { DRIZZLE_SOURCE } from '../../../../../../database/drizzle/drizzle.constants';
-import { DrizzleDatabase } from '../../../../../../database/drizzle/drizzle.provider';
-import {
-  clinicRooms,
-  practitionerScheduleSessions,
-} from '../../../../../../database/schema';
-import {
-  AdminScheduleStatusRequest,
-  SchedulePersistenceStatus,
-  toAdminScheduleStatusRequest,
-  toDaySessionPersistenceStatus,
-} from '../../../../domain/schedule-status';
-import type { CreateAdminDoctorSessionDto } from '../../../../presentation/dto/create-admin-doctor-session.dto';
-import type { UpdateAdminDoctorSessionDto } from '../../../../presentation/dto/update-admin-doctor-session.dto';
-import { ScheduleConflictQuery } from '../../queries/schedule-conflict.query';
-import { PractitionerResolver } from '../../resolvers/practitioner.resolver';
-import { RoomResolver } from '../../resolvers/room.resolver';
 
 @Injectable()
 export class DrizzleAdminSessionMutationRepository {

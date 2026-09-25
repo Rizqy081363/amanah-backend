@@ -1,3 +1,4 @@
+import { AdminScheduleStatusRequest } from '@modules/schedules/domain/schedule-status';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
@@ -8,7 +9,6 @@ import {
   IsString,
   Min,
 } from 'class-validator';
-import { AdminScheduleStatusRequest } from '../../domain/schedule-status';
 
 export class CreateAdminDoctorSessionDto {
   @ApiProperty({

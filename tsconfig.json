@@ -1,5 +1,12 @@
 {
   "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"],
+      "@database/*": ["src/database/*"],
+      "@modules/*": ["src/modules/*"],
+      "@common/*": ["src/common/*"]
+    },
     "module": "commonjs",
     "declaration": true,
     "removeComments": true,

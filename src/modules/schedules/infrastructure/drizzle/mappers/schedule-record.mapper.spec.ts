@@ -1,5 +1,5 @@
-import { generateEntityVersion } from '../../../../../common/occ';
-import { ScheduleOperationalStatus } from '../../../domain/entities/schedule.entity';
+import { generateEntityVersion } from '@common/occ';
+import { ScheduleOperationalStatus } from '@modules/schedules/domain/entities/schedule.entity';
 import { mapScheduleRecordToEntity } from './schedule-record.mapper';
 
 describe('mapScheduleRecordToEntity', () => {

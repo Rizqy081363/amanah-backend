@@ -1,6 +1,5 @@
-import { Inject, Injectable, Optional } from '@nestjs/common';
-import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
-import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
+import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
+import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import type {
   AdminDoctorAccumulatedPatientsResponse,
   AdminDoctorScheduleDetailResponse,
@@ -18,22 +17,23 @@ import type {
   ScheduleOccupancyOverviewData,
   ScheduleOptionsReferenceEntity,
   ScheduleProjectionEntity,
-} from '../../domain/entities/schedule.entity';
-import type { ScheduleRepository } from '../../domain/repositories/schedule.repository';
-import type { AdminDoctorScheduleDetailQueryDto } from '../../presentation/dto/admin-doctor-schedule-detail-query.dto';
-import type { AdminDoctorSchedulesQueryDto } from '../../presentation/dto/admin-doctor-schedules-query.dto';
-import type { CheckRescheduleEligibilityQueryDto } from '../../presentation/dto/check-reschedule-eligibility-query.dto';
-import type { ClinicalPractitionersQueryDto } from '../../presentation/dto/clinical-practitioners-query.dto';
-import type { CreateAdminDoctorSessionDto } from '../../presentation/dto/create-admin-doctor-session.dto';
-import type { CreateAvailabilityDto } from '../../presentation/dto/create-availability.dto';
-import type { GetAdminDoctorPatientsQueryDto } from '../../presentation/dto/get-admin-doctor-patients-query.dto';
-import type { GetSessionPatientsQueryDto } from '../../presentation/dto/get-session-patients-query.dto';
-import type { RescheduleAdminDoctorSessionDto } from '../../presentation/dto/reschedule-admin-doctor-session.dto';
-import type { ScheduleOccupancyQueryDto } from '../../presentation/dto/schedule-occupancy-query.dto';
-import type { ScheduleProjectionQueryDto } from '../../presentation/dto/schedule-projection-query.dto';
-import type { UpdateAdminDoctorScheduleDto } from '../../presentation/dto/update-admin-doctor-schedule.dto';
-import type { UpdateAdminDoctorSessionDto } from '../../presentation/dto/update-admin-doctor-session.dto';
-import type { UpdatePractitionerSchedulePolicyDto } from '../../presentation/dto/update-practitioner-schedule-policy.dto';
+} from '@modules/schedules/domain/entities/schedule.entity';
+import type { ScheduleRepository } from '@modules/schedules/domain/repositories/schedule.repository';
+import type { AdminDoctorScheduleDetailQueryDto } from '@modules/schedules/presentation/dto/admin-doctor-schedule-detail-query.dto';
+import type { AdminDoctorSchedulesQueryDto } from '@modules/schedules/presentation/dto/admin-doctor-schedules-query.dto';
+import type { CheckRescheduleEligibilityQueryDto } from '@modules/schedules/presentation/dto/check-reschedule-eligibility-query.dto';
+import type { ClinicalPractitionersQueryDto } from '@modules/schedules/presentation/dto/clinical-practitioners-query.dto';
+import type { CreateAdminDoctorSessionDto } from '@modules/schedules/presentation/dto/create-admin-doctor-session.dto';
+import type { CreateAvailabilityDto } from '@modules/schedules/presentation/dto/create-availability.dto';
+import type { GetAdminDoctorPatientsQueryDto } from '@modules/schedules/presentation/dto/get-admin-doctor-patients-query.dto';
+import type { GetSessionPatientsQueryDto } from '@modules/schedules/presentation/dto/get-session-patients-query.dto';
+import type { RescheduleAdminDoctorSessionDto } from '@modules/schedules/presentation/dto/reschedule-admin-doctor-session.dto';
+import type { ScheduleOccupancyQueryDto } from '@modules/schedules/presentation/dto/schedule-occupancy-query.dto';
+import type { ScheduleProjectionQueryDto } from '@modules/schedules/presentation/dto/schedule-projection-query.dto';
+import type { UpdateAdminDoctorScheduleDto } from '@modules/schedules/presentation/dto/update-admin-doctor-schedule.dto';
+import type { UpdateAdminDoctorSessionDto } from '@modules/schedules/presentation/dto/update-admin-doctor-session.dto';
+import type { UpdatePractitionerSchedulePolicyDto } from '@modules/schedules/presentation/dto/update-practitioner-schedule-policy.dto';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { AppointmentOccupationQuery } from './queries/appointment-occupation.query';
 import { ScheduleConflictQuery } from './queries/schedule-conflict.query';
 import { SchedulePolicyReader } from './queries/schedule-policy.reader';

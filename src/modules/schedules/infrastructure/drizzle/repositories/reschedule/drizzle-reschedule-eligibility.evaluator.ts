@@ -1,30 +1,30 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { and, eq, gte, inArray, lt, lte, or } from 'drizzle-orm';
-import { DRIZZLE_SOURCE } from '../../../../../../database/drizzle/drizzle.constants';
-import { DrizzleDatabase } from '../../../../../../database/drizzle/drizzle.provider';
+import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
+import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
   appointments,
   clinicRooms,
   practitionerLeavePeriods,
   practitionerScheduleDaySettings,
   practitionerScheduleSessions,
-} from '../../../../../../database/schema';
-import { ACTIVE_APPOINTMENT_STATUSES } from '../../../../domain/constants/schedule.constants';
+} from '@database/schema';
+import { ACTIVE_APPOINTMENT_STATUSES } from '@modules/schedules/domain/constants/schedule.constants';
 import {
   type RescheduleEligibilityEntity,
   type RescheduleSourceSessionInfo,
   ScheduleOperationalStatus,
-} from '../../../../domain/entities/schedule.entity';
-import { ScheduleSlotFactory } from '../../../../domain/factories/schedule-slot.factory';
+} from '@modules/schedules/domain/entities/schedule.entity';
+import { ScheduleSlotFactory } from '@modules/schedules/domain/factories/schedule-slot.factory';
 import {
   formatClockTime,
   parseClockTime,
-} from '../../../../domain/schedule-projection';
-import { resolveSessionOperationalStatus } from '../../../../domain/schedule-status';
-import { ScheduleContextResolver } from '../../../../domain/services/schedule-context-resolver';
-import type { CheckRescheduleEligibilityQueryDto } from '../../../../presentation/dto/check-reschedule-eligibility-query.dto';
-import { ScheduleConflictQuery } from '../../queries/schedule-conflict.query';
-import { PractitionerResolver } from '../../resolvers/practitioner.resolver';
+} from '@modules/schedules/domain/schedule-projection';
+import { resolveSessionOperationalStatus } from '@modules/schedules/domain/schedule-status';
+import { ScheduleContextResolver } from '@modules/schedules/domain/services/schedule-context-resolver';
+import { ScheduleConflictQuery } from '@modules/schedules/infrastructure/drizzle/queries/schedule-conflict.query';
+import { PractitionerResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/practitioner.resolver';
+import type { CheckRescheduleEligibilityQueryDto } from '@modules/schedules/presentation/dto/check-reschedule-eligibility-query.dto';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { and, eq, gte, inArray, lt, lte, or } from 'drizzle-orm';
 
 @Injectable()
 export class DrizzleRescheduleEligibilityEvaluator {

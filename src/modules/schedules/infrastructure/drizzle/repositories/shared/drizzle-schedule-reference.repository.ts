@@ -1,21 +1,21 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, eq } from 'drizzle-orm';
-import { DRIZZLE_SOURCE } from '../../../../../../database/drizzle/drizzle.constants';
-import { DrizzleDatabase } from '../../../../../../database/drizzle/drizzle.provider';
+import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
+import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
   clinicRooms,
   clinicUnits,
   medicalSpecialties,
   practitionerScheduleSessions,
-} from '../../../../../../database/schema';
-import { SCHEDULE_CONTEXT_DEFINITIONS } from '../../../../domain/constants/schedule-context.constants';
+} from '@database/schema';
+import { SCHEDULE_CONTEXT_DEFINITIONS } from '@modules/schedules/domain/constants/schedule-context.constants';
 import {
   type ClinicRoomReferenceEntity,
   ScheduleOperationalStatus,
   type ScheduleOptionsReferenceEntity,
-} from '../../../../domain/entities/schedule.entity';
-import { SchedulePersistenceStatus } from '../../../../domain/schedule-status';
-import { SchedulePolicyReader } from '../../queries/schedule-policy.reader';
+} from '@modules/schedules/domain/entities/schedule.entity';
+import { SchedulePersistenceStatus } from '@modules/schedules/domain/schedule-status';
+import { SchedulePolicyReader } from '@modules/schedules/infrastructure/drizzle/queries/schedule-policy.reader';
+import { Inject, Injectable } from '@nestjs/common';
+import { and, asc, eq } from 'drizzle-orm';
 
 @Injectable()
 export class DrizzleScheduleReferenceRepository {

@@ -3,7 +3,7 @@ jest.mock('better-auth/node', () => ({
   toNodeHandler: jest.fn(),
 }));
 
-jest.mock('../../../auth/better-auth/auth', () => ({
+jest.mock('@/auth/better-auth/auth', () => ({
   auth: {
     api: {
       getSession: jest.fn(),
@@ -11,9 +11,9 @@ jest.mock('../../../auth/better-auth/auth', () => ({
   },
 }));
 
+import { HybridAuthGuard } from '@common/auth/hybrid-auth.guard';
+import { RolesGuard } from '@common/auth/roles.guard';
 import { Test, TestingModule } from '@nestjs/testing';
-import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
-import { RolesGuard } from '../../../common/auth/roles.guard';
 import {
   SCHEDULE_REPOSITORY,
   ScheduleRepository,

@@ -1,4 +1,4 @@
-import type { BookedPatientEntity } from '../../../domain/entities/schedule.entity';
+import type { BookedPatientEntity } from '@modules/schedules/domain/entities/schedule.entity';
 
 const STATUS_BADGE_MAP: Record<string, string> = {
   booked: 'Booked',

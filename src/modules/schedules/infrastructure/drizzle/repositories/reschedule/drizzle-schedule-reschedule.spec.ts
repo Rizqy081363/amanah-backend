@@ -1,5 +1,5 @@
-import { ScheduleDrizzleRepository } from '../../schedule.drizzle-repository';
-import { createMockDb } from '../../testing/schedule-test-mock';
+import { ScheduleDrizzleRepository } from '@modules/schedules/infrastructure/drizzle/schedule.drizzle-repository';
+import { createMockDb } from '@modules/schedules/infrastructure/drizzle/testing/schedule-test-mock';
 
 describe('ScheduleDrizzleRepository - checkRescheduleEligibility and reschedule guard', () => {
   const practitionerId = '8489be4c-7c05-4c07-b352-7bf579b29cb1';

@@ -1,18 +1,18 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, gte, inArray, lt, lte, or } from 'drizzle-orm';
-import { DRIZZLE_SOURCE } from '../../../../../database/drizzle/drizzle.constants';
-import { DrizzleDatabase } from '../../../../../database/drizzle/drizzle.provider';
+import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
+import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
   appointments,
   practitionerLeavePeriods,
   practitionerScheduleDaySettings,
   practitionerScheduleSessions,
-} from '../../../../../database/schema';
-import { ACTIVE_APPOINTMENT_STATUSES } from '../../../domain/constants/schedule.constants';
+} from '@database/schema';
+import { ACTIVE_APPOINTMENT_STATUSES } from '@modules/schedules/domain/constants/schedule.constants';
 import type {
   AppointmentOccupation,
   ScheduleClosedReason,
-} from '../../../domain/schedule-projection';
+} from '@modules/schedules/domain/schedule-projection';
+import { Inject, Injectable } from '@nestjs/common';
+import { and, eq, gte, inArray, lt, lte, or } from 'drizzle-orm';
 
 @Injectable()
 export class AppointmentOccupationQuery {

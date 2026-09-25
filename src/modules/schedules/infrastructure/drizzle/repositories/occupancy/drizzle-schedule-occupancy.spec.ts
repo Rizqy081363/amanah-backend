@@ -1,5 +1,5 @@
-import { ScheduleDrizzleRepository } from '../../schedule.drizzle-repository';
-import { createMockDb } from '../../testing/schedule-test-mock';
+import { ScheduleDrizzleRepository } from '@modules/schedules/infrastructure/drizzle/schedule.drizzle-repository';
+import { createMockDb } from '@modules/schedules/infrastructure/drizzle/testing/schedule-test-mock';
 
 describe('ScheduleDrizzleRepository - getOccupancyOverview', () => {
   it('returns anti-collision grid across 4 shifts distinguishing self vs other doctor room occupation', async () => {

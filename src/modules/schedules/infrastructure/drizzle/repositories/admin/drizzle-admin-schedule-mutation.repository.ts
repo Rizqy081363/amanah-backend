@@ -1,3 +1,26 @@
+import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
+import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
+import {
+  appointments,
+  practitionerLeavePeriods,
+  practitionerScheduleDaySettings,
+  practitionerScheduleSessions,
+  practitioners,
+} from '@database/schema';
+import { DEFAULT_TARGET_QUOTA } from '@modules/schedules/domain/constants/schedule.constants';
+import {
+  AdminScheduleStatusRequest,
+  SchedulePersistenceStatus,
+  toAdminDayStatusResponseLabel,
+  toAdminScheduleStatusRequest,
+  toDaySessionPersistenceStatus,
+} from '@modules/schedules/domain/schedule-status';
+import { ScheduleConflictQuery } from '@modules/schedules/infrastructure/drizzle/queries/schedule-conflict.query';
+import { PractitionerResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/practitioner.resolver';
+import { RoomResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/room.resolver';
+import type { CreateAdminDoctorSessionDto } from '@modules/schedules/presentation/dto/create-admin-doctor-session.dto';
+import type { UpdateAdminDoctorScheduleDto } from '@modules/schedules/presentation/dto/update-admin-doctor-schedule.dto';
+import type { UpdateAdminDoctorSessionDto } from '@modules/schedules/presentation/dto/update-admin-doctor-session.dto';
 import {
   BadRequestException,
   Inject,
@@ -5,29 +28,6 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { and, eq, inArray, sql } from 'drizzle-orm';
-import { DRIZZLE_SOURCE } from '../../../../../../database/drizzle/drizzle.constants';
-import { DrizzleDatabase } from '../../../../../../database/drizzle/drizzle.provider';
-import {
-  appointments,
-  practitionerLeavePeriods,
-  practitionerScheduleDaySettings,
-  practitionerScheduleSessions,
-  practitioners,
-} from '../../../../../../database/schema';
-import { DEFAULT_TARGET_QUOTA } from '../../../../domain/constants/schedule.constants';
-import {
-  AdminScheduleStatusRequest,
-  SchedulePersistenceStatus,
-  toAdminDayStatusResponseLabel,
-  toAdminScheduleStatusRequest,
-  toDaySessionPersistenceStatus,
-} from '../../../../domain/schedule-status';
-import type { CreateAdminDoctorSessionDto } from '../../../../presentation/dto/create-admin-doctor-session.dto';
-import type { UpdateAdminDoctorScheduleDto } from '../../../../presentation/dto/update-admin-doctor-schedule.dto';
-import type { UpdateAdminDoctorSessionDto } from '../../../../presentation/dto/update-admin-doctor-session.dto';
-import { ScheduleConflictQuery } from '../../queries/schedule-conflict.query';
-import { PractitionerResolver } from '../../resolvers/practitioner.resolver';
-import { RoomResolver } from '../../resolvers/room.resolver';
 import { DrizzleAdminDoctorScheduleDetailQuery } from './drizzle-admin-doctor-schedule-detail.query';
 import { DrizzleAdminSessionMutationRepository } from './drizzle-admin-session-mutation.repository';
 

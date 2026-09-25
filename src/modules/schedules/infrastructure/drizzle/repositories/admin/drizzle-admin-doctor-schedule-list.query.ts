@@ -1,37 +1,37 @@
-import { BadRequestException, Inject, Injectable } from '@nestjs/common';
-import { and, asc, eq, gte, inArray, lte, not } from 'drizzle-orm';
-import { DRIZZLE_SOURCE } from '../../../../../../database/drizzle/drizzle.constants';
-import { DrizzleDatabase } from '../../../../../../database/drizzle/drizzle.provider';
+import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
+import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
   appointments,
   practitionerLeavePeriods,
   practitionerScheduleDaySettings,
   practitionerScheduleSessions,
   practitioners,
-} from '../../../../../../database/schema';
+} from '@database/schema';
 import {
   DEFAULT_CONSULTATION_DURATION_MINUTES,
   INACTIVE_APPOINTMENT_STATUSES,
-} from '../../../../domain/constants/schedule.constants';
+} from '@modules/schedules/domain/constants/schedule.constants';
 import {
   type AdminDoctorDailySession,
   type AdminDoctorScheduleCardEntity,
   type AdminDoctorScheduleListResponse,
   ScheduleOperationalStatus,
-} from '../../../../domain/entities/schedule.entity';
-import { ScheduleSlotFactory } from '../../../../domain/factories/schedule-slot.factory';
+} from '@modules/schedules/domain/entities/schedule.entity';
+import { ScheduleSlotFactory } from '@modules/schedules/domain/factories/schedule-slot.factory';
 import {
   resolveAggregateOperationalStatus,
   resolveSessionOperationalStatus,
-} from '../../../../domain/schedule-status';
+} from '@modules/schedules/domain/schedule-status';
 import {
   computeUpcomingSchedule,
   formatIndoDate,
   formatIndoMonthYear,
-} from '../../../../domain/services/schedule-date.formatter';
-import type { AdminDoctorSchedulesQueryDto } from '../../../../presentation/dto/admin-doctor-schedules-query.dto';
-import { ScheduleRecordMapper } from '../../mappers/schedule-record.mapper';
-import { SchedulePolicyReader } from '../../queries/schedule-policy.reader';
+} from '@modules/schedules/domain/services/schedule-date.formatter';
+import { ScheduleRecordMapper } from '@modules/schedules/infrastructure/drizzle/mappers/schedule-record.mapper';
+import { SchedulePolicyReader } from '@modules/schedules/infrastructure/drizzle/queries/schedule-policy.reader';
+import type { AdminDoctorSchedulesQueryDto } from '@modules/schedules/presentation/dto/admin-doctor-schedules-query.dto';
+import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import { and, asc, eq, gte, inArray, lte, not } from 'drizzle-orm';
 
 @Injectable()
 export class DrizzleAdminDoctorScheduleListQuery {

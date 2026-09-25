@@ -1,10 +1,10 @@
-import { generateEntityVersion } from '../../../../../common/occ';
+import { generateEntityVersion } from '@common/occ';
 import {
   type ScheduleEntity,
   ScheduleOperationalStatus,
-} from '../../../domain/entities/schedule.entity';
-import type { SessionShiftType } from '../../../domain/factories/schedule-slot.factory';
-import { resolveSessionOperationalStatus } from '../../../domain/schedule-status';
+} from '@modules/schedules/domain/entities/schedule.entity';
+import type { SessionShiftType } from '@modules/schedules/domain/factories/schedule-slot.factory';
+import { resolveSessionOperationalStatus } from '@modules/schedules/domain/schedule-status';
 
 type StaffProfileRecord = {
   fullName?: string | null;

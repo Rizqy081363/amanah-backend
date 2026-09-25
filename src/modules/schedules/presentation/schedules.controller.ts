@@ -1,3 +1,7 @@
+import { CurrentUser } from '@common/auth/current-user.decorator';
+import { HybridAuthGuard } from '@common/auth/hybrid-auth.guard';
+import { Roles } from '@common/auth/roles.decorator';
+import { RolesGuard } from '@common/auth/roles.guard';
 import {
   Body,
   Controller,
@@ -30,10 +34,6 @@ import {
   ApiUnauthorizedResponse,
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
-import { CurrentUser } from '../../../common/auth/current-user.decorator';
-import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
-import { Roles } from '../../../common/auth/roles.decorator';
-import { RolesGuard } from '../../../common/auth/roles.guard';
 import { ScheduleOccupancyOverviewResponse } from '../domain/entities/schedule.entity';
 import {
   SCHEDULE_REPOSITORY,

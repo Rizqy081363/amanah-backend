@@ -1,22 +1,22 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { and, eq, gte, lte } from 'drizzle-orm';
-import { DRIZZLE_SOURCE } from '../../../../../../database/drizzle/drizzle.constants';
-import { DrizzleDatabase } from '../../../../../../database/drizzle/drizzle.provider';
+import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
+import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
   practitionerScheduleDaySettings,
   practitionerScheduleSessions,
-} from '../../../../../../database/schema';
-import { DEFAULT_TARGET_QUOTA } from '../../../../domain/constants/schedule.constants';
+} from '@database/schema';
+import { DEFAULT_TARGET_QUOTA } from '@modules/schedules/domain/constants/schedule.constants';
 import {
   type CalendarSummaryResponse,
   type DayScheduleSettingEntity,
   ScheduleOperationalStatus,
-} from '../../../../domain/entities/schedule.entity';
+} from '@modules/schedules/domain/entities/schedule.entity';
 import {
   resolveAggregateOperationalStatus,
   resolveSessionOperationalStatus,
-} from '../../../../domain/schedule-status';
-import { PractitionerResolver } from '../../resolvers/practitioner.resolver';
+} from '@modules/schedules/domain/schedule-status';
+import { PractitionerResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/practitioner.resolver';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { and, eq, gte, lte } from 'drizzle-orm';
 
 @Injectable()
 export class DrizzleScheduleDayRepository {

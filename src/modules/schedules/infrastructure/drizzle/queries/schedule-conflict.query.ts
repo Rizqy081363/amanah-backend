@@ -1,8 +1,8 @@
+import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
+import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
+import { practitionerScheduleSessions } from '@database/schema';
 import { ConflictException, Inject, Injectable } from '@nestjs/common';
 import { and, eq, not } from 'drizzle-orm';
-import { DRIZZLE_SOURCE } from '../../../../../database/drizzle/drizzle.constants';
-import { DrizzleDatabase } from '../../../../../database/drizzle/drizzle.provider';
-import { practitionerScheduleSessions } from '../../../../../database/schema';
 
 @Injectable()
 export class ScheduleConflictQuery {

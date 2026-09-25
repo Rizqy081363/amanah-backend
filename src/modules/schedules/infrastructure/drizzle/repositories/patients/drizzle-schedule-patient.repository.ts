@@ -1,22 +1,22 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { and, asc, eq, gte, inArray, lt, or } from 'drizzle-orm';
-import { DRIZZLE_SOURCE } from '../../../../../../database/drizzle/drizzle.constants';
-import { DrizzleDatabase } from '../../../../../../database/drizzle/drizzle.provider';
+import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
+import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
   appointments,
   practitionerScheduleSessions,
   practitioners,
-} from '../../../../../../database/schema';
+} from '@database/schema';
 import type {
   AdminDoctorAccumulatedPatientsResponse,
   AdminSessionPatientItem,
   AdminSessionPatientsResponse,
   BookedPatientEntity,
-} from '../../../../domain/entities/schedule.entity';
-import type { GetAdminDoctorPatientsQueryDto } from '../../../../presentation/dto/get-admin-doctor-patients-query.dto';
-import type { GetSessionPatientsQueryDto } from '../../../../presentation/dto/get-session-patients-query.dto';
-import { BookedPatientMapper } from '../../mappers/booked-patient.mapper';
-import { PractitionerResolver } from '../../resolvers/practitioner.resolver';
+} from '@modules/schedules/domain/entities/schedule.entity';
+import { BookedPatientMapper } from '@modules/schedules/infrastructure/drizzle/mappers/booked-patient.mapper';
+import { PractitionerResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/practitioner.resolver';
+import type { GetAdminDoctorPatientsQueryDto } from '@modules/schedules/presentation/dto/get-admin-doctor-patients-query.dto';
+import type { GetSessionPatientsQueryDto } from '@modules/schedules/presentation/dto/get-session-patients-query.dto';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { and, asc, eq, gte, inArray, lt, or } from 'drizzle-orm';
 
 const STATUS_BADGE_MAP: Record<string, string> = {
   booked: 'Booked',

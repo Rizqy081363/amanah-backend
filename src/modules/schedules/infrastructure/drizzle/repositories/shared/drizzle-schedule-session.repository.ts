@@ -1,3 +1,30 @@
+import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
+import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
+import {
+  appointments,
+  clinicRooms,
+  practitionerScheduleDaySettings,
+  practitionerScheduleSessions,
+} from '@database/schema';
+import {
+  ACTIVE_APPOINTMENT_STATUSES,
+  DEFAULT_TARGET_QUOTA,
+} from '@modules/schedules/domain/constants/schedule.constants';
+import type { ScheduleEntity } from '@modules/schedules/domain/entities/schedule.entity';
+import {
+  AdminScheduleStatusRequest,
+  SchedulePersistenceStatus,
+  toAdminScheduleStatusRequest,
+  toDaySessionPersistenceStatus,
+} from '@modules/schedules/domain/schedule-status';
+import { ScheduleRecordMapper } from '@modules/schedules/infrastructure/drizzle/mappers/schedule-record.mapper';
+import { ScheduleConflictQuery } from '@modules/schedules/infrastructure/drizzle/queries/schedule-conflict.query';
+import {
+  resolveDefaultSessionTimes,
+  resolveSessionShift,
+  SESSION_RECORD_RELATIONS,
+} from '@modules/schedules/infrastructure/drizzle/queries/session-query-relations';
+import { PractitionerResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/practitioner.resolver';
 import {
   BadRequestException,
   ConflictException,
@@ -17,33 +44,6 @@ import {
   or,
   sql,
 } from 'drizzle-orm';
-import { DRIZZLE_SOURCE } from '../../../../../../database/drizzle/drizzle.constants';
-import { DrizzleDatabase } from '../../../../../../database/drizzle/drizzle.provider';
-import {
-  appointments,
-  clinicRooms,
-  practitionerScheduleDaySettings,
-  practitionerScheduleSessions,
-} from '../../../../../../database/schema';
-import {
-  ACTIVE_APPOINTMENT_STATUSES,
-  DEFAULT_TARGET_QUOTA,
-} from '../../../../domain/constants/schedule.constants';
-import type { ScheduleEntity } from '../../../../domain/entities/schedule.entity';
-import {
-  AdminScheduleStatusRequest,
-  SchedulePersistenceStatus,
-  toAdminScheduleStatusRequest,
-  toDaySessionPersistenceStatus,
-} from '../../../../domain/schedule-status';
-import { ScheduleRecordMapper } from '../../mappers/schedule-record.mapper';
-import { ScheduleConflictQuery } from '../../queries/schedule-conflict.query';
-import {
-  resolveDefaultSessionTimes,
-  resolveSessionShift,
-  SESSION_RECORD_RELATIONS,
-} from '../../queries/session-query-relations';
-import { PractitionerResolver } from '../../resolvers/practitioner.resolver';
 
 @Injectable()
 export class DrizzleScheduleSessionRepository {

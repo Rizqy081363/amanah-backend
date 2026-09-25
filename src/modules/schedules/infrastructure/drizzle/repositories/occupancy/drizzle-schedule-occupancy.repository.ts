@@ -1,7 +1,5 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { and, eq, gte, inArray, lte, or } from 'drizzle-orm';
-import { DRIZZLE_SOURCE } from '../../../../../../database/drizzle/drizzle.constants';
-import { DrizzleDatabase } from '../../../../../../database/drizzle/drizzle.provider';
+import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
+import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
   appointments,
   clinicRooms,
@@ -10,21 +8,23 @@ import {
   practitionerScheduleDaySettings,
   practitionerScheduleSessions,
   scheduleRescheduleEvents,
-} from '../../../../../../database/schema';
-import { ACTIVE_APPOINTMENT_STATUSES } from '../../../../domain/constants/schedule.constants';
-import { SCHEDULE_CONTEXT_DEFINITIONS } from '../../../../domain/constants/schedule-context.constants';
+} from '@database/schema';
+import { ACTIVE_APPOINTMENT_STATUSES } from '@modules/schedules/domain/constants/schedule.constants';
+import { SCHEDULE_CONTEXT_DEFINITIONS } from '@modules/schedules/domain/constants/schedule-context.constants';
 import {
   type ScheduleOccupancyOverviewData,
   type ScheduleShiftOccupancyEntity,
   type ScheduleShiftSlotEntity,
   type ScheduleSlotConflictInfoEntity,
   type ScheduleSlotStatus,
-} from '../../../../domain/entities/schedule.entity';
-import { ScheduleSlotStateResolver } from '../../../../domain/resolvers/schedule-slot-state.resolver';
-import { parseClockTime } from '../../../../domain/schedule-projection';
-import type { ScheduleOccupancyQueryDto } from '../../../../presentation/dto/schedule-occupancy-query.dto';
-import { SchedulePolicyReader } from '../../queries/schedule-policy.reader';
-import { PractitionerResolver } from '../../resolvers/practitioner.resolver';
+} from '@modules/schedules/domain/entities/schedule.entity';
+import { ScheduleSlotStateResolver } from '@modules/schedules/domain/resolvers/schedule-slot-state.resolver';
+import { parseClockTime } from '@modules/schedules/domain/schedule-projection';
+import { SchedulePolicyReader } from '@modules/schedules/infrastructure/drizzle/queries/schedule-policy.reader';
+import { PractitionerResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/practitioner.resolver';
+import type { ScheduleOccupancyQueryDto } from '@modules/schedules/presentation/dto/schedule-occupancy-query.dto';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { and, eq, gte, inArray, lte, or } from 'drizzle-orm';
 
 @Injectable()
 export class DrizzleScheduleOccupancyRepository {

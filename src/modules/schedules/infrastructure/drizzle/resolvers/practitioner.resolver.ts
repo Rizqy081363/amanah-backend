@@ -1,9 +1,9 @@
+import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
+import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
+import { practitioners } from '@database/schema';
+import { isUuid } from '@modules/schedules/domain/constants/schedule.constants';
 import { Inject, Injectable } from '@nestjs/common';
 import { eq, or } from 'drizzle-orm';
-import { DRIZZLE_SOURCE } from '../../../../../database/drizzle/drizzle.constants';
-import { DrizzleDatabase } from '../../../../../database/drizzle/drizzle.provider';
-import { practitioners } from '../../../../../database/schema';
-import { isUuid } from '../../../domain/constants/schedule.constants';
 
 @Injectable()
 export class PractitionerResolver {

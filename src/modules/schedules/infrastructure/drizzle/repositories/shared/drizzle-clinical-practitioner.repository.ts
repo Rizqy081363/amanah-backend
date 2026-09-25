@@ -1,17 +1,17 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, eq, gte, lte, sql } from 'drizzle-orm';
-import { DRIZZLE_SOURCE } from '../../../../../../database/drizzle/drizzle.constants';
-import { DrizzleDatabase } from '../../../../../../database/drizzle/drizzle.provider';
+import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
+import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
   practitionerLeavePeriods,
   practitionerScheduleDaySettings,
   practitionerScheduleSessions,
   practitioners,
-} from '../../../../../../database/schema';
-import type { ClinicalPractitionerEntity } from '../../../../domain/entities/schedule.entity';
-import { SchedulePersistenceStatus } from '../../../../domain/schedule-status';
-import type { ClinicalPractitionersQueryDto } from '../../../../presentation/dto/clinical-practitioners-query.dto';
-import { ScheduleRecordMapper } from '../../mappers/schedule-record.mapper';
+} from '@database/schema';
+import type { ClinicalPractitionerEntity } from '@modules/schedules/domain/entities/schedule.entity';
+import { SchedulePersistenceStatus } from '@modules/schedules/domain/schedule-status';
+import { ScheduleRecordMapper } from '@modules/schedules/infrastructure/drizzle/mappers/schedule-record.mapper';
+import type { ClinicalPractitionersQueryDto } from '@modules/schedules/presentation/dto/clinical-practitioners-query.dto';
+import { Inject, Injectable } from '@nestjs/common';
+import { and, asc, eq, gte, lte, sql } from 'drizzle-orm';
 
 @Injectable()
 export class DrizzleClinicalPractitionerRepository {

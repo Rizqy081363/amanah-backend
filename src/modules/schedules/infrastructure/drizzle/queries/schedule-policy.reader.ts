@@ -1,12 +1,12 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { eq } from 'drizzle-orm';
-import { DRIZZLE_SOURCE } from '../../../../../database/drizzle/drizzle.constants';
-import { DrizzleDatabase } from '../../../../../database/drizzle/drizzle.provider';
-import { clinicSchedulePolicies } from '../../../../../database/schema';
+import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
+import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
+import { clinicSchedulePolicies } from '@database/schema';
 import {
   DEFAULT_CONSULTATION_DURATION_MINUTES,
   DEFAULT_START_PRECISION_MINUTES,
-} from '../../../domain/constants/schedule.constants';
+} from '@modules/schedules/domain/constants/schedule.constants';
+import { Inject, Injectable } from '@nestjs/common';
+import { eq } from 'drizzle-orm';
 
 export interface EffectiveSchedulePolicy {
   durationMinutes: number;

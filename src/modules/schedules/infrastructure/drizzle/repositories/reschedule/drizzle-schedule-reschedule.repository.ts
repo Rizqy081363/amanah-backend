@@ -1,3 +1,28 @@
+import { generateEntityVersion } from '@common/occ';
+import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
+import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
+import {
+  appointments,
+  practitionerScheduleDaySettings,
+  practitionerScheduleSessions,
+} from '@database/schema';
+import { ACTIVE_APPOINTMENT_STATUSES } from '@modules/schedules/domain/constants/schedule.constants';
+import type { RescheduleEligibilityEntity } from '@modules/schedules/domain/entities/schedule.entity';
+import { ScheduleSlotFactory } from '@modules/schedules/domain/factories/schedule-slot.factory';
+import {
+  formatClockTime,
+  parseClockTime,
+} from '@modules/schedules/domain/schedule-projection';
+import {
+  isClosedScheduleStatus,
+  SchedulePersistenceStatus,
+} from '@modules/schedules/domain/schedule-status';
+import { ScheduleContextResolver } from '@modules/schedules/domain/services/schedule-context-resolver';
+import { ScheduleConflictQuery } from '@modules/schedules/infrastructure/drizzle/queries/schedule-conflict.query';
+import { DrizzleScheduleAvailabilityRepository } from '@modules/schedules/infrastructure/drizzle/repositories/occupancy/drizzle-schedule-availability.repository';
+import { PractitionerResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/practitioner.resolver';
+import type { CheckRescheduleEligibilityQueryDto } from '@modules/schedules/presentation/dto/check-reschedule-eligibility-query.dto';
+import type { RescheduleAdminDoctorSessionDto } from '@modules/schedules/presentation/dto/reschedule-admin-doctor-session.dto';
 import {
   ConflictException,
   Inject,
@@ -6,31 +31,6 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { and, asc, eq, gte, inArray, lt, or } from 'drizzle-orm';
-import { generateEntityVersion } from '../../../../../../common/occ';
-import { DRIZZLE_SOURCE } from '../../../../../../database/drizzle/drizzle.constants';
-import { DrizzleDatabase } from '../../../../../../database/drizzle/drizzle.provider';
-import {
-  appointments,
-  practitionerScheduleDaySettings,
-  practitionerScheduleSessions,
-} from '../../../../../../database/schema';
-import { ACTIVE_APPOINTMENT_STATUSES } from '../../../../domain/constants/schedule.constants';
-import type { RescheduleEligibilityEntity } from '../../../../domain/entities/schedule.entity';
-import { ScheduleSlotFactory } from '../../../../domain/factories/schedule-slot.factory';
-import {
-  formatClockTime,
-  parseClockTime,
-} from '../../../../domain/schedule-projection';
-import {
-  isClosedScheduleStatus,
-  SchedulePersistenceStatus,
-} from '../../../../domain/schedule-status';
-import { ScheduleContextResolver } from '../../../../domain/services/schedule-context-resolver';
-import type { CheckRescheduleEligibilityQueryDto } from '../../../../presentation/dto/check-reschedule-eligibility-query.dto';
-import type { RescheduleAdminDoctorSessionDto } from '../../../../presentation/dto/reschedule-admin-doctor-session.dto';
-import { ScheduleConflictQuery } from '../../queries/schedule-conflict.query';
-import { PractitionerResolver } from '../../resolvers/practitioner.resolver';
-import { DrizzleScheduleAvailabilityRepository } from '../occupancy/drizzle-schedule-availability.repository';
 import { DrizzleRescheduleEligibilityEvaluator } from './drizzle-reschedule-eligibility.evaluator';
 
 @Injectable()

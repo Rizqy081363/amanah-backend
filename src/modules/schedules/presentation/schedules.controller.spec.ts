@@ -1,14 +1,14 @@
+import { HybridAuthGuard } from '@common/auth/hybrid-auth.guard';
+import { RolesGuard } from '@common/auth/roles.guard';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
-import { RolesGuard } from '../../../common/auth/roles.guard';
 
 jest.mock('better-auth/node', () => ({
   fromNodeHeaders: jest.fn(),
   toNodeHandler: jest.fn(),
 }));
 
-jest.mock('../../../auth/better-auth/auth', () => ({
+jest.mock('@/auth/better-auth/auth', () => ({
   auth: {
     api: {
       getSession: jest.fn(),

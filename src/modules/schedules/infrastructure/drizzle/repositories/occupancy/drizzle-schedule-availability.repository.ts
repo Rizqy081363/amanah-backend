@@ -1,3 +1,42 @@
+import { generateEntityVersion } from '@common/occ';
+import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
+import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
+import {
+  practitionerScheduleDaySettings,
+  practitionerScheduleSessions,
+  practitioners,
+} from '@database/schema';
+import { CLINIC_TIMEZONE } from '@modules/schedules/domain/constants/schedule.constants';
+import {
+  SCHEDULE_CONTEXT_DEFINITIONS,
+  type ScheduleContextDefinition,
+} from '@modules/schedules/domain/constants/schedule-context.constants';
+import {
+  type ScheduleAvailabilityMutationResponse,
+  type ScheduleContextEntity,
+  type ScheduleEntity,
+  type ScheduleProjectionEntity,
+} from '@modules/schedules/domain/entities/schedule.entity';
+import { ScheduleSlotFactory } from '@modules/schedules/domain/factories/schedule-slot.factory';
+import {
+  parseClockTime,
+  projectScheduleIntervals,
+  type ScheduleClosedReason,
+} from '@modules/schedules/domain/schedule-projection';
+import {
+  isClosedScheduleStatus,
+  SchedulePersistenceStatus,
+} from '@modules/schedules/domain/schedule-status';
+import { ScheduleContextResolver } from '@modules/schedules/domain/services/schedule-context-resolver';
+import { ScheduleRecordMapper } from '@modules/schedules/infrastructure/drizzle/mappers/schedule-record.mapper';
+import { AppointmentOccupationQuery } from '@modules/schedules/infrastructure/drizzle/queries/appointment-occupation.query';
+import { ScheduleConflictQuery } from '@modules/schedules/infrastructure/drizzle/queries/schedule-conflict.query';
+import { SchedulePolicyReader } from '@modules/schedules/infrastructure/drizzle/queries/schedule-policy.reader';
+import { PractitionerResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/practitioner.resolver';
+import { RoomResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/room.resolver';
+import type { CreateAvailabilityDto } from '@modules/schedules/presentation/dto/create-availability.dto';
+import type { ScheduleProjectionQueryDto } from '@modules/schedules/presentation/dto/schedule-projection-query.dto';
+import type { UpdatePractitionerSchedulePolicyDto } from '@modules/schedules/presentation/dto/update-practitioner-schedule-policy.dto';
 import {
   ConflictException,
   Inject,
@@ -6,45 +45,6 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { and, eq } from 'drizzle-orm';
-import { generateEntityVersion } from '../../../../../../common/occ';
-import { DRIZZLE_SOURCE } from '../../../../../../database/drizzle/drizzle.constants';
-import { DrizzleDatabase } from '../../../../../../database/drizzle/drizzle.provider';
-import {
-  practitionerScheduleDaySettings,
-  practitionerScheduleSessions,
-  practitioners,
-} from '../../../../../../database/schema';
-import { CLINIC_TIMEZONE } from '../../../../domain/constants/schedule.constants';
-import {
-  SCHEDULE_CONTEXT_DEFINITIONS,
-  type ScheduleContextDefinition,
-} from '../../../../domain/constants/schedule-context.constants';
-import {
-  type ScheduleAvailabilityMutationResponse,
-  type ScheduleContextEntity,
-  type ScheduleEntity,
-  type ScheduleProjectionEntity,
-} from '../../../../domain/entities/schedule.entity';
-import { ScheduleSlotFactory } from '../../../../domain/factories/schedule-slot.factory';
-import {
-  parseClockTime,
-  projectScheduleIntervals,
-  type ScheduleClosedReason,
-} from '../../../../domain/schedule-projection';
-import {
-  isClosedScheduleStatus,
-  SchedulePersistenceStatus,
-} from '../../../../domain/schedule-status';
-import { ScheduleContextResolver } from '../../../../domain/services/schedule-context-resolver';
-import type { CreateAvailabilityDto } from '../../../../presentation/dto/create-availability.dto';
-import type { ScheduleProjectionQueryDto } from '../../../../presentation/dto/schedule-projection-query.dto';
-import type { UpdatePractitionerSchedulePolicyDto } from '../../../../presentation/dto/update-practitioner-schedule-policy.dto';
-import { ScheduleRecordMapper } from '../../mappers/schedule-record.mapper';
-import { AppointmentOccupationQuery } from '../../queries/appointment-occupation.query';
-import { ScheduleConflictQuery } from '../../queries/schedule-conflict.query';
-import { SchedulePolicyReader } from '../../queries/schedule-policy.reader';
-import { PractitionerResolver } from '../../resolvers/practitioner.resolver';
-import { RoomResolver } from '../../resolvers/room.resolver';
 
 @Injectable()
 export class DrizzleScheduleAvailabilityRepository {

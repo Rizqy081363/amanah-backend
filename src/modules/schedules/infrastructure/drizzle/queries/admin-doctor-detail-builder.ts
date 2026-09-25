@@ -1,14 +1,14 @@
-import { DEFAULT_CONSULTATION_DURATION_MINUTES } from '../../../domain/constants/schedule.constants';
+import { DEFAULT_CONSULTATION_DURATION_MINUTES } from '@modules/schedules/domain/constants/schedule.constants';
 import {
   type AdminDoctorDailySession,
   type AdminDoctorMonthlyDayEntity,
   ScheduleOperationalStatus,
-} from '../../../domain/entities/schedule.entity';
-import { ScheduleSlotFactory } from '../../../domain/factories/schedule-slot.factory';
+} from '@modules/schedules/domain/entities/schedule.entity';
+import { ScheduleSlotFactory } from '@modules/schedules/domain/factories/schedule-slot.factory';
 import {
   resolveAggregateOperationalStatus,
   resolveSessionOperationalStatus,
-} from '../../../domain/schedule-status';
+} from '@modules/schedules/domain/schedule-status';
 
 export interface MonthlyScheduleBuildContext {
   targetYear: number;
