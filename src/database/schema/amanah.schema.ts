@@ -3001,7 +3001,9 @@ export const practitionerScheduleClosures = pgTable(
     startTime: varchar('start_time', { length: 8 }),
     endTime: varchar('end_time', { length: 8 }),
     category: varchar({ length: 20 }).default('OTHER').notNull(),
-    reasonCode: varchar('reason_code', { length: 50 }).default('MANUAL').notNull(),
+    reasonCode: varchar('reason_code', { length: 50 })
+      .default('MANUAL')
+      .notNull(),
     reasonText: text('reason_text'),
     createdBy: uuid('created_by'),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
@@ -3057,5 +3059,3 @@ export const scheduleRescheduleEvents = pgTable(
     ),
   ],
 );
-
-

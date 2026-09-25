@@ -3,8 +3,8 @@ import { eq, sql } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../database/drizzle/drizzle.provider';
 import {
-  outboxEvents,
   OutboxEventSelect,
+  outboxEvents,
 } from '../../database/schema/outbox.schema';
 import {
   BASE_RETRY_BACKOFF_SECONDS,

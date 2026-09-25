@@ -22,9 +22,9 @@ import {
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
 import { CurrentUser } from '../../../common/auth/current-user.decorator';
+import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
 import { Roles } from '../../../common/auth/roles.decorator';
 import { RolesGuard } from '../../../common/auth/roles.guard';
-import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
 import {
   ATTENDANCE_REPOSITORY,
   AttendanceRepository,

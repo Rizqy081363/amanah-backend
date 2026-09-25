@@ -16,9 +16,9 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
 import { Roles } from '../../../common/auth/roles.decorator';
 import { RolesGuard } from '../../../common/auth/roles.guard';
-import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
 import { AuditService } from '../application/audit.service';
 import { QueryAuditLogDto } from './dto/query-audit-log.dto';
 

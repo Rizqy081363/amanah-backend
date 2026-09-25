@@ -2,13 +2,13 @@ import 'dotenv/config';
 import bcrypt from 'bcryptjs';
 import { Pool, type PoolClient, type QueryResultRow } from 'pg';
 import {
-  DEVELOPMENT_ROLE_SEEDS,
-  DEVELOPMENT_USER_SEEDS,
-} from './dev-seed.data';
-import {
   ScheduleSlotFactory,
   type SessionShiftType,
 } from '../../../modules/schedules/domain/factories/schedule-slot.factory';
+import {
+  DEVELOPMENT_ROLE_SEEDS,
+  DEVELOPMENT_USER_SEEDS,
+} from './dev-seed.data';
 
 type QueryOneInput = {
   client: PoolClient;

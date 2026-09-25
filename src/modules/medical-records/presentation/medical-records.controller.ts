@@ -15,8 +15,6 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
-import type { Response } from 'express';
-import { formatETag } from '../../../common/occ';
 import {
   ApiBearerAuth,
   ApiCreatedResponse,
@@ -30,10 +28,12 @@ import {
   ApiUnauthorizedResponse,
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
+import type { Response } from 'express';
 import { CurrentUser } from '../../../common/auth/current-user.decorator';
+import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
 import { Roles } from '../../../common/auth/roles.decorator';
 import { RolesGuard } from '../../../common/auth/roles.guard';
-import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
+import { formatETag } from '../../../common/occ';
 import {
   MEDICAL_RECORD_REPOSITORY,
   MedicalRecordRepository,

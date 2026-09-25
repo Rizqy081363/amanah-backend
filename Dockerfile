@@ -16,6 +16,7 @@ WORKDIR /usr/src/app
 
 COPY --from=builder /usr/src/app/package.json ./
 COPY --from=builder /usr/src/app/bun.lock ./
+COPY --from=builder /usr/src/app/tsconfig.json ./tsconfig.json
 COPY --from=builder /usr/src/app/node_modules ./node_modules
 COPY --from=builder /usr/src/app/dist ./dist
 COPY --from=builder /usr/src/app/src ./src

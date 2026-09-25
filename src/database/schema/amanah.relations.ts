@@ -34,11 +34,11 @@ import {
   practitionerScheduleDaySettings,
   practitionerScheduleSessions,
   practitioners,
-  scheduleRescheduleEvents,
   publicTestimonials,
   queueTickets,
   rolePermissions,
   roles,
+  scheduleRescheduleEvents,
   serviceCategories,
   staffAttendanceRecords,
   staffCredentials,
@@ -843,4 +843,3 @@ export const scheduleRescheduleEventsRelations = relations(
     }),
   }),
 );
-

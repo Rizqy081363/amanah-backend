@@ -47,10 +47,33 @@ class EnvironmentVariablesValidator {
   @IsString()
   @IsOptional()
   APP_HEADER_LANGUAGE: string;
+
+  @IsString()
+  @IsOptional()
+  LOG_LEVEL: string;
+
+  @IsOptional()
+  LOG_PRETTY: boolean;
+
+  @IsOptional()
+  HTTP_LOG_REQUEST_BODY: boolean;
+
+  @IsOptional()
+  HTTP_LOG_RESPONSE_BODY: boolean;
+
+  @IsInt()
+  @IsOptional()
+  HTTP_LOG_MAX_BODY_LENGTH: number;
+
+  @IsString()
+  @IsOptional()
+  TRUST_PROXY: string;
 }
 
 export default registerAs<AppConfig>('app', () => {
   validateConfig(process.env, EnvironmentVariablesValidator);
+
+  const isProduction = process.env.NODE_ENV === 'production';
 
   return {
     nodeEnv: process.env.NODE_ENV || 'development',
@@ -73,5 +96,27 @@ export default registerAs<AppConfig>('app', () => {
         : 3000,
     apiPrefix: process.env.API_PREFIX || 'api',
     headerLanguage: process.env.APP_HEADER_LANGUAGE || 'x-custom-lang',
+    logLevel: process.env.LOG_LEVEL || (isProduction ? 'info' : 'debug'),
+    logPretty:
+      process.env.LOG_PRETTY !== undefined
+        ? process.env.LOG_PRETTY === 'true'
+        : !isProduction,
+    httpLogRequestBody:
+      process.env.HTTP_LOG_REQUEST_BODY !== undefined
+        ? process.env.HTTP_LOG_REQUEST_BODY === 'true'
+        : !isProduction,
+    httpLogResponseBody:
+      process.env.HTTP_LOG_RESPONSE_BODY !== undefined
+        ? process.env.HTTP_LOG_RESPONSE_BODY === 'true'
+        : !isProduction,
+    httpLogMaxBodyLength: process.env.HTTP_LOG_MAX_BODY_LENGTH
+      ? parseInt(process.env.HTTP_LOG_MAX_BODY_LENGTH, 10)
+      : 10000,
+    trustProxy:
+      process.env.TRUST_PROXY === 'true'
+        ? true
+        : process.env.TRUST_PROXY === 'false'
+          ? false
+          : process.env.TRUST_PROXY || (isProduction ? 'loopback' : false),
   };
 });

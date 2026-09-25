@@ -138,6 +138,11 @@ export class ProblemDetailsFilter implements ExceptionFilter {
       );
     }
 
+    if (response.locals) {
+      response.locals.__observedResponseBody = problem;
+      response.locals.__observedError = exception;
+    }
+
     response.status(status).json(problem);
   }
 

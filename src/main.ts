@@ -1,4 +1,9 @@
 import 'dotenv/config';
+import util from 'node:util';
+
+util.inspect.defaultOptions.depth = null;
+util.inspect.defaultOptions.maxArrayLength = null;
+
 import {
   ClassSerializerInterceptor,
   Logger,
@@ -11,10 +16,12 @@ import { NestFactory, Reflector } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { useContainer } from 'class-validator';
 import helmet from 'helmet';
+import { Logger as PinoLogger } from 'nestjs-pino';
 import { AppModule } from './app.module';
 import { ProblemDetailsFilter } from './common/filters/problem-details.filter';
 import { HttpCacheInterceptor } from './common/interceptors/http-cache.interceptor';
 import { IdempotencyInterceptor } from './common/interceptors/idempotency.interceptor';
+import { HttpObservabilityInterceptor } from './common/logging/interceptors/http-observability.interceptor';
 import { RedisService } from './common/redis/redis.service';
 import { RateLimiterGuard } from './common/throttling';
 import { AllConfigType } from './config/config.type';
@@ -22,11 +29,21 @@ import { ResolvePromisesInterceptor } from './utils/serializer.interceptor';
 import validationOptions from './utils/validation-options';
 
 async function bootstrap() {
+  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  app.useLogger(app.get(PinoLogger));
   const logger = new Logger('Bootstrap');
-  logger.log('Starting Amanah Healthcare NestJS Backend...');
-  const app = await NestFactory.create(AppModule);
   useContainer(app.select(AppModule), { fallbackOnErrors: true });
   const configService = app.get(ConfigService<AllConfigType>);
+
+  const trustProxy = configService.get('app.trustProxy', { infer: true });
+  if (
+    trustProxy !== undefined &&
+    trustProxy !== false &&
+    trustProxy !== 'false'
+  ) {
+    const expressApp = app.getHttpAdapter().getInstance();
+    expressApp.set('trust proxy', trustProxy);
+  }
 
   app.use(
     helmet({
@@ -79,6 +96,7 @@ async function bootstrap() {
     new ClassSerializerInterceptor(reflector),
     new IdempotencyInterceptor(redisService, reflector),
     new HttpCacheInterceptor(reflector, redisService),
+    new HttpObservabilityInterceptor(),
   );
 
   const port = configService.getOrThrow('app.port', { infer: true });
@@ -142,6 +160,7 @@ async function bootstrap() {
   logger.log(`Swagger documentation available at /docs.`);
 }
 bootstrap().catch((err) => {
+  console.error('BOOTSTRAP FATAL ERROR:', err);
   const logger = new Logger('Bootstrap');
   logger.error(
     'Bootstrap failed.',

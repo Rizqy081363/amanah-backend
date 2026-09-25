@@ -28,6 +28,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { and, asc, eq, gte, inArray, lt, or } from 'drizzle-orm';
@@ -35,18 +36,31 @@ import { DrizzleRescheduleEligibilityEvaluator } from './drizzle-reschedule-elig
 
 @Injectable()
 export class DrizzleScheduleRescheduleRepository {
+  private readonly practitionerResolver: PractitionerResolver;
+  private readonly conflictQuery: ScheduleConflictQuery;
+  private readonly availabilityRepo: DrizzleScheduleAvailabilityRepository;
+  private readonly eligibilityEvaluator: DrizzleRescheduleEligibilityEvaluator;
+
   constructor(
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,
-    private readonly practitionerResolver: PractitionerResolver,
-    private readonly conflictQuery: ScheduleConflictQuery,
-    private readonly availabilityRepo: DrizzleScheduleAvailabilityRepository,
-    private readonly eligibilityEvaluator: DrizzleRescheduleEligibilityEvaluator = new DrizzleRescheduleEligibilityEvaluator(
-      db,
-      practitionerResolver,
-      conflictQuery,
-    ),
-  ) {}
+    @Optional() practitionerResolver?: PractitionerResolver,
+    @Optional() conflictQuery?: ScheduleConflictQuery,
+    @Optional() availabilityRepo?: DrizzleScheduleAvailabilityRepository,
+    @Optional() eligibilityEvaluator?: DrizzleRescheduleEligibilityEvaluator,
+  ) {
+    this.practitionerResolver =
+      practitionerResolver ?? new PractitionerResolver(db);
+    this.conflictQuery = conflictQuery ?? new ScheduleConflictQuery(db);
+    this.availabilityRepo = availabilityRepo!;
+    this.eligibilityEvaluator =
+      eligibilityEvaluator ??
+      new DrizzleRescheduleEligibilityEvaluator(
+        db,
+        this.practitionerResolver,
+        this.conflictQuery,
+      );
+  }
 
   async checkRescheduleEligibility(
     id: string,

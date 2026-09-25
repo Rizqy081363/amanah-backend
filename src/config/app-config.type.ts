@@ -8,4 +8,10 @@ export type AppConfig = {
   port: number;
   apiPrefix: string;
   headerLanguage: string;
+  logLevel: string;
+  logPretty: boolean;
+  httpLogRequestBody: boolean;
+  httpLogResponseBody: boolean;
+  httpLogMaxBodyLength: number;
+  trustProxy: boolean | string;
 };

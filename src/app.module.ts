@@ -5,8 +5,8 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
 import { AuthModule } from './auth/auth.module';
 import authConfig from './auth/config/auth.config';
 import cacheConfig from './cache/cache.config';
+import { LoggingModule } from './common/logging/logging.module';
 import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
-import { HttpLoggerMiddleware } from './common/middleware/http-logger.middleware';
 import { OutboxModule } from './common/outbox/outbox.module';
 import { RedisModule } from './common/redis/redis.module';
 import appConfig from './config/app.config';
@@ -43,6 +43,7 @@ import { SupportTicketsModule } from './modules/support-tickets/support-tickets.
     }),
     DrizzleModule,
     RedisModule,
+    LoggingModule,
     OutboxModule,
     HealthModule,
     HomeModule,
@@ -64,8 +65,6 @@ import { SupportTicketsModule } from './modules/support-tickets/support-tickets.
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
-    consumer
-      .apply(CorrelationIdMiddleware, HttpLoggerMiddleware)
-      .forRoutes('*');
+    consumer.apply(CorrelationIdMiddleware).forRoutes('*');
   }
 }

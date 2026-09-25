@@ -12,8 +12,8 @@ import {
   RATE_LIMIT_HEADER_LIMIT,
   RATE_LIMIT_HEADER_REMAINING,
   RATE_LIMIT_HEADER_RESET,
-  type RateLimitOptions,
   RATE_LIMIT_TIERS,
+  type RateLimitOptions,
   RETRY_AFTER_HEADER,
 } from '../constants/rate-limit.constants';
 import { RedisService } from '../redis/redis.service';

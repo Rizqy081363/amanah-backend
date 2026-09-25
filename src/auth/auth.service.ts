@@ -67,7 +67,7 @@ export class AuthService {
       return undefined;
     }
 
-    let clinicUnit: any = undefined;
+    let clinicUnit: any;
     if (isUUID(value)) {
       clinicUnit = await this.db.query.clinicUnits.findFirst({
         where: eq(clinicUnits.id, value),

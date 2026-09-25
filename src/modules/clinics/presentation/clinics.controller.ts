@@ -10,7 +10,6 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
 import {
   ApiBearerAuth,
   ApiCreatedResponse,
@@ -24,6 +23,7 @@ import {
   ApiUnauthorizedResponse,
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
+import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
 import { Public } from '../../../common/auth/public.decorator';
 import { Roles } from '../../../common/auth/roles.decorator';
 import { RolesGuard } from '../../../common/auth/roles.guard';

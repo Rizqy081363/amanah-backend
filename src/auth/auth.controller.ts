@@ -14,9 +14,8 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
 import { AuthGuard } from '@nestjs/passport';
-import { CurrentUser, HybridAuthGuard } from '../common/auth';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiBearerAuth,
   ApiBody,
@@ -28,9 +27,10 @@ import {
   ApiUnauthorizedResponse,
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
+import { CurrentUser, HybridAuthGuard } from '../common/auth';
+import { RateLimit } from '../common/throttling';
 import { AvatarService } from '../modules/avatar/avatar.service';
 import { User } from '../users/domain/user';
-import { RateLimit } from '../common/throttling';
 import { NullableType } from '../utils/types/nullable.type';
 import type { RequestWithUser } from '../utils/types/request-with-user.type';
 import { AuthService } from './auth.service';
@@ -43,8 +43,8 @@ import {
   ResendOtpResponseDto,
 } from './dto/auth-resend-otp.dto';
 import { AuthResendVerificationDto } from './dto/auth-resend-verification.dto';
-import { AuthResetPasswordOtpDto } from './dto/auth-reset-password-otp.dto';
 import { AuthResetPasswordDto } from './dto/auth-reset-password.dto';
+import { AuthResetPasswordOtpDto } from './dto/auth-reset-password-otp.dto';
 import { AuthStaffOnboardingDto } from './dto/auth-staff-onboarding.dto';
 import { AuthUpdateDto } from './dto/auth-update.dto';
 import { AuthVerifyOtpDto } from './dto/auth-verify-otp.dto';

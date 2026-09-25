@@ -3,8 +3,8 @@ import { AppointmentsService } from './application/appointments.service';
 import { APPOINTMENT_REPOSITORY } from './domain/repositories/appointment.repository';
 import { AppointmentDrizzleRepository } from './infrastructure/drizzle/appointment.drizzle-repository';
 import { AppointmentEventsListener } from './infrastructure/listeners/appointment-events.listener';
-import { AppointmentsController } from './presentation/appointments.controller';
 import { AdminAppointmentsController } from './presentation/admin-appointments.controller';
+import { AppointmentsController } from './presentation/appointments.controller';
 
 @Module({
   controllers: [AppointmentsController, AdminAppointmentsController],

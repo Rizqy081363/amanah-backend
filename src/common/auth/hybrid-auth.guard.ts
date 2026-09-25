@@ -3,6 +3,7 @@ import {
   ExecutionContext,
   Inject,
   Injectable,
+  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
@@ -20,7 +21,7 @@ export class HybridAuthGuard extends AuthGuard('jwt') implements CanActivate {
   constructor(
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,
-    private readonly redisService: RedisService,
+    @Optional() private readonly redisService?: RedisService,
   ) {
     super();
   }
@@ -32,7 +33,7 @@ export class HybridAuthGuard extends AuthGuard('jwt') implements CanActivate {
     const authHeader = request.headers.authorization;
     if (typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
       const token = authHeader.slice(7).trim();
-      if (token) {
+      if (token && this.redisService) {
         const isBlacklisted = await this.redisService.getString(
           `blacklist:token:${token}`,
         );

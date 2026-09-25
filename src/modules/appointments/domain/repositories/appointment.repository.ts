@@ -1,6 +1,6 @@
-import { AppointmentEntity } from '../entities/appointment.entity';
-import { CancelAppointmentDto } from '../../presentation/dto/cancel-appointment.dto';
 import { AdminUpdateAppointmentStatusDto } from '../../presentation/dto/admin-update-appointment-status.dto';
+import { CancelAppointmentDto } from '../../presentation/dto/cancel-appointment.dto';
+import { AppointmentEntity } from '../entities/appointment.entity';
 
 export const APPOINTMENT_REPOSITORY = 'APPOINTMENT_REPOSITORY';
 

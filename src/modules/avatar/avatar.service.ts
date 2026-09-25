@@ -15,7 +15,7 @@ import { AvatarProcessingService } from './avatar-processing.service';
 import { AvatarSvgService } from './avatar-svg.service';
 import {
   AVATAR_STORAGE_PORT,
-  AvatarStoragePort,
+  type AvatarStoragePort,
 } from './ports/avatar-storage.port';
 
 export interface AvatarContract {

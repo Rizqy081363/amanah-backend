@@ -23,17 +23,29 @@ import { ScheduleContextResolver } from '@modules/schedules/domain/services/sche
 import { ScheduleConflictQuery } from '@modules/schedules/infrastructure/drizzle/queries/schedule-conflict.query';
 import { PractitionerResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/practitioner.resolver';
 import type { CheckRescheduleEligibilityQueryDto } from '@modules/schedules/presentation/dto/check-reschedule-eligibility-query.dto';
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  NotFoundException,
+  Optional,
+} from '@nestjs/common';
 import { and, eq, gte, inArray, lt, lte, or } from 'drizzle-orm';
 
 @Injectable()
 export class DrizzleRescheduleEligibilityEvaluator {
+  private readonly practitionerResolver: PractitionerResolver;
+  private readonly conflictQuery: ScheduleConflictQuery;
+
   constructor(
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,
-    private readonly practitionerResolver: PractitionerResolver,
-    private readonly conflictQuery: ScheduleConflictQuery,
-  ) {}
+    @Optional() practitionerResolver?: PractitionerResolver,
+    @Optional() conflictQuery?: ScheduleConflictQuery,
+  ) {
+    this.practitionerResolver =
+      practitionerResolver ?? new PractitionerResolver(db);
+    this.conflictQuery = conflictQuery ?? new ScheduleConflictQuery(db);
+  }
 
   async evaluate(
     id: string,

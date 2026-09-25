@@ -15,14 +15,14 @@ import { decodeCursor, encodeCursor } from '../../../../common/pagination';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
-  appointments,
   appointmentStatusEvents,
+  appointments,
   clinicRooms,
   clinicServices,
   clinicUnits,
   patientProfiles,
-  practitioners,
   practitionerScheduleSessions,
+  practitioners,
   queueTickets,
 } from '../../../../database/schema';
 import { AppointmentEntity } from '../../domain/entities/appointment.entity';
@@ -30,8 +30,8 @@ import {
   AppointmentFindAllResult,
   AppointmentRepository,
 } from '../../domain/repositories/appointment.repository';
-import { CancelAppointmentDto } from '../../presentation/dto/cancel-appointment.dto';
 import { AdminUpdateAppointmentStatusDto } from '../../presentation/dto/admin-update-appointment-status.dto';
+import { CancelAppointmentDto } from '../../presentation/dto/cancel-appointment.dto';
 
 @Injectable()
 export class AppointmentDrizzleRepository implements AppointmentRepository {
@@ -529,11 +529,15 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
       updateTicket.status = ticketStatus;
 
       let targetSessionId = existing.scheduleSessionId;
-      if (!targetSessionId && existing.practitionerId && existing.scheduledDate) {
+      if (
+        !targetSessionId &&
+        existing.practitionerId &&
+        existing.scheduledDate
+      ) {
         const apptStart =
           existing.scheduledStartTime?.length === 5
             ? `${existing.scheduledStartTime}:00`
-            : (existing.scheduledStartTime || '08:00:00');
+            : existing.scheduledStartTime || '08:00:00';
         const candidateSessions =
           await this.db.query.practitionerScheduleSessions.findMany({
             where: and(
@@ -551,8 +555,7 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
           candidateSessions.find((s) => {
             const sStart =
               s.startTime.length === 5 ? `${s.startTime}:00` : s.startTime;
-            const sEnd =
-              s.endTime.length === 5 ? `${s.endTime}:00` : s.endTime;
+            const sEnd = s.endTime.length === 5 ? `${s.endTime}:00` : s.endTime;
             return apptStart >= sStart && apptStart < sEnd;
           }) || candidateSessions[0];
         if (matched) targetSessionId = matched.id;
@@ -562,9 +565,7 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
         const [session] = await this.db
           .select()
           .from(practitionerScheduleSessions)
-          .where(
-            eq(practitionerScheduleSessions.id, targetSessionId),
-          );
+          .where(eq(practitionerScheduleSessions.id, targetSessionId));
         if (session) {
           const newAvailable = Math.min(
             session.capacity,
@@ -724,7 +725,7 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
         const apptStart =
           apt.scheduledStartTime?.length === 5
             ? `${apt.scheduledStartTime}:00`
-            : (apt.scheduledStartTime || '08:00:00');
+            : apt.scheduledStartTime || '08:00:00';
         const candidateSessions =
           await tx.query.practitionerScheduleSessions.findMany({
             where: and(
@@ -732,18 +733,14 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
                 practitionerScheduleSessions.practitionerId,
                 apt.practitionerId,
               ),
-              eq(
-                practitionerScheduleSessions.scheduleDate,
-                apt.scheduledDate,
-              ),
+              eq(practitionerScheduleSessions.scheduleDate, apt.scheduledDate),
             ),
           });
         const matched =
           candidateSessions.find((s) => {
             const sStart =
               s.startTime.length === 5 ? `${s.startTime}:00` : s.startTime;
-            const sEnd =
-              s.endTime.length === 5 ? `${s.endTime}:00` : s.endTime;
+            const sEnd = s.endTime.length === 5 ? `${s.endTime}:00` : s.endTime;
             return apptStart >= sStart && apptStart < sEnd;
           }) || candidateSessions[0];
         if (matched) targetSessionId = matched.id;
@@ -824,7 +821,8 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
       }
 
       const previousStatus = apt.status;
-      const targetStatus = dto.status as typeof appointments.$inferSelect.status;
+      const targetStatus =
+        dto.status as typeof appointments.$inferSelect.status;
 
       if (
         (targetStatus === 'cancelled' || targetStatus === 'no_show') &&
@@ -886,7 +884,7 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
           const apptStart =
             apt.scheduledStartTime?.length === 5
               ? `${apt.scheduledStartTime}:00`
-              : (apt.scheduledStartTime || '08:00:00');
+              : apt.scheduledStartTime || '08:00:00';
           const candidateSessions =
             await tx.query.practitionerScheduleSessions.findMany({
               where: and(
@@ -894,7 +892,10 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
                   practitionerScheduleSessions.practitionerId,
                   apt.practitionerId,
                 ),
-                eq(practitionerScheduleSessions.scheduleDate, apt.scheduledDate),
+                eq(
+                  practitionerScheduleSessions.scheduleDate,
+                  apt.scheduledDate,
+                ),
               ),
             });
           const matched =
