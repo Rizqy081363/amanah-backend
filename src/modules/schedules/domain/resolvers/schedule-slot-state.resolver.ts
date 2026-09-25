@@ -2,7 +2,6 @@ import {
   ScheduleSlotFactory,
   SessionShiftType,
   ShiftDefinition,
-  TheoreticalSlot,
 } from '../factories/schedule-slot.factory';
 import { parseClockTime } from '../schedule-projection';
 
@@ -281,7 +280,6 @@ export class ScheduleSlotStateResolver {
 
     const isPastDate = input.scheduleDate < currentDate;
     const isFutureDate = input.scheduleDate > currentDate;
-    const isToday = input.scheduleDate === currentDate;
 
     // Check day-level leave
     const activeLeave = (input.leavePeriods || []).find(

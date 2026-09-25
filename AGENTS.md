@@ -144,3 +144,172 @@ A practical checklist, mapping directly to the two pains you described:
 
 - **"Files are 2,000–4,000 lines"** → split by *Vertical Slice / Package by Feature* (#16, #71), pull data access out via *Repository* (#31), pull object construction out via *Factory* (#41), pull transformation out via *Mapper* (#44), wrap multi-step writes in a *Unit of Work* (#32). Migrate incrementally with the *Strangler Fig Pattern* (#91), not a rewrite.
 - **"Mobile and web-admin do the same thing but hit different endpoints"** → introduce a *Transport-Agnostic Service Layer* (#85) once, then put a thin *BFF* or thin per-client controller (#20/#81) in front of it, sharing a *Canonical Data Model* (#82) and a *Shared DTO/Contract Package* (#84) so both clients are guaranteed to stay in sync.
+# NestJS + Drizzle ORM — Base Module & Folder Structure Catalog
+
+**Purpose:** a concrete "base module" reference for applying the paradigms in `backend-architecture-paradigm-catalog.md` to a **NestJS + Drizzle** codebase. Every "base X" building block below exists once, in `common/`, and every feature module extends or implements it instead of reinventing it — this is what keeps a feature module small and a new module "plug-and-call."
+
+---
+
+## 1. Top-Level Project Layout
+
+```
+src/
+  main.ts
+  app.module.ts
+
+  config/                    # env loading + validation (Zod/Joi), one config per concern
+    app.config.ts
+    database.config.ts
+    redis.config.ts
+    config.module.ts
+
+  database/
+    drizzle.module.ts        # provides the DB client under a DATABASE_CONNECTION token
+    schema/
+      index.ts               # barrel: SSOT for drizzle-kit migrations
+      <feature>.schema.ts    # one schema file per feature, re-exported from index.ts
+    migrations/               # drizzle-kit generated SQL, never hand-edited
+    seeders/
+
+  common/                     # a.k.a. "core" or "shared" — the base-module catalog (§2)
+
+  modules/
+    <feature>/                # one folder per bounded context / feature (§4)
+
+  shared-kernel/              # OPTIONAL — only needed if you go full BFF split (§6, Option B)
+```
+
+If the "same behavior, different endpoint" problem is large enough to need separate deployables (not just separate controllers), promote this to a monorepo:
+
+```
+apps/
+  api-core/          # domain services — no HTTP awareness beyond hosting them
+  bff-mobile/        # thin, mobile-specific controllers calling api-core's services
+  bff-web-admin/     # thin, web-admin-specific controllers calling the same services
+packages/
+  shared-contracts/  # DTOs / Zod schemas shared by api-core + both BFFs + generated clients
+  shared-utils/
+```
+
+---
+
+## 2. `common/` — Base Building Block Catalog
+
+| Base building block | File | Purpose |
+|---|---|---|
+| `BaseSchema` columns | `common/database/base.schema.ts` | Shared columns (`id`, `createdAt`, `updatedAt`, `deletedAt`) mixed into every Drizzle table definition. |
+| `IRepository<T>` | `common/interfaces/repository.interface.ts` | Port that lets services depend on an abstraction, never on Drizzle directly (Repository Pattern). |
+| `BaseRepository<T>` | `common/repositories/base.repository.ts` | Generic CRUD implemented once against Drizzle; every feature repository extends it and adds only its custom queries. |
+| `BaseService<T>` | `common/services/base.service.ts` | Generic application-layer CRUD orchestration (calls repository + mapper), transport-agnostic. |
+| `BaseController` | `common/controllers/base.controller.ts` | Optional generic REST CRUD controller for simple resources that don't need custom behavior. |
+| `BaseQueryDto`, `PaginationQueryDto`, `BaseResponseDto` | `common/dto/` | Shared request/response shapes: paging, sorting, filtering, and the standard response envelope. |
+| `IMapper<TEntity, TDto>` + `BaseMapper` | `common/mappers/` | One contract every entity↔DTO transformer implements. |
+| `BaseFactory<T>` | `common/factories/` | Contract for constructing aggregates/entities with their invariants enforced in one place. |
+| `BaseSpecification` | `common/specifications/` | Reusable, combinable query predicates (Specification Pattern), instead of ad-hoc `where` clauses in services. |
+| `BaseException` + `GlobalExceptionFilter` | `common/exceptions/` | A domain exception hierarchy plus one filter that turns any thrown exception into a consistent error envelope. |
+| Injection tokens & constants | `common/constants/` | `DATABASE_CONNECTION`, `LOGGER`, `CACHE_MANAGER`, error codes, shared enums. |
+| Decorators | `common/decorators/` | `@CurrentUser()`, `@Public()`, `@Roles()`. |
+| Guards | `common/guards/` | `JwtAuthGuard`, `RolesGuard` / `PolicyGuard` (CASL-based). |
+| Interceptors | `common/interceptors/` | `ResponseTransformInterceptor` (wraps every response in the envelope), `LoggingInterceptor`, `TimeoutInterceptor`. |
+| Pipes | `common/pipes/` | `ZodValidationPipe` — pairs naturally with `drizzle-zod` (§5). |
+| Test utilities | `common/testing/` | `TestModuleBuilder`, `InMemoryRepository<T>` fake, `TestDataBuilder` — all built against `IRepository<T>`, so tests never touch a real DB. |
+
+---
+
+## 3. Unit of Work & Transactions (Drizzle-specific)
+
+Drizzle's `db.transaction(cb)` gives you a scoped transaction client, but callers still need a clean way to run *one business operation that touches several repositories* atomically, without threading a `tx` parameter through every method signature. The standard base set:
+
+| Piece | File | Purpose |
+|---|---|---|
+| `IUnitOfWork` | `common/unit-of-work/unit-of-work.interface.ts` | `startTransaction()`, `commit()`, `rollback()`, `getRepository<T>()`. |
+| `DrizzleUnitOfWork` | `common/unit-of-work/drizzle-unit-of-work.service.ts` | Implements the above using `db.transaction()`, handing every repository the transactional client instead of the pooled one. |
+| `TransactionContext` | `common/unit-of-work/transaction-context.ts` | An `AsyncLocalStorage` holder for "the current transaction client, if any" — this is what lets `BaseRepository` automatically pick up an active transaction without an explicit parameter. |
+| `@Transactional()` | `common/unit-of-work/transactional.decorator.ts` | A method decorator for services: wraps the method body in `db.transaction()`, sets `TransactionContext`, commits on success, rolls back on any thrown exception. |
+
+Conceptually, a service method becomes:
+
+```ts
+@Transactional()
+async placeOrder(dto: CreateOrderDto) {
+  const order = this.orderFactory.create(dto);       // Factory
+  await this.orderRepository.save(order);             // uses tx from AsyncLocalStorage
+  await this.inventoryRepository.reserve(dto.items);   // same tx, same context
+  this.eventBus.publish(new OrderPlacedEvent(order));  // Outbox pattern, same tx
+}
+```
+
+Nothing here mentions HTTP — this method could be called from a REST controller, a queue consumer, or a cron job unchanged, which is the "transport-agnostic" property from the paradigm catalog (#85).
+
+---
+
+## 4. Per-Feature Module Catalog — `modules/<feature>/`
+
+```
+modules/<feature>/
+  <feature>.module.ts
+  controllers/
+    <feature>.controller.ts        # or split per client, see §6
+  services/
+    <feature>.service.ts            # extends BaseService<T>; all business rules live here
+  repositories/
+    <feature>.repository.ts         # extends BaseRepository<T>, implements I<Feature>Repository
+    <feature>.repository.interface.ts
+  dto/
+    create-<feature>.dto.ts
+    update-<feature>.dto.ts
+    query-<feature>.dto.ts           # extends BaseQueryDto
+    response/<feature>.response.dto.ts
+  mappers/
+    <feature>.mapper.ts               # implements IMapper<Entity, Dto>
+  factories/
+    <feature>.factory.ts
+  events/
+    <feature>-created.event.ts
+  exceptions/
+    <feature>-not-found.exception.ts  # extends BaseException
+  constants/
+    <feature>.constants.ts
+  interfaces/
+    <feature>.interface.ts
+  tests/
+    <feature>.service.spec.ts          # uses InMemoryRepository fake, no real DB
+    <feature>.repository.spec.ts
+  index.ts                              # barrel export — this feature's public surface only
+```
+
+Every file in this list maps directly back to a named paradigm: `service` → Transport-Agnostic Service Layer, `repository` → Repository Pattern, `mapper` → Mapper Pattern, `factory` → Factory Pattern, `dto` → DTO, `exceptions` → Custom Exception Hierarchy. A new engineer (or an AI) can regenerate this skeleton for any new feature mechanically.
+
+---
+
+## 5. Config, Database & Cross-Cutting Infrastructure
+
+- **`ConfigModule`** — loads `.env`, validates it against a Zod/Joi schema at boot, and fails fast if anything required is missing, instead of failing at runtime deep inside a request.
+- **`DrizzleModule`** — the *only* place that constructs the DB client, exposed elsewhere purely via the `DATABASE_CONNECTION` token (Dependency Injection).
+- **`schema/index.ts`** — the single barrel that `drizzle-kit` reads to generate migrations; this file is the literal SSOT for your data model.
+- **`drizzle-zod`** — generate Zod validation schemas directly from the Drizzle table definitions, so the DB schema and the DTO validation rules can never silently drift apart (another concrete SSOT application).
+- **`LoggerModule`** — a thin wrapper behind an `ILogger` port, so the actual logging library (Pino, Winston, …) can be swapped without touching a single call site.
+- **`CacheModule`** — same idea, behind an `ICache` port; Redis today, something else later, zero call-site changes.
+- **`HealthModule`** — Terminus-based `/health` checks for the DB and cache, so infrastructure can detect a bad deploy automatically.
+
+---
+
+## 6. Solving "Same Behavior, Different Endpoint" (Mobile vs. Web-Admin)
+
+Two options, in increasing order of scale:
+
+**Option A — one deployable (recommended to start):**
+Keep one NestJS app. Each feature module gets *two thin controllers* that both inject the exact same `<Feature>Service`:
+
+```
+modules/<feature>/controllers/
+  <feature>.mobile.controller.ts   # @Controller('mobile/<feature>')
+  <feature>.web.controller.ts      # @Controller('admin/<feature>')
+```
+
+The controllers differ only in route path, response shape (via the shared mapper/DTO), and which `PolicyGuard` rules apply — never in business logic. This alone removes the duplication you described, with no infrastructure change.
+
+**Option B — full BFF split (once mobile and web-admin genuinely need independent scaling/deploys):**
+Promote to the monorepo layout in §1: `apps/api-core` owns the services, `apps/bff-mobile` and `apps/bff-web-admin` are thin HTTP layers over it, and `packages/shared-contracts` guarantees both clients consume the exact same request/response shapes (Contract-First Design + Canonical Data Model, see the companion paradigm catalog, #82–84).
+
+Start with Option A. Only move to Option B when you have an actual scaling or deployment reason to — this is YAGNI (#4) applied to your own infrastructure.

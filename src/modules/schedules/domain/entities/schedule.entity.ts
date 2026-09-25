@@ -20,7 +20,7 @@ export class ScheduleEntity {
   specificDate?: string | null;
   session: 'PAGI' | 'SIANG' | 'MALAM';
   sessionLabel?: string;
-  sessionShift?: 'morning' | 'afternoon' | 'night';
+  sessionShift?: 'early_morning' | 'morning' | 'afternoon' | 'night' | null;
   startTime?: string | null;
   endTime?: string | null;
   timeRange?: string;

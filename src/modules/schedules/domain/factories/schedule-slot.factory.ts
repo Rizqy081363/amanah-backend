@@ -1,7 +1,4 @@
-import {
-  BadRequestException,
-  UnprocessableEntityException,
-} from '@nestjs/common';
+import { UnprocessableEntityException } from '@nestjs/common';
 import { formatClockTime, parseClockTime } from '../schedule-projection';
 
 export type SessionShiftType =
@@ -297,10 +294,10 @@ export class ScheduleSlotFactory {
   ): TheoreticalSlot[] {
     const def =
       typeof context === 'string'
-        ? this.resolveShiftDefinition(context)
+        ? ScheduleSlotFactory.resolveShiftDefinition(context)
         : 'boundaryStartMinutes' in context
           ? context
-          : this.resolveShiftDefinition((context as any).shift);
+          : ScheduleSlotFactory.resolveShiftDefinition((context as any).shift);
     const validInterval = intervalMinutes > 0 ? intervalMinutes : 30;
     const totalSlots = Math.floor(
       (def.boundaryEndMinutes - def.boundaryStartMinutes) / validInterval,
@@ -337,14 +334,15 @@ export class ScheduleSlotFactory {
     endTime: string;
     timeRange: string;
   }> {
-    return this.generateTheoreticalSlots(shift, durationMinutes).map(
-      (slot) => ({
-        slotIndex: slot.slotIndex,
-        startTime: slot.startTime,
-        endTime: slot.endTime,
-        timeRange: slot.timeRange,
-      }),
-    );
+    return ScheduleSlotFactory.generateTheoreticalSlots(
+      shift,
+      durationMinutes,
+    ).map((slot) => ({
+      slotIndex: slot.slotIndex,
+      startTime: slot.startTime,
+      endTime: slot.endTime,
+      timeRange: slot.timeRange,
+    }));
   }
 
   /**
@@ -363,7 +361,7 @@ export class ScheduleSlotFactory {
     capacity: number;
     availableSlots: number;
   } {
-    const def = this.resolveShiftDefinition(shift);
+    const def = ScheduleSlotFactory.resolveShiftDefinition(shift);
     const validDuration = durationMinutes > 0 ? durationMinutes : 30;
     const maxSlots = Math.floor(
       (def.boundaryEndMinutes - def.boundaryStartMinutes) / validDuration,
@@ -418,10 +416,12 @@ export class ScheduleSlotFactory {
     bookedCount: number;
     displaySlot: string;
   } {
-    const shiftDef = this.resolveShiftFromClockTime(params.startTime);
+    const shiftDef = ScheduleSlotFactory.resolveShiftFromClockTime(
+      params.startTime,
+    );
     const validDuration =
       params.durationMinutes > 0 ? params.durationMinutes : 30;
-    const calculatedCapacity = this.calculateCapacity(
+    const calculatedCapacity = ScheduleSlotFactory.calculateCapacity(
       params.startTime,
       params.endTime,
       validDuration,
