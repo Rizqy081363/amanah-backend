@@ -1636,6 +1636,46 @@ export const appointmentStatusEvents = pgTable(
   ],
 );
 
+export const appointmentCallAttempts = pgTable(
+  'appointment_call_attempts',
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    appointmentId: uuid('appointment_id').notNull(),
+    queueTicketId: uuid('queue_ticket_id'),
+    attemptNumber: integer('attempt_number').notNull(),
+    status: text('status').default('called').notNull(),
+    calledBy: uuid('called_by'),
+    calledAt: timestamp('called_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+    respondedAt: timestamp('responded_at', {
+      withTimezone: true,
+      mode: 'string',
+    }),
+    notes: text('notes'),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index('appointment_call_attempts_apt_idx').using(
+      'btree',
+      table.appointmentId.asc().nullsLast().op('uuid_ops'),
+      table.attemptNumber.asc().nullsLast().op('int4_ops'),
+    ),
+    foreignKey({
+      columns: [table.appointmentId],
+      foreignColumns: [appointments.id],
+      name: 'appointment_call_attempts_appointment_id_fkey',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [table.calledBy],
+      foreignColumns: [users.id],
+      name: 'appointment_call_attempts_called_by_fkey',
+    }).onDelete('set null'),
+  ],
+);
+
 export const queueTickets = pgTable(
   'queue_tickets',
   {
@@ -2050,6 +2090,7 @@ export const notifications = pgTable(
     isUrgent: boolean('is_urgent').default(false).notNull(),
     sourceType: text('source_type'),
     sourceId: uuid('source_id'),
+    idempotencyKey: text('idempotency_key'),
     metadata: jsonb().default({}).notNull(),
     createdBy: uuid('created_by'),
     expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'string' }),
@@ -2061,6 +2102,9 @@ export const notifications = pgTable(
       .notNull(),
   },
   (table) => [
+    uniqueIndex('notifications_idempotency_key_unique').on(
+      table.idempotencyKey,
+    ),
     index('notifications_category_created_idx').using(
       'btree',
       table.category.asc().nullsLast().op('timestamptz_ops'),

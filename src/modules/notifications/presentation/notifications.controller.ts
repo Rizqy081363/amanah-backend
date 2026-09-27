@@ -6,6 +6,7 @@ import {
   Inject,
   NotFoundException,
   Param,
+  ParseUUIDPipe,
   Patch,
   Query,
   UseGuards,
@@ -26,6 +27,11 @@ import {
   NOTIFICATION_REPOSITORY,
   NotificationRepository,
 } from '../domain/repositories/notification.repository';
+import { RealtimeGatewayPort } from '../contracts/realtime-gateway.interface';
+import {
+  REALTIME_EVENTS,
+  REALTIME_GATEWAY_PORT,
+} from '../notifications.constants';
 import { QueryNotificationDto } from './dto/query-notification.dto';
 
 @ApiTags('Notifications (Notifikasi Staf & Pasien)')
@@ -39,6 +45,8 @@ export class NotificationsController {
   constructor(
     @Inject(NOTIFICATION_REPOSITORY)
     private readonly notificationRepo: NotificationRepository,
+    @Inject(REALTIME_GATEWAY_PORT)
+    private readonly realtimeGateway: RealtimeGatewayPort,
   ) {}
 
   @Get('me')
@@ -101,6 +109,30 @@ export class NotificationsController {
     });
   }
 
+  @Get('unread-count')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Mendapatkan jumlah notifikasi belum dibaca (Mobile & Web)',
+    description:
+      'Mengambil integer unread count untuk badge UI secara cepat tanpa me-load daftar notifikasi.',
+  })
+  @ApiOkResponse({
+    description: 'Jumlah notifikasi belum dibaca berhasil diambil',
+    schema: {
+      type: 'object',
+      properties: {
+        unreadCount: { type: 'number', example: 3 },
+      },
+    },
+  })
+  async getUnreadCount(@CurrentUser() user: any) {
+    const result = await this.notificationRepo.findMyNotifications(user.id, {
+      limit: 1,
+      unreadOnly: true,
+    });
+    return { unreadCount: result.unreadCount };
+  }
+
   @Patch('read-all')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -120,6 +152,25 @@ export class NotificationsController {
   })
   async markAllAsRead(@CurrentUser() user: any) {
     const updatedCount = await this.notificationRepo.markAllAsRead(user.id);
+    const readAt = new Date().toISOString();
+
+    await this.realtimeGateway.emitToUser(
+      user.id,
+      REALTIME_EVENTS.NOTIFICATION_READ,
+      {
+        all: true,
+        readAt,
+      },
+    );
+
+    await this.realtimeGateway.emitToUser(
+      user.id,
+      REALTIME_EVENTS.NOTIFICATION_UNREAD_COUNT,
+      {
+        unreadCount: 0,
+      },
+    );
+
     return {
       success: true,
       updatedCount,
@@ -150,13 +201,40 @@ export class NotificationsController {
   @ApiNotFoundResponse({
     description: 'Notifikasi tidak ditemukan atau bukan milik user ini',
   })
-  async markAsRead(@Param('id') id: string, @CurrentUser() user: any) {
+  async markAsRead(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @CurrentUser() user: any,
+  ) {
     const success = await this.notificationRepo.markAsRead(id, user.id);
     if (!success) {
       throw new NotFoundException(
         `Notifikasi dengan ID ${id} tidak ditemukan untuk user ini`,
       );
     }
+
+    const readAt = new Date().toISOString();
+    await this.realtimeGateway.emitToUser(
+      user.id,
+      REALTIME_EVENTS.NOTIFICATION_READ,
+      {
+        id,
+        readAt,
+      },
+    );
+
+    const unread = await this.notificationRepo.findMyNotifications(user.id, {
+      limit: 1,
+      unreadOnly: true,
+    });
+
+    await this.realtimeGateway.emitToUser(
+      user.id,
+      REALTIME_EVENTS.NOTIFICATION_UNREAD_COUNT,
+      {
+        unreadCount: unread.unreadCount,
+      },
+    );
+
     return { success: true };
   }
 }

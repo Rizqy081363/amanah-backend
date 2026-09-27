@@ -1,0 +1,27 @@
+import {
+  NotificationCategoryType,
+  NotificationChannel,
+} from '../../notifications.constants';
+
+export interface NotificationRule<TPayload = any> {
+  eventType: string;
+  defaultChannels: NotificationChannel[];
+  category: NotificationCategoryType;
+  resolveRecipients: (payload: TPayload) => string | string[];
+  titleTemplate: string | ((payload: TPayload) => string);
+  bodyTemplate: string | ((payload: TPayload) => string);
+  badgeIcon?: string;
+  metaIcon?: string;
+  visualKey?: string;
+  isUrgent?: boolean | ((payload: TPayload) => boolean);
+  resolveSource?: (payload: TPayload) => {
+    sourceType: string;
+    sourceId: string;
+  };
+  resolveActions?: (payload: TPayload) => Array<{
+    label: string;
+    actionKey: string;
+    actionType?: string;
+    url?: string;
+  }>;
+}

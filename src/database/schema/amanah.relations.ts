@@ -1,5 +1,6 @@
 import { relations } from 'drizzle-orm/relations';
 import {
+  appointmentCallAttempts,
   appointmentStatusEvents,
   appointments,
   attendanceQrSessions,
@@ -460,10 +461,29 @@ export const appointmentsRelations = relations(
       relationName: 'appointments_updatedBy_users_id',
     }),
     appointmentStatusEvents: many(appointmentStatusEvents),
+    appointmentCallAttempts: many(appointmentCallAttempts),
     queueTickets: many(queueTickets),
     medicalIntakeSubmissions: many(medicalIntakeSubmissions),
     clinicalEncounters: many(clinicalEncounters),
     patientTimelineEvents: many(patientTimelineEvents),
+  }),
+);
+
+export const appointmentCallAttemptsRelations = relations(
+  appointmentCallAttempts,
+  ({ one }) => ({
+    appointment: one(appointments, {
+      fields: [appointmentCallAttempts.appointmentId],
+      references: [appointments.id],
+    }),
+    queueTicket: one(queueTickets, {
+      fields: [appointmentCallAttempts.queueTicketId],
+      references: [queueTickets.id],
+    }),
+    caller: one(users, {
+      fields: [appointmentCallAttempts.calledBy],
+      references: [users.id],
+    }),
   }),
 );
 

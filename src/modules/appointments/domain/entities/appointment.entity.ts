@@ -9,6 +9,9 @@ export class AppointmentEntity {
   staffId?: string | null;
   doctorName?: string | null;
   appointmentDate: string;
+  scheduledStartTime?: string | null;
+  scheduledEndTime?: string | null;
+  estimatedDurationMinutes?: number;
   session: 'PAGI' | 'SIANG' | 'MALAM';
   queueNumber: string;
   ticketStatus?: string;

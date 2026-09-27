@@ -1,12 +1,14 @@
-jest.mock('better-auth/node', () => ({
-  fromNodeHeaders: jest.fn(),
-  toNodeHandler: jest.fn(),
+import { describe, expect, it, mock, beforeEach } from 'bun:test';
+
+mock.module('better-auth/node', () => ({
+  fromNodeHeaders: mock(),
+  toNodeHandler: mock(),
 }));
 
-jest.mock('../../../auth/better-auth/auth', () => ({
+mock.module('../../../auth/better-auth/auth', () => ({
   auth: {
     api: {
-      getSession: jest.fn(),
+      getSession: mock(),
     },
   },
 }));
@@ -19,12 +21,12 @@ import { AdminAppointmentsController } from './admin-appointments.controller';
 
 describe('AdminAppointmentsController', () => {
   let controller: AdminAppointmentsController;
-  let mockAppointmentsService: jest.Mocked<Partial<AppointmentsService>>;
+  let mockAppointmentsService: any;
 
   beforeEach(async () => {
     mockAppointmentsService = {
-      cancelAdminAppointment: jest.fn(),
-      updateAdminAppointmentStatus: jest.fn(),
+      cancelAdminAppointment: mock(),
+      updateAdminAppointmentStatus: mock(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -68,9 +70,9 @@ describe('AdminAppointmentsController', () => {
         },
       };
 
-      (
-        mockAppointmentsService.cancelAdminAppointment as jest.Mock
-      ).mockResolvedValue(mockResult);
+      mockAppointmentsService.cancelAdminAppointment.mockResolvedValue(
+        mockResult,
+      );
 
       const body = {
         reason: 'Pasien berhalangan hadir',
@@ -106,9 +108,9 @@ describe('AdminAppointmentsController', () => {
         },
       };
 
-      (
-        mockAppointmentsService.updateAdminAppointmentStatus as jest.Mock
-      ).mockResolvedValue(mockResult);
+      mockAppointmentsService.updateAdminAppointmentStatus.mockResolvedValue(
+        mockResult,
+      );
 
       const body = {
         status: 'in_service',

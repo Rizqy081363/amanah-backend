@@ -282,4 +282,150 @@ export class NotificationDrizzleRepository implements NotificationRepository {
       isRead: false,
     };
   }
+
+  async createIfNotExists(data: {
+    idempotencyKey?: string;
+    category: string;
+    title?: string | null;
+    body: string;
+    senderName?: string | null;
+    senderRole?: string | null;
+    badgeIcon?: string | null;
+    metaIcon?: string | null;
+    visualKey?: string | null;
+    isUrgent?: boolean;
+    sourceType?: string | null;
+    sourceId?: string | null;
+    metadata?: Record<string, any>;
+    recipientUserIds: string[];
+    actions?: Array<{
+      label: string;
+      actionKey: string;
+      actionType?: string;
+      url?: string;
+    }>;
+  }): Promise<NotificationEntity | null> {
+    if (data.idempotencyKey) {
+      const existing = await this.db.query.notifications.findFirst({
+        where: eq(notifications.idempotencyKey, data.idempotencyKey),
+      });
+      if (existing) {
+        return null;
+      }
+    }
+
+    const validCategories = [
+      'appointment',
+      'promotion',
+      'lab_result',
+      'queue',
+      'clinical',
+      'shift',
+      'pharmacy',
+      'telemedicine',
+      'support',
+      'system',
+    ];
+
+    let dbCategory: any = 'system';
+    if (validCategories.includes(data.category)) {
+      dbCategory = data.category;
+    } else if (
+      data.category === 'schedule' ||
+      data.category === 'attendance' ||
+      data.category === 'permission'
+    ) {
+      dbCategory = 'shift';
+    } else {
+      dbCategory = 'system';
+    }
+
+    try {
+      const insertQuery = this.db.insert(notifications).values({
+        idempotencyKey: data.idempotencyKey ?? null,
+        category: dbCategory,
+        title: data.title ?? null,
+        body: data.body,
+        senderName: data.senderName ?? null,
+        senderRole: data.senderRole ?? null,
+        badgeIcon: data.badgeIcon ?? null,
+        metaIcon: data.metaIcon ?? null,
+        visualKey: data.visualKey ?? null,
+        isUrgent: data.isUrgent ?? false,
+        sourceType: data.sourceType ?? null,
+        sourceId: data.sourceId ?? null,
+        metadata: data.metadata ?? {},
+      });
+
+      const inserted = data.idempotencyKey
+        ? await insertQuery
+            .onConflictDoNothing({ target: notifications.idempotencyKey })
+            .returning()
+        : await insertQuery.returning();
+
+      if (!inserted || inserted.length === 0) {
+        return null;
+      }
+
+      const notif = inserted[0];
+
+      if (data.recipientUserIds.length > 0) {
+        await this.db.insert(notificationRecipients).values(
+          data.recipientUserIds.map((userId) => ({
+            notificationId: notif.id,
+            userId,
+            deliveredAt: new Date().toISOString(),
+          })),
+        );
+      }
+
+      if (data.actions && data.actions.length > 0) {
+        await this.db.insert(notificationActions).values(
+          data.actions.map((act) => {
+            let actType: 'primary' | 'secondary' | 'warning' | 'info' =
+              'secondary';
+            if (act.actionType === 'primary') actType = 'primary';
+            else if (act.actionType === 'danger' || act.actionType === 'warning')
+              actType = 'warning';
+            else if (act.actionType === 'link' || act.actionType === 'info')
+              actType = 'info';
+            else actType = 'secondary';
+
+            return {
+              notificationId: notif.id,
+              label: act.label,
+              actionKey: act.actionKey,
+              actionType: actType,
+              url: act.url ?? null,
+            };
+          }),
+        );
+      }
+
+      return {
+        id: notif.id,
+        category: notif.category,
+        title: notif.title,
+        body: notif.body,
+        isUrgent: notif.isUrgent,
+        senderName: notif.senderName,
+        senderRole: notif.senderRole,
+        badgeIcon: notif.badgeIcon,
+        metaIcon: notif.metaIcon,
+        visualKey: notif.visualKey,
+        sourceType: notif.sourceType,
+        sourceId: notif.sourceId,
+        idempotencyKey: notif.idempotencyKey,
+        metadata: (notif.metadata as Record<string, any>) ?? {},
+        createdAt: notif.createdAt,
+        updatedAt: notif.updatedAt,
+        isRead: false,
+      };
+    } catch (error: any) {
+      if (error?.code === '23505') {
+        return null;
+      }
+      throw error;
+    }
+  }
 }

@@ -78,6 +78,27 @@
       "when": 1790259000000,
       "tag": "0010_canonical_schedule_status",
       "breakpoints": false
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1790260000000,
+      "tag": "0011_clinic_schedule_policies",
+      "breakpoints": false
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1790261000000,
+      "tag": "0012_schedule_closures_and_reschedule_events",
+      "breakpoints": false
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1790262000000,
+      "tag": "0013_appointment_call_attempts_and_notification_idempotency",
+      "breakpoints": false
     }
   ]
 }

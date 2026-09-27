@@ -15,12 +15,12 @@ export interface AppointmentFindAllResult {
   };
 }
 
-export interface AppointmentRepository {
-  create(
+export abstract class AppointmentRepository {
+  abstract create(
     data: Omit<AppointmentEntity, 'id' | 'createdAt' | 'updatedAt'>,
   ): Promise<AppointmentEntity>;
-  findById(id: string): Promise<AppointmentEntity | null>;
-  findAll(
+  abstract findById(id: string): Promise<AppointmentEntity | null>;
+  abstract findAll(
     limit?: number,
     offset?: number,
     filters?: {
@@ -32,31 +32,31 @@ export interface AppointmentRepository {
       cursor?: string;
     },
   ): Promise<AppointmentFindAllResult>;
-  findByQueueNumber(
+  abstract findByQueueNumber(
     queueNumber: string,
     date: string,
   ): Promise<AppointmentEntity | null>;
-  findByPatientId(patientId: string): Promise<AppointmentEntity[]>;
-  findDailyQueue(
+  abstract findByPatientId(patientId: string): Promise<AppointmentEntity[]>;
+  abstract findDailyQueue(
     poliklinikId: string,
     date: string,
     session?: string,
   ): Promise<AppointmentEntity[]>;
-  findDisplayQueue(date: string, poliklinikId?: string): Promise<any>;
-  updateStatus(
+  abstract findDisplayQueue(date: string, poliklinikId?: string): Promise<any>;
+  abstract updateStatus(
     id: string,
     status: AppointmentEntity['status'],
     staffId?: string,
     cancellationReason?: string,
     expectedVersion?: string,
   ): Promise<AppointmentEntity | null>;
-  getNextQueueIndex(
+  abstract getNextQueueIndex(
     poliklinikId: string,
     date: string,
     session: string,
   ): Promise<number>;
-  delete(id: string): Promise<boolean>;
-  cancelAdminAppointment(
+  abstract delete(id: string): Promise<boolean>;
+  abstract cancelAdminAppointment(
     appointmentId: string,
     dto: CancelAppointmentDto,
     actorUserId?: string,
@@ -65,7 +65,7 @@ export interface AppointmentRepository {
     message: string;
     data: any;
   }>;
-  updateAdminAppointmentStatus(
+  abstract updateAdminAppointmentStatus(
     appointmentId: string,
     dto: AdminUpdateAppointmentStatusDto,
     actorUserId?: string,

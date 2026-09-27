@@ -78,8 +78,12 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
       doctorName:
         apt.practitioner?.staffProfile?.fullName ||
         apt.practitioner?.name ||
-        null,
+        'Dokter Amanah',
       appointmentDate: apt.scheduledDate,
+      scheduledStartTime: apt.scheduledStartTime || null,
+      scheduledEndTime: apt.scheduledEndTime || null,
+      estimatedDurationMinutes:
+        apt.practitioner?.consultationDurationMinutes ?? 30,
       session,
       queueNumber: ticket?.queueNumber || 'P-001',
       ticketStatus: ticket?.status || 'waiting',

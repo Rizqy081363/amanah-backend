@@ -24,7 +24,8 @@
     "strictBindCallApply": false,
     "forceConsistentCasingInFileNames": false,
     "noFallthroughCasesInSwitch": false,
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    "types": ["bun-types"]
   },
   "include": ["src/**/*", "test/**/*", ".install-scripts/**/*"]
 }

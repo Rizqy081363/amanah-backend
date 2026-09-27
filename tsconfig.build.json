@@ -5,6 +5,8 @@
     "test",
     "dist",
     "**/*spec.ts",
+    "**/testing/**",
+    "src/database/seeds/**",
     ".install-scripts",
     "src/users/infrastructure/**",
     "src/users/users.service.ts",

@@ -1,3 +1,4 @@
+import { describe, expect, it, mock, beforeEach } from 'bun:test';
 import { Test, TestingModule } from '@nestjs/testing';
 import {
   AppointmentCreatedEvent,
@@ -14,14 +15,14 @@ describe('AppointmentEventsListener', () => {
 
   beforeEach(async () => {
     mockDb = {
-      insert: jest.fn().mockReturnValue({
-        values: jest.fn().mockResolvedValue([]),
+      insert: mock().mockReturnValue({
+        values: mock().mockResolvedValue([]),
       }),
     };
 
     mockRedis = {
-      deleteByPrefix: jest.fn().mockResolvedValue(1),
-      invalidateTags: jest.fn().mockResolvedValue(1),
+      deleteByPrefix: mock().mockResolvedValue(1),
+      invalidateTags: mock().mockResolvedValue(1),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -92,7 +93,7 @@ describe('AppointmentEventsListener', () => {
 
   it('should catch and isolate DB insert errors without throwing (ARC-122)', async () => {
     mockDb.insert.mockReturnValueOnce({
-      values: jest.fn().mockRejectedValueOnce(new Error('Insert error')),
+      values: mock().mockRejectedValueOnce(new Error('Insert error')),
     });
 
     const event = new AppointmentCreatedEvent(
@@ -107,6 +108,6 @@ describe('AppointmentEventsListener', () => {
 
     await expect(
       listener.handleAppointmentCreated(event),
-    ).resolves.not.toThrow();
+    ).resolves.toBeUndefined();
   });
 });

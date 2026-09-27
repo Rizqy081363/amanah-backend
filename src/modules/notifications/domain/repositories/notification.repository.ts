@@ -1,9 +1,9 @@
 import { NotificationEntity } from '../entities/notification.entity';
 
-export const NOTIFICATION_REPOSITORY = Symbol('NOTIFICATION_REPOSITORY');
+export { NOTIFICATION_REPOSITORY } from '../../notifications.constants';
 
-export interface NotificationRepository {
-  findMyNotifications(
+export abstract class NotificationRepository {
+  abstract findMyNotifications(
     userId: string,
     options?: {
       limit?: number;
@@ -16,11 +16,11 @@ export interface NotificationRepository {
     unreadCount: number;
   }>;
 
-  markAsRead(notificationId: string, userId: string): Promise<boolean>;
+  abstract markAsRead(notificationId: string, userId: string): Promise<boolean>;
 
-  markAllAsRead(userId: string): Promise<number>;
+  abstract markAllAsRead(userId: string): Promise<number>;
 
-  createNotification(data: {
+  abstract createNotification(data: {
     category:
       | 'clinical'
       | 'system'
@@ -58,4 +58,28 @@ export interface NotificationRepository {
       url?: string;
     }>;
   }): Promise<NotificationEntity>;
+
+  abstract createIfNotExists(data: {
+    idempotencyKey?: string;
+    category: string;
+    title?: string | null;
+    body: string;
+    senderName?: string | null;
+    senderRole?: string | null;
+    badgeIcon?: string | null;
+    metaIcon?: string | null;
+    visualKey?: string | null;
+    isUrgent?: boolean;
+    sourceType?: string | null;
+    sourceId?: string | null;
+    metadata?: Record<string, any>;
+    recipientUserIds: string[];
+    actions?: Array<{
+      label: string;
+      actionKey: string;
+      actionType?: string;
+      url?: string;
+    }>;
+  }): Promise<NotificationEntity | null>;
 }
+

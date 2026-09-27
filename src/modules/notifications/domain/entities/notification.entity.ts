@@ -33,6 +33,7 @@ export class NotificationEntity {
   isUrgent: boolean;
   sourceType?: string | null;
   sourceId?: string | null;
+  idempotencyKey?: string | null;
   metadata?: Record<string, any>;
   createdBy?: string | null;
   expiresAt?: string | null;

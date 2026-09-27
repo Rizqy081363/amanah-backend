@@ -10,6 +10,7 @@ import { CorrelationIdMiddleware } from './common/middleware/correlation-id.midd
 import { OutboxModule } from './common/outbox/outbox.module';
 import { RedisModule } from './common/redis/redis.module';
 import appConfig from './config/app.config';
+import realtimeConfig from './config/realtime.config';
 import databaseConfig from './database/config/database.config';
 import { DrizzleModule } from './database/drizzle/drizzle.module';
 import { HealthModule } from './health/health.module';
@@ -33,7 +34,14 @@ import { SupportTicketsModule } from './modules/support-tickets/support-tickets.
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [databaseConfig, appConfig, cacheConfig, authConfig, mailConfig],
+      load: [
+        databaseConfig,
+        appConfig,
+        cacheConfig,
+        authConfig,
+        mailConfig,
+        realtimeConfig,
+      ],
       envFilePath: ['.env', 'env-example-relational'],
     }),
     EventEmitterModule.forRoot({
