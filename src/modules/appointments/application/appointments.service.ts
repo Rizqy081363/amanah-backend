@@ -18,6 +18,7 @@ import {
   OutboxWorker,
 } from '../../../common/outbox';
 import { RedisService } from '../../../common/redis/redis.service';
+import { APPOINTMENT_LIFECYCLE_EVENTS } from '../domain/constants/appointment-lifecycle.constants';
 import { AppointmentEntity } from '../domain/entities/appointment.entity';
 import {
   APPOINTMENT_REPOSITORY,
@@ -28,9 +29,10 @@ import { AdminUpdateAppointmentStatusDto } from '../presentation/dto/admin-updat
 import { CancelAppointmentDto } from '../presentation/dto/cancel-appointment.dto';
 import { CreateAppointmentDto } from '../presentation/dto/create-appointment.dto';
 import { QueryAppointmentDto } from '../presentation/dto/query-appointment.dto';
+import { RescheduleAppointmentDto } from '../presentation/dto/reschedule-appointment.dto';
 import { UpdateAppointmentStatusDto } from '../presentation/dto/update-appointment-status.dto';
 
-const QUEUE_CACHE_TTL_SECONDS = 30; // High-frequency views cached with 30s TTL
+const QUEUE_CACHE_TTL_SECONDS = 30;
 const QUEUE_DISPLAY_CACHE_PREFIX = 'queue:display';
 const QUEUE_DAILY_CACHE_PREFIX = 'queue:daily';
 
@@ -81,7 +83,6 @@ export class AppointmentsService {
       complaint: body.complaint || null,
     });
 
-    // Emit domain event via Transactional Outbox (ARC-089..094, OPS-159)
     await this.dispatchDomainEvent(
       {
         aggregateType: 'appointment',
@@ -117,9 +118,7 @@ export class AppointmentsService {
       ),
     );
 
-    // Proactive cache invalidation by writer (ARC-088, API-155)
     await this.invalidateQueueCaches();
-
     return created;
   }
 
@@ -148,6 +147,40 @@ export class AppointmentsService {
 
   async findByPatientId(patientId: string): Promise<AppointmentEntity[]> {
     return this.appointmentRepo.findByPatientId(patientId);
+  }
+
+  async findByUserId(userId: string): Promise<AppointmentEntity[]> {
+    return this.appointmentRepo.findByUserId(userId);
+  }
+
+  async getRescheduleOptions(
+    appointmentId: string,
+    userId: string,
+  ): Promise<any> {
+    return this.appointmentRepo.getRescheduleOptions(appointmentId, userId);
+  }
+
+  async reschedule(
+    appointmentId: string,
+    dto: RescheduleAppointmentDto,
+    userId: string,
+  ): Promise<AppointmentEntity> {
+    const updated = await this.appointmentRepo.reschedule(
+      appointmentId,
+      dto,
+      userId,
+    );
+    await this.eventEmitter.emitAsync(
+      APPOINTMENT_LIFECYCLE_EVENTS.RESCHEDULED,
+      {
+        appointmentId,
+        newDate: dto.target_date || dto.newDate || '',
+        userId,
+        reason: dto.reason,
+      },
+    );
+    await this.invalidateQueueCaches();
+    return updated;
   }
 
   async findById(id: string): Promise<AppointmentEntity> {
@@ -204,36 +237,13 @@ export class AppointmentsService {
       throw new NotFoundException(`Kunjungan dengan ID ${id} tidak ditemukan`);
     }
 
-    await this.dispatchDomainEvent(
-      {
-        aggregateType: 'appointment',
-        aggregateId: id,
-        eventType: AppointmentStatusChangedEvent.EVENT_NAME,
-        payload: {
-          appointmentId: id,
-          previousStatus: current?.status || null,
-          newStatus: 'MENUNGGU',
-          reason: 'Check-in kedatangan pasien',
-          actor: {
-            userId: user?.id || user?.sub,
-            roleCode: user?.role,
-          },
-        },
-      },
-      new AppointmentStatusChangedEvent(
-        id,
-        current?.status || null,
-        'MENUNGGU',
-        'Check-in kedatangan pasien',
-        undefined,
-        {
-          userId: user?.id || user?.sub,
-          roleCode: user?.role,
-        },
-      ),
+    await this.emitStatusChangeEvent(
+      id,
+      current?.status || null,
+      'MENUNGGU',
+      'Check-in kedatangan pasien',
+      { userId: user?.id || user?.sub, roleCode: user?.role },
     );
-
-    await this.invalidateQueueCaches();
     return updated;
   }
 
@@ -255,36 +265,13 @@ export class AppointmentsService {
       throw new NotFoundException(`Kunjungan dengan ID ${id} tidak ditemukan`);
     }
 
-    await this.dispatchDomainEvent(
-      {
-        aggregateType: 'appointment',
-        aggregateId: id,
-        eventType: AppointmentStatusChangedEvent.EVENT_NAME,
-        payload: {
-          appointmentId: id,
-          previousStatus: current?.status || null,
-          newStatus: 'SEDANG_DIPERIKSA',
-          reason: 'Panggilan pasien masuk ruang periksa',
-          actor: {
-            userId: user?.id || user?.sub,
-            roleCode: user?.role,
-          },
-        },
-      },
-      new AppointmentStatusChangedEvent(
-        id,
-        current?.status || null,
-        'SEDANG_DIPERIKSA',
-        'Panggilan pasien masuk ruang periksa',
-        undefined,
-        {
-          userId: user?.id || user?.sub,
-          roleCode: user?.role,
-        },
-      ),
+    await this.emitStatusChangeEvent(
+      id,
+      current?.status || null,
+      'SEDANG_DIPERIKSA',
+      'Panggilan pasien masuk ruang periksa',
+      { userId: user?.id || user?.sub, roleCode: user?.role },
     );
-
-    await this.invalidateQueueCaches();
     return updated;
   }
 
@@ -305,36 +292,13 @@ export class AppointmentsService {
       throw new NotFoundException(`Kunjungan dengan ID ${id} tidak ditemukan`);
     }
 
-    await this.dispatchDomainEvent(
-      {
-        aggregateType: 'appointment',
-        aggregateId: id,
-        eventType: AppointmentStatusChangedEvent.EVENT_NAME,
-        payload: {
-          appointmentId: id,
-          previousStatus: current?.status || null,
-          newStatus: 'SELESAI',
-          reason: 'Pemeriksaan medis selesai',
-          actor: {
-            userId: user?.id || user?.sub,
-            roleCode: user?.role,
-          },
-        },
-      },
-      new AppointmentStatusChangedEvent(
-        id,
-        current?.status || null,
-        'SELESAI',
-        'Pemeriksaan medis selesai',
-        undefined,
-        {
-          userId: user?.id || user?.sub,
-          roleCode: user?.role,
-        },
-      ),
+    await this.emitStatusChangeEvent(
+      id,
+      current?.status || null,
+      'SELESAI',
+      'Pemeriksaan medis selesai',
+      { userId: user?.id || user?.sub, roleCode: user?.role },
     );
-
-    await this.invalidateQueueCaches();
     return updated;
   }
 
@@ -356,36 +320,13 @@ export class AppointmentsService {
       throw new NotFoundException(`Kunjungan dengan ID ${id} tidak ditemukan`);
     }
 
-    await this.dispatchDomainEvent(
-      {
-        aggregateType: 'appointment',
-        aggregateId: id,
-        eventType: AppointmentStatusChangedEvent.EVENT_NAME,
-        payload: {
-          appointmentId: id,
-          previousStatus: current?.status || null,
-          newStatus: 'BATAL',
-          reason: reason || 'Dibatalkan oleh pasien',
-          actor: {
-            userId: user?.id || user?.sub,
-            roleCode: user?.role,
-          },
-        },
-      },
-      new AppointmentStatusChangedEvent(
-        id,
-        current?.status || null,
-        'BATAL',
-        reason || 'Dibatalkan oleh pasien',
-        undefined,
-        {
-          userId: user?.id || user?.sub,
-          roleCode: user?.role,
-        },
-      ),
+    await this.emitStatusChangeEvent(
+      id,
+      current?.status || null,
+      'BATAL',
+      reason || 'Dibatalkan oleh pasien',
+      { userId: user?.id || user?.sub, roleCode: user?.role },
     );
-
-    await this.invalidateQueueCaches();
     return updated;
   }
 
@@ -407,36 +348,13 @@ export class AppointmentsService {
       throw new NotFoundException(`Kunjungan dengan ID ${id} tidak ditemukan`);
     }
 
-    await this.dispatchDomainEvent(
-      {
-        aggregateType: 'appointment',
-        aggregateId: id,
-        eventType: AppointmentStatusChangedEvent.EVENT_NAME,
-        payload: {
-          appointmentId: id,
-          previousStatus: current?.status || null,
-          newStatus: dto.status,
-          reason: dto.cancellationReason,
-          actor: {
-            userId: user?.id || user?.sub,
-            roleCode: user?.role,
-          },
-        },
-      },
-      new AppointmentStatusChangedEvent(
-        id,
-        current?.status || null,
-        dto.status,
-        dto.cancellationReason,
-        undefined,
-        {
-          userId: user?.id || user?.sub,
-          roleCode: user?.role,
-        },
-      ),
+    await this.emitStatusChangeEvent(
+      id,
+      current?.status || null,
+      dto.status,
+      dto.cancellationReason || '',
+      { userId: user?.id || user?.sub, roleCode: user?.role },
     );
-
-    await this.invalidateQueueCaches();
     return updated;
   }
 
@@ -452,36 +370,13 @@ export class AppointmentsService {
       actorUserId,
     );
 
-    await this.dispatchDomainEvent(
-      {
-        aggregateType: 'appointment',
-        aggregateId: appointmentId,
-        eventType: AppointmentStatusChangedEvent.EVENT_NAME,
-        payload: {
-          appointmentId,
-          previousStatus: result.data.previousStatus,
-          newStatus: result.data.newStatus,
-          reason: dto.reason,
-          actor: {
-            userId: actorUserId,
-            roleCode: user?.role,
-          },
-        },
-      },
-      new AppointmentStatusChangedEvent(
-        appointmentId,
-        result.data.previousStatus,
-        result.data.newStatus,
-        dto.reason,
-        undefined,
-        {
-          userId: actorUserId,
-          roleCode: user?.role,
-        },
-      ),
+    await this.emitStatusChangeEvent(
+      appointmentId,
+      result.data.previousStatus,
+      result.data.newStatus,
+      dto.reason,
+      { userId: actorUserId, roleCode: user?.role },
     );
-
-    await this.invalidateQueueCaches();
     return result;
   }
 
@@ -497,36 +392,13 @@ export class AppointmentsService {
       actorUserId,
     );
 
-    await this.dispatchDomainEvent(
-      {
-        aggregateType: 'appointment',
-        aggregateId: appointmentId,
-        eventType: AppointmentStatusChangedEvent.EVENT_NAME,
-        payload: {
-          appointmentId,
-          previousStatus: result.data.previousStatus,
-          newStatus: result.data.newStatus,
-          reason: dto.reason,
-          actor: {
-            userId: actorUserId,
-            roleCode: user?.role,
-          },
-        },
-      },
-      new AppointmentStatusChangedEvent(
-        appointmentId,
-        result.data.previousStatus,
-        result.data.newStatus,
-        dto.reason,
-        undefined,
-        {
-          userId: actorUserId,
-          roleCode: user?.role,
-        },
-      ),
+    await this.emitStatusChangeEvent(
+      appointmentId,
+      result.data.previousStatus,
+      result.data.newStatus,
+      dto.reason || '',
+      { userId: actorUserId, roleCode: user?.role },
     );
-
-    await this.invalidateQueueCaches();
     return result;
   }
 
@@ -537,41 +409,47 @@ export class AppointmentsService {
       throw new NotFoundException(`Kunjungan dengan ID ${id} tidak ditemukan`);
     }
 
+    await this.emitStatusChangeEvent(
+      id,
+      current?.status || null,
+      'BATAL',
+      'Dihapus oleh admin',
+      { userId: user?.id || user?.sub, roleCode: user?.role },
+    );
+  }
+
+  private async emitStatusChangeEvent(
+    appointmentId: string,
+    previousStatus: string | null,
+    newStatus: string,
+    reason: string,
+    actor?: { userId?: string; roleCode?: string },
+  ): Promise<void> {
     await this.dispatchDomainEvent(
       {
         aggregateType: 'appointment',
-        aggregateId: id,
+        aggregateId: appointmentId,
         eventType: AppointmentStatusChangedEvent.EVENT_NAME,
         payload: {
-          appointmentId: id,
-          previousStatus: current?.status || null,
-          newStatus: 'BATAL',
-          reason: 'Dihapus oleh admin',
-          actor: {
-            userId: user?.id || user?.sub,
-            roleCode: user?.role,
-          },
+          appointmentId,
+          previousStatus,
+          newStatus,
+          reason,
+          actor,
         },
       },
       new AppointmentStatusChangedEvent(
-        id,
-        current?.status || null,
-        'BATAL',
-        'Dihapus oleh admin',
+        appointmentId,
+        previousStatus,
+        newStatus,
+        reason,
         undefined,
-        {
-          userId: user?.id || user?.sub,
-          roleCode: user?.role,
-        },
+        actor,
       ),
     );
-
     await this.invalidateQueueCaches();
   }
 
-  /**
-   * Dispatches domain events via Transactional Outbox when available, falling back to direct emit (ARC-089..094, OPS-159).
-   */
   private async dispatchDomainEvent(
     record: OutboxEventRecord,
     fallbackEvent: any,

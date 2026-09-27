@@ -13,7 +13,8 @@ export class ScheduleFormBootstrapQueryDto {
   date: string;
 
   @ApiPropertyOptional({
-    description: 'ID jadwal yang sedang diedit (opsional, jika dalam mode edit)',
+    description:
+      'ID jadwal yang sedang diedit (opsional, jika dalam mode edit)',
     example: '6fb1f17e-e9cf-44bd-add6-773c5fb870e9',
   })
   @IsOptional()

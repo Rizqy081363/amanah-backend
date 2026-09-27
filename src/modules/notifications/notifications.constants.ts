@@ -1,7 +1,9 @@
 export const NOTIFICATION_REPOSITORY = Symbol('NOTIFICATION_REPOSITORY');
 export const NOTIFICATION_PUBLISHER = Symbol('NOTIFICATION_PUBLISHER');
 export const REALTIME_GATEWAY_PORT = Symbol('REALTIME_GATEWAY_PORT');
-export const NOTIFICATION_RULES_REGISTRY = Symbol('NOTIFICATION_RULES_REGISTRY');
+export const NOTIFICATION_RULES_REGISTRY = Symbol(
+  'NOTIFICATION_RULES_REGISTRY',
+);
 export const DELIVERY_CHANNEL_ADAPTERS = Symbol('DELIVERY_CHANNEL_ADAPTERS');
 
 export const REDIS_STREAM_NOTIFICATIONS = 'notifications:events';
@@ -33,4 +35,3 @@ export const REALTIME_EVENTS = {
 export const REALTIME_ROOMS = {
   user: (userId: string) => `user:${userId}`,
 } as const;
-

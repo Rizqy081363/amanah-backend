@@ -5,6 +5,7 @@ import {
   practitionerScheduleSessions,
   practitioners,
 } from '@database/schema';
+import { resolveCanonicalShift } from '@modules/schedules/domain/constants/schedule-shift.constants';
 import type {
   AdminDoctorAccumulatedPatientsResponse,
   AdminSessionPatientItem,
@@ -12,7 +13,6 @@ import type {
   BookedPatientEntity,
 } from '@modules/schedules/domain/entities/schedule.entity';
 import { BookedPatientMapper } from '@modules/schedules/infrastructure/drizzle/mappers/booked-patient.mapper';
-import { resolveCanonicalShift } from '@modules/schedules/domain/constants/schedule-shift.constants';
 import { PractitionerResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/practitioner.resolver';
 import type { GetAdminDoctorPatientsQueryDto } from '@modules/schedules/presentation/dto/get-admin-doctor-patients-query.dto';
 import type { GetSessionPatientsQueryDto } from '@modules/schedules/presentation/dto/get-session-patients-query.dto';

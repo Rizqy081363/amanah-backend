@@ -1,7 +1,7 @@
-import { describe, expect, it, mock, beforeEach } from 'bun:test';
-import { InAppDeliveryChannel } from './in-app-delivery.channel';
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
 import { NotificationEntity } from '../../domain/entities/notification.entity';
 import { REALTIME_EVENTS } from '../../notifications.constants';
+import { InAppDeliveryChannel } from './in-app-delivery.channel';
 
 describe('InAppDeliveryChannel', () => {
   let channel: InAppDeliveryChannel;
@@ -42,7 +42,9 @@ describe('InAppDeliveryChannel', () => {
   });
 
   it('should report failure if RealtimeGatewayPort throws', async () => {
-    mockRealtimeGateway.emitToUser.mockRejectedValue(new Error('Gateway socket dead'));
+    mockRealtimeGateway.emitToUser.mockRejectedValue(
+      new Error('Gateway socket dead'),
+    );
 
     const notification: NotificationEntity = {
       id: 'notif-2',

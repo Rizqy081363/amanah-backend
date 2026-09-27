@@ -7,8 +7,8 @@ import { PatientAppointmentHistoryService } from './application/patient-appointm
 import { AppointmentsNotificationRules } from './appointments.notifications';
 import { APPOINTMENT_CALL_REPOSITORY } from './domain/constants/appointment-lifecycle.constants';
 import { APPOINTMENT_REPOSITORY } from './domain/repositories/appointment.repository';
-import { AppointmentCallDrizzleRepository } from './infrastructure/drizzle/appointment-call.drizzle-repository';
 import { AppointmentDrizzleRepository } from './infrastructure/drizzle/appointment.drizzle-repository';
+import { AppointmentCallDrizzleRepository } from './infrastructure/drizzle/appointment-call.drizzle-repository';
 import { AppointmentEventsListener } from './infrastructure/listeners/appointment-events.listener';
 import { AdminAppointmentsController } from './presentation/admin-appointments.controller';
 import { AppointmentCallController } from './presentation/appointment-call.controller';

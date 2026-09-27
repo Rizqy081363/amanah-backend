@@ -7,17 +7,13 @@ import { CreateAvailabilityDto } from '@modules/schedules/presentation/dto/creat
 import { GetAdminDoctorPatientsQueryDto } from '@modules/schedules/presentation/dto/get-admin-doctor-patients-query.dto';
 import { GetSessionPatientsQueryDto } from '@modules/schedules/presentation/dto/get-session-patients-query.dto';
 import { RescheduleAdminDoctorSessionDto } from '@modules/schedules/presentation/dto/reschedule-admin-doctor-session.dto';
+import { ScheduleFormBootstrapQueryDto } from '@modules/schedules/presentation/dto/schedule-form-bootstrap-query.dto';
 import { ScheduleOccupancyQueryDto } from '@modules/schedules/presentation/dto/schedule-occupancy-query.dto';
 import { ScheduleProjectionQueryDto } from '@modules/schedules/presentation/dto/schedule-projection-query.dto';
+import { ScheduleSlotAvailabilityQueryDto } from '@modules/schedules/presentation/dto/schedule-slot-availability-query.dto';
 import { UpdateAdminDoctorScheduleDto } from '@modules/schedules/presentation/dto/update-admin-doctor-schedule.dto';
 import { UpdateAdminDoctorSessionDto } from '@modules/schedules/presentation/dto/update-admin-doctor-session.dto';
 import { UpdatePractitionerSchedulePolicyDto } from '@modules/schedules/presentation/dto/update-practitioner-schedule-policy.dto';
-import { ScheduleFormBootstrapQueryDto } from '@modules/schedules/presentation/dto/schedule-form-bootstrap-query.dto';
-import { ScheduleSlotAvailabilityQueryDto } from '@modules/schedules/presentation/dto/schedule-slot-availability-query.dto';
-import type {
-  ScheduleFormBootstrapData,
-  ScheduleSlotAvailabilityData,
-} from '../entities/schedule-bootstrap.entity';
 import {
   AdminDoctorAccumulatedPatientsResponse,
   AdminDoctorScheduleDetailResponse,
@@ -36,6 +32,10 @@ import {
   ScheduleOptionsReferenceEntity,
   ScheduleProjectionEntity,
 } from '../entities/schedule.entity';
+import type {
+  ScheduleFormBootstrapData,
+  ScheduleSlotAvailabilityData,
+} from '../entities/schedule-bootstrap.entity';
 
 export const SCHEDULE_REPOSITORY = 'SCHEDULE_REPOSITORY';
 export const ScheduleRepository = Symbol('ScheduleRepository');

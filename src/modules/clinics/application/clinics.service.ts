@@ -10,6 +10,7 @@ import {
 } from '../domain/repositories/clinic.repository';
 import { CreateClinicDto } from '../presentation/dto/create-clinic.dto';
 import { CreateLayananDto } from '../presentation/dto/create-layanan.dto';
+import { ServiceCatalogResponseDto } from '../presentation/dto/service-catalog.dto';
 import { UpdateClinicDto } from '../presentation/dto/update-clinic.dto';
 import { UpdateLayananDto } from '../presentation/dto/update-layanan.dto';
 
@@ -122,6 +123,14 @@ export class ClinicsService {
       throw new NotFoundException(`Layanan dengan ID ${id} tidak ditemukan`);
     }
     await this.invalidateClinicsCache();
+  }
+
+  async getCatalog(): Promise<ServiceCatalogResponseDto> {
+    const categories = await this.clinicRepo.getCatalog();
+    return {
+      success: true,
+      categories,
+    };
   }
 
   private async invalidateClinicsCache(): Promise<void> {

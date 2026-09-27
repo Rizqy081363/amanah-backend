@@ -80,7 +80,8 @@ export class PatientAppointmentHistoryController {
   @Get('patient/:patientId')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Melihat riwayat janji temu pasien berdasarkan ID Pasien (Web / Staf)',
+    summary:
+      'Melihat riwayat janji temu pasien berdasarkan ID Pasien (Web / Staf)',
     description:
       'Mengambil daftar riwayat janji temu terminal (completed, cancelled, no_show) pasien tertentu untuk rekam jejak medis dan kehadiran.',
   })
@@ -93,7 +94,8 @@ export class PatientAppointmentHistoryController {
     description: 'Riwayat janji temu pasien berhasil diambil',
   })
   @ApiForbiddenResponse({
-    description: 'Hanya Dokter atau Staf yang diizinkan mengakses riwayat pasien lain',
+    description:
+      'Hanya Dokter atau Staf yang diizinkan mengakses riwayat pasien lain',
   })
   async getPatientHistory(
     @Param('patientId', new ParseUUIDPipe()) patientId: string,

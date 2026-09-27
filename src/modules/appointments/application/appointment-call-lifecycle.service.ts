@@ -39,7 +39,8 @@ export class AppointmentCallLifecycleService {
     maxAttempts: number;
     status: string;
   }> {
-    const details = await this.callRepo.getAppointmentWithDetails(appointmentId);
+    const details =
+      await this.callRepo.getAppointmentWithDetails(appointmentId);
     if (!details) {
       throw new NotFoundException('Janji temu tidak ditemukan.');
     }
@@ -126,14 +127,17 @@ export class AppointmentCallLifecycleService {
     appointmentId: string,
     calledByUserId: string,
   ): Promise<{ status: string }> {
-    const details = await this.callRepo.getAppointmentWithDetails(appointmentId);
+    const details =
+      await this.callRepo.getAppointmentWithDetails(appointmentId);
     if (!details) {
       throw new NotFoundException('Janji temu tidak ditemukan.');
     }
 
     const latestAttempt = await this.callRepo.getLatestAttempt(appointmentId);
     if (!latestAttempt) {
-      throw new BadRequestException('Belum ada panggilan untuk janji temu ini.');
+      throw new BadRequestException(
+        'Belum ada panggilan untuk janji temu ini.',
+      );
     }
 
     const now = new Date().toISOString();
@@ -184,14 +188,17 @@ export class AppointmentCallLifecycleService {
     remainingAttempts?: number;
     status: string;
   }> {
-    const details = await this.callRepo.getAppointmentWithDetails(appointmentId);
+    const details =
+      await this.callRepo.getAppointmentWithDetails(appointmentId);
     if (!details) {
       throw new NotFoundException('Janji temu tidak ditemukan.');
     }
 
     const latestAttempt = await this.callRepo.getLatestAttempt(appointmentId);
     if (!latestAttempt) {
-      throw new BadRequestException('Belum ada panggilan untuk janji temu ini.');
+      throw new BadRequestException(
+        'Belum ada panggilan untuk janji temu ini.',
+      );
     }
 
     await this.callRepo.updateAttemptStatus(

@@ -6,6 +6,7 @@ import {
   MAX_PAGE_SIZE,
   MIN_PAGE_SIZE,
 } from '../../../../common/constants';
+import { CANONICAL_SESSION_NAMES } from '../../../schedules/domain/constants/schedule-shift.constants';
 
 export class QueryAppointmentDto {
   @ApiPropertyOptional({
@@ -24,8 +25,8 @@ export class QueryAppointmentDto {
   date?: string;
 
   @ApiPropertyOptional({
-    enum: ['PAGI', 'SIANG', 'MALAM'],
-    description: 'Filter sesi giliran praktek',
+    enum: CANONICAL_SESSION_NAMES,
+    description: 'Filter sesi giliran praktek (DINI_HARI, PAGI, SIANG, MALAM)',
   })
   @IsString()
   @IsOptional()

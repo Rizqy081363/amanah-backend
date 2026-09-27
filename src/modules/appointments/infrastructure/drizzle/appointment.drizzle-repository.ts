@@ -1,28 +1,12 @@
-import {
-  BadRequestException,
-  Inject,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
-import { and, asc, count, desc, eq, lt, or } from 'drizzle-orm';
-import {
-  ConcurrentModificationConflictException,
-  generateEntityVersion,
-  matchesVersion,
-  PreconditionFailedException,
-} from '../../../../common/occ';
+import { Inject, Injectable } from '@nestjs/common';
+import { and, count, desc, eq, inArray, lt, or } from 'drizzle-orm';
 import { decodeCursor, encodeCursor } from '../../../../common/pagination';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
-  appointmentStatusEvents,
   appointments,
-  clinicRooms,
-  clinicServices,
-  clinicUnits,
+  patientAffiliations,
   patientProfiles,
-  practitionerScheduleSessions,
-  practitioners,
   queueTickets,
 } from '../../../../database/schema';
 import { AppointmentEntity } from '../../domain/entities/appointment.entity';
@@ -32,6 +16,12 @@ import {
 } from '../../domain/repositories/appointment.repository';
 import { AdminUpdateAppointmentStatusDto } from '../../presentation/dto/admin-update-appointment-status.dto';
 import { CancelAppointmentDto } from '../../presentation/dto/cancel-appointment.dto';
+import { RescheduleAppointmentDto } from '../../presentation/dto/reschedule-appointment.dto';
+import { AppointmentAdminHandler } from './appointment-admin.handler';
+import { AppointmentCreationHandler } from './appointment-creation.handler';
+import { AppointmentRecordMapper } from './appointment-record.mapper';
+import { AppointmentRescheduleHandler } from './appointment-reschedule.handler';
+import { AppointmentStatusHandler } from './appointment-status.handler';
 
 @Injectable()
 export class AppointmentDrizzleRepository implements AppointmentRepository {
@@ -40,179 +30,12 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
     private readonly db: DrizzleDatabase,
   ) {}
 
-  private mapDbToEntity(
-    apt: any,
-    ticket?: any | null,
-    poliklinikIdOverride?: string,
-  ): AppointmentEntity {
-    let entityStatus: AppointmentEntity['status'] = 'SUDAH_BUAT_JANJI';
-    if (apt.status === 'in_service') {
-      entityStatus = 'SEDANG_DIPERIKSA';
-    } else if (apt.status === 'completed') {
-      entityStatus = 'SELESAI';
-    } else if (apt.status === 'cancelled') {
-      entityStatus = 'BATAL';
-    } else if (apt.status === 'waiting' || apt.status === 'checked_in') {
-      entityStatus = 'MENUNGGU';
-    }
-
-    const hour = parseInt((apt.scheduledStartTime || '08:00').slice(0, 2), 10);
-    const session: 'PAGI' | 'SIANG' | 'MALAM' =
-      hour >= 18 ? 'MALAM' : hour >= 13 ? 'SIANG' : 'PAGI';
-
-    const poliId =
-      poliklinikIdOverride ||
-      apt.clinicRoom?.unitId ||
-      apt.clinicRoom?.clinicUnit?.id ||
-      '';
-
-    return {
-      id: apt.id,
-      patientId: apt.patientId,
-      patientName: apt.patientProfile?.fullName || 'Pasien Amanah',
-      poliklinikId: poliId,
-      poliklinikName: apt.clinicRoom?.clinicUnit?.name || 'Poliklinik Amanah',
-      layananId: apt.serviceId,
-      layananName: apt.clinicService?.name || 'Konsultasi Dokter',
-      staffId: apt.practitionerId || null,
-      doctorName:
-        apt.practitioner?.staffProfile?.fullName ||
-        apt.practitioner?.name ||
-        'Dokter Amanah',
-      appointmentDate: apt.scheduledDate,
-      scheduledStartTime: apt.scheduledStartTime || null,
-      scheduledEndTime: apt.scheduledEndTime || null,
-      estimatedDurationMinutes:
-        apt.practitioner?.consultationDurationMinutes ?? 30,
-      session,
-      queueNumber: ticket?.queueNumber || 'P-001',
-      ticketStatus: ticket?.status || 'waiting',
-      status: entityStatus,
-      visitType:
-        apt.visitType === 'follow_up' ? 'Kontrol Ulang' : 'Pemeriksaan Baru',
-      complaint: apt.complaint || null,
-      cancellationReason: apt.cancelReason || null,
-      calledAt: ticket?.calledAt ? new Date(ticket.calledAt) : null,
-      completedAt: apt.completedAt ? new Date(apt.completedAt) : null,
-      createdAt: new Date(apt.createdAt),
-      updatedAt: new Date(apt.updatedAt),
-      version: generateEntityVersion(apt.updatedAt),
-    };
-  }
-
   async create(
     data: Omit<AppointmentEntity, 'id' | 'createdAt' | 'updatedAt'>,
   ): Promise<AppointmentEntity> {
-    const bookingCode = `BOOK-${Date.now().toString(36).toUpperCase()}-${Math.floor(
-      Math.random() * 1000,
-    )}`;
-
-    const startTime =
-      data.session === 'SIANG'
-        ? '13:00:00'
-        : data.session === 'MALAM'
-          ? '18:00:00'
-          : '08:00:00';
-    const endTime =
-      data.session === 'SIANG'
-        ? '17:00:00'
-        : data.session === 'MALAM'
-          ? '21:00:00'
-          : '12:00:00';
-
-    let room: typeof clinicRooms.$inferSelect | undefined;
-    if (data.poliklinikId) {
-      room = await this.db.query.clinicRooms.findFirst({
-        where: eq(clinicRooms.unitId, data.poliklinikId),
-      });
-    }
-
-    let practitionerId: string | null = null;
-    if (data.staffId) {
-      const prac = await this.db.query.practitioners.findFirst({
-        where: or(
-          eq(practitioners.id, data.staffId),
-          eq(practitioners.staffProfileId, data.staffId),
-        ),
-      });
-      practitionerId = prac ? prac.id : data.staffId;
-    }
-
-    let scheduleSessionId: string | null = null;
-    if (practitionerId && data.appointmentDate) {
-      const candidateSessions =
-        await this.db.query.practitionerScheduleSessions.findMany({
-          where: and(
-            eq(practitionerScheduleSessions.practitionerId, practitionerId),
-            eq(practitionerScheduleSessions.scheduleDate, data.appointmentDate),
-            eq(practitionerScheduleSessions.status, 'open'),
-          ),
-          orderBy: [asc(practitionerScheduleSessions.startTime)],
-        });
-
-      const matchedSession =
-        candidateSessions.find((sess) => {
-          const sessStart =
-            sess.startTime.length === 5
-              ? `${sess.startTime}:00`
-              : sess.startTime;
-          const sessEnd =
-            sess.endTime.length === 5 ? `${sess.endTime}:00` : sess.endTime;
-          return (
-            (startTime >= sessStart && startTime < sessEnd) ||
-            (sessStart >= startTime && sessStart < endTime)
-          );
-        }) || candidateSessions[0];
-
-      if (matchedSession) {
-        scheduleSessionId = matchedSession.id;
-        if (matchedSession.availableSlots > 0) {
-          await this.db
-            .update(practitionerScheduleSessions)
-            .set({
-              availableSlots: Math.max(0, matchedSession.availableSlots - 1),
-              updatedAt: new Date().toISOString(),
-            })
-            .where(eq(practitionerScheduleSessions.id, matchedSession.id));
-        }
-      }
-    }
-
-    const [apt] = await this.db
-      .insert(appointments)
-      .values({
-        bookingCode,
-        patientId: data.patientId,
-        practitionerId: practitionerId || null,
-        scheduleSessionId: scheduleSessionId || null,
-        serviceId: data.layananId,
-        roomId: room ? room.id : null,
-        visitType:
-          data.visitType === 'Kontrol Ulang' ? 'follow_up' : 'new_visit',
-        status: 'booked',
-        scheduledDate: data.appointmentDate,
-        scheduledStartTime: startTime,
-        scheduledEndTime: endTime,
-        complaint: data.complaint || null,
-      })
-      .returning();
-
-    const [ticket] = await this.db
-      .insert(queueTickets)
-      .values({
-        appointmentId: apt.id,
-        serviceId: data.layananId,
-        roomId: room ? room.id : null,
-        queueDate: data.appointmentDate,
-        queueNumber: data.queueNumber,
-        status: 'waiting',
-        priority: 'regular',
-        waitingPosition: 1,
-      })
-      .returning();
-
-    const fullApt = await this.findById(apt.id);
-    return fullApt || this.mapDbToEntity(apt, ticket, data.poliklinikId);
+    return AppointmentCreationHandler.create(this.db, data, (id) =>
+      this.findById(id),
+    );
   }
 
   async findById(id: string): Promise<AppointmentEntity | null> {
@@ -222,6 +45,7 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
         queueTickets: true,
         patientProfile: true,
         clinicService: true,
+        practitionerScheduleSession: true,
         clinicRoom: {
           with: {
             clinicUnit: true,
@@ -235,7 +59,7 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
       },
     });
     if (!apt) return null;
-    return this.mapDbToEntity(apt, apt.queueTickets?.[0]);
+    return AppointmentRecordMapper.toEntity(apt, apt.queueTickets?.[0]);
   }
 
   async findAll(
@@ -282,6 +106,7 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
         queueTickets: true,
         patientProfile: true,
         clinicService: true,
+        practitionerScheduleSession: true,
         clinicRoom: {
           with: {
             clinicUnit: true,
@@ -296,7 +121,7 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
     });
 
     let results = records.map((apt) =>
-      this.mapDbToEntity(apt, apt.queueTickets?.[0]),
+      AppointmentRecordMapper.toEntity(apt, apt.queueTickets?.[0]),
     );
 
     if (filters?.poliklinikId) {
@@ -344,6 +169,7 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
           with: {
             patientProfile: true,
             clinicService: true,
+            practitionerScheduleSession: true,
             clinicRoom: { with: { clinicUnit: true } },
             practitioner: { with: { staffProfile: true } },
             queueTickets: true,
@@ -352,7 +178,7 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
       },
     });
     if (!ticket || !ticket.appointment) return null;
-    return this.mapDbToEntity(ticket.appointment, ticket);
+    return AppointmentRecordMapper.toEntity(ticket.appointment, ticket);
   }
 
   async findByPatientId(patientId: string): Promise<AppointmentEntity[]> {
@@ -363,11 +189,82 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
         queueTickets: true,
         patientProfile: true,
         clinicService: true,
+        practitionerScheduleSession: true,
         clinicRoom: { with: { clinicUnit: true } },
         practitioner: { with: { staffProfile: true } },
       },
     });
-    return records.map((apt) => this.mapDbToEntity(apt, apt.queueTickets?.[0]));
+    return records.map((apt) =>
+      AppointmentRecordMapper.toEntity(apt, apt.queueTickets?.[0]),
+    );
+  }
+
+  async findByUserId(userId: string): Promise<AppointmentEntity[]> {
+    const affiliations = await this.db.query.patientAffiliations.findMany({
+      where: eq(patientAffiliations.userId, userId),
+    });
+    const ownProfile = await this.db.query.patientProfiles.findFirst({
+      where: eq(patientProfiles.userId, userId),
+    });
+
+    const patientIds = new Set<string>();
+    if (ownProfile) {
+      patientIds.add(ownProfile.id);
+    }
+    for (const aff of affiliations) {
+      patientIds.add(aff.patientId);
+    }
+
+    const patientIdArray = Array.from(patientIds);
+    const whereCondition =
+      patientIdArray.length > 0
+        ? or(
+            eq(appointments.createdBy, userId),
+            inArray(appointments.patientId, patientIdArray),
+          )
+        : eq(appointments.createdBy, userId);
+
+    const records = await this.db.query.appointments.findMany({
+      where: whereCondition,
+      orderBy: [desc(appointments.scheduledDate), desc(appointments.createdAt)],
+      with: {
+        queueTickets: true,
+        patientProfile: true,
+        clinicService: true,
+        practitionerScheduleSession: true,
+        clinicRoom: { with: { clinicUnit: true } },
+        practitioner: { with: { staffProfile: true } },
+      },
+    });
+
+    return records.map((apt) =>
+      AppointmentRecordMapper.toEntity(apt, apt.queueTickets?.[0]),
+    );
+  }
+
+  async getRescheduleOptions(
+    appointmentId: string,
+    userId: string,
+  ): Promise<any> {
+    return AppointmentRescheduleHandler.getRescheduleOptions(
+      this.db,
+      appointmentId,
+      userId,
+    );
+  }
+
+  async reschedule(
+    appointmentId: string,
+    dto: RescheduleAppointmentDto,
+    userId: string,
+  ): Promise<AppointmentEntity> {
+    return AppointmentRescheduleHandler.reschedule(
+      this.db,
+      appointmentId,
+      dto,
+      userId,
+      (id) => this.findById(id),
+    );
   }
 
   async findDailyQueue(
@@ -379,6 +276,7 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
       where: eq(appointments.scheduledDate, date),
       with: {
         queueTickets: true,
+        practitionerScheduleSession: true,
         clinicRoom: { with: { clinicUnit: true } },
         patientProfile: true,
         clinicService: true,
@@ -396,18 +294,17 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
           return false;
         }
         if (session) {
-          const hour = parseInt(
-            (apt.scheduledStartTime || '08:00').slice(0, 2),
-            10,
-          );
-          const aptSession =
-            hour >= 18 ? 'MALAM' : hour >= 13 ? 'SIANG' : 'PAGI';
+          const aptSession = AppointmentRecordMapper.resolveSession(apt);
           if (aptSession !== session) return false;
         }
         return true;
       })
       .map((apt) =>
-        this.mapDbToEntity(apt, apt.queueTickets?.[0], poliklinikId),
+        AppointmentRecordMapper.toEntity(
+          apt,
+          apt.queueTickets?.[0],
+          poliklinikId,
+        ),
       );
   }
 
@@ -460,174 +357,15 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
     cancellationReason?: string,
     expectedVersion?: string,
   ): Promise<AppointmentEntity | null> {
-    const existing = await this.db.query.appointments.findFirst({
-      where: eq(appointments.id, id),
-    });
-    if (!existing) return null;
-
-    if (
-      expectedVersion !== undefined &&
-      expectedVersion !== null &&
-      expectedVersion !== ''
-    ) {
-      const currentVersion = generateEntityVersion(existing.updatedAt);
-      if (
-        !matchesVersion(expectedVersion, currentVersion, existing.updatedAt)
-      ) {
-        throw new PreconditionFailedException(
-          currentVersion,
-          expectedVersion,
-          `Precondition failed: Appointment with ID ${id} has been modified since version "${expectedVersion}". Current version is "${currentVersion}".`,
-        );
-      }
-    }
-
-    let dbStatus: typeof appointments.$inferSelect.status = 'booked';
-    let ticketStatus: typeof queueTickets.$inferSelect.status = 'waiting';
-    const nowStr = new Date().toISOString();
-
-    const updateApt: Record<string, any> = {
-      updatedAt: nowStr,
-    };
-    const updateTicket: Record<string, any> = {
-      updatedAt: nowStr,
-    };
-
-    if (status === 'SUDAH_DATANG' || status === 'MENUNGGU') {
-      dbStatus = 'waiting';
-      ticketStatus = 'waiting';
-      updateApt.status = dbStatus;
-      updateTicket.status = ticketStatus;
-    } else if (status === 'SEDANG_DIPERIKSA') {
-      dbStatus = 'in_service';
-      ticketStatus = 'in_service';
-      updateApt.status = dbStatus;
-      updateApt.startedAt = nowStr;
-      if (staffId) {
-        const prac = await this.db.query.practitioners.findFirst({
-          where: or(
-            eq(practitioners.id, staffId),
-            eq(practitioners.staffProfileId, staffId),
-          ),
-        });
-        updateApt.practitionerId = prac ? prac.id : staffId;
-      }
-      updateTicket.status = ticketStatus;
-      updateTicket.calledAt = nowStr;
-      updateTicket.startedAt = nowStr;
-    } else if (status === 'SELESAI') {
-      dbStatus = 'completed';
-      ticketStatus = 'completed';
-      updateApt.status = dbStatus;
-      updateApt.completedAt = nowStr;
-      updateTicket.status = ticketStatus;
-      updateTicket.completedAt = nowStr;
-    } else if (status === 'BATAL') {
-      dbStatus = 'cancelled';
-      ticketStatus = 'cancelled';
-      updateApt.status = dbStatus;
-      updateApt.cancelledAt = nowStr;
-      if (cancellationReason) {
-        updateApt.cancelReason = cancellationReason;
-      }
-      updateTicket.status = ticketStatus;
-
-      let targetSessionId = existing.scheduleSessionId;
-      if (
-        !targetSessionId &&
-        existing.practitionerId &&
-        existing.scheduledDate
-      ) {
-        const apptStart =
-          existing.scheduledStartTime?.length === 5
-            ? `${existing.scheduledStartTime}:00`
-            : existing.scheduledStartTime || '08:00:00';
-        const candidateSessions =
-          await this.db.query.practitionerScheduleSessions.findMany({
-            where: and(
-              eq(
-                practitionerScheduleSessions.practitionerId,
-                existing.practitionerId,
-              ),
-              eq(
-                practitionerScheduleSessions.scheduleDate,
-                existing.scheduledDate,
-              ),
-            ),
-          });
-        const matched =
-          candidateSessions.find((s) => {
-            const sStart =
-              s.startTime.length === 5 ? `${s.startTime}:00` : s.startTime;
-            const sEnd = s.endTime.length === 5 ? `${s.endTime}:00` : s.endTime;
-            return apptStart >= sStart && apptStart < sEnd;
-          }) || candidateSessions[0];
-        if (matched) targetSessionId = matched.id;
-      }
-
-      if (targetSessionId && existing.status !== 'cancelled') {
-        const [session] = await this.db
-          .select()
-          .from(practitionerScheduleSessions)
-          .where(eq(practitionerScheduleSessions.id, targetSessionId));
-        if (session) {
-          const newAvailable = Math.min(
-            session.capacity,
-            session.availableSlots + 1,
-          );
-          await this.db
-            .update(practitionerScheduleSessions)
-            .set({
-              availableSlots: newAvailable,
-              updatedAt: nowStr,
-            })
-            .where(eq(practitionerScheduleSessions.id, session.id));
-        }
-      }
-    }
-
-    const whereConditions = [eq(appointments.id, id)];
-    if (
-      expectedVersion !== undefined &&
-      expectedVersion !== null &&
-      expectedVersion !== ''
-    ) {
-      whereConditions.push(eq(appointments.updatedAt, existing.updatedAt));
-    }
-
-    const [updatedApt] = await this.db
-      .update(appointments)
-      .set(updateApt)
-      .where(and(...whereConditions))
-      .returning();
-
-    if (!updatedApt) {
-      if (
-        expectedVersion !== undefined &&
-        expectedVersion !== null &&
-        expectedVersion !== ''
-      ) {
-        const latest = await this.db.query.appointments.findFirst({
-          where: eq(appointments.id, id),
-        });
-        if (latest) {
-          const latestVersion = generateEntityVersion(latest.updatedAt);
-          throw new ConcurrentModificationConflictException(
-            latestVersion,
-            `Concurrent modification detected: Appointment with ID ${id} was modified by another transaction. Current version is "${latestVersion}".`,
-          );
-        }
-      }
-      return null;
-    }
-
-    const [updatedTicket] = await this.db
-      .update(queueTickets)
-      .set(updateTicket)
-      .where(eq(queueTickets.appointmentId, id))
-      .returning();
-
-    return this.findById(id);
+    return AppointmentStatusHandler.updateStatus(
+      this.db,
+      id,
+      status,
+      staffId,
+      cancellationReason,
+      expectedVersion,
+      (aptId) => this.findById(aptId),
+    );
   }
 
   async getNextQueueIndex(
@@ -662,146 +400,12 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
     message: string;
     data: any;
   }> {
-    return await this.db.transaction(async (tx) => {
-      // 1. Fetch current appointment with row-level lock
-      const [apt] = await tx
-        .select()
-        .from(appointments)
-        .where(eq(appointments.id, appointmentId))
-        .for('update');
-
-      if (!apt) {
-        throw new NotFoundException('Janji temu tidak ditemukan');
-      }
-
-      // Guard: Reject if already in service or completed (AC-06 & AC-07)
-      if (apt.status === 'in_service' || apt.status === 'completed') {
-        throw new BadRequestException(
-          'Janji temu tidak dapat dibatalkan karena pasien sedang dalam pemeriksaan dokter atau telah selesai.',
-        );
-      }
-
-      // Idempotent: If already cancelled, return existing record without double-increment (AC-08)
-      if (apt.status === 'cancelled') {
-        return {
-          success: true,
-          message: 'Janji temu sudah berstatus dibatalkan',
-          data: {
-            appointmentId: apt.id,
-            previousStatus: apt.status,
-            newStatus: 'cancelled',
-            cancelledAt: apt.cancelledAt,
-            cancelReason: apt.cancelReason,
-            scheduleSession: null,
-          },
-        };
-      }
-
-      const nowIso = new Date().toISOString();
-      const newStatus: typeof appointments.$inferSelect.status = dto.isNoShow
-        ? 'no_show'
-        : 'cancelled';
-
-      // 2. Mark appointment as cancelled / no_show
-      await tx
-        .update(appointments)
-        .set({
-          status: newStatus,
-          cancelledAt: nowIso,
-          cancelReason: dto.reason,
-          updatedAt: nowIso,
-          updatedBy: actorUserId || null,
-        })
-        .where(eq(appointments.id, appointmentId));
-
-      // 3. Mark queue ticket as cancelled
-      await tx
-        .update(queueTickets)
-        .set({
-          status: 'cancelled',
-        })
-        .where(eq(queueTickets.appointmentId, appointmentId));
-
-      // 4. Atomically restore available slot in practitioner_schedule_sessions (AC-04 & AC-05)
-      let sessionResult: any = null;
-      let targetSessionId = apt.scheduleSessionId;
-      if (!targetSessionId && apt.practitionerId && apt.scheduledDate) {
-        const apptStart =
-          apt.scheduledStartTime?.length === 5
-            ? `${apt.scheduledStartTime}:00`
-            : apt.scheduledStartTime || '08:00:00';
-        const candidateSessions =
-          await tx.query.practitionerScheduleSessions.findMany({
-            where: and(
-              eq(
-                practitionerScheduleSessions.practitionerId,
-                apt.practitionerId,
-              ),
-              eq(practitionerScheduleSessions.scheduleDate, apt.scheduledDate),
-            ),
-          });
-        const matched =
-          candidateSessions.find((s) => {
-            const sStart =
-              s.startTime.length === 5 ? `${s.startTime}:00` : s.startTime;
-            const sEnd = s.endTime.length === 5 ? `${s.endTime}:00` : s.endTime;
-            return apptStart >= sStart && apptStart < sEnd;
-          }) || candidateSessions[0];
-        if (matched) targetSessionId = matched.id;
-      }
-
-      if (targetSessionId) {
-        const [session] = await tx
-          .select()
-          .from(practitionerScheduleSessions)
-          .where(eq(practitionerScheduleSessions.id, targetSessionId))
-          .for('update');
-
-        if (session) {
-          const newAvailable = Math.min(
-            session.capacity,
-            session.availableSlots + 1,
-          );
-          await tx
-            .update(practitionerScheduleSessions)
-            .set({
-              availableSlots: newAvailable,
-              updatedAt: nowIso,
-            })
-            .where(eq(practitionerScheduleSessions.id, session.id));
-
-          sessionResult = {
-            sessionId: session.id,
-            restoredAvailableSlots: newAvailable,
-            totalCapacity: session.capacity,
-            sessionStatus: session.status,
-          };
-        }
-      }
-
-      // 5. Record audit and history log (appointment_status_events)
-      await tx.insert(appointmentStatusEvents).values({
-        appointmentId,
-        previousStatus: apt.status,
-        newStatus,
-        changedBy: actorUserId || null,
-        reason: dto.reason,
-      });
-
-      return {
-        success: true,
-        message:
-          'Janji temu berhasil dibatalkan dan 1 slot kuota sesi telah dipulihkan',
-        data: {
-          appointmentId: apt.id,
-          previousStatus: apt.status,
-          newStatus,
-          cancelledAt: nowIso,
-          cancelReason: dto.reason,
-          scheduleSession: sessionResult,
-        },
-      };
-    });
+    return AppointmentAdminHandler.cancelAdminAppointment(
+      this.db,
+      appointmentId,
+      dto,
+      actorUserId,
+    );
   }
 
   async updateAdminAppointmentStatus(
@@ -813,156 +417,11 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
     message: string;
     data: any;
   }> {
-    return await this.db.transaction(async (tx) => {
-      const [apt] = await tx
-        .select()
-        .from(appointments)
-        .where(eq(appointments.id, appointmentId))
-        .for('update');
-
-      if (!apt) {
-        throw new NotFoundException('Janji temu tidak ditemukan');
-      }
-
-      const previousStatus = apt.status;
-      const targetStatus =
-        dto.status as typeof appointments.$inferSelect.status;
-
-      if (
-        (targetStatus === 'cancelled' || targetStatus === 'no_show') &&
-        (previousStatus === 'in_service' || previousStatus === 'completed')
-      ) {
-        throw new BadRequestException(
-          'Janji temu tidak dapat dibatalkan karena pasien sedang dalam pemeriksaan dokter atau telah selesai.',
-        );
-      }
-
-      const nowIso = new Date().toISOString();
-      const updateFields: Record<string, any> = {
-        status: targetStatus,
-        updatedAt: nowIso,
-        updatedBy: actorUserId || null,
-      };
-
-      if (targetStatus === 'cancelled' || targetStatus === 'no_show') {
-        updateFields.cancelledAt = nowIso;
-        updateFields.cancelReason = dto.reason || 'Dibatalkan oleh staf/admin';
-      } else if (targetStatus === 'in_service') {
-        updateFields.startedAt = nowIso;
-      } else if (targetStatus === 'completed') {
-        updateFields.completedAt = nowIso;
-      } else if (targetStatus === 'checked_in' || targetStatus === 'waiting') {
-        updateFields.checkedInAt = apt.checkedInAt || nowIso;
-      }
-
-      await tx
-        .update(appointments)
-        .set(updateFields)
-        .where(eq(appointments.id, appointmentId));
-
-      let ticketStatus: typeof queueTickets.$inferSelect.status = 'waiting';
-      if (targetStatus === 'in_service') ticketStatus = 'in_service';
-      else if (targetStatus === 'completed') ticketStatus = 'completed';
-      else if (targetStatus === 'cancelled') ticketStatus = 'cancelled';
-      else if (targetStatus === 'no_show') ticketStatus = 'skipped';
-
-      await tx
-        .update(queueTickets)
-        .set({
-          status: ticketStatus,
-          ...(targetStatus === 'in_service'
-            ? { calledAt: nowIso, startedAt: nowIso }
-            : {}),
-          ...(targetStatus === 'completed' ? { completedAt: nowIso } : {}),
-        })
-        .where(eq(queueTickets.appointmentId, appointmentId));
-
-      let sessionResult: any = null;
-      let targetSessionId = apt.scheduleSessionId;
-      if (
-        (targetStatus === 'cancelled' || targetStatus === 'no_show') &&
-        previousStatus !== 'cancelled' &&
-        previousStatus !== 'no_show'
-      ) {
-        if (!targetSessionId && apt.practitionerId && apt.scheduledDate) {
-          const apptStart =
-            apt.scheduledStartTime?.length === 5
-              ? `${apt.scheduledStartTime}:00`
-              : apt.scheduledStartTime || '08:00:00';
-          const candidateSessions =
-            await tx.query.practitionerScheduleSessions.findMany({
-              where: and(
-                eq(
-                  practitionerScheduleSessions.practitionerId,
-                  apt.practitionerId,
-                ),
-                eq(
-                  practitionerScheduleSessions.scheduleDate,
-                  apt.scheduledDate,
-                ),
-              ),
-            });
-          const matched =
-            candidateSessions.find((s) => {
-              const sStart =
-                s.startTime.length === 5 ? `${s.startTime}:00` : s.startTime;
-              const sEnd =
-                s.endTime.length === 5 ? `${s.endTime}:00` : s.endTime;
-              return apptStart >= sStart && apptStart < sEnd;
-            }) || candidateSessions[0];
-          if (matched) targetSessionId = matched.id;
-        }
-
-        if (targetSessionId) {
-          const [session] = await tx
-            .select()
-            .from(practitionerScheduleSessions)
-            .where(eq(practitionerScheduleSessions.id, targetSessionId))
-            .for('update');
-
-          if (session) {
-            const newAvailable = Math.min(
-              session.capacity,
-              session.availableSlots + 1,
-            );
-            await tx
-              .update(practitionerScheduleSessions)
-              .set({
-                availableSlots: newAvailable,
-                updatedAt: nowIso,
-              })
-              .where(eq(practitionerScheduleSessions.id, session.id));
-
-            sessionResult = {
-              sessionId: session.id,
-              restoredAvailableSlots: newAvailable,
-              totalCapacity: session.capacity,
-              sessionStatus: session.status,
-            };
-          }
-        }
-      }
-
-      await tx.insert(appointmentStatusEvents).values({
-        appointmentId,
-        previousStatus,
-        newStatus: targetStatus,
-        changedBy: actorUserId || null,
-        reason: dto.reason || null,
-      });
-
-      return {
-        success: true,
-        message: `Status janji temu berhasil diubah menjadi ${targetStatus}`,
-        data: {
-          appointmentId,
-          previousStatus,
-          newStatus: targetStatus,
-          updatedAt: nowIso,
-          reason: dto.reason || null,
-          scheduleSession: sessionResult,
-        },
-      };
-    });
+    return AppointmentAdminHandler.updateAdminAppointmentStatus(
+      this.db,
+      appointmentId,
+      dto,
+      actorUserId,
+    );
   }
 }

@@ -18,6 +18,10 @@ import type {
   ScheduleOptionsReferenceEntity,
   ScheduleProjectionEntity,
 } from '@modules/schedules/domain/entities/schedule.entity';
+import type {
+  ScheduleFormBootstrapData,
+  ScheduleSlotAvailabilityData,
+} from '@modules/schedules/domain/entities/schedule-bootstrap.entity';
 import type { ScheduleRepository } from '@modules/schedules/domain/repositories/schedule.repository';
 import type { AdminDoctorScheduleDetailQueryDto } from '@modules/schedules/presentation/dto/admin-doctor-schedule-detail-query.dto';
 import type { AdminDoctorSchedulesQueryDto } from '@modules/schedules/presentation/dto/admin-doctor-schedules-query.dto';
@@ -28,17 +32,13 @@ import type { CreateAvailabilityDto } from '@modules/schedules/presentation/dto/
 import type { GetAdminDoctorPatientsQueryDto } from '@modules/schedules/presentation/dto/get-admin-doctor-patients-query.dto';
 import type { GetSessionPatientsQueryDto } from '@modules/schedules/presentation/dto/get-session-patients-query.dto';
 import type { RescheduleAdminDoctorSessionDto } from '@modules/schedules/presentation/dto/reschedule-admin-doctor-session.dto';
+import type { ScheduleFormBootstrapQueryDto } from '@modules/schedules/presentation/dto/schedule-form-bootstrap-query.dto';
 import type { ScheduleOccupancyQueryDto } from '@modules/schedules/presentation/dto/schedule-occupancy-query.dto';
 import type { ScheduleProjectionQueryDto } from '@modules/schedules/presentation/dto/schedule-projection-query.dto';
+import type { ScheduleSlotAvailabilityQueryDto } from '@modules/schedules/presentation/dto/schedule-slot-availability-query.dto';
 import type { UpdateAdminDoctorScheduleDto } from '@modules/schedules/presentation/dto/update-admin-doctor-schedule.dto';
 import type { UpdateAdminDoctorSessionDto } from '@modules/schedules/presentation/dto/update-admin-doctor-session.dto';
 import type { UpdatePractitionerSchedulePolicyDto } from '@modules/schedules/presentation/dto/update-practitioner-schedule-policy.dto';
-import type {
-  ScheduleFormBootstrapData,
-  ScheduleSlotAvailabilityData,
-} from '@modules/schedules/domain/entities/schedule-bootstrap.entity';
-import type { ScheduleFormBootstrapQueryDto } from '@modules/schedules/presentation/dto/schedule-form-bootstrap-query.dto';
-import type { ScheduleSlotAvailabilityQueryDto } from '@modules/schedules/presentation/dto/schedule-slot-availability-query.dto';
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import { AppointmentOccupationQuery } from './queries/appointment-occupation.query';
 import { ScheduleConflictQuery } from './queries/schedule-conflict.query';

@@ -1,9 +1,4 @@
-import {
-  Inject,
-  Injectable,
-  Logger,
-  Optional,
-} from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import {
@@ -20,9 +15,7 @@ import { JwtPayloadType } from '../../../../auth/strategies/types/jwt-payload.ty
 import { REDIS_CLIENT } from '../../../../common/redis/redis.constants';
 import { AllConfigType } from '../../../../config/config.type';
 import { RealtimeGatewayPort } from '../../contracts/realtime-gateway.interface';
-import {
-  REALTIME_ROOMS,
-} from '../../notifications.constants';
+import { REALTIME_ROOMS } from '../../notifications.constants';
 
 @Injectable()
 @WebSocketGateway({

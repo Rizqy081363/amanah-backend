@@ -82,5 +82,22 @@ export class AppointmentsNotificationRules implements OnModuleInit {
         sourceId: payload.appointmentId,
       }),
     });
+
+    // 5. Appointment Rescheduled Rule
+    this.registry.registerRule({
+      eventType: APPOINTMENT_EVENTS.RESCHEDULED,
+      category: 'appointment',
+      defaultChannels: ['in_app'],
+      resolveRecipients: (payload: any) => payload.patientUserId,
+      titleTemplate: 'Jadwal Janji Temu Diperbarui',
+      bodyTemplate: (payload: any) =>
+        `Jadwal janji temu untuk ${payload.patientName || 'pasien'} telah berhasil dipindahkan ke tanggal ${payload.targetDate} (${payload.targetStartTime} - ${payload.targetEndTime}).`,
+      isUrgent: false,
+      badgeIcon: 'calendar',
+      resolveSource: (payload: any) => ({
+        sourceType: 'appointment',
+        sourceId: payload.appointmentId,
+      }),
+    });
   }
 }

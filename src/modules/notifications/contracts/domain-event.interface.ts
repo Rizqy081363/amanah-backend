@@ -15,4 +15,3 @@ export interface DomainEvent<TPayload = Record<string, unknown>> {
 export abstract class NotificationPublisher {
   abstract publish<T>(event: DomainEvent<T>): Promise<void>;
 }
-

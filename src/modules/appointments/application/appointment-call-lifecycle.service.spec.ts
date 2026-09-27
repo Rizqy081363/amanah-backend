@@ -1,11 +1,11 @@
-import { describe, expect, it, mock, beforeEach } from 'bun:test';
-import { AppointmentCallLifecycleService } from './appointment-call-lifecycle.service';
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import {
   APPOINTMENT_CALL_STATUS,
   APPOINTMENT_EVENTS,
   MAX_PATIENT_CALL_ATTEMPTS,
 } from '../domain/constants/appointment-lifecycle.constants';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { AppointmentCallLifecycleService } from './appointment-call-lifecycle.service';
 
 describe('AppointmentCallLifecycleService', () => {
   let service: AppointmentCallLifecycleService;

@@ -1,5 +1,15 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import {
+  IsEnum,
+  IsIn,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+} from 'class-validator';
+import {
+  CANONICAL_SESSION_NAMES,
+  type CanonicalSessionName,
+} from '../../../schedules/domain/constants/schedule-shift.constants';
 
 export class CreateAppointmentDto {
   @ApiPropertyOptional({
@@ -43,13 +53,13 @@ export class CreateAppointmentDto {
   appointmentDate: string;
 
   @ApiProperty({
-    enum: ['PAGI', 'SIANG', 'MALAM'],
+    enum: CANONICAL_SESSION_NAMES,
     example: 'PAGI',
-    description: 'Sesi giliran kunjungan',
+    description: 'Sesi giliran kunjungan (DINI_HARI, PAGI, SIANG, MALAM)',
   })
-  @IsEnum(['PAGI', 'SIANG', 'MALAM'])
+  @IsIn(CANONICAL_SESSION_NAMES)
   @IsNotEmpty()
-  session: 'PAGI' | 'SIANG' | 'MALAM';
+  session: CanonicalSessionName;
 
   @ApiPropertyOptional({
     enum: ['Pemeriksaan Baru', 'Kontrol Ulang'],

@@ -20,7 +20,8 @@ export class UpdateScheduleDto {
   @ApiPropertyOptional({
     enum: CANONICAL_SESSION_NAMES,
     example: 'SIANG',
-    description: 'Sesi giliran praktek dokter (DINI_HARI / PAGI / SIANG / MALAM)',
+    description:
+      'Sesi giliran praktek dokter (DINI_HARI / PAGI / SIANG / MALAM)',
   })
   @Transform(({ value }) => {
     if (typeof value === 'string') {
@@ -94,7 +95,8 @@ export class UpdateScheduleDto {
   @ApiPropertyOptional({
     enum: AdminScheduleStatusRequest,
     example: AdminScheduleStatusRequest.OPEN,
-    description: 'Canonical schedule operating status (OPEN / CLOSED / Buka / Tutup)',
+    description:
+      'Canonical schedule operating status (OPEN / CLOSED / Buka / Tutup)',
   })
   @Transform(({ value }) => {
     if (typeof value === 'string') {

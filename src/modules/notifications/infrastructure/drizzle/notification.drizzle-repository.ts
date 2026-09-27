@@ -385,7 +385,10 @@ export class NotificationDrizzleRepository implements NotificationRepository {
             let actType: 'primary' | 'secondary' | 'warning' | 'info' =
               'secondary';
             if (act.actionType === 'primary') actType = 'primary';
-            else if (act.actionType === 'danger' || act.actionType === 'warning')
+            else if (
+              act.actionType === 'danger' ||
+              act.actionType === 'warning'
+            )
               actType = 'warning';
             else if (act.actionType === 'link' || act.actionType === 'info')
               actType = 'info';

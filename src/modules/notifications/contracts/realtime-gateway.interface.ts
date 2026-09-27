@@ -7,4 +7,3 @@ export abstract class RealtimeGatewayPort {
   abstract getConnectedUserCount(): number;
   abstract isUserOnline(userId: string): boolean;
 }
-

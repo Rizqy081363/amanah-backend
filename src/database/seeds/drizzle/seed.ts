@@ -9,6 +9,7 @@ import {
   DEVELOPMENT_ROLE_SEEDS,
   DEVELOPMENT_USER_SEEDS,
 } from './dev-seed.data';
+import { seedMasterCatalog } from './master-catalog.seed';
 
 type QueryOneInput = {
   client: PoolClient;
@@ -27,6 +28,7 @@ type SeedContext = {
   staffIdsByCode: Map<string, string>;
   practitionerIdsByEmail: Map<string, string>;
   patientIdsByEmail: Map<string, string>;
+  occupationIdsByCode: Map<string, string>;
 };
 
 const DEFAULT_POSTGRES_HOST_PORT = 5433;
@@ -343,6 +345,7 @@ const seedClinicCatalog = async (
     | 'specialtyIdsByCode'
     | 'roomIdsByCode'
     | 'serviceIdsByCode'
+    | 'occupationIdsByCode'
   >
 > => {
   const existingClinic = await queryOptional<{ id: string }>({
@@ -406,21 +409,6 @@ const seedClinicCatalog = async (
     unitIdsByCode.set(code, row.id);
   }
 
-  const category = await queryOne<{ id: string }>({
-    client,
-    text: `
-      INSERT INTO service_categories (code, name, description, display_order, is_active)
-      VALUES ('clinical_services', 'Layanan Klinik', 'Layanan utama Klinik Amanah', 1, true)
-      ON CONFLICT (code) DO UPDATE
-      SET name = EXCLUDED.name,
-          description = EXCLUDED.description,
-          display_order = EXCLUDED.display_order,
-          is_active = true,
-          updated_at = now()
-      RETURNING id
-    `,
-  });
-
   const specialties = [
     ['general_practitioner', 'Dokter Umum'],
     ['maternal_child_health', 'Kesehatan Ibu dan Anak'],
@@ -471,74 +459,18 @@ const seedClinicCatalog = async (
     roomIdsByCode.set(code, row.id);
   }
 
-  const services = [
-    ['general_checkup', 'Pemeriksaan Umum', 'UM', 'general_practitioner', null],
-    [
-      'doctor_consultation',
-      'Konsultasi Dokter',
-      'KD',
-      'general_practitioner',
-      null,
-    ],
-    [
-      'pregnancy_checkup',
-      'Pemeriksaan Kehamilan',
-      'KIA',
-      'maternal_child_health',
-      'pregnancy',
-    ],
-    [
-      'child_immunization',
-      'Imunisasi Anak',
-      'IM',
-      'maternal_child_health',
-      'immunization',
-    ],
-  ] as const;
-  const serviceIdsByCode = new Map<string, string>();
+  const { serviceIdsByCode, occupationIdsByCode } = await seedMasterCatalog(
+    client,
+    specialtyIdsByCode,
+  );
 
-  for (const [code, name, prefix, specialtyCode, medicalFlow] of services) {
-    const row = await queryOne<{ id: string }>({
-      client,
-      text: `
-        INSERT INTO clinic_services (
-          service_category_id,
-          specialty_id,
-          code,
-          name,
-          short_name,
-          code_prefix,
-          medical_flow,
-          display_order,
-          is_bookable,
-          is_active
-        )
-        VALUES ($1, $2, $3, $4, $4, $5, $6, 1, true, true)
-        ON CONFLICT (code) DO UPDATE
-        SET service_category_id = EXCLUDED.service_category_id,
-            specialty_id = EXCLUDED.specialty_id,
-            name = EXCLUDED.name,
-            short_name = EXCLUDED.short_name,
-            code_prefix = EXCLUDED.code_prefix,
-            medical_flow = EXCLUDED.medical_flow,
-            is_bookable = true,
-            is_active = true,
-            updated_at = now()
-        RETURNING id
-      `,
-      values: [
-        category.id,
-        specialtyIdsByCode.get(specialtyCode),
-        code,
-        name,
-        prefix,
-        medicalFlow,
-      ],
-    });
-    serviceIdsByCode.set(code, row.id);
-  }
-
-  return { unitIdsByCode, specialtyIdsByCode, roomIdsByCode, serviceIdsByCode };
+  return {
+    unitIdsByCode,
+    specialtyIdsByCode,
+    roomIdsByCode,
+    serviceIdsByCode,
+    occupationIdsByCode,
+  };
 };
 
 const seedStaffProfiles = async (context: SeedContext): Promise<void> => {
@@ -630,6 +562,9 @@ const seedStaffProfiles = async (context: SeedContext): Promise<void> => {
 };
 
 const seedPatients = async (context: SeedContext): Promise<void> => {
+  const defaultOccupationId =
+    context.occupationIdsByCode.get('karyawan_swasta') || null;
+
   for (const user of DEVELOPMENT_USER_SEEDS.filter((seed) => seed.patient)) {
     const patient = user.patient;
     if (!patient) continue;
@@ -639,6 +574,7 @@ const seedPatients = async (context: SeedContext): Promise<void> => {
       text: `
         INSERT INTO patient_profiles (
           user_id,
+          occupation_id,
           medical_record_number,
           national_id_encrypted,
           national_id_hash,
@@ -651,9 +587,10 @@ const seedPatients = async (context: SeedContext): Promise<void> => {
           email,
           status
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'unknown', $9, $10, 'active')
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'unknown', $10, $11, 'active')
         ON CONFLICT (medical_record_number) DO UPDATE
         SET user_id = EXCLUDED.user_id,
+            occupation_id = COALESCE(EXCLUDED.occupation_id, patient_profiles.occupation_id),
             national_id_encrypted = EXCLUDED.national_id_encrypted,
             national_id_hash = EXCLUDED.national_id_hash,
             full_name = EXCLUDED.full_name,
@@ -668,6 +605,7 @@ const seedPatients = async (context: SeedContext): Promise<void> => {
       `,
       values: [
         context.userIdsByEmail.get(user.email),
+        defaultOccupationId,
         patient.medicalRecordNumber,
         patient.nationalId || null,
         patient.nationalId || null,
@@ -680,6 +618,19 @@ const seedPatients = async (context: SeedContext): Promise<void> => {
       ],
     });
     context.patientIdsByEmail.set(user.email, patientRow.id);
+
+    const userId = context.userIdsByEmail.get(user.email);
+    if (userId) {
+      await context.client.query(
+        `
+          INSERT INTO patient_affiliations (user_id, patient_id, relationship_type, relation_label, is_primary)
+          VALUES ($1, $2, 'self', 'Diri Sendiri', true)
+          ON CONFLICT (user_id, patient_id) DO UPDATE
+          SET is_primary = true, updated_at = now()
+        `,
+        [userId, patientRow.id],
+      );
+    }
 
     await context.client.query(
       `
@@ -702,6 +653,91 @@ const seedPatients = async (context: SeedContext): Promise<void> => {
         )
       `,
       [patientRow.id, patient.addressLine, `${patient.addressLine}, Bandung`],
+    );
+  }
+
+  // Seed family members for Ahmad Amikom
+  let ahmadUserId = context.userIdsByEmail.get('zikriahmadamikom@gmail.com');
+  if (!ahmadUserId) {
+    const userRow = await queryOptional<{ id: string }>({
+      client: context.client,
+      text: "SELECT id FROM users WHERE email = 'zikriahmadamikom@gmail.com' LIMIT 1",
+    });
+    ahmadUserId = userRow?.id;
+  }
+  if (ahmadUserId) {
+    const motherRow = await queryOne<{ id: string }>({
+      client: context.client,
+      text: `
+        INSERT INTO patient_profiles (
+          occupation_id,
+          medical_record_number,
+          national_id_encrypted,
+          national_id_hash,
+          full_name,
+          birth_place,
+          birth_date,
+          gender,
+          blood_type,
+          phone,
+          status
+        )
+        VALUES ($1, 'MRN-FAM-001', '3273010101680001', '3273010101680001', 'Siti Aminah', 'Bandung', '1968-05-12', 'female', 'b', '081234567891', 'active')
+        ON CONFLICT (medical_record_number) DO UPDATE
+        SET full_name = EXCLUDED.full_name,
+            occupation_id = EXCLUDED.occupation_id,
+            status = 'active',
+            updated_at = now()
+        RETURNING id
+      `,
+      values: [context.occupationIdsByCode.get('ibu_rumah_tangga') || null],
+    });
+
+    await context.client.query(
+      `
+        INSERT INTO patient_affiliations (user_id, patient_id, relationship_type, relation_label, is_primary)
+        VALUES ($1, $2, 'parent', 'Ibu Kandung', false)
+        ON CONFLICT (user_id, patient_id) DO UPDATE
+        SET relation_label = EXCLUDED.relation_label, updated_at = now()
+      `,
+      [ahmadUserId, motherRow.id],
+    );
+
+    const childRow = await queryOne<{ id: string }>({
+      client: context.client,
+      text: `
+        INSERT INTO patient_profiles (
+          occupation_id,
+          medical_record_number,
+          national_id_encrypted,
+          national_id_hash,
+          full_name,
+          birth_place,
+          birth_date,
+          gender,
+          blood_type,
+          phone,
+          status
+        )
+        VALUES ($1, 'MRN-FAM-002', '3273010101190002', '3273010101190002', 'Yusuf Pratama', 'Bandung', '2019-08-20', 'male', 'o', '081234567892', 'active')
+        ON CONFLICT (medical_record_number) DO UPDATE
+        SET full_name = EXCLUDED.full_name,
+            occupation_id = EXCLUDED.occupation_id,
+            status = 'active',
+            updated_at = now()
+        RETURNING id
+      `,
+      values: [context.occupationIdsByCode.get('pelajar_mahasiswa') || null],
+    });
+
+    await context.client.query(
+      `
+        INSERT INTO patient_affiliations (user_id, patient_id, relationship_type, relation_label, is_primary)
+        VALUES ($1, $2, 'child', 'Anak Pertama', false)
+        ON CONFLICT (user_id, patient_id) DO UPDATE
+        SET relation_label = EXCLUDED.relation_label, updated_at = now()
+      `,
+      [ahmadUserId, childRow.id],
     );
   }
 };
@@ -961,11 +997,7 @@ const seedAdminScheduleShowcase = async (
             waiting_position = EXCLUDED.waiting_position,
             updated_at = now()
       `,
-      [
-        appt1.id,
-        todayMorningSession.service_id,
-        todayMorningSession.room_id,
-      ],
+      [appt1.id, todayMorningSession.service_id, todayMorningSession.room_id],
     );
 
     const appt2 = await queryOne<{ id: string }>({
@@ -1041,11 +1073,7 @@ const seedAdminScheduleShowcase = async (
             waiting_position = EXCLUDED.waiting_position,
             updated_at = now()
       `,
-      [
-        appt2.id,
-        todayMorningSession.service_id,
-        todayMorningSession.room_id,
-      ],
+      [appt2.id, todayMorningSession.service_id, todayMorningSession.room_id],
     );
 
     await context.client.query(

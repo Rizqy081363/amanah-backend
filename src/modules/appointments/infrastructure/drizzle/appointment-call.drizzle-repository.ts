@@ -138,18 +138,9 @@ export class AppointmentCallDrizzleRepository
         poliklinikName: clinicServices.name,
       })
       .from(appointments)
-      .leftJoin(
-        patientProfiles,
-        eq(patientProfiles.id, appointments.patientId),
-      )
-      .leftJoin(
-        queueTickets,
-        eq(queueTickets.appointmentId, appointments.id),
-      )
-      .leftJoin(
-        clinicServices,
-        eq(clinicServices.id, appointments.serviceId),
-      )
+      .leftJoin(patientProfiles, eq(patientProfiles.id, appointments.patientId))
+      .leftJoin(queueTickets, eq(queueTickets.appointmentId, appointments.id))
+      .leftJoin(clinicServices, eq(clinicServices.id, appointments.serviceId))
       .where(eq(appointments.id, appointmentId));
 
     if (!result) return null;
@@ -157,10 +148,7 @@ export class AppointmentCallDrizzleRepository
     return result as AppointmentCallDetails;
   }
 
-  async requeueTicket(
-    ticketId: string,
-    bumpPositions: number,
-  ): Promise<void> {
+  async requeueTicket(ticketId: string, bumpPositions: number): Promise<void> {
     await this.db
       .update(queueTickets)
       .set({

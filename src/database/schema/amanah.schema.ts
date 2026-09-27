@@ -165,6 +165,15 @@ export const notificationCategory = pgEnum('notification_category', [
   'support',
   'system',
 ]);
+export const patientRelationshipType = pgEnum('patient_relationship_type', [
+  'self',
+  'parent',
+  'child',
+  'spouse',
+  'relative',
+  'friend',
+  'other',
+]);
 export const patientStatus = pgEnum('patient_status', ['active', 'inactive']);
 export const queuePriority = pgEnum('queue_priority', [
   'regular',
@@ -763,11 +772,27 @@ export const clinicServiceComplaints = pgTable(
   ],
 );
 
+export const occupations = pgTable('occupations', {
+  id: uuid().defaultRandom().primaryKey().notNull(),
+  code: varchar({ length: 64 }).notNull().unique(),
+  name: varchar({ length: 128 }).notNull(),
+  description: text(),
+  displayOrder: integer('display_order').default(0).notNull(),
+  isActive: boolean('is_active').default(true).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+    .defaultNow()
+    .notNull(),
+});
+
 export const patientProfiles = pgTable(
   'patient_profiles',
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
     userId: uuid('user_id'),
+    occupationId: uuid('occupation_id'),
     medicalRecordNumber: text('medical_record_number').notNull(),
     fullName: text('full_name').notNull(),
     nationalIdHash: text('national_id_hash'),
@@ -826,7 +851,11 @@ export const patientProfiles = pgTable(
       foreignColumns: [users.id],
       name: 'patient_profiles_user_id_fkey',
     }).onDelete('set null'),
-    unique('patient_profiles_user_id_key').on(table.userId),
+    foreignKey({
+      columns: [table.occupationId],
+      foreignColumns: [occupations.id],
+      name: 'patient_profiles_occupation_id_occupations_id_fk',
+    }).onDelete('set null'),
     unique('patient_profiles_medical_record_number_key').on(
       table.medicalRecordNumber,
     ),
@@ -839,6 +868,38 @@ export const patientProfiles = pgTable(
       sql`length(TRIM(BOTH FROM medical_record_number)) > 0`,
     ),
     check('patient_profiles_visit_count_nonnegative', sql`visit_count >= 0`),
+  ],
+);
+
+export const patientAffiliations = pgTable(
+  'patient_affiliations',
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    patientId: uuid('patient_id')
+      .notNull()
+      .references(() => patientProfiles.id, { onDelete: 'cascade' }),
+    relationshipType: patientRelationshipType('relationship_type')
+      .default('self')
+      .notNull(),
+    relationLabel: text('relation_label'),
+    isPrimary: boolean('is_primary').default(false).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    unique('patient_affiliations_user_patient_idx').on(
+      table.userId,
+      table.patientId,
+    ),
+    index('patient_affiliations_user_id_idx').on(table.userId),
+    index('patient_affiliations_patient_id_idx').on(table.patientId),
   ],
 );
 

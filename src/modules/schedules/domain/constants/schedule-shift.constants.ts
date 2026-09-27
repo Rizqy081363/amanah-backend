@@ -1,6 +1,6 @@
 /**
  * Canonical Shift & Session Constants (Database-Driven)
- * 
+ *
  * Sourced directly from PostgreSQL enum `staff_shift`:
  * ['early_morning', 'morning', 'afternoon', 'night']
  */
@@ -23,7 +23,10 @@ export const CANONICAL_SESSION_NAMES = [
 
 export type CanonicalSessionName = (typeof CANONICAL_SESSION_NAMES)[number];
 
-export const SHIFT_TO_SESSION_MAP: Record<CanonicalStaffShift, CanonicalSessionName> = {
+export const SHIFT_TO_SESSION_MAP: Record<
+  CanonicalStaffShift,
+  CanonicalSessionName
+> = {
   early_morning: 'DINI_HARI',
   morning: 'PAGI',
   afternoon: 'SIANG',
@@ -71,7 +74,10 @@ export interface ShiftTimingConfig {
   defaultEndTime: string;
 }
 
-export const SHIFT_TIMING_CONFIGS: Record<CanonicalStaffShift, ShiftTimingConfig> = {
+export const SHIFT_TIMING_CONFIGS: Record<
+  CanonicalStaffShift,
+  ShiftTimingConfig
+> = {
   early_morning: {
     shift: 'early_morning',
     session: 'DINI_HARI',
@@ -110,7 +116,9 @@ export function resolveCanonicalShift(input: {
   session: CanonicalSessionName;
   label: string;
 } {
-  const candidate = (input.sessionShift || input.session || '').trim().toLowerCase();
+  const candidate = (input.sessionShift || input.session || '')
+    .trim()
+    .toLowerCase();
   let matchedShift: CanonicalStaffShift | undefined =
     SESSION_TO_SHIFT_MAP[candidate] ||
     SESSION_TO_SHIFT_MAP[candidate.toUpperCase()];
@@ -138,3 +146,21 @@ export function resolveCanonicalShift(input: {
   };
 }
 
+export function resolveSessionFromTime(
+  timeStr?: string | null,
+): CanonicalSessionName {
+  if (!timeStr) {
+    return SHIFT_TIMING_CONFIGS.morning.session;
+  }
+  const prefix = timeStr.slice(0, 5);
+  if (prefix < SHIFT_TIMING_CONFIGS.early_morning.defaultEndTime) {
+    return SHIFT_TIMING_CONFIGS.early_morning.session;
+  }
+  if (prefix < SHIFT_TIMING_CONFIGS.morning.defaultEndTime) {
+    return SHIFT_TIMING_CONFIGS.morning.session;
+  }
+  if (prefix < SHIFT_TIMING_CONFIGS.afternoon.defaultEndTime) {
+    return SHIFT_TIMING_CONFIGS.afternoon.session;
+  }
+  return SHIFT_TIMING_CONFIGS.night.session;
+}

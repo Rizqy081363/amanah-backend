@@ -23,11 +23,11 @@ import {
 } from '@nestjs/swagger';
 import { CurrentUser } from '../../../common/auth/current-user.decorator';
 import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
+import { RealtimeGatewayPort } from '../contracts/realtime-gateway.interface';
 import {
   NOTIFICATION_REPOSITORY,
   NotificationRepository,
 } from '../domain/repositories/notification.repository';
-import { RealtimeGatewayPort } from '../contracts/realtime-gateway.interface';
 import {
   REALTIME_EVENTS,
   REALTIME_GATEWAY_PORT,

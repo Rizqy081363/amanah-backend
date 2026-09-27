@@ -1,6 +1,6 @@
-import { describe, expect, it, beforeEach } from 'bun:test';
-import { AppointmentsNotificationRules } from './appointments.notifications';
+import { beforeEach, describe, expect, it } from 'bun:test';
 import { NotificationRulesRegistry } from '../notifications/registry/notification-rules-registry';
+import { AppointmentsNotificationRules } from './appointments.notifications';
 import { APPOINTMENT_EVENTS } from './domain/constants/appointment-lifecycle.constants';
 
 describe('AppointmentsNotificationRules', () => {

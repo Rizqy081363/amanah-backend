@@ -40,6 +40,7 @@ import { formatETag } from '../../../common/occ';
 import { AppointmentsService } from '../application/appointments.service';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { QueryAppointmentDto } from './dto/query-appointment.dto';
+import { RescheduleAppointmentDto } from './dto/reschedule-appointment.dto';
 import { UpdateAppointmentStatusDto } from './dto/update-appointment-status.dto';
 
 @ApiTags('Appointments (Kunjungan & Antrean Pasien)')
@@ -99,16 +100,16 @@ export class AppointmentsController {
   @ApiOperation({
     summary: 'Melihat riwayat janji temu dan antrean pasien saat ini',
     description:
-      'Menampilkan riwayat kunjungan dan antrean aktif milik pasien yang sedang login.',
+      'Menampilkan riwayat kunjungan dan antrean aktif milik pasien yang sedang login serta anggota keluarga yang terafiliasi.',
   })
   @ApiOkResponse({ description: 'Riwayat janji temu pasien berhasil diambil' })
   @ApiUnauthorizedResponse({ description: 'Sesi token tidak valid' })
   async getMyAppointments(@CurrentUser() user: any) {
-    const patientId = user.patient?.id;
-    if (!patientId) {
+    const userId = user?.id || user?.sub;
+    if (!userId) {
       return [];
     }
-    return this.appointmentsService.findByPatientId(patientId);
+    return this.appointmentsService.findByUserId(userId);
   }
 
   @ApiBearerAuth('access-token')
@@ -337,6 +338,60 @@ export class AppointmentsController {
       res.setHeader('ETag', formatETag(result.version));
     }
     return result;
+  }
+
+  @ApiBearerAuth('access-token')
+  @UseGuards(HybridAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'STAF', 'PATIENT')
+  @Get(':id/reschedule-options')
+  @ApiOperation({
+    summary:
+      'Mendapatkan opsi tanggal dan sesi untuk penjadwalan ulang janji temu',
+    description:
+      'Menampilkan informasi janji temu dan jadwal dokter yang tersedia untuk dipilih pasien saat reschedule.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID unik kunjungan / appointment',
+  })
+  @ApiOkResponse({ description: 'Opsi reschedule berhasil diambil' })
+  @ApiNotFoundResponse({ description: 'Janji temu tidak ditemukan' })
+  @ApiUnauthorizedResponse({ description: 'Sesi token tidak valid' })
+  async getRescheduleOptions(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+  ) {
+    return this.appointmentsService.getRescheduleOptions(
+      id,
+      user?.id || user?.sub,
+    );
+  }
+
+  @ApiBearerAuth('access-token')
+  @UseGuards(HybridAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'STAF', 'PATIENT')
+  @Post(':id/reschedule')
+  @ApiOperation({
+    summary: 'Melakukan penjadwalan ulang (reschedule) janji temu pasien',
+    description:
+      'Memindahkan jadwal janji temu ke sesi dan tanggal baru secara atomik dengan pemulihan slot sesi lama.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID unik kunjungan / appointment',
+  })
+  @ApiOkResponse({ description: 'Janji temu berhasil dijadwalkan ulang' })
+  @ApiNotFoundResponse({
+    description: 'Janji temu atau sesi baru tidak ditemukan',
+  })
+  @ApiUnauthorizedResponse({ description: 'Sesi token tidak valid' })
+  @Idempotent()
+  async rescheduleAppointment(
+    @Param('id') id: string,
+    @Body() dto: RescheduleAppointmentDto,
+    @CurrentUser() user: any,
+  ) {
+    return this.appointmentsService.reschedule(id, dto, user?.id || user?.sub);
   }
 
   @ApiBearerAuth('access-token')

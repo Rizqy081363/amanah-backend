@@ -1,5 +1,6 @@
 import { AdminUpdateAppointmentStatusDto } from '../../presentation/dto/admin-update-appointment-status.dto';
 import { CancelAppointmentDto } from '../../presentation/dto/cancel-appointment.dto';
+import { RescheduleAppointmentDto } from '../../presentation/dto/reschedule-appointment.dto';
 import { AppointmentEntity } from '../entities/appointment.entity';
 
 export const APPOINTMENT_REPOSITORY = 'APPOINTMENT_REPOSITORY';
@@ -37,6 +38,16 @@ export abstract class AppointmentRepository {
     date: string,
   ): Promise<AppointmentEntity | null>;
   abstract findByPatientId(patientId: string): Promise<AppointmentEntity[]>;
+  abstract findByUserId(userId: string): Promise<AppointmentEntity[]>;
+  abstract getRescheduleOptions(
+    appointmentId: string,
+    userId: string,
+  ): Promise<any>;
+  abstract reschedule(
+    appointmentId: string,
+    dto: RescheduleAppointmentDto,
+    userId: string,
+  ): Promise<AppointmentEntity>;
   abstract findDailyQueue(
     poliklinikId: string,
     date: string,

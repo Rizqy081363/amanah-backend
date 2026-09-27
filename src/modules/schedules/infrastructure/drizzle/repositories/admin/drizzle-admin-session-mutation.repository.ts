@@ -1,13 +1,13 @@
 import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import { clinicRooms, practitionerScheduleSessions } from '@database/schema';
+import { resolveCanonicalShift } from '@modules/schedules/domain/constants/schedule-shift.constants';
 import {
   AdminScheduleStatusRequest,
   SchedulePersistenceStatus,
   toAdminScheduleStatusRequest,
   toDaySessionPersistenceStatus,
 } from '@modules/schedules/domain/schedule-status';
-import { resolveCanonicalShift } from '@modules/schedules/domain/constants/schedule-shift.constants';
 import { ScheduleConflictQuery } from '@modules/schedules/infrastructure/drizzle/queries/schedule-conflict.query';
 import { PractitionerResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/practitioner.resolver';
 import { RoomResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/room.resolver';

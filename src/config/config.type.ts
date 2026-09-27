@@ -15,4 +15,3 @@ export type AllConfigType = {
   mail: MailConfig;
   realtime: RealtimeConfig;
 };
-

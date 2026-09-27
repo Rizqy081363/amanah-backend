@@ -31,6 +31,7 @@ import { HttpCache } from '../../../common/decorators/http-cache.decorator';
 import { ClinicsService } from '../application/clinics.service';
 import { CreateClinicDto } from './dto/create-clinic.dto';
 import { CreateLayananDto } from './dto/create-layanan.dto';
+import { ServiceCatalogResponseDto } from './dto/service-catalog.dto';
 import { UpdateClinicDto } from './dto/update-clinic.dto';
 import { UpdateLayananDto } from './dto/update-layanan.dto';
 
@@ -67,6 +68,22 @@ export class ClinicsController {
   @HttpCache({ ttlSeconds: 300, tags: ['clinics'] })
   async getPoliklinik() {
     return this.clinicsService.findAllPoliklinik();
+  }
+
+  @Public()
+  @Get('services/catalog')
+  @ApiOperation({
+    summary: 'Mendapatkan seluruh katalog kategori dan layanan klinik (SSOT)',
+    description:
+      'Mengambil hierarki kategori layanan (Layanan Umum, Layanan Kebidanan, dll) beserta daftar tindakan medis, poliklinik tujuan, dan pilihan keluhan bawaan.',
+  })
+  @ApiOkResponse({
+    description: 'Katalog layanan berhasil diambil',
+    type: ServiceCatalogResponseDto,
+  })
+  @HttpCache({ ttlSeconds: 300, tags: ['clinics', 'catalog'] })
+  async getServiceCatalog(): Promise<ServiceCatalogResponseDto> {
+    return this.clinicsService.getCatalog();
   }
 
   @Public()

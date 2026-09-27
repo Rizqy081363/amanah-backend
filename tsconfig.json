@@ -25,7 +25,7 @@
     "forceConsistentCasingInFileNames": false,
     "noFallthroughCasesInSwitch": false,
     "esModuleInterop": true,
-    "types": ["bun-types"]
+    "types": ["bun-types", "jest"]
   },
   "include": ["src/**/*", "test/**/*", ".install-scripts/**/*"]
 }

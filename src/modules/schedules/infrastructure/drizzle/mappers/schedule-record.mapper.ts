@@ -1,14 +1,15 @@
 import { generateEntityVersion } from '@common/occ';
 import {
-  type ScheduleEntity,
-  ScheduleOperationalStatus,
-} from '@modules/schedules/domain/entities/schedule.entity';
-import {
   type CanonicalStaffShift,
   SHIFT_DISPLAY_LABELS,
   SHIFT_TO_SESSION_MAP,
 } from '@modules/schedules/domain/constants/schedule-shift.constants';
+import {
+  type ScheduleEntity,
+  ScheduleOperationalStatus,
+} from '@modules/schedules/domain/entities/schedule.entity';
 import type { SessionShiftType } from '@modules/schedules/domain/factories/schedule-slot.factory';
+import { parseClockTime } from '@modules/schedules/domain/schedule-projection';
 import { resolveSessionOperationalStatus } from '@modules/schedules/domain/schedule-status';
 
 type StaffProfileRecord = {
@@ -70,7 +71,8 @@ export function mapScheduleRecordToEntity(
   const shift = record.sessionShift as CanonicalStaffShift;
   const sessionName = shift ? SHIFT_TO_SESSION_MAP[shift] || 'PAGI' : 'PAGI';
   const sessionLabel =
-    record.sessionLabel || (shift ? SHIFT_DISPLAY_LABELS[shift] || 'Pagi' : 'Pagi');
+    record.sessionLabel ||
+    (shift ? SHIFT_DISPLAY_LABELS[shift] || 'Pagi' : 'Pagi');
 
   const startTimeFormatted = record.startTime
     ? record.startTime.slice(0, 5)
@@ -90,6 +92,39 @@ export function mapScheduleRecordToEntity(
     persistedStatus: record.status,
   });
   const isAvailable = operationalStatus === ScheduleOperationalStatus.OPEN;
+
+  const now = new Date();
+  const wibTime = new Date(
+    now.getTime() + (7 * 60 + now.getTimezoneOffset()) * 60000,
+  );
+  const todayStr = wibTime.toISOString().slice(0, 10);
+  const currentMinutes = wibTime.getHours() * 60 + wibTime.getMinutes();
+  const isPastDate = record.scheduleDate < todayStr;
+  const isToday = record.scheduleDate === todayStr;
+  const endMinutes = endTimeFormatted ? parseClockTime(endTimeFormatted) : 1440;
+  const isPast = isPastDate || (isToday && endMinutes <= currentMinutes);
+
+  let statusBadge = 'Buka';
+  let badgeVariant = 'success';
+  let effectiveStatus = 'AVAILABLE';
+
+  if (!isAvailable) {
+    statusBadge = 'Tutup';
+    badgeVariant = 'warning';
+    effectiveStatus = 'CLOSED';
+  } else if (isPast) {
+    statusBadge = 'Selesai';
+    badgeVariant = 'warning';
+    effectiveStatus = 'COMPLETED';
+  } else if (availableSlots === 0) {
+    statusBadge = 'Penuh';
+    badgeVariant = 'primary';
+    effectiveStatus = 'OCCUPIED';
+  } else if (bookedPatientCount > 0) {
+    statusBadge = 'Terisi';
+    badgeVariant = 'primary';
+    effectiveStatus = 'OCCUPIED';
+  }
 
   return {
     id: record.id,
@@ -128,6 +163,10 @@ export function mapScheduleRecordToEntity(
     status: operationalStatus,
     rawStatus: record.status,
     isAvailable,
+    isPast,
+    statusBadge,
+    badgeVariant,
+    effectiveStatus,
     notes: record.notes || null,
     createdAt: new Date(record.createdAt),
     updatedAt: new Date(record.updatedAt),

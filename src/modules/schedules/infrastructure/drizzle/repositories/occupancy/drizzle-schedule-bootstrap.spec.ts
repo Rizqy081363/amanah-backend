@@ -152,7 +152,9 @@ describe('ScheduleDrizzleRepository - Form Bootstrap & Slot Availability', () =>
         name: 'Ruang Poli Umum 1',
       });
 
-      db.query.practitionerScheduleDaySettings.findFirst.mockResolvedValue(null);
+      db.query.practitionerScheduleDaySettings.findFirst.mockResolvedValue(
+        null,
+      );
       db.query.practitionerLeavePeriods.findFirst.mockResolvedValue(null);
 
       // Sesi malam (18:00 - 24:00):
@@ -258,7 +260,9 @@ describe('ScheduleDrizzleRepository - Form Bootstrap & Slot Availability', () =>
         name: 'Ruang Poli Umum 1',
       });
 
-      db.query.practitionerScheduleDaySettings.findFirst.mockResolvedValue(null);
+      db.query.practitionerScheduleDaySettings.findFirst.mockResolvedValue(
+        null,
+      );
       db.query.practitionerLeavePeriods.findFirst.mockResolvedValue(null);
       db.query.practitionerScheduleSessions.findMany.mockResolvedValue([]);
 

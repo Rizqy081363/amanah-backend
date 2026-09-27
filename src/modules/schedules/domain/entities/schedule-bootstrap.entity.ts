@@ -7,13 +7,19 @@ export class ScheduleFormBootstrapDoctor {
   @ApiProperty({ example: 'dr. Fadhiilah Ahmad Zikri, Sp.A' })
   name: string;
 
-  @ApiPropertyOptional({ example: 'b77d141b-2fa5-4481-9f47-a5a040faf57a', nullable: true })
+  @ApiPropertyOptional({
+    example: 'b77d141b-2fa5-4481-9f47-a5a040faf57a',
+    nullable: true,
+  })
   defaultRoomId: string | null;
 
   @ApiPropertyOptional({ example: 'Ruang Poli Umum 1', nullable: true })
   defaultRoomName: string | null;
 
-  @ApiPropertyOptional({ example: 'a11d141b-1fa5-4481-9f47-a5a040faf11a', nullable: true })
+  @ApiPropertyOptional({
+    example: 'a11d141b-1fa5-4481-9f47-a5a040faf11a',
+    nullable: true,
+  })
   defaultPoliklinikId: string | null;
 
   @ApiPropertyOptional({ example: 'Poli Umum', nullable: true })
@@ -89,13 +95,19 @@ export class ScheduleFormBootstrapData {
 }
 
 export class ScheduleSlotAvailabilityConflict {
-  @ApiProperty({ example: 'ROOM_OCCUPIED', enum: ['TEMPORAL_PAST', 'ROOM_OCCUPIED', 'PRACTITIONER_OVERLAP', 'LEAVE'] })
+  @ApiProperty({
+    example: 'ROOM_OCCUPIED',
+    enum: ['TEMPORAL_PAST', 'ROOM_OCCUPIED', 'PRACTITIONER_OVERLAP', 'LEAVE'],
+  })
   type: 'TEMPORAL_PAST' | 'ROOM_OCCUPIED' | 'PRACTITIONER_OVERLAP' | 'LEAVE';
 
   @ApiPropertyOptional({ example: 'dr. Ahmad Santoso', nullable: true })
   occupantName: string | null;
 
-  @ApiProperty({ example: 'Ruang Poli Umum 1 sudah dialokasikan untuk dr. Ahmad Santoso pada jam 18:00 - 24:00 WIB.' })
+  @ApiProperty({
+    example:
+      'Ruang Poli Umum 1 sudah dialokasikan untuk dr. Ahmad Santoso pada jam 18:00 - 24:00 WIB.',
+  })
   reason: string;
 }
 
@@ -114,14 +126,28 @@ export class ScheduleSlotAvailabilityItem {
 
   @ApiProperty({
     example: 'AVAILABLE',
-    enum: ['AVAILABLE', 'PAST', 'OCCUPIED_BY_OTHER', 'OCCUPIED_BY_SELF', 'CLOSED_LEAVE'],
+    enum: [
+      'AVAILABLE',
+      'PAST',
+      'OCCUPIED_BY_OTHER',
+      'OCCUPIED_BY_SELF',
+      'CLOSED_LEAVE',
+    ],
   })
-  status: 'AVAILABLE' | 'PAST' | 'OCCUPIED_BY_OTHER' | 'OCCUPIED_BY_SELF' | 'CLOSED_LEAVE';
+  status:
+    | 'AVAILABLE'
+    | 'PAST'
+    | 'OCCUPIED_BY_OTHER'
+    | 'OCCUPIED_BY_SELF'
+    | 'CLOSED_LEAVE';
 
   @ApiProperty({ example: 'Tersedia' })
   displayLabel: string;
 
-  @ApiPropertyOptional({ type: () => ScheduleSlotAvailabilityConflict, nullable: true })
+  @ApiPropertyOptional({
+    type: () => ScheduleSlotAvailabilityConflict,
+    nullable: true,
+  })
   conflict: ScheduleSlotAvailabilityConflict | null;
 }
 

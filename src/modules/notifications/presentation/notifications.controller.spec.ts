@@ -1,7 +1,7 @@
-import { describe, expect, it, mock, beforeEach } from 'bun:test';
-import { NotificationsController } from './notifications.controller';
-import { REALTIME_EVENTS } from '../notifications.constants';
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
 import { NotFoundException } from '@nestjs/common';
+import { REALTIME_EVENTS } from '../notifications.constants';
+import { NotificationsController } from './notifications.controller';
 
 describe('NotificationsController', () => {
   let controller: NotificationsController;

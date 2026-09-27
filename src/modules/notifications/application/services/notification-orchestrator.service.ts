@@ -12,7 +12,10 @@ import { NotificationRulesRegistry } from '../../registry/notification-rules-reg
 @Injectable()
 export class NotificationOrchestratorService {
   private readonly logger = new Logger(NotificationOrchestratorService.name);
-  private readonly adapterMap = new Map<NotificationChannel, DeliveryChannelAdapter>();
+  private readonly adapterMap = new Map<
+    NotificationChannel,
+    DeliveryChannelAdapter
+  >();
 
   constructor(
     @Inject(NOTIFICATION_REPOSITORY)

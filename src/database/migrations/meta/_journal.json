@@ -99,6 +99,13 @@
       "when": 1790262000000,
       "tag": "0013_appointment_call_attempts_and_notification_idempotency",
       "breakpoints": false
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1790263000000,
+      "tag": "0014_patient_affiliations_and_occupations",
+      "breakpoints": false
     }
   ]
 }

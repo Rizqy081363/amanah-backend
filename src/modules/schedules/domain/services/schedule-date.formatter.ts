@@ -114,4 +114,3 @@ export function getClinicNow(): {
   const currentMinutes = parseInt(hour, 10) * 60 + parseInt(minute, 10);
   return { date, time, currentMinutes };
 }
-

@@ -32,6 +32,10 @@ export class ScheduleEntity {
   status?: string;
   rawStatus?: string;
   isAvailable: boolean;
+  isPast?: boolean;
+  statusBadge?: string;
+  badgeVariant?: string;
+  effectiveStatus?: string;
   notes?: string | null;
   createdAt: Date;
   updatedAt: Date;

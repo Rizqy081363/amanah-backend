@@ -82,4 +82,3 @@ export abstract class NotificationRepository {
     }>;
   }): Promise<NotificationEntity | null>;
 }
-

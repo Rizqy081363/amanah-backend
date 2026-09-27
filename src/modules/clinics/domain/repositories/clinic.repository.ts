@@ -1,3 +1,4 @@
+import type { ServiceCategoryCatalogDto } from '../../presentation/dto/service-catalog.dto';
 import { LayananPoliEntity, PoliklinikEntity } from '../entities/clinic.entity';
 
 export const CLINIC_REPOSITORY = 'CLINIC_REPOSITORY';
@@ -33,4 +34,6 @@ export interface ClinicRepository {
     data: Partial<LayananPoliEntity>,
   ): Promise<LayananPoliEntity | null>;
   deleteLayanan(id: string): Promise<boolean>;
+
+  getCatalog(): Promise<ServiceCategoryCatalogDto[]>;
 }

@@ -61,7 +61,8 @@ import { UpdatePractitionerSchedulePolicyDto } from './dto/update-practitioner-s
   description: 'Sesi autentikasi tidak valid atau token tidak disertakan',
 })
 @ApiForbiddenResponse({
-  description: 'Akses ditolak: Hanya administrator atau dokter terkait yang berwenang',
+  description:
+    'Akses ditolak: Hanya administrator atau dokter terkait yang berwenang',
 })
 @Controller({ path: 'admin/doctor-schedules', version: '1' })
 export class AdminDoctorSchedulesController {
@@ -301,7 +302,8 @@ export class AdminDoctorSchedulesController {
   @Post(':id/sessions')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
-    summary: 'Menambahkan sesi shift praktik baru untuk dokter (Admin & Dokter)',
+    summary:
+      'Menambahkan sesi shift praktik baru untuk dokter (Admin & Dokter)',
     description:
       'Menambahkan sesi shift periksa (Pagi, Siang, Malam, Dini Hari) untuk lonjakan antrean atau jam tambahan.',
   })

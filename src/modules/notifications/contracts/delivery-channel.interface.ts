@@ -15,4 +15,3 @@ export abstract class DeliveryChannelAdapter {
     recipientUserId: string,
   ): Promise<DeliveryResult>;
 }
-

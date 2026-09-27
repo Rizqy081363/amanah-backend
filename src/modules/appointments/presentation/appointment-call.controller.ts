@@ -56,7 +56,9 @@ export class AppointmentCallController {
   @ApiOkResponse({ description: 'Pasien berhasil dipanggil' })
   @ApiNotFoundResponse({ description: 'Janji temu tidak ditemukan' })
   @ApiUnauthorizedResponse({ description: 'Token tidak valid' })
-  @ApiForbiddenResponse({ description: 'Hanya Dokter atau Staf yang diizinkan' })
+  @ApiForbiddenResponse({
+    description: 'Hanya Dokter atau Staf yang diizinkan',
+  })
   async callPatient(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() body: AppointmentCallActionDto,
@@ -83,7 +85,9 @@ export class AppointmentCallController {
   @ApiOkResponse({ description: 'Kehadiran pasien berhasil dikonfirmasi' })
   @ApiNotFoundResponse({ description: 'Janji temu tidak ditemukan' })
   @ApiUnauthorizedResponse({ description: 'Token tidak valid' })
-  @ApiForbiddenResponse({ description: 'Hanya Dokter atau Staf yang diizinkan' })
+  @ApiForbiddenResponse({
+    description: 'Hanya Dokter atau Staf yang diizinkan',
+  })
   async patientResponded(
     @Param('id', new ParseUUIDPipe()) id: string,
     @CurrentUser() user: any,
@@ -112,7 +116,9 @@ export class AppointmentCallController {
   })
   @ApiNotFoundResponse({ description: 'Janji temu tidak ditemukan' })
   @ApiUnauthorizedResponse({ description: 'Token tidak valid' })
-  @ApiForbiddenResponse({ description: 'Hanya Dokter atau Staf yang diizinkan' })
+  @ApiForbiddenResponse({
+    description: 'Hanya Dokter atau Staf yang diizinkan',
+  })
   async patientNoShow(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() body: AppointmentCallActionDto,

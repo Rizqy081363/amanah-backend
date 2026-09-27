@@ -23,11 +23,13 @@ import { RoomResolver } from '@modules/schedules/infrastructure/drizzle/resolver
 import { ScheduleDrizzleRepository } from '@modules/schedules/infrastructure/drizzle/schedule.drizzle-repository';
 import { AdminDoctorSchedulesController } from '@modules/schedules/presentation/admin-doctor-schedules.controller';
 import { ClinicalPractitionersController } from '@modules/schedules/presentation/clinical-practitioners.controller';
+import { PatientScheduleBookingController } from '@modules/schedules/presentation/patient-schedule-booking.controller';
 import { SchedulesController } from '@modules/schedules/presentation/schedules.controller';
 import { Module } from '@nestjs/common';
 
 @Module({
   controllers: [
+    PatientScheduleBookingController,
     SchedulesController,
     AdminDoctorSchedulesController,
     ClinicalPractitionersController,

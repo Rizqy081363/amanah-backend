@@ -1,14 +1,20 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { eq, or } from 'drizzle-orm';
+import { asc, eq, or } from 'drizzle-orm';
 import { RedisService } from '../../../../common/redis/redis.service';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
-import { clinicServices, clinicUnits } from '../../../../database/schema';
+import {
+  clinicServiceComplaints,
+  clinicServices,
+  clinicUnits,
+  serviceCategories,
+} from '../../../../database/schema';
 import {
   LayananPoliEntity,
   PoliklinikEntity,
 } from '../../domain/entities/clinic.entity';
 import { ClinicRepository } from '../../domain/repositories/clinic.repository';
+import type { ServiceCategoryCatalogDto } from '../../presentation/dto/service-catalog.dto';
 
 @Injectable()
 export class ClinicDrizzleRepository implements ClinicRepository {
@@ -285,5 +291,69 @@ export class ClinicDrizzleRepository implements ClinicRepository {
       .where(eq(clinicServices.id, id));
 
     return true;
+  }
+
+  async getCatalog(): Promise<ServiceCategoryCatalogDto[]> {
+    return this.redis.getOrSet(
+      'clinics:catalog',
+      async () => {
+        const units = await this.db.query.clinicUnits.findMany({
+          where: eq(clinicUnits.isActive, true),
+        });
+        const poliUmum = units.find((u) => u.code.includes('umum'));
+        const poliKia = units.find((u) => u.code.includes('kia'));
+
+        const categories = await this.db.query.serviceCategories.findMany({
+          where: eq(serviceCategories.isActive, true),
+          orderBy: [asc(serviceCategories.displayOrder)],
+          with: {
+            clinicServices: {
+              where: eq(clinicServices.isActive, true),
+              orderBy: [asc(clinicServices.displayOrder)],
+              with: {
+                clinicServiceComplaints: {
+                  orderBy: [asc(clinicServiceComplaints.displayOrder)],
+                },
+              },
+            },
+          },
+        });
+
+        return categories.map((cat) => {
+          const isKia =
+            cat.code.includes('kebidanan') || cat.code.includes('kia');
+          const matchedUnit = isKia ? poliKia || poliUmum : poliUmum || poliKia;
+          const poliklinikId = matchedUnit?.id || '';
+          const poliklinikName =
+            matchedUnit?.name || (isKia ? 'Poli KIA' : 'Poli Umum');
+
+          return {
+            id: cat.id,
+            code: cat.code,
+            name: cat.name,
+            description: cat.description || null,
+            displayOrder: cat.displayOrder,
+            poliklinikId,
+            poliklinikName,
+            services: (cat.clinicServices || []).map((srv) => ({
+              id: srv.id,
+              code: srv.code,
+              name: srv.name,
+              prefix: srv.codePrefix,
+              description: srv.description || null,
+              specialtyCode: srv.specialtyId || null,
+              medicalFlow: (srv.medicalFlow as any) || null,
+              displayOrder: srv.displayOrder,
+              poliklinikId,
+              poliklinikName,
+              complaints: (srv.clinicServiceComplaints || []).map(
+                (c) => c.complaintText,
+              ),
+            })),
+          };
+        });
+      },
+      300,
+    );
   }
 }

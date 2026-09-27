@@ -1,10 +1,10 @@
-import { describe, expect, it, mock, beforeEach } from 'bun:test';
-import { NotificationStreamWorker } from './notification-stream.worker';
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
 import { DomainEvent } from '../../contracts/domain-event.interface';
 import {
   REDIS_CONSUMER_GROUP_NOTIFICATIONS,
   REDIS_STREAM_NOTIFICATIONS,
 } from '../../notifications.constants';
+import { NotificationStreamWorker } from './notification-stream.worker';
 
 describe('NotificationStreamWorker', () => {
   let worker: NotificationStreamWorker;
@@ -21,14 +21,13 @@ describe('NotificationStreamWorker', () => {
       processEvent: mock().mockResolvedValue(undefined),
     };
 
-    worker = new NotificationStreamWorker(
-      mockRedisClient,
-      mockOrchestrator,
-    );
+    worker = new NotificationStreamWorker(mockRedisClient, mockOrchestrator);
   });
 
   it('should initialize consumer group and handle BUSYGROUP cleanly', async () => {
-    mockRedisClient.xgroup.mockRejectedValue(new Error('BUSYGROUP Consumer Group name already exists'));
+    mockRedisClient.xgroup.mockRejectedValue(
+      new Error('BUSYGROUP Consumer Group name already exists'),
+    );
 
     // Should not throw
     await worker.onModuleInit();

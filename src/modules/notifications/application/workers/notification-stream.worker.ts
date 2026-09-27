@@ -19,7 +19,8 @@ import { NotificationOrchestratorService } from '../services/notification-orches
 export class NotificationStreamWorker implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(NotificationStreamWorker.name);
   private isRunning = false;
-  private readonly consumerName = `worker-${process.pid}-${Math.random().toString(36).substring(2, 7)}`;
+  private readonly consumerName =
+    `worker-${process.pid}-${Math.random().toString(36).substring(2, 7)}`;
 
   constructor(
     @Optional()

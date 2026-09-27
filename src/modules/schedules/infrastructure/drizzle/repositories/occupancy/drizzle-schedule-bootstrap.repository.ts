@@ -8,13 +8,13 @@ import {
   practitionerScheduleSessions,
   practitioners,
 } from '@database/schema';
+import { CLINIC_TIMEZONE } from '@modules/schedules/domain/constants/schedule.constants';
 import {
   CANONICAL_STAFF_SHIFTS,
   resolveCanonicalShift,
   SHIFT_DISPLAY_LABELS,
   SHIFT_TIMING_CONFIGS,
 } from '@modules/schedules/domain/constants/schedule-shift.constants';
-import { CLINIC_TIMEZONE } from '@modules/schedules/domain/constants/schedule.constants';
 import type {
   ScheduleFormBootstrapData,
   ScheduleFormBootstrapPoliklinik,
@@ -23,11 +23,11 @@ import type {
   ScheduleSlotAvailabilityData,
   ScheduleSlotAvailabilityItem,
 } from '@modules/schedules/domain/entities/schedule-bootstrap.entity';
-import { SchedulePersistenceStatus } from '@modules/schedules/domain/schedule-status';
 import {
   formatClockTime,
   parseClockTime,
 } from '@modules/schedules/domain/schedule-projection';
+import { SchedulePersistenceStatus } from '@modules/schedules/domain/schedule-status';
 import { getClinicNow } from '@modules/schedules/domain/services/schedule-date.formatter';
 import { SchedulePolicyReader } from '@modules/schedules/infrastructure/drizzle/queries/schedule-policy.reader';
 import { PractitionerResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/practitioner.resolver';
@@ -285,10 +285,7 @@ export class DrizzleScheduleBootstrapRepository {
     const [daySetting, activeLeave] = await Promise.all([
       this.db.query.practitionerScheduleDaySettings.findFirst({
         where: and(
-          eq(
-            practitionerScheduleDaySettings.practitionerId,
-            practitioner.id,
-          ),
+          eq(practitionerScheduleDaySettings.practitionerId, practitioner.id),
           eq(practitionerScheduleDaySettings.scheduleDate, query.date),
         ),
       }),
@@ -363,8 +360,7 @@ export class DrizzleScheduleBootstrapRepository {
           conflict: {
             type: 'TEMPORAL_PAST',
             occupantName: null,
-            reason:
-              'Slot waktu ini telah melewati jam operasional saat ini.',
+            reason: 'Slot waktu ini telah melewati jam operasional saat ini.',
           },
         });
         continue;

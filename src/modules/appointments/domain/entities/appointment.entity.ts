@@ -1,3 +1,5 @@
+import type { CanonicalSessionName } from '../../../schedules/domain/constants/schedule-shift.constants';
+
 export class AppointmentEntity {
   id: string;
   patientId: string;
@@ -12,7 +14,7 @@ export class AppointmentEntity {
   scheduledStartTime?: string | null;
   scheduledEndTime?: string | null;
   estimatedDurationMinutes?: number;
-  session: 'PAGI' | 'SIANG' | 'MALAM';
+  session: CanonicalSessionName;
   queueNumber: string;
   ticketStatus?: string;
   status:

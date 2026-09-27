@@ -22,18 +22,26 @@ export async function runNotificationLifecycleSeed(): Promise<void> {
   const pool = new Pool({ connectionString: getDatabaseUrl() });
   const client = await pool.connect();
 
-  console.log('--- Starting Notification Lifecycle & Patient History Validation Seed ---');
+  console.log(
+    '--- Starting Notification Lifecycle & Patient History Validation Seed ---',
+  );
 
   try {
     await client.query('BEGIN');
 
     // 1. Resolve Patient, Practitioner, and Service fixtures
-    const patientRes = await client.query<{ id: string; user_id: string; full_name: string }>(
+    const patientRes = await client.query<{
+      id: string;
+      user_id: string;
+      full_name: string;
+    }>(
       `SELECT id, user_id, full_name FROM patient_profiles WHERE user_id IS NOT NULL LIMIT 1`,
     );
 
     if (patientRes.rows.length === 0) {
-      throw new Error('No patient profile found with user_id in database. Run main seed first.');
+      throw new Error(
+        'No patient profile found with user_id in database. Run main seed first.',
+      );
     }
     const patient = patientRes.rows[0];
 
@@ -230,8 +238,12 @@ export async function runNotificationLifecycleSeed(): Promise<void> {
 
     console.log('✅ Validation Seeding Completed Successfully:');
     console.log(`   - Patient: ${patient.full_name} (${patient.user_id})`);
-    console.log(`   - Appointment 1 (Completed): ${apt1Id} (BK-VAL-COMP-01, 1 attempt)`);
-    console.log(`   - Appointment 2 (No-Show):   ${apt2Id} (BK-VAL-NOSHOW-02, 3 attempts)`);
+    console.log(
+      `   - Appointment 1 (Completed): ${apt1Id} (BK-VAL-COMP-01, 1 attempt)`,
+    );
+    console.log(
+      `   - Appointment 2 (No-Show):   ${apt2Id} (BK-VAL-NOSHOW-02, 3 attempts)`,
+    );
     console.log(`   - Appointment 3 (Cancelled): ${apt3Id} (BK-VAL-CANCEL-03)`);
   } catch (error) {
     await client.query('ROLLBACK');
@@ -244,6 +256,9 @@ export async function runNotificationLifecycleSeed(): Promise<void> {
 }
 
 // Execute if run directly
-if (typeof process !== 'undefined' && process.argv[1]?.includes('notification-lifecycle.seed')) {
+if (
+  typeof process !== 'undefined' &&
+  process.argv[1]?.includes('notification-lifecycle.seed')
+) {
   runNotificationLifecycleSeed().catch(() => process.exit(1));
 }

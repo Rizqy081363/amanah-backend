@@ -75,7 +75,8 @@ export class CreateScheduleDto {
   @ApiPropertyOptional({
     enum: CANONICAL_SESSION_NAMES,
     example: 'PAGI',
-    description: 'Sesi giliran praktek dokter (DINI_HARI / PAGI / SIANG / MALAM)',
+    description:
+      'Sesi giliran praktek dokter (DINI_HARI / PAGI / SIANG / MALAM)',
   })
   @Transform(({ value }) => {
     if (typeof value === 'string') {

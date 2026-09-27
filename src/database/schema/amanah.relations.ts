@@ -23,7 +23,9 @@ import {
   notificationActions,
   notificationRecipients,
   notifications,
+  occupations,
   patientAddresses,
+  patientAffiliations,
   patientAllergies,
   patientEmergencyContacts,
   patientProfiles,
@@ -75,6 +77,7 @@ export const usersRelations = relations(users, ({ many }) => ({
     relationName: 'userRoles_userId_users_id',
   }),
   patientProfiles: many(patientProfiles),
+  patientAffiliations: many(patientAffiliations),
   patientAllergies: many(patientAllergies),
   staffProfiles: many(staffProfiles),
   staffCredentials: many(staffCredentials),
@@ -214,6 +217,10 @@ export const clinicServiceComplaintsRelations = relations(
   }),
 );
 
+export const occupationsRelations = relations(occupations, ({ many }) => ({
+  patientProfiles: many(patientProfiles),
+}));
+
 export const patientProfilesRelations = relations(
   patientProfiles,
   ({ one, many }) => ({
@@ -221,6 +228,11 @@ export const patientProfilesRelations = relations(
       fields: [patientProfiles.userId],
       references: [users.id],
     }),
+    occupation: one(occupations, {
+      fields: [patientProfiles.occupationId],
+      references: [occupations.id],
+    }),
+    patientAffiliations: many(patientAffiliations),
     patientAddresses: many(patientAddresses),
     patientEmergencyContacts: many(patientEmergencyContacts),
     patientAllergies: many(patientAllergies),
@@ -230,6 +242,20 @@ export const patientProfilesRelations = relations(
     conversations: many(conversations),
     patientTimelineEvents: many(patientTimelineEvents),
     publicTestimonials: many(publicTestimonials),
+  }),
+);
+
+export const patientAffiliationsRelations = relations(
+  patientAffiliations,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [patientAffiliations.userId],
+      references: [users.id],
+    }),
+    patientProfile: one(patientProfiles, {
+      fields: [patientAffiliations.patientId],
+      references: [patientProfiles.id],
+    }),
   }),
 );
 

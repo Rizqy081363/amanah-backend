@@ -10,7 +10,6 @@ import {
   ACTIVE_APPOINTMENT_STATUSES,
   DEFAULT_TARGET_QUOTA,
 } from '@modules/schedules/domain/constants/schedule.constants';
-import { count } from 'drizzle-orm';
 import type { ScheduleEntity } from '@modules/schedules/domain/entities/schedule.entity';
 import {
   AdminScheduleStatusRequest,
@@ -36,6 +35,7 @@ import {
 import {
   and,
   asc,
+  count,
   desc,
   eq,
   gte,

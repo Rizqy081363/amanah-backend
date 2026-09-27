@@ -1,4 +1,4 @@
-import { describe, expect, it, mock, beforeEach } from 'bun:test';
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
 import { PatientAppointmentHistoryController } from './patient-appointment-history.controller';
 
 describe('PatientAppointmentHistoryController', () => {
@@ -70,10 +70,9 @@ describe('PatientAppointmentHistoryController', () => {
   });
 
   it('should fetch history by patientId for staff/admin', async () => {
-    const result = await controller.getPatientHistory(
-      'patient-prof-123',
-      { status: 'no_show' },
-    );
+    const result = await controller.getPatientHistory('patient-prof-123', {
+      status: 'no_show',
+    });
 
     expect(result.total).toBe(1);
     expect(mockHistoryService.getHistory).toHaveBeenCalledWith(

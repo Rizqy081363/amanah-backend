@@ -1,8 +1,8 @@
-import { describe, expect, it, mock, beforeEach } from 'bun:test';
-import { NotificationOrchestratorService } from './notification-orchestrator.service';
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
 import { DomainEvent } from '../../contracts/domain-event.interface';
-import { NotificationRulesRegistry } from '../../registry/notification-rules-registry';
 import { NotificationEntity } from '../../domain/entities/notification.entity';
+import { NotificationRulesRegistry } from '../../registry/notification-rules-registry';
+import { NotificationOrchestratorService } from './notification-orchestrator.service';
 
 describe('NotificationOrchestratorService', () => {
   let orchestrator: NotificationOrchestratorService;
@@ -17,7 +17,10 @@ describe('NotificationOrchestratorService', () => {
     registry = new NotificationRulesRegistry();
     mockInAppAdapter = {
       channel: 'in_app',
-      deliver: mock().mockResolvedValue({ channel: 'in_app', status: 'delivered' }),
+      deliver: mock().mockResolvedValue({
+        channel: 'in_app',
+        status: 'delivered',
+      }),
     };
 
     orchestrator = new NotificationOrchestratorService(
@@ -66,7 +69,9 @@ describe('NotificationOrchestratorService', () => {
       isRead: false,
     };
 
-    mockNotificationRepo.createIfNotExists.mockResolvedValue(mockPersistedEntity);
+    mockNotificationRepo.createIfNotExists.mockResolvedValue(
+      mockPersistedEntity,
+    );
 
     const event: DomainEvent = {
       eventId: 'evt-call-1',
@@ -87,7 +92,8 @@ describe('NotificationOrchestratorService', () => {
     await orchestrator.processEvent(event);
 
     expect(mockNotificationRepo.createIfNotExists).toHaveBeenCalledTimes(1);
-    const createCallArgs = mockNotificationRepo.createIfNotExists.mock.calls[0][0];
+    const createCallArgs =
+      mockNotificationRepo.createIfNotExists.mock.calls[0][0];
 
     expect(createCallArgs.idempotencyKey).toBe(
       'evt-call-1:user-patient-99:appointment.patient_called.v1',

@@ -106,10 +106,7 @@ export class PatientAppointmentHistoryService {
         estimatedDurationMinutes: sql<number>`coalesce(${practitioners.consultationDurationMinutes}, 30)::int`,
       })
       .from(appointments)
-      .leftJoin(
-        clinicServices,
-        eq(clinicServices.id, appointments.serviceId),
-      )
+      .leftJoin(clinicServices, eq(clinicServices.id, appointments.serviceId))
       .leftJoin(
         practitioners,
         eq(practitioners.id, appointments.practitionerId),
@@ -133,9 +130,7 @@ export class PatientAppointmentHistoryService {
           count: sql<number>`count(*)::int`,
         })
         .from(appointmentCallAttempts)
-        .where(
-          inArray(appointmentCallAttempts.appointmentId, appointmentIds),
-        )
+        .where(inArray(appointmentCallAttempts.appointmentId, appointmentIds))
         .groupBy(appointmentCallAttempts.appointmentId);
 
       for (const row of counts) {
