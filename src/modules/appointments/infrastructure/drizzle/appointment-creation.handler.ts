@@ -54,10 +54,14 @@ export class AppointmentCreationHandler {
     }
 
     let room: typeof clinicRooms.$inferSelect | undefined;
-    if (data.poliklinikId) {
-      room = await db.query.clinicRooms.findFirst({
-        where: eq(clinicRooms.unitId, data.poliklinikId),
-      });
+    const unitRooms = data.poliklinikId
+      ? await db.query.clinicRooms.findMany({
+          where: eq(clinicRooms.unitId, data.poliklinikId),
+        })
+      : [];
+    const unitRoomIds = new Set(unitRooms.map((r) => r.id));
+    if (unitRooms.length > 0) {
+      room = unitRooms[0];
     }
 
     let practitionerId: string | null = null;
@@ -87,18 +91,33 @@ export class AppointmentCreationHandler {
         );
       }
 
-      const candidateSessions =
+      const allCandidateSessions =
         await db.query.practitionerScheduleSessions.findMany({
           where: and(...sessionConditions),
           orderBy: [asc(practitionerScheduleSessions.startTime)],
+          with: {
+            clinicRoom: true,
+          },
         });
 
-      let matchedSession = candidateSessions[0];
-      if (room?.id && candidateSessions.length > 1) {
-        const roomSession = candidateSessions.find(
-          (s) => s.roomId === room?.id,
-        );
-        if (roomSession) matchedSession = roomSession;
+      // Filter sessions strictly to the requested poliklinik
+      const candidateSessions = data.poliklinikId
+        ? allCandidateSessions.filter((s) => {
+            if (s.roomId && unitRoomIds.has(s.roomId)) return true;
+            if (s.clinicRoom?.unitId === data.poliklinikId) return true;
+            return false;
+          })
+        : allCandidateSessions;
+
+      let matchedSession: (typeof allCandidateSessions)[number] | undefined;
+      if (candidateSessions.length > 0) {
+        matchedSession = candidateSessions[0];
+        if (room?.id && candidateSessions.length > 1) {
+          const roomSession = candidateSessions.find(
+            (s) => s.roomId === room?.id,
+          );
+          if (roomSession) matchedSession = roomSession;
+        }
       }
 
       if (matchedSession) {
@@ -106,10 +125,17 @@ export class AppointmentCreationHandler {
         practitionerId = matchedSession.practitionerId;
         startTime = matchedSession.startTime;
         endTime = matchedSession.endTime;
-        if (matchedSession.roomId && !room) {
-          room = await db.query.clinicRooms.findFirst({
-            where: eq(clinicRooms.id, matchedSession.roomId),
-          });
+        if (matchedSession.roomId) {
+          const matchedRoom = unitRooms.find(
+            (r) => r.id === matchedSession.roomId,
+          );
+          if (matchedRoom) {
+            room = matchedRoom;
+          } else {
+            room = await db.query.clinicRooms.findFirst({
+              where: eq(clinicRooms.id, matchedSession.roomId),
+            });
+          }
         }
         if (matchedSession.availableSlots > 0) {
           await db

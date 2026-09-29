@@ -6,14 +6,18 @@ import { PatientAffiliationDrizzleRepository } from './infrastructure/drizzle/pa
 import { OccupationsController } from './presentation/occupations.controller';
 import { PatientAffiliationsController } from './presentation/patient-affiliations.controller';
 import { PatientsController } from './presentation/patients.controller';
+import { PatientReferencesController } from './presentation/patient-references.controller';
+import { IndonesianRegionService } from './infrastructure/services/indonesian-region.service';
 
 @Module({
   controllers: [
     PatientsController,
     PatientAffiliationsController,
     OccupationsController,
+    PatientReferencesController,
   ],
   providers: [
+    IndonesianRegionService,
     {
       provide: PATIENT_REPOSITORY,
       useClass: PatientDrizzleRepository,
@@ -23,6 +27,10 @@ import { PatientsController } from './presentation/patients.controller';
       useClass: PatientAffiliationDrizzleRepository,
     },
   ],
-  exports: [PATIENT_REPOSITORY, PATIENT_AFFILIATION_REPOSITORY],
+  exports: [
+    PATIENT_REPOSITORY,
+    PATIENT_AFFILIATION_REPOSITORY,
+    IndonesianRegionService,
+  ],
 })
 export class PatientsModule {}

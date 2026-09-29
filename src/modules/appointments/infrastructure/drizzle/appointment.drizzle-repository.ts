@@ -54,6 +54,7 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
         practitioner: {
           with: {
             staffProfile: true,
+            medicalSpecialty: true,
           },
         },
       },
@@ -115,6 +116,7 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
         practitioner: {
           with: {
             staffProfile: true,
+            medicalSpecialty: true,
           },
         },
       },
@@ -171,7 +173,7 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
             clinicService: true,
             practitionerScheduleSession: true,
             clinicRoom: { with: { clinicUnit: true } },
-            practitioner: { with: { staffProfile: true } },
+            practitioner: { with: { staffProfile: true, medicalSpecialty: true } },
             queueTickets: true,
           },
         },
@@ -191,7 +193,7 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
         clinicService: true,
         practitionerScheduleSession: true,
         clinicRoom: { with: { clinicUnit: true } },
-        practitioner: { with: { staffProfile: true } },
+        practitioner: { with: { staffProfile: true, medicalSpecialty: true } },
       },
     });
     return records.map((apt) =>
@@ -233,7 +235,7 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
         clinicService: true,
         practitionerScheduleSession: true,
         clinicRoom: { with: { clinicUnit: true } },
-        practitioner: { with: { staffProfile: true } },
+        practitioner: { with: { staffProfile: true, medicalSpecialty: true } },
       },
     });
 
@@ -280,7 +282,7 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
         clinicRoom: { with: { clinicUnit: true } },
         patientProfile: true,
         clinicService: true,
-        practitioner: { with: { staffProfile: true } },
+        practitioner: { with: { staffProfile: true, medicalSpecialty: true } },
       },
     });
 

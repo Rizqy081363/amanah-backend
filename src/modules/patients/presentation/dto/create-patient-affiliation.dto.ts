@@ -72,11 +72,11 @@ export class CreatePatientAffiliationDto {
 
   @ApiPropertyOptional({
     example: 'Perempuan',
-    enum: ['Laki-laki', 'Perempuan'],
+    enum: ['Laki-laki', 'Perempuan', 'L', 'P'],
   })
   @IsOptional()
-  @IsIn(['Laki-laki', 'Perempuan'])
-  gender?: 'Laki-laki' | 'Perempuan';
+  @IsIn(['Laki-laki', 'Perempuan', 'L', 'P'])
+  gender?: 'Laki-laki' | 'Perempuan' | 'L' | 'P';
 
   @ApiPropertyOptional({
     example: 'B',

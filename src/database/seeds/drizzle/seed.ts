@@ -822,15 +822,13 @@ const seedAdminScheduleShowcase = async (
         ? (kiaServiceId ?? fallbackServiceId)
         : fallbackServiceId;
 
-    // Seed dates with pure factory templates: 2 distinct shifts today
+    // Seed dates with pure factory templates: 2 distinct shifts per active date
     const dates = [
       { expr: 'current_date - 1', shift: selectedShift },
       { expr: 'current_date', shift: selectedShift },
       { expr: 'current_date', shift: nextShift },
-      {
-        expr: 'current_date + 1',
-        shift: shifts[(roomUsage + 2) % shifts.length],
-      },
+      { expr: 'current_date + 1', shift: selectedShift },
+      { expr: 'current_date + 1', shift: nextShift },
     ];
 
     for (const d of dates) {

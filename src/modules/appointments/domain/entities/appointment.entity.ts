@@ -10,6 +10,9 @@ export class AppointmentEntity {
   layananName?: string;
   staffId?: string | null;
   doctorName?: string | null;
+  doctorSpecialty?: string | null;
+  roomName?: string | null;
+  roomLocation?: string | null;
   appointmentDate: string;
   scheduledStartTime?: string | null;
   scheduledEndTime?: string | null;

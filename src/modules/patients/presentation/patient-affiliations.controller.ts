@@ -122,7 +122,8 @@ export class PatientAffiliationsController {
         }
         const rmNumber = `${prefix}${String(nextSequence).padStart(4, '0')}`;
 
-        const dbGender = dto.gender === 'Perempuan' ? 'female' : 'male';
+        const dbGender =
+          dto.gender === 'Perempuan' || dto.gender === 'P' ? 'female' : 'male';
         const bloodTypeMap: Record<string, 'a' | 'b' | 'ab' | 'o' | 'unknown'> =
           {
             A: 'a',

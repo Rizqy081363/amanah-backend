@@ -62,6 +62,9 @@ export class AppointmentRecordMapper {
         apt.practitioner?.staffProfile?.fullName ||
         apt.practitioner?.name ||
         'Dokter Amanah',
+      doctorSpecialty: apt.practitioner?.medicalSpecialty?.name || null,
+      roomName: apt.clinicRoom?.name || null,
+      roomLocation: apt.clinicRoom?.location || null,
       appointmentDate: apt.scheduledDate,
       scheduledStartTime: apt.scheduledStartTime || null,
       scheduledEndTime: apt.scheduledEndTime || null,

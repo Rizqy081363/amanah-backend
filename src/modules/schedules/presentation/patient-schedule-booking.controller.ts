@@ -23,6 +23,7 @@ import {
 import { DRIZZLE_SOURCE } from '../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../database/drizzle/drizzle.provider';
 import {
+  clinicRooms,
   clinicSchedulePolicies,
   clinicUnits,
   practitionerScheduleSessions,
@@ -96,14 +97,21 @@ export class PatientScheduleBookingController {
     });
     const estimatedDuration = policy?.defaultConsultationDurationMinutes ?? 30;
 
-    // Fetch poliklinik if specified
-    let unitName = 'Poli Umum';
+    // Fetch poliklinik and rooms if specified
+    let unitName: string | null = null;
+    let unitRooms: Array<typeof clinicRooms.$inferSelect> = [];
     if (poliklinikId) {
       const unit = await this.db.query.clinicUnits.findFirst({
         where: eq(clinicUnits.id, poliklinikId),
       });
-      if (unit) unitName = unit.name;
+      if (unit) {
+        unitName = unit.name;
+        unitRooms = await this.db.query.clinicRooms.findMany({
+          where: eq(clinicRooms.unitId, poliklinikId),
+        });
+      }
     }
+    const unitRoomIds = new Set(unitRooms.map((r) => r.id));
 
     // Query active schedule sessions on this date
     const sessions = await this.db.query.practitionerScheduleSessions.findMany({
@@ -164,6 +172,15 @@ export class PatientScheduleBookingController {
           return false;
         }
 
+        if (poliklinikId) {
+          const roomUnitId = s.clinicRoom?.unitId;
+          const matchesRoomUnit = roomUnitId ? roomUnitId === poliklinikId : false;
+          const matchesRoomId = s.roomId ? unitRoomIds.has(s.roomId) : false;
+          if (!matchesRoomUnit && !matchesRoomId) {
+            return false;
+          }
+        }
+
         if (s.sessionShift) {
           return s.sessionShift === shiftDef.shift;
         }
@@ -185,7 +202,7 @@ export class PatientScheduleBookingController {
           availableSlots: 0,
           bookedSlots: 0,
           isDisabled: true,
-          disabledReason: 'Dokter tidak ada jadwal praktik pada sesi ini',
+          disabledReason: 'Dokter/bidan tidak ada jadwal praktik pada sesi ini',
           practitioners: [],
         };
       }
@@ -203,8 +220,8 @@ export class PatientScheduleBookingController {
         staffProfileId: s.practitioner.staffProfileId,
         sessionId: s.id,
         name: s.practitioner.displayName,
-        avatarUrl: s.practitioner.staffProfile.avatarUrl || null,
-        specialty: s.practitioner.medicalSpecialty?.name || 'Dokter Umum',
+        avatarUrl: s.practitioner.staffProfile?.avatarUrl || null,
+        specialty: s.practitioner.medicalSpecialty?.name || '',
         roomName: s.clinicRoom?.name || 'Ruang Konsultasi',
         startTime: s.startTime,
         endTime: s.endTime,
