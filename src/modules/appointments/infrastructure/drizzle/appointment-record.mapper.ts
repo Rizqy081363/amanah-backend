@@ -49,10 +49,22 @@ export class AppointmentRecordMapper {
       apt.clinicRoom?.clinicUnit?.id ||
       '';
 
+    const patientUserId = apt.patientProfile?.userId || null;
+    const patientAvatarUrl =
+      apt.patientProfile?.avatarUrl ||
+      (patientUserId ? `/api/v1/users/${patientUserId}/avatar` : null);
+
+    const doctorUserId = apt.practitioner?.staffProfile?.userId || null;
+    const doctorAvatarUrl =
+      apt.practitioner?.staffProfile?.avatarUrl ||
+      (doctorUserId ? `/api/v1/users/${doctorUserId}/avatar` : null);
+
     return {
       id: apt.id,
       patientId: apt.patientId,
+      patientUserId,
       patientName: apt.patientProfile?.fullName || 'Pasien Amanah',
+      patientAvatarUrl,
       poliklinikId: poliId,
       poliklinikName: apt.clinicRoom?.clinicUnit?.name || 'Poliklinik Amanah',
       layananId: apt.serviceId,
@@ -63,6 +75,7 @@ export class AppointmentRecordMapper {
         apt.practitioner?.name ||
         'Dokter Amanah',
       doctorSpecialty: apt.practitioner?.medicalSpecialty?.name || null,
+      doctorAvatarUrl,
       roomName: apt.clinicRoom?.name || null,
       roomLocation: apt.clinicRoom?.location || null,
       appointmentDate: apt.scheduledDate,

@@ -96,6 +96,47 @@ describe('SocketIoRealtimeGateway', () => {
     expect(gateway.getConnectedUserCount()).toBe(1);
   });
 
+  it('should authenticate user from HttpOnly cookie and join role room', async () => {
+    mockJwtService.verifyAsync.mockResolvedValue({
+      id: 'admin-1',
+      systemRole: 'ADMIN',
+    });
+
+    const mockSocket: any = {
+      id: 'socket-admin',
+      handshake: {
+        headers: {
+          cookie: 'amanah_access_token=valid-cookie-token; other_cookie=xyz',
+        },
+      },
+      disconnect: mock(),
+      join: mock(),
+      data: {},
+    };
+
+    await gateway.handleConnection(mockSocket);
+
+    expect(mockSocket.disconnect).not.toHaveBeenCalled();
+    expect(mockSocket.join).toHaveBeenCalledWith('user:admin-1');
+    expect(mockSocket.join).toHaveBeenCalledWith('role:admin');
+    expect(gateway.isUserOnline('admin-1')).toBe(true);
+  });
+
+  it('should emit to role room via Socket.IO server', async () => {
+    const mockEmit = mock();
+    mockServer.to.mockReturnValue({ emit: mockEmit });
+
+    const success = await gateway.emitToRole('admin', 'notification:new', {
+      title: 'Alert Admin',
+    });
+
+    expect(success).toBe(true);
+    expect(mockServer.to).toHaveBeenCalledWith('role:admin');
+    expect(mockEmit).toHaveBeenCalledWith('notification:new', {
+      title: 'Alert Admin',
+    });
+  });
+
   it('should track multiple sockets for the same user and untrack on disconnect', async () => {
     mockJwtService.verifyAsync.mockResolvedValue({
       id: 'user-multi',

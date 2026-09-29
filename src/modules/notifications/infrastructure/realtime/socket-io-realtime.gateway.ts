@@ -95,6 +95,13 @@ export class SocketIoRealtimeGateway
       client.data.user = payload;
 
       await client.join(REALTIME_ROOMS.user(payload.id));
+      const roleCode =
+        payload.systemRole ||
+        payload.role?.name ||
+        (typeof payload.role === 'string' ? payload.role : null);
+      if (roleCode && typeof roleCode === 'string') {
+        await client.join(REALTIME_ROOMS.role(roleCode));
+      }
       this.trackSocket(payload.id, client.id);
 
       this.logger.debug(
@@ -135,6 +142,23 @@ export class SocketIoRealtimeGateway
     return true;
   }
 
+  async emitToRole(
+    roleName: string,
+    event: string,
+    payload: unknown,
+  ): Promise<boolean> {
+    if (!this.server) {
+      this.logger.warn(
+        `Cannot emit event "${event}" to role ${roleName}: server not ready`,
+      );
+      return false;
+    }
+
+    const room = REALTIME_ROOMS.role(roleName);
+    this.server.to(room).emit(event, payload);
+    return true;
+  }
+
   isUserOnline(userId: string): boolean {
     return (this.userSockets.get(userId)?.size ?? 0) > 0;
   }
@@ -159,6 +183,15 @@ export class SocketIoRealtimeGateway
     const queryToken = client.handshake.query?.token;
     if (queryToken && typeof queryToken === 'string') {
       return queryToken.trim();
+    }
+
+    // Extract HttpOnly cookie (amanah_access_token) from web browser handshake
+    const cookieHeader = client.handshake.headers?.cookie;
+    if (cookieHeader && typeof cookieHeader === 'string') {
+      const match = cookieHeader.match(/amanah_access_token=([^;]+)/);
+      if (match?.[1]) {
+        return decodeURIComponent(match[1].trim());
+      }
     }
 
     return null;

@@ -3,7 +3,9 @@ import type { CanonicalSessionName } from '../../../schedules/domain/constants/s
 export class AppointmentEntity {
   id: string;
   patientId: string;
+  patientUserId?: string | null;
   patientName?: string;
+  patientAvatarUrl?: string | null;
   poliklinikId: string;
   poliklinikName?: string;
   layananId: string;
@@ -11,6 +13,7 @@ export class AppointmentEntity {
   staffId?: string | null;
   doctorName?: string | null;
   doctorSpecialty?: string | null;
+  doctorAvatarUrl?: string | null;
   roomName?: string | null;
   roomLocation?: string | null;
   appointmentDate: string;

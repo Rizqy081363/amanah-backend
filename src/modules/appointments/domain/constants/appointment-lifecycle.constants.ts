@@ -10,6 +10,8 @@ export type AppointmentCallStatus =
   (typeof APPOINTMENT_CALL_STATUS)[keyof typeof APPOINTMENT_CALL_STATUS];
 
 export const APPOINTMENT_EVENTS = {
+  CREATED: 'appointment.created.v1',
+  NEW_BOOKING_ALERT: 'appointment.new_booking_alert.v1',
   PATIENT_CALLED: 'appointment.patient_called.v1',
   PATIENT_REQUEUED: 'appointment.patient_requeued.v1',
   PATIENT_RESPONDED: 'appointment.patient_responded.v1',

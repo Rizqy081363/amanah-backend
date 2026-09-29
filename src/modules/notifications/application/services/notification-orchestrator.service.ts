@@ -38,7 +38,9 @@ export class NotificationOrchestratorService {
       return;
     }
 
-    const rawRecipients = rule.resolveRecipients(event.payload);
+    const rawRecipients = await Promise.resolve(
+      rule.resolveRecipients(event.payload),
+    );
     const recipients = Array.isArray(rawRecipients)
       ? rawRecipients
       : [rawRecipients];
@@ -71,6 +73,29 @@ export class NotificationOrchestratorService {
     const source = rule.resolveSource?.(event.payload);
     const actions = rule.resolveActions?.(event.payload);
 
+    const resolvedSenderName =
+      typeof rule.senderName === 'function'
+        ? rule.senderName(event.payload)
+        : (rule.senderName ?? 'Sistem Pendaftaran');
+
+    const rawRole = event.actor?.roleCode;
+    const resolvedRole =
+      typeof rawRole === 'object' && rawRole
+        ? (rawRole as any).name
+        : typeof rawRole === 'string'
+          ? rawRole
+          : 'Pendaftaran';
+
+    const resolvedSenderRole =
+      typeof rule.senderRole === 'function'
+        ? rule.senderRole(event.payload)
+        : (rule.senderRole ?? resolvedRole);
+
+    const resolvedVisualKey =
+      typeof rule.visualKey === 'function'
+        ? rule.visualKey(event.payload)
+        : (rule.visualKey ?? null);
+
     for (const recipientId of validRecipients) {
       const idempotencyKey = `${event.eventId}:${recipientId}:${event.eventType}`;
 
@@ -80,11 +105,11 @@ export class NotificationOrchestratorService {
           category: rule.category,
           title,
           body,
-          senderName: event.actor?.roleCode ?? null,
-          senderRole: event.actor?.roleCode ?? null,
+          senderName: resolvedSenderName,
+          senderRole: resolvedSenderRole,
           badgeIcon: rule.badgeIcon,
           metaIcon: rule.metaIcon,
-          visualKey: rule.visualKey,
+          visualKey: resolvedVisualKey ?? null,
           isUrgent,
           sourceType: source?.sourceType ?? null,
           sourceId: source?.sourceId ?? null,
@@ -93,6 +118,7 @@ export class NotificationOrchestratorService {
             eventType: event.eventType,
             correlationId: event.correlationId,
             occurredAt: event.occurredAt,
+            ...event.payload,
           },
           recipientUserIds: [recipientId],
           actions,

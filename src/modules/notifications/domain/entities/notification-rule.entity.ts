@@ -7,12 +7,16 @@ export interface NotificationRule<TPayload = any> {
   eventType: string;
   defaultChannels: NotificationChannel[];
   category: NotificationCategoryType;
-  resolveRecipients: (payload: TPayload) => string | string[];
+  resolveRecipients: (
+    payload: TPayload,
+  ) => string | string[] | Promise<string | string[]>;
   titleTemplate: string | ((payload: TPayload) => string);
   bodyTemplate: string | ((payload: TPayload) => string);
+  senderName?: string | ((payload: TPayload) => string);
+  senderRole?: string | ((payload: TPayload) => string);
   badgeIcon?: string;
   metaIcon?: string;
-  visualKey?: string;
+  visualKey?: string | ((payload: TPayload) => string | undefined | null);
   isUrgent?: boolean | ((payload: TPayload) => boolean);
   resolveSource?: (payload: TPayload) => {
     sourceType: string;

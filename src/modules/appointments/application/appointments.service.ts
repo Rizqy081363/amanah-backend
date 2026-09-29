@@ -1,30 +1,15 @@
-import {
-  ForbiddenException,
-  Inject,
-  Injectable,
-  Logger,
-  NotFoundException,
-  Optional,
-} from '@nestjs/common';
+import { ForbiddenException, Inject, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { DEFAULT_PAGE_SIZE } from '../../../common/constants';
-import {
-  AppointmentCreatedEvent,
-  AppointmentStatusChangedEvent,
-} from '../../../common/events';
-import {
-  OutboxEventRecord,
-  OutboxService,
-  OutboxWorker,
-} from '../../../common/outbox';
+import { AppointmentCreatedEvent, AppointmentStatusChangedEvent } from '../../../common/events';
+import { randomUUID } from 'crypto';
+import { OutboxEventRecord, OutboxService, OutboxWorker } from '../../../common/outbox';
 import { RedisService } from '../../../common/redis/redis.service';
-import { APPOINTMENT_LIFECYCLE_EVENTS } from '../domain/constants/appointment-lifecycle.constants';
+import { type DomainEvent, type NotificationPublisher } from '../../notifications/contracts/domain-event.interface';
+import { NOTIFICATION_PUBLISHER } from '../../notifications/notifications.constants';
+import { APPOINTMENT_EVENTS, APPOINTMENT_LIFECYCLE_EVENTS } from '../domain/constants/appointment-lifecycle.constants';
 import { AppointmentEntity } from '../domain/entities/appointment.entity';
-import {
-  APPOINTMENT_REPOSITORY,
-  AppointmentFindAllResult,
-  AppointmentRepository,
-} from '../domain/repositories/appointment.repository';
+import { APPOINTMENT_REPOSITORY, AppointmentFindAllResult, AppointmentRepository } from '../domain/repositories/appointment.repository';
 import { AdminUpdateAppointmentStatusDto } from '../presentation/dto/admin-update-appointment-status.dto';
 import { CancelAppointmentDto } from '../presentation/dto/cancel-appointment.dto';
 import { CreateAppointmentDto } from '../presentation/dto/create-appointment.dto';
@@ -49,6 +34,9 @@ export class AppointmentsService {
     private readonly outboxService?: OutboxService,
     @Optional()
     private readonly outboxWorker?: OutboxWorker,
+    @Optional()
+    @Inject(NOTIFICATION_PUBLISHER)
+    private readonly notificationPublisher?: NotificationPublisher,
   ) {}
 
   async createAppointment(
@@ -117,6 +105,49 @@ export class AppointmentsService {
         },
       ),
     );
+
+    if (this.notificationPublisher) {
+      try {
+        const domainEvent: DomainEvent = {
+          eventId: randomUUID(),
+          eventType: APPOINTMENT_EVENTS.CREATED,
+          version: 1,
+          occurredAt: new Date().toISOString(),
+          module: 'appointments',
+          payload: {
+            appointmentId: created.id,
+            patientId: created.patientId,
+            patientUserId: created.patientUserId || user?.id || user?.sub,
+            patientName: created.patientName || user?.name || 'Pasien',
+            patientAvatarUrl: created.patientAvatarUrl || null,
+            poliklinikId: created.poliklinikId,
+            poliklinikName: created.poliklinikName || null,
+            layananId: created.layananId,
+            layananName: created.layananName || null,
+            doctorName: created.doctorName || null,
+            doctorAvatarUrl: created.doctorAvatarUrl || null,
+            appointmentDate: created.appointmentDate,
+            session: created.session,
+            queueNumber: created.queueNumber,
+            status: created.status,
+            visitType: created.visitType,
+            complaint: created.complaint || null,
+          },
+          actor: {
+            userId: user?.id || user?.sub,
+            roleCode:
+              typeof user?.role === 'object' && user?.role
+                ? user.role.name
+                : user?.role || user?.systemRole || 'PATIENT',
+          },
+        };
+        await this.notificationPublisher.publish(domainEvent);
+      } catch (pubError) {
+        this.logger.warn(
+          `Failed to publish notification event on appointment creation: ${pubError}`,
+        );
+      }
+    }
 
     await this.invalidateQueueCaches();
     return created;
@@ -225,26 +256,14 @@ export class AppointmentsService {
     user?: any,
     expectedVersion?: string,
   ): Promise<AppointmentEntity> {
-    const current = await this.appointmentRepo.findById(id);
-    const updated = await this.appointmentRepo.updateStatus(
+    return this.transitionAppointmentStatus(
       id,
-      'MENUNGGU',
-      undefined,
-      undefined,
-      expectedVersion,
-    );
-    if (!updated) {
-      throw new NotFoundException(`Kunjungan dengan ID ${id} tidak ditemukan`);
-    }
-
-    await this.emitStatusChangeEvent(
-      id,
-      current?.status || null,
       'MENUNGGU',
       'Check-in kedatangan pasien',
-      { userId: user?.id || user?.sub, roleCode: user?.role },
+      undefined,
+      user,
+      expectedVersion,
     );
-    return updated;
   }
 
   async callPatient(
@@ -253,26 +272,14 @@ export class AppointmentsService {
     user?: any,
     expectedVersion?: string,
   ): Promise<AppointmentEntity> {
-    const current = await this.appointmentRepo.findById(id);
-    const updated = await this.appointmentRepo.updateStatus(
+    return this.transitionAppointmentStatus(
       id,
-      'SEDANG_DIPERIKSA',
-      practitionerId,
-      undefined,
-      expectedVersion,
-    );
-    if (!updated) {
-      throw new NotFoundException(`Kunjungan dengan ID ${id} tidak ditemukan`);
-    }
-
-    await this.emitStatusChangeEvent(
-      id,
-      current?.status || null,
       'SEDANG_DIPERIKSA',
       'Panggilan pasien masuk ruang periksa',
-      { userId: user?.id || user?.sub, roleCode: user?.role },
+      practitionerId,
+      user,
+      expectedVersion,
     );
-    return updated;
   }
 
   async complete(
@@ -280,26 +287,14 @@ export class AppointmentsService {
     user?: any,
     expectedVersion?: string,
   ): Promise<AppointmentEntity> {
-    const current = await this.appointmentRepo.findById(id);
-    const updated = await this.appointmentRepo.updateStatus(
+    return this.transitionAppointmentStatus(
       id,
-      'SELESAI',
-      undefined,
-      undefined,
-      expectedVersion,
-    );
-    if (!updated) {
-      throw new NotFoundException(`Kunjungan dengan ID ${id} tidak ditemukan`);
-    }
-
-    await this.emitStatusChangeEvent(
-      id,
-      current?.status || null,
       'SELESAI',
       'Pemeriksaan medis selesai',
-      { userId: user?.id || user?.sub, roleCode: user?.role },
+      undefined,
+      user,
+      expectedVersion,
     );
-    return updated;
   }
 
   async cancel(
@@ -308,26 +303,16 @@ export class AppointmentsService {
     user?: any,
     expectedVersion?: string,
   ): Promise<AppointmentEntity> {
-    const current = await this.appointmentRepo.findById(id);
-    const updated = await this.appointmentRepo.updateStatus(
+    const finalReason = reason || 'Dibatalkan oleh pasien';
+    return this.transitionAppointmentStatus(
       id,
       'BATAL',
+      finalReason,
       undefined,
-      reason || 'Dibatalkan oleh pasien',
+      user,
       expectedVersion,
+      finalReason,
     );
-    if (!updated) {
-      throw new NotFoundException(`Kunjungan dengan ID ${id} tidak ditemukan`);
-    }
-
-    await this.emitStatusChangeEvent(
-      id,
-      current?.status || null,
-      'BATAL',
-      reason || 'Dibatalkan oleh pasien',
-      { userId: user?.id || user?.sub, roleCode: user?.role },
-    );
-    return updated;
   }
 
   async updateStatus(
@@ -336,12 +321,32 @@ export class AppointmentsService {
     user?: any,
     expectedVersion?: string,
   ): Promise<AppointmentEntity> {
+    return this.transitionAppointmentStatus(
+      id,
+      dto.status,
+      dto.cancellationReason || '',
+      undefined,
+      user,
+      expectedVersion,
+      dto.cancellationReason,
+    );
+  }
+
+  private async transitionAppointmentStatus(
+    id: string,
+    status: AppointmentEntity['status'],
+    reason: string,
+    practitionerId?: string,
+    user?: any,
+    expectedVersion?: string,
+    cancellationReason?: string,
+  ): Promise<AppointmentEntity> {
     const current = await this.appointmentRepo.findById(id);
     const updated = await this.appointmentRepo.updateStatus(
       id,
-      dto.status,
-      undefined,
-      dto.cancellationReason,
+      status,
+      practitionerId,
+      cancellationReason,
       expectedVersion,
     );
     if (!updated) {
@@ -351,8 +356,8 @@ export class AppointmentsService {
     await this.emitStatusChangeEvent(
       id,
       current?.status || null,
-      dto.status,
-      dto.cancellationReason || '',
+      status,
+      reason,
       { userId: user?.id || user?.sub, roleCode: user?.role },
     );
     return updated;

@@ -98,4 +98,55 @@ describe('AppointmentsNotificationRules', () => {
       'Konsultasi dan pemeriksaan medis di Poli Umum telah selesai',
     );
   });
+
+  it('should register appointment created rule for patient and staff alert', async () => {
+    const mockResolver = {
+      resolveAdminAndStaffUserIds: async () => ['staff-1', 'admin-1'],
+    };
+    const localRules = new AppointmentsNotificationRules(
+      registry,
+      mockResolver as any,
+    );
+    localRules.onModuleInit();
+
+    const rule = registry.get(APPOINTMENT_EVENTS.CREATED);
+    expect(rule).toBeDefined();
+    expect(rule?.category).toBe('appointment');
+    expect(rule?.defaultChannels).toEqual(['in_app']);
+
+    const payload = {
+      patientUserId: 'patient-123',
+      patientName: 'Dewi Lestari',
+      patientAvatarUrl: 'https://cdn.amanah.com/avatars/dewi.webp',
+      queueNumber: 'P-005',
+      appointmentDate: '2026-09-30',
+      session: 'PAGI',
+      appointmentId: 'apt-created-123',
+    };
+
+    const recipients = await rule?.resolveRecipients(payload);
+    expect(recipients).toContain('patient-123');
+    expect(recipients).toContain('staff-1');
+    expect(recipients).toContain('admin-1');
+
+    const body =
+      typeof rule?.bodyTemplate === 'function'
+        ? rule.bodyTemplate(payload)
+        : rule?.bodyTemplate;
+    expect(body).toContain('Nomor antrean P-005');
+    expect(body).toContain('atas nama Dewi Lestari');
+    expect(body).toContain('2026-09-30');
+
+    const senderName =
+      typeof rule?.senderName === 'function'
+        ? rule.senderName(payload)
+        : rule?.senderName;
+    expect(senderName).toBe('Dewi Lestari');
+
+    const visualKey =
+      typeof rule?.visualKey === 'function'
+        ? rule.visualKey(payload)
+        : rule?.visualKey;
+    expect(visualKey).toBe('https://cdn.amanah.com/avatars/dewi.webp');
+  });
 });

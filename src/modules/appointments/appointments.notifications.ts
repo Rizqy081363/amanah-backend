@@ -1,12 +1,56 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable, OnModuleInit, Optional } from '@nestjs/common';
 import { NotificationRulesRegistry } from '../notifications/registry/notification-rules-registry';
 import { APPOINTMENT_EVENTS } from './domain/constants/appointment-lifecycle.constants';
+import { AppointmentRecipientResolver } from './infrastructure/resolvers/appointment-recipient.resolver';
 
 @Injectable()
 export class AppointmentsNotificationRules implements OnModuleInit {
-  constructor(private readonly registry: NotificationRulesRegistry) {}
+  constructor(
+    private readonly registry: NotificationRulesRegistry,
+    @Optional()
+    private readonly recipientResolver?: AppointmentRecipientResolver,
+  ) {}
 
   onModuleInit(): void {
+    // 0. Appointment Created Rule (Patient confirmation & Clinic Staff Alert)
+    this.registry.registerRule({
+      eventType: APPOINTMENT_EVENTS.CREATED,
+      category: 'appointment',
+      defaultChannels: ['in_app'],
+      resolveRecipients: async (payload: any) => {
+        const recipients: string[] = [];
+        if (payload.patientUserId) {
+          recipients.push(payload.patientUserId);
+        }
+        if (this.recipientResolver) {
+          const staffUserIds =
+            await this.recipientResolver.resolveAdminAndStaffUserIds();
+          recipients.push(...staffUserIds);
+        }
+        return Array.from(new Set(recipients));
+      },
+      titleTemplate: 'Pendaftaran Janji Temu Berhasil',
+      bodyTemplate: (payload: any) =>
+        `Nomor antrean ${payload.queueNumber || '-'} atas nama ${payload.patientName || 'Pasien'} telah berhasil dikonfirmasi untuk tanggal ${payload.appointmentDate} (Sesi ${payload.session}).`,
+      senderName: (payload: any) => payload.patientName || 'Pasien',
+      senderRole: 'Pasien',
+      visualKey: (payload: any) => payload.patientAvatarUrl || null,
+      isUrgent: false,
+      badgeIcon: 'calendar',
+      resolveSource: (payload: any) => ({
+        sourceType: 'appointment',
+        sourceId: payload.appointmentId,
+      }),
+      resolveActions: (payload: any) => [
+        {
+          label: 'Lihat Antrean',
+          actionKey: 'view_appointment',
+          actionType: 'primary',
+          url: `/dashboard/appointments/${payload.appointmentId}`,
+        },
+      ],
+    });
+
     // 1. Patient Called Rule
     this.registry.registerRule({
       eventType: APPOINTMENT_EVENTS.PATIENT_CALLED,

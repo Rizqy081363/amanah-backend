@@ -137,4 +137,56 @@ describe('NotificationOrchestratorService', () => {
     expect(mockNotificationRepo.createIfNotExists).toHaveBeenCalledTimes(1);
     expect(mockInAppAdapter.deliver).not.toHaveBeenCalled();
   });
+
+  it('should support async resolveRecipients and deliver to all resolved recipients', async () => {
+    registry.registerRule({
+      eventType: 'appointment.created.v1',
+      category: 'appointment',
+      defaultChannels: ['in_app'],
+      resolveRecipients: async (payload: any) => [
+        payload.patientUserId,
+        'admin-user-1',
+        'staff-user-2',
+      ],
+      titleTemplate: 'Pendaftaran Berhasil',
+      bodyTemplate: 'Antrean telah tercatat.',
+    });
+
+    mockNotificationRepo.createIfNotExists.mockImplementation(async (data: any) => ({
+      id: `notif-${data.idempotencyKey}`,
+      category: data.category,
+      title: data.title,
+      body: data.body,
+      isUrgent: false,
+      createdAt: '2026-09-29T00:00:00Z',
+      updatedAt: '2026-09-29T00:00:00Z',
+      isRead: false,
+    }));
+
+    const event: DomainEvent = {
+      eventId: 'evt-async-1',
+      eventType: 'appointment.created.v1',
+      version: 1,
+      occurredAt: '2026-09-29T00:00:00Z',
+      module: 'appointments',
+      payload: { patientUserId: 'patient-456' },
+    };
+
+    await orchestrator.processEvent(event);
+
+    expect(mockNotificationRepo.createIfNotExists).toHaveBeenCalledTimes(3);
+    expect(mockInAppAdapter.deliver).toHaveBeenCalledTimes(3);
+    expect(mockInAppAdapter.deliver).toHaveBeenCalledWith(
+      expect.anything(),
+      'patient-456',
+    );
+    expect(mockInAppAdapter.deliver).toHaveBeenCalledWith(
+      expect.anything(),
+      'admin-user-1',
+    );
+    expect(mockInAppAdapter.deliver).toHaveBeenCalledWith(
+      expect.anything(),
+      'staff-user-2',
+    );
+  });
 });

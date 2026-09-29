@@ -34,4 +34,5 @@ export const REALTIME_EVENTS = {
 
 export const REALTIME_ROOMS = {
   user: (userId: string) => `user:${userId}`,
+  role: (roleName: string) => `role:${roleName.toLowerCase()}`,
 } as const;
