@@ -1,13 +1,6 @@
+import { APPOINTMENT_STATUS_BADGE_MAP } from '@modules/schedules/domain/constants/schedule.constants';
 import type { BookedPatientEntity } from '@modules/schedules/domain/entities/schedule.entity';
-
-const STATUS_BADGE_MAP: Record<string, string> = {
-  booked: 'Booked',
-  checked_in: 'Check In',
-  waiting: 'Menunggu',
-  in_service: 'Pemeriksaan',
-  completed: 'Selesai',
-  cancelled: 'Dibatalkan',
-};
+import { AppointmentTemporalStatusHelper } from '@modules/appointments/domain/helpers/appointment-temporal-status.helper';
 
 export class BookedPatientMapper {
   static calculateAgeString(birthDate?: string | Date | null): string {
@@ -48,8 +41,16 @@ export class BookedPatientMapper {
       apt.practitionerScheduleSession?.clinicRoom?.name ||
       'Ruang Periksa';
 
-    const status = apt.status;
-    const statusBadge = STATUS_BADGE_MAP[status] || status;
+    const isElapsed = AppointmentTemporalStatusHelper.isElapsed({
+      scheduledDate: apt.scheduledDate,
+      scheduledStartTime: apt.scheduledStartTime,
+      scheduledEndTime: apt.scheduledEndTime,
+    });
+    const status = AppointmentTemporalStatusHelper.resolveDbStatus(
+      apt.status,
+      isElapsed,
+    );
+    const statusBadge = APPOINTMENT_STATUS_BADGE_MAP[status] || status;
 
     return {
       id: apt.patientProfile?.id || apt.patientId,

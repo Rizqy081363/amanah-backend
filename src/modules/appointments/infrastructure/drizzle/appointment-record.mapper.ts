@@ -7,6 +7,7 @@ import {
   SHIFT_TO_SESSION_MAP,
 } from '../../../schedules/domain/constants/schedule-shift.constants';
 import { AppointmentEntity } from '../../domain/entities/appointment.entity';
+import { AppointmentTemporalStatusHelper } from '../../domain/helpers/appointment-temporal-status.helper';
 
 export class AppointmentRecordMapper {
   static resolveSession(apt: any): CanonicalSessionName {
@@ -30,16 +31,17 @@ export class AppointmentRecordMapper {
     ticket?: any | null,
     poliklinikIdOverride?: string,
   ): AppointmentEntity {
-    let entityStatus: AppointmentEntity['status'] = 'SUDAH_BUAT_JANJI';
-    if (apt.status === 'in_service') {
-      entityStatus = 'SEDANG_DIPERIKSA';
-    } else if (apt.status === 'completed') {
-      entityStatus = 'SELESAI';
-    } else if (apt.status === 'cancelled') {
-      entityStatus = 'BATAL';
-    } else if (apt.status === 'waiting' || apt.status === 'checked_in') {
-      entityStatus = 'MENUNGGU';
-    }
+    const isElapsed = AppointmentTemporalStatusHelper.isElapsed({
+      scheduledDate: apt.scheduledDate,
+      scheduledStartTime: apt.scheduledStartTime,
+      scheduledEndTime: apt.scheduledEndTime,
+      estimatedDurationMinutes:
+        apt.practitioner?.consultationDurationMinutes ?? 30,
+    });
+    const entityStatus = AppointmentTemporalStatusHelper.resolveEntityStatus(
+      apt.status,
+      isElapsed,
+    );
 
     const session = AppointmentRecordMapper.resolveSession(apt);
 

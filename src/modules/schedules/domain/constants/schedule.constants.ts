@@ -9,6 +9,16 @@ export const ACTIVE_APPOINTMENT_STATUSES = [
 
 export const INACTIVE_APPOINTMENT_STATUSES = ['cancelled', 'no_show'] as const;
 
+export const APPOINTMENT_STATUS_BADGE_MAP: Record<string, string> = {
+  booked: 'Booked',
+  checked_in: 'Menunggu',
+  waiting: 'Menunggu',
+  in_service: 'Di Sesi',
+  completed: 'Selesai',
+  cancelled: 'Batal',
+  no_show: 'Terlambat',
+};
+
 export const DEFAULT_CONSULTATION_DURATION_MINUTES = 30;
 export const DEFAULT_START_PRECISION_MINUTES = 1;
 export const DEFAULT_TARGET_QUOTA = 8;

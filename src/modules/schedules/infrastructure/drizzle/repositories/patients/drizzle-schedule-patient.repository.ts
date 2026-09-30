@@ -5,6 +5,7 @@ import {
   practitionerScheduleSessions,
   practitioners,
 } from '@database/schema';
+import { APPOINTMENT_STATUS_BADGE_MAP } from '@modules/schedules/domain/constants/schedule.constants';
 import { resolveCanonicalShift } from '@modules/schedules/domain/constants/schedule-shift.constants';
 import type {
   AdminDoctorAccumulatedPatientsResponse,
@@ -18,16 +19,7 @@ import type { GetAdminDoctorPatientsQueryDto } from '@modules/schedules/presenta
 import type { GetSessionPatientsQueryDto } from '@modules/schedules/presentation/dto/get-session-patients-query.dto';
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { and, asc, eq, gte, inArray, lt, or } from 'drizzle-orm';
-
-const STATUS_BADGE_MAP: Record<string, string> = {
-  booked: 'Booked',
-  checked_in: 'Menunggu',
-  waiting: 'Menunggu',
-  in_service: 'Di Sesi',
-  completed: 'Selesai',
-  cancelled: 'Batal',
-  no_show: 'Terlambat',
-};
+import { AppointmentTemporalStatusHelper } from '@modules/appointments/domain/helpers/appointment-temporal-status.helper';
 
 @Injectable()
 export class DrizzleSchedulePatientRepository {
@@ -211,12 +203,25 @@ export class DrizzleSchedulePatientRepository {
         : '08:30';
       const timeSlot = `${startTime} - ${endTime} WIB`;
 
-      const statusBadge = STATUS_BADGE_MAP[apt.status] || apt.status;
+      const isElapsed = AppointmentTemporalStatusHelper.isElapsed({
+        scheduledDate: apt.scheduledDate,
+        scheduledStartTime: apt.scheduledStartTime,
+        scheduledEndTime: apt.scheduledEndTime,
+      });
+
+      const effectiveStatus = AppointmentTemporalStatusHelper.resolveDbStatus(
+        apt.status,
+        isElapsed,
+      );
+
+      const statusBadge =
+        APPOINTMENT_STATUS_BADGE_MAP[effectiveStatus] || effectiveStatus;
 
       const isCancellable =
-        apt.status !== 'in_service' &&
-        apt.status !== 'completed' &&
-        apt.status !== 'cancelled';
+        !isElapsed &&
+        effectiveStatus !== 'in_service' &&
+        effectiveStatus !== 'completed' &&
+        effectiveStatus !== 'cancelled';
 
       const clinicRoomName =
         apt.clinicRoom?.name || session.clinicRoom?.name || 'Ruang Poli';
@@ -241,7 +246,7 @@ export class DrizzleSchedulePatientRepository {
         queueTicketId: apt.queueTickets?.[0]?.id || null,
         queueNumber,
         timeSlot,
-        status: apt.status,
+        status: effectiveStatus,
         statusBadge,
         chiefComplaint: apt.complaint || null,
         clinicRoomName,
