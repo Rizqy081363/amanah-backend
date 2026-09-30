@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   NotFoundException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import { and, asc, eq, gte, inArray } from 'drizzle-orm';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
@@ -270,7 +271,14 @@ export class AppointmentRescheduleHandler {
         targetSession.endTime,
         existingTimes,
         30,
+        targetDate,
       );
+
+      if (!slotTiming) {
+        throw new UnprocessableEntityException(
+          'Tidak ada slot antrean yang tersedia untuk jadwal yang dipilih.',
+        );
+      }
 
       await tx
         .update(appointments)

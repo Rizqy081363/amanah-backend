@@ -1,4 +1,5 @@
-import { and, asc, eq, inArray, or } from 'drizzle-orm';
+import { UnprocessableEntityException } from '@nestjs/common';
+import { and, asc, eq, inArray, not, or } from 'drizzle-orm';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
   appointments,
@@ -110,32 +111,74 @@ export class AppointmentCreationHandler {
         : allCandidateSessions;
 
       let matchedSession: (typeof allCandidateSessions)[number] | undefined;
-      if (candidateSessions.length > 0) {
-        matchedSession = candidateSessions[0];
-        if (room?.id && candidateSessions.length > 1) {
-          const roomSession = candidateSessions.find(
-            (s) => s.roomId === room?.id,
+      let matchedSlotTiming: { startTime: string; endTime: string } | null = null;
+      let matchedRoom = room;
+
+      for (const candidate of candidateSessions) {
+        let candidateRoom = room;
+        if (candidate.roomId) {
+          const foundRoom = unitRooms.find((r) => r.id === candidate.roomId);
+          if (foundRoom) {
+            candidateRoom = foundRoom;
+          } else {
+            candidateRoom = await db.query.clinicRooms.findFirst({
+              where: eq(clinicRooms.id, candidate.roomId),
+            });
+          }
+        }
+
+        const targetPracId = candidate.practitionerId;
+        const targetRoomId = candidateRoom?.id;
+
+        const occupancyConditions: any[] = [
+          eq(appointments.scheduledDate, data.appointmentDate),
+          not(inArray(appointments.status, ['cancelled', 'no_show'])),
+        ];
+
+        if (targetPracId && targetRoomId) {
+          occupancyConditions.push(
+            or(
+              eq(appointments.practitionerId, targetPracId),
+              eq(appointments.roomId, targetRoomId),
+            ),
           );
-          if (roomSession) matchedSession = roomSession;
+        } else if (targetPracId) {
+          occupancyConditions.push(eq(appointments.practitionerId, targetPracId));
+        } else if (targetRoomId) {
+          occupancyConditions.push(eq(appointments.roomId, targetRoomId));
+        }
+
+        const existingAppts = await db.query.appointments.findMany({
+          where: and(...occupancyConditions),
+        });
+
+        const existingTimes = existingAppts
+          .filter((a) => a.scheduledStartTime)
+          .map((a) => a.scheduledStartTime as string);
+
+        const slotTiming = allocateSlotTiming(
+          candidate.startTime,
+          candidate.endTime,
+          existingTimes,
+          policy?.defaultConsultationDurationMinutes ?? 30,
+          data.appointmentDate,
+        );
+
+        if (slotTiming) {
+          matchedSession = candidate;
+          matchedSlotTiming = slotTiming;
+          matchedRoom = candidateRoom;
+          practitionerId = targetPracId;
+          break;
         }
       }
 
-      if (matchedSession) {
+      if (matchedSession && matchedSlotTiming) {
         scheduleSessionId = matchedSession.id;
-        practitionerId = matchedSession.practitionerId;
-        startTime = matchedSession.startTime;
-        endTime = matchedSession.endTime;
-        if (matchedSession.roomId) {
-          const matchedRoom = unitRooms.find(
-            (r) => r.id === matchedSession.roomId,
-          );
-          if (matchedRoom) {
-            room = matchedRoom;
-          } else {
-            room = await db.query.clinicRooms.findFirst({
-              where: eq(clinicRooms.id, matchedSession.roomId),
-            });
-          }
+        startTime = matchedSlotTiming.startTime;
+        endTime = matchedSlotTiming.endTime;
+        if (matchedRoom) {
+          room = matchedRoom;
         }
         if (matchedSession.availableSlots > 0) {
           await db
@@ -146,34 +189,25 @@ export class AppointmentCreationHandler {
             })
             .where(eq(practitionerScheduleSessions.id, matchedSession.id));
         }
-      }
-
-      if (practitionerId) {
-        const existingAppts = await db.query.appointments.findMany({
-          where: and(
-            eq(appointments.practitionerId, practitionerId),
-            eq(appointments.scheduledDate, data.appointmentDate),
-            inArray(appointments.status, [
-              'booked',
-              'checked_in',
-              'waiting',
-              'in_service',
-            ]),
-          ),
-        });
-
-        const existingTimes = existingAppts
-          .filter((a) => a.scheduledStartTime)
-          .map((a) => a.scheduledStartTime as string);
-
-        const slotTiming = allocateSlotTiming(
-          startTime,
-          endTime,
-          existingTimes,
-          policy?.defaultConsultationDurationMinutes ?? 30,
+      } else if (candidateSessions.length > 0) {
+        throw new UnprocessableEntityException(
+          'Tidak ada slot antrean yang tersedia untuk sesi ini karena waktu praktik telah terlewati atau kuota penuh.',
         );
-        startTime = slotTiming.startTime;
-        endTime = slotTiming.endTime;
+      } else {
+        const defaultSlot = allocateSlotTiming(
+          defaultStart,
+          defaultEnd,
+          [],
+          policy?.defaultConsultationDurationMinutes ?? 30,
+          data.appointmentDate,
+        );
+        if (!defaultSlot) {
+          throw new UnprocessableEntityException(
+            'Tidak ada jadwal atau slot antrean yang tersedia untuk sesi yang dipilih.',
+          );
+        }
+        startTime = defaultSlot.startTime;
+        endTime = defaultSlot.endTime;
       }
     }
 
