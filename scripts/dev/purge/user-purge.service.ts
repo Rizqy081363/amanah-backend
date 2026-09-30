@@ -299,7 +299,8 @@ export async function runUserPurgeInteractive(
     console.log(` Redis Cache : ${inspection.redisKeyCount > 0 ? `${inspection.redisKeyCount} cache keys will be evicted.` : 'No cache keys.'}`);
     console.log('================================================================================');
 
-    const confirm = await askSafeQuestion(rl, 'Type "PURGE" or "y" to execute cascade purge, or "n" to abort: ');
+    console.log('Type "PURGE" or "y" to execute cascade purge, or "n" to abort.');
+    const confirm = await askSafeQuestion(rl, 'Confirm [y/N]: ');
     if (confirm?.toUpperCase() !== 'PURGE' && confirm?.toLowerCase() !== 'y') {
       console.log('[INFO] Purge aborted by user. No records were modified.');
       continue;

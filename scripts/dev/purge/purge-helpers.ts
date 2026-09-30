@@ -43,10 +43,8 @@ export async function confirmPurge(
   }
   console.log('================================================================================');
 
-  const answer = await askSafeQuestion(
-    rl,
-    'Type "PURGE" or "y" to execute cascade purge, or "n" to abort: ',
-  );
+  console.log('Type "PURGE" or "y" to execute cascade purge, or "n" to abort.');
+  const answer = await askSafeQuestion(rl, 'Confirm [y/N]: ');
   if (!answer) return false;
   return answer.toUpperCase() === 'PURGE' || answer.toLowerCase() === 'y';
 }

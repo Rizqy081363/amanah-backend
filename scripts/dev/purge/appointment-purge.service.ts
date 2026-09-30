@@ -227,7 +227,7 @@ export async function executeAppointmentPurge(
             SET available_slots = GREATEST(0, s.capacity - (
               SELECT count(*) FROM appointments a 
               WHERE a.schedule_session_id = s.id 
-              AND a.status NOT IN ('CANCELLED', 'NO_SHOW')
+              AND a.status NOT IN ('cancelled', 'no_show')
             )), updated_at = NOW()
             WHERE s.id = ANY($1::uuid[])
             `,
