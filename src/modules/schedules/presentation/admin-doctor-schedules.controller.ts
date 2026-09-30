@@ -12,12 +12,14 @@ import {
   HttpStatus,
   Inject,
   Param,
+  Optional,
   Patch,
   Post,
   Put,
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { RedisService } from '@common/redis/redis.service';
 import {
   ApiBearerAuth,
   ApiCreatedResponse,
@@ -52,6 +54,7 @@ import { UpdateAdminDayStatusDto } from './dto/update-admin-day-status.dto';
 import { UpdateAdminDoctorScheduleDto } from './dto/update-admin-doctor-schedule.dto';
 import { UpdateAdminDoctorSessionDto } from './dto/update-admin-doctor-session.dto';
 import { UpdatePractitionerSchedulePolicyDto } from './dto/update-practitioner-schedule-policy.dto';
+import { HttpCache } from '@common/decorators/http-cache.decorator';
 
 @ApiTags('Admin Doctor Schedules (Supervisi Jadwal Dokter)')
 @ApiBearerAuth('access-token')
@@ -69,7 +72,24 @@ export class AdminDoctorSchedulesController {
   constructor(
     @Inject(SCHEDULE_REPOSITORY)
     private readonly scheduleRepo: ScheduleRepository,
+    @Optional()
+    private readonly redisService?: RedisService,
   ) {}
+
+  private async invalidateScheduleCaches(): Promise<void> {
+    if (!this.redisService) return;
+    try {
+      await this.redisService.invalidateTags(
+        'schedule',
+        'schedule:list',
+        'schedule:detail',
+        'schedule:patients',
+        'booking',
+      );
+    } catch {
+      // safe fallback
+    }
+  }
 
   private assertDoctorAccess(id: string, user?: any) {
     if (!user || user.systemRole === 'ADMIN') return;
@@ -97,6 +117,7 @@ export class AdminDoctorSchedulesController {
     type: AdminDoctorScheduleListResponse,
     description: 'Daftar supervisi jadwal dokter berhasil diambil',
   })
+  @HttpCache({ ttlSeconds: 30, isPrivate: false, tags: ['schedule', 'schedule:list'] })
   async getDoctorSchedules(@Query() query: AdminDoctorSchedulesQueryDto) {
     return this.scheduleRepo.findAdminDoctorSchedules(query);
   }
@@ -111,6 +132,7 @@ export class AdminDoctorSchedulesController {
   @ApiOkResponse({
     description: 'Daftar master opsi filter berhasil diambil',
   })
+  @HttpCache({ ttlSeconds: 300, isPrivate: false, tags: ['schedule:ref'] })
   async getFilterOptions() {
     return this.scheduleRepo.getAdminDoctorScheduleFilterOptions();
   }
@@ -134,6 +156,7 @@ export class AdminDoctorSchedulesController {
   @ApiNotFoundResponse({
     description: 'Dokter tidak ditemukan',
   })
+  @HttpCache({ ttlSeconds: 20, isPrivate: false, tags: ['schedule', 'schedule:detail'] })
   async getDoctorScheduleDetail(
     @Param('id') id: string,
     @Query() query: AdminDoctorScheduleDetailQueryDto,
@@ -169,7 +192,9 @@ export class AdminDoctorSchedulesController {
     @CurrentUser() user?: any,
   ) {
     this.assertDoctorAccess(id, user);
-    return this.scheduleRepo.updateAdminDoctorSchedule(id, body);
+    const result = await this.scheduleRepo.updateAdminDoctorSchedule(id, body);
+    await this.invalidateScheduleCaches();
+    return result;
   }
 
   @Put(':id')
@@ -199,7 +224,9 @@ export class AdminDoctorSchedulesController {
     @CurrentUser() user?: any,
   ) {
     this.assertDoctorAccess(id, user);
-    return this.scheduleRepo.updateAdminDoctorSchedule(id, body);
+    const result = await this.scheduleRepo.updateAdminDoctorSchedule(id, body);
+    await this.invalidateScheduleCaches();
+    return result;
   }
 
   @Patch(':id/duration')
@@ -225,7 +252,9 @@ export class AdminDoctorSchedulesController {
     @Param('id') id: string,
     @Body() body: UpdatePractitionerSchedulePolicyDto,
   ) {
-    return this.scheduleRepo.updatePractitionerSchedulePolicy(id, body);
+    const result = await this.scheduleRepo.updatePractitionerSchedulePolicy(id, body);
+    await this.invalidateScheduleCaches();
+    return result;
   }
 
   @Patch(':id/days/:date')
@@ -258,12 +287,14 @@ export class AdminDoctorSchedulesController {
     @CurrentUser() user?: any,
   ) {
     this.assertDoctorAccess(id, user);
-    return this.scheduleRepo.updateAdminDayStatus(
+    const result = await this.scheduleRepo.updateAdminDayStatus(
       id,
       date,
       body.status,
       body.notes,
     );
+    await this.invalidateScheduleCaches();
+    return result;
   }
 
   @Patch(':id/day-status')
@@ -291,12 +322,14 @@ export class AdminDoctorSchedulesController {
   ) {
     this.assertDoctorAccess(id, user);
     const targetDate = body.date || new Date().toISOString().slice(0, 10);
-    return this.scheduleRepo.updateAdminDayStatus(
+    const result = await this.scheduleRepo.updateAdminDayStatus(
       id,
       targetDate,
       body.status,
       body.notes || body.reason,
     );
+    await this.invalidateScheduleCaches();
+    return result;
   }
 
   @Post(':id/sessions')
@@ -327,7 +360,9 @@ export class AdminDoctorSchedulesController {
     @CurrentUser() user?: any,
   ) {
     this.assertDoctorAccess(id, user);
-    return this.scheduleRepo.createAdminDoctorSession(id, body);
+    const result = await this.scheduleRepo.createAdminDoctorSession(id, body);
+    await this.invalidateScheduleCaches();
+    return result;
   }
 
   @Patch(':id/sessions/:sessionId')
@@ -360,7 +395,9 @@ export class AdminDoctorSchedulesController {
     @CurrentUser() user?: any,
   ) {
     this.assertDoctorAccess(id, user);
-    return this.scheduleRepo.updateAdminDoctorSession(id, sessionId, body);
+    const result = await this.scheduleRepo.updateAdminDoctorSession(id, sessionId, body);
+    await this.invalidateScheduleCaches();
+    return result;
   }
 
   @Get(':id/sessions/:sessionId/reschedule-eligibility')
@@ -439,7 +476,9 @@ export class AdminDoctorSchedulesController {
     @CurrentUser() user?: any,
   ) {
     this.assertDoctorAccess(id, user);
-    return this.scheduleRepo.rescheduleAdminDoctorSession(id, sessionId, body);
+    const result = await this.scheduleRepo.rescheduleAdminDoctorSession(id, sessionId, body);
+    await this.invalidateScheduleCaches();
+    return result;
   }
 
   @Delete(':id/sessions/:sessionId')
@@ -493,6 +532,7 @@ export class AdminDoctorSchedulesController {
   @ApiNotFoundResponse({
     description: 'Dokter atau sesi jadwal tidak ditemukan',
   })
+  @HttpCache({ ttlSeconds: 15, isPrivate: false, tags: ['schedule:patients', 'appointments'] })
   async getSessionPatients(
     @Param('id') id: string,
     @Param('sessionId') sessionId: string,
@@ -522,6 +562,7 @@ export class AdminDoctorSchedulesController {
   @ApiNotFoundResponse({
     description: 'Dokter tidak ditemukan',
   })
+  @HttpCache({ ttlSeconds: 15, isPrivate: false, tags: ['schedule:patients', 'appointments'] })
   async getDoctorPatientsByDate(
     @Param('id') id: string,
     @Query() query: GetAdminDoctorPatientsQueryDto,

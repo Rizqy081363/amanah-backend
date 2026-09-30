@@ -23,6 +23,7 @@ const redisProvider: Provider = {
     );
 
     const client = new Redis(redisUrl, {
+      family: 4,
       connectTimeout: readinessTimeoutMs,
       lazyConnect: true,
       maxRetriesPerRequest: 1,

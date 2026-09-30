@@ -67,6 +67,13 @@ describe('AppointmentEventsListener', () => {
       'display',
       'daily',
       'analytics',
+      'schedule',
+      'schedule:list',
+      'schedule:detail',
+      'schedule:patients',
+      'appointments',
+      'appointments:me',
+      'booking',
     );
   });
 
@@ -88,6 +95,13 @@ describe('AppointmentEventsListener', () => {
       'display',
       'daily',
       'analytics',
+      'schedule',
+      'schedule:list',
+      'schedule:detail',
+      'schedule:patients',
+      'appointments',
+      'appointments:me',
+      'booking',
     );
   });
 

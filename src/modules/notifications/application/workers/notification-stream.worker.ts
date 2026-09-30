@@ -19,6 +19,7 @@ import { NotificationOrchestratorService } from '../services/notification-orches
 export class NotificationStreamWorker implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(NotificationStreamWorker.name);
   private isRunning = false;
+  private streamClient?: Redis;
   private readonly consumerName =
     `worker-${process.pid}-${Math.random().toString(36).substring(2, 7)}`;
 
@@ -60,21 +61,31 @@ export class NotificationStreamWorker implements OnModuleInit, OnModuleDestroy {
       }
     }
 
+    // Dedicated Redis connection for blocking stream reader so it NEVER blocks shared command connection (ARC-122)
+    this.streamClient =
+      typeof this.redisClient.duplicate === 'function'
+        ? this.redisClient.duplicate()
+        : this.redisClient;
+
     this.isRunning = true;
     void this.runLoop();
   }
 
   onModuleDestroy(): void {
     this.isRunning = false;
+    if (this.streamClient && this.streamClient !== this.redisClient) {
+      this.streamClient.disconnect();
+    }
     this.logger.log(
       `Notification stream worker [${this.consumerName}] stopped.`,
     );
   }
 
   private async runLoop(): Promise<void> {
+    const client = this.streamClient || this.redisClient;
     while (this.isRunning) {
       try {
-        const response = await (this.redisClient as any).xreadgroup(
+        const response = await (client as any).xreadgroup(
           'GROUP',
           REDIS_CONSUMER_GROUP_NOTIFICATIONS,
           this.consumerName,
@@ -105,7 +116,7 @@ export class NotificationStreamWorker implements OnModuleInit, OnModuleDestroy {
                 await this.orchestrator.processEvent(eventPayload);
               }
 
-              await this.redisClient.xack(
+              await (client as any).xack(
                 REDIS_STREAM_NOTIFICATIONS,
                 REDIS_CONSUMER_GROUP_NOTIFICATIONS,
                 messageId,

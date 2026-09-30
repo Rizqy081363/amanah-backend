@@ -457,6 +457,13 @@ export class AppointmentsService {
           'display',
           'daily',
           'analytics',
+          'schedule',
+          'schedule:list',
+          'schedule:detail',
+          'schedule:patients',
+          'appointments',
+          'appointments:me',
+          'booking',
         ),
       ]);
     } catch (err) {

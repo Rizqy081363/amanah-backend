@@ -104,6 +104,7 @@ export class AppointmentsController {
   })
   @ApiOkResponse({ description: 'Riwayat janji temu pasien berhasil diambil' })
   @ApiUnauthorizedResponse({ description: 'Sesi token tidak valid' })
+  @HttpCache({ ttlSeconds: 20, isPrivate: true, tags: ['appointments:me'] })
   async getMyAppointments(@CurrentUser() user: any) {
     const userId = user?.id || user?.sub;
     if (!userId) {
@@ -124,7 +125,7 @@ export class AppointmentsController {
   @ApiOkResponse({ description: 'Daftar antrean harian berhasil diambil' })
   @ApiUnauthorizedResponse({ description: 'Sesi token tidak valid' })
   @ApiForbiddenResponse({ description: 'Hanya Admin atau Staf yang diizinkan' })
-  @HttpCache({ ttlSeconds: 30, tags: ['queue', 'daily'], isPrivate: true })
+  @HttpCache({ ttlSeconds: 15, tags: ['queue', 'daily'], isPrivate: false })
   async getDailyQueue(
     @Query('poliklinikId') poliklinikId: string,
     @Query('date') date: string,
@@ -141,7 +142,7 @@ export class AppointmentsController {
       'Endpoint publik real-time tanpa autentikasi untuk layar monitor TV ruang tunggu poliklinik.',
   })
   @ApiOkResponse({ description: 'Data antrean TV monitor berhasil diambil' })
-  @HttpCache({ ttlSeconds: 30, tags: ['queue', 'display'] })
+  @HttpCache({ ttlSeconds: 10, tags: ['queue', 'display'] })
   async getDisplayQueue(
     @Query('date') date?: string,
     @Query('poliklinikId') poliklinikId?: string,

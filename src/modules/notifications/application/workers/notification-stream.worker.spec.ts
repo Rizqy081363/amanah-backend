@@ -12,10 +12,16 @@ describe('NotificationStreamWorker', () => {
   let mockOrchestrator: any;
 
   beforeEach(() => {
+    const mockStreamClient = {
+      xreadgroup: mock(),
+      xack: mock().mockResolvedValue(1),
+      disconnect: mock(),
+    };
     mockRedisClient = {
       xgroup: mock().mockResolvedValue('OK'),
       xreadgroup: mock(),
       xack: mock().mockResolvedValue(1),
+      duplicate: mock().mockReturnValue(mockStreamClient),
     };
     mockOrchestrator = {
       processEvent: mock().mockResolvedValue(undefined),

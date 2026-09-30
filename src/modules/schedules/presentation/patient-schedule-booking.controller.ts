@@ -20,6 +20,7 @@ import {
   Roles,
   RolesGuard,
 } from '../../../common/auth';
+import { HttpCache } from '../../../common/decorators/http-cache.decorator';
 import { DRIZZLE_SOURCE } from '../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../database/drizzle/drizzle.provider';
 import {
@@ -75,6 +76,7 @@ export class PatientScheduleBookingController {
   @ApiQuery({ name: 'poliklinikId', required: false })
   @ApiQuery({ name: 'staffId', required: false })
   @ApiOkResponse({ description: 'Opsi sesi booking berhasil dimuat' })
+  @HttpCache({ ttlSeconds: 20, isPrivate: false, tags: ['schedule', 'booking'] })
   async getBookingOptions(
     @Query('date') dateStr: string,
     @Query('poliklinikId') poliklinikId?: string,

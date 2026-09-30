@@ -42,7 +42,7 @@ export class HttpObservabilityMiddleware implements NestMiddleware {
     const appConfig = this.configService.get('app', { infer: true });
     const trustProxy = appConfig?.trustProxy ?? false;
     const logRequestBody = appConfig?.httpLogRequestBody ?? true;
-    const logResponseBody = appConfig?.httpLogResponseBody ?? true;
+    const logResponseBody = appConfig?.httpLogResponseBody ?? false;
     const maxBodyLength = appConfig?.httpLogMaxBodyLength ?? 10000;
 
     const clientMetadata: ClientMetadata = extractClientMetadata(
