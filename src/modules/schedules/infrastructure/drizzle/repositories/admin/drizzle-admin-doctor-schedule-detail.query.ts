@@ -11,7 +11,6 @@ import {
 } from '@database/schema';
 import {
   DEFAULT_CONSULTATION_DURATION_MINUTES,
-  INACTIVE_APPOINTMENT_STATUSES,
 } from '@modules/schedules/domain/constants/schedule.constants';
 import { SCHEDULE_CONTEXT_DEFINITIONS } from '@modules/schedules/domain/constants/schedule-context.constants';
 import {
@@ -31,7 +30,7 @@ import { SchedulePolicyReader } from '@modules/schedules/infrastructure/drizzle/
 import { PractitionerResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/practitioner.resolver';
 import type { AdminDoctorScheduleDetailQueryDto } from '@modules/schedules/presentation/dto/admin-doctor-schedule-detail-query.dto';
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { and, asc, eq, gte, inArray, lte, not, or } from 'drizzle-orm';
+import { and, asc, eq, gte, lte, or } from 'drizzle-orm';
 
 @Injectable()
 export class DrizzleAdminDoctorScheduleDetailQuery {
@@ -141,7 +140,8 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
           eq(appointments.practitionerId, prac.id),
           gte(appointments.scheduledDate, startDate),
           lte(appointments.scheduledDate, endDate),
-          not(inArray(appointments.status, [...INACTIVE_APPOINTMENT_STATUSES])),
+          // Include cancelled/no_show so registeredPatientsCount stays accurate
+          // even after cancellation. The resolver separates active vs. all internally.
         ),
         with: {
           patientProfile: true,

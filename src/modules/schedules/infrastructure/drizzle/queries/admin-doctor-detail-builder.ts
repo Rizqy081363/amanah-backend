@@ -73,13 +73,18 @@ export function buildMonthlySchedule(
         return aStart >= sessStart && aStart < sessEnd;
       });
 
+      // For slot occupancy/capacity calculations: only active appointments
+      const activeMatchingAppts = matchingAppts.filter(
+        (a) => !['cancelled', 'no_show'].includes(a.status?.toLowerCase() || ''),
+      );
+
       const metrics = ScheduleSlotFactory.calculateSessionMetrics({
         startTime: s.startTime ? s.startTime.slice(0, 5) : '08:00',
         endTime: s.endTime ? s.endTime.slice(0, 5) : '12:00',
         durationMinutes:
           consultationDurationMinutes || DEFAULT_CONSULTATION_DURATION_MINUTES,
         persistedCapacity: s.capacity,
-        bookedCount: matchingAppts.length,
+        bookedCount: activeMatchingAppts.length,
         isCuti,
         isClosed: s.status === 'closed',
       });
@@ -131,7 +136,9 @@ export function buildMonthlySchedule(
       (acc, s) => acc + (s.capacity ?? 0),
       0,
     );
-    const dayBookedPatients = dayAppts.length;
+    const dayBookedPatients = dayAppts.filter(
+      (a) => !['cancelled', 'no_show'].includes(a.status?.toLowerCase() || ''),
+    ).length;
 
     monthlySchedule.push({
       day: d,
@@ -201,7 +208,9 @@ export function buildDailySessions(
         consultationDurationMinutes || DEFAULT_CONSULTATION_DURATION_MINUTES,
       persistedCapacity: s.capacity,
       persistedAvailableSlots: s.availableSlots,
-      bookedCount: matchingAppts.length,
+      bookedCount: matchingAppts.filter(
+        (a) => !['cancelled', 'no_show'].includes(a.status?.toLowerCase() || ''),
+      ).length,
       isCuti: isEvalCuti,
       isClosed: s.status === 'closed',
     });

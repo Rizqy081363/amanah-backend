@@ -292,8 +292,11 @@ export class ScheduleSlotStateResolver {
       (c) => c.scheduleDate === input.scheduleDate,
     );
 
-    // Active appointments on this date
-    const activeAppts = (input.appointments || []).filter(
+    // All appointments (including cancelled/no_show) — used for registeredPatientsCount
+    const allAppts = input.appointments || [];
+
+    // Active appointments only — used for slot occupancy calculation
+    const activeAppts = allAppts.filter(
       (a) => !['cancelled', 'no_show'].includes(a.status?.toLowerCase() || ''),
     );
 
@@ -678,7 +681,14 @@ export class ScheduleSlotStateResolver {
         const bEnd = parseClockTime(shiftDef.boundaryEndTime);
         return rStart < bEnd && rEnd > bStart;
       }).length,
-      registeredPatientsCount: occupiedCount,
+      // Count ALL appointments (including cancelled) that fall within this shift's time window
+      // so the header badge is consistent with what the session patients modal shows.
+      registeredPatientsCount: allAppts.filter((a) => {
+        const aStart = parseClockTime(a.startTime);
+        const bStart = parseClockTime(shiftDef.boundaryStartTime);
+        const bEnd = parseClockTime(shiftDef.boundaryEndTime);
+        return aStart >= bStart && aStart < bEnd;
+      }).length,
       availableSlotsCount: availableCount,
       totalShiftSlots: theoreticalSlots.length,
       counts: {
