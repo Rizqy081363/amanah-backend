@@ -10,6 +10,7 @@ import { APPOINTMENT_REPOSITORY } from './domain/repositories/appointment.reposi
 import { AppointmentDrizzleRepository } from './infrastructure/drizzle/appointment.drizzle-repository';
 import { AppointmentCallDrizzleRepository } from './infrastructure/drizzle/appointment-call.drizzle-repository';
 import { AppointmentEventsListener } from './infrastructure/listeners/appointment-events.listener';
+import { AppointmentNotificationPublisher } from './application/appointment-notification.publisher';
 import { AppointmentRecipientResolver } from './infrastructure/resolvers/appointment-recipient.resolver';
 import { AdminAppointmentsController } from './presentation/admin-appointments.controller';
 import { AppointmentCallController } from './presentation/appointment-call.controller';
@@ -37,6 +38,7 @@ import { PatientAppointmentHistoryController } from './presentation/patient-appo
     AppointmentEventsListener,
     AppointmentCallDrizzleRepository,
     AppointmentCallLifecycleService,
+    AppointmentNotificationPublisher,
     AppointmentsNotificationRules,
     AppointmentRecipientResolver,
     PatientAppointmentHistoryService,
@@ -44,6 +46,7 @@ import { PatientAppointmentHistoryController } from './presentation/patient-appo
   exports: [
     APPOINTMENT_REPOSITORY,
     AppointmentsService,
+    AppointmentNotificationPublisher,
     AppointmentCallLifecycleService,
     PatientAppointmentHistoryService,
   ],

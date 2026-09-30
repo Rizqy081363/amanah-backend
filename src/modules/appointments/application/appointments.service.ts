@@ -2,11 +2,8 @@ import { ForbiddenException, Inject, Injectable, Logger, NotFoundException, Opti
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { DEFAULT_PAGE_SIZE } from '../../../common/constants';
 import { AppointmentCreatedEvent, AppointmentStatusChangedEvent } from '../../../common/events';
-import { randomUUID } from 'crypto';
 import { OutboxEventRecord, OutboxService, OutboxWorker } from '../../../common/outbox';
 import { RedisService } from '../../../common/redis/redis.service';
-import { type DomainEvent, type NotificationPublisher } from '../../notifications/contracts/domain-event.interface';
-import { NOTIFICATION_PUBLISHER } from '../../notifications/notifications.constants';
 import { APPOINTMENT_EVENTS, APPOINTMENT_LIFECYCLE_EVENTS } from '../domain/constants/appointment-lifecycle.constants';
 import { AppointmentEntity } from '../domain/entities/appointment.entity';
 import { APPOINTMENT_REPOSITORY, AppointmentFindAllResult, AppointmentRepository } from '../domain/repositories/appointment.repository';
@@ -16,6 +13,7 @@ import { CreateAppointmentDto } from '../presentation/dto/create-appointment.dto
 import { QueryAppointmentDto } from '../presentation/dto/query-appointment.dto';
 import { RescheduleAppointmentDto } from '../presentation/dto/reschedule-appointment.dto';
 import { UpdateAppointmentStatusDto } from '../presentation/dto/update-appointment-status.dto';
+import { AppointmentNotificationPublisher } from './appointment-notification.publisher';
 
 const QUEUE_CACHE_TTL_SECONDS = 30;
 const QUEUE_DISPLAY_CACHE_PREFIX = 'queue:display';
@@ -35,8 +33,7 @@ export class AppointmentsService {
     @Optional()
     private readonly outboxWorker?: OutboxWorker,
     @Optional()
-    @Inject(NOTIFICATION_PUBLISHER)
-    private readonly notificationPublisher?: NotificationPublisher,
+    private readonly notificationPublisher?: AppointmentNotificationPublisher,
   ) {}
 
   async createAppointment(
@@ -107,46 +104,7 @@ export class AppointmentsService {
     );
 
     if (this.notificationPublisher) {
-      try {
-        const domainEvent: DomainEvent = {
-          eventId: randomUUID(),
-          eventType: APPOINTMENT_EVENTS.CREATED,
-          version: 1,
-          occurredAt: new Date().toISOString(),
-          module: 'appointments',
-          payload: {
-            appointmentId: created.id,
-            patientId: created.patientId,
-            patientUserId: created.patientUserId || user?.id || user?.sub,
-            patientName: created.patientName || user?.name || 'Pasien',
-            patientAvatarUrl: created.patientAvatarUrl || null,
-            poliklinikId: created.poliklinikId,
-            poliklinikName: created.poliklinikName || null,
-            layananId: created.layananId,
-            layananName: created.layananName || null,
-            doctorName: created.doctorName || null,
-            doctorAvatarUrl: created.doctorAvatarUrl || null,
-            appointmentDate: created.appointmentDate,
-            session: created.session,
-            queueNumber: created.queueNumber,
-            status: created.status,
-            visitType: created.visitType,
-            complaint: created.complaint || null,
-          },
-          actor: {
-            userId: user?.id || user?.sub,
-            roleCode:
-              typeof user?.role === 'object' && user?.role
-                ? user.role.name
-                : user?.role || user?.systemRole || 'PATIENT',
-          },
-        };
-        await this.notificationPublisher.publish(domainEvent);
-      } catch (pubError) {
-        this.logger.warn(
-          `Failed to publish notification event on appointment creation: ${pubError}`,
-        );
-      }
+      await this.notificationPublisher.publishCreated(created, user);
     }
 
     await this.invalidateQueueCaches();
@@ -304,7 +262,7 @@ export class AppointmentsService {
     expectedVersion?: string,
   ): Promise<AppointmentEntity> {
     const finalReason = reason || 'Dibatalkan oleh pasien';
-    return this.transitionAppointmentStatus(
+    const updated = await this.transitionAppointmentStatus(
       id,
       'BATAL',
       finalReason,
@@ -313,6 +271,14 @@ export class AppointmentsService {
       expectedVersion,
       finalReason,
     );
+    if (this.notificationPublisher) {
+      await this.notificationPublisher.publishCancelled(
+        updated,
+        finalReason,
+        user,
+      );
+    }
+    return updated;
   }
 
   async updateStatus(
@@ -382,6 +348,17 @@ export class AppointmentsService {
       dto.reason,
       { userId: actorUserId, roleCode: user?.role },
     );
+
+    if (this.notificationPublisher) {
+      const apt = await this.appointmentRepo.findById(appointmentId);
+      if (apt) {
+        await this.notificationPublisher.publishCancelled(
+          apt,
+          dto.reason,
+          user,
+        );
+      }
+    }
     return result;
   }
 

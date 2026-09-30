@@ -149,4 +149,111 @@ describe('AppointmentsNotificationRules', () => {
         : rule?.visualKey;
     expect(visualKey).toBe('https://cdn.amanah.com/avatars/dewi.webp');
   });
+
+  it('should register appointment cancelled rule notifying staff when cancelled by patient', async () => {
+    const mockResolver = {
+      resolveAdminAndStaffUserIds: async () => ['staff-1', 'admin-1'],
+    };
+    const localRules = new AppointmentsNotificationRules(
+      registry,
+      mockResolver as any,
+    );
+    localRules.onModuleInit();
+
+    const rule = registry.get(APPOINTMENT_EVENTS.CANCELLED);
+    expect(rule).toBeDefined();
+    expect(rule?.category).toBe('appointment');
+    expect(rule?.isUrgent).toBe(true);
+
+    const payload = {
+      appointmentId: 'apt-cancel-1',
+      patientUserId: 'patient-999',
+      patientName: 'Budi Santoso',
+      patientAvatarUrl: 'https://cdn.amanah.com/avatars/budi.webp',
+      doctorName: 'dr. Rizky',
+      queueNumber: 'P-002',
+      appointmentDate: '2026-10-01',
+      session: 'PAGI',
+      cancelledByRole: 'patient',
+      reason: 'Ada acara keluarga mendadak',
+    };
+
+    const recipients = await rule?.resolveRecipients(payload);
+    expect(recipients).toContain('staff-1');
+    expect(recipients).toContain('admin-1');
+
+    const title =
+      typeof rule?.titleTemplate === 'function'
+        ? rule.titleTemplate(payload)
+        : rule?.titleTemplate;
+    expect(title).toBe('Pembatalan Janji Temu Pasien');
+
+    const body =
+      typeof rule?.bodyTemplate === 'function'
+        ? rule.bodyTemplate(payload)
+        : rule?.bodyTemplate;
+    expect(body).toContain('Pasien Budi Santoso membatalkan janji temu');
+    expect(body).toContain('P-002');
+    expect(body).toContain('Slot kuota telah dipulihkan');
+
+    const senderName =
+      typeof rule?.senderName === 'function'
+        ? rule.senderName(payload)
+        : rule?.senderName;
+    expect(senderName).toBe('Budi Santoso');
+
+    const visualKey =
+      typeof rule?.visualKey === 'function'
+        ? rule.visualKey(payload)
+        : rule?.visualKey;
+    expect(visualKey).toBe('https://cdn.amanah.com/avatars/budi.webp');
+  });
+
+  it('should register appointment cancelled rule notifying patient when cancelled by admin', async () => {
+    const localRules = new AppointmentsNotificationRules(registry);
+    localRules.onModuleInit();
+
+    const rule = registry.get(APPOINTMENT_EVENTS.CANCELLED);
+    expect(rule).toBeDefined();
+
+    const payload = {
+      appointmentId: 'apt-cancel-2',
+      patientUserId: 'patient-888',
+      doctorName: 'dr. Siti',
+      doctorAvatarUrl: 'https://cdn.amanah.com/avatars/drsiti.webp',
+      queueNumber: 'P-003',
+      appointmentDate: '2026-10-02',
+      session: 'SIANG',
+      cancelledByRole: 'admin',
+      reason: 'Dokter berhalangan karena tugas luar kota',
+    };
+
+    const recipients = await rule?.resolveRecipients(payload);
+    expect(recipients).toEqual(['patient-888']);
+
+    const title =
+      typeof rule?.titleTemplate === 'function'
+        ? rule.titleTemplate(payload)
+        : rule?.titleTemplate;
+    expect(title).toBe('Janji Temu Dibatalkan oleh Klinik');
+
+    const body =
+      typeof rule?.bodyTemplate === 'function'
+        ? rule.bodyTemplate(payload)
+        : rule?.bodyTemplate;
+    expect(body).toContain('telah dibatalkan oleh pihak klinik');
+    expect(body).toContain('Dokter berhalangan karena tugas luar kota');
+
+    const senderName =
+      typeof rule?.senderName === 'function'
+        ? rule.senderName(payload)
+        : rule?.senderName;
+    expect(senderName).toBe('Klinik Amanah');
+
+    const visualKey =
+      typeof rule?.visualKey === 'function'
+        ? rule.visualKey(payload)
+        : rule?.visualKey;
+    expect(visualKey).toBe('https://cdn.amanah.com/avatars/drsiti.webp');
+  });
 });

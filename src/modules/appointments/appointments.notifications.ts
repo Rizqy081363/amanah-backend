@@ -143,5 +143,77 @@ export class AppointmentsNotificationRules implements OnModuleInit {
         sourceId: payload.appointmentId,
       }),
     });
+
+    // 6. Appointment Cancelled Rule (Bi-directional: Patient-initiated or Admin-initiated)
+    this.registry.registerRule({
+      eventType: APPOINTMENT_EVENTS.CANCELLED,
+      category: 'appointment',
+      defaultChannels: ['in_app'],
+      resolveRecipients: async (payload: any) => {
+        if (
+          payload.cancelledByRole === 'admin' ||
+          payload.cancelledByRole === 'staff'
+        ) {
+          return payload.patientUserId ? [payload.patientUserId] : [];
+        }
+        if (this.recipientResolver) {
+          return await this.recipientResolver.resolveAdminAndStaffUserIds();
+        }
+        return [];
+      },
+      titleTemplate: (payload: any) =>
+        payload.cancelledByRole === 'admin' ||
+        payload.cancelledByRole === 'staff'
+          ? 'Janji Temu Dibatalkan oleh Klinik'
+          : 'Pembatalan Janji Temu Pasien',
+      bodyTemplate: (payload: any) => {
+        const timeInfo =
+          payload.scheduledStartTime && payload.scheduledEndTime
+            ? `${payload.scheduledStartTime} - ${payload.scheduledEndTime}`
+            : `Sesi ${payload.session || '-'}`;
+        const locInfo = payload.roomName
+          ? ` di ${payload.roomName}`
+          : payload.poliklinikName
+            ? ` di ${payload.poliklinikName}`
+            : '';
+
+        if (
+          payload.cancelledByRole === 'admin' ||
+          payload.cancelledByRole === 'staff'
+        ) {
+          return `Janji temu Anda (${payload.queueNumber || '-'}) dengan ${payload.doctorName || 'Dokter'} pada tanggal ${payload.appointmentDate} (${timeInfo})${locInfo} telah dibatalkan oleh pihak klinik. Alasan: ${payload.reason || 'Dibatalkan oleh staf'}.`;
+        }
+        return `Pasien ${payload.patientName || 'Pasien'} membatalkan janji temu (${payload.queueNumber || '-'}) dengan ${payload.doctorName || 'Dokter'} untuk tanggal ${payload.appointmentDate} (${timeInfo})${locInfo}. Alasan: ${payload.reason || 'Dibatalkan oleh pasien'}. Slot kuota telah dipulihkan.`;
+      },
+      senderName: (payload: any) =>
+        payload.cancelledByRole === 'admin' ||
+        payload.cancelledByRole === 'staff'
+          ? 'Klinik Amanah'
+          : payload.patientName || 'Pasien',
+      senderRole: (payload: any) =>
+        payload.cancelledByRole === 'admin' ||
+        payload.cancelledByRole === 'staff'
+          ? 'Admin'
+          : 'Pasien',
+      visualKey: (payload: any) =>
+        payload.cancelledByRole === 'admin' ||
+        payload.cancelledByRole === 'staff'
+          ? payload.doctorAvatarUrl || null
+          : payload.patientAvatarUrl || null,
+      isUrgent: true,
+      badgeIcon: 'alert-circle',
+      resolveSource: (payload: any) => ({
+        sourceType: 'appointment',
+        sourceId: payload.appointmentId,
+      }),
+      resolveActions: (payload: any) => [
+        {
+          label: 'Lihat Antrean',
+          actionKey: 'view_appointment',
+          actionType: 'primary',
+          url: `/dashboard/appointments/${payload.appointmentId}`,
+        },
+      ],
+    });
   }
 }
