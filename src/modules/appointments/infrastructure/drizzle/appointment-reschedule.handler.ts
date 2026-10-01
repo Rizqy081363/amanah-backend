@@ -134,6 +134,7 @@ export class AppointmentRescheduleHandler {
 
       const slotTiming = await allocateRescheduledSlotTiming(
         tx,
+        apt,
         targetSession,
         targetDate,
         appointmentId,
@@ -296,6 +297,7 @@ async function transferSessionCapacity(
 
 async function allocateRescheduledSlotTiming(
   tx: DrizzleDatabase,
+  currentApt: typeof appointments.$inferSelect,
   targetSession: typeof practitionerScheduleSessions.$inferSelect,
   targetDate: string,
   appointmentId: string,
@@ -313,9 +315,22 @@ async function allocateRescheduledSlotTiming(
     ),
   });
 
-  const existingTimes = existingAppts
+  const otherApptTimes = existingAppts
     .filter((a) => a.id !== appointmentId && a.scheduledStartTime)
     .map((a) => a.scheduledStartTime as string);
+
+  // When the patient reschedules within the same session on the same date,
+  // their current slot is freed but must not be immediately re-assigned to
+  // them. Add their own slot to the occupied set so the allocator advances
+  // to the next genuinely free slot.
+  const isSameSession =
+    currentApt.scheduleSessionId === targetSession.id &&
+    currentApt.scheduledDate === targetDate;
+
+  const existingTimes =
+    isSameSession && currentApt.scheduledStartTime
+      ? [...otherApptTimes, currentApt.scheduledStartTime]
+      : otherApptTimes;
 
   const slotTiming = allocateSlotTiming(
     targetSession.startTime,

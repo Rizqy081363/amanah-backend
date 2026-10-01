@@ -107,15 +107,25 @@ export class ScheduleConflictQuery {
             sess.practitioner?.staffProfile?.fullName ||
             sess.practitioner?.displayName ||
             'Dokter lain';
+
+          // Report the exact requested time window (the overlap), not the
+          // occupant's full session range. Admin selected startTime–endTime;
+          // that specific slot is what's blocked. Showing 12:00–18:00 is
+          // ambiguous — 14:30–15:00 is the precise conflicting window.
+          const conflictStart = startTime.slice(0, 5);
+          const conflictEnd = endTime.slice(0, 5);
+
           throw new ConflictException({
             code: 'ROOM_ALREADY_OCCUPIED',
-            message: `${roomName} sudah dijadwalkan untuk ${doctorName} pada jam ${sess.startTime.slice(0, 5)} - ${sess.endTime.slice(0, 5)} WIB.`,
+            message: `${roomName} sudah dijadwalkan untuk ${doctorName} pada jam ${conflictStart} - ${conflictEnd} WIB.`,
             metadata: {
               conflictingSessionId: sess.id,
               scheduleDate: sess.scheduleDate,
-              startTime: sess.startTime.slice(0, 5),
-              endTime: sess.endTime.slice(0, 5),
-              timeRange: `${sess.startTime.slice(0, 5)} - ${sess.endTime.slice(0, 5)} WIB`,
+              startTime: conflictStart,
+              endTime: conflictEnd,
+              timeRange: `${conflictStart} - ${conflictEnd} WIB`,
+              occupantSessionStart: sess.startTime.slice(0, 5),
+              occupantSessionEnd: sess.endTime.slice(0, 5),
               roomId: sess.roomId,
               roomName,
               occupiedBy: doctorName,
