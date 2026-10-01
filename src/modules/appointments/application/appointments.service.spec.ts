@@ -1,6 +1,7 @@
 import { describe, expect, it, mock } from 'bun:test';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { AppointmentsService } from './appointments.service';
+import { AppointmentNotificationPublisher } from './appointment-notification.publisher';
 import { APPOINTMENT_EVENTS } from '../domain/constants/appointment-lifecycle.constants';
 import type { AppointmentRepository } from '../domain/repositories/appointment.repository';
 import type { RedisService } from '../../../common/redis/redis.service';
@@ -27,9 +28,10 @@ describe('AppointmentsService - Event Publishing', () => {
       })),
     };
 
-    const mockPublisher: NotificationPublisher = {
+    const mockRawPublisher: NotificationPublisher = {
       publish: mock(async () => {}),
     };
+    const mockPublisher = new AppointmentNotificationPublisher(mockRawPublisher);
 
     const mockEventEmitter = {
       emit: mock(() => true),
@@ -67,7 +69,7 @@ describe('AppointmentsService - Event Publishing', () => {
     expect(created.id).toBe('apt-created-1');
     expect(created.queueNumber).toBe('P-001');
 
-    expect(mockPublisher.publish).toHaveBeenCalledWith(
+    expect(mockRawPublisher.publish).toHaveBeenCalledWith(
       expect.objectContaining({
         eventType: APPOINTMENT_EVENTS.CREATED,
         module: 'appointments',

@@ -16,7 +16,11 @@ export class AppointmentNotificationPublisher {
     @Optional()
     @Inject(NOTIFICATION_PUBLISHER)
     private readonly notificationPublisher?: NotificationPublisher,
-  ) {}
+  ) {
+    this.logger.log(
+      `AppointmentNotificationPublisher initialized: hasPublisher=${!!this.notificationPublisher}`,
+    );
+  }
 
   async publishCreated(created: AppointmentEntity, user?: any): Promise<void> {
     if (!this.notificationPublisher) return;

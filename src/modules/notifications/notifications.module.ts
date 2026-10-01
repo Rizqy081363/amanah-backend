@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Global, Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { DrizzleModule } from '../../database/drizzle/drizzle.module';
@@ -18,6 +18,7 @@ import {
 import { NotificationsController } from './presentation/notifications.controller';
 import { NotificationRulesRegistry } from './registry/notification-rules-registry';
 
+@Global()
 @Module({
   imports: [DrizzleModule, ConfigModule, JwtModule.register({})],
   controllers: [NotificationsController],
@@ -53,6 +54,7 @@ import { NotificationRulesRegistry } from './registry/notification-rules-registr
   exports: [
     NOTIFICATION_REPOSITORY,
     NOTIFICATION_PUBLISHER,
+    RedisStreamsPublisher,
     REALTIME_GATEWAY_PORT,
     NOTIFICATION_RULES_REGISTRY,
     NotificationRulesRegistry,

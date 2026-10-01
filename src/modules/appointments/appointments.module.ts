@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
 import { DrizzleModule } from '../../database/drizzle/drizzle.module';
-import { NotificationsModule } from '../notifications/notifications.module';
 import { AppointmentCallLifecycleService } from './application/appointment-call-lifecycle.service';
 import { AppointmentsService } from './application/appointments.service';
 import { PatientAppointmentHistoryService } from './application/patient-appointment-history.service';
@@ -18,7 +17,7 @@ import { AppointmentsController } from './presentation/appointments.controller';
 import { PatientAppointmentHistoryController } from './presentation/patient-appointment-history.controller';
 
 @Module({
-  imports: [DrizzleModule, NotificationsModule],
+  imports: [DrizzleModule],
   controllers: [
     AppointmentsController,
     AdminAppointmentsController,

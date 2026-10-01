@@ -80,6 +80,10 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
   constructor(
     @Inject(DRIZZLE_SOURCE)
     db: DrizzleDatabase,
+    @Optional()
+    @Inject(NOTIFICATION_PUBLISHER)
+    notificationPublisher?: NotificationPublisher,
+    @Optional() rescheduleRepo?: DrizzleScheduleRescheduleRepository,
     @Optional() practitionerResolver?: PractitionerResolver,
     @Optional() roomResolver?: RoomResolver,
     @Optional() policyReader?: SchedulePolicyReader,
@@ -91,16 +95,12 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
     @Optional() availabilityRepo?: DrizzleScheduleAvailabilityRepository,
     @Optional() occupancyRepo?: DrizzleScheduleOccupancyRepository,
     @Optional() bootstrapRepo?: DrizzleScheduleBootstrapRepository,
-    @Optional() rescheduleRepo?: DrizzleScheduleRescheduleRepository,
     @Optional() patientRepo?: DrizzleSchedulePatientRepository,
     @Optional()
     clinicalPractitionerRepo?: DrizzleClinicalPractitionerRepository,
     @Optional() adminListQuery?: DrizzleAdminDoctorScheduleListQuery,
     @Optional() adminDetailQuery?: DrizzleAdminDoctorScheduleDetailQuery,
     @Optional() adminMutationRepo?: DrizzleAdminScheduleMutationRepository,
-    @Optional()
-    @Inject(NOTIFICATION_PUBLISHER)
-    notificationPublisher?: NotificationPublisher,
   ) {
     const resolvedPractitioner =
       practitionerResolver ?? new PractitionerResolver(db);
@@ -149,18 +149,13 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
       rescheduleRepo ??
       new DrizzleScheduleRescheduleRepository(
         db,
+        notificationPublisher,
         resolvedPractitioner,
         resolvedConflict,
         this.availabilityRepo,
-        undefined,
-        notificationPublisher,
       );
-    if (
-      rescheduleRepo &&
-      notificationPublisher &&
-      !(rescheduleRepo as any).notificationPublisher
-    ) {
-      (rescheduleRepo as any).notificationPublisher = notificationPublisher;
+    if (this.rescheduleRepo && notificationPublisher) {
+      this.rescheduleRepo.setNotificationPublisher(notificationPublisher);
     }
     this.patientRepo =
       patientRepo ??

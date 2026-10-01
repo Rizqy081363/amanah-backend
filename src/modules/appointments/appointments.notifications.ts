@@ -9,7 +9,9 @@ export class AppointmentsNotificationRules implements OnModuleInit {
     private readonly registry: NotificationRulesRegistry,
     @Optional()
     private readonly recipientResolver?: AppointmentRecipientResolver,
-  ) {}
+  ) {
+    this.onModuleInit();
+  }
 
   onModuleInit(): void {
     // 0. Appointment Created Rule (Patient confirmation & Clinic Staff Alert)

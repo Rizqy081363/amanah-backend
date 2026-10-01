@@ -28,12 +28,18 @@ export class AppointmentEventsListener {
     event: AppointmentCreatedEvent,
   ): Promise<void> {
     try {
+      const aptId =
+        event?.appointmentId || (event as any)?.payload?.appointmentId;
+      if (!aptId) {
+        return;
+      }
+
       // 1. Record initial status history in appointment_status_events (database-design.md:212)
       await this.db.insert(appointmentStatusEvents).values({
-        appointmentId: event.appointmentId,
+        appointmentId: aptId,
         previousStatus: null,
         newStatus: 'booked',
-        changedBy: event.actor?.userId || null,
+        changedBy: event.actor?.userId || (event as any)?.payload?.actor?.userId || null,
         reason: 'Pendaftaran Janji Temu Awal',
       });
 
@@ -41,7 +47,7 @@ export class AppointmentEventsListener {
       await this.invalidateQueueCaches();
     } catch (error) {
       this.logger.error(
-        `Failed to handle appointment.created for ${event.appointmentId}: ${String(error)}`,
+        `Failed to handle appointment.created for ${event?.appointmentId}: ${String(error)}`,
       );
     }
   }
@@ -51,15 +57,21 @@ export class AppointmentEventsListener {
     event: AppointmentStatusChangedEvent,
   ): Promise<void> {
     try {
+      const aptId =
+        event?.appointmentId || (event as any)?.payload?.appointmentId;
+      if (!aptId) {
+        return;
+      }
+
       const prevDbStatus = this.mapToDbStatus(event.previousStatus);
       const newDbStatus = this.mapToDbStatus(event.newStatus);
 
       // 1. Record status transition history in appointment_status_events
       await this.db.insert(appointmentStatusEvents).values({
-        appointmentId: event.appointmentId,
+        appointmentId: aptId,
         previousStatus: prevDbStatus,
         newStatus: newDbStatus,
-        changedBy: event.actor?.userId || null,
+        changedBy: event.actor?.userId || (event as any)?.payload?.actor?.userId || null,
         reason: event.reason || null,
       });
 

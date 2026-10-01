@@ -28,6 +28,7 @@ import {
   ConflictException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
   Optional,
   UnprocessableEntityException,
@@ -44,21 +45,23 @@ import { DrizzleRescheduleEligibilityEvaluator } from './drizzle-reschedule-elig
 
 @Injectable()
 export class DrizzleScheduleRescheduleRepository {
+  private readonly logger = new Logger(DrizzleScheduleRescheduleRepository.name);
   private readonly practitionerResolver: PractitionerResolver;
   private readonly conflictQuery: ScheduleConflictQuery;
   private readonly availabilityRepo: DrizzleScheduleAvailabilityRepository;
   private readonly eligibilityEvaluator: DrizzleRescheduleEligibilityEvaluator;
+  private notificationPublisher?: NotificationPublisher;
 
   constructor(
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,
+    @Optional()
+    @Inject(NOTIFICATION_PUBLISHER)
+    notificationPublisher?: NotificationPublisher,
     @Optional() practitionerResolver?: PractitionerResolver,
     @Optional() conflictQuery?: ScheduleConflictQuery,
     @Optional() availabilityRepo?: DrizzleScheduleAvailabilityRepository,
     @Optional() eligibilityEvaluator?: DrizzleRescheduleEligibilityEvaluator,
-    @Optional()
-    @Inject(NOTIFICATION_PUBLISHER)
-    private readonly notificationPublisher?: NotificationPublisher,
   ) {
     this.practitionerResolver =
       practitionerResolver ?? new PractitionerResolver(db);
@@ -71,6 +74,17 @@ export class DrizzleScheduleRescheduleRepository {
         this.practitionerResolver,
         this.conflictQuery,
       );
+    this.notificationPublisher = notificationPublisher;
+    this.logger.log(
+      `DrizzleScheduleRescheduleRepository initialized: hasPublisher=${!!this.notificationPublisher}`,
+    );
+  }
+
+  public setNotificationPublisher(publisher?: NotificationPublisher): void {
+    this.notificationPublisher = publisher;
+    this.logger.log(
+      `DrizzleScheduleRescheduleRepository publisher updated: hasPublisher=${!!this.notificationPublisher}`,
+    );
   }
 
   async checkRescheduleEligibility(
@@ -218,6 +232,19 @@ export class DrizzleScheduleRescheduleRepository {
         body.rescheduleActiveAppointments !== false &&
         activeAppointments.length > 0
       ) {
+        // Temporarily clear date collision space during batch slot shift
+        await tx
+          .update(appointments)
+          .set({
+            scheduledDate: '1970-01-01',
+          })
+          .where(
+            inArray(
+              appointments.id,
+              activeAppointments.map((a) => a.id),
+            ),
+          );
+
         const duration = preview.effectiveConsultationDurationMinutes;
         const startMin = parseClockTime(body.targetStartTime);
 
@@ -316,6 +343,10 @@ export class DrizzleScheduleRescheduleRepository {
       return rescheduled;
     });
 
+    this.logger.log(
+      `rescheduleAdminDoctorSession: publisher=${!!this.notificationPublisher}, activeAppts=${activeAppointments.length}`,
+    );
+
     if (
       this.notificationPublisher &&
       body.rescheduleActiveAppointments !== false &&
@@ -359,6 +390,7 @@ export class DrizzleScheduleRescheduleRepository {
             targetStartTime: `${apptStartTime}:00`,
             targetEndTime: `${apptEndTime}:00`,
             appointmentDate: body.targetDate,
+            queueNumber: appt.bookingCode || null,
             status: appt.status,
             reason:
               body.notes || body.reason || 'Penyesuaian jadwal praktik dokter',

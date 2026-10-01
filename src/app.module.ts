@@ -53,6 +53,7 @@ import { SupportTicketsModule } from './modules/support-tickets/support-tickets.
     RedisModule,
     LoggingModule,
     OutboxModule,
+    NotificationsModule,
     HealthModule,
     HomeModule,
     MailModule,
@@ -67,7 +68,6 @@ import { SupportTicketsModule } from './modules/support-tickets/support-tickets.
     MedicalRecordsModule,
     AttendanceModule,
     LeavesModule,
-    NotificationsModule,
     SupportTicketsModule,
   ],
 })
