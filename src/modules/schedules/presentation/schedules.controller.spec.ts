@@ -310,6 +310,7 @@ describe('SchedulesController', () => {
         '2026-08-26',
         '07:00',
         '11:00',
+        undefined,
       );
       expect(result).toEqual(mockRooms);
     });

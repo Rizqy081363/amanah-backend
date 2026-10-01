@@ -34,4 +34,13 @@ export class RoomReferenceQueryDto {
     message: 'Format jam selesai harus HH:mm (24 jam)',
   })
   endTime?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'ID Praktisi atau Staff Profile yang dikecualikan dari deteksi okupansi (menghindari deteksi self-collision)',
+    example: 'cfc88fab-46f8-4e71-bf72-00858ea0c885',
+  })
+  @IsString()
+  @IsOptional()
+  excludePractitionerId?: string;
 }

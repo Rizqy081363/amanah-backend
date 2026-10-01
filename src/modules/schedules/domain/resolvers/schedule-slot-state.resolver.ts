@@ -5,51 +5,86 @@ import {
 } from '../factories/schedule-slot.factory';
 import { parseClockTime } from '../schedule-projection';
 
-export type TemporalState = 'PAST' | 'CURRENT' | 'FUTURE';
+export const TEMPORAL_STATE = {
+  PAST: 'PAST',
+  CURRENT: 'CURRENT',
+  FUTURE: 'FUTURE',
+} as const;
+export type TemporalState =
+  (typeof TEMPORAL_STATE)[keyof typeof TEMPORAL_STATE];
+
+export const AVAILABILITY_STATE = {
+  UNSCHEDULED: 'UNSCHEDULED',
+  AVAILABLE: 'AVAILABLE',
+  OCCUPIED: 'OCCUPIED',
+  CLOSED: 'CLOSED',
+} as const;
 export type AvailabilityState =
-  | 'UNSCHEDULED'
-  | 'AVAILABLE'
-  | 'OCCUPIED'
-  | 'CLOSED';
-export type ClosureCategory = 'LEAVE' | 'OTHER';
+  (typeof AVAILABILITY_STATE)[keyof typeof AVAILABILITY_STATE];
+
+export const CLOSURE_CATEGORY = {
+  LEAVE: 'LEAVE',
+  OTHER: 'OTHER',
+} as const;
+export type ClosureCategory =
+  (typeof CLOSURE_CATEGORY)[keyof typeof CLOSURE_CATEGORY];
+
+export const EFFECTIVE_SLOT_STATUS = {
+  EXPIRED: 'EXPIRED',
+  CLOSED: 'CLOSED',
+  OCCUPIED: 'OCCUPIED',
+  AVAILABLE: 'AVAILABLE',
+  UNSCHEDULED: 'UNSCHEDULED',
+} as const;
 export type EffectiveSlotStatus =
-  | 'EXPIRED'
-  | 'CLOSED'
-  | 'OCCUPIED'
-  | 'AVAILABLE'
-  | 'UNSCHEDULED';
+  (typeof EFFECTIVE_SLOT_STATUS)[keyof typeof EFFECTIVE_SLOT_STATUS];
 
+export const SLOT_UI_STATUS = {
+  UNSCHEDULED_PAST: 'UNSCHEDULED_PAST',
+  UNSCHEDULED: 'UNSCHEDULED',
+  COMPLETED: 'COMPLETED',
+  AVAILABLE: 'AVAILABLE',
+  OCCUPIED: 'OCCUPIED',
+  OCCUPIED_BY_OTHER: 'OCCUPIED_BY_OTHER',
+  RESCHEDULED: 'RESCHEDULED',
+  CLOSED_LEAVE: 'CLOSED_LEAVE',
+  CLOSED_CLINIC: 'CLOSED_CLINIC',
+} as const;
 export type SlotUiStatus =
-  | 'UNSCHEDULED_PAST'
-  | 'UNSCHEDULED'
-  | 'COMPLETED'
-  | 'AVAILABLE'
-  | 'OCCUPIED'
-  | 'RESCHEDULED'
-  | 'CLOSED_LEAVE'
-  | 'CLOSED_CLINIC';
+  (typeof SLOT_UI_STATUS)[keyof typeof SLOT_UI_STATUS];
 
+export const SLOT_UI_VARIANT = {
+  NEUTRAL_DISABLED: 'neutral_disabled',
+  DASHED_BORDER: 'dashed_border',
+  MUTED_GRAY: 'muted_gray',
+  SUCCESS_GREEN: 'success_green',
+  INFO_BLUE: 'info_blue',
+  PURPLE_OTHER: 'purple_other',
+  WARNING_AMBER: 'warning_amber',
+  SKY_BADGE: 'sky_badge',
+  DANGER_RED: 'danger_red',
+} as const;
 export type SlotUiVariant =
-  | 'neutral_disabled'
-  | 'dashed_border'
-  | 'muted_gray'
-  | 'success_green'
-  | 'info_blue'
-  | 'warning_amber'
-  | 'sky_badge'
-  | 'danger_red';
+  (typeof SLOT_UI_VARIANT)[keyof typeof SLOT_UI_VARIANT];
 
+export const SLOT_ACTION_TYPE = {
+  NONE: 'NONE',
+  ADD_SESSION: 'ADD_SESSION',
+  VIEW_SESSION: 'VIEW_SESSION',
+  VIEW_PATIENTS: 'VIEW_PATIENTS',
+  VIEW_OCCUPANCY_CONFLICT: 'VIEW_OCCUPANCY_CONFLICT',
+} as const;
 export type SlotActionType =
-  | 'NONE'
-  | 'ADD_SESSION'
-  | 'VIEW_SESSION'
-  | 'VIEW_PATIENTS';
+  (typeof SLOT_ACTION_TYPE)[keyof typeof SLOT_ACTION_TYPE];
 
+export const SHIFT_OPERATIONAL_STATUS = {
+  ACTIVE: 'ACTIVE',
+  NO_PRACTICE: 'NO_PRACTICE',
+  CLOSED: 'CLOSED',
+  CUTI: 'CUTI',
+} as const;
 export type ShiftOperationalStatus =
-  | 'ACTIVE'
-  | 'NO_PRACTICE'
-  | 'CLOSED'
-  | 'CUTI';
+  (typeof SHIFT_OPERATIONAL_STATUS)[keyof typeof SHIFT_OPERATIONAL_STATUS];
 
 export interface ClosureState {
   category: ClosureCategory;
@@ -118,6 +153,7 @@ export interface MultiDimensionalSlotProjection {
   patientInfo?: any | null;
   rescheduleInfo?: any | null;
   closureInfo?: any | null;
+  conflictInfo?: SlotConflictInfo | null;
 }
 
 export interface SlotOccupancyMetric {
@@ -241,6 +277,30 @@ export interface RescheduleEventFact {
   reasonText?: string | null;
 }
 
+export interface OtherDoctorRoomOccupancyFact {
+  sessionId: string;
+  practitionerId: string;
+  practitionerName: string;
+  specialty?: string;
+  roomId: string;
+  roomName: string;
+  startTime: string; // HH:mm
+  endTime: string;   // HH:mm
+}
+
+export interface SlotConflictInfo {
+  type: string;
+  sessionId?: string;
+  practitionerId?: string;
+  practitionerName?: string;
+  practitionerSpecialty?: string;
+  roomId?: string;
+  roomName?: string;
+  startTime?: string;
+  endTime?: string;
+  message?: string;
+}
+
 export interface SlotStateResolverInput {
   scheduleDate: string; // 'YYYY-MM-DD'
   context: ShiftDefinition | SessionShiftType | string;
@@ -252,6 +312,7 @@ export interface SlotStateResolverInput {
   leavePeriods?: LeavePeriodFact[];
   closures?: ScheduleClosureFact[];
   rescheduleEvents?: RescheduleEventFact[];
+  otherDoctorRoomOccupancies?: OtherDoctorRoomOccupancyFact[];
 }
 
 export class ScheduleSlotStateResolver {
@@ -314,24 +375,24 @@ export class ScheduleSlotStateResolver {
       // 1. Temporal State (calculated purely from clock time)
       let temporalState: TemporalState;
       if (isPastDate) {
-        temporalState = 'PAST';
+        temporalState = TEMPORAL_STATE.PAST;
         pastCount++;
       } else if (isFutureDate) {
-        temporalState = 'FUTURE';
+        temporalState = TEMPORAL_STATE.FUTURE;
         futureCount++;
       } else {
         // Today: compare clock minutes
         if (slot.endMinutes <= currentMinutes) {
-          temporalState = 'PAST';
+          temporalState = TEMPORAL_STATE.PAST;
           pastCount++;
         } else if (
           slot.startMinutes <= currentMinutes &&
           currentMinutes < slot.endMinutes
         ) {
-          temporalState = 'CURRENT';
+          temporalState = TEMPORAL_STATE.CURRENT;
           currentCount++;
         } else {
-          temporalState = 'FUTURE';
+          temporalState = TEMPORAL_STATE.FUTURE;
           futureCount++;
         }
       }
@@ -340,7 +401,7 @@ export class ScheduleSlotStateResolver {
       let closure: ClosureState | undefined;
       if (activeLeave) {
         closure = {
-          category: 'LEAVE',
+          category: CLOSURE_CATEGORY.LEAVE,
           reasonCode: 'LEAVE',
           reasonText: activeLeave.reason || 'Cuti Dokter',
           sourceType: 'leave_period',
@@ -361,7 +422,7 @@ export class ScheduleSlotStateResolver {
 
         if (matchingClosure) {
           closure = {
-            category: 'OTHER',
+            category: CLOSURE_CATEGORY.OTHER,
             reasonCode: matchingClosure.reasonCode || 'MANUAL',
             reasonText: matchingClosure.reasonText || 'Ditutup oleh klinik',
             sourceType: 'schedule_closure',
@@ -382,21 +443,21 @@ export class ScheduleSlotStateResolver {
       });
 
       if (closure) {
-        availabilityState = 'CLOSED';
+        availabilityState = AVAILABILITY_STATE.CLOSED;
         closedCount++;
       } else {
         if (!coveringRange) {
-          availabilityState = 'UNSCHEDULED';
+          availabilityState = AVAILABILITY_STATE.UNSCHEDULED;
           unscheduledCount++;
         } else if (coveringRange.status === 'closed') {
           closure = {
-            category: 'OTHER',
+            category: CLOSURE_CATEGORY.OTHER,
             reasonCode: 'SESSION_CLOSED',
             reasonText: coveringRange.notes || 'Sesi dinonaktifkan',
             sourceType: 'session_closure',
             sourceId: coveringRange.id,
           };
-          availabilityState = 'CLOSED';
+          availabilityState = AVAILABILITY_STATE.CLOSED;
           closedCount++;
         } else {
           // Practitioner opened range exists -> check appointment occupancy
@@ -409,10 +470,10 @@ export class ScheduleSlotStateResolver {
           });
 
           if (matchedAppt) {
-            availabilityState = 'OCCUPIED';
+            availabilityState = AVAILABILITY_STATE.OCCUPIED;
             occupiedCount++;
           } else {
-            availabilityState = 'AVAILABLE';
+            availabilityState = AVAILABILITY_STATE.AVAILABLE;
             availableCount++;
           }
         }
@@ -452,102 +513,132 @@ export class ScheduleSlotStateResolver {
       // FIX: UNSCHEDULED slots must remain UNSCHEDULED even if temporalState is PAST!
       // 'EXPIRED / Selesai' only applies to sessions that were actually scheduled by practitioner.
       let effectiveStatus: EffectiveSlotStatus;
-      if (availabilityState === 'UNSCHEDULED') {
-        effectiveStatus = 'UNSCHEDULED';
-      } else if (availabilityState === 'CLOSED') {
-        effectiveStatus = 'CLOSED';
-      } else if (temporalState === 'PAST') {
-        effectiveStatus = 'EXPIRED';
+      if (availabilityState === AVAILABILITY_STATE.UNSCHEDULED) {
+        effectiveStatus = EFFECTIVE_SLOT_STATUS.UNSCHEDULED;
+      } else if (availabilityState === AVAILABILITY_STATE.CLOSED) {
+        effectiveStatus = EFFECTIVE_SLOT_STATUS.CLOSED;
+      } else if (temporalState === TEMPORAL_STATE.PAST) {
+        effectiveStatus = EFFECTIVE_SLOT_STATUS.EXPIRED;
       } else {
-        effectiveStatus = availabilityState;
+        effectiveStatus = availabilityState as EffectiveSlotStatus;
       }
 
       // 6. UI-Ready Canonical Mapping (Zero-Intervention Plug & Play for Frontend)
       let uiStatus: SlotUiStatus;
       let uiLabel: string;
+      let uiSubLabel: string = slot.endTime;
       let uiVariant: SlotUiVariant;
       let isClickable: boolean;
       let actionType: SlotActionType;
+      let conflictInfo: SlotConflictInfo | null = null;
 
-      if (closure?.category === 'LEAVE') {
-        uiStatus = 'CLOSED_LEAVE';
+      const otherDoctorOccupancy = (
+        input.otherDoctorRoomOccupancies || []
+      ).find((occ) => {
+        const occStart = parseClockTime(occ.startTime);
+        const occEnd = parseClockTime(occ.endTime);
+        return occStart < slot.endMinutes && occEnd > slot.startMinutes;
+      });
+
+      if (closure?.category === CLOSURE_CATEGORY.LEAVE) {
+        uiStatus = SLOT_UI_STATUS.CLOSED_LEAVE;
         uiLabel = 'Cuti';
-        uiVariant = 'sky_badge';
+        uiVariant = SLOT_UI_VARIANT.SKY_BADGE;
         isClickable = false;
-        actionType = 'NONE';
+        actionType = SLOT_ACTION_TYPE.NONE;
       } else if (closure) {
-        uiStatus = 'CLOSED_CLINIC';
+        uiStatus = SLOT_UI_STATUS.CLOSED_CLINIC;
         uiLabel = closure.reasonText
           ? `Ditutup: ${closure.reasonText}`
           : 'Ditutup';
-        uiVariant = 'danger_red';
+        uiVariant = SLOT_UI_VARIANT.DANGER_RED;
         isClickable = true;
-        actionType = 'VIEW_SESSION';
-      } else if (availabilityState === 'UNSCHEDULED') {
-        if (temporalState === 'PAST') {
-          uiStatus = 'UNSCHEDULED_PAST';
-          uiLabel = 'Belum Terjadwal';
-          uiVariant = 'neutral_disabled';
-          isClickable = false;
-          actionType = 'NONE';
-        } else {
-          uiStatus = 'UNSCHEDULED';
-          uiLabel = 'Belum Terjadwal';
-          uiVariant = 'dashed_border';
+        actionType = SLOT_ACTION_TYPE.VIEW_SESSION;
+      } else if (availabilityState === AVAILABILITY_STATE.UNSCHEDULED) {
+        if (otherDoctorOccupancy) {
+          uiStatus = SLOT_UI_STATUS.OCCUPIED_BY_OTHER;
+          uiLabel = otherDoctorOccupancy.practitionerName;
+          uiSubLabel = otherDoctorOccupancy.roomName;
+          uiVariant = SLOT_UI_VARIANT.PURPLE_OTHER;
           isClickable = true;
-          actionType = 'ADD_SESSION';
+          actionType = SLOT_ACTION_TYPE.VIEW_OCCUPANCY_CONFLICT;
+          conflictInfo = {
+            type: 'ROOM_COLLISION_OTHER_DOCTOR',
+            sessionId: otherDoctorOccupancy.sessionId,
+            practitionerId: otherDoctorOccupancy.practitionerId,
+            practitionerName: otherDoctorOccupancy.practitionerName,
+            practitionerSpecialty: otherDoctorOccupancy.specialty,
+            roomId: otherDoctorOccupancy.roomId,
+            roomName: otherDoctorOccupancy.roomName,
+            startTime: otherDoctorOccupancy.startTime,
+            endTime: otherDoctorOccupancy.endTime,
+            message: `Ruangan ${otherDoctorOccupancy.roomName} sedang digunakan oleh ${otherDoctorOccupancy.practitionerName} (${otherDoctorOccupancy.specialty || 'Dokter'}) pada ${otherDoctorOccupancy.startTime} - ${otherDoctorOccupancy.endTime} WIB.`,
+          };
+        } else if (temporalState === TEMPORAL_STATE.PAST) {
+          uiStatus = SLOT_UI_STATUS.UNSCHEDULED_PAST;
+          uiLabel = 'Belum Terjadwal';
+          uiVariant = SLOT_UI_VARIANT.NEUTRAL_DISABLED;
+          isClickable = false;
+          actionType = SLOT_ACTION_TYPE.NONE;
+        } else {
+          uiStatus = SLOT_UI_STATUS.UNSCHEDULED;
+          uiLabel = 'Belum Terjadwal';
+          uiVariant = SLOT_UI_VARIANT.DASHED_BORDER;
+          isClickable = true;
+          actionType = SLOT_ACTION_TYPE.ADD_SESSION;
         }
-      } else if (availabilityState === 'OCCUPIED') {
-        if (temporalState === 'PAST') {
-          uiStatus = 'COMPLETED';
+      } else if (availabilityState === AVAILABILITY_STATE.OCCUPIED) {
+        if (temporalState === TEMPORAL_STATE.PAST) {
+          uiStatus = SLOT_UI_STATUS.COMPLETED;
           uiLabel = matchedAppt?.patientName
             ? `Selesai: ${matchedAppt.patientName}`
             : 'Selesai';
-          uiVariant = 'muted_gray';
+          uiVariant = SLOT_UI_VARIANT.MUTED_GRAY;
           isClickable = true;
-          actionType = 'VIEW_SESSION';
+          actionType = SLOT_ACTION_TYPE.VIEW_SESSION;
         } else {
-          uiStatus = 'OCCUPIED';
+          uiStatus = SLOT_UI_STATUS.OCCUPIED;
           uiLabel = matchedAppt?.patientName
             ? `Terisi: ${matchedAppt.patientName}`
             : 'Terisi';
-          uiVariant = 'info_blue';
+          uiVariant = SLOT_UI_VARIANT.INFO_BLUE;
           isClickable = true;
-          actionType = 'VIEW_PATIENTS';
+          actionType = SLOT_ACTION_TYPE.VIEW_PATIENTS;
         }
       } else if (reschedule?.isRescheduled) {
-        if (temporalState === 'PAST') {
-          uiStatus = 'COMPLETED';
+        if (temporalState === TEMPORAL_STATE.PAST) {
+          uiStatus = SLOT_UI_STATUS.COMPLETED;
           uiLabel = 'Selesai';
-          uiVariant = 'muted_gray';
+          uiVariant = SLOT_UI_VARIANT.MUTED_GRAY;
           isClickable = true;
-          actionType = 'VIEW_SESSION';
+          actionType = SLOT_ACTION_TYPE.VIEW_SESSION;
         } else {
-          uiStatus = 'RESCHEDULED';
+          uiStatus = SLOT_UI_STATUS.RESCHEDULED;
           uiLabel = 'Dijadwalkan Ulang';
-          uiVariant = 'warning_amber';
+          uiVariant = SLOT_UI_VARIANT.WARNING_AMBER;
           isClickable = true;
-          actionType = 'VIEW_SESSION';
+          actionType = SLOT_ACTION_TYPE.VIEW_SESSION;
         }
       } else {
         // AVAILABLE
-        if (temporalState === 'PAST') {
-          uiStatus = 'COMPLETED';
+        if (temporalState === TEMPORAL_STATE.PAST) {
+          uiStatus = SLOT_UI_STATUS.COMPLETED;
           uiLabel = 'Selesai';
-          uiVariant = 'muted_gray';
+          uiVariant = SLOT_UI_VARIANT.MUTED_GRAY;
           isClickable = true;
-          actionType = 'VIEW_SESSION';
+          actionType = SLOT_ACTION_TYPE.VIEW_SESSION;
         } else {
-          uiStatus = 'AVAILABLE';
+          uiStatus = SLOT_UI_STATUS.AVAILABLE;
           uiLabel = 'Tersedia';
-          uiVariant = 'success_green';
+          uiVariant = SLOT_UI_VARIANT.SUCCESS_GREEN;
           isClickable = true;
-          actionType = 'VIEW_SESSION';
+          actionType = SLOT_ACTION_TYPE.VIEW_SESSION;
         }
       }
 
       const isSelectable =
-        effectiveStatus === 'AVAILABLE' && temporalState !== 'PAST';
+        effectiveStatus === EFFECTIVE_SLOT_STATUS.AVAILABLE &&
+        temporalState !== TEMPORAL_STATE.PAST;
 
       projectedSlots.push({
         intervalId: `${shiftDef.shift}:${slot.startTime}-${slot.endTime}`,
@@ -566,11 +657,12 @@ export class ScheduleSlotStateResolver {
         isSelectable,
         uiStatus,
         uiLabel,
-        uiSubLabel: slot.endTime,
+        uiSubLabel,
         uiVariant,
         isClickable,
         actionType,
         sessionId: coveringRange?.id || null,
+        conflictInfo: conflictInfo || null,
         ...(closure
           ? { closure, closureInfo: closure }
           : { closureInfo: null }),
@@ -603,7 +695,7 @@ export class ScheduleSlotStateResolver {
     const scheduledCount = availableCount + occupiedCount + closedCount;
     const activeBookableCount = availableCount + occupiedCount;
     const completedCount = projectedSlots.filter(
-      (s) => s.uiStatus === 'COMPLETED',
+      (s) => s.uiStatus === SLOT_UI_STATUS.COMPLETED,
     ).length;
     const occupancyPercentage =
       activeBookableCount > 0
@@ -619,16 +711,16 @@ export class ScheduleSlotStateResolver {
     let operationalLabel: string;
 
     if (isShiftCuti) {
-      operationalStatus = 'CUTI';
+      operationalStatus = SHIFT_OPERATIONAL_STATUS.CUTI;
       operationalLabel = 'Cuti Dokter';
     } else if (scheduledCount === 0) {
-      operationalStatus = 'NO_PRACTICE';
+      operationalStatus = SHIFT_OPERATIONAL_STATUS.NO_PRACTICE;
       operationalLabel = 'Tidak Ada Praktik';
     } else if (closedCount === theoreticalSlots.length) {
-      operationalStatus = 'CLOSED';
+      operationalStatus = SHIFT_OPERATIONAL_STATUS.CLOSED;
       operationalLabel = 'Praktik Ditutup';
     } else {
-      operationalStatus = 'ACTIVE';
+      operationalStatus = SHIFT_OPERATIONAL_STATUS.ACTIVE;
       operationalLabel = `${availableCount} slot tersedia`;
     }
 
@@ -660,7 +752,10 @@ export class ScheduleSlotStateResolver {
         percentage: coveragePercentage,
         displayText: `Cakupan Jadwal: ${scheduledCount}/${theoreticalSlots.length} Slot (${coveragePercentage}%)`,
       },
-      unscheduledNotice: `${unscheduledCount} slot belum dijadwalkan`,
+      unscheduledNotice:
+        unscheduledCount > 0
+          ? `${unscheduledCount} slot belum dijadwalkan`
+          : 'Semua slot telah terjadwal',
     };
 
     return {

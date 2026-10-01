@@ -1,6 +1,14 @@
 import {
   ScheduleSlotStateResolver,
   SlotStateResolverInput,
+  SHIFT_OPERATIONAL_STATUS,
+  AVAILABILITY_STATE,
+  TEMPORAL_STATE,
+  EFFECTIVE_SLOT_STATUS,
+  SLOT_UI_STATUS,
+  SLOT_UI_VARIANT,
+  SLOT_ACTION_TYPE,
+  CLOSURE_CATEGORY,
 } from './schedule-slot-state.resolver';
 
 describe('ScheduleSlotStateResolver', () => {
@@ -39,8 +47,8 @@ describe('ScheduleSlotStateResolver', () => {
       const firstSlot = result.slots[0];
       expect(firstSlot.startTime).toBe('06:00');
       expect(firstSlot.endTime).toBe('06:30');
-      expect(firstSlot.availabilityState).toBe('UNSCHEDULED');
-      expect(firstSlot.effectiveStatus).toBe('UNSCHEDULED');
+      expect(firstSlot.availabilityState).toBe(AVAILABILITY_STATE.UNSCHEDULED);
+      expect(firstSlot.effectiveStatus).toBe(EFFECTIVE_SLOT_STATUS.UNSCHEDULED);
       expect(firstSlot.isSelectable).toBe(false);
     });
 
@@ -488,21 +496,21 @@ describe('ScheduleSlotStateResolver', () => {
 
       const result = ScheduleSlotStateResolver.resolveContextProjection(input);
 
-      expect(result.operationalStatus).toBe('NO_PRACTICE');
+      expect(result.operationalStatus).toBe(SHIFT_OPERATIONAL_STATUS.NO_PRACTICE);
       expect(result.operationalLabel).toBe('Tidak Ada Praktik');
       expect(result.counts.unscheduled).toBe(12);
       expect(result.counts.scheduled).toBe(0);
 
       const firstSlot = result.slots[0]; // 00:00 - 00:30
-      expect(firstSlot.temporalState).toBe('PAST');
-      expect(firstSlot.availabilityState).toBe('UNSCHEDULED');
+      expect(firstSlot.temporalState).toBe(TEMPORAL_STATE.PAST);
+      expect(firstSlot.availabilityState).toBe(AVAILABILITY_STATE.UNSCHEDULED);
       // Crucial fix verification: Must NOT be EXPIRED!
-      expect(firstSlot.effectiveStatus).toBe('UNSCHEDULED');
-      expect(firstSlot.uiStatus).toBe('UNSCHEDULED_PAST');
+      expect(firstSlot.effectiveStatus).toBe(EFFECTIVE_SLOT_STATUS.UNSCHEDULED);
+      expect(firstSlot.uiStatus).toBe(SLOT_UI_STATUS.UNSCHEDULED_PAST);
       expect(firstSlot.uiLabel).toBe('Belum Terjadwal');
-      expect(firstSlot.uiVariant).toBe('neutral_disabled');
+      expect(firstSlot.uiVariant).toBe(SLOT_UI_VARIANT.NEUTRAL_DISABLED);
       expect(firstSlot.isClickable).toBe(false);
-      expect(firstSlot.actionType).toBe('NONE');
+      expect(firstSlot.actionType).toBe(SLOT_ACTION_TYPE.NONE);
     });
 
     it('should assign COMPLETED and muted_gray for scheduled slots in the past, distinguishing available from occupied', () => {
@@ -561,6 +569,43 @@ describe('ScheduleSlotStateResolver', () => {
       expect(unschedPastSlot?.uiStatus).toBe('UNSCHEDULED_PAST');
       expect(unschedPastSlot?.uiLabel).toBe('Belum Terjadwal');
       expect(unschedPastSlot?.uiVariant).toBe('neutral_disabled');
+    });
+
+    it('should resolve slot as OCCUPIED_BY_OTHER with purple_other variant when another doctor occupies the room', () => {
+      const input: SlotStateResolverInput = {
+        scheduleDate: '2026-10-01',
+        context: 'night',
+        intervalMinutes: 30,
+        currentDate: '2026-09-25',
+        currentTime: '10:00',
+        openedRanges: [],
+        otherDoctorRoomOccupancies: [
+          {
+            sessionId: 'sess-other-1',
+            practitionerId: 'prac-other-1',
+            practitionerName: 'dr. Sarah Sp.A',
+            specialty: 'Spesialis Anak',
+            roomId: 'room-kia-1',
+            roomName: 'Ruang KIA 1',
+            startTime: '18:00',
+            endTime: '19:00',
+          },
+        ],
+      };
+
+      const result = ScheduleSlotStateResolver.resolveContextProjection(input);
+      const slot1800 = result.slots.find((s) => s.startTime === '18:00');
+      const slot1830 = result.slots.find((s) => s.startTime === '18:30');
+      const slot1900 = result.slots.find((s) => s.startTime === '19:00');
+
+      expect(slot1800?.uiVariant).toBe('purple_other');
+      expect(slot1800?.uiStatus).toBe('OCCUPIED_BY_OTHER');
+      expect(slot1800?.actionType).toBe('VIEW_OCCUPANCY_CONFLICT');
+      expect(slot1800?.conflictInfo?.type).toBe('ROOM_COLLISION_OTHER_DOCTOR');
+      expect(slot1800?.conflictInfo?.practitionerName).toBe('dr. Sarah Sp.A');
+
+      expect(slot1830?.uiVariant).toBe('purple_other');
+      expect(slot1900?.uiVariant).toBe('dashed_border');
     });
   });
 });

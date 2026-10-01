@@ -386,6 +386,7 @@ export class SchedulesController {
       query.date,
       query.startTime,
       query.endTime,
+      query.excludePractitionerId,
     );
   }
 

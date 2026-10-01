@@ -9,6 +9,14 @@ import {
   resolveAggregateOperationalStatus,
   resolveSessionOperationalStatus,
 } from '@modules/schedules/domain/schedule-status';
+import {
+  SHIFT_OPERATIONAL_STATUS,
+  AVAILABILITY_STATE,
+  TEMPORAL_STATE,
+  EFFECTIVE_SLOT_STATUS,
+  SLOT_UI_STATUS,
+  CLOSURE_CATEGORY,
+} from '@modules/schedules/domain/resolvers/schedule-slot-state.resolver';
 
 export interface MonthlyScheduleBuildContext {
   targetYear: number;
@@ -263,21 +271,21 @@ export function buildTimelineAndMetrics(contextProjections: any[]) {
         timeEnd: slot.endTime,
         startTime: slot.startTime,
         endTime: slot.endTime,
-        status: (slot.effectiveStatus === 'AVAILABLE'
-          ? 'OPEN'
-          : slot.effectiveStatus === 'OCCUPIED'
-            ? 'OCCUPIED'
-            : 'CLOSED') as 'OPEN' | 'OCCUPIED' | 'CLOSED',
-        displayLabel: (slot.effectiveStatus === 'AVAILABLE'
+        status: (slot.effectiveStatus === EFFECTIVE_SLOT_STATUS.AVAILABLE
+          ? ScheduleOperationalStatus.OPEN
+          : slot.effectiveStatus === EFFECTIVE_SLOT_STATUS.OCCUPIED
+            ? ScheduleOperationalStatus.OCCUPIED
+            : ScheduleOperationalStatus.CLOSED) as 'OPEN' | 'OCCUPIED' | 'CLOSED',
+        displayLabel: (slot.effectiveStatus === EFFECTIVE_SLOT_STATUS.AVAILABLE
           ? 'Buka'
-          : slot.effectiveStatus === 'OCCUPIED'
+          : slot.effectiveStatus === EFFECTIVE_SLOT_STATUS.OCCUPIED
             ? 'Terisi'
-            : slot.effectiveStatus === 'EXPIRED'
+            : slot.effectiveStatus === EFFECTIVE_SLOT_STATUS.EXPIRED
               ? 'Kadaluarsa'
-              : slot.effectiveStatus === 'CLOSED'
+              : slot.effectiveStatus === EFFECTIVE_SLOT_STATUS.CLOSED
                 ? 'Tutup'
                 : 'Belum Terisi') as 'Buka' | 'Terisi' | 'Tutup',
-        isOccupied: slot.availabilityState === 'OCCUPIED',
+        isOccupied: slot.availabilityState === AVAILABILITY_STATE.OCCUPIED,
         appointmentRef: slot.appointment
           ? {
               appointmentId: slot.appointment.id,
@@ -286,7 +294,7 @@ export function buildTimelineAndMetrics(contextProjections: any[]) {
             }
           : undefined,
         closedReason: slot.closure
-          ? slot.closure.category === 'LEAVE'
+          ? slot.closure.category === CLOSURE_CATEGORY.LEAVE
             ? ('LEAVE' as const)
             : ('SCHEDULE_CLOSED' as const)
           : undefined,
@@ -324,7 +332,15 @@ export function buildTimelineAndMetrics(contextProjections: any[]) {
     0,
   );
   const totalDayUnscheduledSlots = contextProjections.reduce(
-    (acc, cp) => acc + (cp.metrics?.unscheduledSlots ?? cp.counts.unscheduled),
+    (acc, cp) => {
+      if (cp.operationalStatus === SHIFT_OPERATIONAL_STATUS.NO_PRACTICE) return acc;
+      const futureUnscheduled = (cp.slots || []).filter(
+        (s: any) =>
+          s.availabilityState === AVAILABILITY_STATE.UNSCHEDULED &&
+          s.temporalState !== TEMPORAL_STATE.PAST,
+      ).length;
+      return acc + futureUnscheduled;
+    },
     0,
   );
   const totalDayAvailableSlots = contextProjections.reduce(
@@ -332,7 +348,7 @@ export function buildTimelineAndMetrics(contextProjections: any[]) {
     0,
   );
   const totalDayCompletedSlots = timelineIntervals.filter(
-    (s: any) => s.uiStatus === 'COMPLETED',
+    (s: any) => s.uiStatus === SLOT_UI_STATUS.COMPLETED,
   ).length;
   const totalDayOccupiedSlots = contextProjections.reduce(
     (acc, cp) => acc + (cp.metrics?.occupiedSlots ?? cp.counts.occupied),
@@ -389,7 +405,10 @@ export function buildTimelineAndMetrics(contextProjections: any[]) {
       percentage: dayCoveragePercentage,
       displayText: `Cakupan Jadwal: ${totalDayScheduledSlots}/${totalDayTheoreticalSlots} Slot (${dayCoveragePercentage}%)`,
     },
-    unscheduledNotice: `${totalDayUnscheduledSlots} slot belum dijadwalkan`,
+    unscheduledNotice:
+      totalDayUnscheduledSlots > 0
+        ? `${totalDayUnscheduledSlots} slot belum dijadwalkan`
+        : 'Semua slot telah terjadwal',
   };
 
   return { timelineIntervals, dayMetrics };

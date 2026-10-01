@@ -274,8 +274,9 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
     date?: string,
     startTime?: string,
     endTime?: string,
+    excludePractitionerId?: string,
   ): Promise<ClinicRoomReferenceEntity[]> {
-    return this.refRepo.getRooms(date, startTime, endTime);
+    return this.refRepo.getRooms(date, startTime, endTime, excludePractitionerId);
   }
 
   getPolikliniks(): Promise<

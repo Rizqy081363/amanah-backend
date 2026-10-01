@@ -29,6 +29,7 @@ export class DrizzleScheduleReferenceRepository {
     date?: string,
     startTime?: string,
     endTime?: string,
+    excludePractitionerId?: string,
   ): Promise<ClinicRoomReferenceEntity[]> {
     const rooms = await this.db.query.clinicRooms.findMany({
       where: eq(clinicRooms.isActive, true),
@@ -44,6 +45,7 @@ export class DrizzleScheduleReferenceRepository {
         floor: r.floor,
         isOccupied: false,
         occupiedBy: null,
+        occupantDetails: null,
       }));
     }
 
@@ -59,7 +61,12 @@ export class DrizzleScheduleReferenceRepository {
       with: {
         practitioner: {
           with: {
-            staffProfile: true,
+            staffProfile: {
+              with: {
+                clinicUnit: true,
+              },
+            },
+            medicalSpecialty: true,
           },
         },
         clinicRoom: true,
@@ -69,6 +76,13 @@ export class DrizzleScheduleReferenceRepository {
     return rooms.map((r) => {
       const activeSession = sessions.find((s) => {
         if (s.roomId !== r.id) return false;
+        if (
+          excludePractitionerId &&
+          (s.practitionerId === excludePractitionerId ||
+            s.practitioner?.staffProfileId === excludePractitionerId)
+        ) {
+          return false;
+        }
         const sessStart =
           s.startTime.length === 5 ? `${s.startTime}:00` : s.startTime;
         const sessEnd = s.endTime.length === 5 ? `${s.endTime}:00` : s.endTime;
@@ -80,6 +94,13 @@ export class DrizzleScheduleReferenceRepository {
           activeSession.practitioner?.staffProfile?.fullName ||
           activeSession.practitioner?.displayName ||
           'Dokter';
+        const specialty =
+          activeSession.practitioner?.medicalSpecialty?.name ||
+          activeSession.practitioner?.staffProfile?.positionTitle ||
+          activeSession.practitioner?.staffProfile?.departmentName ||
+          'Spesialis';
+        const unitName =
+          activeSession.practitioner?.staffProfile?.clinicUnit?.name || null;
         const range = `${activeSession.startTime.slice(0, 5)} - ${activeSession.endTime.slice(0, 5)} WIB`;
         return {
           id: r.id,
@@ -89,6 +110,17 @@ export class DrizzleScheduleReferenceRepository {
           floor: r.floor,
           isOccupied: true,
           occupiedBy: `${docName} (${range})`,
+          occupantDetails: {
+            practitionerId: activeSession.practitionerId,
+            staffProfileId:
+              activeSession.practitioner?.staffProfileId || null,
+            practitionerName: docName,
+            specialty,
+            unitName,
+            startTime: activeSession.startTime.slice(0, 5),
+            endTime: activeSession.endTime.slice(0, 5),
+            roomName: r.name,
+          },
         };
       }
 
@@ -100,6 +132,7 @@ export class DrizzleScheduleReferenceRepository {
         floor: r.floor,
         isOccupied: false,
         occupiedBy: null,
+        occupantDetails: null,
       };
     });
   }

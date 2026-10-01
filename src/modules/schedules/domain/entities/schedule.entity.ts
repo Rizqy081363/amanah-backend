@@ -104,6 +104,16 @@ export class ClinicRoomReferenceEntity {
   floor?: string | null;
   isOccupied: boolean;
   occupiedBy?: string | null;
+  occupantDetails?: {
+    practitionerId?: string;
+    staffProfileId?: string | null;
+    practitionerName: string;
+    specialty?: string;
+    unitName?: string | null;
+    startTime: string;
+    endTime: string;
+    roomName: string;
+  } | null;
 }
 
 export class ScheduleOptionsReferenceEntity {
