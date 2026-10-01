@@ -45,7 +45,6 @@ describe('ClinicalPractitionersController', () => {
       getOccupancyOverview: jest.fn(),
       getAdminSessionPatients: jest.fn(),
       getAdminDoctorPatientsByDate: jest.fn(),
-      getFormBootstrap: jest.fn(),
       getSlotAvailability: jest.fn(),
     };
 

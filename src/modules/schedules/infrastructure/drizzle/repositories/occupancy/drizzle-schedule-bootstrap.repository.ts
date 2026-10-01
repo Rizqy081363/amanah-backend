@@ -2,24 +2,15 @@ import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
   clinicRooms,
-  clinicUnits,
   practitionerLeavePeriods,
   practitionerScheduleDaySettings,
   practitionerScheduleSessions,
-  practitioners,
 } from '@database/schema';
-import { CLINIC_TIMEZONE } from '@modules/schedules/domain/constants/schedule.constants';
 import {
-  CANONICAL_STAFF_SHIFTS,
   resolveCanonicalShift,
-  SHIFT_DISPLAY_LABELS,
   SHIFT_TIMING_CONFIGS,
 } from '@modules/schedules/domain/constants/schedule-shift.constants';
 import type {
-  ScheduleFormBootstrapData,
-  ScheduleFormBootstrapPoliklinik,
-  ScheduleFormBootstrapRoom,
-  ScheduleFormBootstrapShift,
   ScheduleSlotAvailabilityData,
   ScheduleSlotAvailabilityItem,
 } from '@modules/schedules/domain/entities/schedule-bootstrap.entity';
@@ -31,10 +22,9 @@ import { SchedulePersistenceStatus } from '@modules/schedules/domain/schedule-st
 import { getClinicNow } from '@modules/schedules/domain/services/schedule-date.formatter';
 import { SchedulePolicyReader } from '@modules/schedules/infrastructure/drizzle/queries/schedule-policy.reader';
 import { PractitionerResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/practitioner.resolver';
-import type { ScheduleFormBootstrapQueryDto } from '@modules/schedules/presentation/dto/schedule-form-bootstrap-query.dto';
 import type { ScheduleSlotAvailabilityQueryDto } from '@modules/schedules/presentation/dto/schedule-slot-availability-query.dto';
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { and, asc, eq, gte, lte } from 'drizzle-orm';
+import { and, eq, gte, lte } from 'drizzle-orm';
 
 @Injectable()
 export class DrizzleScheduleBootstrapRepository {
@@ -44,201 +34,6 @@ export class DrizzleScheduleBootstrapRepository {
     private readonly practitionerResolver: PractitionerResolver,
     private readonly policyReader: SchedulePolicyReader,
   ) {}
-
-  async getFormBootstrap(
-    staffId: string,
-    query: ScheduleFormBootstrapQueryDto,
-  ): Promise<ScheduleFormBootstrapData> {
-    const practitioner = await this.practitionerResolver.resolve(staffId);
-    if (!practitioner) {
-      throw new NotFoundException(
-        `Praktisi medis dengan ID staf ${staffId} tidak ditemukan`,
-      );
-    }
-
-    const doctorName =
-      practitioner.staffProfile?.fullName ||
-      practitioner.displayName ||
-      'Dokter';
-    const policy = await this.policyReader.getPolicy(practitioner);
-    const consultationDurationMinutes = policy.durationMinutes;
-
-    // 1. Resolve default room & poliklinik
-    let defaultRoomId: string | null = practitioner.defaultRoomId || null;
-    let defaultRoomName: string | null = null;
-    let defaultPoliklinikId: string | null = null;
-    let defaultPoliklinikName: string | null = null;
-
-    const [allRooms, allUnits, daySessions] = await Promise.all([
-      this.db.query.clinicRooms.findMany({
-        where: eq(clinicRooms.isActive, true),
-        orderBy: [asc(clinicRooms.floor), asc(clinicRooms.name)],
-        with: {
-          clinicUnit: true,
-        },
-      }),
-      this.db.query.clinicUnits.findMany({
-        where: eq(clinicUnits.isActive, true),
-        orderBy: [asc(clinicUnits.name)],
-      }),
-      this.db.query.practitionerScheduleSessions.findMany({
-        where: and(
-          eq(practitionerScheduleSessions.scheduleDate, query.date),
-          eq(
-            practitionerScheduleSessions.status,
-            SchedulePersistenceStatus.OPEN,
-          ),
-        ),
-        with: {
-          practitioner: {
-            with: {
-              staffProfile: true,
-            },
-          },
-          clinicRoom: true,
-        },
-      }),
-    ]);
-
-    const resolvedDefaultRoom = defaultRoomId
-      ? allRooms.find((r) => r.id === defaultRoomId)
-      : allRooms[0];
-
-    if (resolvedDefaultRoom) {
-      defaultRoomId = resolvedDefaultRoom.id;
-      defaultRoomName = resolvedDefaultRoom.name;
-      if (resolvedDefaultRoom.clinicUnit) {
-        defaultPoliklinikId = resolvedDefaultRoom.clinicUnit.id;
-        defaultPoliklinikName = resolvedDefaultRoom.clinicUnit.name;
-      }
-    }
-
-    if (!defaultPoliklinikId && allUnits.length > 0) {
-      defaultPoliklinikId = allUnits[0].id;
-      defaultPoliklinikName = allUnits[0].name;
-    }
-
-    // 2. Build rooms reference list with live occupancy for the selected date
-    const rooms: ScheduleFormBootstrapRoom[] = allRooms.map((r) => {
-      const activeSession = daySessions.find((s) => s.roomId === r.id);
-      if (activeSession) {
-        const occName =
-          activeSession.practitioner?.staffProfile?.fullName ||
-          activeSession.practitioner?.displayName ||
-          'Dokter';
-        return {
-          id: r.id,
-          name: r.name,
-          code: r.code,
-          isOccupied: true,
-          occupiedBy: occName,
-        };
-      }
-      return {
-        id: r.id,
-        name: r.name,
-        code: r.code,
-        isOccupied: false,
-        occupiedBy: null,
-      };
-    });
-
-    // 3. Build polikliniks list
-    const polikliniks: ScheduleFormBootstrapPoliklinik[] = allUnits.map(
-      (u) => ({
-        id: u.id,
-        name: u.name,
-        code: u.code,
-      }),
-    );
-
-    // 4. Build 4 shifts with temporal status (isPast) & existing doctor session
-    const { date: todayDate, currentMinutes } = getClinicNow();
-    const isPastDate = query.date < todayDate;
-    const isFutureDate = query.date > todayDate;
-
-    const doctorSessions = daySessions.filter(
-      (s) => s.practitionerId === practitioner.id,
-    );
-
-    const shifts: ScheduleFormBootstrapShift[] = CANONICAL_STAFF_SHIFTS.map(
-      (shiftCode) => {
-        const config = SHIFT_TIMING_CONFIGS[shiftCode];
-        const endMinutes = parseClockTime(config.defaultEndTime);
-
-        let isPast = false;
-        if (isPastDate) {
-          isPast = true;
-        } else if (isFutureDate) {
-          isPast = false;
-        } else {
-          // Today: compare clock minutes
-          isPast = endMinutes <= currentMinutes;
-        }
-
-        // Check if doctor has a schedule in this shift on this date
-        const existingSession = doctorSessions.find((s) => {
-          if (query.scheduleId && s.id === query.scheduleId) {
-            return true;
-          }
-          return (
-            s.sessionShift === shiftCode ||
-            s.sessionLabel?.toLowerCase().includes(config.label.toLowerCase())
-          );
-        });
-
-        let existingSchedule: any = null;
-        if (existingSession) {
-          existingSchedule = {
-            id: existingSession.id,
-            startTime: existingSession.startTime.slice(0, 5),
-            endTime: existingSession.endTime.slice(0, 5),
-            status:
-              existingSession.status === SchedulePersistenceStatus.CLOSED
-                ? 'CLOSED'
-                : 'OPEN',
-            roomId: existingSession.roomId,
-            roomName: existingSession.clinicRoom?.name || null,
-            capacity: existingSession.capacity,
-            availableSlots: existingSession.availableSlots,
-            notes: existingSession.notes || null,
-          };
-        }
-
-        const idMapping: Record<string, string> = {
-          early_morning: 'dini_hari',
-          morning: 'pagi',
-          afternoon: 'siang',
-          night: 'malam',
-        };
-
-        return {
-          id: idMapping[shiftCode] || shiftCode,
-          code: shiftCode,
-          name: `Sesi ${config.label}`,
-          startTime: config.defaultStartTime,
-          endTime: config.defaultEndTime,
-          isPast,
-          existingSchedule,
-        };
-      },
-    );
-
-    return {
-      doctor: {
-        id: practitioner.id,
-        name: doctorName,
-        defaultRoomId,
-        defaultRoomName,
-        defaultPoliklinikId,
-        defaultPoliklinikName,
-        consultationDurationMinutes,
-      },
-      rooms,
-      polikliniks,
-      shifts,
-    };
-  }
 
   async getSlotAvailability(
     staffId: string,

@@ -41,7 +41,6 @@ import {
   ScheduleOccupancyOverviewResponse,
 } from '../domain/entities/schedule.entity';
 import {
-  ScheduleFormBootstrapData,
   ScheduleSlotAvailabilityData,
 } from '../domain/entities/schedule-bootstrap.entity';
 import {
@@ -59,7 +58,6 @@ import { QueryScheduleDto } from './dto/query-schedule.dto';
 import { RescheduleAdminDoctorSessionDto } from './dto/reschedule-admin-doctor-session.dto';
 import { RoomReferenceQueryDto } from './dto/room-reference-query.dto';
 import { ScheduleContextQueryDto } from './dto/schedule-context-query.dto';
-import { ScheduleFormBootstrapQueryDto } from './dto/schedule-form-bootstrap-query.dto';
 import { ScheduleOccupancyQueryDto } from './dto/schedule-occupancy-query.dto';
 import { ScheduleProjectionQueryDto } from './dto/schedule-projection-query.dto';
 import { ScheduleSlotAvailabilityQueryDto } from './dto/schedule-slot-availability-query.dto';
@@ -484,32 +482,6 @@ export class SchedulesController {
     const data = await this.scheduleRepo.getOccupancyOverview(staffId, query);
     return {
       success: true,
-      data,
-    };
-  }
-
-  @Get('form-bootstrap')
-  @Roles('STAF', 'ADMIN')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'Memuat data bootstrap form jadwal (1 Roundtrip)',
-    description:
-      'Mengembalikan profil dokter, daftar ruangan dengan status keterisian hari ini, poliklinik, dan 4 shift beserta status lampau (isPast) & jadwal eksisting.',
-  })
-  @ApiOkResponse({
-    description: 'Form bootstrap data berhasil dimuat',
-    type: ScheduleFormBootstrapData,
-  })
-  async getFormBootstrap(
-    @Query() query: ScheduleFormBootstrapQueryDto,
-    @CurrentUser() user: any,
-  ) {
-    const staffId = this.resolveTargetStaffId(user, query.staffId);
-    const data = await this.scheduleRepo.getFormBootstrap(staffId, query);
-    return {
-      success: true,
-      statusCode: HttpStatus.OK,
-      message: 'Form bootstrap data berhasil dimuat',
       data,
     };
   }

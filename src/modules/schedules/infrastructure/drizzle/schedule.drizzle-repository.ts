@@ -19,7 +19,6 @@ import type {
   ScheduleProjectionEntity,
 } from '@modules/schedules/domain/entities/schedule.entity';
 import type {
-  ScheduleFormBootstrapData,
   ScheduleSlotAvailabilityData,
 } from '@modules/schedules/domain/entities/schedule-bootstrap.entity';
 import type { ScheduleRepository } from '@modules/schedules/domain/repositories/schedule.repository';
@@ -32,7 +31,6 @@ import type { CreateAvailabilityDto } from '@modules/schedules/presentation/dto/
 import type { GetAdminDoctorPatientsQueryDto } from '@modules/schedules/presentation/dto/get-admin-doctor-patients-query.dto';
 import type { GetSessionPatientsQueryDto } from '@modules/schedules/presentation/dto/get-session-patients-query.dto';
 import type { RescheduleAdminDoctorSessionDto } from '@modules/schedules/presentation/dto/reschedule-admin-doctor-session.dto';
-import type { ScheduleFormBootstrapQueryDto } from '@modules/schedules/presentation/dto/schedule-form-bootstrap-query.dto';
 import type { ScheduleOccupancyQueryDto } from '@modules/schedules/presentation/dto/schedule-occupancy-query.dto';
 import type { ScheduleProjectionQueryDto } from '@modules/schedules/presentation/dto/schedule-projection-query.dto';
 import type { ScheduleSlotAvailabilityQueryDto } from '@modules/schedules/presentation/dto/schedule-slot-availability-query.dto';
@@ -345,14 +343,7 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
     return this.occupancyRepo.getOccupancyOverview(staffId, query);
   }
 
-  // Form Bootstrap & Slot Availability (SSOT Zero-Client-Calculation)
-  getFormBootstrap(
-    staffId: string,
-    query: ScheduleFormBootstrapQueryDto,
-  ): Promise<ScheduleFormBootstrapData> {
-    return this.bootstrapRepo.getFormBootstrap(staffId, query);
-  }
-
+  // Slot Availability (SSOT Anti-Collision Grid)
   getSlotAvailability(
     staffId: string,
     query: ScheduleSlotAvailabilityQueryDto,
