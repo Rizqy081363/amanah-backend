@@ -115,12 +115,19 @@ export class PatientScheduleBookingController {
     }
     const unitRoomIds = new Set(unitRooms.map((r) => r.id));
 
-    // Query active schedule sessions on this date
+    // Query active schedule sessions on this date.
+    // When staffId is provided (reschedule context), scope to that practitioner
+    // at the DB level — do not load the entire clinic's sessions and filter in JS,
+    // as that causes a race-condition window where global slot counts leak through
+    // before the correct staffId is resolved.
+    const sessionConditions = [
+      eq(practitionerScheduleSessions.scheduleDate, dateStr),
+      eq(practitionerScheduleSessions.status, 'open'),
+      ...(staffId ? [eq(practitionerScheduleSessions.practitionerId, staffId)] : []),
+    ];
+
     const sessions = await this.db.query.practitionerScheduleSessions.findMany({
-      where: and(
-        eq(practitionerScheduleSessions.scheduleDate, dateStr),
-        eq(practitionerScheduleSessions.status, 'open'),
-      ),
+      where: and(...sessionConditions),
       with: {
         practitioner: {
           with: {
@@ -166,13 +173,8 @@ export class PatientScheduleBookingController {
 
     const mappedSessions = bookingShifts.map((shiftDef) => {
       const matching = sessions.filter((s) => {
-        if (
-          staffId &&
-          s.practitioner?.staffProfileId !== staffId &&
-          s.practitionerId !== staffId
-        ) {
-          return false;
-        }
+        // staffId filter is already applied at DB level — sessions here belong
+        // to the correct practitioner when staffId is provided.
 
         if (poliklinikId) {
           const roomUnitId = s.clinicRoom?.unitId;
