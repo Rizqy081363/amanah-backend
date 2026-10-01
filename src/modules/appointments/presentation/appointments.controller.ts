@@ -392,7 +392,12 @@ export class AppointmentsController {
     @Body() dto: RescheduleAppointmentDto,
     @CurrentUser() user: any,
   ) {
-    return this.appointmentsService.reschedule(id, dto, user?.id || user?.sub);
+    return this.appointmentsService.reschedule(
+      id,
+      dto,
+      user?.id || user?.sub,
+      user,
+    );
   }
 
   @ApiBearerAuth('access-token')

@@ -59,6 +59,8 @@ import {
 } from './repositories';
 import { PractitionerResolver } from './resolvers/practitioner.resolver';
 import { RoomResolver } from './resolvers/room.resolver';
+import { NOTIFICATION_PUBLISHER } from '@modules/notifications/notifications.constants';
+import type { NotificationPublisher } from '@modules/notifications/contracts/domain-event.interface';
 
 @Injectable()
 export class ScheduleDrizzleRepository implements ScheduleRepository {
@@ -96,6 +98,9 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
     @Optional() adminListQuery?: DrizzleAdminDoctorScheduleListQuery,
     @Optional() adminDetailQuery?: DrizzleAdminDoctorScheduleDetailQuery,
     @Optional() adminMutationRepo?: DrizzleAdminScheduleMutationRepository,
+    @Optional()
+    @Inject(NOTIFICATION_PUBLISHER)
+    notificationPublisher?: NotificationPublisher,
   ) {
     const resolvedPractitioner =
       practitionerResolver ?? new PractitionerResolver(db);
@@ -147,7 +152,16 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
         resolvedPractitioner,
         resolvedConflict,
         this.availabilityRepo,
+        undefined,
+        notificationPublisher,
       );
+    if (
+      rescheduleRepo &&
+      notificationPublisher &&
+      !(rescheduleRepo as any).notificationPublisher
+    ) {
+      (rescheduleRepo as any).notificationPublisher = notificationPublisher;
+    }
     this.patientRepo =
       patientRepo ??
       new DrizzleSchedulePatientRepository(db, resolvedPractitioner);

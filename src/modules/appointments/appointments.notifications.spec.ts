@@ -256,4 +256,91 @@ describe('AppointmentsNotificationRules', () => {
         : rule?.visualKey;
     expect(visualKey).toBe('https://cdn.amanah.com/avatars/drsiti.webp');
   });
+
+  it('should register appointment rescheduled rule notifying staff when rescheduled by patient', async () => {
+    const mockResolver = {
+      resolveAdminAndStaffUserIds: async () => ['staff-1', 'admin-1'],
+    };
+    const localRules = new AppointmentsNotificationRules(
+      registry,
+      mockResolver as any,
+    );
+    localRules.onModuleInit();
+
+    const rule = registry.get(APPOINTMENT_EVENTS.RESCHEDULED);
+    expect(rule).toBeDefined();
+    expect(rule?.category).toBe('appointment');
+
+    const payload = {
+      appointmentId: 'apt-resched-1',
+      patientUserId: 'patient-123',
+      patientName: 'Lexguard Didier',
+      patientAvatarUrl: 'https://cdn.amanah.com/avatars/lex.webp',
+      doctorName: 'dr. Ahmad Santoso',
+      queueNumber: 'P-001',
+      appointmentDate: '2026-10-01',
+      targetDate: '2026-10-01',
+      targetStartTime: '18:00:00',
+      targetEndTime: '18:30:00',
+      rescheduledByRole: 'patient',
+      reason: 'Pindah ke shift malam',
+    };
+
+    const recipients = await rule?.resolveRecipients(payload);
+    expect(recipients).toContain('staff-1');
+    expect(recipients).toContain('admin-1');
+    expect(recipients).toContain('patient-123');
+
+    const title =
+      typeof rule?.titleTemplate === 'function'
+        ? rule.titleTemplate(payload)
+        : rule?.titleTemplate;
+    expect(title).toBe('Perubahan Jadwal Janji Temu Pasien');
+
+    const body =
+      typeof rule?.bodyTemplate === 'function'
+        ? rule.bodyTemplate(payload)
+        : rule?.bodyTemplate;
+    expect(body).toContain('Pasien Lexguard Didier');
+    expect(body).toContain('telah memindahkan jadwal');
+    expect(body).toContain('18:00:00 - 18:30:00');
+  });
+
+  it('should register appointment rescheduled rule notifying patient when rescheduled by admin', async () => {
+    const localRules = new AppointmentsNotificationRules(registry);
+    localRules.onModuleInit();
+
+    const rule = registry.get(APPOINTMENT_EVENTS.RESCHEDULED);
+    expect(rule).toBeDefined();
+
+    const payload = {
+      appointmentId: 'apt-resched-2',
+      patientUserId: 'patient-456',
+      doctorName: 'dr. Ahmad Santoso',
+      doctorAvatarUrl: 'https://cdn.amanah.com/avatars/drahmad.webp',
+      queueNumber: 'P-002',
+      appointmentDate: '2026-10-02',
+      targetDate: '2026-10-02',
+      targetStartTime: '09:00:00',
+      targetEndTime: '09:30:00',
+      rescheduledByRole: 'admin',
+      reason: 'Penyesuaian jadwal dokter di RSUD',
+    };
+
+    const recipients = await rule?.resolveRecipients(payload);
+    expect(recipients).toEqual(['patient-456']);
+
+    const title =
+      typeof rule?.titleTemplate === 'function'
+        ? rule.titleTemplate(payload)
+        : rule?.titleTemplate;
+    expect(title).toBe('Jadwal Janji Temu Diperbarui oleh Klinik');
+
+    const body =
+      typeof rule?.bodyTemplate === 'function'
+        ? rule.bodyTemplate(payload)
+        : rule?.bodyTemplate;
+    expect(body).toContain('telah dipindahkan ke tanggal 2026-10-02');
+    expect(body).toContain('Penyesuaian jadwal dokter di RSUD');
+  });
 });

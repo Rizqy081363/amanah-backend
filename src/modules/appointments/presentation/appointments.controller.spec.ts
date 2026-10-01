@@ -95,6 +95,7 @@ describe('AppointmentsController', () => {
       'apt-123',
       dto,
       'usr-1',
+      { id: 'usr-1' },
     );
     expect(result.id).toBe('apt-123');
     expect(result.appointmentDate).toBe('2026-09-29');

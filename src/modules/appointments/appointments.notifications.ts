@@ -127,21 +127,82 @@ export class AppointmentsNotificationRules implements OnModuleInit {
       }),
     });
 
-    // 5. Appointment Rescheduled Rule
+    // 5. Appointment Rescheduled Rule (Duplex: Patient-initiated or Admin-initiated)
     this.registry.registerRule({
       eventType: APPOINTMENT_EVENTS.RESCHEDULED,
       category: 'appointment',
       defaultChannels: ['in_app'],
-      resolveRecipients: (payload: any) => payload.patientUserId,
-      titleTemplate: 'Jadwal Janji Temu Diperbarui',
-      bodyTemplate: (payload: any) =>
-        `Jadwal janji temu untuk ${payload.patientName || 'pasien'} telah berhasil dipindahkan ke tanggal ${payload.targetDate} (${payload.targetStartTime} - ${payload.targetEndTime}).`,
+      resolveRecipients: async (payload: any) => {
+        if (
+          payload.rescheduledByRole === 'admin' ||
+          payload.rescheduledByRole === 'staff'
+        ) {
+          return payload.patientUserId ? [payload.patientUserId] : [];
+        }
+        const recipients: string[] = [];
+        if (this.recipientResolver) {
+          const staffUserIds =
+            await this.recipientResolver.resolveAdminAndStaffUserIds();
+          recipients.push(...staffUserIds);
+        }
+        if (payload.patientUserId) {
+          recipients.push(payload.patientUserId);
+        }
+        return Array.from(new Set(recipients));
+      },
+      titleTemplate: (payload: any) =>
+        payload.rescheduledByRole === 'admin' ||
+        payload.rescheduledByRole === 'staff'
+          ? 'Jadwal Janji Temu Diperbarui oleh Klinik'
+          : 'Perubahan Jadwal Janji Temu Pasien',
+      bodyTemplate: (payload: any) => {
+        const timeInfo =
+          payload.targetStartTime && payload.targetEndTime
+            ? `${payload.targetStartTime} - ${payload.targetEndTime}`
+            : `Sesi ${payload.session || '-'}`;
+        const locInfo = payload.roomName
+          ? ` di ${payload.roomName}`
+          : payload.poliklinikName
+            ? ` di ${payload.poliklinikName}`
+            : '';
+
+        if (
+          payload.rescheduledByRole === 'admin' ||
+          payload.rescheduledByRole === 'staff'
+        ) {
+          return `Janji temu Anda (${payload.queueNumber || '-'}) dengan ${payload.doctorName || 'Dokter'} telah dipindahkan ke tanggal ${payload.targetDate} (${timeInfo})${locInfo}. Alasan: ${payload.reason || 'Penyesuaian jadwal dokter'}.`;
+        }
+        return `Pasien ${payload.patientName || 'Pasien'} (${payload.queueNumber || '-'}) telah memindahkan jadwal janji temu ke tanggal ${payload.targetDate} (${timeInfo})${locInfo} dengan ${payload.doctorName || 'Dokter'}. Alasan: ${payload.reason || 'Diajukan oleh pasien'}.`;
+      },
+      senderName: (payload: any) =>
+        payload.rescheduledByRole === 'admin' ||
+        payload.rescheduledByRole === 'staff'
+          ? 'Klinik Amanah'
+          : payload.patientName || 'Pasien',
+      senderRole: (payload: any) =>
+        payload.rescheduledByRole === 'admin' ||
+        payload.rescheduledByRole === 'staff'
+          ? 'Admin'
+          : 'Pasien',
+      visualKey: (payload: any) =>
+        payload.rescheduledByRole === 'admin' ||
+        payload.rescheduledByRole === 'staff'
+          ? payload.doctorAvatarUrl || null
+          : payload.patientAvatarUrl || null,
       isUrgent: false,
       badgeIcon: 'calendar',
       resolveSource: (payload: any) => ({
         sourceType: 'appointment',
         sourceId: payload.appointmentId,
       }),
+      resolveActions: (payload: any) => [
+        {
+          label: 'Lihat Antrean',
+          actionKey: 'view_appointment',
+          actionType: 'primary',
+          url: `/dashboard/appointments/${payload.appointmentId}`,
+        },
+      ],
     });
 
     // 6. Appointment Cancelled Rule (Bi-directional: Patient-initiated or Admin-initiated)

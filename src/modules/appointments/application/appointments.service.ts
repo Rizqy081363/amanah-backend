@@ -153,6 +153,7 @@ export class AppointmentsService {
     appointmentId: string,
     dto: RescheduleAppointmentDto,
     userId: string,
+    user?: any,
   ): Promise<AppointmentEntity> {
     const updated = await this.appointmentRepo.reschedule(
       appointmentId,
@@ -168,6 +169,18 @@ export class AppointmentsService {
         reason: dto.reason,
       },
     );
+    if (this.notificationPublisher) {
+      await this.notificationPublisher.publishRescheduled(
+        updated,
+        {
+          targetDate: dto.target_date || dto.newDate || updated.appointmentDate,
+          targetStartTime: updated.scheduledStartTime,
+          targetEndTime: updated.scheduledEndTime,
+          reason: dto.reason,
+        },
+        user,
+      );
+    }
     await this.invalidateQueueCaches();
     return updated;
   }

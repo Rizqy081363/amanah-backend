@@ -3,6 +3,7 @@ import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
   appointments,
+  patientProfiles,
   practitionerScheduleDaySettings,
   practitionerScheduleSessions,
 } from '@database/schema';
@@ -32,6 +33,13 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { and, asc, eq, gte, inArray, lt, or } from 'drizzle-orm';
+import { randomUUID } from 'crypto';
+import {
+  type DomainEvent,
+  type NotificationPublisher,
+} from '@modules/notifications/contracts/domain-event.interface';
+import { NOTIFICATION_PUBLISHER } from '@modules/notifications/notifications.constants';
+import { APPOINTMENT_EVENTS } from '@modules/appointments/domain/constants/appointment-lifecycle.constants';
 import { DrizzleRescheduleEligibilityEvaluator } from './drizzle-reschedule-eligibility.evaluator';
 
 @Injectable()
@@ -48,6 +56,9 @@ export class DrizzleScheduleRescheduleRepository {
     @Optional() conflictQuery?: ScheduleConflictQuery,
     @Optional() availabilityRepo?: DrizzleScheduleAvailabilityRepository,
     @Optional() eligibilityEvaluator?: DrizzleRescheduleEligibilityEvaluator,
+    @Optional()
+    @Inject(NOTIFICATION_PUBLISHER)
+    private readonly notificationPublisher?: NotificationPublisher,
   ) {
     this.practitionerResolver =
       practitionerResolver ?? new PractitionerResolver(db);
@@ -188,6 +199,9 @@ export class DrizzleScheduleRescheduleRepository {
         ),
         inArray(appointments.status, [...ACTIVE_APPOINTMENT_STATUSES]),
       ),
+      with: {
+        patientProfile: true,
+      },
       orderBy: [asc(appointments.scheduledStartTime)],
     });
 
@@ -301,6 +315,62 @@ export class DrizzleScheduleRescheduleRepository {
 
       return rescheduled;
     });
+
+    if (
+      this.notificationPublisher &&
+      body.rescheduleActiveAppointments !== false &&
+      activeAppointments.length > 0
+    ) {
+      const duration = preview.effectiveConsultationDurationMinutes;
+      const startMin = parseClockTime(body.targetStartTime);
+      for (let i = 0; i < activeAppointments.length; i++) {
+        const appt = activeAppointments[i];
+        const apptStartMin = startMin + i * duration;
+        const apptEndMin = apptStartMin + duration;
+        const apptStartTime = formatClockTime(apptStartMin);
+        const apptEndTime = formatClockTime(apptEndMin);
+
+        let patientUserId = (appt as any).patientProfile?.userId || null;
+        let patientName = (appt as any).patientProfile?.fullName || 'Pasien';
+        if (!patientUserId && appt.patientId) {
+          const profile = await this.db.query.patientProfiles.findFirst({
+            where: eq(patientProfiles.id, appt.patientId),
+          });
+          if (profile) {
+            patientUserId = profile.userId;
+            patientName = profile.fullName;
+          }
+        }
+
+        const domainEvent: DomainEvent = {
+          eventId: randomUUID(),
+          eventType: APPOINTMENT_EVENTS.RESCHEDULED,
+          version: 1,
+          occurredAt: new Date().toISOString(),
+          module: 'appointments',
+          payload: {
+            appointmentId: appt.id,
+            patientId: appt.patientId,
+            patientUserId,
+            patientName,
+            doctorName: practitioner.displayName || 'Dokter',
+            practitionerId: practitioner.id,
+            targetDate: body.targetDate,
+            targetStartTime: `${apptStartTime}:00`,
+            targetEndTime: `${apptEndTime}:00`,
+            appointmentDate: body.targetDate,
+            status: appt.status,
+            reason:
+              body.notes || body.reason || 'Penyesuaian jadwal praktik dokter',
+            rescheduledByRole: 'admin',
+          },
+          actor: {
+            roleCode: 'ADMIN',
+          },
+        };
+        await this.notificationPublisher.publish(domainEvent);
+      }
+    }
 
     const updatedProjection =
       await this.availabilityRepo.buildProjectionForSession(sessionId, true);
