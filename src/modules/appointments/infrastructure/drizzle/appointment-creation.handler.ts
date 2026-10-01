@@ -5,6 +5,7 @@ import {
   appointments,
   clinicRooms,
   clinicSchedulePolicies,
+  clinicServices,
   practitionerScheduleSessions,
   practitioners,
   queueTickets,
@@ -74,6 +75,35 @@ export class AppointmentCreationHandler {
         ),
       });
       practitionerId = prac ? prac.id : data.staffId;
+    }
+
+    if (data.layananId) {
+      const service = await db.query.clinicServices.findFirst({
+        where: eq(clinicServices.id, data.layananId),
+        with: {
+          serviceCategory: true,
+          medicalSpecialty: true,
+        },
+      });
+
+      if (service && service.serviceCategory?.code === 'layanan_kebidanan') {
+        if (practitionerId) {
+          const prac = await db.query.practitioners.findFirst({
+            where: eq(practitioners.id, practitionerId),
+            with: {
+              medicalSpecialty: true,
+              staffProfile: true,
+            },
+          });
+          const isMidwife = prac?.staffProfile?.staffType === 'midwife';
+          const isKiaSpecialty = prac?.medicalSpecialty?.code === 'maternal_child_health';
+          if (!isMidwife && !isKiaSpecialty) {
+            throw new UnprocessableEntityException(
+              'Layanan KIA hanya dapat ditangani oleh Bidan atau Dokter Spesialis KIA',
+            );
+          }
+        }
+      }
     }
 
     let scheduleSessionId: string | null = null;

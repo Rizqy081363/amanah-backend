@@ -9,6 +9,7 @@ import {
   DEVELOPMENT_ROLE_SEEDS,
   DEVELOPMENT_USER_SEEDS,
 } from './dev-seed.data';
+import { seedKiaIntakes } from './kia-intakes.seed';
 import { seedMasterCatalog } from './master-catalog.seed';
 
 type QueryOneInput = {
@@ -1930,6 +1931,7 @@ const runSeed = async (): Promise<void> => {
     await seedPatients(context);
     await seedAdminScheduleShowcase(context);
     await seedOperationalExamples(context);
+    await seedKiaIntakes(context);
     await client.query('COMMIT');
     console.log(`Seeded ${DEVELOPMENT_USER_SEEDS.length} development users.`);
   } catch (error) {

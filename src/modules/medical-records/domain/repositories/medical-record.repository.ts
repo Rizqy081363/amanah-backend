@@ -90,4 +90,20 @@ export interface MedicalRecordRepository {
   findIntakesByPatientId(
     patientId: string,
   ): Promise<MedicalIntakeSubmissionEntity[]>;
+
+  createMaternalIntake(dto: any, submittedByUserId?: string): Promise<any>;
+
+  findMaternalIntakeById(id: string): Promise<any | null>;
+
+  findMaternalIntakeByAppointmentId(appointmentId: string): Promise<any | null>;
+
+  createImmunizationIntake(dto: any, submittedByUserId?: string): Promise<any>;
+
+  findImmunizationIntakeById(id: string): Promise<any | null>;
+
+  findImmunizationIntakeByAppointmentId(
+    appointmentId: string,
+  ): Promise<any | null>;
+
+  findUnifiedIntakeByAppointmentId(appointmentId: string): Promise<any | null>;
 }

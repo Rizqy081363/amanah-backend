@@ -38,6 +38,8 @@ import {
   MEDICAL_RECORD_REPOSITORY,
   MedicalRecordRepository,
 } from '../domain/repositories/medical-record.repository';
+import { CreateChildImmunizationIntakeDto } from './dto/create-child-immunization-intake.dto';
+import { CreateMaternityIntakeDto } from './dto/create-maternity-intake.dto';
 import { CreateMedicalIntakeDto } from './dto/create-medical-intake.dto';
 import { CreateMedicalRecordDto } from './dto/create-medical-record.dto';
 import { QueryMedicalRecordDto } from './dto/query-medical-record.dto';
@@ -171,6 +173,89 @@ export class MedicalRecordsController {
       },
       user?.id,
     );
+  }
+
+  @Post('intakes/maternity')
+  @Roles('PATIENT', 'STAF', 'ADMIN')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Submit formulir intake kehamilan & persalinan relasional',
+  })
+  @ApiCreatedResponse({ description: 'Intake kehamilan berhasil disimpan' })
+  async createMaternityIntake(
+    @Body() body: CreateMaternityIntakeDto,
+    @CurrentUser() user: any,
+  ) {
+    return this.medicalRecordRepo.createMaternalIntake(body, user?.id);
+  }
+
+  @Post('intakes/immunization')
+  @Roles('PATIENT', 'STAF', 'ADMIN')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Submit formulir pendaftaran imunisasi anak relasional',
+  })
+  @ApiCreatedResponse({
+    description: 'Intake imunisasi anak berhasil disimpan',
+  })
+  async createImmunizationIntake(
+    @Body() body: CreateChildImmunizationIntakeDto,
+    @CurrentUser() user: any,
+  ) {
+    return this.medicalRecordRepo.createImmunizationIntake(body, user?.id);
+  }
+
+  @Get('intakes/by-appointment/:appointmentId')
+  @Roles('STAF', 'ADMIN', 'PATIENT')
+  @ApiOperation({
+    summary:
+      'Mendapatkan data intake lengkap berdasarkan ID Kunjungan / Appointment',
+  })
+  @ApiParam({
+    name: 'appointmentId',
+    description: 'ID unik appointment',
+    example: '6d3a26e2-77fb-466d-9096-d3b2400c443d',
+  })
+  @ApiOkResponse({ description: 'Data intake berhasil ditemukan' })
+  async getUnifiedIntakeByAppointmentId(
+    @Param('appointmentId') appointmentId: string,
+  ) {
+    const intake =
+      await this.medicalRecordRepo.findUnifiedIntakeByAppointmentId(
+        appointmentId,
+      );
+    if (!intake) {
+      throw new NotFoundException(
+        'Data intake untuk kunjungan ini tidak ditemukan',
+      );
+    }
+    return intake;
+  }
+
+  @Get('intakes/maternity/:id')
+  @Roles('STAF', 'ADMIN', 'PATIENT')
+  @ApiOperation({
+    summary: 'Mendapatkan detail formulir intake maternal kehamilan by ID',
+  })
+  async getMaternalIntakeById(@Param('id') id: string) {
+    const intake = await this.medicalRecordRepo.findMaternalIntakeById(id);
+    if (!intake) {
+      throw new NotFoundException('Data intake maternal tidak ditemukan');
+    }
+    return intake;
+  }
+
+  @Get('intakes/immunization/:id')
+  @Roles('STAF', 'ADMIN', 'PATIENT')
+  @ApiOperation({
+    summary: 'Mendapatkan detail formulir intake imunisasi anak by ID',
+  })
+  async getImmunizationIntakeById(@Param('id') id: string) {
+    const intake = await this.medicalRecordRepo.findImmunizationIntakeById(id);
+    if (!intake) {
+      throw new NotFoundException('Data intake imunisasi tidak ditemukan');
+    }
+    return intake;
   }
 
   @Get('intakes/patient/:patientId')

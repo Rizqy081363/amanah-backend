@@ -26,12 +26,14 @@ import {
   MedicalRecordRepository,
   UpdateDiagnosisData,
 } from '../../domain/repositories/medical-record.repository';
+import { KiaIntakeDrizzleRepository } from './kia-intake.drizzle-repository';
 
 @Injectable()
 export class MedicalRecordDrizzleRepository implements MedicalRecordRepository {
   constructor(
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,
+    private readonly kiaIntakeRepo: KiaIntakeDrizzleRepository,
   ) {}
 
   private mapRecordToEntity(r: any): MedicalRecordEntity {
@@ -749,5 +751,35 @@ export class MedicalRecordDrizzleRepository implements MedicalRecordRepository {
     });
 
     return intakes.map((i) => this.mapIntakeToEntity(i));
+  }
+
+  async createMaternalIntake(dto: any, submittedByUserId?: string) {
+    return this.kiaIntakeRepo.createMaternalIntake(dto, submittedByUserId);
+  }
+
+  async findMaternalIntakeById(id: string) {
+    return this.kiaIntakeRepo.findMaternalIntakeById(id);
+  }
+
+  async findMaternalIntakeByAppointmentId(appointmentId: string) {
+    return this.kiaIntakeRepo.findMaternalIntakeByAppointmentId(appointmentId);
+  }
+
+  async createImmunizationIntake(dto: any, submittedByUserId?: string) {
+    return this.kiaIntakeRepo.createImmunizationIntake(dto, submittedByUserId);
+  }
+
+  async findImmunizationIntakeById(id: string) {
+    return this.kiaIntakeRepo.findImmunizationIntakeById(id);
+  }
+
+  async findImmunizationIntakeByAppointmentId(appointmentId: string) {
+    return this.kiaIntakeRepo.findImmunizationIntakeByAppointmentId(
+      appointmentId,
+    );
+  }
+
+  async findUnifiedIntakeByAppointmentId(appointmentId: string) {
+    return this.kiaIntakeRepo.findUnifiedIntakeByAppointmentId(appointmentId);
   }
 }

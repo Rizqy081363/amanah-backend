@@ -8,6 +8,7 @@ import {
   authAccounts,
   authSessions,
   authTwoFactors,
+  childImmunizationIntakes,
   clinicalEncounters,
   clinicRooms,
   clinicServiceComplaints,
@@ -16,6 +17,9 @@ import {
   conversationParticipants,
   conversations,
   files,
+  maternalContraceptiveHistories,
+  maternalHealthIntakes,
+  maternalPreviousPregnancies,
   medicalIntakeSubmissions,
   medicalSpecialties,
   messageAttachments,
@@ -558,6 +562,66 @@ export const medicalIntakeSubmissionsRelations = relations(
       references: [users.id],
     }),
     clinicalEncounters: many(clinicalEncounters),
+    maternalHealthIntake: one(maternalHealthIntakes),
+    childImmunizationIntake: one(childImmunizationIntakes),
+  }),
+);
+
+export const maternalHealthIntakesRelations = relations(
+  maternalHealthIntakes,
+  ({ one, many }) => ({
+    intakeSubmission: one(medicalIntakeSubmissions, {
+      fields: [maternalHealthIntakes.intakeSubmissionId],
+      references: [medicalIntakeSubmissions.id],
+    }),
+    patientProfile: one(patientProfiles, {
+      fields: [maternalHealthIntakes.patientId],
+      references: [patientProfiles.id],
+    }),
+    appointment: one(appointments, {
+      fields: [maternalHealthIntakes.appointmentId],
+      references: [appointments.id],
+    }),
+    previousPregnancies: many(maternalPreviousPregnancies),
+    contraceptiveHistories: many(maternalContraceptiveHistories),
+  }),
+);
+
+export const maternalPreviousPregnanciesRelations = relations(
+  maternalPreviousPregnancies,
+  ({ one }) => ({
+    maternalHealthIntake: one(maternalHealthIntakes, {
+      fields: [maternalPreviousPregnancies.maternalIntakeId],
+      references: [maternalHealthIntakes.id],
+    }),
+  }),
+);
+
+export const maternalContraceptiveHistoriesRelations = relations(
+  maternalContraceptiveHistories,
+  ({ one }) => ({
+    maternalHealthIntake: one(maternalHealthIntakes, {
+      fields: [maternalContraceptiveHistories.maternalIntakeId],
+      references: [maternalHealthIntakes.id],
+    }),
+  }),
+);
+
+export const childImmunizationIntakesRelations = relations(
+  childImmunizationIntakes,
+  ({ one }) => ({
+    intakeSubmission: one(medicalIntakeSubmissions, {
+      fields: [childImmunizationIntakes.intakeSubmissionId],
+      references: [medicalIntakeSubmissions.id],
+    }),
+    patientProfile: one(patientProfiles, {
+      fields: [childImmunizationIntakes.patientId],
+      references: [patientProfiles.id],
+    }),
+    appointment: one(appointments, {
+      fields: [childImmunizationIntakes.appointmentId],
+      references: [appointments.id],
+    }),
   }),
 );
 
