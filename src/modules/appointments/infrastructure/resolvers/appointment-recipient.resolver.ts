@@ -3,6 +3,7 @@ import { inArray, sql } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import type { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import { roles, userRoles } from '../../../../database/schema';
+import { CLINIC_ADMIN_STAFF_ROLE_CODES } from '../../domain/constants/appointment-lifecycle.constants';
 
 @Injectable()
 export class AppointmentRecipientResolver {
@@ -25,7 +26,10 @@ export class AppointmentRecipientResolver {
         .from(userRoles)
         .innerJoin(roles, sql`${userRoles.roleId} = ${roles.id}`)
         .where(
-          inArray(sql`lower(${roles.code})`, ['admin', 'staf', 'staff']),
+          inArray(
+            sql`lower(${roles.code})`,
+            CLINIC_ADMIN_STAFF_ROLE_CODES.map((code) => code.toLowerCase()),
+          ),
         );
 
       const userIds = records.map((r) => r.userId).filter(Boolean);

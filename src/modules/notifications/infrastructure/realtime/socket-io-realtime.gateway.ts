@@ -11,6 +11,8 @@ import {
 import { createAdapter } from '@socket.io/redis-adapter';
 import type Redis from 'ioredis';
 import type { Server, Socket } from 'socket.io';
+import { fromNodeHeaders } from 'better-auth/node';
+import { auth as betterAuth } from '../../../../auth/better-auth/auth';
 import { JwtPayloadType } from '../../../../auth/strategies/types/jwt-payload.type';
 import { REDIS_CLIENT } from '../../../../common/redis/redis.constants';
 import { AllConfigType } from '../../../../config/config.type';
@@ -20,7 +22,31 @@ import { REALTIME_ROOMS } from '../../notifications.constants';
 @Injectable()
 @WebSocketGateway({
   cors: {
-    origin: '*',
+    origin: (
+      requestOrigin: string | undefined,
+      callback: (err: Error | null, allow?: boolean) => void,
+    ) => {
+      if (!requestOrigin) {
+        return callback(null, true);
+      }
+      const rawAllowed =
+        process.env.REALTIME_CORS_ORIGINS ||
+        process.env.APP_CORS_ORIGINS ||
+        process.env.FRONTEND_DOMAIN ||
+        'http://localhost:3000,http://127.0.0.1:3000';
+      const allowedOrigins = rawAllowed
+        .split(',')
+        .map((origin) => origin.trim())
+        .filter(Boolean);
+
+      if (
+        allowedOrigins.includes('*') ||
+        allowedOrigins.includes(requestOrigin)
+      ) {
+        return callback(null, true);
+      }
+      return callback(null, false);
+    },
     credentials: true,
   },
   path: '/socket.io',
@@ -67,52 +93,80 @@ export class SocketIoRealtimeGateway
 
   async handleConnection(client: Socket): Promise<void> {
     const token = this.extractToken(client);
-    if (!token) {
-      this.logger.warn(
-        `Socket connection rejected [id=${client.id}]: missing authentication token`,
-      );
-      client.disconnect(true);
-      return;
-    }
 
-    try {
-      const secret = this.configService.getOrThrow('auth.secret', {
-        infer: true,
-      });
-      const payload = await this.jwtService.verifyAsync<JwtPayloadType>(token, {
-        secret,
-      });
-
-      if (!payload?.id) {
-        this.logger.warn(
-          `Socket connection rejected [id=${client.id}]: token has no user ID`,
+    if (token) {
+      try {
+        const secret = this.configService.getOrThrow('auth.secret', {
+          infer: true,
+        });
+        const payload = await this.jwtService.verifyAsync<JwtPayloadType>(
+          token,
+          { secret },
         );
-        client.disconnect(true);
-        return;
+
+        if (payload?.id) {
+          client.data.userId = payload.id;
+          client.data.user = payload;
+
+          await client.join(REALTIME_ROOMS.user(payload.id));
+          const roleCode =
+            payload.systemRole ||
+            payload.role?.name ||
+            (typeof payload.role === 'string' ? payload.role : null);
+          if (roleCode && typeof roleCode === 'string') {
+            await client.join(REALTIME_ROOMS.role(roleCode));
+          }
+          this.trackSocket(payload.id, client.id);
+
+          this.logger.debug(
+            `Socket connected via JWT and joined room user:${payload.id} [id=${client.id}]`,
+          );
+          return;
+        }
+      } catch (jwtError) {
+        this.logger.debug(
+          `JWT verification failed for socket [id=${client.id}], checking Better Auth: ${jwtError}`,
+        );
       }
-
-      client.data.userId = payload.id;
-      client.data.user = payload;
-
-      await client.join(REALTIME_ROOMS.user(payload.id));
-      const roleCode =
-        payload.systemRole ||
-        payload.role?.name ||
-        (typeof payload.role === 'string' ? payload.role : null);
-      if (roleCode && typeof roleCode === 'string') {
-        await client.join(REALTIME_ROOMS.role(roleCode));
-      }
-      this.trackSocket(payload.id, client.id);
-
-      this.logger.debug(
-        `Socket connected and joined room user:${payload.id} [id=${client.id}]`,
-      );
-    } catch (error) {
-      this.logger.warn(
-        `Socket connection rejected [id=${client.id}]: token verification failed (${error})`,
-      );
-      client.disconnect(true);
     }
+
+    // Fallback: Check Better Auth session from handshake headers (e.g. cookie)
+    if (client.handshake.headers) {
+      try {
+        const session = await betterAuth.api.getSession({
+          headers: fromNodeHeaders(
+            client.handshake.headers as Record<string, string | string[]>,
+          ),
+        });
+
+        if (session?.user?.id) {
+          const userId = session.user.id;
+          client.data.userId = userId;
+          client.data.user = session.user;
+
+          await client.join(REALTIME_ROOMS.user(userId));
+          const roleCode = (session.user as any).role || 'patient';
+          if (roleCode && typeof roleCode === 'string') {
+            await client.join(REALTIME_ROOMS.role(roleCode));
+          }
+          this.trackSocket(userId, client.id);
+
+          this.logger.debug(
+            `Socket connected via Better Auth session and joined room user:${userId} [id=${client.id}]`,
+          );
+          return;
+        }
+      } catch (betterAuthErr) {
+        this.logger.debug(
+          `Better Auth session verification failed for socket [id=${client.id}]: ${betterAuthErr}`,
+        );
+      }
+    }
+
+    this.logger.warn(
+      `Socket connection rejected [id=${client.id}]: authentication failed (no valid JWT or session)`,
+    );
+    client.disconnect(true);
   }
 
   handleDisconnect(client: Socket): void {

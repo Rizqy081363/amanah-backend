@@ -1,4 +1,13 @@
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
+
+mock.module('../../../../auth/better-auth/auth', () => ({
+  auth: {
+    api: {
+      getSession: mock().mockResolvedValue(null),
+    },
+  },
+}));
+
 import { SocketIoRealtimeGateway } from './socket-io-realtime.gateway';
 
 describe('SocketIoRealtimeGateway', () => {
@@ -187,5 +196,35 @@ describe('SocketIoRealtimeGateway', () => {
     expect(mockEmit).toHaveBeenCalledWith('notification:new', {
       title: 'Halo Pasien',
     });
+  });
+
+  it('should authenticate user via Better Auth session if JWT is absent or invalid', async () => {
+    const { auth } = await import('../../../../auth/better-auth/auth');
+    (auth.api.getSession as any).mockResolvedValueOnce({
+      user: {
+        id: 'better-auth-user-999',
+        role: 'staff_doctor',
+        email: 'doctor@amanah.id',
+      },
+    });
+
+    const mockSocket: any = {
+      id: 'socket-better-auth',
+      handshake: {
+        headers: {
+          cookie: 'better-auth.session_token=some-session-token',
+        },
+      },
+      disconnect: mock(),
+      join: mock(),
+      data: {},
+    };
+
+    await gateway.handleConnection(mockSocket);
+
+    expect(mockSocket.disconnect).not.toHaveBeenCalled();
+    expect(mockSocket.join).toHaveBeenCalledWith('user:better-auth-user-999');
+    expect(mockSocket.join).toHaveBeenCalledWith('role:staff_doctor');
+    expect(gateway.isUserOnline('better-auth-user-999')).toBe(true);
   });
 });

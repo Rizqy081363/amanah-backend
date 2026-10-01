@@ -26,3 +26,12 @@ export const APPOINTMENT_LIFECYCLE_EVENTS = APPOINTMENT_EVENTS;
 export const APPOINTMENT_CALL_REPOSITORY = Symbol(
   'APPOINTMENT_CALL_REPOSITORY',
 );
+
+export const CLINIC_ADMIN_STAFF_ROLE_CODES = [
+  'admin',
+  'staff_worker',
+  'staff_doctor',
+  'staff_midwife',
+  'staf',
+  'staff',
+] as const;
