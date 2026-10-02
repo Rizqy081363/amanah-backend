@@ -1,6 +1,6 @@
 import { describe, expect, it, mock } from 'bun:test';
-import { AppointmentRecipientResolver } from './appointment-recipient.resolver';
 import { CLINIC_ADMIN_STAFF_ROLE_CODES } from '../../domain/constants/appointment-lifecycle.constants';
+import { AppointmentRecipientResolver } from './appointment-recipient.resolver';
 
 describe('AppointmentRecipientResolver', () => {
   it('should return empty array if database is not injected', async () => {

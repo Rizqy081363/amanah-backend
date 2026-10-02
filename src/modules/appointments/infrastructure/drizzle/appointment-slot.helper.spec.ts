@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
-import { allocateSlotTiming } from './appointment-slot.helper';
 import { getClinicNow } from '../../../schedules/domain/services/schedule-date.formatter';
+import { allocateSlotTiming } from './appointment-slot.helper';
 
 describe('allocateSlotTiming', () => {
   it('should skip elapsed slots when appointmentDate is today and current time is in the middle of session', () => {
@@ -53,26 +53,14 @@ describe('allocateSlotTiming', () => {
   });
 
   it('should allocate from session start for future dates', () => {
-    const result = allocateSlotTiming(
-      '18:00',
-      '24:00',
-      [],
-      30,
-      '2026-10-05',
-    );
+    const result = allocateSlotTiming('18:00', '24:00', [], 30, '2026-10-05');
     expect(result).not.toBeNull();
     expect(result!.startTime).toBe('18:00:00');
     expect(result!.endTime).toBe('18:30:00');
   });
 
   it('should return null when date is in the past', () => {
-    const result = allocateSlotTiming(
-      '18:00',
-      '24:00',
-      [],
-      30,
-      '2026-09-01',
-    );
+    const result = allocateSlotTiming('18:00', '24:00', [], 30, '2026-09-01');
     expect(result).toBeNull();
   });
 });

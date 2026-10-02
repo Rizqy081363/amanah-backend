@@ -152,16 +152,18 @@ describe('NotificationOrchestratorService', () => {
       bodyTemplate: 'Antrean telah tercatat.',
     });
 
-    mockNotificationRepo.createIfNotExists.mockImplementation(async (data: any) => ({
-      id: `notif-${data.idempotencyKey}`,
-      category: data.category,
-      title: data.title,
-      body: data.body,
-      isUrgent: false,
-      createdAt: '2026-09-29T00:00:00Z',
-      updatedAt: '2026-09-29T00:00:00Z',
-      isRead: false,
-    }));
+    mockNotificationRepo.createIfNotExists.mockImplementation(
+      async (data: any) => ({
+        id: `notif-${data.idempotencyKey}`,
+        category: data.category,
+        title: data.title,
+        body: data.body,
+        isUrgent: false,
+        createdAt: '2026-09-29T00:00:00Z',
+        updatedAt: '2026-09-29T00:00:00Z',
+        isRead: false,
+      }),
+    );
 
     const event: DomainEvent = {
       eventId: 'evt-async-1',

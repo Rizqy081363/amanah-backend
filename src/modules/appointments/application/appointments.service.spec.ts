@@ -1,11 +1,11 @@
 import { describe, expect, it, mock } from 'bun:test';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { AppointmentsService } from './appointments.service';
-import { AppointmentNotificationPublisher } from './appointment-notification.publisher';
-import { APPOINTMENT_EVENTS } from '../domain/constants/appointment-lifecycle.constants';
-import type { AppointmentRepository } from '../domain/repositories/appointment.repository';
 import type { RedisService } from '../../../common/redis/redis.service';
 import type { NotificationPublisher } from '../../notifications/contracts/domain-event.interface';
+import { APPOINTMENT_EVENTS } from '../domain/constants/appointment-lifecycle.constants';
+import type { AppointmentRepository } from '../domain/repositories/appointment.repository';
+import { AppointmentNotificationPublisher } from './appointment-notification.publisher';
+import { AppointmentsService } from './appointments.service';
 
 describe('AppointmentsService - Event Publishing', () => {
   it('should publish APPOINTMENT_EVENTS.CREATED domain event on appointment creation', async () => {
@@ -31,7 +31,9 @@ describe('AppointmentsService - Event Publishing', () => {
     const mockRawPublisher: NotificationPublisher = {
       publish: mock(async () => {}),
     };
-    const mockPublisher = new AppointmentNotificationPublisher(mockRawPublisher);
+    const mockPublisher = new AppointmentNotificationPublisher(
+      mockRawPublisher,
+    );
 
     const mockEventEmitter = {
       emit: mock(() => true),

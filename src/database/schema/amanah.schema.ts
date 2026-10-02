@@ -3195,41 +3195,76 @@ export const maternalHealthIntakes = pgTable(
     partnerEducation: varchar('partner_education', { length: 64 }),
     partnerBloodType: varchar('partner_blood_type', { length: 8 }),
     heightCm: numeric('height_cm', { precision: 5, scale: 2 }),
-    prePregnancyWeightKg: numeric('pre_pregnancy_weight_kg', { precision: 5, scale: 2 }),
-    upperArmCircumferenceCm: numeric('upper_arm_circumference_cm', { precision: 4, scale: 1 }),
+    prePregnancyWeightKg: numeric('pre_pregnancy_weight_kg', {
+      precision: 5,
+      scale: 2,
+    }),
+    upperArmCircumferenceCm: numeric('upper_arm_circumference_cm', {
+      precision: 4,
+      scale: 1,
+    }),
     initialBmi: numeric('initial_bmi', { precision: 4, scale: 1 }),
     tetanusStatus: varchar('tetanus_status', { length: 32 }),
     motherBloodType: varchar('mother_blood_type', { length: 8 }),
     hpht: date('hpht'),
     estimatedDueDate: date('estimated_due_date'),
-    gestationalAgeWeeks: numeric('gestational_age_weeks', { precision: 4, scale: 1 }),
-    gestationalAgeFormatted: varchar('gestational_age_formatted', { length: 64 }),
+    gestationalAgeWeeks: numeric('gestational_age_weeks', {
+      precision: 4,
+      scale: 1,
+    }),
+    gestationalAgeFormatted: varchar('gestational_age_formatted', {
+      length: 64,
+    }),
     currentComplaints: text('current_complaints'),
     gravidaCount: integer('gravida_count').default(1).notNull(),
     parityCount: integer('parity_count').default(0).notNull(),
     abortionCount: integer('abortion_count').default(0).notNull(),
     livingChildrenCount: integer('living_children_count').default(0).notNull(),
-    hasPreviousPregnancyHistory: boolean('has_previous_pregnancy_history').default(false).notNull(),
-    hasContraceptionHistory: boolean('has_contraception_history').default(false).notNull(),
+    hasPreviousPregnancyHistory: boolean('has_previous_pregnancy_history')
+      .default(false)
+      .notNull(),
+    hasContraceptionHistory: boolean('has_contraception_history')
+      .default(false)
+      .notNull(),
     smokedBeforePregnancy: varchar('smoked_before_pregnancy', { length: 16 }),
     alcoholBeforePregnancy: boolean('alcohol_before_pregnancy').default(false),
-    irregularDietBeforePregnancy: boolean('irregular_diet_before_pregnancy').default(false),
-    reducedPhysicalActivityBeforePregnancy: boolean('reduced_physical_activity_before_pregnancy').default(false),
-    unprescribedMedicationBeforePregnancy: boolean('unprescribed_medication_before_pregnancy').default(false),
-    concerningCosmeticUseBeforePregnancy: boolean('concerning_cosmetic_use_before_pregnancy').default(false),
-    pesticideExposureBeforePregnancy: boolean('pesticide_exposure_before_pregnancy').default(false),
-    chemicalExposureBeforePregnancy: boolean('chemical_exposure_before_pregnancy').default(false),
-    smokeExposureBeforePregnancy: boolean('smoke_exposure_before_pregnancy').default(false),
+    irregularDietBeforePregnancy: boolean(
+      'irregular_diet_before_pregnancy',
+    ).default(false),
+    reducedPhysicalActivityBeforePregnancy: boolean(
+      'reduced_physical_activity_before_pregnancy',
+    ).default(false),
+    unprescribedMedicationBeforePregnancy: boolean(
+      'unprescribed_medication_before_pregnancy',
+    ).default(false),
+    concerningCosmeticUseBeforePregnancy: boolean(
+      'concerning_cosmetic_use_before_pregnancy',
+    ).default(false),
+    pesticideExposureBeforePregnancy: boolean(
+      'pesticide_exposure_before_pregnancy',
+    ).default(false),
+    chemicalExposureBeforePregnancy: boolean(
+      'chemical_exposure_before_pregnancy',
+    ).default(false),
+    smokeExposureBeforePregnancy: boolean(
+      'smoke_exposure_before_pregnancy',
+    ).default(false),
     concerningEnvironmentNotes: text('concerning_environment_notes'),
     allergyInfo: text('allergy_info'),
     otherNotes: text('other_notes'),
     diseaseHistory: jsonb('disease_history').default({}).notNull(),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
   },
   (table) => [
     index('maternal_health_intakes_patient_idx').on(table.patientId),
-    index('maternal_health_intakes_submission_idx').on(table.intakeSubmissionId),
+    index('maternal_health_intakes_submission_idx').on(
+      table.intakeSubmissionId,
+    ),
     index('maternal_health_intakes_appointment_idx').on(table.appointmentId),
     foreignKey({
       columns: [table.intakeSubmissionId],
@@ -3264,7 +3299,9 @@ export const maternalPreviousPregnancies = pgTable(
     deliveryMethod: varchar('delivery_method', { length: 64 }),
     deliveryPlace: varchar('delivery_place', { length: 128 }),
     complications: text('complications'),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
   },
   (table) => [
     index('maternal_prev_preg_intake_idx').on(table.maternalIntakeId),
@@ -3288,7 +3325,9 @@ export const maternalContraceptiveHistories = pgTable(
     stopDate: date('stop_date'),
     problems: text('problems'),
     sideEffects: text('side_effects'),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
   },
   (table) => [
     index('maternal_contra_intake_idx').on(table.maternalIntakeId),
@@ -3318,12 +3357,18 @@ export const childImmunizationIntakes = pgTable(
     childAddress: text('child_address'),
     previousVaccineHistory: text('previous_vaccine_history'),
     childAllergyHistory: text('child_allergy_history'),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
   },
   (table) => [
     index('child_immunization_intakes_patient_idx').on(table.patientId),
-    index('child_immunization_intakes_submission_idx').on(table.intakeSubmissionId),
+    index('child_immunization_intakes_submission_idx').on(
+      table.intakeSubmissionId,
+    ),
     index('child_immunization_intakes_appointment_idx').on(table.appointmentId),
     foreignKey({
       columns: [table.intakeSubmissionId],
@@ -3342,4 +3387,3 @@ export const childImmunizationIntakes = pgTable(
     }).onDelete('set null'),
   ],
 );
-

@@ -782,4 +782,8 @@ export class MedicalRecordDrizzleRepository implements MedicalRecordRepository {
   async findUnifiedIntakeByAppointmentId(appointmentId: string) {
     return this.kiaIntakeRepo.findUnifiedIntakeByAppointmentId(appointmentId);
   }
+
+  async findLatestIntakeByPatientId(patientId: string, flow?: string) {
+    return this.kiaIntakeRepo.findLatestIntakeByPatientId(patientId, flow);
+  }
 }

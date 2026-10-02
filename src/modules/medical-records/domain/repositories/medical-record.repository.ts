@@ -106,4 +106,9 @@ export interface MedicalRecordRepository {
   ): Promise<any | null>;
 
   findUnifiedIntakeByAppointmentId(appointmentId: string): Promise<any | null>;
+
+  findLatestIntakeByPatientId(
+    patientId: string,
+    flow?: string,
+  ): Promise<any | null>;
 }

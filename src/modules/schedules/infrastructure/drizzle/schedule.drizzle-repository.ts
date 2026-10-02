@@ -1,5 +1,7 @@
 import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
+import type { NotificationPublisher } from '@modules/notifications/contracts/domain-event.interface';
+import { NOTIFICATION_PUBLISHER } from '@modules/notifications/notifications.constants';
 import type {
   AdminDoctorAccumulatedPatientsResponse,
   AdminDoctorScheduleDetailResponse,
@@ -18,9 +20,7 @@ import type {
   ScheduleOptionsReferenceEntity,
   ScheduleProjectionEntity,
 } from '@modules/schedules/domain/entities/schedule.entity';
-import type {
-  ScheduleSlotAvailabilityData,
-} from '@modules/schedules/domain/entities/schedule-bootstrap.entity';
+import type { ScheduleSlotAvailabilityData } from '@modules/schedules/domain/entities/schedule-bootstrap.entity';
 import type { ScheduleRepository } from '@modules/schedules/domain/repositories/schedule.repository';
 import type { AdminDoctorScheduleDetailQueryDto } from '@modules/schedules/presentation/dto/admin-doctor-schedule-detail-query.dto';
 import type { AdminDoctorSchedulesQueryDto } from '@modules/schedules/presentation/dto/admin-doctor-schedules-query.dto';
@@ -57,8 +57,6 @@ import {
 } from './repositories';
 import { PractitionerResolver } from './resolvers/practitioner.resolver';
 import { RoomResolver } from './resolvers/room.resolver';
-import { NOTIFICATION_PUBLISHER } from '@modules/notifications/notifications.constants';
-import type { NotificationPublisher } from '@modules/notifications/contracts/domain-event.interface';
 
 @Injectable()
 export class ScheduleDrizzleRepository implements ScheduleRepository {
@@ -276,7 +274,12 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
     endTime?: string,
     excludePractitionerId?: string,
   ): Promise<ClinicRoomReferenceEntity[]> {
-    return this.refRepo.getRooms(date, startTime, endTime, excludePractitionerId);
+    return this.refRepo.getRooms(
+      date,
+      startTime,
+      endTime,
+      excludePractitionerId,
+    );
   }
 
   getPolikliniks(): Promise<

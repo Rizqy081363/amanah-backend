@@ -9,9 +9,9 @@ import {
   WebSocketServer,
 } from '@nestjs/websockets';
 import { createAdapter } from '@socket.io/redis-adapter';
+import { fromNodeHeaders } from 'better-auth/node';
 import type Redis from 'ioredis';
 import type { Server, Socket } from 'socket.io';
-import { fromNodeHeaders } from 'better-auth/node';
 import { auth as betterAuth } from '../../../../auth/better-auth/auth';
 import { JwtPayloadType } from '../../../../auth/strategies/types/jwt-payload.type';
 import { REDIS_CLIENT } from '../../../../common/redis/redis.constants';

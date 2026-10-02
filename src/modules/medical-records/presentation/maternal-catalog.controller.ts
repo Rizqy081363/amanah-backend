@@ -47,8 +47,8 @@ export class MaternalCatalogController {
   @ApiOkResponse({
     description: 'Opsi referensi formulir persalinan berhasil diambil',
   })
-  getReferenceOptions() {
-    const data = this.catalogService.getReferenceOptions();
+  async getReferenceOptions() {
+    const data = await this.catalogService.getReferenceOptions();
     return {
       success: true,
       data,

@@ -31,6 +31,7 @@ import {
 import type { Response } from 'express';
 import { CurrentUser } from '../../../common/auth/current-user.decorator';
 import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
+import { Public } from '../../../common/auth/public.decorator';
 import { Roles } from '../../../common/auth/roles.decorator';
 import { RolesGuard } from '../../../common/auth/roles.guard';
 import { formatETag } from '../../../common/occ';
@@ -68,12 +69,8 @@ export class MedicalRecordsController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Mencatat Rekam Medis Klinis (SOAP, Diagnosa ICD-10 & Resep Obat)',
-    description:
-      'Dokter atau Bidan mencatat hasil anamnesis, pemeriksaan fisik, tanda vital, kode ICD-10, tindakan, dan peresepan obat.',
   })
-  @ApiCreatedResponse({
-    description: 'Rekam medis berhasil dicatat',
-  })
+  @ApiCreatedResponse({ description: 'Rekam medis berhasil dicatat' })
   @ApiUnprocessableEntityResponse({
     description: 'Validasi form data rekam medis gagal',
   })
@@ -122,21 +119,16 @@ export class MedicalRecordsController {
   @Roles('STAF', 'ADMIN')
   @ApiOperation({
     summary: 'Daftar semua rekam medis dengan paginasi, filter & pencarian',
-    description:
-      'Menampilkan rekam medis klinik dengan filter tanggal encounter, poliklinik, pasien, atau kata kunci diagnosa.',
   })
   @ApiOkResponse({ description: 'Daftar rekam medis berhasil diambil' })
   async findAll(@Query() query: QueryMedicalRecordDto) {
     return this.medicalRecordRepo.findAll(query);
   }
 
-  // Static sub-routes first to avoid route collisions
   @Get('me')
   @Roles('PATIENT', 'STAF', 'ADMIN')
   @ApiOperation({
     summary: 'Mendapatkan riwayat rekam medis pasien yang sedang login',
-    description:
-      'Pasien dapat melihat riwayat kunjungan dan resume medis pribadinya.',
   })
   @ApiOkResponse({
     description: 'Riwayat rekam medis pasien login berhasil diambil',
@@ -154,8 +146,6 @@ export class MedicalRecordsController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Submit formulir skrining / intake medis pre-konsultasi',
-    description:
-      'Pasien atau perawat mengisi data anamnesis mandiri (skrining kehamilan, riwayat alergi, keluhan awal) sebelum konsultasi.',
   })
   @ApiCreatedResponse({ description: 'Intake medis berhasil disimpan' })
   @ApiUnprocessableEntityResponse({
@@ -206,16 +196,12 @@ export class MedicalRecordsController {
   }
 
   @Get('intakes/by-appointment/:appointmentId')
+  @Public()
   @Roles('STAF', 'ADMIN', 'PATIENT')
   @ApiOperation({
-    summary:
-      'Mendapatkan data intake lengkap berdasarkan ID Kunjungan / Appointment',
+    summary: 'Mendapatkan data intake lengkap berdasarkan ID Kunjungan',
   })
-  @ApiParam({
-    name: 'appointmentId',
-    description: 'ID unik appointment',
-    example: '6d3a26e2-77fb-466d-9096-d3b2400c443d',
-  })
+  @ApiParam({ name: 'appointmentId', description: 'ID unik appointment' })
   @ApiOkResponse({ description: 'Data intake berhasil ditemukan' })
   async getUnifiedIntakeByAppointmentId(
     @Param('appointmentId') appointmentId: string,
@@ -228,6 +214,28 @@ export class MedicalRecordsController {
       throw new NotFoundException(
         'Data intake untuk kunjungan ini tidak ditemukan',
       );
+    }
+    return intake;
+  }
+
+  @Get('intakes/patient/:patientId/latest')
+  @Public()
+  @Roles('STAF', 'ADMIN', 'PATIENT')
+  @ApiOperation({
+    summary: 'Mendapatkan data intake terbaru berdasarkan ID Pasien',
+  })
+  @ApiParam({ name: 'patientId', description: 'ID unik pasien' })
+  @ApiOkResponse({ description: 'Data intake pasien berhasil ditemukan' })
+  async getLatestIntakeByPatientId(
+    @Param('patientId') patientId: string,
+    @Query('flow') flow?: string,
+  ) {
+    const intake = await this.medicalRecordRepo.findLatestIntakeByPatientId(
+      patientId,
+      flow,
+    );
+    if (!intake) {
+      throw new NotFoundException('Data formulir intake pasien belum tersedia');
     }
     return intake;
   }

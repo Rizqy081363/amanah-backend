@@ -39,7 +39,8 @@ export class AppointmentEventsListener {
         appointmentId: aptId,
         previousStatus: null,
         newStatus: 'booked',
-        changedBy: event.actor?.userId || (event as any)?.payload?.actor?.userId || null,
+        changedBy:
+          event.actor?.userId || (event as any)?.payload?.actor?.userId || null,
         reason: 'Pendaftaran Janji Temu Awal',
       });
 
@@ -71,7 +72,8 @@ export class AppointmentEventsListener {
         appointmentId: aptId,
         previousStatus: prevDbStatus,
         newStatus: newDbStatus,
-        changedBy: event.actor?.userId || (event as any)?.payload?.actor?.userId || null,
+        changedBy:
+          event.actor?.userId || (event as any)?.payload?.actor?.userId || null,
         reason: event.reason || null,
       });
 

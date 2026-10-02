@@ -1,12 +1,33 @@
-import { ForbiddenException, Inject, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+  Optional,
+} from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { DEFAULT_PAGE_SIZE } from '../../../common/constants';
-import { AppointmentCreatedEvent, AppointmentStatusChangedEvent } from '../../../common/events';
-import { OutboxEventRecord, OutboxService, OutboxWorker } from '../../../common/outbox';
+import {
+  AppointmentCreatedEvent,
+  AppointmentStatusChangedEvent,
+} from '../../../common/events';
+import {
+  OutboxEventRecord,
+  OutboxService,
+  OutboxWorker,
+} from '../../../common/outbox';
 import { RedisService } from '../../../common/redis/redis.service';
-import { APPOINTMENT_EVENTS, APPOINTMENT_LIFECYCLE_EVENTS } from '../domain/constants/appointment-lifecycle.constants';
+import {
+  APPOINTMENT_EVENTS,
+  APPOINTMENT_LIFECYCLE_EVENTS,
+} from '../domain/constants/appointment-lifecycle.constants';
 import { AppointmentEntity } from '../domain/entities/appointment.entity';
-import { APPOINTMENT_REPOSITORY, AppointmentFindAllResult, AppointmentRepository } from '../domain/repositories/appointment.repository';
+import {
+  APPOINTMENT_REPOSITORY,
+  AppointmentFindAllResult,
+  AppointmentRepository,
+} from '../domain/repositories/appointment.repository';
 import { AdminUpdateAppointmentStatusDto } from '../presentation/dto/admin-update-appointment-status.dto';
 import { CancelAppointmentDto } from '../presentation/dto/cancel-appointment.dto';
 import { CreateAppointmentDto } from '../presentation/dto/create-appointment.dto';
@@ -66,6 +87,7 @@ export class AppointmentsService {
       status: 'SUDAH_BUAT_JANJI',
       visitType: body.visitType || 'Pemeriksaan Baru',
       complaint: body.complaint || null,
+      sourceIntakeId: body.sourceIntakeId || null,
     });
 
     await this.dispatchDomainEvent(

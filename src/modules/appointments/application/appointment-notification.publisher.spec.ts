@@ -1,6 +1,6 @@
 import { describe, expect, it, mock } from 'bun:test';
-import { AppointmentNotificationPublisher } from './appointment-notification.publisher';
 import { APPOINTMENT_EVENTS } from '../domain/constants/appointment-lifecycle.constants';
+import { AppointmentNotificationPublisher } from './appointment-notification.publisher';
 
 describe('AppointmentNotificationPublisher', () => {
   it('should publish rescheduled event with correct duplex role and payload', async () => {
@@ -11,7 +11,9 @@ describe('AppointmentNotificationPublisher', () => {
       }),
     };
 
-    const publisher = new AppointmentNotificationPublisher(mockPublisher as any);
+    const publisher = new AppointmentNotificationPublisher(
+      mockPublisher as any,
+    );
 
     const mockAppointment: any = {
       id: 'apt-resched-1',
@@ -66,7 +68,9 @@ describe('AppointmentNotificationPublisher', () => {
       }),
     };
 
-    const publisher = new AppointmentNotificationPublisher(mockPublisher as any);
+    const publisher = new AppointmentNotificationPublisher(
+      mockPublisher as any,
+    );
 
     const mockAppointment: any = {
       id: 'apt-resched-2',

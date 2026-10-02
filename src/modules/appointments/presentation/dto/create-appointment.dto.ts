@@ -77,4 +77,13 @@ export class CreateAppointmentDto {
   @IsString()
   @IsOptional()
   complaint?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'ID submission intake medis terkait (misal maternal intake persalinan)',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
+  @IsString()
+  @IsOptional()
+  sourceIntakeId?: string;
 }

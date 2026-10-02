@@ -1,14 +1,14 @@
 import {
-  ScheduleSlotStateResolver,
-  SlotStateResolverInput,
-  SHIFT_OPERATIONAL_STATUS,
   AVAILABILITY_STATE,
-  TEMPORAL_STATE,
+  CLOSURE_CATEGORY,
   EFFECTIVE_SLOT_STATUS,
+  ScheduleSlotStateResolver,
+  SHIFT_OPERATIONAL_STATUS,
+  SLOT_ACTION_TYPE,
   SLOT_UI_STATUS,
   SLOT_UI_VARIANT,
-  SLOT_ACTION_TYPE,
-  CLOSURE_CATEGORY,
+  SlotStateResolverInput,
+  TEMPORAL_STATE,
 } from './schedule-slot-state.resolver';
 
 describe('ScheduleSlotStateResolver', () => {
@@ -496,7 +496,9 @@ describe('ScheduleSlotStateResolver', () => {
 
       const result = ScheduleSlotStateResolver.resolveContextProjection(input);
 
-      expect(result.operationalStatus).toBe(SHIFT_OPERATIONAL_STATUS.NO_PRACTICE);
+      expect(result.operationalStatus).toBe(
+        SHIFT_OPERATIONAL_STATUS.NO_PRACTICE,
+      );
       expect(result.operationalLabel).toBe('Tidak Ada Praktik');
       expect(result.counts.unscheduled).toBe(12);
       expect(result.counts.scheduled).toBe(0);

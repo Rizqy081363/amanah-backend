@@ -395,4 +395,31 @@ export class MaternalIntakeDrizzleRepository {
       automatic: record.intakeSubmission?.automatic,
     };
   }
+
+  async findLatestByPatientId(patientId: string): Promise<any | null> {
+    const record = await this.db.query.maternalHealthIntakes.findFirst({
+      where: eq(maternalHealthIntakes.patientId, patientId),
+      with: {
+        husband: true,
+        anamnesisResponses: {
+          with: { question: true, selectedOption: true },
+        },
+        healthConditions: {
+          with: { condition: true },
+        },
+        previousPregnancies: true,
+        contraceptiveHistories: true,
+        intakeSubmission: true,
+      },
+      orderBy: [desc(maternalHealthIntakes.createdAt)],
+    });
+
+    if (!record) return null;
+
+    return {
+      ...record,
+      answers: record.intakeSubmission?.answers,
+      automatic: record.intakeSubmission?.automatic,
+    };
+  }
 }

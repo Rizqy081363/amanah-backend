@@ -202,8 +202,7 @@ export class AppointmentNotificationPublisher {
           targetDate: options.targetDate || appointment.appointmentDate,
           targetStartTime:
             options.targetStartTime || appointment.scheduledStartTime,
-          targetEndTime:
-            options.targetEndTime || appointment.scheduledEndTime,
+          targetEndTime: options.targetEndTime || appointment.scheduledEndTime,
           appointmentDate: appointment.appointmentDate,
           session: appointment.session,
           queueNumber: appointment.queueNumber,

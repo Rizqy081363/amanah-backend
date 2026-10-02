@@ -31,9 +31,7 @@ import {
   ScheduleOptionsReferenceEntity,
   ScheduleProjectionEntity,
 } from '../entities/schedule.entity';
-import type {
-  ScheduleSlotAvailabilityData,
-} from '../entities/schedule-bootstrap.entity';
+import type { ScheduleSlotAvailabilityData } from '../entities/schedule-bootstrap.entity';
 
 export const SCHEDULE_REPOSITORY = 'SCHEDULE_REPOSITORY';
 export const ScheduleRepository = Symbol('ScheduleRepository');

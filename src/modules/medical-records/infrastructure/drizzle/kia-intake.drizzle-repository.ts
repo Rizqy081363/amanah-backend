@@ -3,6 +3,7 @@ import { desc, eq, or } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
+  appointments,
   childImmunizationIntakes,
   medicalIntakeSubmissions,
 } from '../../../../database/schema';
@@ -143,6 +144,12 @@ export class KiaIntakeDrizzleRepository {
   async findUnifiedIntakeByAppointmentId(
     appointmentId: string,
   ): Promise<any | null> {
+    const isUuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        appointmentId,
+      );
+    if (!isUuid) return null;
+
     const maternal =
       await this.findMaternalIntakeByAppointmentId(appointmentId);
     if (maternal) {
@@ -174,6 +181,151 @@ export class KiaIntakeDrizzleRepository {
         flow: genericIntake.flow,
         type: 'generic',
         data: genericIntake,
+      };
+    }
+
+    const appt = await this.db.query.appointments.findFirst({
+      where: eq(appointments.id, appointmentId),
+      with: {
+        patientProfile: {
+          with: {
+            patientAddresses: true,
+            patientAffiliations: true,
+            patientAllergies: true,
+            patientEmergencyContacts: true,
+          },
+        },
+        clinicService: true,
+      },
+    });
+
+    if (appt && appt.patientProfile) {
+      return {
+        flow: appt.medicalFlow || 'regular',
+        type: 'regular',
+        data: {
+          appointmentId: appt.id,
+          bookingCode: appt.bookingCode,
+          scheduledDate: appt.scheduledDate,
+          scheduledStartTime: appt.scheduledStartTime,
+          complaint: appt.complaint,
+          serviceName: appt.clinicService?.name,
+          patient: {
+            id: appt.patientProfile.id,
+            medicalRecordNumber: appt.patientProfile.medicalRecordNumber,
+            fullName: appt.patientProfile.fullName,
+            motherName: appt.patientProfile.motherName,
+            birthPlace: appt.patientProfile.birthPlace,
+            birthDate: appt.patientProfile.birthDate,
+            gender: appt.patientProfile.gender,
+            bloodType: appt.patientProfile.bloodType,
+            occupation: appt.patientProfile.occupation,
+            phone: appt.patientProfile.phone,
+            email: appt.patientProfile.email,
+            address:
+              appt.patientProfile.patientAddresses?.[0]?.fullAddress ||
+              appt.patientProfile.patientAddresses?.[0]?.line1 ||
+              null,
+            villageName:
+              appt.patientProfile.patientAddresses?.[0]?.villageName || null,
+            districtName:
+              appt.patientProfile.patientAddresses?.[0]?.districtName || null,
+            regencyName:
+              appt.patientProfile.patientAddresses?.[0]?.regencyName || null,
+            provinceName:
+              appt.patientProfile.patientAddresses?.[0]?.provinceName || null,
+            relationshipType:
+              appt.patientProfile.patientAffiliations?.[0]?.relationshipType ||
+              null,
+            relationLabel:
+              appt.patientProfile.patientAffiliations?.[0]?.relationLabel ||
+              null,
+            emergencyContactName:
+              appt.patientProfile.patientEmergencyContacts?.[0]?.name || null,
+            emergencyContactPhone:
+              appt.patientProfile.patientEmergencyContacts?.[0]?.phone || null,
+            emergencyContactRelationship:
+              appt.patientProfile.patientEmergencyContacts?.[0]?.relationship ||
+              null,
+          },
+        },
+      };
+    }
+
+    return null;
+  }
+
+  async findLatestImmunizationByPatientId(
+    patientId: string,
+  ): Promise<any | null> {
+    const record = await this.db.query.childImmunizationIntakes.findFirst({
+      where: eq(childImmunizationIntakes.patientId, patientId),
+      with: {
+        intakeSubmission: true,
+      },
+      orderBy: [desc(childImmunizationIntakes.createdAt)],
+    });
+
+    if (!record) return null;
+
+    return {
+      ...record,
+      answers: record.intakeSubmission?.answers,
+      automatic: record.intakeSubmission?.automatic,
+    };
+  }
+
+  async findLatestIntakeByPatientId(
+    patientId: string,
+    flow?: string,
+  ): Promise<any | null> {
+    const isUuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        patientId,
+      );
+    if (!isUuid) return null;
+
+    if (flow === 'pregnancy' || flow === 'maternal') {
+      const maternal = await this.maternalRepo.findLatestByPatientId(patientId);
+      if (maternal) {
+        return {
+          flow: 'pregnancy',
+          type: 'maternal',
+          data: maternal,
+        };
+      }
+      return null;
+    }
+
+    if (flow === 'immunization') {
+      const immunization =
+        await this.findLatestImmunizationByPatientId(patientId);
+      if (immunization) {
+        return {
+          flow: 'immunization',
+          type: 'immunization',
+          data: immunization,
+        };
+      }
+      return null;
+    }
+
+    const maternal = await this.maternalRepo.findLatestByPatientId(patientId);
+    if (maternal) {
+      return {
+        flow: 'pregnancy',
+        type: 'maternal',
+        data: maternal,
+      };
+    }
+
+    const immunization =
+      await this.findLatestImmunizationByPatientId(patientId);
+    if (immunization) {
+      return {
+        flow: 'immunization',
+        type: 'immunization',
+        data: immunization,
       };
     }
 

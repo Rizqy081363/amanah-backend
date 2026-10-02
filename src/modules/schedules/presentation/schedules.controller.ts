@@ -40,9 +40,7 @@ import {
   RescheduleEligibilityResponse,
   ScheduleOccupancyOverviewResponse,
 } from '../domain/entities/schedule.entity';
-import {
-  ScheduleSlotAvailabilityData,
-} from '../domain/entities/schedule-bootstrap.entity';
+import { ScheduleSlotAvailabilityData } from '../domain/entities/schedule-bootstrap.entity';
 import {
   SCHEDULE_REPOSITORY,
   ScheduleRepository,

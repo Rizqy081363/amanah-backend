@@ -6,17 +6,17 @@ import {
 } from '@modules/schedules/domain/entities/schedule.entity';
 import { ScheduleSlotFactory } from '@modules/schedules/domain/factories/schedule-slot.factory';
 import {
+  AVAILABILITY_STATE,
+  CLOSURE_CATEGORY,
+  EFFECTIVE_SLOT_STATUS,
+  SHIFT_OPERATIONAL_STATUS,
+  SLOT_UI_STATUS,
+  TEMPORAL_STATE,
+} from '@modules/schedules/domain/resolvers/schedule-slot-state.resolver';
+import {
   resolveAggregateOperationalStatus,
   resolveSessionOperationalStatus,
 } from '@modules/schedules/domain/schedule-status';
-import {
-  SHIFT_OPERATIONAL_STATUS,
-  AVAILABILITY_STATE,
-  TEMPORAL_STATE,
-  EFFECTIVE_SLOT_STATUS,
-  SLOT_UI_STATUS,
-  CLOSURE_CATEGORY,
-} from '@modules/schedules/domain/resolvers/schedule-slot-state.resolver';
 
 export interface MonthlyScheduleBuildContext {
   targetYear: number;
@@ -83,7 +83,8 @@ export function buildMonthlySchedule(
 
       // For slot occupancy/capacity calculations: only active appointments
       const activeMatchingAppts = matchingAppts.filter(
-        (a) => !['cancelled', 'no_show'].includes(a.status?.toLowerCase() || ''),
+        (a) =>
+          !['cancelled', 'no_show'].includes(a.status?.toLowerCase() || ''),
       );
 
       const metrics = ScheduleSlotFactory.calculateSessionMetrics({
@@ -217,7 +218,8 @@ export function buildDailySessions(
       persistedCapacity: s.capacity,
       persistedAvailableSlots: s.availableSlots,
       bookedCount: matchingAppts.filter(
-        (a) => !['cancelled', 'no_show'].includes(a.status?.toLowerCase() || ''),
+        (a) =>
+          !['cancelled', 'no_show'].includes(a.status?.toLowerCase() || ''),
       ).length,
       isCuti: isEvalCuti,
       isClosed: s.status === 'closed',
@@ -275,7 +277,10 @@ export function buildTimelineAndMetrics(contextProjections: any[]) {
           ? ScheduleOperationalStatus.OPEN
           : slot.effectiveStatus === EFFECTIVE_SLOT_STATUS.OCCUPIED
             ? ScheduleOperationalStatus.OCCUPIED
-            : ScheduleOperationalStatus.CLOSED) as 'OPEN' | 'OCCUPIED' | 'CLOSED',
+            : ScheduleOperationalStatus.CLOSED) as
+          | 'OPEN'
+          | 'OCCUPIED'
+          | 'CLOSED',
         displayLabel: (slot.effectiveStatus === EFFECTIVE_SLOT_STATUS.AVAILABLE
           ? 'Buka'
           : slot.effectiveStatus === EFFECTIVE_SLOT_STATUS.OCCUPIED
@@ -331,18 +336,16 @@ export function buildTimelineAndMetrics(contextProjections: any[]) {
         cp.counts.available + cp.counts.occupied + cp.counts.closed),
     0,
   );
-  const totalDayUnscheduledSlots = contextProjections.reduce(
-    (acc, cp) => {
-      if (cp.operationalStatus === SHIFT_OPERATIONAL_STATUS.NO_PRACTICE) return acc;
-      const futureUnscheduled = (cp.slots || []).filter(
-        (s: any) =>
-          s.availabilityState === AVAILABILITY_STATE.UNSCHEDULED &&
-          s.temporalState !== TEMPORAL_STATE.PAST,
-      ).length;
-      return acc + futureUnscheduled;
-    },
-    0,
-  );
+  const totalDayUnscheduledSlots = contextProjections.reduce((acc, cp) => {
+    if (cp.operationalStatus === SHIFT_OPERATIONAL_STATUS.NO_PRACTICE)
+      return acc;
+    const futureUnscheduled = (cp.slots || []).filter(
+      (s: any) =>
+        s.availabilityState === AVAILABILITY_STATE.UNSCHEDULED &&
+        s.temporalState !== TEMPORAL_STATE.PAST,
+    ).length;
+    return acc + futureUnscheduled;
+  }, 0);
   const totalDayAvailableSlots = contextProjections.reduce(
     (acc, cp) => acc + (cp.metrics?.availableSlots ?? cp.counts.available),
     0,

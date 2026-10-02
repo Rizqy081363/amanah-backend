@@ -7,6 +7,12 @@ import {
   practitionerScheduleDaySettings,
   practitionerScheduleSessions,
 } from '@database/schema';
+import { APPOINTMENT_EVENTS } from '@modules/appointments/domain/constants/appointment-lifecycle.constants';
+import {
+  type DomainEvent,
+  type NotificationPublisher,
+} from '@modules/notifications/contracts/domain-event.interface';
+import { NOTIFICATION_PUBLISHER } from '@modules/notifications/notifications.constants';
 import { ACTIVE_APPOINTMENT_STATUSES } from '@modules/schedules/domain/constants/schedule.constants';
 import type { RescheduleEligibilityEntity } from '@modules/schedules/domain/entities/schedule.entity';
 import { ScheduleSlotFactory } from '@modules/schedules/domain/factories/schedule-slot.factory';
@@ -33,19 +39,15 @@ import {
   Optional,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import { and, asc, eq, gte, inArray, lt, or } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
-import {
-  type DomainEvent,
-  type NotificationPublisher,
-} from '@modules/notifications/contracts/domain-event.interface';
-import { NOTIFICATION_PUBLISHER } from '@modules/notifications/notifications.constants';
-import { APPOINTMENT_EVENTS } from '@modules/appointments/domain/constants/appointment-lifecycle.constants';
+import { and, asc, eq, gte, inArray, lt, or } from 'drizzle-orm';
 import { DrizzleRescheduleEligibilityEvaluator } from './drizzle-reschedule-eligibility.evaluator';
 
 @Injectable()
 export class DrizzleScheduleRescheduleRepository {
-  private readonly logger = new Logger(DrizzleScheduleRescheduleRepository.name);
+  private readonly logger = new Logger(
+    DrizzleScheduleRescheduleRepository.name,
+  );
   private readonly practitionerResolver: PractitionerResolver;
   private readonly conflictQuery: ScheduleConflictQuery;
   private readonly availabilityRepo: DrizzleScheduleAvailabilityRepository;

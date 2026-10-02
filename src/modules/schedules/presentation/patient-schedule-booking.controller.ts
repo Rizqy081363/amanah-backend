@@ -76,7 +76,11 @@ export class PatientScheduleBookingController {
   @ApiQuery({ name: 'poliklinikId', required: false })
   @ApiQuery({ name: 'staffId', required: false })
   @ApiOkResponse({ description: 'Opsi sesi booking berhasil dimuat' })
-  @HttpCache({ ttlSeconds: 20, isPrivate: false, tags: ['schedule', 'booking'] })
+  @HttpCache({
+    ttlSeconds: 20,
+    isPrivate: false,
+    tags: ['schedule', 'booking'],
+  })
   async getBookingOptions(
     @Query('date') dateStr: string,
     @Query('poliklinikId') poliklinikId?: string,
@@ -123,7 +127,9 @@ export class PatientScheduleBookingController {
     const sessionConditions = [
       eq(practitionerScheduleSessions.scheduleDate, dateStr),
       eq(practitionerScheduleSessions.status, 'open'),
-      ...(staffId ? [eq(practitionerScheduleSessions.practitionerId, staffId)] : []),
+      ...(staffId
+        ? [eq(practitionerScheduleSessions.practitionerId, staffId)]
+        : []),
     ];
 
     const sessions = await this.db.query.practitionerScheduleSessions.findMany({
@@ -178,7 +184,9 @@ export class PatientScheduleBookingController {
 
         if (poliklinikId) {
           const roomUnitId = s.clinicRoom?.unitId;
-          const matchesRoomUnit = roomUnitId ? roomUnitId === poliklinikId : false;
+          const matchesRoomUnit = roomUnitId
+            ? roomUnitId === poliklinikId
+            : false;
           const matchesRoomId = s.roomId ? unitRoomIds.has(s.roomId) : false;
           if (!matchesRoomUnit && !matchesRoomId) {
             return false;

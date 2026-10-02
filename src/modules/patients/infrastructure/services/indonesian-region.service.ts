@@ -49,7 +49,8 @@ function formatRegionName(name: string): string {
 @Injectable()
 export class IndonesianRegionService {
   private readonly logger = new Logger(IndonesianRegionService.name);
-  private readonly baseUrl = 'https://emsifa.github.io/api-wilayah-indonesia/api';
+  private readonly baseUrl =
+    'https://emsifa.github.io/api-wilayah-indonesia/api';
 
   // In-memory cache for fast, sub-millisecond repeated responses
   private provincesCache: RegionReferenceItem[] | null = null;

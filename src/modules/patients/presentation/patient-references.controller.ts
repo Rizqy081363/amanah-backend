@@ -7,7 +7,7 @@ import { occupations } from '../../../database/schema';
 import {
   BACKEND_BLOOD_TYPE_OPTIONS,
   BACKEND_GENDER_OPTIONS,
-  BACKEND_RELATIONSHIP_OPTIONS
+  BACKEND_RELATIONSHIP_OPTIONS,
 } from '../domain/data/patient-reference.data';
 import { IndonesianRegionService } from '../infrastructure/services/indonesian-region.service';
 
@@ -21,7 +21,9 @@ export class PatientReferencesController {
   ) {}
 
   @Get('blood-types')
-  @ApiOperation({ summary: 'Mendapatkan referensi golongan darah standar medis' })
+  @ApiOperation({
+    summary: 'Mendapatkan referensi golongan darah standar medis',
+  })
   @ApiResponse({ status: 200, description: 'Daftar golongan darah' })
   getBloodTypes() {
     return {
@@ -51,7 +53,10 @@ export class PatientReferencesController {
   }
 
   @Get('provinces')
-  @ApiOperation({ summary: 'Mendapatkan daftar seluruh 38 provinsi di Indonesia dari Kemendagri' })
+  @ApiOperation({
+    summary:
+      'Mendapatkan daftar seluruh 38 provinsi di Indonesia dari Kemendagri',
+  })
   @ApiResponse({ status: 200, description: 'Daftar provinsi resmi Indonesia' })
   async getProvinces() {
     const data = await this.regionService.getProvinces();
@@ -62,8 +67,15 @@ export class PatientReferencesController {
   }
 
   @Get('regencies')
-  @ApiOperation({ summary: 'Mendapatkan daftar kabupaten/kota resmi berdasarkan kode provinsi' })
-  @ApiQuery({ name: 'provinceId', required: true, description: 'Kode provinsi (contoh: 14 untuk Riau)' })
+  @ApiOperation({
+    summary:
+      'Mendapatkan daftar kabupaten/kota resmi berdasarkan kode provinsi',
+  })
+  @ApiQuery({
+    name: 'provinceId',
+    required: true,
+    description: 'Kode provinsi (contoh: 14 untuk Riau)',
+  })
   @ApiResponse({ status: 200, description: 'Daftar kabupaten/kota' })
   async getRegencies(@Query('provinceId') provinceId: string) {
     if (!provinceId) {
@@ -77,8 +89,15 @@ export class PatientReferencesController {
   }
 
   @Get('districts')
-  @ApiOperation({ summary: 'Mendapatkan daftar kecamatan resmi berdasarkan kode kabupaten/kota' })
-  @ApiQuery({ name: 'regencyId', required: true, description: 'Kode kabupaten/kota' })
+  @ApiOperation({
+    summary:
+      'Mendapatkan daftar kecamatan resmi berdasarkan kode kabupaten/kota',
+  })
+  @ApiQuery({
+    name: 'regencyId',
+    required: true,
+    description: 'Kode kabupaten/kota',
+  })
   @ApiResponse({ status: 200, description: 'Daftar kecamatan' })
   async getDistricts(@Query('regencyId') regencyId: string) {
     if (!regencyId) {
@@ -92,8 +111,15 @@ export class PatientReferencesController {
   }
 
   @Get('villages')
-  @ApiOperation({ summary: 'Mendapatkan daftar kelurahan/desa resmi berdasarkan kode kecamatan' })
-  @ApiQuery({ name: 'districtId', required: true, description: 'Kode kecamatan' })
+  @ApiOperation({
+    summary:
+      'Mendapatkan daftar kelurahan/desa resmi berdasarkan kode kecamatan',
+  })
+  @ApiQuery({
+    name: 'districtId',
+    required: true,
+    description: 'Kode kecamatan',
+  })
   @ApiResponse({ status: 200, description: 'Daftar kelurahan/desa' })
   async getVillages(@Query('districtId') districtId: string) {
     if (!districtId) {
@@ -107,8 +133,13 @@ export class PatientReferencesController {
   }
 
   @Get('options')
-  @ApiOperation({ summary: 'Mendapatkan seluruh referensi formulir pendaftaran pasien' })
-  @ApiResponse({ status: 200, description: 'Kumpulan referensi formulir pendaftaran' })
+  @ApiOperation({
+    summary: 'Mendapatkan seluruh referensi formulir pendaftaran pasien',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Kumpulan referensi formulir pendaftaran',
+  })
   async getAllFormOptions() {
     const [occupationsList, provinces] = await Promise.all([
       this.db.query.occupations.findMany({

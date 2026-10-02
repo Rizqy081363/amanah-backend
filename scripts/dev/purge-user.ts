@@ -1,22 +1,4 @@
 #!/usr/bin/env bun
-/**
- * Amanah Healthcare - Developer System Data Purge CLI Runner
- * 
- * Purpose:
- *   Comprehensive developer CLI tool for discovering, inspecting, and selectively
- *   purging database records across four key domains:
- *     1. User Purge (Cascade delete user account & profile)
- *     2. Appointment Purge (100% Flush ALL or Per-Patient Purge)
- *     3. Doctor Schedule Purge (Flush ALL or Per-Doctor Schedule Sessions)
- *     4. Doctor / Practitioner Purge (Flush ALL or Single Doctor Profile)
- * 
- * Design:
- *   - Plain ASCII terminal interface (No emojis)
- *   - Deep relational cascade safety with rollback on error
- *   - Automatic Redis cache invalidation
- *   - Modular service architecture (< 500 LOC per file)
- */
-
 import * as readline from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
 import {
@@ -38,6 +20,7 @@ import {
   executeUserPurge,
 } from './purge/user-purge.service';
 import { runAppointmentPurgeInteractive } from './purge/appointment-purge.service';
+import { runAffiliationPurgeInteractive } from './purge/affiliation-purge.service';
 import { runSchedulePurgeInteractive } from './purge/schedule-purge.service';
 import { runDoctorPurgeInteractive } from './purge/doctor-purge.service';
 
@@ -56,12 +39,13 @@ async function runMainMenu(): Promise<void> {
       printSection('Main Data Purge Menu');
       console.log('Select target domain:');
       console.log(' [1] User Purge (Inspect & delete user accounts + profiles)');
-      console.log(' [2] Appointment Purge (Purge ALL appointments or by Patient/User)');
-      console.log(' [3] Doctor Schedule Purge (Purge ALL schedules or by Doctor)');
-      console.log(' [4] Doctor / Practitioner Purge (Purge ALL doctors or single Doctor profile)');
+      console.log(' [2] Appointment Purge (Purge ALL appointments, by User account, or by Patient)');
+      console.log(' [3] Patient Affiliation Purge (Inspect & purge affiliations by User, or 100% flush)');
+      console.log(' [4] Doctor Schedule Purge (Purge ALL schedules or by Doctor)');
+      console.log(' [5] Doctor / Practitioner Purge (Purge ALL doctors or single Doctor profile)');
       console.log(' [q] Quit CLI\n');
 
-      const choice = await askSafeQuestion(rl, 'Enter choice [1-4 or q]: ');
+      const choice = await askSafeQuestion(rl, 'Enter choice [1-5 or q]: ');
       if (!choice || choice.toLowerCase() === 'q' || choice.toLowerCase() === 'exit') {
         console.log('\n[INFO] Exiting CLI. No further actions taken.\n');
         break;
@@ -72,11 +56,13 @@ async function runMainMenu(): Promise<void> {
       } else if (choice === '2') {
         await runAppointmentPurgeInteractive(pool, redisClient, rl);
       } else if (choice === '3') {
-        await runSchedulePurgeInteractive(pool, redisClient, rl);
+        await runAffiliationPurgeInteractive(pool, redisClient, rl);
       } else if (choice === '4') {
+        await runSchedulePurgeInteractive(pool, redisClient, rl);
+      } else if (choice === '5') {
         await runDoctorPurgeInteractive(pool, redisClient, rl);
       } else {
-        console.log('[WARN] Invalid choice. Please enter 1, 2, 3, 4, or q.');
+        console.log('[WARN] Invalid choice. Please enter 1, 2, 3, 4, 5, or q.');
       }
     }
   } finally {
@@ -101,6 +87,7 @@ Usage:
   bun ./scripts/dev/purge-user.ts --email=<email>     Inspect & purge user by email
   bun ./scripts/dev/purge-user.ts --id=<uuid>         Inspect & purge user by UUID
   bun ./scripts/dev/purge-user.ts --appointments      Launch appointments purge menu
+  bun ./scripts/dev/purge-user.ts --affiliations      Launch patient affiliations purge menu
   bun ./scripts/dev/purge-user.ts --schedules         Launch schedules purge menu
   bun ./scripts/dev/purge-user.ts --doctors           Launch doctors purge menu
 
@@ -164,11 +151,20 @@ Options:
       return;
     }
 
-    // Interactive menus
     if (args.includes('--appointments')) {
       const rl = readline.createInterface({ input, output });
       try {
         await runAppointmentPurgeInteractive(pool, redisClient, rl);
+      } finally {
+        rl.close();
+      }
+      return;
+    }
+
+    if (args.includes('--affiliations')) {
+      const rl = readline.createInterface({ input, output });
+      try {
+        await runAffiliationPurgeInteractive(pool, redisClient, rl);
       } finally {
         rl.close();
       }
@@ -195,7 +191,6 @@ Options:
       return;
     }
 
-    // Default: Run main menu
     await runMainMenu();
   } finally {
     await pool.end();

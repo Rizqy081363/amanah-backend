@@ -6,6 +6,7 @@ import {
   Optional,
   UnauthorizedException,
 } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { AuthGuard } from '@nestjs/passport';
 import { fromNodeHeaders } from 'better-auth/node';
 import { eq } from 'drizzle-orm';
@@ -15,6 +16,7 @@ import { DRIZZLE_SOURCE } from '../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../database/drizzle/drizzle.provider';
 import { users } from '../../database/schema';
 import { RedisService } from '../redis/redis.service';
+import { IS_PUBLIC_KEY } from './public.decorator';
 
 @Injectable()
 export class HybridAuthGuard extends AuthGuard('jwt') implements CanActivate {
@@ -22,14 +24,22 @@ export class HybridAuthGuard extends AuthGuard('jwt') implements CanActivate {
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,
     @Optional() private readonly redisService?: RedisService,
+    @Optional() private readonly reflector?: Reflector,
   ) {
     super();
   }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
+    const isPublic = this.reflector?.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (isPublic) {
+      return true;
+    }
+
     const request = context.switchToHttp().getRequest<Request>();
 
-    // 0. Verify token blacklist in Redis (logout revocation)
     const authHeader = request.headers.authorization;
     if (typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
       const token = authHeader.slice(7).trim();
@@ -45,18 +55,13 @@ export class HybridAuthGuard extends AuthGuard('jwt') implements CanActivate {
       }
     }
 
-    // 1. First attempt: Passport JWT validation (Canonical JWT from email/password login)
     try {
       const jwtResult = await super.canActivate(context);
       if (jwtResult && (request as any).user) {
         return true;
       }
-    } catch {
-      // Passport JWT failed or token was not a valid JWT HS256.
-      // Fall through to evaluate Better Auth session (Google OAuth / Social Auth).
-    }
+    } catch {}
 
-    // 2. Fallback: Better Auth Session validation (supports both Cookie and Bearer session token)
     try {
       const session = await betterAuth.api.getSession({
         headers: fromNodeHeaders(request.headers),

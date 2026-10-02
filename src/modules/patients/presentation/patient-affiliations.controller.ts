@@ -11,6 +11,7 @@ import {
   NotFoundException,
   Param,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -20,7 +21,7 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
-import { desc, ilike } from 'drizzle-orm';
+import { desc, eq, ilike } from 'drizzle-orm';
 import {
   CurrentUser,
   HybridAuthGuard,
@@ -29,7 +30,13 @@ import {
 } from '../../../common/auth';
 import { DRIZZLE_SOURCE } from '../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../database/drizzle/drizzle.provider';
-import { patientAddresses, patientProfiles } from '../../../database/schema';
+import {
+  childImmunizationIntakes,
+  clinicServices,
+  maternalHealthIntakes,
+  patientAddresses,
+  patientProfiles,
+} from '../../../database/schema';
 import {
   PATIENT_REPOSITORY,
   type PatientRepository,
@@ -53,6 +60,201 @@ export class PatientAffiliationsController {
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,
   ) {}
+
+  @Get('booking-context')
+  @Roles('PATIENT', 'ADMIN', 'STAF')
+  @ApiOperation({
+    summary: 'Mendapatkan konteks formulir dan daftar pasien sesuai layanan',
+  })
+  async getBookingContext(
+    @CurrentUser() user: any,
+    @Query('serviceId') serviceId: string,
+  ) {
+    if (!serviceId) {
+      throw new BadRequestException({
+        code: 'SERVICE_ID_REQUIRED',
+        message: 'serviceId wajib disertakan',
+      });
+    }
+
+    const [service] = await this.db
+      .select({
+        id: clinicServices.id,
+        name: clinicServices.name,
+        code: clinicServices.code,
+        medicalFlow: clinicServices.medicalFlow,
+      })
+      .from(clinicServices)
+      .where(eq(clinicServices.id, serviceId))
+      .limit(1);
+
+    if (!service) {
+      throw new NotFoundException({
+        code: 'SERVICE_NOT_FOUND',
+        message: 'Layanan medis tidak ditemukan',
+      });
+    }
+
+    const flow =
+      service.medicalFlow === 'pregnancy'
+        ? 'pregnancy'
+        : service.medicalFlow === 'immunization'
+          ? 'immunization'
+          : 'general';
+
+    const formType =
+      flow === 'pregnancy'
+        ? 'pregnancy'
+        : flow === 'immunization'
+          ? 'immunization'
+          : 'regular';
+
+    const rawAffiliations = await this.affiliationRepo.findByUserId(user.id);
+
+    let allowedRelationships: { value: string; label: string }[] = [];
+    let enrichedPatients: any[] = [];
+
+    if (flow === 'pregnancy') {
+      allowedRelationships = [
+        { value: 'self', label: 'Diri Sendiri' },
+        { value: 'spouse', label: 'Pasangan' },
+        { value: 'parent', label: 'Ibu Kandung' },
+        { value: 'sibling', label: 'Saudara Perempuan' },
+        { value: 'relative', label: 'Kerabat' },
+      ];
+
+      const validAffiliations = rawAffiliations.filter((aff) => {
+        const pGender = aff.patient?.gender;
+        if (pGender === 'Laki-laki') {
+          return false;
+        }
+        return true;
+      });
+
+      enrichedPatients = await Promise.all(
+        validAffiliations.map(async (aff) => {
+          const [latestIntake] = await this.db
+            .select({
+              id: maternalHealthIntakes.id,
+              createdAt: maternalHealthIntakes.createdAt,
+            })
+            .from(maternalHealthIntakes)
+            .where(eq(maternalHealthIntakes.patientId, aff.patientId))
+            .orderBy(desc(maternalHealthIntakes.createdAt))
+            .limit(1);
+
+          return {
+            id: aff.patientId,
+            affiliationId: aff.id,
+            fullName: aff.patient?.fullName || '',
+            nik: aff.patient?.nik || '',
+            gender: aff.patient?.gender || 'Perempuan',
+            bloodType: aff.patient?.bloodType || null,
+            relationship: aff.relationshipType,
+            relationshipLabel:
+              aff.relationLabel ||
+              (aff.relationshipType === 'self'
+                ? 'Diri Sendiri'
+                : aff.relationshipType === 'spouse'
+                  ? 'Pasangan'
+                  : aff.relationshipType),
+            occupationName: aff.patient?.pekerjaan || null,
+            hasExistingIntake: Boolean(latestIntake),
+            latestIntakeId: latestIntake?.id || null,
+            latestIntakeDate: latestIntake?.createdAt || null,
+          };
+        }),
+      );
+    } else if (flow === 'immunization') {
+      allowedRelationships = [
+        { value: 'child', label: 'Anak Kandung' },
+        { value: 'relative', label: 'Kerabat / Anak Asuh' },
+      ];
+
+      const validAffiliations = rawAffiliations.filter(
+        (aff) =>
+          aff.relationshipType === 'child' ||
+          aff.relationshipType === 'relative',
+      );
+
+      enrichedPatients = await Promise.all(
+        validAffiliations.map(async (aff) => {
+          const [latestIntake] = await this.db
+            .select({
+              id: childImmunizationIntakes.id,
+              createdAt: childImmunizationIntakes.createdAt,
+            })
+            .from(childImmunizationIntakes)
+            .where(eq(childImmunizationIntakes.patientId, aff.patientId))
+            .orderBy(desc(childImmunizationIntakes.createdAt))
+            .limit(1);
+
+          return {
+            id: aff.patientId,
+            affiliationId: aff.id,
+            fullName: aff.patient?.fullName || '',
+            nik: aff.patient?.nik || '',
+            gender: aff.patient?.gender || 'Laki-laki',
+            bloodType: aff.patient?.bloodType || null,
+            relationship: aff.relationshipType,
+            relationshipLabel:
+              aff.relationLabel ||
+              (aff.relationshipType === 'child'
+                ? 'Anak Kandung'
+                : aff.relationshipType),
+            occupationName: aff.patient?.pekerjaan || null,
+            hasExistingIntake: Boolean(latestIntake),
+            latestIntakeId: latestIntake?.id || null,
+            latestIntakeDate: latestIntake?.createdAt || null,
+          };
+        }),
+      );
+    } else {
+      allowedRelationships = [
+        { value: 'self', label: 'Diri Sendiri' },
+        { value: 'spouse', label: 'Pasangan' },
+        { value: 'child', label: 'Anak Kandung' },
+        { value: 'parent', label: 'Orang Tua' },
+        { value: 'sibling', label: 'Saudara Kandung' },
+        { value: 'relative', label: 'Kerabat' },
+      ];
+
+      enrichedPatients = rawAffiliations.map((aff) => ({
+        id: aff.patientId,
+        affiliationId: aff.id,
+        fullName: aff.patient?.fullName || '',
+        nik: aff.patient?.nik || '',
+        gender: aff.patient?.gender || 'Laki-laki',
+        bloodType: aff.patient?.bloodType || null,
+        relationship: aff.relationshipType,
+        relationshipLabel:
+          aff.relationLabel ||
+          (aff.relationshipType === 'self'
+            ? 'Diri Sendiri'
+            : aff.relationshipType === 'spouse'
+              ? 'Pasangan'
+              : aff.relationshipType),
+        occupationName: aff.patient?.pekerjaan || null,
+        hasExistingIntake: true,
+        latestIntakeId: null,
+        latestIntakeDate: null,
+      }));
+    }
+
+    return {
+      success: true,
+      data: {
+        serviceId: service.id,
+        serviceName: service.name,
+        medicalFlow: flow,
+        formType,
+        allowedRelationships,
+        patients: enrichedPatients,
+        totalPatients: enrichedPatients.length,
+        hasExistingPatient: enrichedPatients.length > 0,
+      },
+    };
+  }
 
   @Get('me')
   @Roles('PATIENT', 'ADMIN', 'STAF')

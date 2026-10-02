@@ -1,11 +1,14 @@
 import { UnprocessableEntityException } from '@nestjs/common';
-import { and, asc, eq, inArray, not, or } from 'drizzle-orm';
+import { and, asc, eq, ilike, inArray, not, or } from 'drizzle-orm';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
   appointments,
   clinicRooms,
   clinicSchedulePolicies,
   clinicServices,
+  clinicUnits,
+  maternalHealthIntakes,
+  medicalIntakeSubmissions,
   practitionerScheduleSessions,
   practitioners,
   queueTickets,
@@ -55,17 +58,6 @@ export class AppointmentCreationHandler {
       }
     }
 
-    let room: typeof clinicRooms.$inferSelect | undefined;
-    const unitRooms = data.poliklinikId
-      ? await db.query.clinicRooms.findMany({
-          where: eq(clinicRooms.unitId, data.poliklinikId),
-        })
-      : [];
-    const unitRoomIds = new Set(unitRooms.map((r) => r.id));
-    if (unitRooms.length > 0) {
-      room = unitRooms[0];
-    }
-
     let practitionerId: string | null = null;
     if (data.staffId) {
       const prac = await db.query.practitioners.findFirst({
@@ -77,6 +69,7 @@ export class AppointmentCreationHandler {
       practitionerId = prac ? prac.id : data.staffId;
     }
 
+    let isLayananKebidanan = false;
     if (data.layananId) {
       const service = await db.query.clinicServices.findFirst({
         where: eq(clinicServices.id, data.layananId),
@@ -86,7 +79,22 @@ export class AppointmentCreationHandler {
         },
       });
 
-      if (service && service.serviceCategory?.code === 'layanan_kebidanan') {
+      if (
+        service &&
+        (service.serviceCategory?.code === 'layanan_kebidanan' ||
+          service.medicalFlow === 'pregnancy')
+      ) {
+        isLayananKebidanan = true;
+        const kiaUnit = await db.query.clinicUnits.findFirst({
+          where: or(
+            eq(clinicUnits.code, 'poli_kia'),
+            ilike(clinicUnits.name, '%kia%'),
+          ),
+        });
+        if (kiaUnit) {
+          data.poliklinikId = kiaUnit.id;
+        }
+
         if (practitionerId) {
           const prac = await db.query.practitioners.findFirst({
             where: eq(practitioners.id, practitionerId),
@@ -96,7 +104,8 @@ export class AppointmentCreationHandler {
             },
           });
           const isMidwife = prac?.staffProfile?.staffType === 'midwife';
-          const isKiaSpecialty = prac?.medicalSpecialty?.code === 'maternal_child_health';
+          const isKiaSpecialty =
+            prac?.medicalSpecialty?.code === 'maternal_child_health';
           if (!isMidwife && !isKiaSpecialty) {
             throw new UnprocessableEntityException(
               'Layanan KIA hanya dapat ditangani oleh Bidan atau Dokter Spesialis KIA',
@@ -104,6 +113,17 @@ export class AppointmentCreationHandler {
           }
         }
       }
+    }
+
+    let room: typeof clinicRooms.$inferSelect | undefined;
+    const unitRooms = data.poliklinikId
+      ? await db.query.clinicRooms.findMany({
+          where: eq(clinicRooms.unitId, data.poliklinikId),
+        })
+      : [];
+    const unitRoomIds = new Set(unitRooms.map((r) => r.id));
+    if (unitRooms.length > 0) {
+      room = unitRooms[0];
     }
 
     let scheduleSessionId: string | null = null;
@@ -128,20 +148,35 @@ export class AppointmentCreationHandler {
           orderBy: [asc(practitionerScheduleSessions.startTime)],
           with: {
             clinicRoom: true,
+            practitioner: {
+              with: {
+                staffProfile: true,
+                medicalSpecialty: true,
+              },
+            },
           },
         });
 
-      // Filter sessions strictly to the requested poliklinik
-      const candidateSessions = data.poliklinikId
-        ? allCandidateSessions.filter((s) => {
-            if (s.roomId && unitRoomIds.has(s.roomId)) return true;
-            if (s.clinicRoom?.unitId === data.poliklinikId) return true;
-            return false;
-          })
-        : allCandidateSessions;
+      const candidateSessions = allCandidateSessions.filter((s) => {
+        if (data.poliklinikId) {
+          const inUnit =
+            (s.roomId && unitRoomIds.has(s.roomId)) ||
+            s.clinicRoom?.unitId === data.poliklinikId;
+          if (!inUnit) return false;
+        }
+        if (isLayananKebidanan) {
+          const prac = s.practitioner;
+          const isMidwife = prac?.staffProfile?.staffType === 'midwife';
+          const isKiaSpecialty =
+            prac?.medicalSpecialty?.code === 'maternal_child_health';
+          if (!isMidwife && !isKiaSpecialty) return false;
+        }
+        return true;
+      });
 
       let matchedSession: (typeof allCandidateSessions)[number] | undefined;
-      let matchedSlotTiming: { startTime: string; endTime: string } | null = null;
+      let matchedSlotTiming: { startTime: string; endTime: string } | null =
+        null;
       let matchedRoom = room;
 
       for (const candidate of candidateSessions) {
@@ -173,7 +208,9 @@ export class AppointmentCreationHandler {
             ),
           );
         } else if (targetPracId) {
-          occupancyConditions.push(eq(appointments.practitionerId, targetPracId));
+          occupancyConditions.push(
+            eq(appointments.practitionerId, targetPracId),
+          );
         } else if (targetRoomId) {
           occupancyConditions.push(eq(appointments.roomId, targetRoomId));
         }
@@ -273,6 +310,23 @@ export class AppointmentCreationHandler {
         waitingPosition: 1,
       })
       .returning();
+
+    if (data.sourceIntakeId) {
+      await db
+        .update(maternalHealthIntakes)
+        .set({ appointmentId: apt.id })
+        .where(
+          or(
+            eq(maternalHealthIntakes.id, data.sourceIntakeId),
+            eq(maternalHealthIntakes.intakeSubmissionId, data.sourceIntakeId),
+          ),
+        );
+
+      await db
+        .update(medicalIntakeSubmissions)
+        .set({ appointmentId: apt.id })
+        .where(eq(medicalIntakeSubmissions.id, data.sourceIntakeId));
+    }
 
     const fullApt = await findById(apt.id);
     return (

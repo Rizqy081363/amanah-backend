@@ -112,8 +112,7 @@ export class DrizzleScheduleReferenceRepository {
           occupiedBy: `${docName} (${range})`,
           occupantDetails: {
             practitionerId: activeSession.practitionerId,
-            staffProfileId:
-              activeSession.practitioner?.staffProfileId || null,
+            staffProfileId: activeSession.practitioner?.staffProfileId || null,
             practitionerName: docName,
             specialty,
             unitName,

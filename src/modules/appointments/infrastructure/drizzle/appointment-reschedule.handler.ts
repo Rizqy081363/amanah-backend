@@ -130,7 +130,12 @@ export class AppointmentRescheduleHandler {
       const targetDate = dto.target_date || dto.newDate!;
       const nowIso = new Date().toISOString();
 
-      await transferSessionCapacity(tx, apt.scheduleSessionId, targetSession, nowIso);
+      await transferSessionCapacity(
+        tx,
+        apt.scheduleSessionId,
+        targetSession,
+        nowIso,
+      );
 
       const slotTiming = await allocateRescheduledSlotTiming(
         tx,
@@ -429,7 +434,7 @@ async function synchronizeQueueTicket(
 async function recordRescheduleStatusEvent(
   tx: DrizzleDatabase,
   appointmentId: string,
-  status: typeof appointments.$inferSelect['status'],
+  status: (typeof appointments.$inferSelect)['status'],
   userId: string,
   reason?: string,
 ): Promise<void> {

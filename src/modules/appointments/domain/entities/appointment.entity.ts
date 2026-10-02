@@ -32,6 +32,7 @@ export class AppointmentEntity {
     | 'BATAL';
   visitType: 'Pemeriksaan Baru' | 'Kontrol Ulang';
   complaint?: string | null;
+  sourceIntakeId?: string | null;
   cancellationReason?: string | null;
   calledAt?: Date | null;
   completedAt?: Date | null;

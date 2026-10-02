@@ -1,10 +1,5 @@
 import { relations } from 'drizzle-orm/relations';
 import {
-  maternalAnamnesisResponses,
-  maternalHealthConditionResponses,
-  maternalHusbandProfiles,
-} from './maternal.schema';
-import {
   appointmentCallAttempts,
   appointmentStatusEvents,
   appointments,
@@ -64,6 +59,11 @@ import {
   userRoles,
   users,
 } from './amanah.schema';
+import {
+  maternalAnamnesisResponses,
+  maternalHealthConditionResponses,
+  maternalHusbandProfiles,
+} from './maternal.schema';
 
 export const userDevicesRelations = relations(userDevices, ({ one, many }) => ({
   user: one(users, {

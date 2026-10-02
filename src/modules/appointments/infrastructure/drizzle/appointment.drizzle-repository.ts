@@ -173,7 +173,9 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
             clinicService: true,
             practitionerScheduleSession: true,
             clinicRoom: { with: { clinicUnit: true } },
-            practitioner: { with: { staffProfile: true, medicalSpecialty: true } },
+            practitioner: {
+              with: { staffProfile: true, medicalSpecialty: true },
+            },
             queueTickets: true,
           },
         },

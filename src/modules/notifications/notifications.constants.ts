@@ -4,7 +4,9 @@ export const REALTIME_GATEWAY_PORT = Symbol.for('REALTIME_GATEWAY_PORT');
 export const NOTIFICATION_RULES_REGISTRY = Symbol.for(
   'NOTIFICATION_RULES_REGISTRY',
 );
-export const DELIVERY_CHANNEL_ADAPTERS = Symbol.for('DELIVERY_CHANNEL_ADAPTERS');
+export const DELIVERY_CHANNEL_ADAPTERS = Symbol.for(
+  'DELIVERY_CHANNEL_ADAPTERS',
+);
 
 export const REDIS_STREAM_NOTIFICATIONS = 'notifications:events';
 export const REDIS_CONSUMER_GROUP_NOTIFICATIONS = 'notification-service';

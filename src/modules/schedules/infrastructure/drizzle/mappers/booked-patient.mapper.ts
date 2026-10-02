@@ -1,6 +1,6 @@
+import { AppointmentTemporalStatusHelper } from '@modules/appointments/domain/helpers/appointment-temporal-status.helper';
 import { APPOINTMENT_STATUS_BADGE_MAP } from '@modules/schedules/domain/constants/schedule.constants';
 import type { BookedPatientEntity } from '@modules/schedules/domain/entities/schedule.entity';
-import { AppointmentTemporalStatusHelper } from '@modules/appointments/domain/helpers/appointment-temporal-status.helper';
 
 export class BookedPatientMapper {
   static calculateAgeString(birthDate?: string | Date | null): string {

@@ -50,8 +50,7 @@ export const SLOT_UI_STATUS = {
   CLOSED_LEAVE: 'CLOSED_LEAVE',
   CLOSED_CLINIC: 'CLOSED_CLINIC',
 } as const;
-export type SlotUiStatus =
-  (typeof SLOT_UI_STATUS)[keyof typeof SLOT_UI_STATUS];
+export type SlotUiStatus = (typeof SLOT_UI_STATUS)[keyof typeof SLOT_UI_STATUS];
 
 export const SLOT_UI_VARIANT = {
   NEUTRAL_DISABLED: 'neutral_disabled',
@@ -285,7 +284,7 @@ export interface OtherDoctorRoomOccupancyFact {
   roomId: string;
   roomName: string;
   startTime: string; // HH:mm
-  endTime: string;   // HH:mm
+  endTime: string; // HH:mm
 }
 
 export interface SlotConflictInfo {

@@ -15,8 +15,7 @@ import { HttpObservabilityMiddleware } from './middleware/http-observability.mid
       inject: [ConfigService],
       useFactory: (configService: ConfigService<AllConfigType>) => {
         const appConfig = configService.get('app', { infer: true });
-        const isPretty =
-          appConfig?.logPretty ?? false;
+        const isPretty = appConfig?.logPretty ?? false;
         const logLevel =
           appConfig?.logLevel ??
           (process.env.NODE_ENV === 'production' ? 'info' : 'debug');

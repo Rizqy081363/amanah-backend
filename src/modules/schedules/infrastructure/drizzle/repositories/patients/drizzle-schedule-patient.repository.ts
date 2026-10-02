@@ -5,6 +5,7 @@ import {
   practitionerScheduleSessions,
   practitioners,
 } from '@database/schema';
+import { AppointmentTemporalStatusHelper } from '@modules/appointments/domain/helpers/appointment-temporal-status.helper';
 import { APPOINTMENT_STATUS_BADGE_MAP } from '@modules/schedules/domain/constants/schedule.constants';
 import { resolveCanonicalShift } from '@modules/schedules/domain/constants/schedule-shift.constants';
 import type {
@@ -19,7 +20,6 @@ import type { GetAdminDoctorPatientsQueryDto } from '@modules/schedules/presenta
 import type { GetSessionPatientsQueryDto } from '@modules/schedules/presentation/dto/get-session-patients-query.dto';
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { and, asc, eq, gte, inArray, lt, or } from 'drizzle-orm';
-import { AppointmentTemporalStatusHelper } from '@modules/appointments/domain/helpers/appointment-temporal-status.helper';
 
 @Injectable()
 export class DrizzleSchedulePatientRepository {

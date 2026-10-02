@@ -4,11 +4,14 @@ import type Redis from 'ioredis';
 import { invalidateRedisTagsAndPrefixes } from './db-connection';
 import {
   printSection,
-  padRight,
   askSafeQuestion,
   confirmPurge,
-  isUuid,
 } from './purge-helpers';
+import {
+  renderUsersTable,
+  renderAppointmentsTable,
+  renderPatientsTable,
+} from './appointment-purge.render';
 
 export interface PatientAppointmentSummary {
   patientId: string;
@@ -19,11 +22,30 @@ export interface PatientAppointmentSummary {
   appointmentCount: number;
 }
 
+export interface UserAppointmentSummary {
+  userId: string;
+  name: string;
+  email: string;
+  appointmentCount: number;
+}
+
+export interface UserAppointmentDetail {
+  id: string;
+  bookingCode: string;
+  scheduledDate: string;
+  session: string;
+  status: string;
+  patientName: string;
+  serviceName: string;
+  practitionerName: string;
+  queueNumber: string;
+}
+
 export interface AppointmentPurgeInspection {
-  mode: 'ALL' | 'PATIENT';
-  patientId?: string;
-  patientName?: string;
-  patientEmail?: string;
+  mode: 'ALL' | 'PATIENT' | 'USER';
+  targetId?: string;
+  targetName?: string;
+  targetEmail?: string;
   appointmentCount: number;
   queueTicketCount: number;
   statusEventCount: number;
@@ -31,6 +53,93 @@ export interface AppointmentPurgeInspection {
   intakeCount: number;
   encountersToUnlink: number;
   sessionsToRestore: number;
+}
+
+export async function fetchUsersWithAppointments(
+  pool: Pool,
+  search?: string,
+): Promise<UserAppointmentSummary[]> {
+  let whereClause = '';
+  const params: unknown[] = [];
+
+  if (search && search.trim()) {
+    params.push(`%${search.trim().toLowerCase()}%`);
+    whereClause = `AND (LOWER(u.name) LIKE $1 OR LOWER(u.email::text) LIKE $1 OR u.id::text LIKE $1)`;
+  }
+
+  const query = `
+    SELECT 
+      u.id AS user_id,
+      u.name,
+      COALESCE(u.email::text, '-') AS email,
+      COUNT(DISTINCT a.id) AS appointment_count
+    FROM users u
+    JOIN appointments a ON (
+      a.created_by = u.id 
+      OR a.patient_id IN (
+        SELECT p.id FROM patient_profiles p WHERE p.user_id = u.id
+        UNION
+        SELECT pa.patient_id FROM patient_affiliations pa WHERE pa.user_id = u.id
+      )
+    )
+    WHERE 1=1 ${whereClause}
+    GROUP BY u.id, u.name, u.email
+    ORDER BY appointment_count DESC, u.name ASC;
+  `;
+
+  const res = await pool.query(query, params);
+  return res.rows.map((r) => ({
+    userId: String(r.user_id),
+    name: String(r.name),
+    email: String(r.email),
+    appointmentCount: Number(r.appointment_count),
+  }));
+}
+
+export async function fetchAppointmentsForUser(
+  pool: Pool,
+  userId: string,
+): Promise<UserAppointmentDetail[]> {
+  const query = `
+    SELECT 
+      a.id,
+      a.booking_code,
+      TO_CHAR(a.scheduled_date, 'YYYY-MM-DD') AS scheduled_date,
+      COALESCE(sess.session_label, TO_CHAR(a.scheduled_start_time, 'HH24:MI'), '-') AS session,
+      a.status,
+      p.full_name AS patient_name,
+      COALESCE(s.name, '-') AS service_name,
+      COALESCE(prac.display_name, pr.full_name, u_doc.name, '-') AS practitioner_name,
+      COALESCE(qt.queue_number, '-') AS queue_number
+    FROM appointments a
+    JOIN patient_profiles p ON a.patient_id = p.id
+    LEFT JOIN clinic_services s ON a.service_id = s.id
+    LEFT JOIN practitioner_schedule_sessions sess ON a.schedule_session_id = sess.id
+    LEFT JOIN practitioners prac ON a.practitioner_id = prac.id
+    LEFT JOIN staff_profiles pr ON prac.staff_profile_id = pr.id
+    LEFT JOIN users u_doc ON pr.user_id = u_doc.id
+    LEFT JOIN queue_tickets qt ON qt.appointment_id = a.id
+    WHERE a.created_by = $1
+       OR a.patient_id IN (
+         SELECT p2.id FROM patient_profiles p2 WHERE p2.user_id = $1
+         UNION
+         SELECT pa.patient_id FROM patient_affiliations pa WHERE pa.user_id = $1
+       )
+    ORDER BY a.scheduled_date DESC, a.created_at DESC;
+  `;
+
+  const res = await pool.query(query, [userId]);
+  return res.rows.map((r) => ({
+    id: String(r.id),
+    bookingCode: String(r.booking_code),
+    scheduledDate: String(r.scheduled_date),
+    session: String(r.session),
+    status: String(r.status),
+    patientName: String(r.patient_name),
+    serviceName: String(r.service_name),
+    practitionerName: String(r.practitioner_name),
+    queueNumber: String(r.queue_number),
+  }));
 }
 
 export async function fetchPatientsWithAppointments(
@@ -42,15 +151,7 @@ export async function fetchPatientsWithAppointments(
 
   if (search && search.trim()) {
     params.push(`%${search.trim().toLowerCase()}%`);
-    whereClause = `
-      AND (
-        LOWER(p.full_name) LIKE $1 
-        OR LOWER(p.email::text) LIKE $1 
-        OR LOWER(p.phone) LIKE $1
-        OR p.id::text LIKE $1
-        OR (u.id IS NOT NULL AND u.id::text LIKE $1)
-      )
-    `;
+    whereClause = `AND (LOWER(p.full_name) LIKE $1 OR LOWER(p.email::text) LIKE $1 OR LOWER(p.phone) LIKE $1 OR p.id::text LIKE $1)`;
   }
 
   const query = `
@@ -103,87 +204,51 @@ export async function inspectAllAppointments(pool: Pool): Promise<AppointmentPur
   };
 }
 
-export async function inspectPatientAppointments(
-  pool: Pool,
-  patientIdentifier: string,
-): Promise<AppointmentPurgeInspection | null> {
-  const targetIsUuid = isUuid(patientIdentifier);
+async function deleteAppointmentsCascade(client: PoolClient, apptIds: string[]): Promise<number> {
+  if (apptIds.length === 0) return 0;
 
-  const patQuery = targetIsUuid
-    ? `
-      SELECT p.id, p.full_name, COALESCE(p.email::text, u.email::text, '-') AS email
-      FROM patient_profiles p
-      LEFT JOIN users u ON p.user_id = u.id
-      WHERE p.id = $1::uuid OR p.user_id = $1::uuid
-      LIMIT 1;
-    `
-    : `
-      SELECT p.id, p.full_name, COALESCE(p.email::text, u.email::text, '-') AS email
-      FROM patient_profiles p
-      LEFT JOIN users u ON p.user_id = u.id
-      WHERE LOWER(p.email::text) = LOWER($1) OR LOWER(u.email::text) = LOWER($1)
-      LIMIT 1;
-    `;
+  await client.query('DELETE FROM appointment_call_attempts WHERE appointment_id = ANY($1::uuid[])', [apptIds]);
+  await client.query('DELETE FROM queue_tickets WHERE appointment_id = ANY($1::uuid[])', [apptIds]);
+  await client.query('DELETE FROM appointment_status_events WHERE appointment_id = ANY($1::uuid[])', [apptIds]);
+  await client.query('DELETE FROM medical_intake_submissions WHERE appointment_id = ANY($1::uuid[])', [apptIds]);
+  await client.query('UPDATE clinical_encounters SET appointment_id = NULL WHERE appointment_id = ANY($1::uuid[])', [apptIds]);
+  await client.query('UPDATE patient_timeline_events SET appointment_id = NULL WHERE appointment_id = ANY($1::uuid[])', [apptIds]);
 
-  const patRes = await pool.query(patQuery, [patientIdentifier.trim()]);
-  if (patRes.rows.length === 0) return null;
+  const sessionRes = await client.query(
+    'SELECT DISTINCT schedule_session_id FROM appointments WHERE id = ANY($1::uuid[]) AND schedule_session_id IS NOT NULL',
+    [apptIds],
+  );
+  const sessionIds = sessionRes.rows.map((r) => r.schedule_session_id).filter(Boolean);
 
-  const patientId = String(patRes.rows[0].id);
-  const patientName = String(patRes.rows[0].full_name);
-  const patientEmail = String(patRes.rows[0].email);
+  const delRes = await client.query('DELETE FROM appointments WHERE id = ANY($1::uuid[])', [apptIds]);
+  const deletedCount = delRes.rowCount ?? 0;
 
-  const [appts, tickets, events, attempts, intakes, encounters, affectedSessions] = await Promise.all([
-    pool.query('SELECT count(*) FROM appointments WHERE patient_id = $1', [patientId]),
-    pool.query(
-      'SELECT count(*) FROM queue_tickets qt JOIN appointments a ON qt.appointment_id = a.id WHERE a.patient_id = $1',
-      [patientId],
-    ),
-    pool.query(
-      'SELECT count(*) FROM appointment_status_events ase JOIN appointments a ON ase.appointment_id = a.id WHERE a.patient_id = $1',
-      [patientId],
-    ),
-    pool.query(
-      'SELECT count(*) FROM appointment_call_attempts aca JOIN appointments a ON aca.appointment_id = a.id WHERE a.patient_id = $1',
-      [patientId],
-    ),
-    pool.query(
-      'SELECT count(*) FROM medical_intake_submissions mis JOIN appointments a ON mis.appointment_id = a.id WHERE a.patient_id = $1',
-      [patientId],
-    ),
-    pool.query(
-      'SELECT count(*) FROM clinical_encounters ce JOIN appointments a ON ce.appointment_id = a.id WHERE a.patient_id = $1',
-      [patientId],
-    ),
-    pool.query(
-      'SELECT count(DISTINCT schedule_session_id) FROM appointments WHERE patient_id = $1 AND schedule_session_id IS NOT NULL',
-      [patientId],
-    ),
-  ]);
+  if (sessionIds.length > 0) {
+    await client.query(
+      `
+      UPDATE practitioner_schedule_sessions s
+      SET available_slots = GREATEST(0, s.capacity - (
+        SELECT count(*) FROM appointments a 
+        WHERE a.schedule_session_id = s.id 
+        AND a.status NOT IN ('cancelled', 'no_show')
+      )), updated_at = NOW()
+      WHERE s.id = ANY($1::uuid[])
+      `,
+      [sessionIds],
+    );
+  }
 
-  return {
-    mode: 'PATIENT',
-    patientId,
-    patientName,
-    patientEmail,
-    appointmentCount: parseInt(appts.rows[0]?.count ?? '0', 10),
-    queueTicketCount: parseInt(tickets.rows[0]?.count ?? '0', 10),
-    statusEventCount: parseInt(events.rows[0]?.count ?? '0', 10),
-    callAttemptCount: parseInt(attempts.rows[0]?.count ?? '0', 10),
-    intakeCount: parseInt(intakes.rows[0]?.count ?? '0', 10),
-    encountersToUnlink: parseInt(encounters.rows[0]?.count ?? '0', 10),
-    sessionsToRestore: parseInt(affectedSessions.rows[0]?.count ?? '0', 10),
-  };
+  return deletedCount;
 }
 
 export async function executeAppointmentPurge(
   pool: Pool,
   redisClient: Redis | null,
-  options: { isAll: boolean; patientId?: string },
+  options: { isAll: boolean; patientId?: string; userId?: string; appointmentId?: string },
 ): Promise<{ success: boolean; deletedCount: number; error?: string }> {
   const client: PoolClient = await pool.connect();
   try {
     await client.query('BEGIN');
-
     let totalDeleted = 0;
 
     if (options.isAll) {
@@ -193,53 +258,34 @@ export async function executeAppointmentPurge(
       await client.query('DELETE FROM medical_intake_submissions WHERE appointment_id IS NOT NULL');
       await client.query('UPDATE clinical_encounters SET appointment_id = NULL WHERE appointment_id IS NOT NULL');
       await client.query('UPDATE patient_timeline_events SET appointment_id = NULL WHERE appointment_id IS NOT NULL');
-      
+
       const delAppt = await client.query('DELETE FROM appointments');
       totalDeleted = delAppt.rowCount ?? 0;
 
-      // Reset all schedule sessions available slots back to full capacity
       await client.query('UPDATE practitioner_schedule_sessions SET available_slots = capacity, updated_at = NOW()');
-    } else if (options.patientId) {
+    } else if (options.userId) {
       const apptRes = await client.query(
-        'SELECT id, schedule_session_id FROM appointments WHERE patient_id = $1',
-        [options.patientId],
+        `SELECT a.id FROM appointments a
+         WHERE a.created_by = $1
+            OR a.patient_id IN (
+              SELECT p.id FROM patient_profiles p WHERE p.user_id = $1
+              UNION
+              SELECT pa.patient_id FROM patient_affiliations pa WHERE pa.user_id = $1
+            )`,
+        [options.userId],
       );
-      const apptIds: string[] = apptRes.rows.map((r) => String(r.id));
-      const sessionIds: string[] = Array.from(
-        new Set(apptRes.rows.map((r) => r.schedule_session_id).filter(Boolean)),
-      ) as string[];
-
-      if (apptIds.length > 0) {
-        await client.query('DELETE FROM appointment_call_attempts WHERE appointment_id = ANY($1::uuid[])', [apptIds]);
-        await client.query('DELETE FROM queue_tickets WHERE appointment_id = ANY($1::uuid[])', [apptIds]);
-        await client.query('DELETE FROM appointment_status_events WHERE appointment_id = ANY($1::uuid[])', [apptIds]);
-        await client.query('DELETE FROM medical_intake_submissions WHERE appointment_id = ANY($1::uuid[])', [apptIds]);
-        await client.query('UPDATE clinical_encounters SET appointment_id = NULL WHERE appointment_id = ANY($1::uuid[])', [apptIds]);
-        await client.query('UPDATE patient_timeline_events SET appointment_id = NULL WHERE appointment_id = ANY($1::uuid[])', [apptIds]);
-
-        const delRes = await client.query('DELETE FROM appointments WHERE id = ANY($1::uuid[])', [apptIds]);
-        totalDeleted = delRes.rowCount ?? 0;
-
-        if (sessionIds.length > 0) {
-          await client.query(
-            `
-            UPDATE practitioner_schedule_sessions s
-            SET available_slots = GREATEST(0, s.capacity - (
-              SELECT count(*) FROM appointments a 
-              WHERE a.schedule_session_id = s.id 
-              AND a.status NOT IN ('cancelled', 'no_show')
-            )), updated_at = NOW()
-            WHERE s.id = ANY($1::uuid[])
-            `,
-            [sessionIds],
-          );
-        }
-      }
+      const apptIds = apptRes.rows.map((r) => String(r.id));
+      totalDeleted = await deleteAppointmentsCascade(client, apptIds);
+    } else if (options.appointmentId) {
+      totalDeleted = await deleteAppointmentsCascade(client, [options.appointmentId]);
+    } else if (options.patientId) {
+      const apptRes = await client.query('SELECT id FROM appointments WHERE patient_id = $1', [options.patientId]);
+      const apptIds = apptRes.rows.map((r) => String(r.id));
+      totalDeleted = await deleteAppointmentsCascade(client, apptIds);
     }
 
     await client.query('COMMIT');
 
-    // Invalidate Redis caches
     await invalidateRedisTagsAndPrefixes(
       redisClient,
       ['appointments', 'appointments:me', 'queue', 'daily', 'display', 'schedule', 'schedule:patients', 'booking'],
@@ -256,57 +302,6 @@ export async function executeAppointmentPurge(
   }
 }
 
-function renderInspection(insp: AppointmentPurgeInspection): void {
-  printSection('Appointment Purge Impact Inspection');
-  if (insp.mode === 'ALL') {
-    console.log(' Scope                   : ALL PATIENTS (System-wide 100% Flush)');
-  } else {
-    console.log(` Patient Name            : ${insp.patientName}`);
-    console.log(` Patient Email           : ${insp.patientEmail}`);
-    console.log(` Patient Profile ID      : ${insp.patientId}`);
-  }
-  console.log(` Appointments to Delete  : ${insp.appointmentCount}`);
-  console.log(` Queue Tickets to Delete : ${insp.queueTicketCount}`);
-  console.log(` Status Events to Delete : ${insp.statusEventCount}`);
-  console.log(` Call Attempts to Delete : ${insp.callAttemptCount}`);
-  console.log(` Intakes to Delete       : ${insp.intakeCount}`);
-  console.log(` Encounters to Unlink    : ${insp.encountersToUnlink}`);
-  console.log(` Sessions Restoring Slot : ${insp.sessionsToRestore}`);
-}
-
-function renderPatientsTable(list: PatientAppointmentSummary[]): void {
-  if (list.length === 0) {
-    console.log('No patients found with registered appointments.');
-    return;
-  }
-
-  const idxW = 4;
-  const nameW = 24;
-  const emailW = 28;
-  const cntW = 8;
-  const idW = 36;
-
-  console.log(
-    padRight('#', idxW) + ' ' +
-    padRight('Patient Name', nameW) + ' ' +
-    padRight('Email', emailW) + ' ' +
-    padRight('Appts', cntW) + ' ' +
-    padRight('Patient ID', idW)
-  );
-  console.log('-'.repeat(idxW + nameW + emailW + cntW + idW + 4));
-
-  list.forEach((p, i) => {
-    console.log(
-      padRight(String(i + 1), idxW) + ' ' +
-      padRight(p.name, nameW) + ' ' +
-      padRight(p.email, emailW) + ' ' +
-      padRight(String(p.appointmentCount), cntW) + ' ' +
-      padRight(p.patientId, idW)
-    );
-  });
-  console.log(`\nShowing ${list.length} patient(s) with appointments.`);
-}
-
 export async function runAppointmentPurgeInteractive(
   pool: Pool,
   redisClient: Redis | null,
@@ -318,21 +313,16 @@ export async function runAppointmentPurgeInteractive(
 
     printSection(`Appointment Purge Menu [Total Appointments in DB: ${totalCount}]`);
     console.log('Options:');
-    console.log(' [1] Purge ALL Appointments (100% Flush Across ALL Patients)');
-    console.log(' [2] List Patients with Appointments & Purge by Patient');
-    console.log(' [3] Search Patient by Keyword (Name / Email / Phone / UUID)');
-    console.log(' [4] Direct Input: Enter Patient UUID or Email');
+    console.log(' [1] Purge ALL Appointments (100% System-Wide Flush)');
+    console.log(' [2] Purge Appointments by User Account (Select User -> Flush All or Purge Single)');
+    console.log(' [3] Purge Appointments by Patient Profile (Select Patient Profile)');
     console.log(' [b] Back to Main Menu\n');
 
-    const choice = await askSafeQuestion(rl, 'Enter selection [1-4 or b]: ');
-    if (!choice || choice.toLowerCase() === 'b' || choice.toLowerCase() === 'back') {
-      break;
-    }
+    const choice = await askSafeQuestion(rl, 'Enter selection [1-3 or b]: ');
+    if (!choice || choice.toLowerCase() === 'b' || choice.toLowerCase() === 'back') break;
 
     if (choice === '1') {
       const insp = await inspectAllAppointments(pool);
-      renderInspection(insp);
-
       if (insp.appointmentCount === 0) {
         console.log('\n[INFO] Zero appointments in database. Nothing to purge.');
         continue;
@@ -344,7 +334,6 @@ export async function runAppointmentPurgeInteractive(
         insp.appointmentCount,
         'All queue tickets, status events, call attempts will be wiped. Doctor schedule session available slots will be restored to 100% capacity.',
       );
-
       if (!confirmed) {
         console.log('[INFO] Purge canceled.');
         continue;
@@ -360,77 +349,125 @@ export async function runAppointmentPurgeInteractive(
       continue;
     }
 
-    let patients: PatientAppointmentSummary[] = [];
-
     if (choice === '2') {
-      patients = await fetchPatientsWithAppointments(pool);
+      const users = await fetchUsersWithAppointments(pool);
+      renderUsersTable(users);
+      if (users.length === 0) continue;
+
+      const targetInput = await askSafeQuestion(rl, '\nSelect User (row #, UUID, or email): ');
+      if (!targetInput || targetInput.toLowerCase() === 'c') continue;
+
+      let targetUserId = targetInput;
+      let targetUserName = '';
+      const num = parseInt(targetInput, 10);
+      if (!isNaN(num) && num >= 1 && num <= users.length) {
+        targetUserId = users[num - 1].userId;
+        targetUserName = users[num - 1].name;
+      } else {
+        const found = users.find(
+          (u) => u.userId.toLowerCase() === targetInput.toLowerCase() || u.email.toLowerCase() === targetInput.toLowerCase(),
+        );
+        if (found) {
+          targetUserId = found.userId;
+          targetUserName = found.name;
+        }
+      }
+
+      const userAppts = await fetchAppointmentsForUser(pool, targetUserId);
+      if (userAppts.length === 0) {
+        console.log(`[INFO] No appointments found for user ${targetUserId}.`);
+        continue;
+      }
+
+      printSection(`Appointments for User: ${targetUserName || targetUserId} (${userAppts.length} records)`);
+      renderAppointmentsTable(userAppts);
+
+      console.log('\nActions:');
+      console.log(` [1] Flush ALL appointments for this User (${userAppts.length} records)`);
+      console.log(' [2] Purge a single appointment (by row #)');
+      console.log(' [c] Cancel / Back\n');
+
+      const action = await askSafeQuestion(rl, 'Enter action [1-2 or c]: ');
+      if (action === '1') {
+        const confirmed = await confirmPurge(
+          rl,
+          `ALL appointments for user ${targetUserName || targetUserId}`,
+          userAppts.length,
+          'Tickets, status events, and call attempts will be wiped. Schedule slots will be restored.',
+        );
+        if (!confirmed) continue;
+
+        const res = await executeAppointmentPurge(pool, redisClient, {
+          isAll: false,
+          userId: targetUserId,
+        });
+        if (res.success) {
+          console.log(`\n[SUCCESS] Purged ${res.deletedCount} appointment(s) for user ${targetUserName}.`);
+        } else {
+          console.log(`\n[ERROR] Failed to purge: ${res.error}`);
+        }
+      } else if (action === '2') {
+        const rowInput = await askSafeQuestion(rl, 'Enter appointment row # to purge: ');
+        if (!rowInput) continue;
+        const rowNum = parseInt(rowInput, 10);
+        if (isNaN(rowNum) || rowNum < 1 || rowNum > userAppts.length) {
+          console.log('[WARN] Invalid row number.');
+          continue;
+        }
+
+        const targetAppt = userAppts[rowNum - 1];
+        const confirmed = await confirmPurge(
+          rl,
+          `Appointment ${targetAppt.bookingCode} (${targetAppt.patientName})`,
+          1,
+        );
+        if (!confirmed) continue;
+
+        const res = await executeAppointmentPurge(pool, redisClient, {
+          isAll: false,
+          appointmentId: targetAppt.id,
+        });
+        if (res.success) {
+          console.log(`\n[SUCCESS] Purged appointment ${targetAppt.bookingCode}.`);
+        } else {
+          console.log(`\n[ERROR] Failed to purge appointment: ${res.error}`);
+        }
+      }
+      continue;
+    }
+
+    if (choice === '3') {
+      const patients = await fetchPatientsWithAppointments(pool);
       renderPatientsTable(patients);
-    } else if (choice === '3') {
-      const keyword = await askSafeQuestion(rl, 'Enter patient search keyword: ');
-      if (!keyword) continue;
-      patients = await fetchPatientsWithAppointments(pool, keyword);
-      renderPatientsTable(patients);
-    } else if (choice === '4') {
-      // Direct input
-    } else {
-      console.log('[WARN] Invalid option.');
-      continue;
-    }
+      if (patients.length === 0) continue;
 
-    console.log('\nTo purge appointments for a patient:');
-    console.log('- Enter row number from list (e.g. 1)');
-    console.log('- Or paste Patient Profile UUID / Email');
-    console.log('- Or press Enter / "c" to cancel.');
+      const targetInput = await askSafeQuestion(rl, '\nSelect Patient (row #, UUID, or email): ');
+      if (!targetInput || targetInput.toLowerCase() === 'c') continue;
 
-    const targetInput = await askSafeQuestion(rl, '\nSelect Patient: ');
-    if (!targetInput || targetInput.toLowerCase() === 'c') {
-      console.log('[INFO] Selection canceled.');
-      continue;
-    }
+      let targetPatientId = targetInput;
+      let targetPatientName = '';
+      const num = parseInt(targetInput, 10);
+      if (!isNaN(num) && num >= 1 && num <= patients.length) {
+        targetPatientId = patients[num - 1].patientId;
+        targetPatientName = patients[num - 1].name;
+      }
 
-    let targetIdentifier = targetInput;
-    const num = parseInt(targetInput, 10);
-    if (!isNaN(num) && num >= 1 && num <= patients.length) {
-      targetIdentifier = patients[num - 1].patientId;
-    }
+      const confirmed = await confirmPurge(
+        rl,
+        `All appointments for patient ${targetPatientName || targetPatientId}`,
+        1,
+      );
+      if (!confirmed) continue;
 
-    console.log(`\n[INFO] Inspecting appointments for: ${targetIdentifier} ...`);
-    const insp = await inspectPatientAppointments(pool, targetIdentifier);
-
-    if (!insp) {
-      console.log(`[ERROR] No patient found with identifier: ${targetIdentifier}`);
-      continue;
-    }
-
-    renderInspection(insp);
-
-    if (insp.appointmentCount === 0) {
-      console.log('\n[INFO] Patient has 0 appointments. Nothing to purge.');
-      continue;
-    }
-
-    const confirmed = await confirmPurge(
-      rl,
-      `Appointments for ${insp.patientName} (${insp.patientEmail})`,
-      insp.appointmentCount,
-      'Associated queue tickets and events will be deleted. The patient profile and user account itself will remain.',
-    );
-
-    if (!confirmed) {
-      console.log('[INFO] Purge canceled.');
-      continue;
-    }
-
-    console.log('\n[INFO] Executing selective appointment purge...');
-    const res = await executeAppointmentPurge(pool, redisClient, {
-      isAll: false,
-      patientId: insp.patientId,
-    });
-
-    if (res.success) {
-      console.log(`\n[SUCCESS] Successfully purged ${res.deletedCount} appointment(s) for ${insp.patientName}.`);
-    } else {
-      console.log(`\n[ERROR] Failed to purge patient appointments: ${res.error}`);
+      const res = await executeAppointmentPurge(pool, redisClient, {
+        isAll: false,
+        patientId: targetPatientId,
+      });
+      if (res.success) {
+        console.log(`\n[SUCCESS] Successfully purged ${res.deletedCount} appointment(s).`);
+      } else {
+        console.log(`\n[ERROR] Failed to purge: ${res.error}`);
+      }
     }
   }
 }

@@ -9,9 +9,7 @@ import {
   practitioners,
   scheduleRescheduleEvents,
 } from '@database/schema';
-import {
-  DEFAULT_CONSULTATION_DURATION_MINUTES,
-} from '@modules/schedules/domain/constants/schedule.constants';
+import { DEFAULT_CONSULTATION_DURATION_MINUTES } from '@modules/schedules/domain/constants/schedule.constants';
 import { SCHEDULE_CONTEXT_DEFINITIONS } from '@modules/schedules/domain/constants/schedule-context.constants';
 import {
   type AdminDoctorScheduleDetailResponse,
