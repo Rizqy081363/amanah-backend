@@ -5,10 +5,18 @@ import { Pool } from 'pg';
 import { AllConfigType } from '../../config/config.type';
 import * as relations from '../schema/amanah.relations';
 import * as tables from '../schema/amanah.schema';
+import * as maternalRelations from '../schema/maternal.relations';
+import * as maternalTables from '../schema/maternal.schema';
 import * as outboxTables from '../schema/outbox.schema';
 import { DRIZZLE_SOURCE, POSTGRES_POOL } from './drizzle.constants';
 
-const schema = { ...tables, ...relations, ...outboxTables };
+const schema = {
+  ...tables,
+  ...relations,
+  ...maternalTables,
+  ...maternalRelations,
+  ...outboxTables,
+};
 
 export type DrizzleDatabase = NodePgDatabase<typeof schema>;
 export const DrizzleDatabase = Symbol('DrizzleDatabase');

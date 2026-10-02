@@ -19,11 +19,11 @@ export const MS_PER_DAY = 86_400_000;
  * Keys are maximum gestational age in total days for that threshold.
  */
 export const ACOG_REDATING_THRESHOLDS = [
-  { maxGaDays: 8 * 7 + 6, thresholdDays: 5 },   // ≤ 8w6d
-  { maxGaDays: 13 * 7 + 6, thresholdDays: 7 },   // ≤ 13w6d (T1)
-  { maxGaDays: 15 * 7 + 6, thresholdDays: 7 },   // ≤ 15w6d (T2 early)
-  { maxGaDays: 21 * 7 + 6, thresholdDays: 10 },  // ≤ 21w6d
-  { maxGaDays: 27 * 7 + 6, thresholdDays: 14 },  // ≤ 27w6d
+  { maxGaDays: 8 * 7 + 6, thresholdDays: 5 }, // ≤ 8w6d
+  { maxGaDays: 13 * 7 + 6, thresholdDays: 7 }, // ≤ 13w6d (T1)
+  { maxGaDays: 15 * 7 + 6, thresholdDays: 7 }, // ≤ 15w6d (T2 early)
+  { maxGaDays: 21 * 7 + 6, thresholdDays: 10 }, // ≤ 21w6d
+  { maxGaDays: 27 * 7 + 6, thresholdDays: 14 }, // ≤ 27w6d
   { maxGaDays: Number.MAX_SAFE_INTEGER, thresholdDays: 21 }, // T3
 ] as const;
 

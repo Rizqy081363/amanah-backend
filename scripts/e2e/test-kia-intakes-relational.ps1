@@ -220,6 +220,36 @@ Assert-Test "Submit Maternal Health Intake (Relational Dual-Write)" {
             hasAsthmaHistory = "Tidak"
             hasHeartDiseaseHistory = "Tidak"
         }
+        husband = @{
+            fullName = "Tn. Budi Setiawan"
+            nik = "3273019876543210"
+            birthDate = "1993-02-18"
+            age = 33
+            job = "Wiraswasta"
+            education = "S1"
+            bloodType = "O"
+            phoneNumber = "081234567891"
+        }
+        anamnesisResponses = @(
+            @{
+                questionCode = "SMOKING_HABIT"
+                selectedOptionCode = "tidak"
+            },
+            @{
+                questionCode = "ALCOHOL_CONSUMPTION"
+                selectedOptionCode = "tidak"
+            }
+        )
+        healthConditions = @(
+            @{
+                conditionCode = "HYPERTENSION"
+                hasCondition = $false
+            },
+            @{
+                conditionCode = "ASTHMA"
+                hasCondition = $false
+            }
+        )
         previousPregnancies = @(
             @{
                 orderNumber = 1
@@ -258,6 +288,18 @@ Assert-Test "Submit Maternal Health Intake (Relational Dual-Write)" {
     if ($res.previousPregnancies.Count -lt 1) {
         throw "Previous pregnancies not persisted in relational response"
     }
+    if (-not $res.husband -or $res.husband.nik -ne "3273019876543210") {
+        throw "Maternal intake husband relation mismatch"
+    }
+    if ($res.husband.bloodType -ne "O") {
+        throw "Maternal intake husband bloodType mismatch"
+    }
+    if ($res.anamnesisResponses.Count -lt 2) {
+        throw "Maternal intake anamnesis responses count mismatch"
+    }
+    if ($res.healthConditions.Count -lt 2) {
+        throw "Maternal intake health conditions count mismatch"
+    }
 }
 
 Assert-Test "Retrieve Maternal Intake By Appointment ID" {
@@ -270,6 +312,15 @@ Assert-Test "Retrieve Maternal Intake By Appointment ID" {
     }
     if ($res.data.gravidaCount -ne 2) {
         throw "Relational gravida count mismatch"
+    }
+    if (-not $res.data.husband -or $res.data.husband.fullName -ne "Tn. Budi Setiawan") {
+        throw "Retrieved intake missing husband relation"
+    }
+    if (-not $res.data.anamnesisResponses -or $res.data.anamnesisResponses.Count -lt 2) {
+        throw "Retrieved intake missing anamnesis responses"
+    }
+    if (-not $res.data.healthConditions -or $res.data.healthConditions.Count -lt 2) {
+        throw "Retrieved intake missing health conditions"
     }
 }
 

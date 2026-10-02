@@ -1,5 +1,10 @@
 import { relations } from 'drizzle-orm/relations';
 import {
+  maternalAnamnesisResponses,
+  maternalHealthConditionResponses,
+  maternalHusbandProfiles,
+} from './maternal.schema';
+import {
   appointmentCallAttempts,
   appointmentStatusEvents,
   appointments,
@@ -584,6 +589,9 @@ export const maternalHealthIntakesRelations = relations(
     }),
     previousPregnancies: many(maternalPreviousPregnancies),
     contraceptiveHistories: many(maternalContraceptiveHistories),
+    husband: one(maternalHusbandProfiles),
+    anamnesisResponses: many(maternalAnamnesisResponses),
+    healthConditions: many(maternalHealthConditionResponses),
   }),
 );
 

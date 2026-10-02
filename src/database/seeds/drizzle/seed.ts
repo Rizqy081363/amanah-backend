@@ -11,6 +11,7 @@ import {
 } from './dev-seed.data';
 import { seedKiaIntakes } from './kia-intakes.seed';
 import { seedMasterCatalog } from './master-catalog.seed';
+import { seedMaternalCatalogs } from './maternal-catalogs.seed';
 
 type QueryOneInput = {
   client: PoolClient;
@@ -1931,6 +1932,7 @@ const runSeed = async (): Promise<void> => {
     await seedPatients(context);
     await seedAdminScheduleShowcase(context);
     await seedOperationalExamples(context);
+    await seedMaternalCatalogs(client);
     await seedKiaIntakes(context);
     await client.query('COMMIT');
     console.log(`Seeded ${DEVELOPMENT_USER_SEEDS.length} development users.`);

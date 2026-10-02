@@ -17,6 +17,11 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
+import {
+  AnamnesisResponseDto,
+  HealthConditionResponseDto,
+  HusbandProfileDto,
+} from './maternal-normalized-intake.dto';
 
 export class PreviousPregnancyItemDto {
   @ApiProperty({ example: 1, description: 'Urutan riwayat kehamilan (1..4)' })
@@ -440,4 +445,24 @@ export class CreateMaternityIntakeDto {
   @Type(() => ContraceptiveHistoryItemDto)
   @IsOptional()
   contraceptiveHistories?: ContraceptiveHistoryItemDto[];
+
+  @ApiPropertyOptional({ type: HusbandProfileDto })
+  @ValidateNested()
+  @Type(() => HusbandProfileDto)
+  @IsOptional()
+  husband?: HusbandProfileDto;
+
+  @ApiPropertyOptional({ type: [AnamnesisResponseDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => AnamnesisResponseDto)
+  @IsOptional()
+  anamnesisResponses?: AnamnesisResponseDto[];
+
+  @ApiPropertyOptional({ type: [HealthConditionResponseDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => HealthConditionResponseDto)
+  @IsOptional()
+  healthConditions?: HealthConditionResponseDto[];
 }
