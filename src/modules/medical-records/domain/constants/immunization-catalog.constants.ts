@@ -69,8 +69,7 @@ export const DEFAULT_VACCINE_CATALOG: readonly VaccineCatalogSeedItem[] = [
     name: 'RV 1',
     ageMilestone: '2 Bulan',
     scheduleMonths: 2,
-    description:
-      'Tetes di mulut untuk mencegah diare berat akibat rotavirus.',
+    description: 'Tetes di mulut untuk mencegah diare berat akibat rotavirus.',
     sortOrder: 7,
   },
   {
@@ -107,8 +106,7 @@ export const DEFAULT_VACCINE_CATALOG: readonly VaccineCatalogSeedItem[] = [
     name: 'PCV 2',
     ageMilestone: '3 Bulan',
     scheduleMonths: 3,
-    description:
-      'Suntikan pencegah infeksi bakteri pneumokokus dosis ke-2.',
+    description: 'Suntikan pencegah infeksi bakteri pneumokokus dosis ke-2.',
     sortOrder: 11,
   },
   {

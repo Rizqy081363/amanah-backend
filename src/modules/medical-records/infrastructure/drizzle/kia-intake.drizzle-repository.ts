@@ -7,6 +7,7 @@ import {
   childImmunizationEntries,
   childImmunizationIntakes,
   medicalIntakeSubmissions,
+  patientProfiles,
 } from '../../../../database/schema';
 import { CreateChildImmunizationIntakeDto } from '../../presentation/dto/create-child-immunization-intake.dto';
 import { CreateMaternityIntakeDto } from '../../presentation/dto/create-maternity-intake.dto';
@@ -47,7 +48,8 @@ export class KiaIntakeDrizzleRepository {
         (dto.entries && dto.entries.length > 0
           ? 'Ya, pernah'
           : dto.previousVaccineHistory &&
-              dto.previousVaccineHistory !== 'Belum pernah imunisasi sama sekali'
+              dto.previousVaccineHistory !==
+                'Belum pernah imunisasi sama sekali'
             ? 'Ya, pernah'
             : 'Belum pernah sama sekali');
 
@@ -58,15 +60,55 @@ export class KiaIntakeDrizzleRepository {
           ? 'Ada riwayat alergi'
           : 'Tidak ada alergi');
 
+      let targetChildName = dto.childName;
+      let targetChildNik = dto.childNik;
+      let targetChildBirthDate = dto.childBirthDate;
+      let targetChildSex = dto.childSex;
+      let targetMotherName = dto.motherName;
+      let targetPhone = dto.parentPhone;
+
+      if (
+        !targetChildName ||
+        !targetChildNik ||
+        !targetChildBirthDate ||
+        !targetChildSex ||
+        !targetPhone
+      ) {
+        const [patient] = await tx
+          .select()
+          .from(patientProfiles)
+          .where(eq(patientProfiles.id, dto.patientId))
+          .limit(1);
+
+        if (patient) {
+          targetChildName = targetChildName || patient.fullName;
+          targetChildNik =
+            targetChildNik ||
+            patient.nationalIdEncrypted ||
+            patient.nationalIdHash ||
+            undefined;
+          targetChildBirthDate = targetChildBirthDate || patient.birthDate;
+          targetChildSex =
+            targetChildSex ||
+            (patient.gender === 'female' ||
+            (patient.gender as string) === 'Perempuan'
+              ? 'Perempuan'
+              : 'Laki-laki');
+          targetMotherName =
+            targetMotherName || patient.motherName || undefined;
+          targetPhone = targetPhone || patient.phone || '';
+        }
+      }
+
       const answersMap: Record<string, any> = {
-        childName: dto.childName,
-        childNik: dto.childNik,
-        childBirthDate: dto.childBirthDate,
-        childSex: dto.childSex,
+        childName: targetChildName,
+        childNik: targetChildNik,
+        childBirthDate: targetChildBirthDate,
+        childSex: targetChildSex,
         childAgeFormatted: dto.childAgeFormatted || null,
-        parentPhone: dto.parentPhone,
+        parentPhone: targetPhone,
         fatherName: dto.fatherName,
-        motherName: dto.motherName,
+        motherName: targetMotherName,
         childAddress: dto.childAddress,
         hasVaccineHistory,
         previousVaccineHistory: dto.previousVaccineHistory,
@@ -114,14 +156,14 @@ export class KiaIntakeDrizzleRepository {
           intakeSubmissionId: submission.id,
           patientId: dto.patientId,
           appointmentId: dto.appointmentId || null,
-          childName: dto.childName,
-          childNik: dto.childNik,
-          childBirthDate: dto.childBirthDate,
-          childSex: dto.childSex,
+          childName: targetChildName || '',
+          childNik: targetChildNik || '',
+          childBirthDate: targetChildBirthDate || '',
+          childSex: targetChildSex || 'Laki-laki',
           childAgeFormatted: dto.childAgeFormatted || null,
-          parentPhone: dto.parentPhone,
+          parentPhone: targetPhone || '',
           fatherName: dto.fatherName || null,
-          motherName: dto.motherName || null,
+          motherName: targetMotherName || null,
           childAddress: dto.childAddress || null,
           previousVaccineHistory: dto.previousVaccineHistory || null,
           childAllergyHistory: dto.childAllergyHistory || null,
@@ -161,15 +203,18 @@ export class KiaIntakeDrizzleRepository {
 
   private mapImmunizationRecord(record: any) {
     if (!record) return null;
-    const answers = (record.intakeSubmission?.answers as Record<string, any>) || {};
-    const automatic = (record.intakeSubmission?.automatic as Record<string, any>) || {};
+    const answers =
+      (record.intakeSubmission?.answers as Record<string, any>) || {};
+    const automatic =
+      (record.intakeSubmission?.automatic as Record<string, any>) || {};
 
     const hasVaccineHistory =
       answers.hasVaccineHistory ||
       (record.entries && record.entries.length > 0
         ? 'Ya, pernah'
         : record.previousVaccineHistory &&
-            record.previousVaccineHistory !== 'Belum pernah imunisasi sama sekali'
+            record.previousVaccineHistory !==
+              'Belum pernah imunisasi sama sekali'
           ? 'Ya, pernah'
           : 'Belum pernah sama sekali');
 
@@ -246,6 +291,12 @@ export class KiaIntakeDrizzleRepository {
 
   private mapPatientProfile(profile: any) {
     if (!profile) return null;
+    const addr = profile.patientAddresses?.[0];
+    const aff = profile.patientAffiliations?.[0];
+    const ec = profile.patientEmergencyContacts?.[0];
+    const isUnknownBlood =
+      !profile.bloodType || profile.bloodType === 'unknown';
+
     return {
       id: profile.id,
       medicalRecordNumber: profile.medicalRecordNumber,
@@ -255,34 +306,22 @@ export class KiaIntakeDrizzleRepository {
       birthPlace: profile.birthPlace,
       birthDate: profile.birthDate,
       gender: profile.gender,
-      bloodType:
-        profile.bloodType && profile.bloodType !== 'unknown'
-          ? profile.bloodType.toUpperCase()
-          : 'Belum Tahu',
+      bloodType: isUnknownBlood
+        ? 'Belum Tahu'
+        : profile.bloodType.toUpperCase(),
       occupation: profile.occupation,
       phone: profile.phone,
-      email:
-        profile.email ||
-        profile.patientAffiliations?.[0]?.user?.email ||
-        profile.user?.email ||
-        null,
-      address:
-        profile.patientAddresses?.[0]?.fullAddress ||
-        profile.patientAddresses?.[0]?.line1 ||
-        null,
-      villageName: profile.patientAddresses?.[0]?.villageName || null,
-      districtName: profile.patientAddresses?.[0]?.districtName || null,
-      regencyName: profile.patientAddresses?.[0]?.regencyName || null,
-      provinceName: profile.patientAddresses?.[0]?.provinceName || null,
-      relationshipType:
-        profile.patientAffiliations?.[0]?.relationshipType || null,
-      relationLabel: profile.patientAffiliations?.[0]?.relationLabel || null,
-      emergencyContactName:
-        profile.patientEmergencyContacts?.[0]?.name || null,
-      emergencyContactPhone:
-        profile.patientEmergencyContacts?.[0]?.phone || null,
-      emergencyContactRelationship:
-        profile.patientEmergencyContacts?.[0]?.relationship || null,
+      email: profile.email || aff?.user?.email || profile.user?.email || null,
+      address: addr?.fullAddress || addr?.line1 || null,
+      villageName: addr?.villageName || null,
+      districtName: addr?.districtName || null,
+      regencyName: addr?.regencyName || null,
+      provinceName: addr?.provinceName || null,
+      relationshipType: aff?.relationshipType || null,
+      relationLabel: aff?.relationLabel || null,
+      emergencyContactName: ec?.name || null,
+      emergencyContactPhone: ec?.phone || null,
+      emergencyContactRelationship: ec?.relationship || null,
     };
   }
 
@@ -389,7 +428,7 @@ export class KiaIntakeDrizzleRepository {
       },
     });
 
-    if (appt && appt.patientProfile) {
+    if (appt?.patientProfile) {
       return {
         flow: appt.medicalFlow || 'regular',
         type: 'regular',
@@ -433,19 +472,14 @@ export class KiaIntakeDrizzleRepository {
       );
     if (!isUuid) return null;
 
-    if (flow === 'pregnancy' || flow === 'maternal') {
+    if (flow === 'pregnancy' || flow === 'maternal' || !flow) {
       const maternal = await this.maternalRepo.findLatestByPatientId(patientId);
       if (maternal) {
-        return {
-          flow: 'pregnancy',
-          type: 'maternal',
-          data: maternal,
-        };
+        return { flow: 'pregnancy', type: 'maternal', data: maternal };
       }
-      return null;
     }
 
-    if (flow === 'immunization') {
+    if (flow === 'immunization' || !flow) {
       const immunization =
         await this.findLatestImmunizationByPatientId(patientId);
       if (immunization) {
@@ -455,26 +489,6 @@ export class KiaIntakeDrizzleRepository {
           data: immunization,
         };
       }
-      return null;
-    }
-
-    const maternal = await this.maternalRepo.findLatestByPatientId(patientId);
-    if (maternal) {
-      return {
-        flow: 'pregnancy',
-        type: 'maternal',
-        data: maternal,
-      };
-    }
-
-    const immunization =
-      await this.findLatestImmunizationByPatientId(patientId);
-    if (immunization) {
-      return {
-        flow: 'immunization',
-        type: 'immunization',
-        data: immunization,
-      };
     }
 
     return null;

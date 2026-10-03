@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { FormRequirementService } from './application/form-requirement.service';
 import { ImmunizationCatalogService } from './application/services/immunization-catalog.service';
 import { MaternalCatalogService } from './application/services/maternal-catalog.service';
 import { MEDICAL_RECORD_REPOSITORY } from './domain/repositories/medical-record.repository';
@@ -8,11 +9,13 @@ import { MaternalIntakeDrizzleRepository } from './infrastructure/drizzle/matern
 import { MedicalRecordDrizzleRepository } from './infrastructure/drizzle/medical-record.drizzle-repository';
 import { ImmunizationCatalogController } from './presentation/immunization-catalog.controller';
 import { MaternalCatalogController } from './presentation/maternal-catalog.controller';
+import { MedicalIntakesController } from './presentation/medical-intakes.controller';
 import { MedicalRecordsController } from './presentation/medical-records.controller';
 
 @Module({
   controllers: [
     MedicalRecordsController,
+    MedicalIntakesController,
     MaternalCatalogController,
     ImmunizationCatalogController,
   ],
@@ -20,6 +23,7 @@ import { MedicalRecordsController } from './presentation/medical-records.control
     ObstetricCalculatorService,
     MaternalCatalogService,
     ImmunizationCatalogService,
+    FormRequirementService,
     MaternalIntakeDrizzleRepository,
     KiaIntakeDrizzleRepository,
     {
@@ -34,6 +38,7 @@ import { MedicalRecordsController } from './presentation/medical-records.control
     MaternalCatalogService,
     ImmunizationCatalogService,
     ObstetricCalculatorService,
+    FormRequirementService,
   ],
 })
 export class MedicalRecordsModule {}

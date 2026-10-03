@@ -75,35 +75,39 @@ export class CreateChildImmunizationIntakeDto {
   @IsNotEmpty()
   patientId: string;
 
-  @ApiProperty({ example: 'Rayyan Al-Fatih' })
+  @ApiPropertyOptional({ example: 'Rayyan Al-Fatih' })
   @IsString()
-  @IsNotEmpty()
-  childName: string;
+  @IsOptional()
+  childName?: string;
 
-  @ApiProperty({ example: '3201234567890003' })
+  @ApiPropertyOptional({ example: '3201234567890003' })
   @IsString()
   @Length(16, 16)
-  childNik: string;
+  @IsOptional()
+  childNik?: string;
 
-  @ApiProperty({ example: '2025-06-15' })
+  @ApiPropertyOptional({ example: '2025-06-15' })
   @IsDateString()
-  @IsNotEmpty()
-  childBirthDate: string;
+  @IsOptional()
+  childBirthDate?: string;
 
-  @ApiProperty({ enum: ['Laki-laki', 'Perempuan'], example: 'Laki-laki' })
+  @ApiPropertyOptional({
+    enum: ['Laki-laki', 'Perempuan'],
+    example: 'Laki-laki',
+  })
   @IsIn(['Laki-laki', 'Perempuan'])
-  @IsNotEmpty()
-  childSex: 'Laki-laki' | 'Perempuan';
+  @IsOptional()
+  childSex?: 'Laki-laki' | 'Perempuan';
 
   @ApiPropertyOptional({ example: '1 tahun 3 bulan' })
   @IsString()
   @IsOptional()
   childAgeFormatted?: string;
 
-  @ApiProperty({ example: '081234567890' })
+  @ApiPropertyOptional({ example: '081234567890' })
   @IsString()
-  @IsNotEmpty()
-  parentPhone: string;
+  @IsOptional()
+  parentPhone?: string;
 
   @ApiPropertyOptional({ example: 'Ahmad Fauzi' })
   @IsString()

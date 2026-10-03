@@ -170,15 +170,16 @@ export class CreateMaternityIntakeDto {
   @IsNotEmpty()
   patientId: string;
 
-  @ApiProperty({ example: 'Siti Aminah' })
+  @ApiPropertyOptional({ example: 'Siti Aminah' })
   @IsString()
-  @IsNotEmpty()
-  motherName: string;
+  @IsOptional()
+  motherName?: string;
 
-  @ApiProperty({ example: '3201234567890001' })
+  @ApiPropertyOptional({ example: '3201234567890001' })
   @IsString()
   @Length(16, 16)
-  motherNik: string;
+  @IsOptional()
+  motherNik?: string;
 
   @ApiPropertyOptional({ example: '1995-04-12' })
   @IsDateString()
@@ -215,10 +216,10 @@ export class CreateMaternityIntakeDto {
   @IsOptional()
   religion?: string;
 
-  @ApiProperty({ example: '081234567890' })
+  @ApiPropertyOptional({ example: '081234567890' })
   @IsString()
-  @IsNotEmpty()
-  phoneNumber: string;
+  @IsOptional()
+  phoneNumber?: string;
 
   @ApiPropertyOptional({ example: 'Jl. Anyelir 1 No. 243, Condongcatur' })
   @IsString()
@@ -357,13 +358,15 @@ export class CreateMaternityIntakeDto {
   @Min(0)
   livingChildrenCount: number;
 
-  @ApiProperty({ example: true, default: false })
+  @ApiPropertyOptional({ example: true, default: false })
   @IsBoolean()
-  hasPreviousPregnancyHistory: boolean;
+  @IsOptional()
+  hasPreviousPregnancyHistory?: boolean;
 
-  @ApiProperty({ example: true, default: false })
+  @ApiPropertyOptional({ example: true, default: false })
   @IsBoolean()
-  hasContraceptionHistory: boolean;
+  @IsOptional()
+  hasContraceptionHistory?: boolean;
 
   @ApiPropertyOptional({ example: 'Tidak' })
   @IsString()

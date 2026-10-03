@@ -10,6 +10,7 @@ import {
   maternalHusbandProfiles,
   maternalPreviousPregnancies,
   medicalIntakeSubmissions,
+  patientProfiles,
 } from '../../../../database/schema';
 import { ObstetricCalculatorService } from '../../domain/services/obstetric-calculator.service';
 import { CreateMaternityIntakeDto } from '../../presentation/dto/create-maternity-intake.dto';
@@ -27,17 +28,44 @@ export class MaternalIntakeDrizzleRepository {
     submittedByUserId?: string,
   ): Promise<any> {
     return await this.db.transaction(async (tx) => {
+      let targetMotherName = dto.motherName;
+      let targetMotherNik = dto.motherNik;
+      let targetMotherBirthDate = dto.motherBirthDate;
+      let targetPhone = dto.phoneNumber;
+      let targetBloodType = dto.motherBloodType;
+
+      if (!targetMotherName || !targetMotherNik || !targetMotherBirthDate) {
+        const [patient] = await tx
+          .select()
+          .from(patientProfiles)
+          .where(eq(patientProfiles.id, dto.patientId))
+          .limit(1);
+
+        if (patient) {
+          targetMotherName = targetMotherName || patient.fullName;
+          targetMotherNik =
+            targetMotherNik ||
+            patient.nationalIdEncrypted ||
+            patient.nationalIdHash ||
+            undefined;
+          targetMotherBirthDate = targetMotherBirthDate || patient.birthDate;
+          targetPhone = targetPhone || patient.phone || '';
+          targetBloodType =
+            targetBloodType || patient.bloodType || 'Belum Tahu';
+        }
+      }
+
       const answersMap: Record<string, any> = {
-        motherName: dto.motherName,
-        motherNik: dto.motherNik,
-        motherBirthDate: dto.motherBirthDate,
+        motherName: targetMotherName,
+        motherNik: targetMotherNik,
+        motherBirthDate: targetMotherBirthDate,
         motherAge: dto.motherAge,
         marriageOrder: dto.marriageOrder,
         marriageDate: dto.marriageDate,
         motherJob: dto.motherJob,
         motherEducation: dto.motherEducation,
         religion: dto.religion,
-        phoneNumber: dto.phoneNumber,
+        phoneNumber: targetPhone,
         domicileAddress: dto.domicileAddress,
         identityCardAddress: dto.identityCardAddress,
         dasawisma: dto.dasawisma,
@@ -105,16 +133,16 @@ export class MaternalIntakeDrizzleRepository {
           intakeSubmissionId: submission.id,
           patientId: dto.patientId,
           appointmentId: dto.appointmentId || null,
-          motherNik: dto.motherNik,
-          motherName: dto.motherName,
-          motherBirthDate: dto.motherBirthDate || null,
+          motherNik: targetMotherNik || '',
+          motherName: targetMotherName || '',
+          motherBirthDate: targetMotherBirthDate || null,
           motherAge: dto.motherAge || null,
           marriageOrder: dto.marriageOrder || 1,
           marriageDate: dto.marriageDate || null,
           motherJob: dto.motherJob || null,
           motherEducation: dto.motherEducation || null,
           religion: dto.religion || null,
-          phoneNumber: dto.phoneNumber,
+          phoneNumber: targetPhone || null,
           domicileAddress: dto.domicileAddress || null,
           identityCardAddress: dto.identityCardAddress || null,
           dasawisma: dto.dasawisma || null,
@@ -139,7 +167,7 @@ export class MaternalIntakeDrizzleRepository {
             : null,
           initialBmi: dto.initialBmi ? String(dto.initialBmi) : null,
           tetanusStatus: dto.tetanusStatus || null,
-          motherBloodType: dto.motherBloodType || null,
+          motherBloodType: targetBloodType || null,
           hpht: dto.hpht || null,
           estimatedDueDate: obstetricData?.estimatedDueDate ?? null,
           gestationalAgeWeeks:
