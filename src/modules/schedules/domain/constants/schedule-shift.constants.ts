@@ -1,10 +1,3 @@
-/**
- * Canonical Shift & Session Constants (Database-Driven)
- *
- * Sourced directly from PostgreSQL enum `staff_shift`:
- * ['early_morning', 'morning', 'afternoon', 'night']
- */
-
 export const CANONICAL_STAFF_SHIFTS = [
   'early_morning',
   'morning',
@@ -164,3 +157,12 @@ export function resolveSessionFromTime(
   }
   return SHIFT_TIMING_CONFIGS.night.session;
 }
+
+export const BOOKING_SESSION_DISABLED_REASONS = {
+  ELAPSED: 'Waktu praktik sesi ini telah berakhir',
+  NO_SCHEDULE: 'Dokter/bidan tidak ada jadwal praktik pada sesi ini',
+  QUOTA_FULL: 'Kuota antrean pada sesi ini sudah penuh',
+} as const;
+
+export type BookingSessionDisabledReason =
+  (typeof BOOKING_SESSION_DISABLED_REASONS)[keyof typeof BOOKING_SESSION_DISABLED_REASONS];

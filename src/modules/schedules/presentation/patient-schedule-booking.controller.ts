@@ -14,12 +14,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { and, eq } from 'drizzle-orm';
-import {
-  CurrentUser,
-  HybridAuthGuard,
-  Roles,
-  RolesGuard,
-} from '../../../common/auth';
+import { HybridAuthGuard, Roles, RolesGuard } from '../../../common/auth';
 import { HttpCache } from '../../../common/decorators/http-cache.decorator';
 import { DRIZZLE_SOURCE } from '../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../database/drizzle/drizzle.provider';
@@ -35,6 +30,7 @@ import {
   type CanonicalStaffShift,
   SHIFT_TIMING_CONFIGS,
 } from '../domain/constants/schedule-shift.constants';
+import { evaluateSessionTemporalAvailability } from '../domain/services/schedule-temporal-availability.service';
 
 interface BookingShiftDef {
   session: CanonicalSessionName;
@@ -97,13 +93,11 @@ export class PatientScheduleBookingController {
     const dayOfWeek = targetDate.getUTCDay();
     const dayName = INDONESIAN_DAY_NAMES[dayOfWeek];
 
-    // Fetch clinic policy for duration
     const policy = await this.db.query.clinicSchedulePolicies.findFirst({
       where: eq(clinicSchedulePolicies.code, 'default'),
     });
     const estimatedDuration = policy?.defaultConsultationDurationMinutes ?? 30;
 
-    // Fetch poliklinik and rooms if specified
     let unitName: string | null = null;
     let unitRooms: Array<typeof clinicRooms.$inferSelect> = [];
     if (poliklinikId) {
@@ -119,11 +113,6 @@ export class PatientScheduleBookingController {
     }
     const unitRoomIds = new Set(unitRooms.map((r) => r.id));
 
-    // Query active schedule sessions on this date.
-    // When staffId is provided (reschedule context), scope to that practitioner
-    // at the DB level — do not load the entire clinic's sessions and filter in JS,
-    // as that causes a race-condition window where global slot counts leak through
-    // before the correct staffId is resolved.
     const sessionConditions = [
       eq(practitionerScheduleSessions.scheduleDate, dateStr),
       eq(practitionerScheduleSessions.status, 'open'),
@@ -179,9 +168,6 @@ export class PatientScheduleBookingController {
 
     const mappedSessions = bookingShifts.map((shiftDef) => {
       const matching = sessions.filter((s) => {
-        // staffId filter is already applied at DB level — sessions here belong
-        // to the correct practitioner when staffId is provided.
-
         if (poliklinikId) {
           const roomUnitId = s.clinicRoom?.unitId;
           const matchesRoomUnit = roomUnitId
@@ -203,29 +189,25 @@ export class PatientScheduleBookingController {
         return startPrefix >= shiftStart && startPrefix < shiftEnd;
       });
 
-      if (matching.length === 0) {
-        return {
-          session: shiftDef.session,
-          shift: shiftDef.shift,
-          label: shiftDef.label,
-          startTime: shiftDef.defaultStartTime,
-          endTime: shiftDef.defaultEndTime,
-          capacity: 0,
-          availableSlots: 0,
-          bookedSlots: 0,
-          isDisabled: true,
-          disabledReason: 'Dokter/bidan tidak ada jadwal praktik pada sesi ini',
-          practitioners: [],
-        };
-      }
-
       const totalCapacity = matching.reduce((sum, s) => sum + s.capacity, 0);
       const totalAvailable = matching.reduce(
         (sum, s) => sum + s.availableSlots,
         0,
       );
       const totalBooked = Math.max(0, totalCapacity - totalAvailable);
-      const isFull = totalAvailable <= 0;
+
+      const temporalResult = evaluateSessionTemporalAvailability({
+        scheduleDate: dateStr,
+        defaultTiming: {
+          startTime: shiftDef.defaultStartTime,
+          endTime: shiftDef.defaultEndTime,
+        },
+        practitionerSessions: matching.map((s) => ({
+          startTime: s.startTime,
+          endTime: s.endTime,
+        })),
+        totalAvailableSlots: totalAvailable,
+      });
 
       const practitionersList = matching.map((s) => ({
         id: s.practitionerId,
@@ -246,12 +228,11 @@ export class PatientScheduleBookingController {
         startTime: matching[0]?.startTime || shiftDef.defaultStartTime,
         endTime: matching[0]?.endTime || shiftDef.defaultEndTime,
         capacity: totalCapacity,
-        availableSlots: totalAvailable,
+        availableSlots: temporalResult.effectiveAvailableSlots,
         bookedSlots: totalBooked,
-        isDisabled: isFull,
-        disabledReason: isFull
-          ? 'Kuota antrean pada sesi ini sudah penuh'
-          : null,
+        isPast: temporalResult.isPast,
+        isDisabled: temporalResult.isDisabled,
+        disabledReason: temporalResult.disabledReason,
         practitioners: practitionersList,
       };
     });

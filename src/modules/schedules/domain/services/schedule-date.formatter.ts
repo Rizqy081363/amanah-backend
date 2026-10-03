@@ -87,7 +87,7 @@ export function computeUpcomingSchedule(
   return `${lastSession.nama_sesi} (${lastSession.waktu}) - Selesai`;
 }
 
-export function getClinicNow(): {
+export function getClinicNow(refDate?: Date): {
   date: string;
   time: string;
   currentMinutes: number;
@@ -101,7 +101,7 @@ export function getClinicNow(): {
     minute: '2-digit',
     hour12: false,
   });
-  const parts = formatter.formatToParts(new Date());
+  const parts = formatter.formatToParts(refDate || new Date());
   const year = parts.find((p) => p.type === 'year')?.value || '2026';
   const month = parts.find((p) => p.type === 'month')?.value || '01';
   const day = parts.find((p) => p.type === 'day')?.value || '01';
