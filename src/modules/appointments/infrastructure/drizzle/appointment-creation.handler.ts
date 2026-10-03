@@ -82,7 +82,8 @@ export class AppointmentCreationHandler {
       if (
         service &&
         (service.serviceCategory?.code === 'layanan_kebidanan' ||
-          service.medicalFlow === 'pregnancy')
+          service.medicalFlow === 'pregnancy' ||
+          service.medicalFlow === 'immunization')
       ) {
         isLayananKebidanan = true;
         const kiaUnit = await db.query.clinicUnits.findFirst({
