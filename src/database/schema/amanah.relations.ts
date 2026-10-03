@@ -64,6 +64,7 @@ import {
   maternalHealthConditionResponses,
   maternalHusbandProfiles,
 } from './maternal.schema';
+import { childImmunizationEntries } from './immunization.schema';
 
 export const userDevicesRelations = relations(userDevices, ({ one, many }) => ({
   user: one(users, {
@@ -617,7 +618,7 @@ export const maternalContraceptiveHistoriesRelations = relations(
 
 export const childImmunizationIntakesRelations = relations(
   childImmunizationIntakes,
-  ({ one }) => ({
+  ({ one, many }) => ({
     intakeSubmission: one(medicalIntakeSubmissions, {
       fields: [childImmunizationIntakes.intakeSubmissionId],
       references: [medicalIntakeSubmissions.id],
@@ -630,6 +631,7 @@ export const childImmunizationIntakesRelations = relations(
       fields: [childImmunizationIntakes.appointmentId],
       references: [appointments.id],
     }),
+    entries: many(childImmunizationEntries),
   }),
 );
 

@@ -12,6 +12,7 @@ import {
 import { seedKiaIntakes } from './kia-intakes.seed';
 import { seedMasterCatalog } from './master-catalog.seed';
 import { seedMaternalCatalogs } from './maternal-catalogs.seed';
+import { seedVaccineCatalog } from './vaccine-catalog.seed';
 
 type QueryOneInput = {
   client: PoolClient;
@@ -1933,6 +1934,7 @@ const runSeed = async (): Promise<void> => {
     await seedAdminScheduleShowcase(context);
     await seedOperationalExamples(context);
     await seedMaternalCatalogs(client);
+    await seedVaccineCatalog(client);
     await seedKiaIntakes(context);
     await client.query('COMMIT');
     console.log(`Seeded ${DEVELOPMENT_USER_SEEDS.length} development users.`);

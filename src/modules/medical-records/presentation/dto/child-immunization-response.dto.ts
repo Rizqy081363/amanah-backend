@@ -1,5 +1,46 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
+export class ChildImmunizationEntryResponseDto {
+  @ApiProperty({ example: '550e8400-e29b-41d4-a716-446655440000' })
+  id: string;
+
+  @ApiProperty({ example: '550e8400-e29b-41d4-a716-446655440001' })
+  intakeId: string;
+
+  @ApiProperty({ example: '550e8400-e29b-41d4-a716-446655440002' })
+  patientId: string;
+
+  @ApiProperty({ example: 'HB_0' })
+  vaccineCode: string;
+
+  @ApiProperty({ example: 'GIVEN' })
+  status: string;
+
+  @ApiPropertyOptional({ example: '2026-03-01' })
+  givenDate?: string | null;
+
+  @ApiPropertyOptional({ example: '2026-03' })
+  givenMonth?: string | null;
+
+  @ApiPropertyOptional({ example: 2 })
+  ageEstimateMonths?: number | null;
+
+  @ApiPropertyOptional({ example: 'EXACT' })
+  datePrecision?: string | null;
+
+  @ApiPropertyOptional()
+  reviewReasons?: any;
+
+  @ApiPropertyOptional()
+  notes?: string | null;
+
+  @ApiProperty({ example: '2026-10-01T10:00:00.000Z' })
+  createdAt: string;
+
+  @ApiProperty({ example: '2026-10-01T10:00:00.000Z' })
+  updatedAt: string;
+}
+
 export class ChildImmunizationResponseDto {
   @ApiProperty({ example: '550e8400-e29b-41d4-a716-446655440000' })
   id: string;
@@ -45,6 +86,9 @@ export class ChildImmunizationResponseDto {
 
   @ApiPropertyOptional({ example: 'Tidak ada' })
   childAllergyHistory?: string | null;
+
+  @ApiPropertyOptional({ type: [ChildImmunizationEntryResponseDto] })
+  entries?: ChildImmunizationEntryResponseDto[];
 
   @ApiPropertyOptional()
   answers?: Record<string, any>;

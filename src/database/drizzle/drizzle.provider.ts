@@ -5,6 +5,8 @@ import { Pool } from 'pg';
 import { AllConfigType } from '../../config/config.type';
 import * as relations from '../schema/amanah.relations';
 import * as tables from '../schema/amanah.schema';
+import * as immunizationRelations from '../schema/immunization.relations';
+import * as immunizationTables from '../schema/immunization.schema';
 import * as maternalRelations from '../schema/maternal.relations';
 import * as maternalTables from '../schema/maternal.schema';
 import * as outboxTables from '../schema/outbox.schema';
@@ -15,6 +17,8 @@ const schema = {
   ...relations,
   ...maternalTables,
   ...maternalRelations,
+  ...immunizationTables,
+  ...immunizationRelations,
   ...outboxTables,
 };
 

@@ -4,6 +4,7 @@ import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
   appointments,
+  childImmunizationEntries,
   childImmunizationIntakes,
   medicalIntakeSubmissions,
 } from '../../../../database/schema';
@@ -41,18 +42,53 @@ export class KiaIntakeDrizzleRepository {
     submittedByUserId?: string,
   ): Promise<any> {
     return await this.db.transaction(async (tx) => {
+      const hasVaccineHistory =
+        dto.hasVaccineHistory ||
+        (dto.entries && dto.entries.length > 0
+          ? 'Ya, pernah'
+          : dto.previousVaccineHistory &&
+              dto.previousVaccineHistory !== 'Belum pernah imunisasi sama sekali'
+            ? 'Ya, pernah'
+            : 'Belum pernah sama sekali');
+
+      const hasAllergyHistory =
+        dto.hasAllergyHistory ||
+        (dto.childAllergyHistory &&
+        dto.childAllergyHistory !== 'Tidak ada riwayat alergi.'
+          ? 'Ada riwayat alergi'
+          : 'Tidak ada alergi');
+
       const answersMap: Record<string, any> = {
         childName: dto.childName,
         childNik: dto.childNik,
         childBirthDate: dto.childBirthDate,
         childSex: dto.childSex,
+        childAgeFormatted: dto.childAgeFormatted || null,
         parentPhone: dto.parentPhone,
         fatherName: dto.fatherName,
         motherName: dto.motherName,
         childAddress: dto.childAddress,
+        hasVaccineHistory,
         previousVaccineHistory: dto.previousVaccineHistory,
+        hasAllergyHistory,
         childAllergyHistory: dto.childAllergyHistory,
+        entries: dto.entries || [],
       };
+
+      if (Array.isArray(dto.entries)) {
+        for (const entry of dto.entries) {
+          const rawStatus =
+            entry.status === 'GIVEN'
+              ? 'Sudah'
+              : entry.status === 'NOT_GIVEN'
+                ? 'Belum'
+                : 'Tidak tahu';
+          answersMap[`vaccine_${entry.vaccineCode}_status`] = rawStatus;
+          if (entry.givenDate) {
+            answersMap[`vaccine_${entry.vaccineCode}_date`] = entry.givenDate;
+          }
+        }
+      }
 
       const automaticMap: Record<string, any> = {
         childAgeAtSubmit: dto.childAgeFormatted || '',
@@ -87,18 +123,95 @@ export class KiaIntakeDrizzleRepository {
           fatherName: dto.fatherName || null,
           motherName: dto.motherName || null,
           childAddress: dto.childAddress || null,
-          previousVaccineHistory: dto.previousVaccineHistory,
+          previousVaccineHistory: dto.previousVaccineHistory || null,
           childAllergyHistory: dto.childAllergyHistory || null,
         })
         .returning();
 
+      let createdEntries: any[] = [];
+      if (Array.isArray(dto.entries) && dto.entries.length > 0) {
+        createdEntries = await tx
+          .insert(childImmunizationEntries)
+          .values(
+            dto.entries.map((entry) => ({
+              intakeId: immRecord.id,
+              patientId: dto.patientId,
+              vaccineCode: entry.vaccineCode,
+              status: entry.status,
+              givenDate: entry.givenDate || null,
+              givenMonth: entry.givenMonth || null,
+              ageEstimateMonths: entry.ageEstimateMonths || null,
+              datePrecision: entry.datePrecision || null,
+              reviewReasons: entry.reviewReasons || null,
+              notes: entry.notes || null,
+            })),
+          )
+          .returning();
+      }
+
       return {
         ...immRecord,
         intakeSubmissionId: submission.id,
+        entries: createdEntries,
         answers: submission.answers,
         automatic: submission.automatic,
       };
     });
+  }
+
+  private mapImmunizationRecord(record: any) {
+    if (!record) return null;
+    const answers = (record.intakeSubmission?.answers as Record<string, any>) || {};
+    const automatic = (record.intakeSubmission?.automatic as Record<string, any>) || {};
+
+    const hasVaccineHistory =
+      answers.hasVaccineHistory ||
+      (record.entries && record.entries.length > 0
+        ? 'Ya, pernah'
+        : record.previousVaccineHistory &&
+            record.previousVaccineHistory !== 'Belum pernah imunisasi sama sekali'
+          ? 'Ya, pernah'
+          : 'Belum pernah sama sekali');
+
+    const hasAllergyHistory =
+      answers.hasAllergyHistory ||
+      (record.childAllergyHistory &&
+      record.childAllergyHistory !== 'Tidak ada riwayat alergi.'
+        ? 'Ada riwayat alergi'
+        : 'Tidak ada alergi');
+
+    const entriesAnswers: Record<string, any> = {};
+    if (Array.isArray(record.entries)) {
+      for (const entry of record.entries) {
+        const code = entry.vaccineCode || entry.vaccine_code;
+        if (!code) continue;
+        const status =
+          entry.status === 'GIVEN'
+            ? 'Sudah'
+            : entry.status === 'NOT_GIVEN'
+              ? 'Belum'
+              : 'Tidak tahu';
+        entriesAnswers[`vaccine_${code}_status`] = status;
+        const dateVal = entry.givenDate || entry.given_date;
+        if (dateVal) {
+          entriesAnswers[`vaccine_${code}_date`] = dateVal;
+        }
+      }
+    }
+
+    return {
+      ...record,
+      hasVaccineHistory,
+      hasAllergyHistory,
+      entries: record.entries || [],
+      answers: {
+        ...entriesAnswers,
+        ...answers,
+        hasVaccineHistory,
+        hasAllergyHistory,
+      },
+      automatic,
+    };
   }
 
   async findImmunizationIntakeById(id: string): Promise<any | null> {
@@ -109,16 +222,11 @@ export class KiaIntakeDrizzleRepository {
       ),
       with: {
         intakeSubmission: true,
+        entries: true,
       },
     });
 
-    if (!record) return null;
-
-    return {
-      ...record,
-      answers: record.intakeSubmission?.answers,
-      automatic: record.intakeSubmission?.automatic,
-    };
+    return this.mapImmunizationRecord(record);
   }
 
   async findImmunizationIntakeByAppointmentId(
@@ -128,17 +236,12 @@ export class KiaIntakeDrizzleRepository {
       where: eq(childImmunizationIntakes.appointmentId, appointmentId),
       with: {
         intakeSubmission: true,
+        entries: true,
       },
       orderBy: [desc(childImmunizationIntakes.createdAt)],
     });
 
-    if (!record) return null;
-
-    return {
-      ...record,
-      answers: record.intakeSubmission?.answers,
-      automatic: record.intakeSubmission?.automatic,
-    };
+    return this.mapImmunizationRecord(record);
   }
 
   async findUnifiedIntakeByAppointmentId(
@@ -162,11 +265,27 @@ export class KiaIntakeDrizzleRepository {
 
     const immunization =
       await this.findImmunizationIntakeByAppointmentId(appointmentId);
+
     if (immunization) {
+      const appt = await this.db.query.appointments.findFirst({
+        where: eq(appointments.id, appointmentId),
+        with: {
+          clinicService: true,
+        },
+      });
+
       return {
         flow: 'immunization',
         type: 'immunization',
-        data: immunization,
+        data: {
+          ...immunization,
+          appointmentId,
+          bookingCode: appt?.bookingCode,
+          scheduledDate: appt?.scheduledDate,
+          scheduledStartTime: appt?.scheduledStartTime,
+          complaint: appt?.complaint,
+          serviceName: appt?.clinicService?.name,
+        },
       };
     }
 
@@ -262,17 +381,12 @@ export class KiaIntakeDrizzleRepository {
       where: eq(childImmunizationIntakes.patientId, patientId),
       with: {
         intakeSubmission: true,
+        entries: true,
       },
       orderBy: [desc(childImmunizationIntakes.createdAt)],
     });
 
-    if (!record) return null;
-
-    return {
-      ...record,
-      answers: record.intakeSubmission?.answers,
-      automatic: record.intakeSubmission?.automatic,
-    };
+    return this.mapImmunizationRecord(record);
   }
 
   async findLatestIntakeByPatientId(

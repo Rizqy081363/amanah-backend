@@ -63,6 +63,8 @@ export class AppointmentRecordMapper {
 
     return {
       id: apt.id,
+      bookingCode: apt.bookingCode || null,
+      medicalFlow: apt.medicalFlow || null,
       patientId: apt.patientId,
       patientUserId,
       patientName: apt.patientProfile?.fullName || 'Pasien Amanah',

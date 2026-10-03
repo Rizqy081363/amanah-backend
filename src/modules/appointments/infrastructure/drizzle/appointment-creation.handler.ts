@@ -3,6 +3,7 @@ import { and, asc, eq, ilike, inArray, not, or } from 'drizzle-orm';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
   appointments,
+  childImmunizationIntakes,
   clinicRooms,
   clinicSchedulePolicies,
   clinicServices,
@@ -70,8 +71,9 @@ export class AppointmentCreationHandler {
     }
 
     let isLayananKebidanan = false;
+    let clinicServiceRecord: any = null;
     if (data.layananId) {
-      const service = await db.query.clinicServices.findFirst({
+      clinicServiceRecord = await db.query.clinicServices.findFirst({
         where: eq(clinicServices.id, data.layananId),
         with: {
           serviceCategory: true,
@@ -80,10 +82,10 @@ export class AppointmentCreationHandler {
       });
 
       if (
-        service &&
-        (service.serviceCategory?.code === 'layanan_kebidanan' ||
-          service.medicalFlow === 'pregnancy' ||
-          service.medicalFlow === 'immunization')
+        clinicServiceRecord &&
+        (clinicServiceRecord.serviceCategory?.code === 'layanan_kebidanan' ||
+          clinicServiceRecord.medicalFlow === 'pregnancy' ||
+          clinicServiceRecord.medicalFlow === 'immunization')
       ) {
         isLayananKebidanan = true;
         const kiaUnit = await db.query.clinicUnits.findFirst({
@@ -279,6 +281,16 @@ export class AppointmentCreationHandler {
       }
     }
 
+    const effectiveMedicalFlow =
+      (clinicServiceRecord?.medicalFlow as any) ||
+      (data as any).medicalFlow ||
+      (clinicServiceRecord?.name?.toLowerCase().includes('imunisasi')
+        ? 'immunization'
+        : clinicServiceRecord?.name?.toLowerCase().includes('kebidanan') ||
+            clinicServiceRecord?.name?.toLowerCase().includes('persalinan')
+          ? 'pregnancy'
+          : null);
+
     const [apt] = await db
       .insert(appointments)
       .values({
@@ -295,6 +307,7 @@ export class AppointmentCreationHandler {
         scheduledStartTime: startTime,
         scheduledEndTime: endTime,
         complaint: data.complaint || null,
+        medicalFlow: effectiveMedicalFlow,
       })
       .returning();
 
@@ -322,6 +335,25 @@ export class AppointmentCreationHandler {
             eq(maternalHealthIntakes.intakeSubmissionId, data.sourceIntakeId),
           ),
         );
+
+      const imm = await db.query.childImmunizationIntakes.findFirst({
+        where: or(
+          eq(childImmunizationIntakes.id, data.sourceIntakeId),
+          eq(childImmunizationIntakes.intakeSubmissionId, data.sourceIntakeId),
+        ),
+      });
+      if (imm) {
+        await db
+          .update(childImmunizationIntakes)
+          .set({ appointmentId: apt.id })
+          .where(eq(childImmunizationIntakes.id, imm.id));
+        if (imm.intakeSubmissionId) {
+          await db
+            .update(medicalIntakeSubmissions)
+            .set({ appointmentId: apt.id })
+            .where(eq(medicalIntakeSubmissions.id, imm.intakeSubmissionId));
+        }
+      }
 
       await db
         .update(medicalIntakeSubmissions)

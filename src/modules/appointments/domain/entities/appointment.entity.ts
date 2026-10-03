@@ -2,6 +2,8 @@ import type { CanonicalSessionName } from '../../../schedules/domain/constants/s
 
 export class AppointmentEntity {
   id: string;
+  bookingCode?: string | null;
+  medicalFlow?: string | null;
   patientId: string;
   patientUserId?: string | null;
   patientName?: string;
