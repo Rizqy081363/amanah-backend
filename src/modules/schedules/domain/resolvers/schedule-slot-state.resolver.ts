@@ -175,6 +175,7 @@ export interface SlotProjectionMetrics {
   scheduledSlots: number;
   unscheduledSlots: number;
   availableSlots: number;
+  totalAvailableSlots?: number;
   completedSlots?: number;
   occupiedSlots: number;
   closedSlots: number;
@@ -189,6 +190,7 @@ export interface SlotProjectionCounts {
   total: number;
   unscheduled: number;
   available: number;
+  activeAvailable?: number;
   occupied: number;
   closed: number;
   past: number;
@@ -214,6 +216,7 @@ export interface ContextProjectionResult {
   activeSessionsCount: number;
   registeredPatientsCount: number;
   availableSlotsCount: number;
+  completedSlotsCount: number;
   totalShiftSlots: number;
 
   counts: SlotProjectionCounts;
@@ -692,10 +695,15 @@ export class ScheduleSlotStateResolver {
     }
 
     const scheduledCount = availableCount + occupiedCount + closedCount;
-    const activeBookableCount = availableCount + occupiedCount;
     const completedCount = projectedSlots.filter(
       (s) => s.uiStatus === SLOT_UI_STATUS.COMPLETED,
     ).length;
+    const activeAvailableCount = projectedSlots.filter(
+      (s) =>
+        s.availabilityState === AVAILABILITY_STATE.AVAILABLE &&
+        s.temporalState !== TEMPORAL_STATE.PAST,
+    ).length;
+    const activeBookableCount = activeAvailableCount + occupiedCount;
     const occupancyPercentage =
       activeBookableCount > 0
         ? Number(((occupiedCount / activeBookableCount) * 100).toFixed(2))
@@ -720,7 +728,7 @@ export class ScheduleSlotStateResolver {
       operationalLabel = 'Praktik Ditutup';
     } else {
       operationalStatus = SHIFT_OPERATIONAL_STATUS.ACTIVE;
-      operationalLabel = `${availableCount} slot tersedia`;
+      operationalLabel = `${activeAvailableCount} slot tersedia`;
     }
 
     const metrics: SlotProjectionMetrics = {
@@ -728,7 +736,8 @@ export class ScheduleSlotStateResolver {
       totalDaySlots: theoreticalSlots.length,
       scheduledSlots: scheduledCount,
       unscheduledSlots: unscheduledCount,
-      availableSlots: availableCount,
+      availableSlots: activeAvailableCount,
+      totalAvailableSlots: availableCount,
       completedSlots: completedCount,
       occupiedSlots: occupiedCount,
       closedSlots: closedCount,
@@ -783,12 +792,14 @@ export class ScheduleSlotStateResolver {
         const bEnd = parseClockTime(shiftDef.boundaryEndTime);
         return aStart >= bStart && aStart < bEnd;
       }).length,
-      availableSlotsCount: availableCount,
+      availableSlotsCount: activeAvailableCount,
+      completedSlotsCount: completedCount,
       totalShiftSlots: theoreticalSlots.length,
       counts: {
         total: theoreticalSlots.length,
         unscheduled: unscheduledCount,
         available: availableCount,
+        activeAvailable: activeAvailableCount,
         occupied: occupiedCount,
         closed: closedCount,
         scheduled: scheduledCount,

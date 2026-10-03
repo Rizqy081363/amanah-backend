@@ -28,7 +28,7 @@ import { SchedulePolicyReader } from '@modules/schedules/infrastructure/drizzle/
 import { PractitionerResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/practitioner.resolver';
 import type { AdminDoctorScheduleDetailQueryDto } from '@modules/schedules/presentation/dto/admin-doctor-schedule-detail-query.dto';
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { and, asc, eq, gte, lte, ne, or } from 'drizzle-orm';
+import { and, asc, eq, gte, lte, or } from 'drizzle-orm';
 
 @Injectable()
 export class DrizzleAdminDoctorScheduleDetailQuery {
@@ -205,6 +205,7 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
       consultationDurationMinutes: effectiveConsultationDuration,
       isEvalCuti,
       defaultRoomName,
+      scheduleDate: evalDate,
     });
 
     const evalSessionOpStatuses = sesiHarian.map((s) => s.status_sesi);

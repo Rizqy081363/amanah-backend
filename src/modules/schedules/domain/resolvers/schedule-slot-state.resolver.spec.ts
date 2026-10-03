@@ -1,6 +1,5 @@
 import {
   AVAILABILITY_STATE,
-  CLOSURE_CATEGORY,
   EFFECTIVE_SLOT_STATUS,
   ScheduleSlotStateResolver,
   SHIFT_OPERATIONAL_STATUS,
@@ -608,6 +607,50 @@ describe('ScheduleSlotStateResolver', () => {
 
       expect(slot1830?.uiVariant).toBe('purple_other');
       expect(slot1900?.uiVariant).toBe('dashed_border');
+    });
+
+    it('should exclude past completed slots from availableSlotsCount and operationalLabel (exact user scenario at 21:55)', () => {
+      const input: SlotStateResolverInput = {
+        scheduleDate: BASE_DATE,
+        context: 'night',
+        intervalMinutes: 30,
+        currentDate: BASE_DATE,
+        currentTime: '21:55',
+        openedRanges: [
+          {
+            id: 'sess-malam',
+            startTime: '18:00',
+            endTime: '24:00',
+            status: 'open',
+          },
+        ],
+        appointments: [
+          {
+            id: 'appt-2200',
+            patientName: 'Pasien Terdaftar',
+            startTime: '22:00',
+            endTime: '22:30',
+            status: 'booked',
+          },
+        ],
+      };
+
+      const result = ScheduleSlotStateResolver.resolveContextProjection(input);
+
+      expect(result.counts.total).toBe(12);
+      expect(result.counts.past).toBe(7);
+      expect(result.counts.current).toBe(1);
+      expect(result.counts.future).toBe(4);
+
+      expect(result.counts.available).toBe(11);
+
+      expect(result.counts.activeAvailable).toBe(4);
+      expect(result.availableSlotsCount).toBe(4);
+      expect(result.metrics.availableSlots).toBe(4);
+      expect(result.metrics.totalAvailableSlots).toBe(11);
+      expect(result.completedSlotsCount).toBe(7);
+      expect(result.metrics.completedSlots).toBe(7);
+      expect(result.operationalLabel).toBe('4 slot tersedia');
     });
   });
 });

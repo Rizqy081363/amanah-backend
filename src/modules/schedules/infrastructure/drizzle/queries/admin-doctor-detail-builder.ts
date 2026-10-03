@@ -17,6 +17,7 @@ import {
   resolveAggregateOperationalStatus,
   resolveSessionOperationalStatus,
 } from '@modules/schedules/domain/schedule-status';
+import { parseClockTime } from '@modules/schedules/domain/schedule-projection';
 
 export interface MonthlyScheduleBuildContext {
   targetYear: number;
@@ -173,6 +174,9 @@ export interface DailySessionBuildContext {
   consultationDurationMinutes: number;
   isEvalCuti: boolean;
   defaultRoomName: string;
+  scheduleDate?: string;
+  currentDate?: string;
+  currentTime?: string;
 }
 
 export function buildDailySessions(
@@ -184,7 +188,21 @@ export function buildDailySessions(
     consultationDurationMinutes,
     isEvalCuti,
     defaultRoomName,
+    scheduleDate,
+    currentDate,
+    currentTime,
   } = ctx;
+
+  const now = new Date();
+  const curDate = currentDate || now.toISOString().slice(0, 10);
+  const curTime =
+    currentTime ||
+    `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  const curMinutes = parseClockTime(curTime);
+  const isPastDate = scheduleDate ? scheduleDate < curDate : false;
+  const isToday = scheduleDate ? scheduleDate === curDate : true;
+  const validDuration =
+    consultationDurationMinutes || DEFAULT_CONSULTATION_DURATION_MINUTES;
 
   return evalSessions.map((s) => {
     const jamMulai = s.startTime ? s.startTime.slice(0, 5) : '08:00';
@@ -213,8 +231,7 @@ export function buildDailySessions(
     const metrics = ScheduleSlotFactory.calculateSessionMetrics({
       startTime: jamMulai,
       endTime: jamSelesai,
-      durationMinutes:
-        consultationDurationMinutes || DEFAULT_CONSULTATION_DURATION_MINUTES,
+      durationMinutes: validDuration,
       persistedCapacity: s.capacity,
       persistedAvailableSlots: s.availableSlots,
       bookedCount: matchingAppts.filter(
@@ -225,13 +242,46 @@ export function buildDailySessions(
       isClosed: s.status === 'closed',
     });
 
+    const sStartMin = parseClockTime(jamMulai);
+    const sEndMin = parseClockTime(jamSelesai);
+    let pastUnbookedSlots = 0;
+
+    if (isPastDate) {
+      pastUnbookedSlots = metrics.availableSlots;
+    } else if (isToday) {
+      for (let m = sStartMin; m < sEndMin; m += validDuration) {
+        const slotEnd = m + validDuration;
+        if (slotEnd <= curMinutes) {
+          const hasAppt = matchingAppts.some((a) => {
+            const aStart = parseClockTime(
+              a.scheduledStartTime?.length === 5
+                ? a.scheduledStartTime
+                : a.scheduledStartTime?.slice(0, 5) || '08:00',
+            );
+            const aEnd = a.scheduledEndTime
+              ? parseClockTime(a.scheduledEndTime.slice(0, 5))
+              : aStart + validDuration;
+            return aStart < slotEnd && aEnd > m;
+          });
+          if (!hasAppt) {
+            pastUnbookedSlots++;
+          }
+        }
+      }
+    }
+
+    const activeAvailable = Math.max(
+      0,
+      metrics.availableSlots - pastUnbookedSlots,
+    );
+
     const roomName = s.clinicRoom
       ? `${s.clinicRoom.name}${s.clinicRoom.location ? `, ${s.clinicRoom.location}` : ''}`
       : defaultRoomName;
 
     const sessionOpStatus = resolveSessionOperationalStatus({
       isClosedForLeave: isEvalCuti,
-      availableSlots: metrics.availableSlots,
+      availableSlots: activeAvailable,
       persistedStatus: s.status,
     });
 
@@ -250,7 +300,7 @@ export function buildDailySessions(
       jam_selesai: jamSelesai,
       waktu: `${jamMulai} - ${jamSelesai}`,
       kuota_pasien: metrics.capacity,
-      slot_tersedia: metrics.availableSlots,
+      slot_tersedia: activeAvailable,
       pasien_terdaftar: metrics.bookedCount,
       display_slot: metrics.displaySlot,
       status_sesi: sessionOpStatus,
