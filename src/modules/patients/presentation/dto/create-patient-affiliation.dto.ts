@@ -106,6 +106,11 @@ export class CreatePatientAffiliationDto {
   @IsOptional()
   phone?: string;
 
+  @ApiPropertyOptional({ example: 'keluarga@example.com' })
+  @IsString()
+  @IsOptional()
+  email?: string;
+
   @ApiPropertyOptional({ example: 'Jawa Barat' })
   @IsString()
   @IsOptional()

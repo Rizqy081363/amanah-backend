@@ -244,6 +244,48 @@ export class KiaIntakeDrizzleRepository {
     return this.mapImmunizationRecord(record);
   }
 
+  private mapPatientProfile(profile: any) {
+    if (!profile) return null;
+    return {
+      id: profile.id,
+      medicalRecordNumber: profile.medicalRecordNumber,
+      nik: profile.nationalIdEncrypted || profile.nationalIdHash || '',
+      fullName: profile.fullName,
+      motherName: profile.motherName,
+      birthPlace: profile.birthPlace,
+      birthDate: profile.birthDate,
+      gender: profile.gender,
+      bloodType:
+        profile.bloodType && profile.bloodType !== 'unknown'
+          ? profile.bloodType.toUpperCase()
+          : 'Belum Tahu',
+      occupation: profile.occupation,
+      phone: profile.phone,
+      email:
+        profile.email ||
+        profile.patientAffiliations?.[0]?.user?.email ||
+        profile.user?.email ||
+        null,
+      address:
+        profile.patientAddresses?.[0]?.fullAddress ||
+        profile.patientAddresses?.[0]?.line1 ||
+        null,
+      villageName: profile.patientAddresses?.[0]?.villageName || null,
+      districtName: profile.patientAddresses?.[0]?.districtName || null,
+      regencyName: profile.patientAddresses?.[0]?.regencyName || null,
+      provinceName: profile.patientAddresses?.[0]?.provinceName || null,
+      relationshipType:
+        profile.patientAffiliations?.[0]?.relationshipType || null,
+      relationLabel: profile.patientAffiliations?.[0]?.relationLabel || null,
+      emergencyContactName:
+        profile.patientEmergencyContacts?.[0]?.name || null,
+      emergencyContactPhone:
+        profile.patientEmergencyContacts?.[0]?.phone || null,
+      emergencyContactRelationship:
+        profile.patientEmergencyContacts?.[0]?.relationship || null,
+    };
+  }
+
   async findUnifiedIntakeByAppointmentId(
     appointmentId: string,
   ): Promise<any | null> {
@@ -292,6 +334,26 @@ export class KiaIntakeDrizzleRepository {
     const genericIntake =
       await this.db.query.medicalIntakeSubmissions.findFirst({
         where: eq(medicalIntakeSubmissions.appointmentId, appointmentId),
+        with: {
+          patientProfile: {
+            with: {
+              patientAddresses: true,
+              patientAffiliations: {
+                with: {
+                  user: true,
+                },
+              },
+              patientAllergies: true,
+              patientEmergencyContacts: true,
+              user: true,
+            },
+          },
+          appointment: {
+            with: {
+              clinicService: true,
+            },
+          },
+        },
         orderBy: [desc(medicalIntakeSubmissions.submittedAt)],
       });
 
@@ -299,7 +361,11 @@ export class KiaIntakeDrizzleRepository {
       return {
         flow: genericIntake.flow,
         type: 'generic',
-        data: genericIntake,
+        data: {
+          ...genericIntake,
+          serviceName: genericIntake.appointment?.clinicService?.name,
+          patient: this.mapPatientProfile(genericIntake.patientProfile),
+        },
       };
     }
 
@@ -309,9 +375,14 @@ export class KiaIntakeDrizzleRepository {
         patientProfile: {
           with: {
             patientAddresses: true,
-            patientAffiliations: true,
+            patientAffiliations: {
+              with: {
+                user: true,
+              },
+            },
             patientAllergies: true,
             patientEmergencyContacts: true,
+            user: true,
           },
         },
         clinicService: true,
@@ -329,44 +400,7 @@ export class KiaIntakeDrizzleRepository {
           scheduledStartTime: appt.scheduledStartTime,
           complaint: appt.complaint,
           serviceName: appt.clinicService?.name,
-          patient: {
-            id: appt.patientProfile.id,
-            medicalRecordNumber: appt.patientProfile.medicalRecordNumber,
-            fullName: appt.patientProfile.fullName,
-            motherName: appt.patientProfile.motherName,
-            birthPlace: appt.patientProfile.birthPlace,
-            birthDate: appt.patientProfile.birthDate,
-            gender: appt.patientProfile.gender,
-            bloodType: appt.patientProfile.bloodType,
-            occupation: appt.patientProfile.occupation,
-            phone: appt.patientProfile.phone,
-            email: appt.patientProfile.email,
-            address:
-              appt.patientProfile.patientAddresses?.[0]?.fullAddress ||
-              appt.patientProfile.patientAddresses?.[0]?.line1 ||
-              null,
-            villageName:
-              appt.patientProfile.patientAddresses?.[0]?.villageName || null,
-            districtName:
-              appt.patientProfile.patientAddresses?.[0]?.districtName || null,
-            regencyName:
-              appt.patientProfile.patientAddresses?.[0]?.regencyName || null,
-            provinceName:
-              appt.patientProfile.patientAddresses?.[0]?.provinceName || null,
-            relationshipType:
-              appt.patientProfile.patientAffiliations?.[0]?.relationshipType ||
-              null,
-            relationLabel:
-              appt.patientProfile.patientAffiliations?.[0]?.relationLabel ||
-              null,
-            emergencyContactName:
-              appt.patientProfile.patientEmergencyContacts?.[0]?.name || null,
-            emergencyContactPhone:
-              appt.patientProfile.patientEmergencyContacts?.[0]?.phone || null,
-            emergencyContactRelationship:
-              appt.patientProfile.patientEmergencyContacts?.[0]?.relationship ||
-              null,
-          },
+          patient: this.mapPatientProfile(appt.patientProfile),
         },
       };
     }

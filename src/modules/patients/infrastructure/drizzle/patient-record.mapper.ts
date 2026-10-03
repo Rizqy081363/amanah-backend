@@ -28,6 +28,7 @@ export class PatientRecordMapper {
       namaIbuKandung: record.motherName || null,
       pekerjaan: record.occupation || null,
       phoneNumber: record.phone || '',
+      email: record.email || null,
       address: primaryAddress?.fullAddress || '',
       alamatDetail: primaryAddress?.line1 || null,
       provinsi: primaryAddress?.provinceName || null,

@@ -35,6 +35,7 @@ export class PatientEntity {
   namaIbuKandung?: string | null;
   pekerjaan?: string | null;
   phoneNumber: string;
+  email?: string | null;
   address: string;
   alamatDetail?: string | null;
   provinsi?: string | null;

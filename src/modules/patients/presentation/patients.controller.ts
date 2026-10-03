@@ -39,6 +39,10 @@ import {
   PATIENT_REPOSITORY,
   PatientRepository,
 } from '../domain/repositories/patient.repository';
+import {
+  PATIENT_AFFILIATION_REPOSITORY,
+  type PatientAffiliationRepository,
+} from '../domain/repositories/patient-affiliation.repository';
 import { CreatePatientDto } from './dto/create-patient.dto';
 import { QueryPatientDto } from './dto/query-patient.dto';
 import { RegisterPatientDto } from './dto/register-patient.dto';
@@ -59,6 +63,8 @@ export class PatientsController {
   constructor(
     @Inject(PATIENT_REPOSITORY)
     private readonly patientRepo: PatientRepository,
+    @Inject(PATIENT_AFFILIATION_REPOSITORY)
+    private readonly affiliationRepo: PatientAffiliationRepository,
   ) {}
 
   @Post()
@@ -274,9 +280,15 @@ export class PatientsController {
     }
 
     if (user.systemRole === 'PATIENT' && patient.userId !== user.id) {
-      throw new ForbiddenException(
-        'Anda tidak memiliki wewenang untuk mengakses data pasien lain.',
+      const isAffiliated = await this.affiliationRepo.findByUserAndPatient(
+        user.id,
+        id,
       );
+      if (!isAffiliated) {
+        throw new ForbiddenException(
+          'Anda tidak memiliki wewenang untuk mengakses data pasien lain.',
+        );
+      }
     }
 
     return patient;
@@ -313,9 +325,15 @@ export class PatientsController {
     }
 
     if (user.systemRole === 'PATIENT' && existing.userId !== user.id) {
-      throw new ForbiddenException(
-        'Anda tidak memiliki wewenang untuk mengubah data pasien lain.',
+      const isAffiliated = await this.affiliationRepo.findByUserAndPatient(
+        user.id,
+        id,
       );
+      if (!isAffiliated) {
+        throw new ForbiddenException(
+          'Anda tidak memiliki wewenang untuk mengubah data pasien lain.',
+        );
+      }
     }
 
     const updated = await this.patientRepo.update(id, body as any);

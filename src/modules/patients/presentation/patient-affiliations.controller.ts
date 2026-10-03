@@ -300,6 +300,47 @@ export class PatientAffiliationsController {
       const existingPatient = await this.patientRepo.findByNik(dto.nik);
       if (existingPatient) {
         targetPatientId = existingPatient.id;
+        const updates: Record<string, any> = {};
+        if (
+          (!existingPatient.bloodType ||
+            existingPatient.bloodType === 'unknown' ||
+            existingPatient.bloodType === 'Belum Tahu') &&
+          dto.blood_type &&
+          dto.blood_type !== 'Belum Tahu'
+        ) {
+          const bloodTypeMap: Record<string, 'a' | 'b' | 'ab' | 'o' | 'unknown'> = {
+            A: 'a',
+            B: 'b',
+            AB: 'ab',
+            O: 'o',
+            'Belum Tahu': 'unknown',
+          };
+          updates.bloodType = bloodTypeMap[dto.blood_type] || 'unknown';
+        }
+        if (!existingPatient.pekerjaan && dto.pekerjaan) {
+          updates.occupation = dto.pekerjaan.trim();
+        }
+        if (!existingPatient.namaIbuKandung && dto.nama_ibu_kandung) {
+          updates.motherName = dto.nama_ibu_kandung.trim();
+        }
+        if (!existingPatient.birthPlace && dto.tempat_lahir) {
+          updates.birthPlace = dto.tempat_lahir.trim();
+        }
+        if (dto.phone?.trim() && dto.phone.trim() !== existingPatient.phoneNumber) {
+          updates.phone = dto.phone.trim();
+        }
+        if (dto.email?.trim() && dto.email.trim() !== existingPatient.email) {
+          updates.email = dto.email.trim();
+        } else if (!existingPatient.email) {
+          updates.email = user.email || null;
+        }
+        if (Object.keys(updates).length > 0) {
+          updates.updatedAt = new Date().toISOString();
+          await this.db
+            .update(patientProfiles)
+            .set(updates)
+            .where(eq(patientProfiles.id, existingPatient.id));
+        }
       } else {
         // Generate MRN
         const now = new Date();
@@ -351,6 +392,7 @@ export class PatientAffiliationsController {
             birthDate: dto.birth_date,
             bloodType: dbBloodType,
             phone: dto.phone?.trim() || null,
+            email: dto.email?.trim() || user.email || null,
             motherName: dto.nama_ibu_kandung?.trim() || null,
             occupation: dto.pekerjaan?.trim() || null,
             status: 'active',
