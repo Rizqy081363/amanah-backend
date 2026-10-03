@@ -117,7 +117,11 @@ export class DrizzleSchedulePatientRepository {
         eq(practitionerScheduleSessions.practitionerId, practitioner.id),
       ),
       with: {
-        clinicRoom: true,
+        clinicRoom: {
+          with: {
+            clinicUnit: true,
+          },
+        },
       },
     });
 
@@ -168,7 +172,12 @@ export class DrizzleSchedulePatientRepository {
           },
         },
         queueTickets: true,
-        clinicRoom: true,
+        clinicRoom: {
+          with: {
+            clinicUnit: true,
+          },
+        },
+        clinicService: true,
       },
     });
 
@@ -225,6 +234,13 @@ export class DrizzleSchedulePatientRepository {
 
       const clinicRoomName =
         apt.clinicRoom?.name || session.clinicRoom?.name || 'Ruang Poli';
+      const roomName = apt.clinicRoom?.name || session.clinicRoom?.name || null;
+      const roomLocation =
+        apt.clinicRoom?.location || session.clinicRoom?.location || null;
+      const poliklinikName =
+        apt.clinicRoom?.clinicUnit?.name ||
+        session.clinicRoom?.clinicUnit?.name ||
+        null;
 
       const primaryAddress =
         apt.patientProfile?.patientAddresses?.find((a: any) => a.isPrimary) ||
@@ -243,6 +259,7 @@ export class DrizzleSchedulePatientRepository {
 
       return {
         appointmentId: apt.id,
+        appointmentDate: apt.scheduledDate,
         queueTicketId: apt.queueTickets?.[0]?.id || null,
         queueNumber,
         timeSlot,
@@ -250,6 +267,12 @@ export class DrizzleSchedulePatientRepository {
         statusBadge,
         chiefComplaint: apt.complaint || null,
         clinicRoomName,
+        roomName,
+        roomLocation,
+        poliklinikName,
+        visitType:
+          apt.visitType === 'follow_up' ? 'Kontrol Ulang' : 'Pemeriksaan Baru',
+        serviceName: apt.clinicService?.name || null,
         isCancellable,
         patient: {
           id: apt.patientProfile?.id || apt.patientId,

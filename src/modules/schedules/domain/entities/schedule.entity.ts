@@ -980,6 +980,9 @@ export class AdminSessionPatientItem {
   @ApiProperty({ example: '6d3a26e2-77fb-466d-9096-d3b2400c443d' })
   appointmentId: string;
 
+  @ApiProperty({ example: '2026-10-04' })
+  appointmentDate: string;
+
   @ApiProperty({
     nullable: true,
     example: '9fa87102-4412-4211-91a1-872f2aa56e99',
@@ -1016,6 +1019,21 @@ export class AdminSessionPatientItem {
 
   @ApiProperty({ example: 'Ruang Poli Umum 1' })
   clinicRoomName: string;
+
+  @ApiProperty({ nullable: true, example: 'Ruang Poli Umum 1' })
+  roomName: string | null;
+
+  @ApiProperty({ nullable: true, example: 'Gedung Utama' })
+  roomLocation: string | null;
+
+  @ApiProperty({ nullable: true, example: 'Poli Umum' })
+  poliklinikName: string | null;
+
+  @ApiProperty({ example: 'Pemeriksaan Baru' })
+  visitType: string;
+
+  @ApiProperty({ nullable: true, example: 'Pemeriksaan Umum' })
+  serviceName: string | null;
 
   @ApiProperty({ example: true })
   isCancellable: boolean;
