@@ -13,6 +13,7 @@ import {
   type ScheduleOptionsReferenceEntity,
 } from '@modules/schedules/domain/entities/schedule.entity';
 import { SchedulePersistenceStatus } from '@modules/schedules/domain/schedule-status';
+import { getClinicNow } from '@modules/schedules/domain/services/schedule-date.formatter';
 import { SchedulePolicyReader } from '@modules/schedules/infrastructure/drizzle/queries/schedule-policy.reader';
 import { Inject, Injectable } from '@nestjs/common';
 import { and, asc, eq } from 'drizzle-orm';
@@ -53,6 +54,39 @@ export class DrizzleScheduleReferenceRepository {
       startTime.length === 5 ? `${startTime}:00` : startTime;
     const formattedEnd = endTime.length === 5 ? `${endTime}:00` : endTime;
 
+    const { date: todayDate, currentMinutes } = getClinicNow();
+    const isPastDate = date < todayDate;
+
+    if (isPastDate) {
+      return rooms.map((r) => ({
+        id: r.id,
+        code: r.code,
+        name: r.name,
+        location: r.location,
+        floor: r.floor,
+        isOccupied: false,
+        occupiedBy: null,
+        occupantDetails: null,
+      }));
+    }
+
+    if (date === todayDate) {
+      const [reqEndH, reqEndM] = formattedEnd.slice(0, 5).split(':').map(Number);
+      const reqEndMinutes = reqEndH * 60 + reqEndM;
+      if (reqEndMinutes <= currentMinutes) {
+        return rooms.map((r) => ({
+          id: r.id,
+          code: r.code,
+          name: r.name,
+          location: r.location,
+          floor: r.floor,
+          isOccupied: false,
+          occupiedBy: null,
+          occupantDetails: null,
+        }));
+      }
+    }
+
     const sessions = await this.db.query.practitionerScheduleSessions.findMany({
       where: and(
         eq(practitionerScheduleSessions.scheduleDate, date),
@@ -86,6 +120,15 @@ export class DrizzleScheduleReferenceRepository {
         const sessStart =
           s.startTime.length === 5 ? `${s.startTime}:00` : s.startTime;
         const sessEnd = s.endTime.length === 5 ? `${s.endTime}:00` : s.endTime;
+
+        if (date === todayDate) {
+          const [endH, endM] = sessEnd.slice(0, 5).split(':').map(Number);
+          const sessEndMinutes = endH * 60 + endM;
+          if (sessEndMinutes <= currentMinutes) {
+            return false;
+          }
+        }
+
         return formattedStart < sessEnd && formattedEnd > sessStart;
       });
 
