@@ -1,11 +1,13 @@
 import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
+  appointments,
   clinicRooms,
   practitionerLeavePeriods,
   practitionerScheduleDaySettings,
   practitionerScheduleSessions,
 } from '@database/schema';
+import { ACTIVE_APPOINTMENT_STATUSES } from '@modules/schedules/domain/constants/schedule.constants';
 import {
   resolveCanonicalShift,
   SHIFT_TIMING_CONFIGS,
@@ -24,7 +26,7 @@ import { SchedulePolicyReader } from '@modules/schedules/infrastructure/drizzle/
 import { PractitionerResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/practitioner.resolver';
 import type { ScheduleSlotAvailabilityQueryDto } from '@modules/schedules/presentation/dto/schedule-slot-availability-query.dto';
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { and, eq, gte, lte } from 'drizzle-orm';
+import { and, eq, gte, inArray, lte } from 'drizzle-orm';
 
 @Injectable()
 export class DrizzleScheduleBootstrapRepository {
@@ -76,46 +78,53 @@ export class DrizzleScheduleBootstrapRepository {
     }
     const roomName = targetRoom.name;
 
-    // 3. Check doctor leave on target date
-    const [daySetting, activeLeave] = await Promise.all([
-      this.db.query.practitionerScheduleDaySettings.findFirst({
-        where: and(
-          eq(practitionerScheduleDaySettings.practitionerId, practitioner.id),
-          eq(practitionerScheduleDaySettings.scheduleDate, query.date),
-        ),
-      }),
-      this.db.query.practitionerLeavePeriods.findFirst({
-        where: and(
-          eq(practitionerLeavePeriods.practitionerId, practitioner.id),
-          lte(practitionerLeavePeriods.startDate, query.date),
-          gte(practitionerLeavePeriods.endDate, query.date),
-        ),
-      }),
-    ]);
+    // 3. Check doctor leave, sessions, and active appointments on target date
+    const [daySetting, activeLeave, allDaySessions, activeAppointments] =
+      await Promise.all([
+        this.db.query.practitionerScheduleDaySettings.findFirst({
+          where: and(
+            eq(practitionerScheduleDaySettings.practitionerId, practitioner.id),
+            eq(practitionerScheduleDaySettings.scheduleDate, query.date),
+          ),
+        }),
+        this.db.query.practitionerLeavePeriods.findFirst({
+          where: and(
+            eq(practitionerLeavePeriods.practitionerId, practitioner.id),
+            lte(practitionerLeavePeriods.startDate, query.date),
+            gte(practitionerLeavePeriods.endDate, query.date),
+          ),
+        }),
+        this.db.query.practitionerScheduleSessions.findMany({
+          where: and(
+            eq(practitionerScheduleSessions.scheduleDate, query.date),
+            eq(
+              practitionerScheduleSessions.status,
+              SchedulePersistenceStatus.OPEN,
+            ),
+          ),
+          with: {
+            practitioner: {
+              with: {
+                staffProfile: true,
+              },
+            },
+            clinicRoom: true,
+          },
+        }),
+        this.db.query.appointments.findMany({
+          where: and(
+            eq(appointments.scheduledDate, query.date),
+            inArray(appointments.status, [...ACTIVE_APPOINTMENT_STATUSES]),
+          ),
+          with: {
+            patientProfile: true,
+          },
+        }),
+      ]);
 
     const isLeave = Boolean(daySetting?.isLeave || activeLeave);
     const leaveReason =
       daySetting?.leaveReason || activeLeave?.reason || 'Cuti';
-
-    // 4. Fetch all active sessions on target date
-    const allDaySessions =
-      await this.db.query.practitionerScheduleSessions.findMany({
-        where: and(
-          eq(practitionerScheduleSessions.scheduleDate, query.date),
-          eq(
-            practitionerScheduleSessions.status,
-            SchedulePersistenceStatus.OPEN,
-          ),
-        ),
-        with: {
-          practitioner: {
-            with: {
-              staffProfile: true,
-            },
-          },
-          clinicRoom: true,
-        },
-      });
 
     // Exclude specified schedule if editing
     const activeSessions = query.excludeScheduleId
@@ -180,15 +189,17 @@ export class DrizzleScheduleBootstrapRepository {
       }
 
       // Priority 3: Doctor's Own Overlapping Schedule in Another Room
-      const selfSession = activeSessions.find((s) => {
+      const selfSessionInAnotherRoom = activeSessions.find((s) => {
         if (s.practitionerId !== practitioner.id) return false;
+        if (s.roomId === query.roomId) return false; // Sesi di ruangan yang sama bukan bentrok!
         const sStart = parseClockTime(s.startTime.slice(0, 5));
         const sEnd = parseClockTime(s.endTime.slice(0, 5));
         return sStart < slotEndMin && sEnd > slotStartMin;
       });
 
-      if (selfSession) {
-        const selfRoomName = selfSession.clinicRoom?.name || 'ruangan lain';
+      if (selfSessionInAnotherRoom) {
+        const selfRoomName =
+          selfSessionInAnotherRoom.clinicRoom?.name || 'ruangan lain';
         slots.push({
           slotIndex: i,
           time: slotStartTime,
@@ -199,7 +210,7 @@ export class DrizzleScheduleBootstrapRepository {
           conflict: {
             type: 'PRACTITIONER_OVERLAP',
             occupantName: doctorName,
-            reason: `Anda telah memiliki jadwal pada jam ${selfSession.startTime.slice(0, 5)} - ${selfSession.endTime.slice(0, 5)} WIB di ${selfRoomName}.`,
+            reason: `Anda telah memiliki jadwal pada jam ${selfSessionInAnotherRoom.startTime.slice(0, 5)} - ${selfSessionInAnotherRoom.endTime.slice(0, 5)} WIB di ${selfRoomName}.`,
           },
         });
         continue;
@@ -239,7 +250,41 @@ export class DrizzleScheduleBootstrapRepository {
         continue;
       }
 
-      // Priority 5: Available
+      // Priority 5: Active Patient Appointment in this Slot
+      const occupiedAppointment = activeAppointments.find((a) => {
+        const aStart = parseClockTime(a.scheduledStartTime.slice(0, 5));
+        const aEnd = a.scheduledEndTime
+          ? parseClockTime(a.scheduledEndTime.slice(0, 5))
+          : aStart + intervalMinutes;
+        const isThisDoctor = a.practitionerId === practitioner.id;
+        const isThisRoom = a.roomId === query.roomId;
+        return (
+          (isThisDoctor || isThisRoom) &&
+          aStart < slotEndMin &&
+          aEnd > slotStartMin
+        );
+      });
+
+      if (occupiedAppointment) {
+        const patientName =
+          occupiedAppointment.patientProfile?.fullName || 'Pasien';
+        slots.push({
+          slotIndex: i,
+          time: slotStartTime,
+          endTime: slotEndTime,
+          isAvailable: false,
+          status: 'OCCUPIED_BY_SELF',
+          displayLabel: `Terisi: ${patientName}`,
+          conflict: {
+            type: 'PRACTITIONER_OVERLAP',
+            occupantName: patientName,
+            reason: `Slot sudah terisi oleh janji temu pasien ${patientName}.`,
+          },
+        });
+        continue;
+      }
+
+      // Priority 6: Available (Free slot or Doctor's own open slot without patient)
       slots.push({
         slotIndex: i,
         time: slotStartTime,
