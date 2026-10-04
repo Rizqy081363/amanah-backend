@@ -30,7 +30,7 @@ export class RoomReferenceQueryDto {
   })
   @IsString()
   @IsOptional()
-  @Matches(/^([01]\d|2[0-3]):[0-5]\d$/, {
+  @Matches(/^(([01]\d|2[0-3]):[0-5]\d|24:00)$/, {
     message: 'Format jam selesai harus HH:mm (24 jam)',
   })
   endTime?: string;
