@@ -25,9 +25,11 @@ import { AdminDoctorSchedulesController } from '@modules/schedules/presentation/
 import { ClinicalPractitionersController } from '@modules/schedules/presentation/clinical-practitioners.controller';
 import { PatientScheduleBookingController } from '@modules/schedules/presentation/patient-schedule-booking.controller';
 import { SchedulesController } from '@modules/schedules/presentation/schedules.controller';
+import { RedisModule } from '@common/redis/redis.module';
 import { Module } from '@nestjs/common';
 
 @Module({
+  imports: [RedisModule],
   controllers: [
     PatientScheduleBookingController,
     SchedulesController,

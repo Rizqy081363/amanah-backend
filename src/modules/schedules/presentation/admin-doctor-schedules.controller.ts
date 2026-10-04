@@ -73,6 +73,7 @@ export class AdminDoctorSchedulesController {
     @Inject(SCHEDULE_REPOSITORY)
     private readonly scheduleRepo: ScheduleRepository,
     @Optional()
+    @Inject(RedisService)
     private readonly redisService?: RedisService,
   ) {}
 
