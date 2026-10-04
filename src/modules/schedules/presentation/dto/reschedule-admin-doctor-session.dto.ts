@@ -94,4 +94,13 @@ export class RescheduleAdminDoctorSessionDto {
   @IsOptional()
   @IsBoolean()
   rescheduleActiveAppointments?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'Apakah slot waktu asal (sourceStartTime) otomatis di-unschedule sehingga tidak lagi berstatus Available/buka praktik',
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  unscheduleSourceSlot?: boolean;
 }

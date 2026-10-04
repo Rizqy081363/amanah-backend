@@ -40,7 +40,10 @@ import { randomUUID } from 'crypto';
 import { and, asc, eq, gt, gte, inArray, lt, not, or } from 'drizzle-orm';
 import { DrizzleRescheduleEligibilityEvaluator } from './drizzle-reschedule-eligibility.evaluator';
 import { publishRescheduleNotifications } from './reschedule-notification.helper';
-import { mutateRescheduleSessionRecords } from './reschedule-session-mutation.helper';
+import {
+  carveOutSourceSlotFromSession,
+  mutateRescheduleSessionRecords,
+} from './reschedule-session-mutation.helper';
 
 @Injectable()
 export class DrizzleScheduleRescheduleRepository {
@@ -155,9 +158,7 @@ export class DrizzleScheduleRescheduleRepository {
       1,
       Math.floor((sessEndMin - sessStartMin) / durationMinutes),
     );
-    const isSingleSlotMode = Boolean(
-      body.sourceStartTime && sessionSlotsCount > 1,
-    );
+    const isSingleSlotMode = Boolean(body.sourceStartTime);
 
     const sourceSlotStartMin = isSingleSlotMode
       ? parseClockTime(body.sourceStartTime!)
@@ -337,6 +338,10 @@ export class DrizzleScheduleRescheduleRepository {
         })
       : activeAppointments;
 
+    const remainingAppointments = activeAppointments.filter(
+      (a) => !appointmentsToMove.some((m) => m.id === a.id),
+    );
+
     const previousSchedule = {
       date: session.scheduleDate,
       startTime: formatClockTime(sourceSlotStartMin),
@@ -396,17 +401,6 @@ export class DrizzleScheduleRescheduleRepository {
             await tx
               .update(practitionerScheduleSessions)
               .set({
-                availableSlots: Math.min(
-                  session.capacity,
-                  (session.availableSlots ?? 0) + appointmentsToMove.length,
-                ),
-                updatedAt: new Date().toISOString(),
-              })
-              .where(eq(practitionerScheduleSessions.id, session.id));
-
-            await tx
-              .update(practitionerScheduleSessions)
-              .set({
                 availableSlots: Math.max(
                   0,
                   (existingTargetSession.availableSlots ?? 0) -
@@ -418,6 +412,33 @@ export class DrizzleScheduleRescheduleRepository {
                 eq(practitionerScheduleSessions.id, existingTargetSession.id),
               );
           }
+        }
+
+        if (body.unscheduleSourceSlot) {
+          await carveOutSourceSlotFromSession({
+            tx,
+            session,
+            sourceSlotStartMin,
+            sourceSlotEndMin,
+            sessStartMin,
+            sessEndMin,
+            durationMinutes,
+            remainingAppointments,
+          });
+        } else if (
+          existingTargetSession.id !== session.id &&
+          appointmentsToMove.length > 0
+        ) {
+          await tx
+            .update(practitionerScheduleSessions)
+            .set({
+              availableSlots: Math.min(
+                session.capacity,
+                (session.availableSlots ?? 0) + appointmentsToMove.length,
+              ),
+              updatedAt: new Date().toISOString(),
+            })
+            .where(eq(practitionerScheduleSessions.id, session.id));
         }
 
         await tx.insert(scheduleRescheduleEvents).values({
@@ -485,6 +506,7 @@ export class DrizzleScheduleRescheduleRepository {
         sessStartMin,
         sessEndMin,
         durationMinutes,
+        remainingAppointments,
       });
 
       if (
