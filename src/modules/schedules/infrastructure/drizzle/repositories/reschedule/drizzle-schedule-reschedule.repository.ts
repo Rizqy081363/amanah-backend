@@ -3,15 +3,11 @@ import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
   appointments,
-  patientProfiles,
   practitionerScheduleDaySettings,
   practitionerScheduleSessions,
+  scheduleRescheduleEvents,
 } from '@database/schema';
-import { APPOINTMENT_EVENTS } from '@modules/appointments/domain/constants/appointment-lifecycle.constants';
-import {
-  type DomainEvent,
-  type NotificationPublisher,
-} from '@modules/notifications/contracts/domain-event.interface';
+import { type NotificationPublisher } from '@modules/notifications/contracts/domain-event.interface';
 import { NOTIFICATION_PUBLISHER } from '@modules/notifications/notifications.constants';
 import { ACTIVE_APPOINTMENT_STATUSES } from '@modules/schedules/domain/constants/schedule.constants';
 import type { RescheduleEligibilityEntity } from '@modules/schedules/domain/entities/schedule.entity';
@@ -42,6 +38,8 @@ import {
 import { randomUUID } from 'crypto';
 import { and, asc, eq, gte, inArray, lt, or } from 'drizzle-orm';
 import { DrizzleRescheduleEligibilityEvaluator } from './drizzle-reschedule-eligibility.evaluator';
+import { publishRescheduleNotifications } from './reschedule-notification.helper';
+import { mutateRescheduleSessionRecords } from './reschedule-session-mutation.helper';
 
 @Injectable()
 export class DrizzleScheduleRescheduleRepository {
@@ -77,16 +75,10 @@ export class DrizzleScheduleRescheduleRepository {
         this.conflictQuery,
       );
     this.notificationPublisher = notificationPublisher;
-    this.logger.log(
-      `DrizzleScheduleRescheduleRepository initialized: hasPublisher=${!!this.notificationPublisher}`,
-    );
   }
 
   public setNotificationPublisher(publisher?: NotificationPublisher): void {
     this.notificationPublisher = publisher;
-    this.logger.log(
-      `DrizzleScheduleRescheduleRepository publisher updated: hasPublisher=${!!this.notificationPublisher}`,
-    );
   }
 
   async checkRescheduleEligibility(
@@ -149,10 +141,37 @@ export class DrizzleScheduleRescheduleRepository {
         ? practitioner.consultationDurationMinutes
         : 30;
 
+    const sessStart =
+      session.startTime.length === 5
+        ? `${session.startTime}:00`
+        : session.startTime;
+    const sessEnd =
+      session.endTime.length === 5 ? `${session.endTime}:00` : session.endTime;
+    const sessStartMin = parseClockTime(session.startTime);
+    const sessEndMin = parseClockTime(session.endTime);
+
+    const sessionSlotsCount = Math.max(
+      1,
+      Math.floor((sessEndMin - sessStartMin) / durationMinutes),
+    );
+    const isSingleSlotMode = Boolean(
+      body.sourceStartTime && sessionSlotsCount > 1,
+    );
+
+    const sourceSlotStartMin = isSingleSlotMode
+      ? parseClockTime(body.sourceStartTime!)
+      : sessStartMin;
+    const sourceSlotEndMin = isSingleSlotMode
+      ? sourceSlotStartMin + durationMinutes
+      : sessEndMin;
+
     const timing = ScheduleSlotFactory.calculateSessionTiming(
       context,
       body.targetStartTime,
       { durationMinutes },
+      {
+        slotsCount: isSingleSlotMode ? 1 : sessionSlotsCount,
+      },
     );
 
     const targetEndTime = timing.endTime;
@@ -195,13 +214,6 @@ export class DrizzleScheduleRescheduleRepository {
       sessionId,
     );
 
-    const sessStart =
-      session.startTime.length === 5
-        ? `${session.startTime}:00`
-        : session.startTime;
-    const sessEnd =
-      session.endTime.length === 5 ? `${session.endTime}:00` : session.endTime;
-
     const activeAppointments = await this.db.query.appointments.findMany({
       where: and(
         or(
@@ -221,20 +233,35 @@ export class DrizzleScheduleRescheduleRepository {
       orderBy: [asc(appointments.scheduledStartTime)],
     });
 
+    const sourceSlotStartFormatted = `${formatClockTime(sourceSlotStartMin)}:00`;
+    const sourceSlotEndFormatted = `${formatClockTime(sourceSlotEndMin)}:00`;
+
+    const appointmentsToMove = isSingleSlotMode
+      ? activeAppointments.filter((a) => {
+          const aStart =
+            a.scheduledStartTime.length === 5
+              ? `${a.scheduledStartTime}:00`
+              : a.scheduledStartTime;
+          return (
+            aStart >= sourceSlotStartFormatted && aStart < sourceSlotEndFormatted
+          );
+        })
+      : activeAppointments;
+
     const previousSchedule = {
       date: session.scheduleDate,
-      startTime: session.startTime.slice(0, 5),
-      endTime: session.endTime.slice(0, 5),
+      startTime: formatClockTime(sourceSlotStartMin),
+      endTime: formatClockTime(sourceSlotEndMin),
       roomId: session.roomId,
     };
 
+    let effectiveTargetSessionId = sessionId;
+
     const updatedSession = await this.db.transaction(async (tx) => {
-      // 1. Shift active appointments if requested
       if (
         body.rescheduleActiveAppointments !== false &&
-        activeAppointments.length > 0
+        appointmentsToMove.length > 0
       ) {
-        // Temporarily clear date collision space during batch slot shift
         await tx
           .update(appointments)
           .set({
@@ -243,15 +270,43 @@ export class DrizzleScheduleRescheduleRepository {
           .where(
             inArray(
               appointments.id,
-              activeAppointments.map((a) => a.id),
+              appointmentsToMove.map((a) => a.id),
             ),
           );
+      }
 
+      if (isSingleSlotMode) {
+        effectiveTargetSessionId = randomUUID();
+      }
+
+      const targetSessionRecord = await mutateRescheduleSessionRecords({
+        tx,
+        isSingleSlotMode,
+        sessionId,
+        effectiveTargetSessionId,
+        practitionerId: practitioner.id,
+        session,
+        body,
+        context,
+        preview,
+        targetRoomId,
+        appointmentsToMoveCount: appointmentsToMove.length,
+        sourceSlotStartMin,
+        sourceSlotEndMin,
+        sessStartMin,
+        sessEndMin,
+        durationMinutes,
+      });
+
+      if (
+        body.rescheduleActiveAppointments !== false &&
+        appointmentsToMove.length > 0
+      ) {
         const duration = preview.effectiveConsultationDurationMinutes;
         const startMin = parseClockTime(body.targetStartTime);
 
-        for (let i = 0; i < activeAppointments.length; i++) {
-          const appt = activeAppointments[i];
+        for (let i = 0; i < appointmentsToMove.length; i++) {
+          const appt = appointmentsToMove[i];
           const apptStartMin = startMin + i * duration;
           const apptEndMin = apptStartMin + duration;
           const apptStartTime = formatClockTime(apptStartMin);
@@ -260,7 +315,7 @@ export class DrizzleScheduleRescheduleRepository {
           await tx
             .update(appointments)
             .set({
-              scheduleSessionId: sessionId,
+              scheduleSessionId: effectiveTargetSessionId,
               scheduledDate: body.targetDate,
               scheduledStartTime: `${apptStartTime}:00`,
               scheduledEndTime: `${apptEndTime}:00`,
@@ -271,48 +326,29 @@ export class DrizzleScheduleRescheduleRepository {
         }
       }
 
-      // 2. Update practitionerScheduleSessions
-      const startTimeFormatted =
-        body.targetStartTime.length === 5
-          ? `${body.targetStartTime}:00`
-          : body.targetStartTime;
-      const endTimeFormatted =
-        preview.projectedEndTime.length === 5
-          ? `${preview.projectedEndTime}:00`
-          : preview.projectedEndTime;
+      await tx.insert(scheduleRescheduleEvents).values({
+        id: randomUUID(),
+        scheduleSessionId: effectiveTargetSessionId,
+        practitionerId: practitioner.id,
+        sourceDate: session.scheduleDate,
+        sourceStartTime: formatClockTime(sourceSlotStartMin),
+        sourceEndTime: formatClockTime(sourceSlotEndMin),
+        sourceRoomId: session.roomId,
+        targetDate: body.targetDate,
+        targetStartTime: body.targetStartTime,
+        targetEndTime: preview.projectedEndTime,
+        targetRoomId: targetRoomId,
+        reasonCode: 'RESCHEDULE',
+        reasonText: body.notes || body.reason || 'Reschedule jadwal dokter',
+        movedAppointmentsCount: appointmentsToMove.length,
+        createdAt: new Date().toISOString(),
+      });
 
-      const [rescheduled] = await tx
-        .update(practitionerScheduleSessions)
-        .set({
-          scheduleDate: body.targetDate,
-          startTime: startTimeFormatted,
-          endTime: endTimeFormatted,
-          sessionLabel: context.contextLabel,
-          sessionShift: context.sessionShift,
-          capacity: preview.capacity,
-          availableSlots: Math.max(
-            0,
-            preview.capacity - activeAppointments.length,
-          ),
-          roomId: targetRoomId,
-          notes:
-            body.notes || body.reason
-              ? `[RESCHEDULED] ${body.notes || body.reason}`
-              : session.notes,
-          updatedAt: new Date().toISOString(),
-        })
-        .where(eq(practitionerScheduleSessions.id, sessionId))
-        .returning();
-
-      // 3. Cascade synchronize source date when no open sessions remain.
       const remainingOpenOnSource =
         await tx.query.practitionerScheduleSessions.findMany({
           where: and(
             eq(practitionerScheduleSessions.practitionerId, practitioner.id),
-            eq(
-              practitionerScheduleSessions.scheduleDate,
-              previousSchedule.date,
-            ),
+            eq(practitionerScheduleSessions.scheduleDate, session.scheduleDate),
             eq(
               practitionerScheduleSessions.status,
               SchedulePersistenceStatus.OPEN,
@@ -335,85 +371,41 @@ export class DrizzleScheduleRescheduleRepository {
               ),
               eq(
                 practitionerScheduleDaySettings.scheduleDate,
-                previousSchedule.date,
+                session.scheduleDate,
               ),
               eq(practitionerScheduleDaySettings.isLeave, false),
             ),
           );
       }
 
-      return rescheduled;
+      return targetSessionRecord;
     });
 
-    this.logger.log(
-      `rescheduleAdminDoctorSession: publisher=${!!this.notificationPublisher}, activeAppts=${activeAppointments.length}`,
-    );
-
-    if (
-      this.notificationPublisher &&
-      body.rescheduleActiveAppointments !== false &&
-      activeAppointments.length > 0
-    ) {
-      const duration = preview.effectiveConsultationDurationMinutes;
-      const startMin = parseClockTime(body.targetStartTime);
-      for (let i = 0; i < activeAppointments.length; i++) {
-        const appt = activeAppointments[i];
-        const apptStartMin = startMin + i * duration;
-        const apptEndMin = apptStartMin + duration;
-        const apptStartTime = formatClockTime(apptStartMin);
-        const apptEndTime = formatClockTime(apptEndMin);
-
-        let patientUserId = (appt as any).patientProfile?.userId || null;
-        let patientName = (appt as any).patientProfile?.fullName || 'Pasien';
-        if (!patientUserId && appt.patientId) {
-          const profile = await this.db.query.patientProfiles.findFirst({
-            where: eq(patientProfiles.id, appt.patientId),
-          });
-          if (profile) {
-            patientUserId = profile.userId;
-            patientName = profile.fullName;
-          }
-        }
-
-        const domainEvent: DomainEvent = {
-          eventId: randomUUID(),
-          eventType: APPOINTMENT_EVENTS.RESCHEDULED,
-          version: 1,
-          occurredAt: new Date().toISOString(),
-          module: 'appointments',
-          payload: {
-            appointmentId: appt.id,
-            patientId: appt.patientId,
-            patientUserId,
-            patientName,
-            doctorName: practitioner.displayName || 'Dokter',
-            practitionerId: practitioner.id,
-            targetDate: body.targetDate,
-            targetStartTime: `${apptStartTime}:00`,
-            targetEndTime: `${apptEndTime}:00`,
-            appointmentDate: body.targetDate,
-            queueNumber: appt.bookingCode || null,
-            status: appt.status,
-            reason:
-              body.notes || body.reason || 'Penyesuaian jadwal praktik dokter',
-            rescheduledByRole: 'admin',
-          },
-          actor: {
-            roleCode: 'ADMIN',
-          },
-        };
-        await this.notificationPublisher.publish(domainEvent);
-      }
+    if (body.rescheduleActiveAppointments !== false) {
+      await publishRescheduleNotifications({
+        notificationPublisher: this.notificationPublisher,
+        db: this.db,
+        appointmentsToMove,
+        targetDate: body.targetDate,
+        targetStartTime: body.targetStartTime,
+        durationMinutes: preview.effectiveConsultationDurationMinutes,
+        practitioner,
+        notes: body.notes,
+        reason: body.reason,
+      });
     }
 
     const updatedProjection =
-      await this.availabilityRepo.buildProjectionForSession(sessionId, true);
+      await this.availabilityRepo.buildProjectionForSession(
+        effectiveTargetSessionId,
+        true,
+      );
 
     return {
       success: true,
       message: 'Jadwal dokter berhasil dijadwalkan ulang (rescheduled)',
       data: {
-        sessionId,
+        sessionId: effectiveTargetSessionId,
         practitionerId: practitioner.id,
         previousSchedule,
         rescheduledSchedule: {
@@ -431,7 +423,7 @@ export class DrizzleScheduleRescheduleRepository {
           notes: updatedSession.notes,
           version: generateEntityVersion(updatedSession.updatedAt),
         },
-        rescheduledAppointmentsCount: activeAppointments.length,
+        rescheduledAppointmentsCount: appointmentsToMove.length,
         projection: updatedProjection,
       },
     };

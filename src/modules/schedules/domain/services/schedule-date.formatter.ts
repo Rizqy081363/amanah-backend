@@ -25,66 +25,119 @@ export function formatIndoMonthYear(
   return `${mName} ${year}`;
 }
 
+function toMinutes(timeStr: string): number {
+  const [h, m] = timeStr.split(':').map(Number);
+  return h * 60 + m;
+}
+
+function formatClock(minutes: number): string {
+  const h = String(Math.floor(minutes / 60) % 24).padStart(2, '0');
+  const m = String(minutes % 60).padStart(2, '0');
+  return `${h}:${m}`;
+}
+
+function formatSessionSlot(
+  session: AdminDoctorDailySession,
+  slotDurationMinutes: number,
+): string {
+  const startMin = toMinutes(session.jam_mulai);
+  const endMin = Math.min(
+    startMin + slotDurationMinutes,
+    toMinutes(session.jam_selesai),
+  );
+  return `${session.nama_sesi} (${formatClock(startMin)} - ${formatClock(endMin)})`;
+}
+
+export function getNextDate(dateStr: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d + 1));
+  return dt.toISOString().slice(0, 10);
+}
+
+function resolveTomorrowSchedule(
+  tomorrowSesiHarian: AdminDoctorDailySession[] | null | undefined,
+  slotDurationMinutes: number,
+): string {
+  if (!tomorrowSesiHarian || tomorrowSesiHarian.length === 0) {
+    return 'Selesai';
+  }
+  const openTomorrow = tomorrowSesiHarian
+    .filter((s) => s.status_sesi !== ScheduleOperationalStatus.CLOSED)
+    .sort((a, b) => toMinutes(a.jam_mulai) - toMinutes(b.jam_mulai));
+
+  if (openTomorrow.length === 0) {
+    return 'Selesai';
+  }
+  return `Besok, ${formatSessionSlot(openTomorrow[0], slotDurationMinutes)}`;
+}
+
 export function computeUpcomingSchedule(
   targetDate: string,
   todayStr: string,
   sesiHarian: AdminDoctorDailySession[],
   isCuti: boolean,
+  slotDurationMinutes: number,
+  tomorrowSesiHarian?: AdminDoctorDailySession[] | null,
+  refDate?: Date,
 ): string {
   if (isCuti) return 'Cuti Dokter';
   if (!sesiHarian || sesiHarian.length === 0) return 'Tidak Ada Jadwal';
-  const anyOpen = sesiHarian.some(
-    (s) => s.status_sesi !== ScheduleOperationalStatus.CLOSED,
-  );
-  if (!anyOpen) return 'Praktik Ditutup';
+  const openSessions = sesiHarian
+    .filter((s) => s.status_sesi !== ScheduleOperationalStatus.CLOSED)
+    .sort((a, b) => toMinutes(a.jam_mulai) - toMinutes(b.jam_mulai));
+
+  if (openSessions.length === 0) return 'Praktik Ditutup';
 
   if (targetDate > todayStr) {
-    const first = sesiHarian[0];
-    return `${first.nama_sesi} (${first.waktu})`;
+    return formatSessionSlot(openSessions[0], slotDurationMinutes);
   }
 
   if (targetDate < todayStr) {
-    const last = sesiHarian[sesiHarian.length - 1];
-    return `${last.nama_sesi} (${last.waktu}) - Selesai`;
+    return 'Selesai';
   }
 
-  const now = new Date();
-  const currentHours = now.getHours();
-  const currentMinutes = currentHours * 60 + now.getMinutes();
+  const { currentMinutes } = getClinicNow(refDate);
 
-  const toMinutes = (timeStr: string) => {
-    const [h, m] = (timeStr || '00:00').split(':').map(Number);
-    return (h || 0) * 60 + (m || 0);
-  };
-
-  const activeSession = sesiHarian.find((s) => {
+  const activeIndex = openSessions.findIndex((s) => {
     const startM = toMinutes(s.jam_mulai);
     const endM = toMinutes(s.jam_selesai);
-    return (
-      s.status_sesi !== ScheduleOperationalStatus.CLOSED &&
-      startM <= currentMinutes &&
-      currentMinutes <= endM
-    );
+    return startM <= currentMinutes && currentMinutes < endM;
   });
-  if (activeSession) {
-    return `${activeSession.nama_sesi} (${activeSession.waktu}) - Sedang Berlangsung`;
+
+  if (activeIndex !== -1) {
+    const activeSession = openSessions[activeIndex];
+    const startM = toMinutes(activeSession.jam_mulai);
+    const endM = toMinutes(activeSession.jam_selesai);
+    const currentSlotIndex = Math.floor(
+      (currentMinutes - startM) / slotDurationMinutes,
+    );
+    const nextSlotStartMin =
+      startM + (currentSlotIndex + 1) * slotDurationMinutes;
+
+    if (nextSlotStartMin < endM) {
+      const nextSlotEndMin = Math.min(
+        nextSlotStartMin + slotDurationMinutes,
+        endM,
+      );
+      return `${activeSession.nama_sesi} (${formatClock(nextSlotStartMin)} - ${formatClock(nextSlotEndMin)})`;
+    }
+
+    const nextSession = openSessions[activeIndex + 1];
+    if (nextSession) {
+      return formatSessionSlot(nextSession, slotDurationMinutes);
+    }
+    return resolveTomorrowSchedule(tomorrowSesiHarian, slotDurationMinutes);
   }
 
-  const upcomingSessions = sesiHarian
-    .filter(
-      (s) =>
-        s.status_sesi !== ScheduleOperationalStatus.CLOSED &&
-        toMinutes(s.jam_mulai) > currentMinutes,
-    )
-    .sort((a, b) => toMinutes(a.jam_mulai) - toMinutes(b.jam_mulai));
+  const upcomingSession = openSessions.find(
+    (s) => toMinutes(s.jam_mulai) > currentMinutes,
+  );
 
-  if (upcomingSessions.length > 0) {
-    const next = upcomingSessions[0];
-    return `${next.nama_sesi} (${next.waktu})`;
+  if (upcomingSession) {
+    return formatSessionSlot(upcomingSession, slotDurationMinutes);
   }
 
-  const lastSession = sesiHarian[sesiHarian.length - 1];
-  return `${lastSession.nama_sesi} (${lastSession.waktu}) - Selesai`;
+  return resolveTomorrowSchedule(tomorrowSesiHarian, slotDurationMinutes);
 }
 
 export function getClinicNow(refDate?: Date): {

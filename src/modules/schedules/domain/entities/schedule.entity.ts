@@ -189,7 +189,6 @@ export class ScheduleProjectedIntervalEntity {
     | 'COMPLETED'
     | 'AVAILABLE'
     | 'OCCUPIED'
-    | 'RESCHEDULED'
     | 'CLOSED_LEAVE'
     | 'CLOSED_CLINIC';
   uiLabel?: string;
@@ -200,7 +199,6 @@ export class ScheduleProjectedIntervalEntity {
     | 'muted_gray'
     | 'success_green'
     | 'info_blue'
-    | 'warning_amber'
     | 'sky_badge'
     | 'danger_red';
   isClickable?: boolean;

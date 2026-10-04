@@ -4,6 +4,28 @@ import { practitionerScheduleSessions } from '@database/schema';
 import { ConflictException, Inject, Injectable } from '@nestjs/common';
 import { and, eq, not } from 'drizzle-orm';
 
+const toClockSeconds = (time: string): string =>
+  time.length === 5 ? `${time}:00` : time;
+
+const toClockMinutes = (time: string): string => time.slice(0, 5);
+
+const resolveOverlapWindow = (
+  requestedStart: string,
+  requestedEnd: string,
+  occupantStart: string,
+  occupantEnd: string,
+): { startTime: string; endTime: string; timeRange: string } | null => {
+  const overlapStart =
+    requestedStart > occupantStart ? requestedStart : occupantStart;
+  const overlapEnd = requestedEnd < occupantEnd ? requestedEnd : occupantEnd;
+  if (overlapStart >= overlapEnd) {
+    return null;
+  }
+  const startTime = toClockMinutes(overlapStart);
+  const endTime = toClockMinutes(overlapEnd);
+  return { startTime, endTime, timeRange: `${startTime} - ${endTime} WIB` };
+};
+
 @Injectable()
 export class ScheduleConflictQuery {
   constructor(
@@ -19,9 +41,8 @@ export class ScheduleConflictQuery {
     roomId?: string | null,
     excludeSessionId?: string,
   ): Promise<void> {
-    const formattedStart =
-      startTime.length === 5 ? `${startTime}:00` : startTime;
-    const formattedEnd = endTime.length === 5 ? `${endTime}:00` : endTime;
+    const formattedStart = toClockSeconds(startTime);
+    const formattedEnd = toClockSeconds(endTime);
 
     if (formattedStart >= formattedEnd) {
       throw new ConflictException({
@@ -30,7 +51,6 @@ export class ScheduleConflictQuery {
       });
     }
 
-    // 1. Doctor overlapping session check on the same date
     const doctorConditions = [
       eq(practitionerScheduleSessions.practitionerId, practitionerId),
       eq(practitionerScheduleSessions.scheduleDate, scheduleDate),
@@ -47,21 +67,25 @@ export class ScheduleConflictQuery {
       });
 
     for (const sess of doctorSessions) {
-      const sessStart =
-        sess.startTime.length === 5 ? `${sess.startTime}:00` : sess.startTime;
-      const sessEnd =
-        sess.endTime.length === 5 ? `${sess.endTime}:00` : sess.endTime;
+      const overlap = resolveOverlapWindow(
+        formattedStart,
+        formattedEnd,
+        toClockSeconds(sess.startTime),
+        toClockSeconds(sess.endTime),
+      );
 
-      if (formattedStart < sessEnd && formattedEnd > sessStart) {
+      if (overlap) {
         throw new ConflictException({
           code: 'PRACTITIONER_ALREADY_SCHEDULED',
-          message: `Dokter sudah memiliki jadwal praktek lain pada jam ${sess.startTime.slice(0, 5)} - ${sess.endTime.slice(0, 5)} WIB.`,
+          message: `Dokter sudah memiliki jadwal praktek lain pada jam ${overlap.timeRange}.`,
           metadata: {
             conflictingSessionId: sess.id,
             scheduleDate: sess.scheduleDate,
-            startTime: sess.startTime.slice(0, 5),
-            endTime: sess.endTime.slice(0, 5),
-            timeRange: `${sess.startTime.slice(0, 5)} - ${sess.endTime.slice(0, 5)} WIB`,
+            startTime: overlap.startTime,
+            endTime: overlap.endTime,
+            timeRange: overlap.timeRange,
+            occupantSessionStart: toClockMinutes(sess.startTime),
+            occupantSessionEnd: toClockMinutes(sess.endTime),
             roomId: sess.roomId,
             sessionShift: sess.sessionShift,
             sessionLabel: sess.sessionLabel,
@@ -70,7 +94,6 @@ export class ScheduleConflictQuery {
       }
     }
 
-    // 2. Room occupancy check if roomId is provided
     if (roomId) {
       const roomConditions = [
         eq(practitionerScheduleSessions.roomId, roomId),
@@ -96,36 +119,31 @@ export class ScheduleConflictQuery {
         });
 
       for (const sess of roomSessions) {
-        const sessStart =
-          sess.startTime.length === 5 ? `${sess.startTime}:00` : sess.startTime;
-        const sessEnd =
-          sess.endTime.length === 5 ? `${sess.endTime}:00` : sess.endTime;
+        const overlap = resolveOverlapWindow(
+          formattedStart,
+          formattedEnd,
+          toClockSeconds(sess.startTime),
+          toClockSeconds(sess.endTime),
+        );
 
-        if (formattedStart < sessEnd && formattedEnd > sessStart) {
+        if (overlap) {
           const roomName = sess.clinicRoom?.name || 'Ruangan';
           const doctorName =
             sess.practitioner?.staffProfile?.fullName ||
             sess.practitioner?.displayName ||
             'Dokter lain';
 
-          // Report the exact requested time window (the overlap), not the
-          // occupant's full session range. Admin selected startTime–endTime;
-          // that specific slot is what's blocked. Showing 12:00–18:00 is
-          // ambiguous — 14:30–15:00 is the precise conflicting window.
-          const conflictStart = startTime.slice(0, 5);
-          const conflictEnd = endTime.slice(0, 5);
-
           throw new ConflictException({
             code: 'ROOM_ALREADY_OCCUPIED',
-            message: `${roomName} sudah dijadwalkan untuk ${doctorName} pada jam ${conflictStart} - ${conflictEnd} WIB.`,
+            message: `${roomName} sudah dijadwalkan untuk ${doctorName} pada jam ${overlap.timeRange}.`,
             metadata: {
               conflictingSessionId: sess.id,
               scheduleDate: sess.scheduleDate,
-              startTime: conflictStart,
-              endTime: conflictEnd,
-              timeRange: `${conflictStart} - ${conflictEnd} WIB`,
-              occupantSessionStart: sess.startTime.slice(0, 5),
-              occupantSessionEnd: sess.endTime.slice(0, 5),
+              startTime: overlap.startTime,
+              endTime: overlap.endTime,
+              timeRange: overlap.timeRange,
+              occupantSessionStart: toClockMinutes(sess.startTime),
+              occupantSessionEnd: toClockMinutes(sess.endTime),
               roomId: sess.roomId,
               roomName,
               occupiedBy: doctorName,

@@ -46,7 +46,6 @@ export const SLOT_UI_STATUS = {
   AVAILABLE: 'AVAILABLE',
   OCCUPIED: 'OCCUPIED',
   OCCUPIED_BY_OTHER: 'OCCUPIED_BY_OTHER',
-  RESCHEDULED: 'RESCHEDULED',
   CLOSED_LEAVE: 'CLOSED_LEAVE',
   CLOSED_CLINIC: 'CLOSED_CLINIC',
 } as const;
@@ -59,7 +58,6 @@ export const SLOT_UI_VARIANT = {
   SUCCESS_GREEN: 'success_green',
   INFO_BLUE: 'info_blue',
   PURPLE_OTHER: 'purple_other',
-  WARNING_AMBER: 'warning_amber',
   SKY_BADGE: 'sky_badge',
   DANGER_RED: 'danger_red',
 } as const;
@@ -487,12 +485,16 @@ export class ScheduleSlotStateResolver {
         if (re.targetDate === input.scheduleDate) {
           const reStart = parseClockTime(re.targetStartTime);
           const reEnd = parseClockTime(re.targetEndTime);
-          return slot.startMinutes < reEnd && slot.endMinutes > reStart;
+          if (slot.startMinutes < reEnd && slot.endMinutes > reStart) {
+            return true;
+          }
         }
         if (re.sourceDate === input.scheduleDate) {
           const reStart = parseClockTime(re.sourceStartTime);
           const reEnd = parseClockTime(re.sourceEndTime);
-          return slot.startMinutes < reEnd && slot.endMinutes > reStart;
+          if (slot.startMinutes < reEnd && slot.endMinutes > reStart) {
+            return true;
+          }
         }
         return false;
       });
@@ -606,20 +608,6 @@ export class ScheduleSlotStateResolver {
           uiVariant = SLOT_UI_VARIANT.INFO_BLUE;
           isClickable = true;
           actionType = SLOT_ACTION_TYPE.VIEW_PATIENTS;
-        }
-      } else if (reschedule?.isRescheduled) {
-        if (temporalState === TEMPORAL_STATE.PAST) {
-          uiStatus = SLOT_UI_STATUS.COMPLETED;
-          uiLabel = 'Selesai';
-          uiVariant = SLOT_UI_VARIANT.MUTED_GRAY;
-          isClickable = true;
-          actionType = SLOT_ACTION_TYPE.VIEW_SESSION;
-        } else {
-          uiStatus = SLOT_UI_STATUS.RESCHEDULED;
-          uiLabel = 'Dijadwalkan Ulang';
-          uiVariant = SLOT_UI_VARIANT.WARNING_AMBER;
-          isClickable = true;
-          actionType = SLOT_ACTION_TYPE.VIEW_SESSION;
         }
       } else {
         // AVAILABLE
