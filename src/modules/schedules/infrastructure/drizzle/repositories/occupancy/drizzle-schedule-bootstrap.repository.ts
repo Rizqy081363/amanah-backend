@@ -219,6 +219,9 @@ export class DrizzleScheduleBootstrapRepository {
           otherSession.practitioner?.staffProfile?.fullName ||
           otherSession.practitioner?.displayName ||
           'Dokter lain';
+        const otherPractitionerId =
+          otherSession.practitioner?.staffProfile?.id ||
+          otherSession.practitionerId;
         slots.push({
           slotIndex: i,
           time: slotStartTime,
@@ -229,6 +232,7 @@ export class DrizzleScheduleBootstrapRepository {
           conflict: {
             type: 'ROOM_OCCUPIED',
             occupantName: otherDoctorName,
+            practitionerId: otherPractitionerId,
             reason: `${roomName} sudah dialokasikan untuk ${otherDoctorName} pada jam ${otherSession.startTime.slice(0, 5)} - ${otherSession.endTime.slice(0, 5)} WIB.`,
           },
         });

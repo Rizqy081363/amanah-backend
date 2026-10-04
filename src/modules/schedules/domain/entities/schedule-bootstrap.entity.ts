@@ -10,6 +10,12 @@ export class ScheduleSlotAvailabilityConflict {
   @ApiPropertyOptional({ example: 'dr. Ahmad Santoso', nullable: true })
   occupantName: string | null;
 
+  @ApiPropertyOptional({
+    example: '4db73e20-561c-54e6-bca0-50fd48080fcc',
+    nullable: true,
+  })
+  practitionerId?: string | null;
+
   @ApiProperty({
     example:
       'Ruang Poli Umum 1 sudah dialokasikan untuk dr. Ahmad Santoso pada jam 18:00 - 24:00 WIB.',
