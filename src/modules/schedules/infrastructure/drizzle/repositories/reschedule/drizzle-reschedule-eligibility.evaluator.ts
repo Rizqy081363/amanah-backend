@@ -14,7 +14,10 @@ import {
   ScheduleOperationalStatus,
 } from '@modules/schedules/domain/entities/schedule.entity';
 import { ScheduleSlotFactory } from '@modules/schedules/domain/factories/schedule-slot.factory';
-import { resolveSessionOperationalStatus } from '@modules/schedules/domain/schedule-status';
+import {
+  resolveSessionOperationalStatus,
+  SchedulePersistenceStatus,
+} from '@modules/schedules/domain/schedule-status';
 import { ScheduleConflictQuery } from '@modules/schedules/infrastructure/drizzle/queries/schedule-conflict.query';
 import { PractitionerResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/practitioner.resolver';
 import type { CheckRescheduleEligibilityQueryDto } from '@modules/schedules/presentation/dto/check-reschedule-eligibility-query.dto';
@@ -24,7 +27,7 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
-import { and, eq, gte, inArray, lt, lte, or } from 'drizzle-orm';
+import { and, eq, gt, gte, inArray, lt, lte, not, or } from 'drizzle-orm';
 
 @Injectable()
 export class DrizzleRescheduleEligibilityEvaluator {
@@ -241,14 +244,98 @@ export class DrizzleRescheduleEligibilityEvaluator {
             closedReason: 'LEAVE',
           };
         } else {
-          await this.conflictQuery.checkConflicts(
-            practitioner.id,
-            query.targetDate,
-            query.targetStartTime,
-            targetEndTime,
-            targetRoomId,
-            sessionId,
-          );
+          const targetStartSec =
+            query.targetStartTime.length === 5
+              ? `${query.targetStartTime}:00`
+              : query.targetStartTime;
+          const targetEndSec =
+            targetEndTime.length === 5 ? `${targetEndTime}:00` : targetEndTime;
+
+          const candidateSessions =
+            await this.db.query.practitionerScheduleSessions.findMany({
+              where: and(
+                eq(
+                  practitionerScheduleSessions.practitionerId,
+                  practitioner.id,
+                ),
+                eq(practitionerScheduleSessions.scheduleDate, query.targetDate),
+                eq(
+                  practitionerScheduleSessions.status,
+                  SchedulePersistenceStatus.OPEN,
+                ),
+              ),
+            });
+
+          const existingTargetSession = candidateSessions.find((s) => {
+            const sStart =
+              s.startTime.length === 5 ? `${s.startTime}:00` : s.startTime;
+            const sEnd = s.endTime.length === 5 ? `${s.endTime}:00` : s.endTime;
+            return sStart <= targetStartSec && sEnd >= targetEndSec;
+          });
+
+          if (existingTargetSession) {
+            const targetSlotOccupied =
+              await this.db.query.appointments.findFirst({
+                where: and(
+                  eq(appointments.practitionerId, practitioner.id),
+                  eq(appointments.scheduledDate, query.targetDate),
+                  eq(appointments.scheduledStartTime, targetStartSec),
+                  inArray(appointments.status, [...ACTIVE_APPOINTMENT_STATUSES]),
+                ),
+              });
+            if (targetSlotOccupied) {
+              targetValidation.isTargetEligible = false;
+              targetValidation.conflictCode = 'SLOT_ALREADY_OCCUPIED';
+              targetValidation.conflictMessage = `Slot waktu ${query.targetStartTime} sudah terisi oleh janji temu pasien lain.`;
+            } else if (targetRoomId) {
+              const otherDoctorInRoom =
+                await this.db.query.practitionerScheduleSessions.findFirst({
+                  where: and(
+                    eq(practitionerScheduleSessions.roomId, targetRoomId),
+                    eq(
+                      practitionerScheduleSessions.scheduleDate,
+                      query.targetDate,
+                    ),
+                    eq(
+                      practitionerScheduleSessions.status,
+                      SchedulePersistenceStatus.OPEN,
+                    ),
+                    not(
+                      eq(
+                        practitionerScheduleSessions.practitionerId,
+                        practitioner.id,
+                      ),
+                    ),
+                    lt(practitionerScheduleSessions.startTime, targetEndSec),
+                    gt(practitionerScheduleSessions.endTime, targetStartSec),
+                  ),
+                  with: {
+                    practitioner: { with: { staffProfile: true } },
+                    clinicRoom: true,
+                  },
+                });
+              if (otherDoctorInRoom) {
+                const roomName =
+                  otherDoctorInRoom.clinicRoom?.name || 'Ruangan';
+                const docName =
+                  otherDoctorInRoom.practitioner?.staffProfile?.fullName ||
+                  otherDoctorInRoom.practitioner?.displayName ||
+                  'Dokter lain';
+                targetValidation.isTargetEligible = false;
+                targetValidation.conflictCode = 'ROOM_ALREADY_OCCUPIED';
+                targetValidation.conflictMessage = `${roomName} sudah dijadwalkan untuk ${docName} pada jam ${query.targetStartTime} - ${targetEndTime}.`;
+              }
+            }
+          } else {
+            await this.conflictQuery.checkConflicts(
+              practitioner.id,
+              query.targetDate,
+              query.targetStartTime,
+              targetEndTime,
+              targetRoomId,
+              sessionId,
+            );
+          }
         }
       } catch (err: any) {
         targetValidation.isTargetEligible = false;

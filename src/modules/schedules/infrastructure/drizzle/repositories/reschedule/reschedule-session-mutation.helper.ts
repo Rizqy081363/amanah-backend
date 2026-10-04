@@ -78,76 +78,18 @@ export async function mutateRescheduleSessionRecords(
       })
       .returning();
 
-    if (sourceSlotStartMin === sessStartMin) {
-      const nextCapacity = Math.max(1, session.capacity - 1);
+    if (appointmentsToMoveCount > 0) {
       const nextAvailable = Math.min(
-        nextCapacity,
-        Math.max(0, session.availableSlots - 1),
+        session.capacity,
+        (session.availableSlots ?? 0) + appointmentsToMoveCount,
       );
       await tx
         .update(practitionerScheduleSessions)
         .set({
-          startTime: `${formatClockTime(sourceSlotEndMin)}:00`,
-          capacity: nextCapacity,
           availableSlots: nextAvailable,
           updatedAt: new Date().toISOString(),
         })
         .where(eq(practitionerScheduleSessions.id, sessionId));
-    } else if (sourceSlotEndMin === sessEndMin) {
-      const nextCapacity = Math.max(1, session.capacity - 1);
-      const nextAvailable = Math.min(
-        nextCapacity,
-        Math.max(0, session.availableSlots - 1),
-      );
-      await tx
-        .update(practitionerScheduleSessions)
-        .set({
-          endTime: `${formatClockTime(sourceSlotStartMin)}:00`,
-          capacity: nextCapacity,
-          availableSlots: nextAvailable,
-          updatedAt: new Date().toISOString(),
-        })
-        .where(eq(practitionerScheduleSessions.id, sessionId));
-    } else {
-      const headCapacity = Math.max(
-        1,
-        Math.floor((sourceSlotStartMin - sessStartMin) / durationMinutes),
-      );
-      const tailCapacity = Math.max(
-        1,
-        Math.floor((sessEndMin - sourceSlotEndMin) / durationMinutes),
-      );
-      const headAvailable = Math.min(
-        headCapacity,
-        Math.max(0, session.availableSlots - tailCapacity),
-      );
-      const tailAvailable = Math.min(tailCapacity, tailCapacity);
-
-      await tx
-        .update(practitionerScheduleSessions)
-        .set({
-          endTime: `${formatClockTime(sourceSlotStartMin)}:00`,
-          capacity: headCapacity,
-          availableSlots: headAvailable,
-          updatedAt: new Date().toISOString(),
-        })
-        .where(eq(practitionerScheduleSessions.id, sessionId));
-
-      await tx.insert(practitionerScheduleSessions).values({
-        id: randomUUID(),
-        practitionerId,
-        scheduleDate: session.scheduleDate,
-        startTime: `${formatClockTime(sourceSlotEndMin)}:00`,
-        endTime: session.endTime,
-        sessionLabel: session.sessionLabel,
-        sessionShift: session.sessionShift,
-        capacity: tailCapacity,
-        availableSlots: tailAvailable,
-        status: session.status,
-        roomId: session.roomId,
-        notes: session.notes,
-        updatedAt: new Date().toISOString(),
-      });
     }
 
     return createdTargetSession;

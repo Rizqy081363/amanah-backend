@@ -5,6 +5,7 @@ import {
   appointments,
   practitionerScheduleDaySettings,
   practitionerScheduleSessions,
+  queueTickets,
   scheduleRescheduleEvents,
 } from '@database/schema';
 import { type NotificationPublisher } from '@modules/notifications/contracts/domain-event.interface';
@@ -36,7 +37,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
-import { and, asc, eq, gte, inArray, lt, or } from 'drizzle-orm';
+import { and, asc, eq, gt, gte, inArray, lt, not, or } from 'drizzle-orm';
 import { DrizzleRescheduleEligibilityEvaluator } from './drizzle-reschedule-eligibility.evaluator';
 import { publishRescheduleNotifications } from './reschedule-notification.helper';
 import { mutateRescheduleSessionRecords } from './reschedule-session-mutation.helper';
@@ -205,14 +206,102 @@ export class DrizzleScheduleRescheduleRepository {
       });
     }
 
-    await this.conflictQuery.checkConflicts(
-      practitioner.id,
-      body.targetDate,
-      body.targetStartTime,
-      preview.projectedEndTime,
-      targetRoomId,
-      sessionId,
-    );
+    const targetStartFormatted =
+      body.targetStartTime.length === 5
+        ? `${body.targetStartTime}:00`
+        : body.targetStartTime;
+    const targetEndFormatted =
+      targetEndTime.length === 5 ? `${targetEndTime}:00` : targetEndTime;
+
+    // Check if practitioner already has an open session on targetDate that covers targetStartTime..targetEndTime
+    const candidateTargetSessions =
+      await this.db.query.practitionerScheduleSessions.findMany({
+        where: and(
+          eq(practitionerScheduleSessions.practitionerId, practitioner.id),
+          eq(practitionerScheduleSessions.scheduleDate, body.targetDate),
+          eq(
+            practitionerScheduleSessions.status,
+            SchedulePersistenceStatus.OPEN,
+          ),
+        ),
+      });
+
+    const existingTargetSession = candidateTargetSessions.find((s) => {
+      const sStart =
+        s.startTime.length === 5 ? `${s.startTime}:00` : s.startTime;
+      const sEnd = s.endTime.length === 5 ? `${s.endTime}:00` : s.endTime;
+      return sStart <= targetStartFormatted && sEnd >= targetEndFormatted;
+    });
+
+    if (existingTargetSession) {
+      // Check room conflict with other doctors
+      if (targetRoomId) {
+        const otherDoctorInRoom =
+          await this.db.query.practitionerScheduleSessions.findFirst({
+            where: and(
+              eq(practitionerScheduleSessions.roomId, targetRoomId),
+              eq(practitionerScheduleSessions.scheduleDate, body.targetDate),
+              eq(
+                practitionerScheduleSessions.status,
+                SchedulePersistenceStatus.OPEN,
+              ),
+              not(
+                eq(
+                  practitionerScheduleSessions.practitionerId,
+                  practitioner.id,
+                ),
+              ),
+              lt(practitionerScheduleSessions.startTime, targetEndFormatted),
+              gt(practitionerScheduleSessions.endTime, targetStartFormatted),
+            ),
+            with: {
+              practitioner: { with: { staffProfile: true } },
+              clinicRoom: true,
+            },
+          });
+        if (otherDoctorInRoom) {
+          const roomName = otherDoctorInRoom.clinicRoom?.name || 'Ruangan';
+          const docName =
+            otherDoctorInRoom.practitioner?.staffProfile?.fullName ||
+            otherDoctorInRoom.practitioner?.displayName ||
+            'Dokter lain';
+          throw new ConflictException({
+            code: 'ROOM_ALREADY_OCCUPIED',
+            message: `${roomName} sudah dijadwalkan untuk ${docName} pada jam ${body.targetStartTime} - ${targetEndTime}.`,
+          });
+        }
+      }
+
+      // Check slot conflict with active appointments
+      const targetSlotOccupied = await this.db.query.appointments.findFirst({
+        where: and(
+          eq(appointments.practitionerId, practitioner.id),
+          eq(appointments.scheduledDate, body.targetDate),
+          eq(appointments.scheduledStartTime, targetStartFormatted),
+          inArray(appointments.status, [...ACTIVE_APPOINTMENT_STATUSES]),
+        ),
+      });
+      if (targetSlotOccupied) {
+        throw new ConflictException({
+          code: 'SLOT_ALREADY_OCCUPIED',
+          message: `Slot waktu ${body.targetStartTime} sudah terisi oleh janji temu pasien lain.`,
+          metadata: {
+            conflictingAppointmentId: targetSlotOccupied.id,
+            scheduledDate: body.targetDate,
+            scheduledStartTime: body.targetStartTime,
+          },
+        });
+      }
+    } else {
+      await this.conflictQuery.checkConflicts(
+        practitioner.id,
+        body.targetDate,
+        body.targetStartTime,
+        preview.projectedEndTime,
+        targetRoomId,
+        sessionId,
+      );
+    }
 
     const activeAppointments = await this.db.query.appointments.findMany({
       where: and(
@@ -255,9 +344,109 @@ export class DrizzleScheduleRescheduleRepository {
       roomId: session.roomId,
     };
 
-    let effectiveTargetSessionId = sessionId;
+    let effectiveTargetSessionId = existingTargetSession
+      ? existingTargetSession.id
+      : sessionId;
 
     const updatedSession = await this.db.transaction(async (tx) => {
+      if (existingTargetSession) {
+        if (
+          body.rescheduleActiveAppointments !== false &&
+          appointmentsToMove.length > 0
+        ) {
+          const duration = preview.effectiveConsultationDurationMinutes;
+          const startMin = parseClockTime(body.targetStartTime);
+
+          for (let i = 0; i < appointmentsToMove.length; i++) {
+            const appt = appointmentsToMove[i];
+            const apptStartMin = startMin + i * duration;
+            const apptEndMin = apptStartMin + duration;
+            const apptStartTime = formatClockTime(apptStartMin);
+            const apptEndTime = formatClockTime(apptEndMin);
+
+            await tx
+              .update(appointments)
+              .set({
+                scheduleSessionId: existingTargetSession.id,
+                scheduledDate: body.targetDate,
+                scheduledStartTime: `${apptStartTime}:00`,
+                scheduledEndTime: `${apptEndTime}:00`,
+                roomId:
+                  targetRoomId || existingTargetSession.roomId || appt.roomId,
+                updatedAt: new Date().toISOString(),
+              })
+              .where(eq(appointments.id, appt.id));
+          }
+
+          await tx
+            .update(queueTickets)
+            .set({
+              queueDate: body.targetDate,
+              roomId: targetRoomId || existingTargetSession.roomId || undefined,
+              updatedAt: new Date().toISOString(),
+            })
+            .where(
+              inArray(
+                queueTickets.appointmentId,
+                appointmentsToMove.map((a) => a.id),
+              ),
+            );
+
+          if (existingTargetSession.id !== session.id) {
+            await tx
+              .update(practitionerScheduleSessions)
+              .set({
+                availableSlots: Math.min(
+                  session.capacity,
+                  (session.availableSlots ?? 0) + appointmentsToMove.length,
+                ),
+                updatedAt: new Date().toISOString(),
+              })
+              .where(eq(practitionerScheduleSessions.id, session.id));
+
+            await tx
+              .update(practitionerScheduleSessions)
+              .set({
+                availableSlots: Math.max(
+                  0,
+                  (existingTargetSession.availableSlots ?? 0) -
+                    appointmentsToMove.length,
+                ),
+                updatedAt: new Date().toISOString(),
+              })
+              .where(
+                eq(practitionerScheduleSessions.id, existingTargetSession.id),
+              );
+          }
+        }
+
+        await tx.insert(scheduleRescheduleEvents).values({
+          id: randomUUID(),
+          scheduleSessionId: existingTargetSession.id,
+          practitionerId: practitioner.id,
+          sourceDate: session.scheduleDate,
+          sourceStartTime: formatClockTime(sourceSlotStartMin),
+          sourceEndTime: formatClockTime(sourceSlotEndMin),
+          sourceRoomId: session.roomId,
+          targetDate: body.targetDate,
+          targetStartTime: body.targetStartTime,
+          targetEndTime: preview.projectedEndTime,
+          targetRoomId: targetRoomId || existingTargetSession.roomId,
+          reasonCode: 'RESCHEDULE',
+          reasonText:
+            body.notes || body.reason || 'Reschedule jadwal janji temu pasien',
+          movedAppointmentsCount: appointmentsToMove.length,
+          createdAt: new Date().toISOString(),
+        });
+
+        const [refetchedTarget] = await tx
+          .select()
+          .from(practitionerScheduleSessions)
+          .where(eq(practitionerScheduleSessions.id, existingTargetSession.id));
+
+        return refetchedTarget || existingTargetSession;
+      }
+
       if (
         body.rescheduleActiveAppointments !== false &&
         appointmentsToMove.length > 0
@@ -324,6 +513,20 @@ export class DrizzleScheduleRescheduleRepository {
             })
             .where(eq(appointments.id, appt.id));
         }
+
+        await tx
+          .update(queueTickets)
+          .set({
+            queueDate: body.targetDate,
+            roomId: targetRoomId || undefined,
+            updatedAt: new Date().toISOString(),
+          })
+          .where(
+            inArray(
+              queueTickets.appointmentId,
+              appointmentsToMove.map((a) => a.id),
+            ),
+          );
       }
 
       await tx.insert(scheduleRescheduleEvents).values({
