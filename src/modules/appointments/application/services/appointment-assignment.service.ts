@@ -23,6 +23,7 @@ import {
   DoctorCollisionException,
   RoomOccupiedException,
 } from '../../domain/errors/appointment-assignment.errors';
+import { AppointmentTemporalStatusHelper } from '../../domain/helpers/appointment-temporal-status.helper';
 import { AppointmentNotificationPublisher } from '../appointment-notification.publisher';
 
 export interface ChangeDoctorOptions {
@@ -96,10 +97,20 @@ export class AppointmentAssignmentService {
       });
 
       if (existingConflict) {
-        throw new DoctorCollisionException(
-          targetDoc.displayName || targetDoc.staffProfile?.fullName || 'Dokter',
-          `${apt.scheduledStartTime.slice(0, 5)} WIB`,
-        );
+        const isConflictFinished =
+          ['completed', 'cancelled', 'no_show'].includes(existingConflict.status) ||
+          AppointmentTemporalStatusHelper.isElapsed({
+            scheduledDate: existingConflict.scheduledDate,
+            scheduledStartTime: existingConflict.scheduledStartTime,
+            scheduledEndTime: existingConflict.scheduledEndTime,
+          });
+
+        if (!isConflictFinished) {
+          throw new DoctorCollisionException(
+            targetDoc.displayName || targetDoc.staffProfile?.fullName || 'Dokter',
+            `${apt.scheduledStartTime.slice(0, 5)} WIB`,
+          );
+        }
       }
 
       // 4. Resolve or create target schedule session
@@ -118,7 +129,7 @@ export class AppointmentAssignmentService {
 
       if (matchingSession) {
         targetSessionId = matchingSession.id;
-        if (matchingSession.roomId) targetRoomId = matchingSession.roomId;
+        targetRoomId = apt.roomId || matchingSession.roomId || targetDoc.defaultRoomId;
       } else {
         // Create canonical schedule session on-the-fly for target doctor
         const sessionName = resolveSessionFromTime(apt.scheduledStartTime);
@@ -127,6 +138,8 @@ export class AppointmentAssignmentService {
           where: eq(clinicSchedulePolicies.code, 'default'),
         });
         const duration = policy?.defaultConsultationDurationMinutes ?? 30;
+
+        const effectiveRoomId = apt.roomId || targetDoc.defaultRoomId;
 
         const [createdSession] = await tx
           .insert(practitionerScheduleSessions)
@@ -142,12 +155,12 @@ export class AppointmentAssignmentService {
             capacity: 1,
             availableSlots: 0,
             status: 'open',
-            roomId: targetDoc.defaultRoomId || apt.roomId,
+            roomId: effectiveRoomId,
           })
           .returning();
 
         targetSessionId = createdSession.id;
-        if (createdSession.roomId) targetRoomId = createdSession.roomId;
+        targetRoomId = effectiveRoomId;
       }
 
       // 5. Transfer session capacity (old session increment/close, target session decrement)
@@ -159,6 +172,7 @@ export class AppointmentAssignmentService {
             .set({
               status: 'closed',
               availableSlots: 0,
+              notes: opts?.reason || 'Sesi ditutup saat pengalihan dokter',
             })
             .where(eq(practitionerScheduleSessions.id, apt.scheduleSessionId));
         } else {
@@ -257,13 +271,59 @@ export class AppointmentAssignmentService {
       });
 
       if (conflictingAppt) {
-        const room = await tx.query.clinicRooms.findFirst({
-          where: eq(clinicRooms.id, targetRoomId),
-        });
-        throw new RoomOccupiedException(
-          room?.name || 'Ruangan',
-          `${apt.scheduledStartTime.slice(0, 5)} WIB`,
-        );
+        const isApptFinished =
+          ['completed', 'cancelled', 'no_show'].includes(conflictingAppt.status) ||
+          AppointmentTemporalStatusHelper.isElapsed({
+            scheduledDate: conflictingAppt.scheduledDate,
+            scheduledStartTime: conflictingAppt.scheduledStartTime,
+            scheduledEndTime: conflictingAppt.scheduledEndTime,
+          });
+
+        if (!isApptFinished) {
+          const room = await tx.query.clinicRooms.findFirst({
+            where: eq(clinicRooms.id, targetRoomId),
+          });
+          throw new RoomOccupiedException(
+            room?.name || 'Ruangan',
+            `${apt.scheduledStartTime.slice(0, 5)} WIB`,
+          );
+        }
+      }
+
+      // Check room collision with other doctor schedule sessions
+      const conflictingSession =
+        tx.query.practitionerScheduleSessions?.findFirst
+          ? await tx.query.practitionerScheduleSessions.findFirst({
+              where: and(
+                eq(practitionerScheduleSessions.roomId, targetRoomId),
+                eq(practitionerScheduleSessions.scheduleDate, apt.scheduledDate),
+                eq(practitionerScheduleSessions.status, 'open'),
+                sql`${practitionerScheduleSessions.startTime} <= ${apt.scheduledStartTime}::time AND ${practitionerScheduleSessions.endTime} > ${apt.scheduledStartTime}::time`,
+                apt.practitionerId
+                  ? not(eq(practitionerScheduleSessions.practitionerId, apt.practitionerId))
+                  : sql`true`,
+              ),
+            })
+          : null;
+
+      if (conflictingSession) {
+        const isSessionFinished =
+          conflictingSession.status !== 'open' ||
+          AppointmentTemporalStatusHelper.isElapsed({
+            scheduledDate: conflictingSession.scheduleDate,
+            scheduledStartTime: conflictingSession.startTime,
+            scheduledEndTime: conflictingSession.endTime,
+          });
+
+        if (!isSessionFinished) {
+          const room = await tx.query.clinicRooms.findFirst({
+            where: eq(clinicRooms.id, targetRoomId),
+          });
+          throw new RoomOccupiedException(
+            room?.name || 'Ruangan',
+            `${apt.scheduledStartTime.slice(0, 5)} WIB`,
+          );
+        }
       }
 
       await tx

@@ -22,7 +22,35 @@ describe('allocateSlotTiming', () => {
     expect(result).not.toBeNull();
     const [h, m] = result!.startTime.split(':').map(Number);
     const startMinutes = h * 60 + m;
-    expect(startMinutes).toBeGreaterThan(nowMinutes);
+    expect(startMinutes + 30).toBeGreaterThan(nowMinutes);
+  });
+
+  it('should allocate current active slot when booking during the last slot of an active session', () => {
+    const clinicNow = getClinicNow();
+    const nowMinutes = clinicNow.currentMinutes;
+    // Session that ends 15 minutes from now (so current time is in the middle of the last 30-min slot)
+    const sessionEndMin = nowMinutes + 15;
+    const sessionStartMin = sessionEndMin - 60;
+    const startH = Math.floor(sessionStartMin / 60);
+    const startM = sessionStartMin % 60;
+    const endH = Math.floor(sessionEndMin / 60);
+    const endM = sessionEndMin % 60;
+
+    const sessionStart = `${String(startH).padStart(2, '0')}:${String(startM).padStart(2, '0')}`;
+    const sessionEnd = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
+
+    const result = allocateSlotTiming(
+      sessionStart,
+      sessionEnd,
+      [],
+      30,
+      clinicNow.date,
+    );
+
+    expect(result).not.toBeNull();
+    const [eh, em] = result!.endTime.split(':').map(Number);
+    const endMinutes = eh * 60 + em;
+    expect(endMinutes).toBeGreaterThan(nowMinutes);
   });
 
   it('should skip occupied future slots and pick next available slot', () => {

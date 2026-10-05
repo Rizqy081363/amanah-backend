@@ -105,3 +105,57 @@ export function evaluateSessionTemporalAvailability(
     effectiveAvailableSlots: input.totalAvailableSlots,
   };
 }
+
+export interface CalculateDoctorSessionAvailableSlotsInput {
+  scheduleDate: string;
+  startTime: string;
+  endTime: string;
+  capacity: number;
+  availableSlots: number;
+  durationMinutes: number;
+  bookedStartTimes?: Set<string> | string[];
+  referenceDate?: Date;
+}
+
+export function calculateDoctorSessionAvailableSlots(
+  input: CalculateDoctorSessionAvailableSlotsInput,
+): number {
+  const clinicNow = getClinicNow(input.referenceDate);
+  const isPastDate = input.scheduleDate < clinicNow.date;
+  const isToday = input.scheduleDate === clinicNow.date;
+
+  if (isPastDate) {
+    return 0;
+  }
+
+  const startMinutes = parseClockTime(input.startTime.slice(0, 5));
+  const endMinutes = parseSessionEndMinutes(input.startTime, input.endTime);
+  const duration = input.durationMinutes > 0 ? input.durationMinutes : 30;
+
+  const bookedTimes =
+    input.bookedStartTimes instanceof Set
+      ? input.bookedStartTimes
+      : new Set((input.bookedStartTimes || []).map((t) => t.slice(0, 5)));
+
+  let candidateMinutes = startMinutes;
+  let allocatableCount = 0;
+
+  while (candidateMinutes + duration <= endMinutes) {
+    if (isToday && candidateMinutes + duration <= clinicNow.currentMinutes) {
+      candidateMinutes += duration;
+      continue;
+    }
+
+    const hh = String(Math.floor(candidateMinutes / 60) % 24).padStart(2, '0');
+    const mm = String(candidateMinutes % 60).padStart(2, '0');
+    const timeStr = `${hh}:${mm}`;
+
+    if (!bookedTimes.has(timeStr)) {
+      allocatableCount++;
+    }
+
+    candidateMinutes += duration;
+  }
+
+  return Math.max(0, Math.min(input.availableSlots, allocatableCount));
+}

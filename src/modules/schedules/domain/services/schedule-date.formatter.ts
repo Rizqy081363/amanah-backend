@@ -8,6 +8,7 @@ import {
   type AdminDoctorDailySession,
   ScheduleOperationalStatus,
 } from '../entities/schedule.entity';
+import { SHIFT_DISPLAY_LABELS } from '../constants/schedule-shift.constants';
 
 export function formatIndoDate(dateStr: string): string {
   const [y, m, d] = dateStr.split('-').map(Number);

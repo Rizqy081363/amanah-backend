@@ -13,12 +13,13 @@ import {
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { HybridAuthGuard, Roles, RolesGuard } from '../../../common/auth';
 import { HttpCache } from '../../../common/decorators/http-cache.decorator';
 import { DRIZZLE_SOURCE } from '../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../database/drizzle/drizzle.provider';
 import {
+  appointments,
   clinicRooms,
   clinicSchedulePolicies,
   clinicUnits,
@@ -30,7 +31,10 @@ import {
   type CanonicalStaffShift,
   SHIFT_TIMING_CONFIGS,
 } from '../domain/constants/schedule-shift.constants';
-import { evaluateSessionTemporalAvailability } from '../domain/services/schedule-temporal-availability.service';
+import {
+  calculateDoctorSessionAvailableSlots,
+  evaluateSessionTemporalAvailability,
+} from '../domain/services/schedule-temporal-availability.service';
 
 interface BookingShiftDef {
   session: CanonicalSessionName;
@@ -134,6 +138,22 @@ export class PatientScheduleBookingController {
       },
     });
 
+    const existingAppointments =
+      sessions.length > 0 && this.db.query.appointments
+        ? await this.db.query.appointments.findMany({
+            where: and(
+              eq(appointments.scheduledDate, dateStr),
+              sql`${appointments.status} NOT IN ('cancelled', 'no_show')`,
+            ),
+            columns: {
+              id: true,
+              scheduleSessionId: true,
+              practitionerId: true,
+              scheduledStartTime: true,
+            },
+          })
+        : [];
+
     const bookingShifts: BookingShiftDef[] = CANONICAL_STAFF_SHIFTS.map(
       (shift) => {
         const config = SHIFT_TIMING_CONFIGS[shift];
@@ -189,11 +209,39 @@ export class PatientScheduleBookingController {
         return startPrefix >= shiftStart && startPrefix < shiftEnd;
       });
 
-      const totalCapacity = matching.reduce((sum, s) => sum + s.capacity, 0);
-      const totalAvailable = matching.reduce(
-        (sum, s) => sum + s.availableSlots,
-        0,
-      );
+      let totalCapacity = 0;
+      let totalAvailable = 0;
+
+      for (const s of matching) {
+        totalCapacity += s.capacity;
+
+        const bookedTimes = new Set(
+          existingAppointments
+            .filter(
+              (a) =>
+                (a.scheduleSessionId && a.scheduleSessionId === s.id) ||
+                (a.practitionerId === s.practitionerId &&
+                  a.scheduledStartTime &&
+                  a.scheduledStartTime >= s.startTime &&
+                  a.scheduledStartTime < s.endTime),
+            )
+            .map((a) => a.scheduledStartTime?.slice(0, 5))
+            .filter(Boolean) as string[],
+        );
+
+        const doctorAvailable = calculateDoctorSessionAvailableSlots({
+          scheduleDate: dateStr,
+          startTime: s.startTime,
+          endTime: s.endTime,
+          capacity: s.capacity,
+          availableSlots: s.availableSlots,
+          durationMinutes: estimatedDuration,
+          bookedStartTimes: bookedTimes,
+        });
+
+        totalAvailable += doctorAvailable;
+      }
+
       const totalBooked = Math.max(0, totalCapacity - totalAvailable);
 
       const temporalResult = evaluateSessionTemporalAvailability({

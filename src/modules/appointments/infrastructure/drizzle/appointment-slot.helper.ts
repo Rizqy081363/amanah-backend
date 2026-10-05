@@ -35,7 +35,7 @@ export function allocateSlotTiming(
 
   let candidateMinutes = sessionStartMinutes;
   while (candidateMinutes + durationMinutes <= sessionEndMinutes) {
-    if (isToday && candidateMinutes <= clinicCurrentMinutes) {
+    if (isToday && candidateMinutes + durationMinutes <= clinicCurrentMinutes) {
       candidateMinutes += durationMinutes;
       continue;
     }

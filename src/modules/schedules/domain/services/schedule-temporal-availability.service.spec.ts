@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import { BOOKING_SESSION_DISABLED_REASONS } from '../constants/schedule-shift.constants';
 import {
+  calculateDoctorSessionAvailableSlots,
   evaluateSessionTemporalAvailability,
   parseSessionEndMinutes,
   resolveEffectiveEndMinutes,
@@ -106,5 +107,72 @@ describe('ScheduleTemporalAvailabilityService', () => {
     expect(result.disabledReason).toBe(
       BOOKING_SESSION_DISABLED_REASONS.QUOTA_FULL,
     );
+  });
+
+  describe('calculateDoctorSessionAvailableSlots', () => {
+    it('returns only remaining unelapsed slots for today session', () => {
+      // 17:33 WIB on 2026-10-05. Shift is 12:00 to 18:00 (12 slots of 30m).
+      // Only 17:30 - 18:00 remains unelapsed.
+      const refDate = new Date('2026-10-05T17:33:00+07:00');
+      const available = calculateDoctorSessionAvailableSlots({
+        scheduleDate: '2026-10-05',
+        startTime: '12:00:00',
+        endTime: '18:00:00',
+        capacity: 12,
+        availableSlots: 12,
+        durationMinutes: 30,
+        referenceDate: refDate,
+      });
+
+      expect(available).toBe(1);
+    });
+
+    it('returns 0 when all slots have elapsed today', () => {
+      // 18:01 WIB on 2026-10-05. Shift 12:00 - 18:00.
+      const refDate = new Date('2026-10-05T18:01:00+07:00');
+      const available = calculateDoctorSessionAvailableSlots({
+        scheduleDate: '2026-10-05',
+        startTime: '12:00:00',
+        endTime: '18:00:00',
+        capacity: 12,
+        availableSlots: 12,
+        durationMinutes: 30,
+        referenceDate: refDate,
+      });
+
+      expect(available).toBe(0);
+    });
+
+    it('excludes booked slot intervals from available count', () => {
+      // 17:33 WIB. Last slot 17:30 is booked.
+      const refDate = new Date('2026-10-05T17:33:00+07:00');
+      const available = calculateDoctorSessionAvailableSlots({
+        scheduleDate: '2026-10-05',
+        startTime: '12:00:00',
+        endTime: '18:00:00',
+        capacity: 12,
+        availableSlots: 12,
+        durationMinutes: 30,
+        bookedStartTimes: new Set(['17:30']),
+        referenceDate: refDate,
+      });
+
+      expect(available).toBe(0);
+    });
+
+    it('returns all available slots for future date', () => {
+      const refDate = new Date('2026-10-05T17:33:00+07:00');
+      const available = calculateDoctorSessionAvailableSlots({
+        scheduleDate: '2026-10-06',
+        startTime: '12:00:00',
+        endTime: '18:00:00',
+        capacity: 12,
+        availableSlots: 12,
+        durationMinutes: 30,
+        referenceDate: refDate,
+      });
+
+      expect(available).toBe(12);
+    });
   });
 });

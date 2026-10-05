@@ -433,13 +433,8 @@ export class ScheduleSlotFactory {
           ? params.persistedCapacity
           : 1;
 
-    const bookedCount = Math.max(
-      params.bookedCount,
-      params.persistedAvailableSlots !== undefined &&
-        params.persistedAvailableSlots !== null
-        ? Math.max(0, capacity - params.persistedAvailableSlots)
-        : 0,
-    );
+    // 100% DB-driven: bookedCount is the real count of appointments in database
+    const bookedCount = Math.max(0, params.bookedCount);
     const availableSlots =
       params.isCuti || params.isClosed
         ? 0

@@ -7,12 +7,13 @@ import {
   practitioners,
 } from '@database/schema';
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, inArray, not } from 'drizzle-orm';
+import { and, eq, inArray, not, sql } from 'drizzle-orm';
 import { ACTIVE_APPOINTMENT_STATUSES } from '../../../schedules/domain/constants/schedule.constants';
 import {
   AppointmentNotFoundException,
   AppointmentTerminalStateException,
 } from '../../domain/errors/appointment-assignment.errors';
+import { AppointmentTemporalStatusHelper } from '../../domain/helpers/appointment-temporal-status.helper';
 
 export interface DoctorCandidateItem {
   id: string;
@@ -45,8 +46,10 @@ export interface RoomCandidateItem {
   location: string | null;
   isAvailable: boolean;
   occupantDetails?: {
+    practitionerId?: string;
     doctorName?: string;
     bookingCode?: string;
+    startTime?: string;
   } | null;
 }
 
@@ -96,7 +99,18 @@ export class AppointmentCandidateResolver {
       ),
     });
     const occupiedDoctorIds = new Set(
-      conflictingAppts.map((a) => a.practitionerId).filter(Boolean),
+      conflictingAppts
+        .filter(
+          (a) =>
+            !['completed', 'cancelled', 'no_show'].includes(a.status) &&
+            !AppointmentTemporalStatusHelper.isElapsed({
+              scheduledDate: a.scheduledDate,
+              scheduledStartTime: a.scheduledStartTime,
+              scheduledEndTime: a.scheduledEndTime,
+            }),
+        )
+        .map((a) => a.practitionerId)
+        .filter(Boolean),
     );
 
     // 3. Fetch existing open schedule sessions for this date that cover the start time
@@ -120,7 +134,12 @@ export class AppointmentCandidateResolver {
         (s) =>
           s.practitionerId === p.id &&
           s.startTime <= startTime &&
-          s.endTime > startTime,
+          s.endTime > startTime &&
+          !AppointmentTemporalStatusHelper.isElapsed({
+            scheduledDate: s.scheduleDate,
+            scheduledStartTime: s.startTime,
+            scheduledEndTime: s.endTime,
+          }),
       );
 
       const groupKey = p.medicalSpecialty?.name || 'Dokter Umum';
@@ -168,10 +187,30 @@ export class AppointmentCandidateResolver {
 
     const scheduledDate = apt.scheduledDate;
     const startTime = apt.scheduledStartTime;
+    const endTime = apt.scheduledEndTime;
 
     const allRooms = await this.db.query.clinicRooms.findMany({
       where: eq(clinicRooms.isActive, true),
     });
+
+    // If the target appointment's slot itself is already elapsed (past date or past clock time),
+    // no active room collision exists.
+    const isTargetSlotElapsed = AppointmentTemporalStatusHelper.isElapsed({
+      scheduledDate,
+      scheduledStartTime: startTime,
+      scheduledEndTime: endTime,
+    });
+
+    if (isTargetSlotElapsed) {
+      return allRooms.map((room) => ({
+        id: room.id,
+        name: room.name,
+        code: room.code,
+        location: room.location,
+        isAvailable: true,
+        occupantDetails: null,
+      }));
+    }
 
     const conflictingAppts = await this.db.query.appointments.findMany({
       where: and(
@@ -187,17 +226,77 @@ export class AppointmentCandidateResolver {
 
     const roomOccupantMap = new Map<
       string,
-      { doctorName?: string; bookingCode?: string }
+      {
+        practitionerId?: string;
+        doctorName?: string;
+        bookingCode?: string;
+        startTime?: string;
+      }
     >();
-    for (const c of conflictingAppts) {
-      if (c.roomId) {
-        roomOccupantMap.set(c.roomId, {
+
+    // Check doctor schedule sessions occupying rooms at this date and time
+    if (this.db.query.practitionerScheduleSessions) {
+      const conflictingSessions =
+        await this.db.query.practitionerScheduleSessions.findMany({
+          where: and(
+            eq(practitionerScheduleSessions.scheduleDate, scheduledDate),
+            eq(practitionerScheduleSessions.status, 'open'),
+            sql`${practitionerScheduleSessions.startTime} <= ${startTime}::time AND ${practitionerScheduleSessions.endTime} > ${startTime}::time`,
+            apt.practitionerId
+              ? not(eq(practitionerScheduleSessions.practitionerId, apt.practitionerId))
+              : sql`true`,
+          ),
+          with: {
+            practitioner: { with: { staffProfile: true } },
+          },
+        });
+      for (const s of conflictingSessions) {
+        if (!s.roomId) continue;
+        if (apt.practitionerId && s.practitionerId === apt.practitionerId) continue;
+
+        // Exclude sessions that have already finished (isElapsed / past / completed)
+        const isSessionFinished =
+          s.status !== 'open' ||
+          AppointmentTemporalStatusHelper.isElapsed({
+            scheduledDate: s.scheduleDate,
+            scheduledStartTime: s.startTime,
+            scheduledEndTime: s.endTime,
+          });
+
+        if (isSessionFinished) continue;
+
+        roomOccupantMap.set(s.roomId, {
+          practitionerId: s.practitionerId || undefined,
           doctorName:
-            c.practitioner?.displayName ||
-            c.practitioner?.staffProfile?.fullName,
-          bookingCode: c.bookingCode,
+            s.practitioner?.displayName ||
+            s.practitioner?.staffProfile?.fullName,
+          startTime: s.startTime ? s.startTime.slice(0, 5) : undefined,
         });
       }
+    }
+
+    for (const c of conflictingAppts) {
+      if (!c.roomId) continue;
+
+      // Exclude appointments that have already completed/cancelled/no_show or elapsed (Sudah Selesai)
+      const isApptFinished =
+        ['completed', 'cancelled', 'no_show'].includes(c.status) ||
+        AppointmentTemporalStatusHelper.isElapsed({
+          scheduledDate: c.scheduledDate,
+          scheduledStartTime: c.scheduledStartTime,
+          scheduledEndTime: c.scheduledEndTime,
+        });
+
+      if (isApptFinished) continue;
+
+      roomOccupantMap.set(c.roomId, {
+        practitionerId: c.practitionerId || undefined,
+        doctorName:
+          c.practitioner?.displayName ||
+          c.practitioner?.staffProfile?.fullName,
+        bookingCode: c.bookingCode,
+        startTime: c.scheduledStartTime ? c.scheduledStartTime.slice(0, 5) : undefined,
+      });
     }
 
     return allRooms.map((room) => {

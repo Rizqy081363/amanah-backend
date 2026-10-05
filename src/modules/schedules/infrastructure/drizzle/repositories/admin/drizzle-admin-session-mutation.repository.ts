@@ -71,7 +71,7 @@ export class DrizzleAdminSessionMutationRepository {
       roomId,
     );
 
-    const { shift } = resolveCanonicalShift({ session: body.nama_sesi });
+    const { shift, label } = resolveCanonicalShift({ session: body.nama_sesi });
 
     const requestedStatus = toAdminScheduleStatusRequest(
       body.status_sesi ?? AdminScheduleStatusRequest.OPEN,
@@ -98,7 +98,7 @@ export class DrizzleAdminSessionMutationRepository {
       .values({
         practitionerId,
         scheduleDate: body.schedule_date,
-        sessionLabel: body.nama_sesi,
+        sessionLabel: label,
         sessionShift: shift,
         startTime: startTimeFormatted,
         endTime: endTimeFormatted,
@@ -180,8 +180,8 @@ export class DrizzleAdminSessionMutationRepository {
     };
 
     if (body.nama_sesi) {
-      updateValues.sessionLabel = body.nama_sesi;
-      const { shift } = resolveCanonicalShift({ session: body.nama_sesi });
+      const { shift, label } = resolveCanonicalShift({ session: body.nama_sesi });
+      updateValues.sessionLabel = label;
       updateValues.sessionShift = shift;
     }
 
