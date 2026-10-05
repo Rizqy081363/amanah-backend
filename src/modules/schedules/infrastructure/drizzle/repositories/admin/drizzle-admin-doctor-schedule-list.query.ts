@@ -89,7 +89,10 @@ export class DrizzleAdminDoctorScheduleListQuery {
         orderBy: [asc(practitioners.displayName)],
       }),
       this.db.query.practitionerScheduleDaySettings.findMany({
-        where: inArray(practitionerScheduleDaySettings.scheduleDate, queryDates),
+        where: inArray(
+          practitionerScheduleDaySettings.scheduleDate,
+          queryDates,
+        ),
       }),
       this.db.query.practitionerLeavePeriods.findMany({
         where: and(
@@ -120,8 +123,7 @@ export class DrizzleAdminDoctorScheduleListQuery {
 
     for (const p of pracs) {
       const daySetting = allDaySettings.find(
-        (ds) =>
-          ds.practitionerId === p.id && ds.scheduleDate === targetDate,
+        (ds) => ds.practitionerId === p.id && ds.scheduleDate === targetDate,
       );
       const activeLeave = allActiveLeaves.find(
         (al) =>
@@ -130,8 +132,7 @@ export class DrizzleAdminDoctorScheduleListQuery {
           al.endDate >= targetDate,
       );
       const sessions = allSessions.filter(
-        (s) =>
-          s.practitionerId === p.id && s.scheduleDate === targetDate,
+        (s) => s.practitionerId === p.id && s.scheduleDate === targetDate,
       );
 
       const isCuti = Boolean(daySetting?.isLeave || activeLeave);
@@ -264,8 +265,7 @@ export class DrizzleAdminDoctorScheduleListQuery {
         if (tomorrowDateStr) {
           const tomorrowDaySetting = allDaySettings.find(
             (ds) =>
-              ds.practitionerId === p.id &&
-              ds.scheduleDate === tomorrowDateStr,
+              ds.practitionerId === p.id && ds.scheduleDate === tomorrowDateStr,
           );
           const tomorrowActiveLeave = allActiveLeaves.find(
             (al) =>
@@ -279,8 +279,7 @@ export class DrizzleAdminDoctorScheduleListQuery {
           if (!isTomorrowCuti) {
             const tomorrowSessions = allSessions.filter(
               (s) =>
-                s.practitionerId === p.id &&
-                s.scheduleDate === tomorrowDateStr,
+                s.practitionerId === p.id && s.scheduleDate === tomorrowDateStr,
             );
             tomorrowSesiHarian = tomorrowSessions.map((s) => {
               const jamMulai = s.startTime ? s.startTime.slice(0, 5) : '08:00';

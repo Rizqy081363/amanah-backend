@@ -19,6 +19,7 @@ export const APPOINTMENT_EVENTS = {
   COMPLETED: 'appointment.completed.v1',
   CANCELLED: 'appointment.cancelled.v1',
   RESCHEDULED: 'appointment.rescheduled.v1',
+  ASSIGNMENT_UPDATED: 'appointment.assignment_updated.v1',
 } as const;
 
 export const APPOINTMENT_LIFECYCLE_EVENTS = APPOINTMENT_EVENTS;

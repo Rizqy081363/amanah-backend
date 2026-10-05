@@ -1,6 +1,9 @@
 import { relations } from 'drizzle-orm';
 import { childImmunizationIntakes, patientProfiles } from './amanah.schema';
-import { childImmunizationEntries, vaccineCatalog } from './immunization.schema';
+import {
+  childImmunizationEntries,
+  vaccineCatalog,
+} from './immunization.schema';
 
 export const vaccineCatalogRelations = relations(
   vaccineCatalog,

@@ -333,7 +333,8 @@ export class DrizzleScheduleRescheduleRepository {
               ? `${a.scheduledStartTime}:00`
               : a.scheduledStartTime;
           return (
-            aStart >= sourceSlotStartFormatted && aStart < sourceSlotEndFormatted
+            aStart >= sourceSlotStartFormatted &&
+            aStart < sourceSlotEndFormatted
           );
         })
       : activeAppointments;

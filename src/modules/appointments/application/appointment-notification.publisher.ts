@@ -1,5 +1,5 @@
+import { randomUUID } from 'node:crypto';
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
-import { randomUUID } from 'crypto';
 import {
   type DomainEvent,
   type NotificationPublisher,
@@ -220,6 +220,59 @@ export class AppointmentNotificationPublisher {
     } catch (pubError) {
       this.logger.warn(
         `Failed to publish notification event on appointment reschedule: ${pubError}`,
+      );
+    }
+  }
+
+  async publishAssignmentChanged(
+    appointment: AppointmentEntity,
+    changes: {
+      doctorName?: string | null;
+      roomName?: string | null;
+      type: 'doctor' | 'room';
+    },
+    user?: any,
+  ): Promise<void> {
+    if (!this.notificationPublisher) return;
+
+    try {
+      const domainEvent: DomainEvent = {
+        eventId: randomUUID(),
+        eventType: APPOINTMENT_EVENTS.ASSIGNMENT_UPDATED,
+        version: 1,
+        occurredAt: new Date().toISOString(),
+        module: 'appointments',
+        payload: {
+          appointmentId: appointment.id,
+          patientId: appointment.patientId,
+          patientUserId: appointment.patientUserId || null,
+          patientName: appointment.patientName || 'Pasien',
+          doctorName: appointment.doctorName || null,
+          roomName: appointment.roomName || null,
+          scheduledDate: appointment.appointmentDate,
+          scheduledStartTime: appointment.scheduledStartTime,
+          scheduledEndTime: appointment.scheduledEndTime,
+          changeType: changes.type,
+          status: appointment.status,
+          title:
+            changes.type === 'doctor'
+              ? 'Perubahan Dokter Janji Temu'
+              : 'Perubahan Ruangan Janji Temu',
+          message:
+            changes.type === 'doctor'
+              ? `Dokter janji temu Anda telah dialihkan ke ${appointment.doctorName || 'dokter baru'}.`
+              : `Ruangan janji temu Anda telah dialihkan ke ${appointment.roomName || 'ruangan baru'}.`,
+        },
+        actor: {
+          userId: user?.id || user?.sub,
+          roleCode: user?.role || 'ADMIN',
+        },
+      };
+
+      await this.notificationPublisher.publish(domainEvent);
+    } catch (pubError) {
+      this.logger.warn(
+        `Failed to publish notification event on appointment assignment change: ${pubError}`,
       );
     }
   }

@@ -17,16 +17,30 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
 import { RolesGuard } from '../../../common/auth/roles.guard';
 import { AppointmentsService } from '../application/appointments.service';
+import { AppointmentCandidateResolver } from '../application/resolvers/appointment-candidate.resolver';
+import { AppointmentAssignmentService } from '../application/services/appointment-assignment.service';
 import { AdminAppointmentsController } from './admin-appointments.controller';
 
 describe('AdminAppointmentsController', () => {
   let controller: AdminAppointmentsController;
   let mockAppointmentsService: any;
+  let mockCandidateResolver: any;
+  let mockAssignmentService: any;
 
   beforeEach(async () => {
     mockAppointmentsService = {
       cancelAdminAppointment: mock(),
       updateAdminAppointmentStatus: mock(),
+    };
+
+    mockCandidateResolver = {
+      resolveDoctorCandidates: mock(),
+      resolveRoomCandidates: mock(),
+    };
+
+    mockAssignmentService = {
+      changeDoctor: mock(),
+      changeRoom: mock(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -35,6 +49,14 @@ describe('AdminAppointmentsController', () => {
         {
           provide: AppointmentsService,
           useValue: mockAppointmentsService,
+        },
+        {
+          provide: AppointmentCandidateResolver,
+          useValue: mockCandidateResolver,
+        },
+        {
+          provide: AppointmentAssignmentService,
+          useValue: mockAssignmentService,
         },
       ],
     })
@@ -124,6 +146,107 @@ describe('AdminAppointmentsController', () => {
         mockAppointmentsService.updateAdminAppointmentStatus,
       ).toHaveBeenCalledWith('apt-uuid-1', body, user);
       expect(result).toEqual(mockResult);
+    });
+  });
+
+  describe('candidate resolution', () => {
+    it('should delegate getDoctorCandidates to candidateResolver', async () => {
+      const mockResult = { groups: [] };
+      mockCandidateResolver.resolveDoctorCandidates.mockResolvedValue(
+        mockResult,
+      );
+
+      const result = await controller.getDoctorCandidates('apt-uuid-1');
+      expect(
+        mockCandidateResolver.resolveDoctorCandidates,
+      ).toHaveBeenCalledWith('apt-uuid-1');
+      expect(result).toEqual(mockResult as any);
+    });
+
+    it('should delegate getRoomCandidates to candidateResolver', async () => {
+      const mockResult: any[] = [];
+      mockCandidateResolver.resolveRoomCandidates.mockResolvedValue(mockResult);
+
+      const result = await controller.getRoomCandidates('apt-uuid-1');
+      expect(mockCandidateResolver.resolveRoomCandidates).toHaveBeenCalledWith(
+        'apt-uuid-1',
+      );
+      expect(result).toEqual(mockResult);
+    });
+  });
+
+  describe('appointment reassignment', () => {
+    it('should delegate changeDoctor to assignmentService', async () => {
+      const mockResult = { id: 'apt-uuid-1', practitionerId: 'doc-new' };
+      mockAssignmentService.changeDoctor.mockResolvedValue(mockResult);
+
+      const user = { id: 'admin-1', role: 'ADMIN' };
+      const result = await controller.changeDoctor(
+        'apt-uuid-1',
+        { doctorId: 'doc-new' },
+        user,
+      );
+
+      expect(mockAssignmentService.changeDoctor).toHaveBeenCalledWith(
+        'apt-uuid-1',
+        'doc-new',
+        { closeOldSchedule: undefined, reason: undefined },
+        user,
+      );
+
+      expect(result).toEqual({
+        message: 'Dokter berhasil dialihkan',
+        data: mockResult,
+      } as any);
+    });
+
+    it('should delegate changeDoctor with closeOldSchedule and reason options', async () => {
+      const mockResult = { id: 'apt-uuid-1', practitionerId: 'doc-new' };
+      mockAssignmentService.changeDoctor.mockResolvedValue(mockResult);
+
+      const user = { id: 'admin-1', role: 'ADMIN' };
+      const result = await controller.changeDoctor(
+        'apt-uuid-1',
+        {
+          doctorId: 'doc-new',
+          closeOldSchedule: true,
+          reason: 'Dokter berhalangan hadir',
+        },
+        user,
+      );
+
+      expect(mockAssignmentService.changeDoctor).toHaveBeenCalledWith(
+        'apt-uuid-1',
+        'doc-new',
+        { closeOldSchedule: true, reason: 'Dokter berhalangan hadir' },
+        user,
+      );
+      expect(result).toEqual({
+        message: 'Dokter berhasil dialihkan',
+        data: mockResult,
+      } as any);
+    });
+
+    it('should delegate changeRoom to assignmentService', async () => {
+      const mockResult = { id: 'apt-uuid-1', roomId: 'room-new' };
+      mockAssignmentService.changeRoom.mockResolvedValue(mockResult);
+
+      const user = { id: 'admin-1', role: 'ADMIN' };
+      const result = await controller.changeRoom(
+        'apt-uuid-1',
+        { roomId: 'room-new' },
+        user,
+      );
+
+      expect(mockAssignmentService.changeRoom).toHaveBeenCalledWith(
+        'apt-uuid-1',
+        'room-new',
+        user,
+      );
+      expect(result).toEqual({
+        message: 'Ruangan berhasil dialihkan',
+        data: mockResult,
+      } as any);
     });
   });
 });

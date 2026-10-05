@@ -71,7 +71,10 @@ export class DrizzleScheduleReferenceRepository {
     }
 
     if (date === todayDate) {
-      const [reqEndH, reqEndM] = formattedEnd.slice(0, 5).split(':').map(Number);
+      const [reqEndH, reqEndM] = formattedEnd
+        .slice(0, 5)
+        .split(':')
+        .map(Number);
       const reqEndMinutes = reqEndH * 60 + reqEndM;
       if (reqEndMinutes <= currentMinutes) {
         return rooms.map((r) => ({

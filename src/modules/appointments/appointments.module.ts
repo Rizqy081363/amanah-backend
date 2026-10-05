@@ -4,6 +4,8 @@ import { AppointmentCallLifecycleService } from './application/appointment-call-
 import { AppointmentNotificationPublisher } from './application/appointment-notification.publisher';
 import { AppointmentsService } from './application/appointments.service';
 import { PatientAppointmentHistoryService } from './application/patient-appointment-history.service';
+import { AppointmentCandidateResolver } from './application/resolvers/appointment-candidate.resolver';
+import { AppointmentAssignmentService } from './application/services/appointment-assignment.service';
 import { AppointmentsNotificationRules } from './appointments.notifications';
 import { APPOINTMENT_CALL_REPOSITORY } from './domain/constants/appointment-lifecycle.constants';
 import { APPOINTMENT_REPOSITORY } from './domain/repositories/appointment.repository';
@@ -33,7 +35,15 @@ import { PatientAppointmentHistoryController } from './presentation/patient-appo
       provide: APPOINTMENT_CALL_REPOSITORY,
       useClass: AppointmentCallDrizzleRepository,
     },
+    {
+      provide: 'FIND_APPOINTMENT_BY_ID',
+      useFactory: (appointmentsService: AppointmentsService) => (id: string) =>
+        appointmentsService.findById(id),
+      inject: [AppointmentsService],
+    },
     AppointmentsService,
+    AppointmentCandidateResolver,
+    AppointmentAssignmentService,
     AppointmentEventsListener,
     AppointmentCallDrizzleRepository,
     AppointmentCallLifecycleService,
@@ -45,6 +55,8 @@ import { PatientAppointmentHistoryController } from './presentation/patient-appo
   exports: [
     APPOINTMENT_REPOSITORY,
     AppointmentsService,
+    AppointmentCandidateResolver,
+    AppointmentAssignmentService,
     AppointmentNotificationPublisher,
     AppointmentCallLifecycleService,
     PatientAppointmentHistoryService,

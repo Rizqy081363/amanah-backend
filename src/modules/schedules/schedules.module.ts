@@ -1,3 +1,4 @@
+import { RedisModule } from '@common/redis/redis.module';
 import { SCHEDULE_REPOSITORY } from '@modules/schedules/domain/repositories/schedule.repository';
 import { AppointmentOccupationQuery } from '@modules/schedules/infrastructure/drizzle/queries/appointment-occupation.query';
 import { ScheduleConflictQuery } from '@modules/schedules/infrastructure/drizzle/queries/schedule-conflict.query';
@@ -25,7 +26,6 @@ import { AdminDoctorSchedulesController } from '@modules/schedules/presentation/
 import { ClinicalPractitionersController } from '@modules/schedules/presentation/clinical-practitioners.controller';
 import { PatientScheduleBookingController } from '@modules/schedules/presentation/patient-schedule-booking.controller';
 import { SchedulesController } from '@modules/schedules/presentation/schedules.controller';
-import { RedisModule } from '@common/redis/redis.module';
 import { Module } from '@nestjs/common';
 
 @Module({

@@ -59,12 +59,12 @@ import {
   userRoles,
   users,
 } from './amanah.schema';
+import { childImmunizationEntries } from './immunization.schema';
 import {
   maternalAnamnesisResponses,
   maternalHealthConditionResponses,
   maternalHusbandProfiles,
 } from './maternal.schema';
-import { childImmunizationEntries } from './immunization.schema';
 
 export const userDevicesRelations = relations(userDevices, ({ one, many }) => ({
   user: one(users, {

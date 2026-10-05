@@ -280,7 +280,9 @@ export class DrizzleRescheduleEligibilityEvaluator {
                   eq(appointments.practitionerId, practitioner.id),
                   eq(appointments.scheduledDate, query.targetDate),
                   eq(appointments.scheduledStartTime, targetStartSec),
-                  inArray(appointments.status, [...ACTIVE_APPOINTMENT_STATUSES]),
+                  inArray(appointments.status, [
+                    ...ACTIVE_APPOINTMENT_STATUSES,
+                  ]),
                 ),
               });
             if (targetSlotOccupied) {

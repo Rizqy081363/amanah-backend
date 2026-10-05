@@ -13,11 +13,11 @@ import {
   SLOT_UI_STATUS,
   TEMPORAL_STATE,
 } from '@modules/schedules/domain/resolvers/schedule-slot-state.resolver';
+import { parseClockTime } from '@modules/schedules/domain/schedule-projection';
 import {
   resolveAggregateOperationalStatus,
   resolveSessionOperationalStatus,
 } from '@modules/schedules/domain/schedule-status';
-import { parseClockTime } from '@modules/schedules/domain/schedule-projection';
 
 export interface MonthlyScheduleBuildContext {
   targetYear: number;

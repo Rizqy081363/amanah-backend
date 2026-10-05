@@ -343,4 +343,55 @@ describe('AppointmentsNotificationRules', () => {
     expect(body).toContain('telah dipindahkan ke tanggal 2026-10-02');
     expect(body).toContain('Penyesuaian jadwal dokter di RSUD');
   });
+
+  it('should register appointment assignment updated rule notifying patient of doctor or room change', async () => {
+    const rule = registry.get(APPOINTMENT_EVENTS.ASSIGNMENT_UPDATED);
+    expect(rule).toBeDefined();
+    expect(rule?.category).toBe('appointment');
+
+    const doctorChangePayload = {
+      appointmentId: 'apt-789',
+      patientUserId: 'patient-789',
+      doctorName: 'dr. Ahmad Santoso',
+      changeType: 'doctor',
+      scheduledDate: '2026-10-05',
+      scheduledStartTime: '08:00:00',
+    };
+
+    const recipients = await rule?.resolveRecipients(doctorChangePayload);
+    expect(recipients).toEqual(['patient-789']);
+
+    const doctorTitle =
+      typeof rule?.titleTemplate === 'function'
+        ? rule.titleTemplate(doctorChangePayload)
+        : rule?.titleTemplate;
+    expect(doctorTitle).toBe('Perubahan Dokter Janji Temu');
+
+    const doctorBody =
+      typeof rule?.bodyTemplate === 'function'
+        ? rule.bodyTemplate(doctorChangePayload)
+        : rule?.bodyTemplate;
+    expect(doctorBody).toContain('dialihkan ke dr. Ahmad Santoso');
+
+    const roomChangePayload = {
+      appointmentId: 'apt-789',
+      patientUserId: 'patient-789',
+      roomName: 'Ruang Poli Umum 1',
+      changeType: 'room',
+      scheduledDate: '2026-10-05',
+      scheduledStartTime: '08:00:00',
+    };
+
+    const roomTitle =
+      typeof rule?.titleTemplate === 'function'
+        ? rule.titleTemplate(roomChangePayload)
+        : rule?.titleTemplate;
+    expect(roomTitle).toBe('Perubahan Ruangan Janji Temu');
+
+    const roomBody =
+      typeof rule?.bodyTemplate === 'function'
+        ? rule.bodyTemplate(roomChangePayload)
+        : rule?.bodyTemplate;
+    expect(roomBody).toContain('dialihkan ke Ruang Poli Umum 1');
+  });
 });

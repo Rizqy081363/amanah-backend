@@ -308,7 +308,10 @@ export class PatientAffiliationsController {
           dto.blood_type &&
           dto.blood_type !== 'Belum Tahu'
         ) {
-          const bloodTypeMap: Record<string, 'a' | 'b' | 'ab' | 'o' | 'unknown'> = {
+          const bloodTypeMap: Record<
+            string,
+            'a' | 'b' | 'ab' | 'o' | 'unknown'
+          > = {
             A: 'a',
             B: 'b',
             AB: 'ab',
@@ -326,7 +329,10 @@ export class PatientAffiliationsController {
         if (!existingPatient.birthPlace && dto.tempat_lahir) {
           updates.birthPlace = dto.tempat_lahir.trim();
         }
-        if (dto.phone?.trim() && dto.phone.trim() !== existingPatient.phoneNumber) {
+        if (
+          dto.phone?.trim() &&
+          dto.phone.trim() !== existingPatient.phoneNumber
+        ) {
           updates.phone = dto.phone.trim();
         }
         if (dto.email?.trim() && dto.email.trim() !== existingPatient.email) {

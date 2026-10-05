@@ -278,5 +278,47 @@ export class AppointmentsNotificationRules implements OnModuleInit {
         },
       ],
     });
+
+    // 7. Appointment Assignment Updated Rule (Doctor or Room changed by Admin)
+    this.registry.registerRule({
+      eventType: APPOINTMENT_EVENTS.ASSIGNMENT_UPDATED,
+      category: 'appointment',
+      defaultChannels: ['in_app'],
+      resolveRecipients: (payload: any) => {
+        return payload.patientUserId ? [payload.patientUserId] : [];
+      },
+      titleTemplate: (payload: any) =>
+        payload.title ||
+        (payload.changeType === 'doctor'
+          ? 'Perubahan Dokter Janji Temu'
+          : 'Perubahan Ruangan Janji Temu'),
+      bodyTemplate: (payload: any) => {
+        if (payload.message) return payload.message;
+        const timeInfo = payload.scheduledStartTime
+          ? `${payload.scheduledStartTime.slice(0, 5)} WIB`
+          : '';
+        if (payload.changeType === 'doctor') {
+          return `Dokter janji temu Anda (${payload.scheduledDate} ${timeInfo}) telah dialihkan ke ${payload.doctorName || 'dokter baru'}.`;
+        }
+        return `Ruangan janji temu Anda (${payload.scheduledDate} ${timeInfo}) telah dialihkan ke ${payload.roomName || 'ruangan baru'}.`;
+      },
+      senderName: 'Klinik Amanah',
+      senderRole: 'Admin',
+      visualKey: (payload: any) => payload.doctorAvatarUrl || null,
+      isUrgent: false,
+      badgeIcon: 'stethoscope',
+      resolveSource: (payload: any) => ({
+        sourceType: 'appointment',
+        sourceId: payload.appointmentId,
+      }),
+      resolveActions: (payload: any) => [
+        {
+          label: 'Lihat Antrean',
+          actionKey: 'view_appointment',
+          actionType: 'primary',
+          url: `/dashboard/appointments/${payload.appointmentId}`,
+        },
+      ],
+    });
   }
 }
