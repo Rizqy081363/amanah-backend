@@ -16,6 +16,8 @@ describe('SocketIoRealtimeGateway', () => {
   let mockConfigService: any;
   let mockServer: any;
 
+  let mockTicketService: any;
+
   beforeEach(() => {
     mockJwtService = {
       verifyAsync: mock(),
@@ -29,11 +31,15 @@ describe('SocketIoRealtimeGateway', () => {
       })),
       adapter: mock(),
     };
+    mockTicketService = {
+      consumeTicket: mock().mockResolvedValue(null),
+    };
 
     gateway = new SocketIoRealtimeGateway(
       mockJwtService,
       mockConfigService,
       undefined,
+      mockTicketService,
     );
     gateway.afterInit(mockServer);
   });
@@ -227,4 +233,57 @@ describe('SocketIoRealtimeGateway', () => {
     expect(mockSocket.join).toHaveBeenCalledWith('role:staff_doctor');
     expect(gateway.isUserOnline('better-auth-user-999')).toBe(true);
   });
+
+  it('should authenticate user and join rooms via valid realtime ticket', async () => {
+    mockTicketService.consumeTicket.mockResolvedValueOnce({
+      userId: 'ticket-user-456',
+      role: 'staff_midwife',
+    });
+
+    const mockSocket: any = {
+      id: 'socket-ticket-1',
+      handshake: {
+        auth: { ticket: 'valid-csprng-ticket' },
+        headers: {},
+        query: {},
+      },
+      disconnect: mock(),
+      join: mock(),
+      data: {},
+    };
+
+    await gateway.handleConnection(mockSocket);
+
+    expect(mockSocket.disconnect).not.toHaveBeenCalled();
+    expect(mockSocket.join).toHaveBeenCalledWith('user:ticket-user-456');
+    expect(mockSocket.join).toHaveBeenCalledWith('role:staff_midwife');
+    expect(gateway.isUserOnline('ticket-user-456')).toBe(true);
+  });
+
+  it('should reject connection if realtime ticket is invalid or expired', async () => {
+    mockTicketService.consumeTicket.mockResolvedValueOnce(null);
+
+    const mockSocket: any = {
+      id: 'socket-ticket-invalid',
+      handshake: {
+        auth: { ticket: 'invalid-or-consumed-ticket' },
+        headers: {},
+        query: {},
+      },
+      disconnect: mock(),
+      join: mock(),
+      emit: mock(),
+      data: {},
+    };
+
+    await gateway.handleConnection(mockSocket);
+
+    expect(mockSocket.disconnect).toHaveBeenCalledWith(true);
+    expect(mockSocket.emit).toHaveBeenCalledWith('connect_error', {
+      message: 'AUTH_TICKET_INVALID',
+      code: 'AUTH_TICKET_INVALID',
+    });
+    expect(gateway.isUserOnline('ticket-user-456')).toBe(false);
+  });
 });
+

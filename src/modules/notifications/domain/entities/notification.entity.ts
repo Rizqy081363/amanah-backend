@@ -23,6 +23,7 @@ export class NotificationRecipientEntity {
 export class NotificationEntity {
   id: string;
   category: string;
+  audience?: 'patient' | 'clinic' | string | null;
   title?: string | null;
   senderName?: string | null;
   senderRole?: string | null;

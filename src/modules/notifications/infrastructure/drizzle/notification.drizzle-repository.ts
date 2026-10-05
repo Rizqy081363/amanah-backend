@@ -286,6 +286,7 @@ export class NotificationDrizzleRepository implements NotificationRepository {
   async createIfNotExists(data: {
     idempotencyKey?: string;
     category: string;
+    audience?: 'patient' | 'clinic' | string;
     title?: string | null;
     body: string;
     senderName?: string | null;
@@ -344,6 +345,7 @@ export class NotificationDrizzleRepository implements NotificationRepository {
       const insertQuery = this.db.insert(notifications).values({
         idempotencyKey: data.idempotencyKey ?? null,
         category: dbCategory,
+        audience: data.audience ?? 'clinic',
         title: data.title ?? null,
         body: data.body,
         senderName: data.senderName ?? null,
@@ -408,6 +410,7 @@ export class NotificationDrizzleRepository implements NotificationRepository {
       return {
         id: notif.id,
         category: notif.category,
+        audience: notif.audience as any,
         title: notif.title,
         body: notif.body,
         isUrgent: notif.isUrgent,

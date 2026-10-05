@@ -62,6 +62,7 @@ export abstract class NotificationRepository {
   abstract createIfNotExists(data: {
     idempotencyKey?: string;
     category: string;
+    audience?: 'patient' | 'clinic' | string;
     title?: string | null;
     body: string;
     senderName?: string | null;

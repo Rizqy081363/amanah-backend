@@ -81,7 +81,7 @@ describe('allocateSlotTiming', () => {
   });
 
   it('should allocate from session start for future dates', () => {
-    const result = allocateSlotTiming('18:00', '24:00', [], 30, '2026-10-05');
+    const result = allocateSlotTiming('18:00', '24:00', [], 30, '2099-12-31');
     expect(result).not.toBeNull();
     expect(result!.startTime).toBe('18:00:00');
     expect(result!.endTime).toBe('18:30:00');

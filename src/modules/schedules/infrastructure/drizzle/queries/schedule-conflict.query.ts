@@ -2,6 +2,7 @@ import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import { practitionerScheduleSessions } from '@database/schema';
 import { ConflictException, Inject, Injectable } from '@nestjs/common';
+import { SchedulePersistenceStatus } from '@modules/schedules/domain/schedule-status';
 import { and, eq, not } from 'drizzle-orm';
 
 const toClockSeconds = (time: string): string =>
@@ -54,6 +55,7 @@ export class ScheduleConflictQuery {
     const doctorConditions = [
       eq(practitionerScheduleSessions.practitionerId, practitionerId),
       eq(practitionerScheduleSessions.scheduleDate, scheduleDate),
+      eq(practitionerScheduleSessions.status, SchedulePersistenceStatus.OPEN),
     ];
     if (excludeSessionId) {
       doctorConditions.push(
@@ -98,6 +100,7 @@ export class ScheduleConflictQuery {
       const roomConditions = [
         eq(practitionerScheduleSessions.roomId, roomId),
         eq(practitionerScheduleSessions.scheduleDate, scheduleDate),
+        eq(practitionerScheduleSessions.status, SchedulePersistenceStatus.OPEN),
       ];
       if (excludeSessionId) {
         roomConditions.push(

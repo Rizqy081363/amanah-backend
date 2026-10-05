@@ -4,7 +4,6 @@ import {
   clinicRooms,
   clinicUnits,
   medicalSpecialties,
-  practitionerScheduleSessions,
 } from '@database/schema';
 import { SCHEDULE_CONTEXT_DEFINITIONS } from '@modules/schedules/domain/constants/schedule-context.constants';
 import {
@@ -12,11 +11,9 @@ import {
   ScheduleOperationalStatus,
   type ScheduleOptionsReferenceEntity,
 } from '@modules/schedules/domain/entities/schedule.entity';
-import { SchedulePersistenceStatus } from '@modules/schedules/domain/schedule-status';
-import { getClinicNow } from '@modules/schedules/domain/services/schedule-date.formatter';
 import { SchedulePolicyReader } from '@modules/schedules/infrastructure/drizzle/queries/schedule-policy.reader';
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, eq } from 'drizzle-orm';
+import { asc, eq } from 'drizzle-orm';
 
 @Injectable()
 export class DrizzleScheduleReferenceRepository {
@@ -27,159 +24,26 @@ export class DrizzleScheduleReferenceRepository {
   ) {}
 
   async getRooms(
-    date?: string,
-    startTime?: string,
-    endTime?: string,
-    excludePractitionerId?: string,
+    _date?: string,
+    _startTime?: string,
+    _endTime?: string,
+    _excludePractitionerId?: string,
   ): Promise<ClinicRoomReferenceEntity[]> {
     const rooms = await this.db.query.clinicRooms.findMany({
       where: eq(clinicRooms.isActive, true),
       orderBy: [asc(clinicRooms.floor), asc(clinicRooms.name)],
     });
 
-    if (!date || !startTime || !endTime) {
-      return rooms.map((r) => ({
-        id: r.id,
-        code: r.code,
-        name: r.name,
-        location: r.location,
-        floor: r.floor,
-        isOccupied: false,
-        occupiedBy: null,
-        occupantDetails: null,
-      }));
-    }
-
-    const formattedStart =
-      startTime.length === 5 ? `${startTime}:00` : startTime;
-    const formattedEnd = endTime.length === 5 ? `${endTime}:00` : endTime;
-
-    const { date: todayDate, currentMinutes } = getClinicNow();
-    const isPastDate = date < todayDate;
-
-    if (isPastDate) {
-      return rooms.map((r) => ({
-        id: r.id,
-        code: r.code,
-        name: r.name,
-        location: r.location,
-        floor: r.floor,
-        isOccupied: false,
-        occupiedBy: null,
-        occupantDetails: null,
-      }));
-    }
-
-    if (date === todayDate) {
-      const [reqEndH, reqEndM] = formattedEnd
-        .slice(0, 5)
-        .split(':')
-        .map(Number);
-      const reqEndMinutes = reqEndH * 60 + reqEndM;
-      if (reqEndMinutes <= currentMinutes) {
-        return rooms.map((r) => ({
-          id: r.id,
-          code: r.code,
-          name: r.name,
-          location: r.location,
-          floor: r.floor,
-          isOccupied: false,
-          occupiedBy: null,
-          occupantDetails: null,
-        }));
-      }
-    }
-
-    const sessions = await this.db.query.practitionerScheduleSessions.findMany({
-      where: and(
-        eq(practitionerScheduleSessions.scheduleDate, date),
-        eq(practitionerScheduleSessions.status, SchedulePersistenceStatus.OPEN),
-      ),
-      with: {
-        practitioner: {
-          with: {
-            staffProfile: {
-              with: {
-                clinicUnit: true,
-              },
-            },
-            medicalSpecialty: true,
-          },
-        },
-        clinicRoom: true,
-      },
-    });
-
-    return rooms.map((r) => {
-      const activeSession = sessions.find((s) => {
-        if (s.roomId !== r.id) return false;
-        if (
-          excludePractitionerId &&
-          (s.practitionerId === excludePractitionerId ||
-            s.practitioner?.staffProfileId === excludePractitionerId)
-        ) {
-          return false;
-        }
-        const sessStart =
-          s.startTime.length === 5 ? `${s.startTime}:00` : s.startTime;
-        const sessEnd = s.endTime.length === 5 ? `${s.endTime}:00` : s.endTime;
-
-        if (date === todayDate) {
-          const [endH, endM] = sessEnd.slice(0, 5).split(':').map(Number);
-          const sessEndMinutes = endH * 60 + endM;
-          if (sessEndMinutes <= currentMinutes) {
-            return false;
-          }
-        }
-
-        return formattedStart < sessEnd && formattedEnd > sessStart;
-      });
-
-      if (activeSession) {
-        const docName =
-          activeSession.practitioner?.staffProfile?.fullName ||
-          activeSession.practitioner?.displayName ||
-          'Dokter';
-        const specialty =
-          activeSession.practitioner?.medicalSpecialty?.name ||
-          activeSession.practitioner?.staffProfile?.positionTitle ||
-          activeSession.practitioner?.staffProfile?.departmentName ||
-          'Spesialis';
-        const unitName =
-          activeSession.practitioner?.staffProfile?.clinicUnit?.name || null;
-        const range = `${activeSession.startTime.slice(0, 5)} - ${activeSession.endTime.slice(0, 5)} WIB`;
-        return {
-          id: r.id,
-          code: r.code,
-          name: r.name,
-          location: r.location,
-          floor: r.floor,
-          isOccupied: true,
-          occupiedBy: `${docName} (${range})`,
-          occupantDetails: {
-            practitionerId: activeSession.practitionerId,
-            staffProfileId: activeSession.practitioner?.staffProfileId || null,
-            practitionerName: docName,
-            specialty,
-            unitName,
-            startTime: activeSession.startTime.slice(0, 5),
-            endTime: activeSession.endTime.slice(0, 5),
-            roomName: r.name,
-          },
-        };
-      }
-
-      return {
-        id: r.id,
-        code: r.code,
-        name: r.name,
-        location: r.location,
-        floor: r.floor,
-        isOccupied: false,
-        occupiedBy: null,
-        occupantDetails: null,
-      };
-    });
+    return rooms.map((r) => ({
+      id: r.id,
+      code: r.code,
+      name: r.name,
+      location: r.location,
+      floor: r.floor,
+      isOccupied: false,
+      occupiedBy: null,
+      occupantDetails: null,
+    }));
   }
 
   async getPolikliniks(): Promise<

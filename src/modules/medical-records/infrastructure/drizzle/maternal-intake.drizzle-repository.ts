@@ -112,10 +112,15 @@ export class MaternalIntakeDrizzleRepository {
         gestationalAgeAtSubmit: obstetricData?.gestationalAgeFormatted ?? '',
       };
 
+      const safeAppointmentId =
+        dto.appointmentId && dto.appointmentId.trim()
+          ? dto.appointmentId.trim()
+          : null;
+
       const [submission] = await tx
         .insert(medicalIntakeSubmissions)
         .values({
-          appointmentId: dto.appointmentId || null,
+          appointmentId: safeAppointmentId,
           patientId: dto.patientId,
           flow: 'pregnancy',
           schemaVersion: 'v2',
@@ -132,7 +137,7 @@ export class MaternalIntakeDrizzleRepository {
         .values({
           intakeSubmissionId: submission.id,
           patientId: dto.patientId,
-          appointmentId: dto.appointmentId || null,
+          appointmentId: safeAppointmentId,
           motherNik: targetMotherNik || '',
           motherName: targetMotherName || '',
           motherBirthDate: targetMotherBirthDate || null,

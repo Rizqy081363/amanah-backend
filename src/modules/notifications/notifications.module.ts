@@ -16,13 +16,16 @@ import {
   REALTIME_GATEWAY_PORT,
 } from './notifications.constants';
 import { NotificationsController } from './presentation/notifications.controller';
+import { RealtimeTicketController } from './presentation/realtime-ticket.controller';
+import { RealtimeTicketService } from './application/services/realtime-ticket.service';
 import { NotificationRulesRegistry } from './registry/notification-rules-registry';
 
 @Global()
 @Module({
   imports: [DrizzleModule, ConfigModule, JwtModule.register({})],
-  controllers: [NotificationsController],
+  controllers: [NotificationsController, RealtimeTicketController],
   providers: [
+    RealtimeTicketService,
     {
       provide: NOTIFICATION_REPOSITORY,
       useClass: NotificationDrizzleRepository,
@@ -59,6 +62,7 @@ import { NotificationRulesRegistry } from './registry/notification-rules-registr
     NOTIFICATION_RULES_REGISTRY,
     NotificationRulesRegistry,
     NotificationOrchestratorService,
+    RealtimeTicketService,
   ],
 })
 export class NotificationsModule {}

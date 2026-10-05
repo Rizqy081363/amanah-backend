@@ -25,7 +25,7 @@ export const maternalHusbandProfiles = pgTable(
     age: integer('age'),
     job: varchar('job', { length: 128 }),
     education: varchar('education', { length: 64 }),
-    bloodType: varchar('blood_type', { length: 8 }),
+    bloodType: varchar('blood_type', { length: 32 }),
     phoneNumber: varchar('phone_number', { length: 32 }),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()

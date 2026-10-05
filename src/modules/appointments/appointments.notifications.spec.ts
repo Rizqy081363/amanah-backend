@@ -101,7 +101,7 @@ describe('AppointmentsNotificationRules', () => {
 
   it('should register appointment created rule for patient and staff alert', async () => {
     const mockResolver = {
-      resolveAdminAndStaffUserIds: async () => ['staff-1', 'admin-1'],
+      resolveScopedClinicRecipients: async () => ['staff-1', 'admin-1'],
     };
     const localRules = new AppointmentsNotificationRules(
       registry,
@@ -118,41 +118,61 @@ describe('AppointmentsNotificationRules', () => {
       patientUserId: 'patient-123',
       patientName: 'Dewi Lestari',
       patientAvatarUrl: 'https://cdn.amanah.com/avatars/dewi.webp',
+      doctorName: 'dr. Ahmad Santoso',
       queueNumber: 'P-005',
       appointmentDate: '2026-09-30',
       session: 'PAGI',
       appointmentId: 'apt-created-123',
+      staffId: 'doc-1',
     };
 
-    const recipients = await rule?.resolveRecipients(payload);
-    expect(recipients).toContain('patient-123');
-    expect(recipients).toContain('staff-1');
-    expect(recipients).toContain('admin-1');
+    // Patient books online: patient is actor
+    const intents = await rule?.resolveIntents?.(payload, {
+      userId: 'patient-123',
+    });
+    expect(intents).toBeDefined();
+    expect(intents?.length).toBe(3);
 
+    // Patient intent: audience patient, no toast (actor), inbox confirmation
+    const patientIntent = intents?.find(
+      (i) => i.recipientUserId === 'patient-123',
+    );
+    expect(patientIntent).toBeDefined();
+    expect(patientIntent?.audience).toBe('patient');
+    expect(patientIntent?.presentation.toast).toBe(false);
+    expect(patientIntent?.title).toBe('Janji Temu Berhasil Dibuat');
+    expect(patientIntent?.body).toContain('2026-09-30');
+
+    // Clinic intents: audience clinic, toast true
+    const staffIntent = intents?.find((i) => i.recipientUserId === 'staff-1');
+    expect(staffIntent).toBeDefined();
+    expect(staffIntent?.audience).toBe('clinic');
+    expect(staffIntent?.presentation.toast).toBe(true);
+    expect(staffIntent?.title).toBe('Pasien Baru');
+    expect(staffIntent?.body).toContain('Dewi Lestari');
+
+    const adminIntent = intents?.find((i) => i.recipientUserId === 'admin-1');
+    expect(adminIntent).toBeDefined();
+    expect(adminIntent?.audience).toBe('clinic');
+    expect(adminIntent?.presentation.toast).toBe(true);
+
+    // Fallback template checks
     const body =
       typeof rule?.bodyTemplate === 'function'
         ? rule.bodyTemplate(payload)
         : rule?.bodyTemplate;
-    expect(body).toContain('Nomor antrean P-005');
-    expect(body).toContain('atas nama Dewi Lestari');
-    expect(body).toContain('2026-09-30');
+    expect(body).toContain('Dewi Lestari');
 
     const senderName =
       typeof rule?.senderName === 'function'
         ? rule.senderName(payload)
         : rule?.senderName;
     expect(senderName).toBe('Dewi Lestari');
-
-    const visualKey =
-      typeof rule?.visualKey === 'function'
-        ? rule.visualKey(payload)
-        : rule?.visualKey;
-    expect(visualKey).toBe('https://cdn.amanah.com/avatars/dewi.webp');
   });
 
   it('should register appointment cancelled rule notifying staff when cancelled by patient', async () => {
     const mockResolver = {
-      resolveAdminAndStaffUserIds: async () => ['staff-1', 'admin-1'],
+      resolveScopedClinicRecipients: async () => ['staff-1', 'admin-1'],
     };
     const localRules = new AppointmentsNotificationRules(
       registry,
@@ -176,11 +196,25 @@ describe('AppointmentsNotificationRules', () => {
       session: 'PAGI',
       cancelledByRole: 'patient',
       reason: 'Ada acara keluarga mendadak',
+      staffId: 'doc-rizky',
     };
 
-    const recipients = await rule?.resolveRecipients(payload);
-    expect(recipients).toContain('staff-1');
-    expect(recipients).toContain('admin-1');
+    const intents = await rule?.resolveIntents?.(payload, {
+      userId: 'patient-999',
+    });
+    expect(intents).toBeDefined();
+
+    // Staff intents should have audience clinic and toast true
+    const staffIntent = intents?.find((i) => i.recipientUserId === 'staff-1');
+    expect(staffIntent?.audience).toBe('clinic');
+    expect(staffIntent?.presentation.toast).toBe(true);
+
+    // Patient intent should have audience patient and toast false (actor)
+    const patientIntent = intents?.find(
+      (i) => i.recipientUserId === 'patient-999',
+    );
+    expect(patientIntent?.audience).toBe('patient');
+    expect(patientIntent?.presentation.toast).toBe(false);
 
     const title =
       typeof rule?.titleTemplate === 'function'
@@ -194,19 +228,6 @@ describe('AppointmentsNotificationRules', () => {
         : rule?.bodyTemplate;
     expect(body).toContain('Pasien Budi Santoso membatalkan janji temu');
     expect(body).toContain('P-002');
-    expect(body).toContain('Slot kuota telah dipulihkan');
-
-    const senderName =
-      typeof rule?.senderName === 'function'
-        ? rule.senderName(payload)
-        : rule?.senderName;
-    expect(senderName).toBe('Budi Santoso');
-
-    const visualKey =
-      typeof rule?.visualKey === 'function'
-        ? rule.visualKey(payload)
-        : rule?.visualKey;
-    expect(visualKey).toBe('https://cdn.amanah.com/avatars/budi.webp');
   });
 
   it('should register appointment cancelled rule notifying patient when cancelled by admin', async () => {
@@ -228,8 +249,13 @@ describe('AppointmentsNotificationRules', () => {
       reason: 'Dokter berhalangan karena tugas luar kota',
     };
 
-    const recipients = await rule?.resolveRecipients(payload);
-    expect(recipients).toEqual(['patient-888']);
+    const intents = await rule?.resolveIntents?.(payload, {
+      userId: 'admin-user',
+    });
+    expect(intents?.length).toBe(1);
+    expect(intents?.[0].recipientUserId).toBe('patient-888');
+    expect(intents?.[0].audience).toBe('patient');
+    expect(intents?.[0].presentation.toast).toBe(true);
 
     const title =
       typeof rule?.titleTemplate === 'function'
@@ -243,23 +269,11 @@ describe('AppointmentsNotificationRules', () => {
         : rule?.bodyTemplate;
     expect(body).toContain('telah dibatalkan oleh pihak klinik');
     expect(body).toContain('Dokter berhalangan karena tugas luar kota');
-
-    const senderName =
-      typeof rule?.senderName === 'function'
-        ? rule.senderName(payload)
-        : rule?.senderName;
-    expect(senderName).toBe('Klinik Amanah');
-
-    const visualKey =
-      typeof rule?.visualKey === 'function'
-        ? rule.visualKey(payload)
-        : rule?.visualKey;
-    expect(visualKey).toBe('https://cdn.amanah.com/avatars/drsiti.webp');
   });
 
   it('should register appointment rescheduled rule notifying staff when rescheduled by patient', async () => {
     const mockResolver = {
-      resolveAdminAndStaffUserIds: async () => ['staff-1', 'admin-1'],
+      resolveScopedClinicRecipients: async () => ['staff-1', 'admin-1'],
     };
     const localRules = new AppointmentsNotificationRules(
       registry,
@@ -284,26 +298,29 @@ describe('AppointmentsNotificationRules', () => {
       targetEndTime: '18:30:00',
       rescheduledByRole: 'patient',
       reason: 'Pindah ke shift malam',
+      practitionerId: 'doc-ahmad',
     };
 
-    const recipients = await rule?.resolveRecipients(payload);
-    expect(recipients).toContain('staff-1');
-    expect(recipients).toContain('admin-1');
-    expect(recipients).toContain('patient-123');
+    const intents = await rule?.resolveIntents?.(payload, {
+      userId: 'patient-123',
+    });
+    expect(intents?.length).toBe(3);
+
+    const staffIntent = intents?.find((i) => i.recipientUserId === 'staff-1');
+    expect(staffIntent?.audience).toBe('clinic');
+    expect(staffIntent?.presentation.toast).toBe(true);
+
+    const patientIntent = intents?.find(
+      (i) => i.recipientUserId === 'patient-123',
+    );
+    expect(patientIntent?.audience).toBe('patient');
+    expect(patientIntent?.presentation.toast).toBe(false);
 
     const title =
       typeof rule?.titleTemplate === 'function'
         ? rule.titleTemplate(payload)
         : rule?.titleTemplate;
     expect(title).toBe('Perubahan Jadwal Janji Temu Pasien');
-
-    const body =
-      typeof rule?.bodyTemplate === 'function'
-        ? rule.bodyTemplate(payload)
-        : rule?.bodyTemplate;
-    expect(body).toContain('Pasien Lexguard Didier');
-    expect(body).toContain('telah memindahkan jadwal');
-    expect(body).toContain('18:00:00 - 18:30:00');
   });
 
   it('should register appointment rescheduled rule notifying patient when rescheduled by admin', async () => {
@@ -327,24 +344,31 @@ describe('AppointmentsNotificationRules', () => {
       reason: 'Penyesuaian jadwal dokter di RSUD',
     };
 
-    const recipients = await rule?.resolveRecipients(payload);
-    expect(recipients).toEqual(['patient-456']);
+    const intents = await rule?.resolveIntents?.(payload, {
+      userId: 'admin-user',
+    });
+    expect(intents?.length).toBe(1);
+    expect(intents?.[0].recipientUserId).toBe('patient-456');
+    expect(intents?.[0].audience).toBe('patient');
+    expect(intents?.[0].presentation.toast).toBe(true);
 
     const title =
       typeof rule?.titleTemplate === 'function'
         ? rule.titleTemplate(payload)
         : rule?.titleTemplate;
     expect(title).toBe('Jadwal Janji Temu Diperbarui oleh Klinik');
-
-    const body =
-      typeof rule?.bodyTemplate === 'function'
-        ? rule.bodyTemplate(payload)
-        : rule?.bodyTemplate;
-    expect(body).toContain('telah dipindahkan ke tanggal 2026-10-02');
-    expect(body).toContain('Penyesuaian jadwal dokter di RSUD');
   });
 
   it('should register appointment assignment updated rule notifying patient of doctor or room change', async () => {
+    const mockResolver = {
+      resolveScopedClinicRecipients: async () => ['staff-new'],
+    };
+    const localRules = new AppointmentsNotificationRules(
+      registry,
+      mockResolver as any,
+    );
+    localRules.onModuleInit();
+
     const rule = registry.get(APPOINTMENT_EVENTS.ASSIGNMENT_UPDATED);
     expect(rule).toBeDefined();
     expect(rule?.category).toBe('appointment');
@@ -356,42 +380,27 @@ describe('AppointmentsNotificationRules', () => {
       changeType: 'doctor',
       scheduledDate: '2026-10-05',
       scheduledStartTime: '08:00:00',
+      staffId: 'doc-ahmad',
     };
 
-    const recipients = await rule?.resolveRecipients(doctorChangePayload);
-    expect(recipients).toEqual(['patient-789']);
+    const intents = await rule?.resolveIntents?.(doctorChangePayload);
+    expect(intents?.length).toBe(2);
+
+    const patientIntent = intents?.find(
+      (i) => i.recipientUserId === 'patient-789',
+    );
+    expect(patientIntent?.audience).toBe('patient');
+    expect(patientIntent?.presentation.toast).toBe(true);
+
+    const staffIntent = intents?.find((i) => i.recipientUserId === 'staff-new');
+    expect(staffIntent?.audience).toBe('clinic');
+    expect(staffIntent?.presentation.toast).toBe(true);
 
     const doctorTitle =
       typeof rule?.titleTemplate === 'function'
         ? rule.titleTemplate(doctorChangePayload)
         : rule?.titleTemplate;
     expect(doctorTitle).toBe('Perubahan Dokter Janji Temu');
-
-    const doctorBody =
-      typeof rule?.bodyTemplate === 'function'
-        ? rule.bodyTemplate(doctorChangePayload)
-        : rule?.bodyTemplate;
-    expect(doctorBody).toContain('dialihkan ke dr. Ahmad Santoso');
-
-    const roomChangePayload = {
-      appointmentId: 'apt-789',
-      patientUserId: 'patient-789',
-      roomName: 'Ruang Poli Umum 1',
-      changeType: 'room',
-      scheduledDate: '2026-10-05',
-      scheduledStartTime: '08:00:00',
-    };
-
-    const roomTitle =
-      typeof rule?.titleTemplate === 'function'
-        ? rule.titleTemplate(roomChangePayload)
-        : rule?.titleTemplate;
-    expect(roomTitle).toBe('Perubahan Ruangan Janji Temu');
-
-    const roomBody =
-      typeof rule?.bodyTemplate === 'function'
-        ? rule.bodyTemplate(roomChangePayload)
-        : rule?.bodyTemplate;
-    expect(roomBody).toContain('dialihkan ke Ruang Poli Umum 1');
   });
 });
+

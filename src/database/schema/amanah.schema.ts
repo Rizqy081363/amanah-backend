@@ -2141,6 +2141,7 @@ export const notifications = pgTable(
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
     category: notificationCategory().notNull(),
+    audience: text('audience').default('clinic'),
     title: text(),
     senderName: text('sender_name'),
     senderRole: text('sender_role'),
@@ -3193,7 +3194,7 @@ export const maternalHealthIntakes = pgTable(
     partnerAge: integer('partner_age'),
     partnerJob: varchar('partner_job', { length: 128 }),
     partnerEducation: varchar('partner_education', { length: 64 }),
-    partnerBloodType: varchar('partner_blood_type', { length: 8 }),
+    partnerBloodType: varchar('partner_blood_type', { length: 32 }),
     heightCm: numeric('height_cm', { precision: 5, scale: 2 }),
     prePregnancyWeightKg: numeric('pre_pregnancy_weight_kg', {
       precision: 5,
@@ -3205,7 +3206,7 @@ export const maternalHealthIntakes = pgTable(
     }),
     initialBmi: numeric('initial_bmi', { precision: 4, scale: 1 }),
     tetanusStatus: varchar('tetanus_status', { length: 32 }),
-    motherBloodType: varchar('mother_blood_type', { length: 8 }),
+    motherBloodType: varchar('mother_blood_type', { length: 32 }),
     hpht: date('hpht'),
     estimatedDueDate: date('estimated_due_date'),
     gestationalAgeWeeks: numeric('gestational_age_weeks', {

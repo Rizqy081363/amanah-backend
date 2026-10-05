@@ -37,7 +37,13 @@ describe('InAppDeliveryChannel', () => {
     expect(mockRealtimeGateway.emitToUser).toHaveBeenCalledWith(
       'user-patient-1',
       REALTIME_EVENTS.NOTIFICATION_NEW,
-      notification,
+      expect.objectContaining({
+        schemaVersion: 2,
+        id: 'notif-1',
+        recipientUserId: 'user-patient-1',
+        title: 'Antrian Dipanggil',
+        body: 'Silakan menuju Poli Umum.',
+      }),
     );
   });
 

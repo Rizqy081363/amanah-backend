@@ -38,3 +38,30 @@ export const REALTIME_ROOMS = {
   user: (userId: string) => `user:${userId}`,
   role: (roleName: string) => `role:${roleName.toLowerCase()}`,
 } as const;
+
+export interface NotificationEnvelopeV2 {
+  schemaVersion: 2;
+  id: string;
+  eventId: string;
+  correlationId?: string;
+  audience: 'patient' | 'clinic';
+  recipientUserId: string;
+  type: string;
+  title: string;
+  body: string;
+  severity: 'info' | 'success' | 'warning' | 'error';
+  action?: { type: string; params: Record<string, string>; label?: string };
+  actions?: Array<{
+    label: string;
+    actionKey: string;
+    actionType?: string | null;
+    url?: string | null;
+  }>;
+  presentation: { toast: boolean };
+  createdAt: string;
+  badgeIcon?: string | null;
+  metaIcon?: string | null;
+  visualKey?: string | null;
+  senderName?: string | null;
+  senderRole?: string | null;
+}
