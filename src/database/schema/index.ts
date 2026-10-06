@@ -6,3 +6,4 @@ export * from './immunization.schema';
 export * from './maternal.relations';
 export * from './maternal.schema';
 export * from './outbox.schema';
+export * from './push-subscriptions.schema';

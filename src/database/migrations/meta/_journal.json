@@ -134,6 +134,13 @@
       "when": 1791080000000,
       "tag": "0018_appointment_queue_hardening",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1791100000000,
+      "tag": "0019_push_subscriptions",
+      "breakpoints": true
     }
   ]
 }

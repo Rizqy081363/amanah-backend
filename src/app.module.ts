@@ -1,13 +1,13 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
-// Feature modules
 import { AuthModule } from './auth/auth.module';
 import authConfig from './auth/config/auth.config';
 import cacheConfig from './cache/cache.config';
 import { LoggingModule } from './common/logging/logging.module';
 import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
 import { OutboxModule } from './common/outbox/outbox.module';
+import { RabbitMQModule } from './common/rabbitmq/rabbitmq.module';
 import { RedisModule } from './common/redis/redis.module';
 import appConfig from './config/app.config';
 import realtimeConfig from './config/realtime.config';
@@ -51,6 +51,7 @@ import { SupportTicketsModule } from './modules/support-tickets/support-tickets.
     }),
     DrizzleModule,
     RedisModule,
+    RabbitMQModule,
     LoggingModule,
     OutboxModule,
     NotificationsModule,

@@ -1,6 +1,5 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
-import { SocketIoRealtimeGateway } from '../../../../modules/notifications/infrastructure/realtime/socket-io-realtime.gateway';
-import { REALTIME_GATEWAY_PORT } from '../../../../modules/notifications/notifications.constants';
+import { Injectable, Logger } from '@nestjs/common';
+import { NotificationGatewayService } from '../../../../modules/notifications/application/services/notification-gateway.service';
 import type {
   PushNotificationPayload,
   PushNotificationPort,
@@ -11,24 +10,33 @@ export class AppointmentPushAdapter implements PushNotificationPort {
   private readonly logger = new Logger(AppointmentPushAdapter.name);
 
   constructor(
-    @Inject(REALTIME_GATEWAY_PORT)
-    private readonly realtimeGateway: SocketIoRealtimeGateway,
+    private readonly notificationGateway: NotificationGatewayService,
   ) {}
 
   async sendPush(payload: PushNotificationPayload): Promise<void> {
     try {
-      await this.realtimeGateway.emitToUser(
-        payload.userId,
-        'notification.patient_called',
-        {
+      await this.notificationGateway.dispatch({
+        commandId: `apt-call-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+        sourceDomain: 'appointments',
+        target: {
+          type: 'user',
+          recipientUserIds: [payload.userId],
+        },
+        category: 'appointment',
+        content: {
           title: payload.title,
           body: payload.body,
+          actionUrl: `/dashboard/klinik/antrean?appointmentId=${payload.data?.appointmentId || ''}`,
           data: payload.data,
-          timestamp: new Date().toISOString(),
         },
-      );
+        channels: ['push', 'in_app'],
+        priority: 'high',
+        vibrationPattern: [300, 100, 300, 100, 300],
+      });
     } catch (err: any) {
-      this.logger.warn(`Failed to dispatch push notification: ${err.message}`);
+      this.logger.warn(
+        `Failed to dispatch push notification: ${String(err?.message || err)}`,
+      );
     }
   }
 }
