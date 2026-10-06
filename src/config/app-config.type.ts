@@ -14,4 +14,5 @@ export type AppConfig = {
   httpLogResponseBody: boolean;
   httpLogMaxBodyLength: number;
   trustProxy: boolean | string;
+  timezone: string;
 };

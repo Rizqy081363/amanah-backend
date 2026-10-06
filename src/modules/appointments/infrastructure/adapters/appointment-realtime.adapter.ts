@@ -26,6 +26,8 @@ export class AppointmentRealtimeAdapter implements RealtimeEmitterPort {
       await this.realtimeGateway.emitToRole('admin', 'appointment:status_changed', event);
       await this.realtimeGateway.emitToRole('doctor', 'appointment.status_changed', event);
       await this.realtimeGateway.emitToRole('doctor', 'appointment:status_changed', event);
+      await this.realtimeGateway.emitToRole('patient', 'appointment.status_changed', event);
+      await this.realtimeGateway.emitToRole('patient', 'appointment:status_changed', event);
     } catch (err: any) {
       this.logger.warn(`Failed to emit status changed event: ${err.message}`);
     }
@@ -41,6 +43,8 @@ export class AppointmentRealtimeAdapter implements RealtimeEmitterPort {
       await this.realtimeGateway.emitToRole('admin', 'appointment:called', event);
       await this.realtimeGateway.emitToRole('doctor', 'appointment.patient_called', event);
       await this.realtimeGateway.emitToRole('doctor', 'appointment:called', event);
+      await this.realtimeGateway.emitToRole('patient', 'appointment.patient_called', event);
+      await this.realtimeGateway.emitToRole('patient', 'appointment:called', event);
     } catch (err: any) {
       this.logger.warn(`Failed to emit patient called event: ${err.message}`);
     }

@@ -46,7 +46,10 @@ export function allocateSlotTiming(
 
     if (!normalizedExisting.has(candidateTime)) {
       const endMins = candidateMinutes + durationMinutes;
-      const endHh = String(Math.floor(endMins / 60) % 24).padStart(2, '0');
+      const endHh =
+        endMins === 1440
+          ? '24'
+          : String(Math.floor(endMins / 60) % 24).padStart(2, '0');
       const endMm = String(endMins % 60).padStart(2, '0');
       return {
         startTime: `${candidateTime}:00`,

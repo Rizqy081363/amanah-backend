@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { RedisService } from '../../../../common/redis/redis.service';
 import type { AppointmentRecord } from '../../domain/types/appointment.types';
 import {
   APPOINTMENT_REPOSITORY_PORT,
@@ -25,6 +26,8 @@ export class CompleteServiceUseCase {
     @Optional()
     @Inject(PUSH_NOTIFICATION_PORT)
     private readonly pushNotification?: PushNotificationPort,
+    @Optional()
+    private readonly redisService?: RedisService,
   ) {}
 
   async execute(appointmentId: string): Promise<AppointmentRecord> {
@@ -36,12 +39,21 @@ export class CompleteServiceUseCase {
       actualCompletedAt,
     });
 
+    if (this.redisService) {
+      await Promise.allSettled([
+        this.redisService.deleteByPrefix('queue:daily'),
+        this.redisService.deleteByPrefix('queue:display'),
+        this.redisService.invalidateTags('queue', 'daily', 'display'),
+      ]);
+    }
+
     await this.realtimeEmitter.emitStatusChanged({
       appointmentId: updated.id,
       status: 'COMPLETED',
       previousStatus: 'IN_SERVICE',
       queueNumber: updated.queueNumber,
       practitionerId: updated.practitionerId,
+      actualCompletedAt: actualCompletedAt.toISOString(),
     });
 
     if (this.pushNotification && updated.patientUserId) {

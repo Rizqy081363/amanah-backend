@@ -17,6 +17,7 @@ function makeSession(
   status_sesi = ScheduleOperationalStatus.OPEN,
 ): AdminDoctorDailySession {
   return {
+    id: 'mock-session-id',
     nama_sesi,
     jam_mulai,
     jam_selesai,

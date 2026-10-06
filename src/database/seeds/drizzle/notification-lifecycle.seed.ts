@@ -71,14 +71,17 @@ export async function runNotificationLifecycleSeed(): Promise<void> {
     const apt1Res = await client.query<{ id: string }>(
       `INSERT INTO appointments (
          booking_code, patient_id, practitioner_id, service_id,
-         status, scheduled_date, scheduled_start_time, complaint,
+         status, scheduled_date, scheduled_start_time, queue_number, complaint,
          completed_at, updated_at
        ) VALUES (
          'BK-VAL-COMP-01', $1, $2, $3,
-         'completed', CURRENT_DATE - 2, '09:00:00', 'Keluhan demam dan flu ringan',
+         'completed', CURRENT_DATE - 2, '09:00:00', 1, 'Keluhan demam dan flu ringan',
          NOW() - INTERVAL '2 days', NOW() - INTERVAL '2 days'
        )
-       ON CONFLICT DO NOTHING
+       ON CONFLICT (booking_code) DO UPDATE
+       SET status = 'completed',
+           queue_number = 1,
+           updated_at = NOW()
        RETURNING id`,
       [patient.id, practitionerId, serviceId],
     );
@@ -91,12 +94,11 @@ export async function runNotificationLifecycleSeed(): Promise<void> {
       apt1Id = existing.rows[0].id;
     }
 
-    // Queue ticket for Apt 1
     const ticket1Res = await client.query<{ id: string }>(
       `INSERT INTO queue_tickets (
          appointment_id, service_id, queue_date, queue_number, status, completed_at
-       ) VALUES ($1, $2, CURRENT_DATE - 2, 'A-901', 'completed', NOW() - INTERVAL '2 days')
-       ON CONFLICT (appointment_id) DO UPDATE SET status = 'completed'
+       ) VALUES ($1, $2, CURRENT_DATE - 2, 'UM-001', 'completed', NOW() - INTERVAL '2 days')
+       ON CONFLICT (appointment_id) DO UPDATE SET queue_number = 'UM-001', status = 'completed'
        RETURNING id`,
       [apt1Id, serviceId],
     );
@@ -129,14 +131,17 @@ export async function runNotificationLifecycleSeed(): Promise<void> {
     const apt2Res = await client.query<{ id: string }>(
       `INSERT INTO appointments (
          booking_code, patient_id, practitioner_id, service_id,
-         status, scheduled_date, scheduled_start_time, complaint,
+         status, scheduled_date, scheduled_start_time, queue_number, complaint,
          updated_at
        ) VALUES (
          'BK-VAL-NOSHOW-02', $1, $2, $3,
-         'no_show', CURRENT_DATE - 1, '10:00:00', 'Kontrol rutin tekanan darah',
+         'no_show', CURRENT_DATE - 1, '10:00:00', 1, 'Kontrol rutin tekanan darah',
          NOW() - INTERVAL '1 day'
        )
-       ON CONFLICT DO NOTHING
+       ON CONFLICT (booking_code) DO UPDATE
+       SET status = 'no_show',
+           queue_number = 1,
+           updated_at = NOW()
        RETURNING id`,
       [patient.id, practitionerId, serviceId],
     );
@@ -152,8 +157,8 @@ export async function runNotificationLifecycleSeed(): Promise<void> {
     const ticket2Res = await client.query<{ id: string }>(
       `INSERT INTO queue_tickets (
          appointment_id, service_id, queue_date, queue_number, status
-       ) VALUES ($1, $2, CURRENT_DATE - 1, 'A-902', 'skipped')
-       ON CONFLICT (appointment_id) DO UPDATE SET status = 'skipped'
+       ) VALUES ($1, $2, CURRENT_DATE - 1, 'UM-001', 'skipped')
+       ON CONFLICT (appointment_id) DO UPDATE SET queue_number = 'UM-001', status = 'skipped'
        RETURNING id`,
       [apt2Id, serviceId],
     );
@@ -205,15 +210,18 @@ export async function runNotificationLifecycleSeed(): Promise<void> {
     const apt3Res = await client.query<{ id: string }>(
       `INSERT INTO appointments (
          booking_code, patient_id, practitioner_id, service_id,
-         status, scheduled_date, scheduled_start_time, complaint,
+         status, scheduled_date, scheduled_start_time, queue_number, complaint,
          cancelled_at, cancel_reason, updated_at
        ) VALUES (
          'BK-VAL-CANCEL-03', $1, $2, $3,
-         'cancelled', CURRENT_DATE - 3, '14:00:00', 'Konsultasi tumbuh kembang anak',
+         'cancelled', CURRENT_DATE - 3, '14:00:00', 1, 'Konsultasi tumbuh kembang anak',
          NOW() - INTERVAL '3 days', 'Pasien berhalangan hadir karena dinas luar kota',
          NOW() - INTERVAL '3 days'
        )
-       ON CONFLICT DO NOTHING
+       ON CONFLICT (booking_code) DO UPDATE
+       SET status = 'cancelled',
+           queue_number = 1,
+           updated_at = NOW()
        RETURNING id`,
       [patient.id, practitionerId, serviceId],
     );
@@ -229,8 +237,8 @@ export async function runNotificationLifecycleSeed(): Promise<void> {
     await client.query(
       `INSERT INTO queue_tickets (
          appointment_id, service_id, queue_date, queue_number, status
-       ) VALUES ($1, $2, CURRENT_DATE - 3, 'A-903', 'cancelled')
-       ON CONFLICT (appointment_id) DO UPDATE SET status = 'cancelled'`,
+       ) VALUES ($1, $2, CURRENT_DATE - 3, 'UM-001', 'cancelled')
+       ON CONFLICT (appointment_id) DO UPDATE SET queue_number = 'UM-001', status = 'cancelled'`,
       [apt3Id, serviceId],
     );
 

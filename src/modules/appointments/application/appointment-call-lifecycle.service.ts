@@ -5,7 +5,9 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
+import { RedisService } from '../../../common/redis/redis.service';
 import {
   DomainEvent,
   NotificationPublisher,
@@ -28,7 +30,18 @@ export class AppointmentCallLifecycleService {
     private readonly callRepo: AppointmentCallRepository,
     @Inject(NOTIFICATION_PUBLISHER)
     private readonly publisher: NotificationPublisher,
+    @Optional()
+    private readonly redisService?: RedisService,
   ) {}
+
+  private async invalidateQueueCache(): Promise<void> {
+    if (!this.redisService) return;
+    await Promise.allSettled([
+      this.redisService.deleteByPrefix('queue:daily'),
+      this.redisService.deleteByPrefix('queue:display'),
+      this.redisService.invalidateTags('queue', 'daily', 'display'),
+    ]);
+  }
 
   async callPatient(
     appointmentId: string,
@@ -81,6 +94,8 @@ export class AppointmentCallLifecycleService {
       details.ticketId,
       'called',
     );
+
+    await this.invalidateQueueCache();
 
     const event: DomainEvent = {
       eventId: randomUUID(),
@@ -149,6 +164,8 @@ export class AppointmentCallLifecycleService {
       'in_service',
     );
 
+    await this.invalidateQueueCache();
+
     const event: DomainEvent = {
       eventId: randomUUID(),
       eventType: APPOINTMENT_EVENTS.PATIENT_RESPONDED,
@@ -209,6 +226,8 @@ export class AppointmentCallLifecycleService {
         await this.callRepo.requeueTicket(details.ticketId, 3);
       }
 
+      await this.invalidateQueueCache();
+
       const event: DomainEvent = {
         eventId: randomUUID(),
         eventType: APPOINTMENT_EVENTS.PATIENT_REQUEUED,
@@ -249,6 +268,8 @@ export class AppointmentCallLifecycleService {
       details.ticketId,
       'skipped',
     );
+
+    await this.invalidateQueueCache();
 
     const event: DomainEvent = {
       eventId: randomUUID(),

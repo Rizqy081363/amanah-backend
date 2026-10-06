@@ -63,6 +63,7 @@ export async function seedKiaIntakes(context: SeedContext): Promise<void> {
          scheduled_date,
          scheduled_start_time,
          scheduled_end_time,
+         queue_number,
          complaint
        )
        VALUES (
@@ -73,6 +74,7 @@ export async function seedKiaIntakes(context: SeedContext): Promise<void> {
          CURRENT_DATE + 2,
          '09:00',
          '09:30',
+         1,
          'Pemeriksaan kehamilan trimester kedua dan konsultasi ANC rutin'
        )
        ON CONFLICT (booking_code) DO UPDATE
@@ -84,6 +86,7 @@ export async function seedKiaIntakes(context: SeedContext): Promise<void> {
            scheduled_date = EXCLUDED.scheduled_date,
            scheduled_start_time = EXCLUDED.scheduled_start_time,
            scheduled_end_time = EXCLUDED.scheduled_end_time,
+           queue_number = 1,
            complaint = EXCLUDED.complaint,
            updated_at = NOW()
        RETURNING id`,
@@ -91,6 +94,30 @@ export async function seedKiaIntakes(context: SeedContext): Promise<void> {
     );
 
     const maternalAppointmentId = maternalApptRes.rows[0].id;
+
+    await client.query(
+      `INSERT INTO queue_tickets (
+         appointment_id,
+         service_id,
+         room_id,
+         queue_date,
+         queue_number,
+         priority,
+         status,
+         waiting_position
+       )
+       VALUES ($1, $2, $3, CURRENT_DATE + 2, 'BD-001', 'regular', 'waiting', 1)
+       ON CONFLICT (appointment_id) DO UPDATE
+       SET service_id = EXCLUDED.service_id,
+           room_id = EXCLUDED.room_id,
+           queue_date = EXCLUDED.queue_date,
+           queue_number = 'BD-001',
+           priority = EXCLUDED.priority,
+           status = EXCLUDED.status,
+           waiting_position = EXCLUDED.waiting_position,
+           updated_at = NOW()`,
+      [maternalAppointmentId, pregnancyServiceId, kiaRoomId],
+    );
 
     const existingMaternalSubmission = await client.query<{ id: string }>(
       `SELECT id FROM medical_intake_submissions WHERE appointment_id = $1 LIMIT 1`,
@@ -205,63 +232,24 @@ export async function seedKiaIntakes(context: SeedContext): Promise<void> {
            $41, $42, $43, $44, $45, $46, $47, $48, $49, $50,
            $51, $52, $53, $54, $55, $56
          )
-         RETURNING id`,
+          RETURNING id`,
         [
-          randomUUID(),
-          submissionId,
-          motherPatientId,
-          maternalAppointmentId,
-          maternalSeed.motherNik,
-          maternalSeed.motherName,
-          maternalSeed.motherBirthDate,
-          maternalSeed.motherAge,
-          maternalSeed.marriageOrder,
-          maternalSeed.marriageDate,
-          maternalSeed.motherJob,
-          maternalSeed.motherEducation,
-          maternalSeed.religion,
-          maternalSeed.phoneNumber,
-          maternalSeed.domicileAddress,
-          maternalSeed.identityCardAddress,
-          maternalSeed.dasawisma,
-          maternalSeed.posyandu,
-          maternalSeed.puskesmas,
-          maternalSeed.partnerName,
-          maternalSeed.partnerNik,
-          maternalSeed.partnerBirthDate,
-          maternalSeed.partnerAge,
-          maternalSeed.partnerJob,
-          maternalSeed.partnerEducation,
-          maternalSeed.partnerBloodType,
-          maternalSeed.heightCm,
-          maternalSeed.prePregnancyWeightKg,
-          maternalSeed.upperArmCircumferenceCm,
-          maternalSeed.initialBmi,
-          maternalSeed.tetanusStatus,
-          maternalSeed.motherBloodType,
-          maternalSeed.hpht,
-          maternalSeed.estimatedDueDate,
-          maternalSeed.gestationalAgeWeeks,
-          maternalSeed.gestationalAgeFormatted,
-          maternalSeed.currentComplaints,
-          maternalSeed.gravidaCount,
-          maternalSeed.parityCount,
-          maternalSeed.abortionCount,
-          maternalSeed.livingChildrenCount,
-          maternalSeed.hasPreviousPregnancyHistory,
-          maternalSeed.hasContraceptionHistory,
-          maternalSeed.smokedBeforePregnancy,
-          maternalSeed.alcoholBeforePregnancy,
-          maternalSeed.irregularDietBeforePregnancy,
-          maternalSeed.reducedPhysicalActivityBeforePregnancy,
-          maternalSeed.unprescribedMedicationBeforePregnancy,
-          maternalSeed.concerningCosmeticUseBeforePregnancy,
-          maternalSeed.pesticideExposureBeforePregnancy,
-          maternalSeed.chemicalExposureBeforePregnancy,
-          maternalSeed.smokeExposureBeforePregnancy,
-          maternalSeed.concerningEnvironmentNotes,
-          maternalSeed.allergyInfo,
-          maternalSeed.otherNotes,
+          randomUUID(), submissionId, motherPatientId, maternalAppointmentId,
+          maternalSeed.motherNik, maternalSeed.motherName, maternalSeed.motherBirthDate, maternalSeed.motherAge,
+          maternalSeed.marriageOrder, maternalSeed.marriageDate, maternalSeed.motherJob, maternalSeed.motherEducation,
+          maternalSeed.religion, maternalSeed.phoneNumber, maternalSeed.domicileAddress, maternalSeed.identityCardAddress,
+          maternalSeed.dasawisma, maternalSeed.posyandu, maternalSeed.puskesmas, maternalSeed.partnerName,
+          maternalSeed.partnerNik, maternalSeed.partnerBirthDate, maternalSeed.partnerAge, maternalSeed.partnerJob,
+          maternalSeed.partnerEducation, maternalSeed.partnerBloodType, maternalSeed.heightCm, maternalSeed.prePregnancyWeightKg,
+          maternalSeed.upperArmCircumferenceCm, maternalSeed.initialBmi, maternalSeed.tetanusStatus, maternalSeed.motherBloodType,
+          maternalSeed.hpht, maternalSeed.estimatedDueDate, maternalSeed.gestationalAgeWeeks, maternalSeed.gestationalAgeFormatted,
+          maternalSeed.currentComplaints, maternalSeed.gravidaCount, maternalSeed.parityCount, maternalSeed.abortionCount,
+          maternalSeed.livingChildrenCount, maternalSeed.hasPreviousPregnancyHistory, maternalSeed.hasContraceptionHistory,
+          maternalSeed.smokedBeforePregnancy, maternalSeed.alcoholBeforePregnancy, maternalSeed.irregularDietBeforePregnancy,
+          maternalSeed.reducedPhysicalActivityBeforePregnancy, maternalSeed.unprescribedMedicationBeforePregnancy,
+          maternalSeed.concerningCosmeticUseBeforePregnancy, maternalSeed.pesticideExposureBeforePregnancy,
+          maternalSeed.chemicalExposureBeforePregnancy, maternalSeed.smokeExposureBeforePregnancy,
+          maternalSeed.concerningEnvironmentNotes, maternalSeed.allergyInfo, maternalSeed.otherNotes,
           JSON.stringify(maternalSeed.diseaseHistory),
         ],
       );
@@ -375,6 +363,7 @@ export async function seedKiaIntakes(context: SeedContext): Promise<void> {
          scheduled_date,
          scheduled_start_time,
          scheduled_end_time,
+         queue_number,
          complaint
        )
        VALUES (
@@ -385,6 +374,7 @@ export async function seedKiaIntakes(context: SeedContext): Promise<void> {
          CURRENT_DATE + 3,
          '10:00',
          '10:30',
+         1,
          'Jadwal imunisasi lanjutan campak/MR dan pemantauan tumbuh kembang balita'
        )
        ON CONFLICT (booking_code) DO UPDATE
@@ -396,6 +386,7 @@ export async function seedKiaIntakes(context: SeedContext): Promise<void> {
            scheduled_date = EXCLUDED.scheduled_date,
            scheduled_start_time = EXCLUDED.scheduled_start_time,
            scheduled_end_time = EXCLUDED.scheduled_end_time,
+           queue_number = 1,
            complaint = EXCLUDED.complaint,
            updated_at = NOW()
        RETURNING id`,
@@ -403,6 +394,30 @@ export async function seedKiaIntakes(context: SeedContext): Promise<void> {
     );
 
     const immAppointmentId = immApptRes.rows[0].id;
+
+    await client.query(
+      `INSERT INTO queue_tickets (
+         appointment_id,
+         service_id,
+         room_id,
+         queue_date,
+         queue_number,
+         priority,
+         status,
+         waiting_position
+       )
+       VALUES ($1, $2, $3, CURRENT_DATE + 3, 'BD-001', 'regular', 'waiting', 1)
+       ON CONFLICT (appointment_id) DO UPDATE
+       SET service_id = EXCLUDED.service_id,
+           room_id = EXCLUDED.room_id,
+           queue_date = EXCLUDED.queue_date,
+           queue_number = 'BD-001',
+           priority = EXCLUDED.priority,
+           status = EXCLUDED.status,
+           waiting_position = EXCLUDED.waiting_position,
+           updated_at = NOW()`,
+      [immAppointmentId, immunizationServiceId, kiaRoomId],
+    );
 
     const existingImmSubmission = await client.query<{ id: string }>(
       `SELECT id FROM medical_intake_submissions WHERE appointment_id = $1 LIMIT 1`,
@@ -470,21 +485,11 @@ export async function seedKiaIntakes(context: SeedContext): Promise<void> {
          )
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
         [
-          randomUUID(),
-          immSubmissionId,
-          childPatientId,
-          immAppointmentId,
-          childSeed.childName,
-          childSeed.childNik,
-          childSeed.childBirthDate,
-          childSeed.childSex,
-          childSeed.childAgeFormatted,
-          childSeed.parentPhone,
-          childSeed.fatherName,
-          childSeed.motherName,
-          childSeed.childAddress,
-          childSeed.previousVaccineHistory,
-          childSeed.childAllergyHistory,
+          randomUUID(), immSubmissionId, childPatientId, immAppointmentId,
+          childSeed.childName, childSeed.childNik, childSeed.childBirthDate,
+          childSeed.childSex, childSeed.childAgeFormatted, childSeed.parentPhone,
+          childSeed.fatherName, childSeed.motherName, childSeed.childAddress,
+          childSeed.previousVaccineHistory, childSeed.childAllergyHistory,
         ],
       );
     }

@@ -1,4 +1,5 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
+import { RedisService } from '../../../../common/redis/redis.service';
 import type { AppointmentRecord } from '../../domain/types/appointment.types';
 import {
   APPOINTMENT_REPOSITORY_PORT,
@@ -16,6 +17,8 @@ export class CancelAppointmentUseCase {
     private readonly appointmentRepo: AppointmentRepositoryPort,
     @Inject(REALTIME_EMITTER_PORT)
     private readonly realtimeEmitter: RealtimeEmitterPort,
+    @Optional()
+    private readonly redisService?: RedisService,
   ) {}
 
   async execute(appointmentId: string, reason?: string): Promise<AppointmentRecord> {
@@ -27,6 +30,14 @@ export class CancelAppointmentUseCase {
       cancelledAt,
       cancellationReason: reason,
     });
+
+    if (this.redisService) {
+      await Promise.allSettled([
+        this.redisService.deleteByPrefix('queue:daily'),
+        this.redisService.deleteByPrefix('queue:display'),
+        this.redisService.invalidateTags('queue', 'daily', 'display'),
+      ]);
+    }
 
     await this.realtimeEmitter.emitStatusChanged({
       appointmentId: updated.id,

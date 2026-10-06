@@ -15,6 +15,7 @@ import {
   queueTickets,
 } from '../../../../database/schema';
 import {
+  ScheduleShiftRegistry,
   SESSION_TO_SHIFT_MAP,
   SHIFT_TIMING_CONFIGS,
 } from '../../../schedules/domain/constants/schedule-shift.constants';
@@ -32,7 +33,7 @@ export class AppointmentCreationHandler {
       Math.random() * 1000,
     )}`;
 
-    const targetShift = SESSION_TO_SHIFT_MAP[data.session] || 'morning';
+    const targetShift = ScheduleShiftRegistry.resolve(data.session).shift;
 
     const policy = await db.query.clinicSchedulePolicies.findFirst({
       where: eq(clinicSchedulePolicies.code, 'default'),
@@ -305,13 +306,20 @@ export class AppointmentCreationHandler {
       numericQueueNumber = Number(maxQ?.max || 0) + 1;
     }
 
-    const [startH, startM] = (startTime || '08:00').split(':').map(Number);
+    const [startH, startM] = (startTime || '08:00').split(':').map((v) => parseInt(v, 10));
     const estimatedStart = new Date(`${data.appointmentDate}T00:00:00.000Z`);
-    estimatedStart.setUTCHours(startH || 8, startM || 0, 0, 0);
+    estimatedStart.setUTCHours(
+      Number.isNaN(startH) ? 8 : startH,
+      Number.isNaN(startM) ? 0 : startM,
+      0,
+      0,
+    );
 
-    const [endH, endM] = (endTime || '08:30').split(':').map(Number);
-    const estimatedEnd = new Date(`${data.appointmentDate}T00:00:00.000Z`);
-    estimatedEnd.setUTCHours(endH || 8, endM || 30, 0, 0);
+    const consultationMinutes =
+      policy?.defaultConsultationDurationMinutes ?? 30;
+    const estimatedEnd = new Date(
+      estimatedStart.getTime() + consultationMinutes * 60_000,
+    );
 
     const [apt] = await db
       .insert(appointments)
@@ -336,6 +344,17 @@ export class AppointmentCreationHandler {
       })
       .returning();
 
+    let formattedTicketNumber = String(numericQueueNumber);
+    const targetUnitId = data.poliklinikId || room?.unitId;
+    if (targetUnitId) {
+      const unit = await db.query.clinicUnits.findFirst({
+        where: eq(clinicUnits.id, targetUnitId),
+      });
+      if (unit?.queuePrefix) {
+        formattedTicketNumber = `${unit.queuePrefix}-${String(numericQueueNumber).padStart(3, '0')}`;
+      }
+    }
+
     const [ticket] = await db
       .insert(queueTickets)
       .values({
@@ -343,7 +362,7 @@ export class AppointmentCreationHandler {
         serviceId: data.layananId,
         roomId: room ? room.id : null,
         queueDate: data.appointmentDate,
-        queueNumber: data.queueNumber,
+        queueNumber: formattedTicketNumber,
         status: 'waiting',
         priority: 'regular',
         waitingPosition: 1,

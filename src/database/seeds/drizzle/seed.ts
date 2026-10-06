@@ -386,28 +386,29 @@ const seedClinicCatalog = async (
   }
 
   const units = [
-    ['poli_umum', 'Poli Umum', 'polyclinic'],
-    ['poli_kia', 'Poli KIA', 'polyclinic'],
-    ['front_desk', 'Front Desk', 'department'],
-    ['it_support', 'IT Support', 'support'],
+    ['poli_umum', 'Poli Umum', 'polyclinic', 'UM'],
+    ['poli_kia', 'Poli KIA', 'polyclinic', 'BD'],
+    ['front_desk', 'Front Desk', 'department', null],
+    ['it_support', 'IT Support', 'support', null],
   ] as const;
   const unitIdsByCode = new Map<string, string>();
 
-  for (const [code, name, unitType] of units) {
+  for (const [code, name, unitType, queuePrefix] of units) {
     const row = await queryOne<{ id: string }>({
       client,
       text: `
-        INSERT INTO clinic_units (code, name, unit_type, location, is_active)
-        VALUES ($1, $2, $3, 'Gedung Utama', true)
+        INSERT INTO clinic_units (code, name, unit_type, location, queue_prefix, is_active)
+        VALUES ($1, $2, $3, 'Gedung Utama', $4, true)
         ON CONFLICT (code) DO UPDATE
         SET name = EXCLUDED.name,
             unit_type = EXCLUDED.unit_type,
             location = EXCLUDED.location,
+            queue_prefix = EXCLUDED.queue_prefix,
             is_active = true,
             updated_at = now()
         RETURNING id
       `,
-      values: [code, name, unitType],
+      values: [code, name, unitType, queuePrefix],
     });
     unitIdsByCode.set(code, row.id);
   }
@@ -772,9 +773,26 @@ const seedAdminScheduleShowcase = async (
   const fallbackServiceId =
     generalServiceId ?? firstValue(context.serviceIdsByCode.values());
 
-  // 1. Clean existing schedule data to eliminate obsolete manual/hardcoded seed artifacts
   await context.client.query(`
     UPDATE appointments SET schedule_session_id = NULL WHERE schedule_session_id IS NOT NULL;
+    DELETE FROM queue_tickets WHERE appointment_id IN (
+      SELECT id FROM appointments WHERE booking_code IN (
+        'BOOK-ZIKRI-TODAY-01',
+        'BOOK-ZIKRI-TODAY-02',
+        'BOOK-DEV-0001',
+        'BOOK-DEV-TODAY-01',
+        'BOOK-DEV-TODAY-02',
+        'BOOK-DEV-YEST-01'
+      )
+    );
+    DELETE FROM appointments WHERE booking_code IN (
+      'BOOK-ZIKRI-TODAY-01',
+      'BOOK-ZIKRI-TODAY-02',
+      'BOOK-DEV-0001',
+      'BOOK-DEV-TODAY-01',
+      'BOOK-DEV-TODAY-02',
+      'BOOK-DEV-YEST-01'
+    );
     DELETE FROM practitioner_schedule_sessions;
     DELETE FROM practitioner_schedule_day_settings;
     DELETE FROM practitioner_leave_periods;
@@ -798,6 +816,12 @@ const seedAdminScheduleShowcase = async (
 
   if (practitionersResult.rows.length === 0) return;
 
+  const showcasePractitioner =
+    practitionersResult.rows.find(
+      (p) => p.specialtyCode === 'general_practitioner',
+    ) ?? practitionersResult.rows[0];
+  const showcasePractitionerId = showcasePractitioner.id;
+
   const shifts: SessionShiftType[] = [
     'morning',
     'afternoon',
@@ -809,8 +833,7 @@ const seedAdminScheduleShowcase = async (
   for (const practitioner of practitionersResult.rows) {
     const roomId = practitioner.defaultRoomId ?? fallbackRoomId;
     const roomUsage = roomTemplateUsage.get(roomId) ?? 0;
-    const isTargetShowcase =
-      practitioner.id === 'c518facb-372e-4f07-9766-f3eacf54221f';
+    const isTargetShowcase = practitioner.id === showcasePractitionerId;
     const selectedShift = isTargetShowcase
       ? 'morning'
       : shifts[roomUsage % shifts.length];
@@ -896,12 +919,6 @@ const seedAdminScheduleShowcase = async (
     }
   }
 
-  // 2. Seed representative showcase doctor appointments for today
-  const showcasePractitionerId =
-    practitionersResult.rows.find(
-      (p) => p.id === 'c518facb-372e-4f07-9766-f3eacf54221f',
-    )?.id ?? practitionersResult.rows[0].id;
-
   const todayMorningSession = await queryOptional<{
     id: string;
     room_id: string;
@@ -940,6 +957,7 @@ const seedAdminScheduleShowcase = async (
           scheduled_date,
           scheduled_start_time,
           scheduled_end_time,
+          queue_number,
           complaint
         )
         VALUES (
@@ -950,6 +968,7 @@ const seedAdminScheduleShowcase = async (
           current_date,
           '08:00',
           '08:30',
+          1,
           'Pemeriksaan rutin gula darah dan kontrol tensi berkala'
         )
         ON CONFLICT (booking_code) DO UPDATE
@@ -962,6 +981,7 @@ const seedAdminScheduleShowcase = async (
             scheduled_date = EXCLUDED.scheduled_date,
             scheduled_start_time = EXCLUDED.scheduled_start_time,
             scheduled_end_time = EXCLUDED.scheduled_end_time,
+            queue_number = 1,
             complaint = EXCLUDED.complaint,
             updated_at = now()
         RETURNING id
@@ -987,12 +1007,12 @@ const seedAdminScheduleShowcase = async (
           status,
           waiting_position
         )
-        VALUES ($1, $2, $3, current_date, 'UM-101', 'regular', 'waiting', 1)
+        VALUES ($1, $2, $3, current_date, 'UM-001', 'regular', 'waiting', 1)
         ON CONFLICT (appointment_id) DO UPDATE
         SET service_id = EXCLUDED.service_id,
             room_id = EXCLUDED.room_id,
             queue_date = EXCLUDED.queue_date,
-            queue_number = EXCLUDED.queue_number,
+            queue_number = 'UM-001',
             priority = EXCLUDED.priority,
             status = EXCLUDED.status,
             waiting_position = EXCLUDED.waiting_position,
@@ -1016,6 +1036,7 @@ const seedAdminScheduleShowcase = async (
           scheduled_date,
           scheduled_start_time,
           scheduled_end_time,
+          queue_number,
           complaint
         )
         VALUES (
@@ -1026,6 +1047,7 @@ const seedAdminScheduleShowcase = async (
           current_date,
           '08:30',
           '09:00',
+          2,
           'Konsultasi alergi kulit dan gatal-gatal kambuhan'
         )
         ON CONFLICT (booking_code) DO UPDATE
@@ -1038,6 +1060,7 @@ const seedAdminScheduleShowcase = async (
             scheduled_date = EXCLUDED.scheduled_date,
             scheduled_start_time = EXCLUDED.scheduled_start_time,
             scheduled_end_time = EXCLUDED.scheduled_end_time,
+            queue_number = 2,
             complaint = EXCLUDED.complaint,
             updated_at = now()
         RETURNING id
@@ -1063,12 +1086,12 @@ const seedAdminScheduleShowcase = async (
           status,
           waiting_position
         )
-        VALUES ($1, $2, $3, current_date, 'UM-102', 'regular', 'waiting', 2)
+        VALUES ($1, $2, $3, current_date, 'UM-002', 'regular', 'waiting', 2)
         ON CONFLICT (appointment_id) DO UPDATE
         SET service_id = EXCLUDED.service_id,
             room_id = EXCLUDED.room_id,
             queue_date = EXCLUDED.queue_date,
-            queue_number = EXCLUDED.queue_number,
+            queue_number = 'UM-002',
             priority = EXCLUDED.priority,
             status = EXCLUDED.status,
             waiting_position = EXCLUDED.waiting_position,
@@ -1226,6 +1249,7 @@ const seedOperationalExamples = async (context: SeedContext): Promise<void> => {
         scheduled_date,
         scheduled_start_time,
         scheduled_end_time,
+        queue_number,
         complaint
       )
       VALUES (
@@ -1240,6 +1264,7 @@ const seedOperationalExamples = async (context: SeedContext): Promise<void> => {
         current_date + 1,
         '08:30',
         '09:00',
+        1,
         'Demam ringan dan batuk sejak dua hari'
       )
       ON CONFLICT (booking_code) DO UPDATE
@@ -1252,6 +1277,7 @@ const seedOperationalExamples = async (context: SeedContext): Promise<void> => {
           scheduled_date = EXCLUDED.scheduled_date,
           scheduled_start_time = EXCLUDED.scheduled_start_time,
           scheduled_end_time = EXCLUDED.scheduled_end_time,
+          queue_number = 1,
           complaint = EXCLUDED.complaint,
           updated_at = now()
       RETURNING id
@@ -1282,7 +1308,7 @@ const seedOperationalExamples = async (context: SeedContext): Promise<void> => {
       SET service_id = EXCLUDED.service_id,
           room_id = EXCLUDED.room_id,
           queue_date = EXCLUDED.queue_date,
-          queue_number = EXCLUDED.queue_number,
+          queue_number = 'UM-001',
           priority = EXCLUDED.priority,
           status = EXCLUDED.status,
           waiting_position = EXCLUDED.waiting_position,
@@ -1320,6 +1346,7 @@ const seedOperationalExamples = async (context: SeedContext): Promise<void> => {
         scheduled_date,
         scheduled_start_time,
         scheduled_end_time,
+        queue_number,
         complaint
       )
       VALUES (
@@ -1330,10 +1357,12 @@ const seedOperationalExamples = async (context: SeedContext): Promise<void> => {
         current_date,
         '09:00',
         '09:30',
+        3,
         'Pemeriksaan dan kontrol tensi rutin'
       )
       ON CONFLICT (booking_code) DO UPDATE
       SET status = 'completed',
+          queue_number = 3,
           updated_at = now()
       RETURNING id
     `,
@@ -1352,9 +1381,10 @@ const seedOperationalExamples = async (context: SeedContext): Promise<void> => {
         status,
         waiting_position
       )
-      VALUES ($1, $2, $3, current_date, 'UM-002', 'regular', 'completed', null)
+      VALUES ($1, $2, $3, current_date, 'UM-003', 'regular', 'completed', null)
       ON CONFLICT (appointment_id) DO UPDATE
-      SET status = 'completed',
+      SET queue_number = 'UM-003',
+          status = 'completed',
           updated_at = now()
     `,
     [aptTodayCompleted.id, generalServiceId, firstRoomId],
@@ -1400,6 +1430,7 @@ const seedOperationalExamples = async (context: SeedContext): Promise<void> => {
         scheduled_date,
         scheduled_start_time,
         scheduled_end_time,
+        queue_number,
         complaint
       )
       VALUES (
@@ -1410,10 +1441,12 @@ const seedOperationalExamples = async (context: SeedContext): Promise<void> => {
         current_date,
         '10:30',
         '11:00',
+        4,
         'Batuk kering dan tenggorokan gatal sejak 3 hari'
       )
       ON CONFLICT (booking_code) DO UPDATE
       SET status = 'waiting',
+          queue_number = 4,
           updated_at = now()
       RETURNING id
     `,
@@ -1432,15 +1465,16 @@ const seedOperationalExamples = async (context: SeedContext): Promise<void> => {
         status,
         waiting_position
       )
-      VALUES ($1, $2, $3, current_date, 'UM-003', 'regular', 'waiting', 1)
+      VALUES ($1, $2, $3, current_date, 'UM-004', 'regular', 'waiting', 2)
       ON CONFLICT (appointment_id) DO UPDATE
-      SET status = 'waiting',
+      SET queue_number = 'UM-004',
+          status = 'waiting',
+          waiting_position = 2,
           updated_at = now()
     `,
     [aptTodayWaiting.id, generalServiceId, firstRoomId],
   );
 
-  // Past appointments for monthly analytics
   await context.client.query(
     `
       INSERT INTO appointments (
@@ -1454,6 +1488,7 @@ const seedOperationalExamples = async (context: SeedContext): Promise<void> => {
         scheduled_date,
         scheduled_start_time,
         scheduled_end_time,
+        queue_number,
         complaint
       )
       VALUES (
@@ -1464,10 +1499,12 @@ const seedOperationalExamples = async (context: SeedContext): Promise<void> => {
         current_date - 1,
         '09:00',
         '09:30',
+        1,
         'Pusing berputar bila bangun tidur'
       )
       ON CONFLICT (booking_code) DO UPDATE
       SET status = 'completed',
+          queue_number = 1,
           updated_at = now()
     `,
     [firstPatientId, firstDoctorId, generalServiceId, firstRoomId],

@@ -595,6 +595,7 @@ export const clinicUnits = pgTable(
     unitType: clinicUnitType('unit_type').default('other').notNull(),
     location: text(),
     floor: text(),
+    queuePrefix: varchar('queue_prefix', { length: 8 }),
     isActive: boolean('is_active').default(true).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()

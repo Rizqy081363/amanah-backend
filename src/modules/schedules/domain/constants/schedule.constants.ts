@@ -19,9 +19,18 @@ export const APPOINTMENT_STATUS_BADGE_MAP: Record<string, string> = {
   no_show: 'Terlambat',
 };
 
-export const DEFAULT_CONSULTATION_DURATION_MINUTES = 30;
-export const DEFAULT_START_PRECISION_MINUTES = 1;
-export const DEFAULT_TARGET_QUOTA = 8;
+export const CLINIC_POLICY_FALLBACK_CONFIG = {
+  consultationDurationMinutes: 30,
+  startPrecisionMinutes: 1,
+  targetQuota: 8,
+} as const;
+
+export const DEFAULT_CONSULTATION_DURATION_MINUTES =
+  CLINIC_POLICY_FALLBACK_CONFIG.consultationDurationMinutes;
+export const DEFAULT_START_PRECISION_MINUTES =
+  CLINIC_POLICY_FALLBACK_CONFIG.startPrecisionMinutes;
+export const DEFAULT_TARGET_QUOTA =
+  CLINIC_POLICY_FALLBACK_CONFIG.targetQuota;
 
 export const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

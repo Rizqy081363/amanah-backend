@@ -23,9 +23,9 @@ describe('AppointmentsService - Event Publishing', () => {
         status: data.status,
         visitType: data.visitType,
         complaint: data.complaint,
-        createdAt: '2026-09-29T10:00:00.000Z',
-        updatedAt: '2026-09-29T10:00:00.000Z',
-      })),
+        createdAt: new Date('2026-09-29T10:00:00.000Z'),
+        updatedAt: new Date('2026-09-29T10:00:00.000Z'),
+      } as any)),
     };
 
     const mockRawPublisher: NotificationPublisher = {
@@ -69,7 +69,7 @@ describe('AppointmentsService - Event Publishing', () => {
     const created = await service.createAppointment(dto, user);
 
     expect(created.id).toBe('apt-created-1');
-    expect(created.queueNumber).toBe('P-001');
+    expect(created.queueNumber).toBe('1');
 
     expect(mockRawPublisher.publish).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -79,7 +79,7 @@ describe('AppointmentsService - Event Publishing', () => {
           appointmentId: 'apt-created-1',
           patientId: 'patient-uuid-1',
           patientUserId: 'usr-patient-1',
-          queueNumber: 'P-001',
+          queueNumber: '1',
         }),
       }),
     );

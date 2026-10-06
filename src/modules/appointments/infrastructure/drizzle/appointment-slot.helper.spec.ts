@@ -91,4 +91,25 @@ describe('allocateSlotTiming', () => {
     const result = allocateSlotTiming('18:00', '24:00', [], 30, '2026-09-01');
     expect(result).toBeNull();
   });
+
+  it('should allocate midnight end time as 24:00:00 for slot ending at 24:00', () => {
+    const existingUntil2330: string[] = [];
+    let curMinutes = 18 * 60;
+    while (curMinutes < 23 * 60 + 30) {
+      const hh = String(Math.floor(curMinutes / 60)).padStart(2, '0');
+      const mm = String(curMinutes % 60).padStart(2, '0');
+      existingUntil2330.push(`${hh}:${mm}:00`);
+      curMinutes += 30;
+    }
+    const result = allocateSlotTiming(
+      '18:00',
+      '24:00',
+      existingUntil2330,
+      30,
+      '2099-12-31',
+    );
+    expect(result).not.toBeNull();
+    expect(result!.startTime).toBe('23:30:00');
+    expect(result!.endTime).toBe('24:00:00');
+  });
 });

@@ -153,7 +153,7 @@ describe('AppointmentAssignmentService', () => {
       role: 'ADMIN',
     });
 
-    expect(result.practitionerId).toBe('doc-target');
+    expect((result as any).practitionerId).toBe('doc-target');
     expect(updatedAptPayload.practitionerId).toBe('doc-target');
     expect(updatedAptPayload.scheduleSessionId).toBe('sess-target');
   });
@@ -225,7 +225,7 @@ describe('AppointmentAssignmentService', () => {
       role: 'ADMIN',
     });
 
-    expect(result.roomId).toBe('room-target');
+    expect((result as any).roomId).toBe('room-target');
     expect(updatedRoomPayload.roomId).toBe('room-target');
   });
 

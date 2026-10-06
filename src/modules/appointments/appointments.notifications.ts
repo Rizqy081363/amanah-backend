@@ -200,6 +200,58 @@ export class AppointmentsNotificationRules implements OnModuleInit {
       ],
     });
 
+    this.registry.registerRule({
+      eventType: APPOINTMENT_EVENTS.PATIENT_RESPONDED,
+      category: 'appointment',
+      defaultChannels: ['in_app'],
+      resolveIntents: (payload: any) => {
+        if (!payload.patientUserId) return [];
+        return [
+          {
+            recipientUserId: payload.patientUserId,
+            audience: 'patient',
+            title: 'Pemeriksaan Dimulai',
+            body: `Pemeriksaan untuk antrean ${payload.ticketNumber || '-'} di ${payload.poliklinikName || 'Poli'} sedang berlangsung.`,
+            severity: 'info',
+            badgeIcon: 'stethoscope',
+            isUrgent: false,
+            action: {
+              type: 'view_queue',
+              params: { appointmentId: payload.appointmentId || '' },
+              label: 'Lihat Antrean',
+            },
+            actions: [
+              {
+                label: 'Lihat Antrean',
+                actionKey: 'view_appointment',
+                actionType: 'primary',
+                url: `/dashboard/antrean-pasien`,
+              },
+            ],
+            presentation: { toast: true },
+          },
+        ];
+      },
+      resolveRecipients: (payload: any) => payload.patientUserId,
+      titleTemplate: 'Pemeriksaan Dimulai',
+      bodyTemplate: (payload: any) =>
+        `Pemeriksaan untuk antrean ${payload.ticketNumber || '-'} di ${payload.poliklinikName || 'Poli'} sedang berlangsung.`,
+      isUrgent: false,
+      badgeIcon: 'stethoscope',
+      resolveSource: (payload: any) => ({
+        sourceType: 'appointment',
+        sourceId: payload.appointmentId,
+      }),
+      resolveActions: (payload: any) => [
+        {
+          label: 'Lihat Antrean',
+          actionKey: 'view_appointment',
+          actionType: 'primary',
+          url: `/dashboard/antrean-pasien`,
+        },
+      ],
+    });
+
     // 2. Patient Requeued Rule
     this.registry.registerRule({
       eventType: APPOINTMENT_EVENTS.PATIENT_REQUEUED,

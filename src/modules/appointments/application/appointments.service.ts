@@ -57,8 +57,7 @@ export class AppointmentsService {
       body.appointmentDate,
       body.session,
     );
-    const prefix = body.session.charAt(0);
-    const queueNumber = `${prefix}-${String(nextIndex).padStart(3, '0')}`;
+    const queueNumber = String(nextIndex);
 
     const created = await this.appointmentRepo.create({
       patientId,

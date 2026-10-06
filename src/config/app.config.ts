@@ -68,6 +68,14 @@ class EnvironmentVariablesValidator {
   @IsString()
   @IsOptional()
   TRUST_PROXY: string;
+
+  @IsString()
+  @IsOptional()
+  APP_TIMEZONE: string;
+
+  @IsString()
+  @IsOptional()
+  CLINIC_TIMEZONE: string;
 }
 
 export default registerAs<AppConfig>('app', () => {
@@ -118,5 +126,9 @@ export default registerAs<AppConfig>('app', () => {
         : process.env.TRUST_PROXY === 'false'
           ? false
           : process.env.TRUST_PROXY || (isProduction ? 'loopback' : false),
+    timezone:
+      process.env.APP_TIMEZONE ||
+      process.env.CLINIC_TIMEZONE ||
+      'Asia/Jakarta',
   };
 });

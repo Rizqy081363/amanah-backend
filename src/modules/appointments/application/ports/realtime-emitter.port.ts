@@ -6,6 +6,8 @@ export interface StatusChangedEvent {
   previousStatus: AppointmentStatus;
   queueNumber: number;
   practitionerId: string;
+  actualStartedAt?: string | null;
+  actualCompletedAt?: string | null;
 }
 
 export interface PatientCalledEvent {

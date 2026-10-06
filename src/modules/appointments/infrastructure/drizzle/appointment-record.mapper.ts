@@ -80,7 +80,13 @@ export class AppointmentRecordMapper {
       estimatedDurationMinutes:
         apt.practitioner?.consultationDurationMinutes ?? 30,
       session,
-      queueNumber: apt.queueNumber ? String(apt.queueNumber) : (ticket?.queueNumber || '1'),
+      queueNumber:
+        ticket?.queueNumber ||
+        (apt.clinicRoom?.clinicUnit?.queuePrefix && apt.queueNumber
+          ? `${apt.clinicRoom.clinicUnit.queuePrefix}-${String(apt.queueNumber).padStart(3, '0')}`
+          : apt.queueNumber
+            ? String(apt.queueNumber)
+            : '1'),
       ticketStatus: ticket?.status || 'waiting',
       status: domainStatus,
       rawStatus: apt.status,
