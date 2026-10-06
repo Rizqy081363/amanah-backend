@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import {
   AppointmentCreatedEvent,
@@ -8,6 +8,8 @@ import { RedisService } from '../../../../common/redis/redis.service';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import { appointmentStatusEvents } from '../../../../database/schema';
+import { SocketIoRealtimeGateway } from '../../../notifications/infrastructure/realtime/socket-io-realtime.gateway';
+import { REALTIME_GATEWAY_PORT } from '../../../notifications/notifications.constants';
 
 const QUEUE_DISPLAY_CACHE_PREFIX = 'queue:display';
 const QUEUE_DAILY_CACHE_PREFIX = 'queue:daily';
@@ -21,6 +23,9 @@ export class AppointmentEventsListener {
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,
     private readonly redisService: RedisService,
+    @Optional()
+    @Inject(REALTIME_GATEWAY_PORT)
+    private readonly realtimeGateway?: SocketIoRealtimeGateway,
   ) {}
 
   @OnEvent(AppointmentCreatedEvent.EVENT_NAME, { async: true })
@@ -79,6 +84,16 @@ export class AppointmentEventsListener {
 
       // 2. Decoupled cache invalidation
       await this.invalidateQueueCaches();
+
+      if (this.realtimeGateway?.server) {
+        const payload = {
+          appointmentId: aptId,
+          status: newDbStatus.toUpperCase(),
+          previousStatus: prevDbStatus?.toUpperCase() ?? null,
+        };
+        this.realtimeGateway.server.emit('appointment.status_changed', payload);
+        this.realtimeGateway.server.emit('appointment:status_changed', payload);
+      }
     } catch (error) {
       this.logger.error(
         `Failed to handle appointment.status_changed for ${event.appointmentId}: ${String(error)}`,

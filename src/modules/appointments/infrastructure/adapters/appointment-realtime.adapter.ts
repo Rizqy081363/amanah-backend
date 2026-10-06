@@ -20,9 +20,12 @@ export class AppointmentRealtimeAdapter implements RealtimeEmitterPort {
     try {
       if (this.realtimeGateway.server) {
         this.realtimeGateway.server.emit('appointment.status_changed', event);
+        this.realtimeGateway.server.emit('appointment:status_changed', event);
       }
       await this.realtimeGateway.emitToRole('admin', 'appointment.status_changed', event);
+      await this.realtimeGateway.emitToRole('admin', 'appointment:status_changed', event);
       await this.realtimeGateway.emitToRole('doctor', 'appointment.status_changed', event);
+      await this.realtimeGateway.emitToRole('doctor', 'appointment:status_changed', event);
     } catch (err: any) {
       this.logger.warn(`Failed to emit status changed event: ${err.message}`);
     }
@@ -32,9 +35,12 @@ export class AppointmentRealtimeAdapter implements RealtimeEmitterPort {
     try {
       if (this.realtimeGateway.server) {
         this.realtimeGateway.server.emit('appointment.patient_called', event);
+        this.realtimeGateway.server.emit('appointment:called', event);
       }
       await this.realtimeGateway.emitToRole('admin', 'appointment.patient_called', event);
+      await this.realtimeGateway.emitToRole('admin', 'appointment:called', event);
       await this.realtimeGateway.emitToRole('doctor', 'appointment.patient_called', event);
+      await this.realtimeGateway.emitToRole('doctor', 'appointment:called', event);
     } catch (err: any) {
       this.logger.warn(`Failed to emit patient called event: ${err.message}`);
     }
