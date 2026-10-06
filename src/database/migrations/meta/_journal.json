@@ -127,6 +127,13 @@
       "when": 1791012863301,
       "tag": "0017_secret_nomad",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1791080000000,
+      "tag": "0018_appointment_queue_hardening",
+      "breakpoints": true
     }
   ]
 }

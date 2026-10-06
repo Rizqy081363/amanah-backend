@@ -57,12 +57,12 @@ export class AppointmentStatusHandler {
       updatedAt: nowStr,
     };
 
-    if (status === 'SUDAH_DATANG' || status === 'MENUNGGU') {
+    if (status === 'WAITING') {
       dbStatus = 'waiting';
       ticketStatus = 'waiting';
       updateApt.status = dbStatus;
       updateTicket.status = ticketStatus;
-    } else if (status === 'SEDANG_DIPERIKSA') {
+    } else if (status === 'IN_SERVICE') {
       dbStatus = 'in_service';
       ticketStatus = 'in_service';
       updateApt.status = dbStatus;
@@ -76,14 +76,14 @@ export class AppointmentStatusHandler {
       updateTicket.status = ticketStatus;
       updateTicket.calledAt = nowStr;
       updateTicket.startedAt = nowStr;
-    } else if (status === 'SELESAI') {
+    } else if (status === 'COMPLETED') {
       dbStatus = 'completed';
       ticketStatus = 'completed';
       updateApt.status = dbStatus;
       updateApt.completedAt = nowStr;
       updateTicket.status = ticketStatus;
       updateTicket.completedAt = nowStr;
-    } else if (status === 'BATAL') {
+    } else if (status === 'CANCELLED') {
       dbStatus = 'cancelled';
       ticketStatus = 'cancelled';
       updateApt.status = dbStatus;

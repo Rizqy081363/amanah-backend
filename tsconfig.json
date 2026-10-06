@@ -27,5 +27,6 @@
     "esModuleInterop": true,
     "types": ["bun-types", "jest"]
   },
-  "include": ["src/**/*", "test/**/*", ".install-scripts/**/*"]
+  "include": ["src/**/*", "test/**/*", ".install-scripts/**/*"],
+  "exclude": ["node_modules", "dist", "src/users/**/*"]
 }

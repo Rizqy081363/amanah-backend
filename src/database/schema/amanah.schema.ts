@@ -44,6 +44,7 @@ export const appointmentStatus = pgEnum('appointment_status', [
   'cancelled',
   'no_doctor',
   'no_show',
+  'late',
 ]);
 export const attendanceMethod = pgEnum('attendance_method', [
   'qr_scan',
@@ -1571,6 +1572,27 @@ export const appointments = pgTable(
     cancelReason: text('cancel_reason'),
     createdBy: uuid('created_by'),
     updatedBy: uuid('updated_by'),
+    queueNumber: integer('queue_number'),
+    estimatedStartAt: timestamp('estimated_start_at', {
+      withTimezone: true,
+      mode: 'string',
+    }),
+    estimatedEndAt: timestamp('estimated_end_at', {
+      withTimezone: true,
+      mode: 'string',
+    }),
+    actualStartedAt: timestamp('actual_started_at', {
+      withTimezone: true,
+      mode: 'string',
+    }),
+    actualCompletedAt: timestamp('actual_completed_at', {
+      withTimezone: true,
+      mode: 'string',
+    }),
+    lastCalledAt: timestamp('last_called_at', {
+      withTimezone: true,
+      mode: 'string',
+    }),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
       .notNull(),
@@ -1588,6 +1610,21 @@ export const appointments = pgTable(
       )
       .where(
         sql`((practitioner_id IS NOT NULL) AND (status = ANY (ARRAY['booked'::appointment_status, 'checked_in'::appointment_status, 'waiting'::appointment_status, 'in_service'::appointment_status])))`,
+      ),
+    uniqueIndex('appointments_practitioner_date_queue_unique')
+      .using(
+        'btree',
+        table.practitionerId.asc().nullsLast().op('uuid_ops'),
+        table.scheduledDate.asc().nullsLast().op('date_ops'),
+        table.queueNumber.asc().nullsLast().op('int4_ops'),
+      )
+      .where(
+        sql`((practitioner_id IS NOT NULL) AND (queue_number IS NOT NULL))`,
+      ),
+    index('appointments_waiting_lateness_idx')
+      .using('btree', table.estimatedStartAt.asc().nullsLast().op('timestamptz_ops'))
+      .where(
+        sql`(status = ANY (ARRAY['waiting'::appointment_status, 'booked'::appointment_status]))`,
       ),
     index('appointments_complaint_trgm_idx').using(
       'gin',
@@ -1661,6 +1698,14 @@ export const appointments = pgTable(
     check(
       'appointments_time_order',
       sql`(scheduled_end_time IS NULL) OR (scheduled_end_time > scheduled_start_time)`,
+    ),
+    check(
+      'appointments_actual_time_order',
+      sql`(actual_completed_at IS NULL) OR (actual_started_at IS NULL) OR (actual_completed_at >= actual_started_at)`,
+    ),
+    check(
+      'appointments_in_service_started_at',
+      sql`(status != 'in_service'::appointment_status) OR (actual_started_at IS NOT NULL)`,
     ),
   ],
 );

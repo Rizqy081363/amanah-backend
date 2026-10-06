@@ -9,7 +9,7 @@ describe('AppointmentCandidateResolver', () => {
           findFirst: async () => ({
             id: 'apt-1',
             practitionerId: 'doc-current',
-            scheduledDate: '2026-10-06',
+            scheduledDate: '2026-12-01',
             scheduledStartTime: '08:30:00',
             scheduledEndTime: '09:00:00',
             status: 'booked',
@@ -46,7 +46,7 @@ describe('AppointmentCandidateResolver', () => {
             {
               id: 'sess-1',
               practitionerId: 'doc-target',
-              scheduleDate: '2026-10-06',
+              scheduleDate: '2026-12-01',
               startTime: '08:00:00',
               endTime: '12:00:00',
               status: 'open',
@@ -82,7 +82,7 @@ describe('AppointmentCandidateResolver', () => {
           findFirst: async () => ({
             id: 'apt-1',
             roomId: 'room-1',
-            scheduledDate: '2026-10-06',
+            scheduledDate: '2026-12-01',
             scheduledStartTime: '08:30:00',
             scheduledEndTime: '09:00:00',
             status: 'booked',
@@ -92,7 +92,7 @@ describe('AppointmentCandidateResolver', () => {
               id: 'apt-2',
               roomId: 'room-2',
               bookingCode: 'BOOK-OCCUPIED',
-              scheduledDate: '2026-10-06',
+              scheduledDate: '2026-12-01',
               scheduledStartTime: '08:30:00',
               status: 'waiting',
               practitioner: {

@@ -42,36 +42,33 @@ export class AppointmentTemporalStatusHelper {
 
   static resolveEntityStatus(
     status: string,
-    isElapsed: boolean,
+    _isElapsed: boolean = false,
   ): AppointmentEntity['status'] {
-    if (status === 'cancelled' || status === 'BATAL') {
-      return 'BATAL';
+    if (status === 'cancelled' || status === 'BATAL' || status === 'CANCELLED') {
+      return 'CANCELLED';
     }
-    if (status === 'completed' || status === 'SELESAI' || isElapsed) {
-      return 'SELESAI';
+    if (status === 'completed' || status === 'SELESAI' || status === 'COMPLETED') {
+      return 'COMPLETED';
     }
-    if (status === 'in_service' || status === 'SEDANG_DIPERIKSA') {
-      return 'SEDANG_DIPERIKSA';
+    if (status === 'in_service' || status === 'SEDANG_DIPERIKSA' || status === 'IN_SERVICE') {
+      return 'IN_SERVICE';
     }
-    if (
-      status === 'waiting' ||
-      status === 'checked_in' ||
-      status === 'MENUNGGU'
-    ) {
-      return 'MENUNGGU';
+    if (status === 'late' || status === 'TERLAMBAT' || status === 'LATE' || status === 'no_show') {
+      return 'LATE';
     }
-    return 'SUDAH_BUAT_JANJI';
+    return 'WAITING';
   }
 
-  static resolveDbStatus(status: string, isElapsed: boolean): string {
+  static resolveDbStatus(status: string, _isElapsed: boolean = false): string {
     if (
       status === 'cancelled' ||
       status === 'no_show' ||
-      status === 'no_doctor'
+      status === 'no_doctor' ||
+      status === 'late'
     ) {
       return status;
     }
-    if (status === 'completed' || isElapsed) {
+    if (status === 'completed') {
       return 'completed';
     }
     return status;

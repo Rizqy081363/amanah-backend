@@ -7,7 +7,10 @@ import {
   SHIFT_TO_SESSION_MAP,
 } from '../../../schedules/domain/constants/schedule-shift.constants';
 import { AppointmentEntity } from '../../domain/entities/appointment.entity';
-import { AppointmentTemporalStatusHelper } from '../../domain/helpers/appointment-temporal-status.helper';
+import {
+  resolveAllowedActions,
+  toDomainStatus,
+} from '../../domain/types/appointment.types';
 
 export class AppointmentRecordMapper {
   static resolveSession(apt: any): CanonicalSessionName {
@@ -31,18 +34,7 @@ export class AppointmentRecordMapper {
     ticket?: any | null,
     poliklinikIdOverride?: string,
   ): AppointmentEntity {
-    const isElapsed = AppointmentTemporalStatusHelper.isElapsed({
-      scheduledDate: apt.scheduledDate,
-      scheduledStartTime: apt.scheduledStartTime,
-      scheduledEndTime: apt.scheduledEndTime,
-      estimatedDurationMinutes:
-        apt.practitioner?.consultationDurationMinutes ?? 30,
-    });
-    const entityStatus = AppointmentTemporalStatusHelper.resolveEntityStatus(
-      apt.status,
-      isElapsed,
-    );
-
+    const domainStatus = toDomainStatus(apt.status);
     const session = AppointmentRecordMapper.resolveSession(apt);
 
     const poliId =
@@ -88,14 +80,25 @@ export class AppointmentRecordMapper {
       estimatedDurationMinutes:
         apt.practitioner?.consultationDurationMinutes ?? 30,
       session,
-      queueNumber: ticket?.queueNumber || 'P-001',
+      queueNumber: apt.queueNumber ? String(apt.queueNumber) : (ticket?.queueNumber || '1'),
       ticketStatus: ticket?.status || 'waiting',
-      status: entityStatus,
+      status: domainStatus,
+      rawStatus: apt.status,
+      allowedActions: resolveAllowedActions(domainStatus),
       visitType:
         apt.visitType === 'follow_up' ? 'Kontrol Ulang' : 'Pemeriksaan Baru',
       complaint: apt.complaint || null,
       cancellationReason: apt.cancelReason || null,
       calledAt: ticket?.calledAt ? new Date(ticket.calledAt) : null,
+      lastCalledAt: apt.lastCalledAt
+        ? new Date(apt.lastCalledAt)
+        : ticket?.calledAt
+          ? new Date(ticket.calledAt)
+          : null,
+      actualStartedAt: apt.actualStartedAt ? new Date(apt.actualStartedAt) : null,
+      actualCompletedAt: apt.actualCompletedAt ? new Date(apt.actualCompletedAt) : null,
+      estimatedStartAt: apt.estimatedStartAt ? new Date(apt.estimatedStartAt) : null,
+      estimatedEndAt: apt.estimatedEndAt ? new Date(apt.estimatedEndAt) : null,
       completedAt: apt.completedAt ? new Date(apt.completedAt) : null,
       createdAt: new Date(apt.createdAt),
       updatedAt: new Date(apt.updatedAt),

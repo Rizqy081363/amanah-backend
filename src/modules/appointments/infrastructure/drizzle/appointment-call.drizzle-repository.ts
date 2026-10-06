@@ -169,6 +169,7 @@ export class AppointmentCallDrizzleRepository
       .update(appointments)
       .set({
         status: appointmentStatus as any,
+        lastCalledAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       })
       .where(eq(appointments.id, appointmentId));

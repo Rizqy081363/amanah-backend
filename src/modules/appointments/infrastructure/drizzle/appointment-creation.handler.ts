@@ -1,5 +1,5 @@
 import { UnprocessableEntityException } from '@nestjs/common';
-import { and, asc, eq, ilike, inArray, not, or } from 'drizzle-orm';
+import { and, asc, eq, ilike, inArray, not, or, sql } from 'drizzle-orm';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
   appointments,
@@ -291,6 +291,28 @@ export class AppointmentCreationHandler {
           ? 'pregnancy'
           : null);
 
+    let numericQueueNumber = 1;
+    if (practitionerId && data.appointmentDate) {
+      const [maxQ] = await db
+        .select({ max: sql<number>`COALESCE(MAX(${appointments.queueNumber}), 0)` })
+        .from(appointments)
+        .where(
+          and(
+            eq(appointments.practitionerId, practitionerId),
+            eq(appointments.scheduledDate, data.appointmentDate),
+          ),
+        );
+      numericQueueNumber = Number(maxQ?.max || 0) + 1;
+    }
+
+    const [startH, startM] = (startTime || '08:00').split(':').map(Number);
+    const estimatedStart = new Date(`${data.appointmentDate}T00:00:00.000Z`);
+    estimatedStart.setUTCHours(startH || 8, startM || 0, 0, 0);
+
+    const [endH, endM] = (endTime || '08:30').split(':').map(Number);
+    const estimatedEnd = new Date(`${data.appointmentDate}T00:00:00.000Z`);
+    estimatedEnd.setUTCHours(endH || 8, endM || 30, 0, 0);
+
     const [apt] = await db
       .insert(appointments)
       .values({
@@ -306,6 +328,9 @@ export class AppointmentCreationHandler {
         scheduledDate: data.appointmentDate,
         scheduledStartTime: startTime,
         scheduledEndTime: endTime,
+        queueNumber: numericQueueNumber,
+        estimatedStartAt: estimatedStart.toISOString(),
+        estimatedEndAt: estimatedEnd.toISOString(),
         complaint: data.complaint || null,
         medicalFlow: effectiveMedicalFlow,
       })

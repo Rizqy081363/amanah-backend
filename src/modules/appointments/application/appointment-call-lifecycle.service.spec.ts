@@ -74,7 +74,7 @@ describe('AppointmentCallLifecycleService', () => {
     );
   });
 
-  it('should reject call if max 3 attempts have already been made', async () => {
+  it('should allow call beyond attempt 3 without artificial limit', async () => {
     mockCallRepo.getLatestAttempt.mockResolvedValue({
       id: 'att-3',
       appointmentId: 'apt-1',
@@ -82,9 +82,9 @@ describe('AppointmentCallLifecycleService', () => {
       status: APPOINTMENT_CALL_STATUS.NO_RESPONSE,
     });
 
-    expect(service.callPatient('apt-1', 'staff-user-1')).rejects.toThrow(
-      BadRequestException,
-    );
+    const result = await service.callPatient('apt-1', 'staff-user-1');
+    expect(result.attemptNumber).toBe(4);
+    expect(result.status).toBe(APPOINTMENT_CALL_STATUS.CALLED);
   });
 
   it('should mark previous call as no_response if a new call is made before response', async () => {

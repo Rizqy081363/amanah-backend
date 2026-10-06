@@ -1,28 +1,12 @@
-import {
-  ForbiddenException,
-  Inject,
-  Injectable,
-  Logger,
-  NotFoundException,
-  Optional,
-} from '@nestjs/common';
+import { ForbiddenException, Inject, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { DEFAULT_PAGE_SIZE } from '../../../common/constants';
-import {
-  AppointmentCreatedEvent,
-  AppointmentStatusChangedEvent,
-} from '../../../common/events';
-import {
-  OutboxEventRecord,
-  OutboxService,
-  OutboxWorker,
-} from '../../../common/outbox';
+import { AppointmentCreatedEvent, AppointmentStatusChangedEvent } from '../../../common/events';
+import { OutboxEventRecord, OutboxService, OutboxWorker } from '../../../common/outbox';
 import { RedisService } from '../../../common/redis/redis.service';
-import {
-  APPOINTMENT_EVENTS,
-  APPOINTMENT_LIFECYCLE_EVENTS,
-} from '../domain/constants/appointment-lifecycle.constants';
+import { APPOINTMENT_LIFECYCLE_EVENTS } from '../domain/constants/appointment-lifecycle.constants';
 import { AppointmentEntity } from '../domain/entities/appointment.entity';
+import { toDomainStatus } from '../domain/types/appointment.types';
 import {
   APPOINTMENT_REPOSITORY,
   AppointmentFindAllResult,
@@ -84,7 +68,7 @@ export class AppointmentsService {
       appointmentDate: body.appointmentDate,
       session: body.session,
       queueNumber,
-      status: 'SUDAH_BUAT_JANJI',
+      status: 'WAITING',
       visitType: body.visitType || 'Pemeriksaan Baru',
       complaint: body.complaint || null,
       sourceIntakeId: body.sourceIntakeId || null,
@@ -251,7 +235,7 @@ export class AppointmentsService {
   ): Promise<AppointmentEntity> {
     return this.transitionAppointmentStatus(
       id,
-      'MENUNGGU',
+      'WAITING',
       'Check-in kedatangan pasien',
       undefined,
       user,
@@ -267,7 +251,7 @@ export class AppointmentsService {
   ): Promise<AppointmentEntity> {
     return this.transitionAppointmentStatus(
       id,
-      'SEDANG_DIPERIKSA',
+      'IN_SERVICE',
       'Panggilan pasien masuk ruang periksa',
       practitionerId,
       user,
@@ -282,7 +266,7 @@ export class AppointmentsService {
   ): Promise<AppointmentEntity> {
     return this.transitionAppointmentStatus(
       id,
-      'SELESAI',
+      'COMPLETED',
       'Pemeriksaan medis selesai',
       undefined,
       user,
@@ -299,7 +283,7 @@ export class AppointmentsService {
     const finalReason = reason || 'Dibatalkan oleh pasien';
     const updated = await this.transitionAppointmentStatus(
       id,
-      'BATAL',
+      'CANCELLED',
       finalReason,
       undefined,
       user,
@@ -324,7 +308,7 @@ export class AppointmentsService {
   ): Promise<AppointmentEntity> {
     return this.transitionAppointmentStatus(
       id,
-      dto.status,
+      toDomainStatus(dto.status),
       dto.cancellationReason || '',
       undefined,
       user,
@@ -429,7 +413,7 @@ export class AppointmentsService {
     await this.emitStatusChangeEvent(
       id,
       current?.status || null,
-      'BATAL',
+      'CANCELLED',
       'Dihapus oleh admin',
       { userId: user?.id || user?.sub, roleCode: user?.role },
     );

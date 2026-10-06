@@ -55,11 +55,6 @@ export class AppointmentCallLifecycleService {
     const latestAttempt = await this.callRepo.getLatestAttempt(appointmentId);
     const nextAttemptNumber = (latestAttempt?.attemptNumber ?? 0) + 1;
 
-    if (nextAttemptNumber > MAX_PATIENT_CALL_ATTEMPTS) {
-      throw new BadRequestException(
-        `Maksimum ${MAX_PATIENT_CALL_ATTEMPTS} kali panggilan telah tercapai untuk janji temu ini.`,
-      );
-    }
 
     if (
       latestAttempt &&

@@ -1,9 +1,15 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import type { AppointmentStatus } from '../../domain/types/appointment.types';
 
 export class UpdateAppointmentStatusDto {
   @ApiProperty({
     enum: [
+      'WAITING',
+      'IN_SERVICE',
+      'COMPLETED',
+      'CANCELLED',
+      'LATE',
       'SUDAH_BUAT_JANJI',
       'SUDAH_DATANG',
       'MENUNGGU',
@@ -11,10 +17,15 @@ export class UpdateAppointmentStatusDto {
       'SELESAI',
       'BATAL',
     ],
-    example: 'SEDANG_DIPERIKSA',
+    example: 'IN_SERVICE',
     description: 'Status siklus pelayanan antrean dan kunjungan',
   })
   @IsEnum([
+    'WAITING',
+    'IN_SERVICE',
+    'COMPLETED',
+    'CANCELLED',
+    'LATE',
     'SUDAH_BUAT_JANJI',
     'SUDAH_DATANG',
     'MENUNGGU',
@@ -23,17 +34,11 @@ export class UpdateAppointmentStatusDto {
     'BATAL',
   ])
   @IsNotEmpty()
-  status:
-    | 'SUDAH_BUAT_JANJI'
-    | 'SUDAH_DATANG'
-    | 'MENUNGGU'
-    | 'SEDANG_DIPERIKSA'
-    | 'SELESAI'
-    | 'BATAL';
+  status: AppointmentStatus | string;
 
   @ApiPropertyOptional({
-    example: 'Pasien tidak hadir setelah dipanggil 3 kali',
-    description: 'Alasan pembatalan jika status BATAL',
+    example: 'Pasien tidak hadir',
+    description: 'Alasan pembatalan',
   })
   @IsString()
   @IsOptional()

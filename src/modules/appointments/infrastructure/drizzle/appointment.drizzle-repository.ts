@@ -319,13 +319,13 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
     );
 
     const currentlyCalled = dailyAppointments.find(
-      (a) => a.status === 'SEDANG_DIPERIKSA',
+      (a) => a.status === 'IN_SERVICE',
     );
     const waitingList = dailyAppointments.filter(
-      (a) => a.status === 'MENUNGGU' || a.status === 'SUDAH_BUAT_JANJI',
+      (a) => a.status === 'WAITING',
     );
     const completedList = dailyAppointments.filter(
-      (a) => a.status === 'SELESAI',
+      (a) => a.status === 'COMPLETED',
     );
 
     return {
@@ -388,7 +388,7 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
   async delete(id: string): Promise<boolean> {
     const updated = await this.updateStatus(
       id,
-      'BATAL',
+      'CANCELLED',
       undefined,
       'Dihapus oleh pengguna',
     );

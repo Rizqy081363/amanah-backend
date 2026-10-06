@@ -27,15 +27,21 @@ import { RolesGuard } from '../../../common/auth/roles.guard';
 import { AppointmentCallLifecycleService } from '../application/appointment-call-lifecycle.service';
 import { APPOINTMENT_CALL_REPOSITORY } from '../domain/constants/appointment-lifecycle.constants';
 import { AppointmentCallRepository } from '../domain/repositories/appointment-call.repository';
+import { Optional, UseFilters } from '@nestjs/common';
+import { CallPatientUseCase } from '../application/use-cases/call-patient.use-case';
+import { AppointmentDomainExceptionFilter } from './filters/appointment-domain-exception.filter';
 import { AppointmentCallActionDto } from './dto/appointment-call.dto';
 
 @ApiTags('Appointments Lifecycle (Panggilan & Status Antrean)')
+@UseFilters(AppointmentDomainExceptionFilter)
 @Controller({ path: 'appointments', version: '1' })
 export class AppointmentCallController {
   constructor(
     private readonly callLifecycleService: AppointmentCallLifecycleService,
     @Inject(APPOINTMENT_CALL_REPOSITORY)
     private readonly callRepo: AppointmentCallRepository,
+    @Optional()
+    private readonly callPatientUseCase?: CallPatientUseCase,
   ) {}
 
   @ApiBearerAuth('access-token')
@@ -65,7 +71,13 @@ export class AppointmentCallController {
     @CurrentUser() user: any,
   ) {
     const callerId = user?.id || user?.sub || 'system';
-    return this.callLifecycleService.callPatient(id, callerId, body.notes);
+    const result = await this.callLifecycleService.callPatient(id, callerId, body?.notes);
+    if (this.callPatientUseCase) {
+      try {
+        await this.callPatientUseCase.execute(id);
+      } catch (_) {}
+    }
+    return result;
   }
 
   @ApiBearerAuth('access-token')

@@ -1,4 +1,8 @@
 import type { CanonicalSessionName } from '../../../schedules/domain/constants/schedule-shift.constants';
+import type {
+  AppointmentAction,
+  AppointmentStatus,
+} from '../types/appointment.types';
 
 export class AppointmentEntity {
   id: string;
@@ -25,19 +29,20 @@ export class AppointmentEntity {
   session: CanonicalSessionName;
   queueNumber: string;
   ticketStatus?: string;
-  status:
-    | 'SUDAH_BUAT_JANJI'
-    | 'SUDAH_DATANG'
-    | 'MENUNGGU'
-    | 'SEDANG_DIPERIKSA'
-    | 'SELESAI'
-    | 'BATAL';
+  status: AppointmentStatus;
   visitType: 'Pemeriksaan Baru' | 'Kontrol Ulang';
   complaint?: string | null;
   sourceIntakeId?: string | null;
   cancellationReason?: string | null;
   calledAt?: Date | null;
+  lastCalledAt?: Date | null;
+  actualStartedAt?: Date | null;
+  actualCompletedAt?: Date | null;
+  estimatedStartAt?: Date | null;
+  estimatedEndAt?: Date | null;
   completedAt?: Date | null;
+  rawStatus?: string;
+  allowedActions?: AppointmentAction[];
   createdAt: Date;
   updatedAt: Date;
   version?: string;
