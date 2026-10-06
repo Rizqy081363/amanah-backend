@@ -6,7 +6,7 @@ import {
   practitionerScheduleSessions,
   practitioners,
 } from '@database/schema';
-import { CLINIC_TIMEZONE } from '@modules/schedules/domain/constants/schedule.constants';
+import { ClinicTimeService } from '@common/time/clinic-time.service';
 import {
   SCHEDULE_CONTEXT_DEFINITIONS,
   type ScheduleContextDefinition,
@@ -42,6 +42,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { and, eq } from 'drizzle-orm';
@@ -56,7 +57,17 @@ export class DrizzleScheduleAvailabilityRepository {
     private readonly policyReader: SchedulePolicyReader,
     private readonly conflictQuery: ScheduleConflictQuery,
     private readonly occupationQuery: AppointmentOccupationQuery,
+    @Optional()
+    private readonly clinicTimeService?: ClinicTimeService,
   ) {}
+
+  private getTimezone(): string {
+    return (
+      this.clinicTimeService?.getTimezone() ||
+      process.env.CLINIC_TIMEZONE ||
+      'UTC'
+    );
+  }
 
   private toScheduleContextEntity(
     practitionerId: string,
@@ -74,7 +85,7 @@ export class DrizzleScheduleAvailabilityRepository {
       boundaryStartTime: context.boundaryStartTime,
       boundaryEndTime: context.boundaryEndTime,
       allowedStartPrecisionMinutes: policy.startPrecisionMinutes,
-      timezone: CLINIC_TIMEZONE,
+      timezone: this.getTimezone(),
       effectiveConsultationDurationMinutes: policy.durationMinutes,
       durationSource: 'PRACTITIONER_CONFIG',
       durationScope: 'practitioner-specific',
@@ -339,7 +350,11 @@ export class DrizzleScheduleAvailabilityRepository {
 
     return this.getScheduleContexts(
       updated.id,
-      new Date().toISOString().slice(0, 10),
+      this.clinicTimeService
+        ? this.clinicTimeService.today()
+        : new Intl.DateTimeFormat('en-CA', {
+            timeZone: this.getTimezone(),
+          }).format(new Date()),
       true,
     );
   }
@@ -435,7 +450,7 @@ export class DrizzleScheduleAvailabilityRepository {
       durationScope: 'practitioner-specific',
       durationEditableByCurrentUser: params.durationEditableByCurrentUser,
       allowedStartPrecisionMinutes: params.policy.startPrecisionMinutes,
-      timezone: CLINIC_TIMEZONE,
+      timezone: this.getTimezone(),
       capacity: projected.capacity,
       remainingShiftSlots: Math.max(
         0,

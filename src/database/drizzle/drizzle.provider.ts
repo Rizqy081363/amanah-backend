@@ -33,7 +33,10 @@ export const postgresPoolProvider: Provider = {
       infer: true,
     });
 
-    return new Pool({
+    const dbTimezone =
+      configService.get('time.dbTimezone', { infer: true }) || 'UTC';
+
+    const pool = new Pool({
       connectionString: configService.get('database.url', { infer: true }),
       host: configService.get('database.host', { infer: true }),
       port: configService.get('database.port', { infer: true }),
@@ -41,6 +44,7 @@ export const postgresPoolProvider: Provider = {
       password: configService.get('database.password', { infer: true }),
       database: configService.get('database.name', { infer: true }),
       max: configService.get('database.maxConnections', { infer: true }) || 20,
+      options: `-c timezone=${dbTimezone}`,
       ssl: isSslEnabled
         ? {
             rejectUnauthorized: configService.get(
@@ -55,6 +59,12 @@ export const postgresPoolProvider: Provider = {
           }
         : undefined,
     });
+
+    pool.on('connect', (client) => {
+      client.query("SELECT set_config('TimeZone', $1, false)", [dbTimezone]);
+    });
+
+    return pool;
   },
 };
 

@@ -7,7 +7,11 @@ import {
   practitionerScheduleDaySettings,
   practitionerScheduleSessions,
 } from '@database/schema';
-import { ACTIVE_APPOINTMENT_STATUSES } from '@modules/schedules/domain/constants/schedule.constants';
+import {
+  ACTIVE_APPOINTMENT_STATUSES,
+  SCHEDULE_SLOT_STATUS,
+  SCHEDULE_SLOT_CONFLICT_TYPE,
+} from '@modules/schedules/domain/constants/schedule.constants';
 import {
   resolveCanonicalShift,
   SHIFT_TIMING_CONFIGS,
@@ -159,10 +163,10 @@ export class DrizzleScheduleBootstrapRepository {
           time: slotStartTime,
           endTime: slotEndTime,
           isAvailable: false,
-          status: 'PAST',
+          status: SCHEDULE_SLOT_STATUS.PAST,
           displayLabel: 'Sudah Selesai',
           conflict: {
-            type: 'TEMPORAL_PAST',
+            type: SCHEDULE_SLOT_CONFLICT_TYPE.TEMPORAL_PAST,
             occupantName: null,
             reason: 'Slot waktu ini telah melewati jam operasional saat ini.',
           },
@@ -170,17 +174,16 @@ export class DrizzleScheduleBootstrapRepository {
         continue;
       }
 
-      // Priority 2: Doctor on Leave
       if (isLeave) {
         slots.push({
           slotIndex: i,
           time: slotStartTime,
           endTime: slotEndTime,
           isAvailable: false,
-          status: 'CLOSED_LEAVE',
+          status: SCHEDULE_SLOT_STATUS.CLOSED_LEAVE,
           displayLabel: 'Cuti',
           conflict: {
-            type: 'LEAVE',
+            type: SCHEDULE_SLOT_CONFLICT_TYPE.LEAVE,
             occupantName: null,
             reason: leaveReason || 'Dokter tercatat sedang cuti.',
           },
@@ -188,10 +191,9 @@ export class DrizzleScheduleBootstrapRepository {
         continue;
       }
 
-      // Priority 3: Doctor's Own Overlapping Schedule in Another Room
       const selfSessionInAnotherRoom = activeSessions.find((s) => {
         if (s.practitionerId !== practitioner.id) return false;
-        if (s.roomId === query.roomId) return false; // Sesi di ruangan yang sama bukan bentrok!
+        if (s.roomId === query.roomId) return false;
         const sStart = parseClockTime(s.startTime.slice(0, 5));
         const sEnd = parseClockTime(s.endTime.slice(0, 5));
         return sStart < slotEndMin && sEnd > slotStartMin;
@@ -205,18 +207,17 @@ export class DrizzleScheduleBootstrapRepository {
           time: slotStartTime,
           endTime: slotEndTime,
           isAvailable: false,
-          status: 'OCCUPIED_BY_SELF',
+          status: SCHEDULE_SLOT_STATUS.OCCUPIED_BY_SELF,
           displayLabel: 'Jadwal Anda',
           conflict: {
-            type: 'PRACTITIONER_OVERLAP',
+            type: SCHEDULE_SLOT_CONFLICT_TYPE.PRACTITIONER_OVERLAP,
             occupantName: doctorName,
-            reason: `Anda telah memiliki jadwal pada jam ${selfSessionInAnotherRoom.startTime.slice(0, 5)} - ${selfSessionInAnotherRoom.endTime.slice(0, 5)} WIB di ${selfRoomName}.`,
+            reason: `Anda telah memiliki jadwal pada jam ${selfSessionInAnotherRoom.startTime.slice(0, 5)} - ${selfSessionInAnotherRoom.endTime.slice(0, 5)} di ${selfRoomName}.`,
           },
         });
         continue;
       }
 
-      // Priority 4: Room Occupied by Another Doctor
       const otherSession = activeSessions.find((s) => {
         if (s.roomId !== query.roomId) return false;
         if (s.practitionerId === practitioner.id) return false;
@@ -238,13 +239,13 @@ export class DrizzleScheduleBootstrapRepository {
           time: slotStartTime,
           endTime: slotEndTime,
           isAvailable: false,
-          status: 'OCCUPIED_BY_OTHER',
+          status: SCHEDULE_SLOT_STATUS.OCCUPIED_BY_OTHER,
           displayLabel: otherDoctorName,
           conflict: {
-            type: 'ROOM_OCCUPIED',
+            type: SCHEDULE_SLOT_CONFLICT_TYPE.ROOM_OCCUPIED,
             occupantName: otherDoctorName,
             practitionerId: otherPractitionerId,
-            reason: `${roomName} sudah dialokasikan untuk ${otherDoctorName} pada jam ${otherSession.startTime.slice(0, 5)} - ${otherSession.endTime.slice(0, 5)} WIB.`,
+            reason: `${roomName} sudah dialokasikan untuk ${otherDoctorName} pada jam ${otherSession.startTime.slice(0, 5)} - ${otherSession.endTime.slice(0, 5)}.`,
           },
         });
         continue;
@@ -273,10 +274,10 @@ export class DrizzleScheduleBootstrapRepository {
           time: slotStartTime,
           endTime: slotEndTime,
           isAvailable: false,
-          status: 'OCCUPIED_BY_SELF',
+          status: SCHEDULE_SLOT_STATUS.OCCUPIED_BY_SELF,
           displayLabel: `Terisi: ${patientName}`,
           conflict: {
-            type: 'PRACTITIONER_OVERLAP',
+            type: SCHEDULE_SLOT_CONFLICT_TYPE.PRACTITIONER_OVERLAP,
             occupantName: patientName,
             reason: `Slot sudah terisi oleh janji temu pasien ${patientName}.`,
           },
@@ -284,13 +285,12 @@ export class DrizzleScheduleBootstrapRepository {
         continue;
       }
 
-      // Priority 6: Available (Free slot or Doctor's own open slot without patient)
       slots.push({
         slotIndex: i,
         time: slotStartTime,
         endTime: slotEndTime,
         isAvailable: true,
-        status: 'AVAILABLE',
+        status: SCHEDULE_SLOT_STATUS.AVAILABLE,
         displayLabel: 'Tersedia',
         conflict: null,
       });

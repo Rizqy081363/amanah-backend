@@ -1,5 +1,3 @@
-export const CLINIC_TIMEZONE = 'Asia/Jakarta';
-
 export const ACTIVE_APPOINTMENT_STATUSES = [
   'booked',
   'checked_in',
@@ -8,6 +6,27 @@ export const ACTIVE_APPOINTMENT_STATUSES = [
 ] as const;
 
 export const INACTIVE_APPOINTMENT_STATUSES = ['cancelled', 'no_show'] as const;
+
+export const SCHEDULE_SLOT_STATUS = {
+  AVAILABLE: 'AVAILABLE',
+  PAST: 'PAST',
+  OCCUPIED_BY_OTHER: 'OCCUPIED_BY_OTHER',
+  OCCUPIED_BY_SELF: 'OCCUPIED_BY_SELF',
+  CLOSED_LEAVE: 'CLOSED_LEAVE',
+} as const;
+
+export type ScheduleSlotStatus =
+  (typeof SCHEDULE_SLOT_STATUS)[keyof typeof SCHEDULE_SLOT_STATUS];
+
+export const SCHEDULE_SLOT_CONFLICT_TYPE = {
+  TEMPORAL_PAST: 'TEMPORAL_PAST',
+  ROOM_OCCUPIED: 'ROOM_OCCUPIED',
+  PRACTITIONER_OVERLAP: 'PRACTITIONER_OVERLAP',
+  LEAVE: 'LEAVE',
+} as const;
+
+export type ScheduleSlotConflictType =
+  (typeof SCHEDULE_SLOT_CONFLICT_TYPE)[keyof typeof SCHEDULE_SLOT_CONFLICT_TYPE];
 
 export const APPOINTMENT_STATUS_BADGE_MAP: Record<string, string> = {
   booked: 'Booked',

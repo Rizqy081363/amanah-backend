@@ -1,12 +1,10 @@
 import {
   ACTIVE_APPOINTMENT_STATUSES,
-  CLINIC_TIMEZONE,
   isUuid,
 } from './schedule.constants';
 
 describe('schedule constants', () => {
   it('keeps canonical scheduling runtime constants stable', () => {
-    expect(CLINIC_TIMEZONE).toBe('Asia/Jakarta');
     expect(ACTIVE_APPOINTMENT_STATUSES).toEqual([
       'booked',
       'checked_in',

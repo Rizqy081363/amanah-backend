@@ -11,8 +11,9 @@ RUN bun run build
 
 FROM oven/bun:1.2.19-alpine AS runner
 
-RUN apk add --no-cache bash curl tzdata
-ENV TZ=Asia/Jakarta
+RUN apk add --no-cache bash curl tzdata && \
+    cp /usr/share/zoneinfo/Asia/Jakarta /etc/localtime && \
+    echo "Asia/Jakarta" > /etc/timezone
 WORKDIR /usr/src/app
 
 COPY --from=builder /usr/src/app/package.json ./

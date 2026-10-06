@@ -7,12 +7,13 @@ services:
       - "127.0.0.1:${POSTGRES_HOST_PORT:-5433}:5432"
     volumes:
       - amanah-postgres-data:/var/lib/postgresql/data
+    command: ["postgres", "-c", "timezone=${DB_TIMEZONE:-Asia/Jakarta}", "-c", "log_timezone=${DB_TIMEZONE:-Asia/Jakarta}"]
     environment:
       POSTGRES_USER: ${DATABASE_USERNAME:-amanah}
       POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-amanah_secret}
       POSTGRES_DB: ${DATABASE_NAME:-amanah_healthcare}
-      TZ: ${APP_TIMEZONE:-Asia/Jakarta}
-      PGTZ: ${APP_TIMEZONE:-Asia/Jakarta}
+      TZ: ${PROCESS_TZ:-Asia/Jakarta}
+      PGTZ: ${DB_TIMEZONE:-Asia/Jakarta}
     healthcheck:
       test:
         [
@@ -105,7 +106,9 @@ services:
       DATABASE_PASSWORD: ${DATABASE_PASSWORD:-amanah_secret}
       DATABASE_NAME: ${DATABASE_NAME:-amanah_healthcare}
       RABBITMQ_URL: amqp://${RABBITMQ_USER:-amanah}:${RABBITMQ_PASSWORD:-amanah_secret}@rabbitmq:5672
-      TZ: ${APP_TIMEZONE:-Asia/Jakarta}
+      TZ: ${PROCESS_TZ:?set PROCESS_TZ in .env}
+      CLINIC_TIMEZONE: ${CLINIC_TIMEZONE:?set CLINIC_TIMEZONE in .env}
+      DB_TIMEZONE: ${DB_TIMEZONE:?set DB_TIMEZONE in .env}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
     depends_on:

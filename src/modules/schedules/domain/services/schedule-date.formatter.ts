@@ -1,5 +1,5 @@
+import { Temporal } from '@js-temporal/polyfill';
 import {
-  CLINIC_TIMEZONE,
   INDO_DAYS,
   INDO_MONTHS,
   INDO_MONTHS_SHORT,
@@ -50,9 +50,7 @@ function formatSessionSlot(
 }
 
 export function getNextDate(dateStr: string): string {
-  const [y, m, d] = dateStr.split('-').map(Number);
-  const dt = new Date(Date.UTC(y, m - 1, d + 1));
-  return dt.toISOString().slice(0, 10);
+  return Temporal.PlainDate.from(dateStr).add({ days: 1 }).toString();
 }
 
 function resolveTomorrowSchedule(
@@ -141,13 +139,16 @@ export function computeUpcomingSchedule(
   return resolveTomorrowSchedule(tomorrowSesiHarian, slotDurationMinutes);
 }
 
-export function getClinicNow(refDate?: Date): {
+export function getClinicNow(
+  refDate?: Date,
+  timeZone = process.env.CLINIC_TIMEZONE || 'UTC',
+): {
   date: string;
   time: string;
   currentMinutes: number;
 } {
   const formatter = new Intl.DateTimeFormat('en-CA', {
-    timeZone: CLINIC_TIMEZONE,
+    timeZone,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',

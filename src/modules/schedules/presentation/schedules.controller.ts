@@ -1,5 +1,6 @@
 import { CurrentUser } from '@common/auth/current-user.decorator';
 import { HybridAuthGuard } from '@common/auth/hybrid-auth.guard';
+import { Public } from '@common/auth/public.decorator';
 import { Roles } from '@common/auth/roles.decorator';
 import { RolesGuard } from '@common/auth/roles.guard';
 import {
@@ -388,8 +389,8 @@ export class SchedulesController {
     );
   }
 
+  @Public()
   @Get('reference/polikliniks')
-  @Roles('ADMIN', 'STAF', 'PATIENT')
   @ApiOperation({
     summary: 'Mendapatkan daftar unit poliklinik aktif untuk referensi jadwal',
     description:
@@ -402,8 +403,28 @@ export class SchedulesController {
     return this.scheduleRepo.getPolikliniks();
   }
 
+  @Public()
+  @Get('reference/sessions')
+  @ApiOperation({
+    summary: 'Mendapatkan master sesi praktik dokter dari database policy',
+  })
+  @ApiOkResponse({
+    description: 'Daftar master sesi konsultasi berhasil diambil',
+  })
+  async getReferenceSessions() {
+    const options = await this.scheduleRepo.getScheduleOptions();
+    return options.shifts.map((s) => ({
+      id: s.shift,
+      session: s.id,
+      label: s.label,
+      startTime: s.startTime,
+      endTime: s.endTime,
+      timeRange: `${s.startTime} - ${s.endTime}`,
+    }));
+  }
+
+  @Public()
   @Get(['reference/options', 'options'])
-  @Roles('ADMIN', 'STAF', 'PATIENT')
   @ApiOperation({
     summary:
       'Mendapatkan opsi konfigurasi referensi jadwal dokter (shifts, status, time intervals)',

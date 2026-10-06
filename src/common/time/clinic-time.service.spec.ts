@@ -1,35 +1,64 @@
 import { describe, expect, it } from 'bun:test';
-import { ClinicTimeService } from './clinic-time.service';
+import { Temporal } from '@js-temporal/polyfill';
+import {
+  ClinicTimeService,
+  parseBusinessDate,
+} from './clinic-time.service';
+import { FixedClock } from './clock';
 
-describe('ClinicTimeService', () => {
-  it('should default to Asia/Jakarta timezone when no config provided', () => {
-    const service = new ClinicTimeService();
-    expect(service.getTimezone()).toBe('Asia/Jakarta');
-  });
-
-  it('should format today date string in Asia/Jakarta correctly across midnight', () => {
-    const service = new ClinicTimeService();
-    const utcMidnightDate = new Date('2026-10-06T17:30:00.000Z');
-    expect(service.getTodayDateString(utcMidnightDate)).toBe('2026-10-07');
-    expect(service.getCurrentTimeString(utcMidnightDate)).toBe('00:30:00');
-  });
-
-  it('should format arbitrary date and time strings deterministically', () => {
-    const service = new ClinicTimeService();
-    const targetDate = new Date('2026-12-31T23:59:59.000Z');
-    expect(service.formatDate(targetDate)).toBe('2027-01-01');
-    expect(service.formatTime(targetDate)).toBe('06:59:59');
-  });
-
-  it('should accept custom timezone from config service mock', () => {
+describe('ClinicTimeService - Time Contract Matrix', () => {
+  const makeService = (iso: string, timezone = 'Asia/Jakarta') => {
+    const fixedClock = new FixedClock(Temporal.Instant.from(iso));
     const mockConfig = {
-      get: (key: string) =>
-        key === 'app.timezone' ? 'Asia/Makassar' : undefined,
+      getOrThrow: (key: string) => {
+        if (key === 'time.clinicTimezone') {
+          return timezone;
+        }
+        throw new Error(`Missing ${key}`);
+      },
     } as any;
-    const service = new ClinicTimeService(mockConfig);
-    expect(service.getTimezone()).toBe('Asia/Makassar');
-    const utcMidnightDate = new Date('2026-10-06T17:30:00.000Z');
-    expect(service.getTodayDateString(utcMidnightDate)).toBe('2026-10-07');
-    expect(service.getCurrentTimeString(utcMidnightDate)).toBe('01:30:00');
+    return new ClinicTimeService(fixedClock, mockConfig);
+  };
+
+  const cases = [
+    ['2026-10-06T16:59:59Z', '2026-10-06'],
+    ['2026-10-06T17:00:00Z', '2026-10-07'],
+    ['2026-10-06T17:23:00Z', '2026-10-07'],
+    ['2026-10-07T16:59:59Z', '2026-10-07'],
+  ] as const;
+
+  for (const [iso, expected] of cases) {
+    it(`determines today correctly across midnight: ${iso} -> ${expected}`, () => {
+      const service = makeService(iso, 'Asia/Jakarta');
+      expect(service.today()).toBe(expected);
+    });
+  }
+
+  it('parses valid business dates strictly', () => {
+    expect(parseBusinessDate('2026-10-07')).toBe('2026-10-07');
+  });
+
+  it('rejects invalid leap or month dates', () => {
+    expect(() => parseBusinessDate('2026-02-30')).toThrow();
+  });
+
+  it('rejects non-calendar strings', () => {
+    expect(() => parseBusinessDate('not-a-date')).toThrow();
+    expect(() => parseBusinessDate('')).toThrow();
+    expect(() => parseBusinessDate('2026-13-01')).toThrow();
+  });
+
+  it('computes half-open UTC range for clinic calendar day', () => {
+    const service = makeService('2026-10-06T17:23:00Z', 'Asia/Jakarta');
+    const range = service.rangeOf(parseBusinessDate('2026-10-07'));
+    expect(range.from.toString()).toBe('2026-10-06T17:00:00Z');
+    expect(range.to.toString()).toBe('2026-10-07T17:00:00Z');
+  });
+
+  it('formats time and date deterministically with explicit timezone', () => {
+    const service = makeService('2026-10-06T17:23:00Z', 'Asia/Jakarta');
+    expect(service.getCurrentTimeString()).toBe('00:23:00');
+    expect(service.formatDate('2026-12-31T23:59:59Z')).toBe('2027-01-01');
+    expect(service.formatTime('2026-12-31T23:59:59Z')).toBe('06:59:59');
   });
 });

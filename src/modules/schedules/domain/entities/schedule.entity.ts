@@ -123,6 +123,12 @@ export class ScheduleOptionsReferenceEntity {
     shift: 'early_morning' | 'morning' | 'afternoon' | 'night' | string;
     startTime: string;
     endTime: string;
+    timeRange?: string;
+    startHour?: number;
+    endHour?: number;
+    totalSlots?: number;
+    durationMinutes?: number;
+    precisionMinutes?: number;
   }[];
   statuses: {
     id: string;
@@ -134,6 +140,14 @@ export class ScheduleOptionsReferenceEntity {
   durationScope?: string;
   canonicalIntervalStatuses?: {
     id: 'OPEN' | 'OCCUPIED' | 'CLOSED';
+    label: string;
+  }[];
+  slotStatuses?: {
+    id: string;
+    label: string;
+  }[];
+  slotConflictTypes?: {
+    id: string;
     label: string;
   }[];
 }

@@ -1,32 +1,11 @@
 import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Headers,
-  HttpCode,
-  HttpStatus,
-  NotFoundException,
-  Param,
-  Patch,
-  Post,
-  Query,
-  Res,
-  UseGuards,
+  Body, Controller, Delete, Get, Headers, HttpCode, HttpStatus,
+  NotFoundException, Param, Patch, Post, Query, Res, UseGuards,
 } from '@nestjs/common';
 import {
-  ApiBearerAuth,
-  ApiBody,
-  ApiCreatedResponse,
-  ApiForbiddenResponse,
-  ApiNoContentResponse,
-  ApiNotFoundResponse,
-  ApiOkResponse,
-  ApiOperation,
-  ApiParam,
-  ApiTags,
-  ApiUnauthorizedResponse,
-  ApiUnprocessableEntityResponse,
+  ApiBearerAuth, ApiBody, ApiCreatedResponse, ApiForbiddenResponse,
+  ApiNoContentResponse, ApiNotFoundResponse, ApiOkResponse, ApiOperation,
+  ApiParam, ApiTags, ApiUnauthorizedResponse, ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { CurrentUser } from '../../../common/auth/current-user.decorator';
@@ -37,6 +16,10 @@ import { RolesGuard } from '../../../common/auth/roles.guard';
 import { HttpCache } from '../../../common/decorators/http-cache.decorator';
 import { Idempotent } from '../../../common/decorators/idempotent.decorator';
 import { formatETag } from '../../../common/occ';
+import {
+  ClinicTimeService,
+  parseBusinessDate,
+} from '../../../common/time/clinic-time.service';
 import { AppointmentsService } from '../application/appointments.service';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { QueryAppointmentDto } from './dto/query-appointment.dto';
@@ -46,7 +29,10 @@ import { UpdateAppointmentStatusDto } from './dto/update-appointment-status.dto'
 @ApiTags('Appointments (Kunjungan & Antrean Pasien)')
 @Controller({ path: 'appointments', version: '1' })
 export class AppointmentsController {
-  constructor(private readonly appointmentsService: AppointmentsService) {}
+  constructor(
+    private readonly appointmentsService: AppointmentsService,
+    private readonly clinicTimeService: ClinicTimeService,
+  ) {}
 
   @ApiBearerAuth('access-token')
   @UseGuards(HybridAuthGuard, RolesGuard)
@@ -131,7 +117,36 @@ export class AppointmentsController {
     @Query('date') date: string,
     @Query('session') session?: string,
   ) {
-    return this.appointmentsService.findDailyQueue(poliklinikId, date, session);
+    const businessDate = parseBusinessDate(date);
+    return this.appointmentsService.findDailyQueue(
+      poliklinikId,
+      businessDate,
+      session,
+    );
+  }
+
+  @ApiBearerAuth('access-token')
+  @UseGuards(HybridAuthGuard, RolesGuard)
+  @Roles('PATIENT')
+  @Get('queue/my')
+  @ApiOperation({
+    summary: 'Mendapatkan antrean aktif hari ini untuk pasien',
+    description:
+      'Endpoint khusus pasien untuk memantau antrean hari ini berdasarkan jam operasional server SSOT.',
+  })
+  @ApiOkResponse({ description: 'Antrean pasien hari ini berhasil diambil' })
+  @ApiUnauthorizedResponse({ description: 'Sesi token tidak valid' })
+  @ApiForbiddenResponse({ description: 'Hanya Pasien yang diizinkan' })
+  async getMyQueue(
+    @CurrentUser() user: any,
+    @Query('poliklinikId') poliklinikId?: string,
+  ) {
+    const patientId = user?.patient?.id || user?.id || user?.sub;
+    return this.appointmentsService.findMyQueue(
+      patientId,
+      this.clinicTimeService.today(),
+      poliklinikId,
+    );
   }
 
   @Public()
@@ -143,11 +158,11 @@ export class AppointmentsController {
   })
   @ApiOkResponse({ description: 'Data antrean TV monitor berhasil diambil' })
   @HttpCache({ ttlSeconds: 10, tags: ['queue', 'display'] })
-  async getDisplayQueue(
-    @Query('date') date?: string,
-    @Query('poliklinikId') poliklinikId?: string,
-  ) {
-    return this.appointmentsService.findDisplayQueue(date, poliklinikId);
+  async getDisplayQueue(@Query('poliklinikId') poliklinikId?: string) {
+    return this.appointmentsService.findDisplayQueue(
+      this.clinicTimeService.today(),
+      poliklinikId,
+    );
   }
 
   @ApiBearerAuth('access-token')

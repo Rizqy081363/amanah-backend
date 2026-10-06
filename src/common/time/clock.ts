@@ -1,0 +1,23 @@
+import { Injectable } from '@nestjs/common';
+import { Temporal } from '@js-temporal/polyfill';
+
+export abstract class Clock {
+  abstract now(): Temporal.Instant;
+}
+
+@Injectable()
+export class SystemClock extends Clock {
+  now(): Temporal.Instant {
+    return Temporal.Now.instant();
+  }
+}
+
+export class FixedClock extends Clock {
+  constructor(private readonly instant: Temporal.Instant) {
+    super();
+  }
+
+  now(): Temporal.Instant {
+    return this.instant;
+  }
+}

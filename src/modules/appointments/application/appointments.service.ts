@@ -12,6 +12,8 @@ import {
   AppointmentFindAllResult,
   AppointmentRepository,
 } from '../domain/repositories/appointment.repository';
+import { BusinessDate, ClinicTimeService } from '../../../common/time/clinic-time.service';
+import { QueueResponseEnvelope } from '../domain/types/queue-response.type';
 import { AdminUpdateAppointmentStatusDto } from '../presentation/dto/admin-update-appointment-status.dto';
 import { CancelAppointmentDto } from '../presentation/dto/cancel-appointment.dto';
 import { CreateAppointmentDto } from '../presentation/dto/create-appointment.dto';
@@ -39,6 +41,8 @@ export class AppointmentsService {
     private readonly outboxWorker?: OutboxWorker,
     @Optional()
     private readonly notificationPublisher?: AppointmentNotificationPublisher,
+    @Optional()
+    private readonly clinicTimeService?: ClinicTimeService,
   ) {}
 
   async createAppointment(
@@ -73,6 +77,7 @@ export class AppointmentsService {
       sourceIntakeId: body.sourceIntakeId || null,
     });
 
+    const actor = { userId: user?.id || user?.sub, roleCode: user?.role };
     await this.dispatchDomainEvent(
       {
         aggregateType: 'appointment',
@@ -86,25 +91,13 @@ export class AppointmentsService {
           session: created.session,
           queueNumber: created.queueNumber,
           status: created.status,
-          actor: {
-            userId: user?.id || user?.sub,
-            roleCode: user?.role,
-          },
+          actor,
         },
       },
       new AppointmentCreatedEvent(
-        created.id,
-        created.patientId,
-        created.poliklinikId,
-        created.appointmentDate,
-        created.session,
-        created.queueNumber,
-        created.status,
-        undefined,
-        {
-          userId: user?.id || user?.sub,
-          roleCode: user?.role,
-        },
+        created.id, created.patientId, created.poliklinikId,
+        created.appointmentDate, created.session, created.queueNumber,
+        created.status, undefined, actor,
       ),
     );
 
@@ -202,117 +195,106 @@ export class AppointmentsService {
 
   async findDailyQueue(
     poliklinikId: string,
-    date: string,
+    date: BusinessDate,
     session?: string,
-  ): Promise<AppointmentEntity[]> {
-    const targetDate = date || new Date().toISOString().split('T')[0];
-    const cacheKey = `${QUEUE_DAILY_CACHE_PREFIX}:${poliklinikId}:${targetDate}:${session || 'all'}`;
-
-    return this.redisService.getOrSet(
+  ): Promise<QueueResponseEnvelope<AppointmentEntity[]>> {
+    const cacheKey = `${QUEUE_DAILY_CACHE_PREFIX}:${poliklinikId}:${date}:${session || 'all'}`;
+    const items = await this.redisService.getOrSet(
       cacheKey,
-      () =>
-        this.appointmentRepo.findDailyQueue(poliklinikId, targetDate, session),
+      () => this.appointmentRepo.findDailyQueue(poliklinikId, date, session),
       QUEUE_CACHE_TTL_SECONDS,
     );
+    return {
+      businessDate: date,
+      clinicTimezone: this.getClinicTimezone(),
+      generatedAt: this.getNowIso(),
+      items,
+    };
   }
 
-  async findDisplayQueue(date?: string, poliklinikId?: string): Promise<any> {
-    const targetDate = date || new Date().toISOString().split('T')[0];
-    const cacheKey = `${QUEUE_DISPLAY_CACHE_PREFIX}:${targetDate}:${poliklinikId || 'all'}`;
+  async findMyQueue(
+    patientIdOrUserId: string,
+    today: BusinessDate,
+    poliklinikId?: string,
+  ): Promise<QueueResponseEnvelope<AppointmentEntity[]>> {
+    const daily = await this.appointmentRepo.findDailyQueue(
+      poliklinikId || '',
+      today,
+    );
+    const matched = daily.filter(
+      (a) =>
+        a.patientId === patientIdOrUserId ||
+        (a as any).patientProfileId === patientIdOrUserId ||
+        (a as any).userId === patientIdOrUserId,
+    );
+    return {
+      businessDate: today,
+      clinicTimezone: this.getClinicTimezone(),
+      generatedAt: this.getNowIso(),
+      items: matched.length > 0 ? matched : daily,
+    };
+  }
 
-    return this.redisService.getOrSet(
+  async findDisplayQueue(
+    today: BusinessDate,
+    poliklinikId?: string,
+  ): Promise<any> {
+    const cacheKey = `${QUEUE_DISPLAY_CACHE_PREFIX}:${today}:${poliklinikId || 'all'}`;
+    const displayData = await this.redisService.getOrSet(
       cacheKey,
-      () => this.appointmentRepo.findDisplayQueue(targetDate, poliklinikId),
+      () => this.appointmentRepo.findDisplayQueue(today, poliklinikId),
       QUEUE_CACHE_TTL_SECONDS,
     );
+    return {
+      businessDate: today,
+      clinicTimezone: this.getClinicTimezone(),
+      generatedAt: this.getNowIso(),
+      ...displayData,
+    };
   }
 
-  async checkIn(
-    id: string,
-    user?: any,
-    expectedVersion?: string,
-  ): Promise<AppointmentEntity> {
-    return this.transitionAppointmentStatus(
-      id,
-      'WAITING',
-      'Check-in kedatangan pasien',
-      undefined,
-      user,
-      expectedVersion,
+  private getClinicTimezone(): string {
+    return (
+      this.clinicTimeService?.getTimezone() ||
+      process.env.CLINIC_TIMEZONE ||
+      'UTC'
     );
   }
 
-  async callPatient(
-    id: string,
-    practitionerId?: string,
-    user?: any,
-    expectedVersion?: string,
-  ): Promise<AppointmentEntity> {
-    return this.transitionAppointmentStatus(
-      id,
-      'IN_SERVICE',
-      'Panggilan pasien masuk ruang periksa',
-      practitionerId,
-      user,
-      expectedVersion,
-    );
+  private getNowIso(): string {
+    return this.clinicTimeService
+      ? this.clinicTimeService.nowInstant().toString()
+      : new Date().toISOString();
   }
 
-  async complete(
-    id: string,
-    user?: any,
-    expectedVersion?: string,
-  ): Promise<AppointmentEntity> {
-    return this.transitionAppointmentStatus(
-      id,
-      'COMPLETED',
-      'Pemeriksaan medis selesai',
-      undefined,
-      user,
-      expectedVersion,
-    );
+  async checkIn(id: string, user?: any, expectedVersion?: string): Promise<AppointmentEntity> {
+    return this.transitionAppointmentStatus(id, 'WAITING', 'Check-in kedatangan pasien', undefined, user, expectedVersion);
   }
 
-  async cancel(
-    id: string,
-    reason?: string,
-    user?: any,
-    expectedVersion?: string,
-  ): Promise<AppointmentEntity> {
+  async callPatient(id: string, practitionerId?: string, user?: any, expectedVersion?: string): Promise<AppointmentEntity> {
+    return this.transitionAppointmentStatus(id, 'IN_SERVICE', 'Panggilan pasien masuk ruang periksa', practitionerId, user, expectedVersion);
+  }
+
+  async complete(id: string, user?: any, expectedVersion?: string): Promise<AppointmentEntity> {
+    return this.transitionAppointmentStatus(id, 'COMPLETED', 'Pemeriksaan medis selesai', undefined, user, expectedVersion);
+  }
+
+  async cancel(id: string, reason?: string, user?: any, expectedVersion?: string): Promise<AppointmentEntity> {
     const finalReason = reason || 'Dibatalkan oleh pasien';
     const updated = await this.transitionAppointmentStatus(
-      id,
-      'CANCELLED',
-      finalReason,
-      undefined,
-      user,
-      expectedVersion,
-      finalReason,
+      id, 'CANCELLED', finalReason, undefined, user, expectedVersion, finalReason,
     );
     if (this.notificationPublisher) {
-      await this.notificationPublisher.publishCancelled(
-        updated,
-        finalReason,
-        user,
-      );
+      await this.notificationPublisher.publishCancelled(updated, finalReason, user);
     }
     return updated;
   }
 
   async updateStatus(
-    id: string,
-    dto: UpdateAppointmentStatusDto,
-    user?: any,
-    expectedVersion?: string,
+    id: string, dto: UpdateAppointmentStatusDto, user?: any, expectedVersion?: string,
   ): Promise<AppointmentEntity> {
     return this.transitionAppointmentStatus(
-      id,
-      toDomainStatus(dto.status),
-      dto.cancellationReason || '',
-      undefined,
-      user,
-      expectedVersion,
-      dto.cancellationReason,
+      id, toDomainStatus(dto.status), dto.cancellationReason || '', undefined, user, expectedVersion, dto.cancellationReason,
     );
   }
 
@@ -471,17 +453,9 @@ export class AppointmentsService {
         this.redisService.deleteByPrefix(QUEUE_DAILY_CACHE_PREFIX),
         this.redisService.deleteByPrefix('clinics:analytics'),
         this.redisService.invalidateTags(
-          'queue',
-          'display',
-          'daily',
-          'analytics',
-          'schedule',
-          'schedule:list',
-          'schedule:detail',
-          'schedule:patients',
-          'appointments',
-          'appointments:me',
-          'booking',
+          'queue', 'display', 'daily', 'analytics', 'schedule',
+          'schedule:list', 'schedule:detail', 'schedule:patients',
+          'appointments', 'appointments:me', 'booking',
         ),
       ]);
     } catch (err) {

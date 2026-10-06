@@ -142,8 +142,20 @@ $queueDisplay = Invoke-RestMethod -Uri "$baseUrl/api/v1/appointments/queue/displ
 Assert-Test "GET /api/v1/appointments/queue/display -> returns live display" ($null -ne $queueDisplay.statistics)
 
 # 7.2 Daily Clinic Queue
-$dailyQueue = Invoke-RestMethod -Uri "$baseUrl/api/v1/appointments/queue/daily?poliklinikId=$clinicId" -Method Get -Headers $docHeaders
-Assert-Test "GET /api/v1/appointments/queue/daily -> returns clinic queue" ($null -ne $dailyQueue)
+$today = (Get-Date).ToString('yyyy-MM-dd')
+$dailyQueue = Invoke-RestMethod -Uri "$baseUrl/api/v1/appointments/queue/daily?poliklinikId=$clinicId&date=$today" -Method Get -Headers $docHeaders
+Assert-Test "GET /api/v1/appointments/queue/daily -> returns clinic queue" ($null -ne $dailyQueue.items -or $null -ne $dailyQueue)
+
+# 7.2b My Queue (Patient)
+$myQueue = Invoke-RestMethod -Uri "$baseUrl/api/v1/appointments/queue/my?poliklinikId=$clinicId" -Method Get -Headers $patHeaders
+Assert-Test "GET /api/v1/appointments/queue/my -> returns patient queue envelope" ($null -ne $myQueue.businessDate -and $null -ne $myQueue.items)
+
+# 7.2c SSOT Reference Sessions & Current Time
+$refSessions = Invoke-RestMethod -Uri "$baseUrl/api/v1/schedules/reference/sessions" -Method Get
+Assert-Test "GET /api/v1/schedules/reference/sessions -> returns reference sessions" ($refSessions.Count -gt 0)
+
+$timeCurrent = Invoke-RestMethod -Uri "$baseUrl/api/v1/time/current" -Method Get
+Assert-Test "GET /api/v1/time/current -> returns clinic time SSOT" ($null -ne $timeCurrent.today -and $null -ne $timeCurrent.operationalHours)
 
 # 7.3 List Appointments
 $apts = Invoke-RestMethod -Uri "$baseUrl/api/v1/appointments" -Method Get -Headers $docHeaders
