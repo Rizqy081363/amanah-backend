@@ -16,9 +16,16 @@ export type DbAppointmentStatus =
   | 'no_show'
   | 'late';
 
-export type AppointmentAction = 'CALL' | 'START_SERVICE' | 'COMPLETE' | 'CANCEL';
+export type AppointmentAction =
+  | 'CALL'
+  | 'START_SERVICE'
+  | 'COMPLETE'
+  | 'CANCEL';
 
-export const ALLOWED_TRANSITIONS: Record<AppointmentStatus, readonly AppointmentStatus[]> = {
+export const ALLOWED_TRANSITIONS: Record<
+  AppointmentStatus,
+  readonly AppointmentStatus[]
+> = {
   WAITING: ['IN_SERVICE', 'CANCELLED', 'LATE'],
   IN_SERVICE: ['COMPLETED'],
   COMPLETED: [],
@@ -26,17 +33,28 @@ export const ALLOWED_TRANSITIONS: Record<AppointmentStatus, readonly Appointment
   LATE: [],
 };
 
-export function toDomainStatus(dbStatus: string | null | undefined): AppointmentStatus {
-  if (!dbStatus) return 'WAITING';
-  const normalized = dbStatus.toLowerCase();
-  if (normalized === 'in_service' || normalized === 'sedang_diperiksa') return 'IN_SERVICE';
-  if (normalized === 'completed' || normalized === 'selesai') return 'COMPLETED';
-  if (normalized === 'cancelled' || normalized === 'batal' || normalized === 'no_doctor') return 'CANCELLED';
-  if (normalized === 'late' || normalized === 'no_show') return 'LATE';
-  return 'WAITING';
+export function toDomainStatus(
+  dbStatus: DbAppointmentStatus | string | null | undefined,
+): AppointmentStatus {
+  switch (dbStatus) {
+    case 'in_service':
+      return 'IN_SERVICE';
+    case 'completed':
+      return 'COMPLETED';
+    case 'cancelled':
+    case 'no_doctor':
+      return 'CANCELLED';
+    case 'late':
+    case 'no_show':
+      return 'LATE';
+    default:
+      return 'WAITING';
+  }
 }
 
-export function toDbStatus(domainStatus: AppointmentStatus): DbAppointmentStatus {
+export function toDbStatus(
+  domainStatus: AppointmentStatus,
+): DbAppointmentStatus {
   switch (domainStatus) {
     case 'IN_SERVICE':
       return 'in_service';
@@ -46,21 +64,19 @@ export function toDbStatus(domainStatus: AppointmentStatus): DbAppointmentStatus
       return 'cancelled';
     case 'LATE':
       return 'late';
-    case 'WAITING':
     default:
       return 'waiting';
   }
 }
 
-export function resolveAllowedActions(status: AppointmentStatus): AppointmentAction[] {
+export function resolveAllowedActions(
+  status: AppointmentStatus,
+): AppointmentAction[] {
   switch (status) {
     case 'WAITING':
       return ['CALL', 'START_SERVICE', 'CANCEL'];
     case 'IN_SERVICE':
       return ['COMPLETE'];
-    case 'COMPLETED':
-    case 'CANCELLED':
-    case 'LATE':
     default:
       return [];
   }
@@ -82,6 +98,10 @@ export interface AppointmentRecord {
   bookingCode: string;
   patientId: string;
   patientUserId?: string | null;
+  isAffiliated?: boolean;
+  affiliationRelationship?: string | null;
+  parentUserId?: string | null;
+  parentUserName?: string | null;
   patientName?: string | null;
   practitionerId: string;
   doctorName?: string | null;

@@ -381,6 +381,8 @@ export class AppointmentCreationHandler {
         estimatedEndAt: estimatedEnd.toISOString(),
         complaint: data.complaint || null,
         medicalFlow: effectiveMedicalFlow,
+        createdBy:
+          (data as any).createdBy || (data as any).patientUserId || null,
       })
       .returning();
 

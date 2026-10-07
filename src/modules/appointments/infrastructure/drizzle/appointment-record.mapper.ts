@@ -44,7 +44,24 @@ export class AppointmentRecordMapper {
       apt.clinicRoom?.clinicUnit?.id ||
       '';
 
-    const patientUserId = apt.patientProfile?.userId || null;
+    const primaryAffiliation = apt.patientProfile?.patientAffiliations?.[0];
+    const isAffiliated =
+      !apt.patientProfile?.userId && Boolean(primaryAffiliation);
+    const affiliationRelationship =
+      primaryAffiliation?.relationLabel ||
+      primaryAffiliation?.relationshipType ||
+      null;
+    const parentUserId =
+      apt.patientProfile?.userId ||
+      primaryAffiliation?.userId ||
+      apt.createdBy ||
+      null;
+    const parentUserName =
+      primaryAffiliation?.user?.name ||
+      primaryAffiliation?.user?.email ||
+      null;
+
+    const patientUserId = parentUserId;
     const patientAvatarUrl =
       apt.patientProfile?.avatarUrl ||
       (patientUserId ? `/api/v1/users/${patientUserId}/avatar` : null);
@@ -82,6 +99,11 @@ export class AppointmentRecordMapper {
       medicalFlow: apt.medicalFlow || null,
       patientId: apt.patientId,
       patientUserId,
+      createdBy: apt.createdBy || null,
+      isAffiliated,
+      affiliationRelationship,
+      parentUserId,
+      parentUserName,
       patientName: apt.patientProfile?.fullName || 'Pasien Amanah',
       patientAvatarUrl,
       poliklinikId: poliId,

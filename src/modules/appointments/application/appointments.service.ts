@@ -1,8 +1,22 @@
-import { ForbiddenException, Inject, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+  Optional,
+} from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { DEFAULT_PAGE_SIZE } from '../../../common/constants';
-import { AppointmentCreatedEvent, AppointmentStatusChangedEvent } from '../../../common/events';
-import { OutboxEventRecord, OutboxService, OutboxWorker } from '../../../common/outbox';
+import {
+  AppointmentCreatedEvent,
+  AppointmentStatusChangedEvent,
+} from '../../../common/events';
+import {
+  OutboxEventRecord,
+  OutboxService,
+  OutboxWorker,
+} from '../../../common/outbox';
 import { RedisService } from '../../../common/redis/redis.service';
 import { APPOINTMENT_LIFECYCLE_EVENTS } from '../domain/constants/appointment-lifecycle.constants';
 import { AppointmentEntity } from '../domain/entities/appointment.entity';
@@ -12,7 +26,10 @@ import {
   AppointmentFindAllResult,
   AppointmentRepository,
 } from '../domain/repositories/appointment.repository';
-import { BusinessDate, ClinicTimeService } from '../../../common/time/clinic-time.service';
+import {
+  BusinessDate,
+  ClinicTimeService,
+} from '../../../common/time/clinic-time.service';
 import { QueueResponseEnvelope } from '../domain/types/queue-response.type';
 import { AdminUpdateAppointmentStatusDto } from '../presentation/dto/admin-update-appointment-status.dto';
 import { CancelAppointmentDto } from '../presentation/dto/cancel-appointment.dto';
@@ -21,6 +38,10 @@ import { QueryAppointmentDto } from '../presentation/dto/query-appointment.dto';
 import { RescheduleAppointmentDto } from '../presentation/dto/reschedule-appointment.dto';
 import { UpdateAppointmentStatusDto } from '../presentation/dto/update-appointment-status.dto';
 import { AppointmentNotificationPublisher } from './appointment-notification.publisher';
+import {
+  PUSH_NOTIFICATION_PORT,
+  type PushNotificationPort,
+} from './ports/push-notification.port';
 
 const QUEUE_CACHE_TTL_SECONDS = 30;
 const QUEUE_DISPLAY_CACHE_PREFIX = 'queue:display';
@@ -41,6 +62,9 @@ export class AppointmentsService {
     private readonly outboxWorker?: OutboxWorker,
     @Optional()
     private readonly notificationPublisher?: AppointmentNotificationPublisher,
+    @Optional()
+    @Inject(PUSH_NOTIFICATION_PORT)
+    private readonly pushNotification?: PushNotificationPort,
     @Optional()
     private readonly clinicTimeService?: ClinicTimeService,
   ) {}
@@ -95,9 +119,15 @@ export class AppointmentsService {
         },
       },
       new AppointmentCreatedEvent(
-        created.id, created.patientId, created.poliklinikId,
-        created.appointmentDate, created.session, created.queueNumber,
-        created.status, undefined, actor,
+        created.id,
+        created.patientId,
+        created.poliklinikId,
+        created.appointmentDate,
+        created.session,
+        created.queueNumber,
+        created.status,
+        undefined,
+        actor,
       ),
     );
 
@@ -221,17 +251,11 @@ export class AppointmentsService {
       poliklinikId || '',
       today,
     );
-    const matched = daily.filter(
-      (a) =>
-        a.patientId === patientIdOrUserId ||
-        (a as any).patientProfileId === patientIdOrUserId ||
-        (a as any).userId === patientIdOrUserId,
-    );
     return {
       businessDate: today,
       clinicTimezone: this.getClinicTimezone(),
       generatedAt: this.getNowIso(),
-      items: matched.length > 0 ? matched : daily,
+      items: daily,
     };
   }
 
@@ -267,34 +291,92 @@ export class AppointmentsService {
       : new Date().toISOString();
   }
 
-  async checkIn(id: string, user?: any, expectedVersion?: string): Promise<AppointmentEntity> {
-    return this.transitionAppointmentStatus(id, 'WAITING', 'Check-in kedatangan pasien', undefined, user, expectedVersion);
+  async checkIn(
+    id: string,
+    user?: any,
+    expectedVersion?: string,
+  ): Promise<AppointmentEntity> {
+    return this.transitionAppointmentStatus(
+      id,
+      'WAITING',
+      'Check-in kedatangan pasien',
+      undefined,
+      user,
+      expectedVersion,
+    );
   }
 
-  async callPatient(id: string, practitionerId?: string, user?: any, expectedVersion?: string): Promise<AppointmentEntity> {
-    return this.transitionAppointmentStatus(id, 'IN_SERVICE', 'Panggilan pasien masuk ruang periksa', practitionerId, user, expectedVersion);
+  async callPatient(
+    id: string,
+    practitionerId?: string,
+    user?: any,
+    expectedVersion?: string,
+  ): Promise<AppointmentEntity> {
+    return this.transitionAppointmentStatus(
+      id,
+      'IN_SERVICE',
+      'Panggilan pasien masuk ruang periksa',
+      practitionerId,
+      user,
+      expectedVersion,
+    );
   }
 
-  async complete(id: string, user?: any, expectedVersion?: string): Promise<AppointmentEntity> {
-    return this.transitionAppointmentStatus(id, 'COMPLETED', 'Pemeriksaan medis selesai', undefined, user, expectedVersion);
+  async complete(
+    id: string,
+    user?: any,
+    expectedVersion?: string,
+  ): Promise<AppointmentEntity> {
+    return this.transitionAppointmentStatus(
+      id,
+      'COMPLETED',
+      'Pemeriksaan medis selesai',
+      undefined,
+      user,
+      expectedVersion,
+    );
   }
 
-  async cancel(id: string, reason?: string, user?: any, expectedVersion?: string): Promise<AppointmentEntity> {
+  async cancel(
+    id: string,
+    reason?: string,
+    user?: any,
+    expectedVersion?: string,
+  ): Promise<AppointmentEntity> {
     const finalReason = reason || 'Dibatalkan oleh pasien';
     const updated = await this.transitionAppointmentStatus(
-      id, 'CANCELLED', finalReason, undefined, user, expectedVersion, finalReason,
+      id,
+      'CANCELLED',
+      finalReason,
+      undefined,
+      user,
+      expectedVersion,
+      finalReason,
     );
     if (this.notificationPublisher) {
-      await this.notificationPublisher.publishCancelled(updated, finalReason, user);
+      await this.notificationPublisher.publishCancelled(
+        updated,
+        finalReason,
+        user,
+      );
     }
     return updated;
   }
 
   async updateStatus(
-    id: string, dto: UpdateAppointmentStatusDto, user?: any, expectedVersion?: string,
+    id: string,
+    dto: UpdateAppointmentStatusDto,
+    user?: any,
+    expectedVersion?: string,
   ): Promise<AppointmentEntity> {
     return this.transitionAppointmentStatus(
-      id, toDomainStatus(dto.status), dto.cancellationReason || '', undefined, user, expectedVersion, dto.cancellationReason,
+      id,
+      toDomainStatus(dto.status),
+      dto.cancellationReason || '',
+      undefined,
+      user,
+      expectedVersion,
+      dto.cancellationReason,
     );
   }
 
@@ -326,6 +408,7 @@ export class AppointmentsService {
       reason,
       { userId: user?.id || user?.sub, roleCode: user?.role },
     );
+    this.sendPushNotificationForAppointment(updated, status, reason);
     return updated;
   }
 
@@ -349,9 +432,10 @@ export class AppointmentsService {
       { userId: actorUserId, roleCode: user?.role },
     );
 
-    if (this.notificationPublisher) {
-      const apt = await this.appointmentRepo.findById(appointmentId);
-      if (apt) {
+    const apt = await this.appointmentRepo.findById(appointmentId);
+    if (apt) {
+      this.sendPushNotificationForAppointment(apt, 'CANCELLED', dto.reason);
+      if (this.notificationPublisher) {
         await this.notificationPublisher.publishCancelled(
           apt,
           dto.reason,
@@ -381,7 +465,65 @@ export class AppointmentsService {
       dto.reason || '',
       { userId: actorUserId, roleCode: user?.role },
     );
+
+    const apt = await this.appointmentRepo.findById(appointmentId);
+    if (apt) {
+      this.sendPushNotificationForAppointment(
+        apt,
+        result.data.newStatus,
+        dto.reason,
+      );
+    }
     return result;
+  }
+
+  private sendPushNotificationForAppointment(
+    apt: AppointmentEntity,
+    newStatus: string,
+    reason?: string,
+  ): void {
+    if (!this.pushNotification) return;
+    const targetUserId = apt.parentUserId || apt.patientUserId || apt.createdBy;
+    if (!targetUserId) return;
+
+    let title = 'Pembaruan Status Antrean';
+    let body = `Status antrean pasien ${apt.patientName || 'Pasien'} diperbarui menjadi ${newStatus}.`;
+
+    const upperStatus = newStatus.toUpperCase();
+    if (upperStatus === 'IN_SERVICE') {
+      title = 'Pemeriksaan Sedang Berlangsung';
+      body = `Pasien ${apt.patientName || 'Pasien'} (Nomor antrean ${apt.queueNumber}) sedang dalam pemeriksaan di ${apt.poliklinikName || 'Poliklinik'}.`;
+    } else if (upperStatus === 'COMPLETED') {
+      title = 'Pemeriksaan Selesai';
+      body = `Pemeriksaan untuk pasien ${apt.patientName || 'Pasien'} (Nomor antrean ${apt.queueNumber}) telah selesai. Terima kasih telah berkunjung.`;
+    } else if (upperStatus === 'CANCELLED') {
+      title = 'Janji Temu Dibatalkan';
+      body = `Janji temu untuk pasien ${apt.patientName || 'Pasien'} (Nomor antrean ${apt.queueNumber}) telah dibatalkan.${reason ? ` Alasan: ${reason}` : ''}`;
+    } else if (upperStatus === 'LATE' || upperStatus === 'NO_SHOW') {
+      title = 'Status Antrean Terlambat';
+      body = `Pasien ${apt.patientName || 'Pasien'} (Nomor antrean ${apt.queueNumber}) ditandai terlambat/tidak hadir.${reason ? ` Alasan: ${reason}` : ''}`;
+    } else if (upperStatus === 'WAITING' || upperStatus === 'CHECKED_IN') {
+      title = 'Antrean Menunggu Pemeriksaan';
+      body = `Pasien ${apt.patientName || 'Pasien'} (Nomor antrean ${apt.queueNumber}) siap menunggu giliran pemeriksaan di ${apt.poliklinikName || 'Poliklinik'}.`;
+    }
+
+    this.pushNotification
+      .sendPush({
+        userId: targetUserId,
+        title,
+        body,
+        data: {
+          appointmentId: apt.id,
+          queueNumber: String(apt.queueNumber),
+          status: upperStatus,
+          isAffiliated: apt.isAffiliated ? 'true' : 'false',
+        },
+      })
+      .catch((error) => {
+        this.logger.warn(
+          `Push notification failed on status ${upperStatus} for target ${targetUserId}: ${error.message}`,
+        );
+      });
   }
 
   async delete(id: string, user?: any): Promise<void> {
@@ -453,9 +595,17 @@ export class AppointmentsService {
         this.redisService.deleteByPrefix(QUEUE_DAILY_CACHE_PREFIX),
         this.redisService.deleteByPrefix('clinics:analytics'),
         this.redisService.invalidateTags(
-          'queue', 'display', 'daily', 'analytics', 'schedule',
-          'schedule:list', 'schedule:detail', 'schedule:patients',
-          'appointments', 'appointments:me', 'booking',
+          'queue',
+          'display',
+          'daily',
+          'analytics',
+          'schedule',
+          'schedule:list',
+          'schedule:detail',
+          'schedule:patients',
+          'appointments',
+          'appointments:me',
+          'booking',
         ),
       ]);
     } catch (err) {

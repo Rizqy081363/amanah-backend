@@ -15,17 +15,15 @@ describe('appointment.types', () => {
 
     it('should map in_service to IN_SERVICE', () => {
       expect(toDomainStatus('in_service')).toBe('IN_SERVICE');
-      expect(toDomainStatus('sedang_diperiksa')).toBe('IN_SERVICE');
     });
 
     it('should map completed to COMPLETED', () => {
       expect(toDomainStatus('completed')).toBe('COMPLETED');
-      expect(toDomainStatus('selesai')).toBe('COMPLETED');
     });
 
     it('should map cancelled to CANCELLED', () => {
       expect(toDomainStatus('cancelled')).toBe('CANCELLED');
-      expect(toDomainStatus('batal')).toBe('CANCELLED');
+      expect(toDomainStatus('no_doctor')).toBe('CANCELLED');
     });
 
     it('should map late and no_show to LATE', () => {
@@ -46,7 +44,11 @@ describe('appointment.types', () => {
 
   describe('resolveAllowedActions', () => {
     it('should allow CALL, START_SERVICE, CANCEL for WAITING', () => {
-      expect(resolveAllowedActions('WAITING')).toEqual(['CALL', 'START_SERVICE', 'CANCEL']);
+      expect(resolveAllowedActions('WAITING')).toEqual([
+        'CALL',
+        'START_SERVICE',
+        'CANCEL',
+      ]);
     });
 
     it('should allow only COMPLETE for IN_SERVICE', () => {

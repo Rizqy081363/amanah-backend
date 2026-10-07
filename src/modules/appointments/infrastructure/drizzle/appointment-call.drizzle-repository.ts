@@ -6,6 +6,7 @@ import {
   appointmentCallAttempts,
   appointments,
   clinicServices,
+  patientAffiliations,
   patientProfiles,
   queueTickets,
 } from '../../../../database/schema';
@@ -134,7 +135,7 @@ export class AppointmentCallDrizzleRepository
         status: appointments.status,
         bookingCode: appointments.bookingCode,
         patientId: appointments.patientId,
-        patientUserId: patientProfiles.userId,
+        patientUserId: sql<string>`COALESCE(${patientProfiles.userId}, ${patientAffiliations.userId}, ${appointments.createdBy})`,
         patientName: patientProfiles.fullName,
         ticketId: queueTickets.id,
         ticketNumber: queueTickets.queueNumber,
@@ -143,6 +144,10 @@ export class AppointmentCallDrizzleRepository
       })
       .from(appointments)
       .leftJoin(patientProfiles, eq(patientProfiles.id, appointments.patientId))
+      .leftJoin(
+        patientAffiliations,
+        eq(patientAffiliations.patientId, appointments.patientId),
+      )
       .leftJoin(queueTickets, eq(queueTickets.appointmentId, appointments.id))
       .leftJoin(clinicServices, eq(clinicServices.id, appointments.serviceId))
       .where(eq(appointments.id, appointmentId));

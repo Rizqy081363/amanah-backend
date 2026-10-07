@@ -47,7 +47,9 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
       where: eq(appointments.id, id),
       with: {
         queueTickets: true,
-        patientProfile: true,
+        patientProfile: {
+          with: { patientAffiliations: { with: { user: true } } },
+        },
         clinicService: true,
         practitionerScheduleSession: true,
         clinicRoom: {
@@ -109,7 +111,9 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
       orderBy: [desc(appointments.createdAt), desc(appointments.id)],
       with: {
         queueTickets: true,
-        patientProfile: true,
+        patientProfile: {
+          with: { patientAffiliations: { with: { user: true } } },
+        },
         clinicService: true,
         practitionerScheduleSession: true,
         clinicRoom: {
@@ -173,7 +177,9 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
       with: {
         appointment: {
           with: {
-            patientProfile: true,
+            patientProfile: {
+              with: { patientAffiliations: { with: { user: true } } },
+            },
             clinicService: true,
             practitionerScheduleSession: true,
             clinicRoom: { with: { clinicUnit: true } },
@@ -185,7 +191,7 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
         },
       },
     });
-    if (!ticket || !ticket.appointment) return null;
+    if (!ticket?.appointment) return null;
     return AppointmentRecordMapper.toEntity(ticket.appointment, ticket);
   }
 
@@ -195,7 +201,9 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
       orderBy: [desc(appointments.scheduledDate)],
       with: {
         queueTickets: true,
-        patientProfile: true,
+        patientProfile: {
+          with: { patientAffiliations: { with: { user: true } } },
+        },
         clinicService: true,
         practitionerScheduleSession: true,
         clinicRoom: { with: { clinicUnit: true } },
@@ -237,7 +245,9 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
       orderBy: [desc(appointments.scheduledDate), desc(appointments.createdAt)],
       with: {
         queueTickets: true,
-        patientProfile: true,
+        patientProfile: {
+          with: { patientAffiliations: { with: { user: true } } },
+        },
         clinicService: true,
         practitionerScheduleSession: true,
         clinicRoom: { with: { clinicUnit: true } },
@@ -286,7 +296,9 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
         queueTickets: true,
         practitionerScheduleSession: true,
         clinicRoom: { with: { clinicUnit: true } },
-        patientProfile: true,
+        patientProfile: {
+          with: { patientAffiliations: { with: { user: true } } },
+        },
         clinicService: true,
         practitioner: { with: { staffProfile: true, medicalSpecialty: true } },
       },

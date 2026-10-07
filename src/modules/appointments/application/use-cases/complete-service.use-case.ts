@@ -61,14 +61,15 @@ export class CompleteServiceUseCase {
         hour: '2-digit',
         minute: '2-digit',
       });
+      const patientInfo = updated.patientName ? ` (${updated.patientName})` : '';
       this.pushNotification
         .sendPush({
           userId: updated.patientUserId,
           title: 'Pemeriksaan Selesai',
-          body: `Pemeriksaan medis untuk nomor antrean ${updated.queueNumber} telah selesai pada pukul ${timeStr} WIB.`,
+          body: `Pemeriksaan medis untuk nomor antrean ${updated.queueNumber}${patientInfo} telah selesai pada pukul ${timeStr} WIB.`,
           data: {
             appointmentId: updated.id,
-            queueNumber: updated.queueNumber,
+            queueNumber: String(updated.queueNumber),
             status: 'COMPLETED',
             actualCompletedAt: actualCompletedAt.toISOString(),
           },

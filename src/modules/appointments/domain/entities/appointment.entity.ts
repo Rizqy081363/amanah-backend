@@ -10,6 +10,11 @@ export class AppointmentEntity {
   medicalFlow?: string | null;
   patientId: string;
   patientUserId?: string | null;
+  createdBy?: string | null;
+  isAffiliated?: boolean;
+  affiliationRelationship?: string | null;
+  parentUserId?: string | null;
+  parentUserName?: string | null;
   patientName?: string;
   patientAvatarUrl?: string | null;
   poliklinikId: string;

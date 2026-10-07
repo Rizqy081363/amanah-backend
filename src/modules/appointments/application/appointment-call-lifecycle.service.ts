@@ -20,6 +20,10 @@ import {
   MAX_PATIENT_CALL_ATTEMPTS,
 } from '../domain/constants/appointment-lifecycle.constants';
 import { AppointmentCallRepository } from '../domain/repositories/appointment-call.repository';
+import {
+  PUSH_NOTIFICATION_PORT,
+  type PushNotificationPort,
+} from './ports/push-notification.port';
 
 @Injectable()
 export class AppointmentCallLifecycleService {
@@ -30,6 +34,9 @@ export class AppointmentCallLifecycleService {
     private readonly callRepo: AppointmentCallRepository,
     @Inject(NOTIFICATION_PUBLISHER)
     private readonly publisher: NotificationPublisher,
+    @Optional()
+    @Inject(PUSH_NOTIFICATION_PORT)
+    private readonly pushNotification?: PushNotificationPort,
     @Optional()
     private readonly redisService?: RedisService,
   ) {}
@@ -67,7 +74,6 @@ export class AppointmentCallLifecycleService {
 
     const latestAttempt = await this.callRepo.getLatestAttempt(appointmentId);
     const nextAttemptNumber = (latestAttempt?.attemptNumber ?? 0) + 1;
-
 
     if (
       latestAttempt &&
@@ -121,6 +127,25 @@ export class AppointmentCallLifecycleService {
     };
 
     await this.publisher.publish(event);
+
+    if (this.pushNotification && details.patientUserId) {
+      this.pushNotification
+        .sendPush({
+          userId: details.patientUserId,
+          title: 'Giliran Konsultasi Anda',
+          body: `Nomor antrean ${details.ticketNumber} (${details.patientName || 'Pasien'}) sedang dipanggil ke ${details.poliklinikName || 'Poli Umum'}. Silakan segera menuju ruang pemeriksaan.`,
+          data: {
+            appointmentId,
+            queueNumber: String(details.ticketNumber),
+            status: 'CALLED',
+          },
+        })
+        .catch((error) => {
+          this.logger.warn(
+            `Push notification failed on call for patient ${details.patientUserId}: ${error.message}`,
+          );
+        });
+    }
 
     this.logger.log(
       `Patient called for appointment ${appointmentId} (attempt ${nextAttemptNumber}/${MAX_PATIENT_CALL_ATTEMPTS})`,
@@ -185,6 +210,25 @@ export class AppointmentCallLifecycleService {
     };
 
     await this.publisher.publish(event);
+
+    if (this.pushNotification && details.patientUserId) {
+      this.pushNotification
+        .sendPush({
+          userId: details.patientUserId,
+          title: 'Pemeriksaan Sedang Berlangsung',
+          body: `Pasien ${details.patientName || 'Pasien'} (Nomor antrean ${details.ticketNumber}) sedang dalam pemeriksaan di ${details.poliklinikName || 'Poli Umum'}.`,
+          data: {
+            appointmentId,
+            queueNumber: String(details.ticketNumber),
+            status: 'IN_SERVICE',
+          },
+        })
+        .catch((error) => {
+          this.logger.warn(
+            `Push notification failed on respond for patient ${details.patientUserId}: ${error.message}`,
+          );
+        });
+    }
 
     return { status: APPOINTMENT_CALL_STATUS.RESPONDED };
   }
@@ -252,6 +296,25 @@ export class AppointmentCallLifecycleService {
 
       await this.publisher.publish(event);
 
+      if (this.pushNotification && details.patientUserId) {
+        this.pushNotification
+          .sendPush({
+            userId: details.patientUserId,
+            title: 'Antrean Digeser',
+            body: `Nomor antrean ${details.ticketNumber} (${details.patientName || 'Pasien'}) digeser 3 posisi ke belakang karena belum merespons. Sisa kesempatan panggilan: ${MAX_PATIENT_CALL_ATTEMPTS - latestAttempt.attemptNumber} kali.`,
+            data: {
+              appointmentId,
+              queueNumber: String(details.ticketNumber),
+              status: 'WAITING',
+            },
+          })
+          .catch((error) => {
+            this.logger.warn(
+              `Push notification failed on requeue for patient ${details.patientUserId}: ${error.message}`,
+            );
+          });
+      }
+
       return {
         requeued: true,
         attemptNumber: latestAttempt.attemptNumber,
@@ -293,6 +356,25 @@ export class AppointmentCallLifecycleService {
     };
 
     await this.publisher.publish(event);
+
+    if (this.pushNotification && details.patientUserId) {
+      this.pushNotification
+        .sendPush({
+          userId: details.patientUserId,
+          title: 'Panggilan Terlewati (No-Show)',
+          body: `Nomor antrean ${details.ticketNumber} (${details.patientName || 'Pasien'}) tidak hadir setelah 3 kali pemanggilan di ${details.poliklinikName || 'Poli Umum'}.`,
+          data: {
+            appointmentId,
+            queueNumber: String(details.ticketNumber),
+            status: 'NO_SHOW',
+          },
+        })
+        .catch((error) => {
+          this.logger.warn(
+            `Push notification failed on no-show for patient ${details.patientUserId}: ${error.message}`,
+          );
+        });
+    }
 
     return {
       noShow: true,

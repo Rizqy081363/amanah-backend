@@ -1,11 +1,32 @@
 import {
-  Body, Controller, Delete, Get, Headers, HttpCode, HttpStatus,
-  NotFoundException, Param, Patch, Post, Query, Res, UseGuards,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Headers,
+  HttpCode,
+  HttpStatus,
+  NotFoundException,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Res,
+  UseGuards,
 } from '@nestjs/common';
 import {
-  ApiBearerAuth, ApiBody, ApiCreatedResponse, ApiForbiddenResponse,
-  ApiNoContentResponse, ApiNotFoundResponse, ApiOkResponse, ApiOperation,
-  ApiParam, ApiTags, ApiUnauthorizedResponse, ApiUnprocessableEntityResponse,
+  ApiBearerAuth,
+  ApiBody,
+  ApiCreatedResponse,
+  ApiForbiddenResponse,
+  ApiNoContentResponse,
+  ApiNotFoundResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiParam,
+  ApiTags,
+  ApiUnauthorizedResponse,
+  ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { CurrentUser } from '../../../common/auth/current-user.decorator';
@@ -101,7 +122,7 @@ export class AppointmentsController {
 
   @ApiBearerAuth('access-token')
   @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'STAF')
+  @Roles('ADMIN', 'STAF', 'PATIENT')
   @Get('queue/daily')
   @ApiOperation({
     summary: 'Mendapatkan daftar antrean harian per poli dan sesi (Web/App)',

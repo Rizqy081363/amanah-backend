@@ -75,7 +75,9 @@ export class AppointmentHardenedDrizzleRepository
     const row = await this.db.query.appointments.findFirst({
       where: eq(appointments.id, id),
       with: {
-        patientProfile: true,
+        patientProfile: {
+          with: { patientAffiliations: { with: { user: true } } },
+        },
         clinicService: true,
         clinicRoom: { with: { clinicUnit: true } },
         practitioner: {
@@ -374,7 +376,9 @@ export class AppointmentHardenedDrizzleRepository
       offset,
       orderBy: [asc(appointments.queueNumber), desc(appointments.createdAt)],
       with: {
-        patientProfile: true,
+        patientProfile: {
+          with: { patientAffiliations: { with: { user: true } } },
+        },
         clinicService: true,
         clinicRoom: { with: { clinicUnit: true } },
         practitioner: {
@@ -413,11 +417,32 @@ export class AppointmentHardenedDrizzleRepository
       ? new Date(apt.estimatedEndAt)
       : new Date(estimatedStartAt.getTime() + durationMs);
 
+    const primaryAffiliation = apt.patientProfile?.patientAffiliations?.[0];
+    const isAffiliated =
+      !apt.patientProfile?.userId && Boolean(primaryAffiliation);
+    const affiliationRelationship =
+      primaryAffiliation?.relationLabel ||
+      primaryAffiliation?.relationshipType ||
+      null;
+    const parentUserId =
+      apt.patientProfile?.userId ||
+      primaryAffiliation?.userId ||
+      apt.createdBy ||
+      null;
+    const parentUserName =
+      primaryAffiliation?.user?.name ||
+      primaryAffiliation?.user?.email ||
+      null;
+
     return {
       id: apt.id,
       bookingCode: apt.bookingCode || '',
       patientId: apt.patientId,
-      patientUserId: apt.patientProfile?.userId || null,
+      patientUserId: parentUserId,
+      isAffiliated,
+      affiliationRelationship,
+      parentUserId,
+      parentUserName,
       patientName: apt.patientProfile?.fullName || null,
       practitionerId: apt.practitionerId,
       doctorName:
