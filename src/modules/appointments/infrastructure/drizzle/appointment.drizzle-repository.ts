@@ -11,6 +11,10 @@ import {
 } from '../../../../database/schema';
 import { AppointmentEntity } from '../../domain/entities/appointment.entity';
 import {
+  DOMAIN_APPOINTMENT_STATUS,
+  QUEUE_TICKET_STATUS,
+} from '../../domain/constants/appointment-lifecycle.constants';
+import {
   AppointmentFindAllResult,
   AppointmentRepository,
 } from '../../domain/repositories/appointment.repository';
@@ -318,14 +322,20 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
       date,
     );
 
-    const currentlyCalled = dailyAppointments.find(
-      (a) => a.status === 'IN_SERVICE',
-    );
+    const currentlyCalled =
+      dailyAppointments.find(
+        (a) =>
+          a.status === DOMAIN_APPOINTMENT_STATUS.IN_SERVICE ||
+          a.ticketStatus === QUEUE_TICKET_STATUS.IN_SERVICE,
+      ) ||
+      dailyAppointments.find(
+        (a) => a.ticketStatus === QUEUE_TICKET_STATUS.CALLED,
+      );
     const waitingList = dailyAppointments.filter(
-      (a) => a.status === 'WAITING',
+      (a) => a.status === DOMAIN_APPOINTMENT_STATUS.WAITING,
     );
     const completedList = dailyAppointments.filter(
-      (a) => a.status === 'COMPLETED',
+      (a) => a.status === DOMAIN_APPOINTMENT_STATUS.COMPLETED,
     );
 
     return {
@@ -337,7 +347,17 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
             patientName: currentlyCalled.patientName,
             roomName: currentlyCalled.poliklinikName,
             doctorName: currentlyCalled.doctorName,
+            status:
+              currentlyCalled.status === DOMAIN_APPOINTMENT_STATUS.IN_SERVICE ||
+              currentlyCalled.ticketStatus === QUEUE_TICKET_STATUS.IN_SERVICE
+                ? DOMAIN_APPOINTMENT_STATUS.IN_SERVICE
+                : QUEUE_TICKET_STATUS.CALLED,
             calledAt: currentlyCalled.calledAt,
+            startedAt: currentlyCalled.actualStartedAt,
+            consultationElapsedSeconds:
+              currentlyCalled.consultationElapsedSeconds,
+            consultationDurationFormatted:
+              currentlyCalled.consultationDurationFormatted,
           }
         : null,
       nextTickets: waitingList.slice(0, 5).map((w) => ({

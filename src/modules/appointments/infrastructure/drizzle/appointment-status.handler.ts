@@ -12,6 +12,11 @@ import {
   practitioners,
   queueTickets,
 } from '../../../../database/schema';
+import {
+  DB_APPOINTMENT_STATUS,
+  DOMAIN_APPOINTMENT_STATUS,
+  QUEUE_TICKET_STATUS,
+} from '../../domain/constants/appointment-lifecycle.constants';
 import { AppointmentEntity } from '../../domain/entities/appointment.entity';
 
 export class AppointmentStatusHandler {
@@ -46,8 +51,8 @@ export class AppointmentStatusHandler {
       }
     }
 
-    let dbStatus: typeof appointments.$inferSelect.status = 'booked';
-    let ticketStatus: typeof queueTickets.$inferSelect.status = 'waiting';
+    let dbStatus: typeof appointments.$inferSelect.status = DB_APPOINTMENT_STATUS.BOOKED;
+    let ticketStatus: typeof queueTickets.$inferSelect.status = QUEUE_TICKET_STATUS.WAITING;
     const nowStr = new Date().toISOString();
 
     const updateApt: Record<string, any> = {
@@ -57,16 +62,17 @@ export class AppointmentStatusHandler {
       updatedAt: nowStr,
     };
 
-    if (status === 'WAITING') {
-      dbStatus = 'waiting';
-      ticketStatus = 'waiting';
+    if (status === DOMAIN_APPOINTMENT_STATUS.WAITING) {
+      dbStatus = DB_APPOINTMENT_STATUS.WAITING;
+      ticketStatus = QUEUE_TICKET_STATUS.WAITING;
       updateApt.status = dbStatus;
       updateTicket.status = ticketStatus;
-    } else if (status === 'IN_SERVICE') {
-      dbStatus = 'in_service';
-      ticketStatus = 'in_service';
+    } else if (status === DOMAIN_APPOINTMENT_STATUS.IN_SERVICE) {
+      dbStatus = DB_APPOINTMENT_STATUS.IN_SERVICE;
+      ticketStatus = QUEUE_TICKET_STATUS.IN_SERVICE;
       updateApt.status = dbStatus;
       updateApt.startedAt = nowStr;
+      updateApt.actualStartedAt = nowStr;
       if (staffId) {
         const prac = await db.query.practitioners.findFirst({
           where: eq(practitioners.id, staffId),
@@ -74,18 +80,18 @@ export class AppointmentStatusHandler {
         updateApt.practitionerId = prac ? prac.id : staffId;
       }
       updateTicket.status = ticketStatus;
-      updateTicket.calledAt = nowStr;
       updateTicket.startedAt = nowStr;
-    } else if (status === 'COMPLETED') {
-      dbStatus = 'completed';
-      ticketStatus = 'completed';
+    } else if (status === DOMAIN_APPOINTMENT_STATUS.COMPLETED) {
+      dbStatus = DB_APPOINTMENT_STATUS.COMPLETED;
+      ticketStatus = QUEUE_TICKET_STATUS.COMPLETED;
       updateApt.status = dbStatus;
       updateApt.completedAt = nowStr;
+      updateApt.actualCompletedAt = nowStr;
       updateTicket.status = ticketStatus;
       updateTicket.completedAt = nowStr;
-    } else if (status === 'CANCELLED') {
-      dbStatus = 'cancelled';
-      ticketStatus = 'cancelled';
+    } else if (status === DOMAIN_APPOINTMENT_STATUS.CANCELLED) {
+      dbStatus = DB_APPOINTMENT_STATUS.CANCELLED;
+      ticketStatus = QUEUE_TICKET_STATUS.CANCELLED;
       updateApt.status = dbStatus;
       updateApt.cancelledAt = nowStr;
       if (cancellationReason) {

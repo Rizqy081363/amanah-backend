@@ -5,16 +5,20 @@ import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
   appointments,
   clinicSchedulePolicies,
-  clinicServices,
   queueTickets,
 } from '../../../../database/schema';
 import { CLINIC_POLICY_FALLBACK_CONFIG } from '../../../schedules/domain/constants/schedule.constants';
 import { SchedulePolicyReader } from '../../../schedules/infrastructure/drizzle/queries/schedule-policy.reader';
 import {
+  DB_APPOINTMENT_STATUS,
+  QUEUE_TICKET_STATUS,
+} from '../../domain/constants/appointment-lifecycle.constants';
+import {
   AppointmentNotCallableError,
   AppointmentNotFoundError,
   StaleStatusError,
 } from '../../domain/errors/appointment-domain.errors';
+import { computeConsultationMetrics } from '../../domain/helpers/consultation-duration.helper';
 import {
   type AppointmentRecord,
   resolveAllowedActions,
@@ -227,9 +231,11 @@ export class AppointmentHardenedDrizzleRepository
 
     if (input.actualStartedAt) {
       updatePayload.actualStartedAt = input.actualStartedAt.toISOString();
+      updatePayload.startedAt = input.actualStartedAt.toISOString();
     }
     if (input.actualCompletedAt) {
       updatePayload.actualCompletedAt = input.actualCompletedAt.toISOString();
+      updatePayload.completedAt = input.actualCompletedAt.toISOString();
     }
     if (input.cancelledAt) {
       updatePayload.cancelledAt = input.cancelledAt.toISOString();
@@ -261,22 +267,30 @@ export class AppointmentHardenedDrizzleRepository
 
     try {
       const ticketStatus =
-        targetDbStatus === 'in_service'
-          ? 'serving'
-          : targetDbStatus === 'completed'
-          ? 'completed'
-          : targetDbStatus === 'cancelled'
-          ? 'cancelled'
-          : targetDbStatus === 'late'
-          ? 'no_show'
-          : 'waiting';
+        targetDbStatus === DB_APPOINTMENT_STATUS.IN_SERVICE
+          ? QUEUE_TICKET_STATUS.IN_SERVICE
+          : targetDbStatus === DB_APPOINTMENT_STATUS.COMPLETED
+          ? QUEUE_TICKET_STATUS.COMPLETED
+          : targetDbStatus === DB_APPOINTMENT_STATUS.CANCELLED
+          ? QUEUE_TICKET_STATUS.CANCELLED
+          : targetDbStatus === DB_APPOINTMENT_STATUS.LATE
+          ? QUEUE_TICKET_STATUS.SKIPPED
+          : QUEUE_TICKET_STATUS.WAITING;
+
+      const updateTicketPayload: Record<string, any> = {
+        status: ticketStatus as any,
+        updatedAt: new Date().toISOString(),
+      };
+      if (targetDbStatus === DB_APPOINTMENT_STATUS.IN_SERVICE && input.actualStartedAt) {
+        updateTicketPayload.startedAt = input.actualStartedAt.toISOString();
+      }
+      if (targetDbStatus === DB_APPOINTMENT_STATUS.COMPLETED && input.actualCompletedAt) {
+        updateTicketPayload.completedAt = input.actualCompletedAt.toISOString();
+      }
 
       await this.db
         .update(queueTickets)
-        .set({
-          status: ticketStatus as any,
-          updatedAt: new Date().toISOString(),
-        })
+        .set(updateTicketPayload)
         .where(eq(queueTickets.appointmentId, input.id));
     } catch (_) {}
 
@@ -409,10 +423,24 @@ export class AppointmentHardenedDrizzleRepository
       estimatedEndAt,
       actualStartedAt: apt.actualStartedAt
         ? new Date(apt.actualStartedAt)
-        : null,
+        : apt.startedAt
+          ? new Date(apt.startedAt)
+          : null,
       actualCompletedAt: apt.actualCompletedAt
         ? new Date(apt.actualCompletedAt)
-        : null,
+        : apt.completedAt
+          ? new Date(apt.completedAt)
+          : null,
+      consultationElapsedSeconds: computeConsultationMetrics(
+        apt.actualStartedAt || apt.startedAt,
+        apt.actualCompletedAt || apt.completedAt,
+        status,
+      ).elapsedSeconds,
+      consultationDurationFormatted: computeConsultationMetrics(
+        apt.actualStartedAt || apt.startedAt,
+        apt.actualCompletedAt || apt.completedAt,
+        status,
+      ).formattedDuration,
       lastCalledAt: apt.lastCalledAt ? new Date(apt.lastCalledAt) : null,
       cancelledAt: apt.cancelledAt ? new Date(apt.cancelledAt) : null,
       notes: apt.complaint || null,

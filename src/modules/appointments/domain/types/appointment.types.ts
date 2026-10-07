@@ -99,6 +99,8 @@ export interface AppointmentRecord {
   estimatedEndAt: Date;
   actualStartedAt?: Date | null;
   actualCompletedAt?: Date | null;
+  consultationElapsedSeconds?: number | null;
+  consultationDurationFormatted?: string | null;
   lastCalledAt?: Date | null;
   cancelledAt?: Date | null;
   notes?: string | null;

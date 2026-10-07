@@ -7,6 +7,10 @@ import {
   practitionerScheduleSessions,
   queueTickets,
 } from '../../../../database/schema';
+import {
+  DB_APPOINTMENT_STATUS,
+  QUEUE_TICKET_STATUS,
+} from '../../domain/constants/appointment-lifecycle.constants';
 import { AdminUpdateAppointmentStatusDto } from '../../presentation/dto/admin-update-appointment-status.dto';
 import { CancelAppointmentDto } from '../../presentation/dto/cancel-appointment.dto';
 
@@ -32,20 +36,23 @@ export class AppointmentAdminHandler {
         throw new NotFoundException('Janji temu tidak ditemukan');
       }
 
-      if (apt.status === 'in_service' || apt.status === 'completed') {
+      if (
+        apt.status === DB_APPOINTMENT_STATUS.IN_SERVICE ||
+        apt.status === DB_APPOINTMENT_STATUS.COMPLETED
+      ) {
         throw new BadRequestException(
           'Janji temu tidak dapat dibatalkan karena pasien sedang dalam pemeriksaan dokter atau telah selesai.',
         );
       }
 
-      if (apt.status === 'cancelled') {
+      if (apt.status === DB_APPOINTMENT_STATUS.CANCELLED) {
         return {
           success: true,
           message: 'Janji temu sudah berstatus dibatalkan',
           data: {
             appointmentId: apt.id,
             previousStatus: apt.status,
-            newStatus: 'cancelled',
+            newStatus: DB_APPOINTMENT_STATUS.CANCELLED,
             cancelledAt: apt.cancelledAt,
             cancelReason: apt.cancelReason,
             scheduleSession: null,
@@ -55,8 +62,8 @@ export class AppointmentAdminHandler {
 
       const nowIso = new Date().toISOString();
       const newStatus: typeof appointments.$inferSelect.status = dto.isNoShow
-        ? 'no_show'
-        : 'cancelled';
+        ? DB_APPOINTMENT_STATUS.NO_SHOW
+        : DB_APPOINTMENT_STATUS.CANCELLED;
 
       await tx
         .update(appointments)
@@ -72,7 +79,7 @@ export class AppointmentAdminHandler {
       await tx
         .update(queueTickets)
         .set({
-          status: 'cancelled',
+          status: QUEUE_TICKET_STATUS.CANCELLED,
         })
         .where(eq(queueTickets.appointmentId, appointmentId));
 
@@ -182,8 +189,10 @@ export class AppointmentAdminHandler {
         dto.status as typeof appointments.$inferSelect.status;
 
       if (
-        (targetStatus === 'cancelled' || targetStatus === 'no_show') &&
-        (previousStatus === 'in_service' || previousStatus === 'completed')
+        (targetStatus === DB_APPOINTMENT_STATUS.CANCELLED ||
+          targetStatus === DB_APPOINTMENT_STATUS.NO_SHOW) &&
+        (previousStatus === DB_APPOINTMENT_STATUS.IN_SERVICE ||
+          previousStatus === DB_APPOINTMENT_STATUS.COMPLETED)
       ) {
         throw new BadRequestException(
           'Janji temu tidak dapat dibatalkan karena pasien sedang dalam pemeriksaan dokter atau telah selesai.',
@@ -197,14 +206,22 @@ export class AppointmentAdminHandler {
         updatedBy: actorUserId || null,
       };
 
-      if (targetStatus === 'cancelled' || targetStatus === 'no_show') {
+      if (
+        targetStatus === DB_APPOINTMENT_STATUS.CANCELLED ||
+        targetStatus === DB_APPOINTMENT_STATUS.NO_SHOW
+      ) {
         updateFields.cancelledAt = nowIso;
         updateFields.cancelReason = dto.reason || 'Dibatalkan oleh staf/admin';
-      } else if (targetStatus === 'in_service') {
+      } else if (targetStatus === DB_APPOINTMENT_STATUS.IN_SERVICE) {
         updateFields.startedAt = nowIso;
-      } else if (targetStatus === 'completed') {
+        updateFields.actualStartedAt = nowIso;
+      } else if (targetStatus === DB_APPOINTMENT_STATUS.COMPLETED) {
         updateFields.completedAt = nowIso;
-      } else if (targetStatus === 'checked_in' || targetStatus === 'waiting') {
+        updateFields.actualCompletedAt = nowIso;
+      } else if (
+        targetStatus === DB_APPOINTMENT_STATUS.CHECKED_IN ||
+        targetStatus === DB_APPOINTMENT_STATUS.WAITING
+      ) {
         updateFields.checkedInAt = apt.checkedInAt || nowIso;
       }
 
@@ -213,29 +230,37 @@ export class AppointmentAdminHandler {
         .set(updateFields)
         .where(eq(appointments.id, appointmentId));
 
-      let ticketStatus: typeof queueTickets.$inferSelect.status = 'waiting';
-      if (targetStatus === 'in_service') ticketStatus = 'in_service';
-      else if (targetStatus === 'completed') ticketStatus = 'completed';
-      else if (targetStatus === 'cancelled') ticketStatus = 'cancelled';
-      else if (targetStatus === 'no_show') ticketStatus = 'skipped';
+      let ticketStatus: typeof queueTickets.$inferSelect.status =
+        QUEUE_TICKET_STATUS.WAITING;
+      if (targetStatus === DB_APPOINTMENT_STATUS.IN_SERVICE)
+        ticketStatus = QUEUE_TICKET_STATUS.IN_SERVICE;
+      else if (targetStatus === DB_APPOINTMENT_STATUS.COMPLETED)
+        ticketStatus = QUEUE_TICKET_STATUS.COMPLETED;
+      else if (targetStatus === DB_APPOINTMENT_STATUS.CANCELLED)
+        ticketStatus = QUEUE_TICKET_STATUS.CANCELLED;
+      else if (targetStatus === DB_APPOINTMENT_STATUS.NO_SHOW)
+        ticketStatus = QUEUE_TICKET_STATUS.SKIPPED;
 
       await tx
         .update(queueTickets)
         .set({
           status: ticketStatus,
-          ...(targetStatus === 'in_service'
-            ? { calledAt: nowIso, startedAt: nowIso }
+          ...(targetStatus === DB_APPOINTMENT_STATUS.IN_SERVICE
+            ? { startedAt: nowIso }
             : {}),
-          ...(targetStatus === 'completed' ? { completedAt: nowIso } : {}),
+          ...(targetStatus === DB_APPOINTMENT_STATUS.COMPLETED
+            ? { completedAt: nowIso }
+            : {}),
         })
         .where(eq(queueTickets.appointmentId, appointmentId));
 
       let sessionResult: any = null;
       let targetSessionId = apt.scheduleSessionId;
       if (
-        (targetStatus === 'cancelled' || targetStatus === 'no_show') &&
-        previousStatus !== 'cancelled' &&
-        previousStatus !== 'no_show'
+        (targetStatus === DB_APPOINTMENT_STATUS.CANCELLED ||
+          targetStatus === DB_APPOINTMENT_STATUS.NO_SHOW) &&
+        previousStatus !== DB_APPOINTMENT_STATUS.CANCELLED &&
+        previousStatus !== DB_APPOINTMENT_STATUS.NO_SHOW
       ) {
         if (!targetSessionId && apt.practitionerId && apt.scheduledDate) {
           const apptStart =

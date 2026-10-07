@@ -9,6 +9,44 @@ export const APPOINTMENT_CALL_STATUS = {
 export type AppointmentCallStatus =
   (typeof APPOINTMENT_CALL_STATUS)[keyof typeof APPOINTMENT_CALL_STATUS];
 
+export const DB_APPOINTMENT_STATUS = {
+  BOOKED: 'booked',
+  CHECKED_IN: 'checked_in',
+  WAITING: 'waiting',
+  IN_SERVICE: 'in_service',
+  COMPLETED: 'completed',
+  CANCELLED: 'cancelled',
+  NO_DOCTOR: 'no_doctor',
+  NO_SHOW: 'no_show',
+  LATE: 'late',
+} as const;
+
+export type DbAppointmentStatusValue =
+  (typeof DB_APPOINTMENT_STATUS)[keyof typeof DB_APPOINTMENT_STATUS];
+
+export const QUEUE_TICKET_STATUS = {
+  WAITING: 'waiting',
+  CALLED: 'called',
+  IN_SERVICE: 'in_service',
+  COMPLETED: 'completed',
+  SKIPPED: 'skipped',
+  CANCELLED: 'cancelled',
+} as const;
+
+export type QueueTicketStatusValue =
+  (typeof QUEUE_TICKET_STATUS)[keyof typeof QUEUE_TICKET_STATUS];
+
+export const DOMAIN_APPOINTMENT_STATUS = {
+  WAITING: 'WAITING',
+  IN_SERVICE: 'IN_SERVICE',
+  COMPLETED: 'COMPLETED',
+  CANCELLED: 'CANCELLED',
+  LATE: 'LATE',
+} as const;
+
+export type DomainAppointmentStatusValue =
+  (typeof DOMAIN_APPOINTMENT_STATUS)[keyof typeof DOMAIN_APPOINTMENT_STATUS];
+
 export const APPOINTMENT_EVENTS = {
   CREATED: 'appointment.created.v1',
   NEW_BOOKING_ALERT: 'appointment.new_booking_alert.v1',

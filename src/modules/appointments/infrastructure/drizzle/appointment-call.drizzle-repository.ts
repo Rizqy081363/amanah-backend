@@ -10,6 +10,10 @@ import {
   queueTickets,
 } from '../../../../database/schema';
 import {
+  DB_APPOINTMENT_STATUS,
+  QUEUE_TICKET_STATUS,
+} from '../../domain/constants/appointment-lifecycle.constants';
+import {
   AppointmentCallAttemptRecord,
   AppointmentCallDetails,
   AppointmentCallRepository,
@@ -152,7 +156,7 @@ export class AppointmentCallDrizzleRepository
     await this.db
       .update(queueTickets)
       .set({
-        status: 'waiting',
+        status: QUEUE_TICKET_STATUS.WAITING,
         waitingPosition: sql`coalesce(${queueTickets.waitingPosition}, 0) + ${bumpPositions}`,
         calledAt: null,
       })
@@ -165,21 +169,46 @@ export class AppointmentCallDrizzleRepository
     ticketId?: string | null,
     ticketStatus?: string | null,
   ): Promise<void> {
+    const nowIso = new Date().toISOString();
+    const updateApt: Record<string, any> = {
+      status: appointmentStatus as any,
+      updatedAt: nowIso,
+    };
+
+    if (appointmentStatus === DB_APPOINTMENT_STATUS.IN_SERVICE) {
+      updateApt.startedAt = nowIso;
+      updateApt.actualStartedAt = nowIso;
+    } else if (appointmentStatus === DB_APPOINTMENT_STATUS.COMPLETED) {
+      updateApt.completedAt = nowIso;
+      updateApt.actualCompletedAt = nowIso;
+    }
+
+    if (ticketStatus === QUEUE_TICKET_STATUS.CALLED) {
+      updateApt.lastCalledAt = nowIso;
+    }
+
     await this.db
       .update(appointments)
-      .set({
-        status: appointmentStatus as any,
-        lastCalledAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      })
+      .set(updateApt)
       .where(eq(appointments.id, appointmentId));
 
     if (ticketId && ticketStatus) {
+      const updateTicket: Record<string, any> = {
+        status: ticketStatus as any,
+        updatedAt: nowIso,
+      };
+
+      if (ticketStatus === QUEUE_TICKET_STATUS.CALLED) {
+        updateTicket.calledAt = nowIso;
+      } else if (ticketStatus === QUEUE_TICKET_STATUS.IN_SERVICE) {
+        updateTicket.startedAt = nowIso;
+      } else if (ticketStatus === QUEUE_TICKET_STATUS.COMPLETED) {
+        updateTicket.completedAt = nowIso;
+      }
+
       await this.db
         .update(queueTickets)
-        .set({
-          status: ticketStatus as any,
-        })
+        .set(updateTicket)
         .where(eq(queueTickets.id, ticketId));
     }
   }

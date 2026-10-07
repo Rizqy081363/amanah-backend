@@ -7,6 +7,7 @@ import {
   SHIFT_TO_SESSION_MAP,
 } from '../../../schedules/domain/constants/schedule-shift.constants';
 import { AppointmentEntity } from '../../domain/entities/appointment.entity';
+import { computeConsultationMetrics } from '../../domain/helpers/consultation-duration.helper';
 import {
   resolveAllowedActions,
   toDomainStatus,
@@ -52,6 +53,28 @@ export class AppointmentRecordMapper {
     const doctorAvatarUrl =
       apt.practitioner?.staffProfile?.avatarUrl ||
       (doctorUserId ? `/api/v1/users/${doctorUserId}/avatar` : null);
+
+    const actualStartedAt = apt.actualStartedAt
+      ? new Date(apt.actualStartedAt)
+      : apt.startedAt
+        ? new Date(apt.startedAt)
+        : ticket?.startedAt
+          ? new Date(ticket.startedAt)
+          : null;
+
+    const actualCompletedAt = apt.actualCompletedAt
+      ? new Date(apt.actualCompletedAt)
+      : apt.completedAt
+        ? new Date(apt.completedAt)
+        : ticket?.completedAt
+          ? new Date(ticket.completedAt)
+          : null;
+
+    const { elapsedSeconds, formattedDuration } = computeConsultationMetrics(
+      actualStartedAt,
+      actualCompletedAt,
+      domainStatus,
+    );
 
     return {
       id: apt.id,
@@ -101,8 +124,10 @@ export class AppointmentRecordMapper {
         : ticket?.calledAt
           ? new Date(ticket.calledAt)
           : null,
-      actualStartedAt: apt.actualStartedAt ? new Date(apt.actualStartedAt) : null,
-      actualCompletedAt: apt.actualCompletedAt ? new Date(apt.actualCompletedAt) : null,
+      actualStartedAt,
+      actualCompletedAt,
+      consultationElapsedSeconds: elapsedSeconds,
+      consultationDurationFormatted: formattedDuration,
       estimatedStartAt: apt.estimatedStartAt ? new Date(apt.estimatedStartAt) : null,
       estimatedEndAt: apt.estimatedEndAt ? new Date(apt.estimatedEndAt) : null,
       completedAt: apt.completedAt ? new Date(apt.completedAt) : null,

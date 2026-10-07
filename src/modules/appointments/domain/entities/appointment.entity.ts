@@ -38,6 +38,8 @@ export class AppointmentEntity {
   lastCalledAt?: Date | null;
   actualStartedAt?: Date | null;
   actualCompletedAt?: Date | null;
+  consultationElapsedSeconds?: number | null;
+  consultationDurationFormatted?: string | null;
   estimatedStartAt?: Date | null;
   estimatedEndAt?: Date | null;
   completedAt?: Date | null;
