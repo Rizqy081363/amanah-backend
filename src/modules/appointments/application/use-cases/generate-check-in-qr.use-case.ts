@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { DEFAULT_CHECK_IN_CONFIG } from '../../domain/constants/appointment-check-in.config';
+import { DOMAIN_APPOINTMENT_STATUS } from '../../domain/constants/appointment-lifecycle.constants';
 import type { CheckInQrData } from '../../domain/entities/appointment-check-in.entity';
 import {
   APPOINTMENT_REPOSITORY,
@@ -48,7 +49,7 @@ export class GenerateCheckInQrUseCase {
       );
     }
 
-    if (apt.status !== 'BOOKED') {
+    if (apt.status !== DOMAIN_APPOINTMENT_STATUS.BOOKED) {
       throw new BadRequestException(
         `QR Check-in hanya dapat dibuat untuk janji temu dengan status "Sudah Buat Janji" (status saat ini: ${apt.status})`,
       );

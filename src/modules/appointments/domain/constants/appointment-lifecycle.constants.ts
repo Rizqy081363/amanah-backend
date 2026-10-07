@@ -37,6 +37,7 @@ export type QueueTicketStatusValue =
   (typeof QUEUE_TICKET_STATUS)[keyof typeof QUEUE_TICKET_STATUS];
 
 export const DOMAIN_APPOINTMENT_STATUS = {
+  BOOKED: 'BOOKED',
   WAITING: 'WAITING',
   IN_SERVICE: 'IN_SERVICE',
   COMPLETED: 'COMPLETED',

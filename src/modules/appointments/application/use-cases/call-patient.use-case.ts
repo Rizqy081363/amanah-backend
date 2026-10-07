@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { DOMAIN_APPOINTMENT_STATUS } from '../../domain/constants/appointment-lifecycle.constants';
 import {
   AppointmentNotCallableError,
   AppointmentNotFoundError,
@@ -36,7 +37,7 @@ export class CallPatientUseCase {
       throw new AppointmentNotFoundError(appointmentId);
     }
 
-    if (appointment.status !== 'WAITING') {
+    if (appointment.status !== DOMAIN_APPOINTMENT_STATUS.WAITING) {
       throw new AppointmentNotCallableError(appointmentId, appointment.status);
     }
 

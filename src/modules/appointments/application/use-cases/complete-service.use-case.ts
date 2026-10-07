@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { RedisService } from '../../../../common/redis/redis.service';
+import { DOMAIN_APPOINTMENT_STATUS } from '../../domain/constants/appointment-lifecycle.constants';
 import type { AppointmentRecord } from '../../domain/types/appointment.types';
 import {
   APPOINTMENT_REPOSITORY_PORT,
@@ -34,8 +35,8 @@ export class CompleteServiceUseCase {
     const actualCompletedAt = new Date();
     const updated = await this.appointmentRepo.transitionStatus({
       id: appointmentId,
-      expectedStatus: 'IN_SERVICE',
-      targetStatus: 'COMPLETED',
+      expectedStatus: DOMAIN_APPOINTMENT_STATUS.IN_SERVICE,
+      targetStatus: DOMAIN_APPOINTMENT_STATUS.COMPLETED,
       actualCompletedAt,
     });
 
@@ -49,8 +50,8 @@ export class CompleteServiceUseCase {
 
     await this.realtimeEmitter.emitStatusChanged({
       appointmentId: updated.id,
-      status: 'COMPLETED',
-      previousStatus: 'IN_SERVICE',
+      status: DOMAIN_APPOINTMENT_STATUS.COMPLETED,
+      previousStatus: DOMAIN_APPOINTMENT_STATUS.IN_SERVICE,
       queueNumber: updated.queueNumber,
       practitionerId: updated.practitionerId,
       actualCompletedAt: actualCompletedAt.toISOString(),
@@ -72,7 +73,7 @@ export class CompleteServiceUseCase {
           data: {
             appointmentId: updated.id,
             queueNumber: String(updated.queueNumber),
-            status: 'COMPLETED',
+            status: DOMAIN_APPOINTMENT_STATUS.COMPLETED,
             actualCompletedAt: actualCompletedAt.toISOString(),
           },
         })

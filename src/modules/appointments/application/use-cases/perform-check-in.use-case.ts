@@ -7,6 +7,7 @@ import {
   Optional,
 } from '@nestjs/common';
 import { RedisService } from '../../../../common/redis/redis.service';
+import { DOMAIN_APPOINTMENT_STATUS } from '../../domain/constants/appointment-lifecycle.constants';
 import type { AppointmentEntity } from '../../domain/entities/appointment.entity';
 import {
   APPOINTMENT_REPOSITORY,
@@ -97,7 +98,7 @@ export class PerformCheckInUseCase {
       throw new NotFoundException('Janji temu tidak ditemukan.');
     }
 
-    if (appointment.status !== 'BOOKED') {
+    if (appointment.status !== DOMAIN_APPOINTMENT_STATUS.BOOKED) {
       throw new BadRequestException(
         `Janji temu ini tidak dalam status "Sudah Buat Janji" (status saat ini: ${appointment.status}).`,
       );
@@ -117,7 +118,7 @@ export class PerformCheckInUseCase {
     // Transition appointment status to WAITING and mark checkedInAt
     const updated = await this.appointmentRepo.updateStatus(
       appointment.id,
-      'WAITING',
+      DOMAIN_APPOINTMENT_STATUS.WAITING,
       undefined,
       'Check-in mandiri/kiosk kedatangan pasien di klinik',
     );
@@ -148,8 +149,8 @@ export class PerformCheckInUseCase {
     // Emit realtime event
     await this.realtimeEmitter.emitStatusChanged({
       appointmentId: updated.id,
-      status: 'WAITING',
-      previousStatus: 'BOOKED',
+      status: DOMAIN_APPOINTMENT_STATUS.WAITING,
+      previousStatus: DOMAIN_APPOINTMENT_STATUS.BOOKED,
       queueNumber: Number(updated.queueNumber) || 1,
       practitionerId: updated.staffId || '',
     });
@@ -166,7 +167,7 @@ export class PerformCheckInUseCase {
           data: {
             appointmentId: updated.id,
             queueNumber: String(updated.queueNumber),
-            status: 'WAITING',
+            status: DOMAIN_APPOINTMENT_STATUS.WAITING,
             checkedInAt: new Date().toISOString(),
           },
         })

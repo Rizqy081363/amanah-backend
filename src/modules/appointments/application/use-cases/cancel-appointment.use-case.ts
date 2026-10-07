@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { RedisService } from '../../../../common/redis/redis.service';
+import { DOMAIN_APPOINTMENT_STATUS } from '../../domain/constants/appointment-lifecycle.constants';
 import type { AppointmentRecord } from '../../domain/types/appointment.types';
 import {
   APPOINTMENT_REPOSITORY_PORT,
@@ -37,8 +38,8 @@ export class CancelAppointmentUseCase {
     const cancelledAt = new Date();
     const updated = await this.appointmentRepo.transitionStatus({
       id: appointmentId,
-      expectedStatus: 'WAITING',
-      targetStatus: 'CANCELLED',
+      expectedStatus: DOMAIN_APPOINTMENT_STATUS.WAITING,
+      targetStatus: DOMAIN_APPOINTMENT_STATUS.CANCELLED,
       cancelledAt,
       cancellationReason: reason,
     });
@@ -53,8 +54,8 @@ export class CancelAppointmentUseCase {
 
     await this.realtimeEmitter.emitStatusChanged({
       appointmentId: updated.id,
-      status: 'CANCELLED',
-      previousStatus: 'WAITING',
+      status: DOMAIN_APPOINTMENT_STATUS.CANCELLED,
+      previousStatus: DOMAIN_APPOINTMENT_STATUS.WAITING,
       queueNumber: updated.queueNumber,
       practitionerId: updated.practitionerId,
     });
@@ -69,7 +70,7 @@ export class CancelAppointmentUseCase {
           data: {
             appointmentId: updated.id,
             queueNumber: String(updated.queueNumber),
-            status: 'CANCELLED',
+            status: DOMAIN_APPOINTMENT_STATUS.CANCELLED,
           },
         })
         .catch((error) => {

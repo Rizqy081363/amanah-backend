@@ -1,6 +1,7 @@
 import { parseClockTime } from '../../../schedules/domain/schedule-projection';
 import { getClinicNow } from '../../../schedules/domain/services/schedule-date.formatter';
 import type { AppointmentEntity } from '../entities/appointment.entity';
+import { toDomainStatus } from '../types/appointment.types';
 
 export interface TemporalAppointmentInput {
   scheduledDate: string;
@@ -44,36 +45,7 @@ export class AppointmentTemporalStatusHelper {
     status: string,
     _isElapsed: boolean = false,
   ): AppointmentEntity['status'] {
-    if (
-      status === 'cancelled' ||
-      status === 'BATAL' ||
-      status === 'CANCELLED'
-    ) {
-      return 'CANCELLED';
-    }
-    if (
-      status === 'completed' ||
-      status === 'SELESAI' ||
-      status === 'COMPLETED'
-    ) {
-      return 'COMPLETED';
-    }
-    if (
-      status === 'in_service' ||
-      status === 'SEDANG_DIPERIKSA' ||
-      status === 'IN_SERVICE'
-    ) {
-      return 'IN_SERVICE';
-    }
-    if (
-      status === 'late' ||
-      status === 'TERLAMBAT' ||
-      status === 'LATE' ||
-      status === 'no_show'
-    ) {
-      return 'LATE';
-    }
-    return 'WAITING';
+    return toDomainStatus(status);
   }
 
   static resolveDbStatus(status: string, _isElapsed: boolean = false): string {
