@@ -22,5 +22,7 @@ export interface CheckInQrData {
   token: string;
   manualCode: string;
   qrPayload: string;
+  appointmentEligibilityDeadline: string;
   expiresAt: string;
+  remainingSeconds: number;
 }

@@ -21,6 +21,7 @@ import { PerformCheckInUseCase } from './application/use-cases/perform-check-in.
 import { StartServiceUseCase } from './application/use-cases/start-service.use-case';
 import { SweepLateAppointmentsUseCase } from './application/use-cases/sweep-late-appointments.use-case';
 import { AppointmentsNotificationRules } from './appointments.notifications';
+import { AppointmentPolicyReader } from './domain/services/appointment-policy.reader';
 import { APPOINTMENT_CALL_REPOSITORY } from './domain/constants/appointment-lifecycle.constants';
 import { APPOINTMENT_REPOSITORY } from './domain/repositories/appointment.repository';
 import { AppointmentPushAdapter } from './infrastructure/adapters/appointment-push.adapter';
@@ -79,6 +80,7 @@ import { PatientAppointmentHistoryController } from './presentation/patient-appo
         appointmentsService.findById(id),
       inject: [AppointmentsService],
     },
+    AppointmentPolicyReader,
     AppointmentsService,
     AppointmentCandidateResolver,
     AppointmentAssignmentService,
@@ -108,6 +110,7 @@ import { PatientAppointmentHistoryController } from './presentation/patient-appo
     APPOINTMENT_REPOSITORY,
     APPOINTMENT_REPOSITORY_PORT,
     APPOINTMENT_CHECK_IN_REPOSITORY_PORT,
+    AppointmentPolicyReader,
     AppointmentsService,
     AppointmentCandidateResolver,
     AppointmentAssignmentService,

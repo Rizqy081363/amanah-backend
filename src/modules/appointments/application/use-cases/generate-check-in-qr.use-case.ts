@@ -13,6 +13,7 @@ import {
   type AppointmentRepository,
 } from '../../domain/repositories/appointment.repository';
 import { isAppointmentLate } from '../../domain/services/appointment-lateness.predicate';
+import { AppointmentPolicyReader } from '../../domain/services/appointment-policy.reader';
 import {
   APPOINTMENT_CHECK_IN_REPOSITORY_PORT,
   type AppointmentCheckInRepositoryPort,
@@ -27,6 +28,7 @@ export class GenerateCheckInQrUseCase {
     private readonly appointmentRepo: AppointmentRepository,
     @Inject(APPOINTMENT_CHECK_IN_REPOSITORY_PORT)
     private readonly checkInRepo: AppointmentCheckInRepositoryPort,
+    private readonly policyReader: AppointmentPolicyReader,
   ) {}
 
   private generateManualCode(length: number): string {
@@ -55,30 +57,37 @@ export class GenerateCheckInQrUseCase {
       );
     }
 
+    const windowHours = await this.policyReader.getCheckInWindowHours();
     const scheduledDateObj = new Date(
       `${apt.appointmentDate}T${apt.scheduledStartTime || '00:00:00'}`,
     );
-    if (isAppointmentLate(scheduledDateObj)) {
+
+    if (isAppointmentLate(scheduledDateObj, new Date(), windowHours)) {
       throw new BadRequestException(
         'Janji temu telah melewati batas waktu check-in (kedaluwarsa).',
       );
     }
 
-    // Invalidate any existing unused tokens for this appointment
     await this.checkInRepo.invalidateExistingTokens(appointmentId);
 
     const token = randomUUID();
     const manualCode = this.generateManualCode(
       DEFAULT_CHECK_IN_CONFIG.codeLength,
     );
-    const ttlMs = DEFAULT_CHECK_IN_CONFIG.qrCodeTtlMinutes * 60 * 1000;
-    const expiresAt = new Date(Date.now() + ttlMs);
+
+    const eligibilityDeadlineMs =
+      scheduledDateObj.getTime() + windowHours * 60 * 60 * 1000;
+    const appointmentEligibilityDeadline = new Date(eligibilityDeadlineMs);
+    const remainingSeconds = Math.max(
+      0,
+      Math.floor((eligibilityDeadlineMs - Date.now()) / 1000),
+    );
 
     await this.checkInRepo.createCheckIn({
       appointmentId,
       token,
       manualCode,
-      expiresAt,
+      expiresAt: appointmentEligibilityDeadline,
       createdBy: actorUserId,
     });
 
@@ -100,7 +109,10 @@ export class GenerateCheckInQrUseCase {
       token,
       manualCode,
       qrPayload,
-      expiresAt: expiresAt.toISOString(),
+      appointmentEligibilityDeadline:
+        appointmentEligibilityDeadline.toISOString(),
+      expiresAt: appointmentEligibilityDeadline.toISOString(),
+      remainingSeconds,
     };
   }
 }

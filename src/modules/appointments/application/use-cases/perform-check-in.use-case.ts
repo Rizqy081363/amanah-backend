@@ -14,6 +14,7 @@ import {
   type AppointmentRepository,
 } from '../../domain/repositories/appointment.repository';
 import { isAppointmentLate } from '../../domain/services/appointment-lateness.predicate';
+import { AppointmentPolicyReader } from '../../domain/services/appointment-policy.reader';
 import {
   APPOINTMENT_CHECK_IN_REPOSITORY_PORT,
   type AppointmentCheckInRepositoryPort,
@@ -44,6 +45,7 @@ export class PerformCheckInUseCase {
     private readonly checkInRepo: AppointmentCheckInRepositoryPort,
     @Inject(REALTIME_EMITTER_PORT)
     private readonly realtimeEmitter: RealtimeEmitterPort,
+    private readonly policyReader: AppointmentPolicyReader,
     @Optional()
     @Inject(PUSH_NOTIFICATION_PORT)
     private readonly pushNotification?: PushNotificationPort,
@@ -85,12 +87,6 @@ export class PerformCheckInUseCase {
       );
     }
 
-    if (new Date() > checkInRecord.expiresAt) {
-      throw new BadRequestException(
-        'QR token check-in telah kedaluwarsa. Silakan minta admin membuat QR baru.',
-      );
-    }
-
     const appointment = await this.appointmentRepo.findById(
       checkInRecord.appointmentId,
     );
@@ -104,10 +100,12 @@ export class PerformCheckInUseCase {
       );
     }
 
+    const windowHours = await this.policyReader.getCheckInWindowHours();
     const scheduledDateObj = new Date(
       `${appointment.appointmentDate}T${appointment.scheduledStartTime || '00:00:00'}`,
     );
-    if (isAppointmentLate(scheduledDateObj)) {
+
+    if (isAppointmentLate(scheduledDateObj, new Date(), windowHours)) {
       throw new BadRequestException(
         'Janji temu telah melewati batas waktu kedatangan (kedaluwarsa).',
       );
@@ -115,7 +113,6 @@ export class PerformCheckInUseCase {
 
     const actorUserId = actorUser?.id || actorUser?.sub || null;
 
-    // Transition appointment status to WAITING and mark checkedInAt
     const updated = await this.appointmentRepo.updateStatus(
       appointment.id,
       DOMAIN_APPOINTMENT_STATUS.WAITING,
@@ -129,10 +126,8 @@ export class PerformCheckInUseCase {
       );
     }
 
-    // Mark check-in record as used
     await this.checkInRepo.markAsUsed(checkInRecord.id, actorUserId);
 
-    // Invalidate caches
     if (this.redisService) {
       await Promise.allSettled([
         this.redisService.deleteByPrefix('queue:daily'),
@@ -146,7 +141,6 @@ export class PerformCheckInUseCase {
       ]);
     }
 
-    // Emit realtime event
     await this.realtimeEmitter.emitStatusChanged({
       appointmentId: updated.id,
       status: DOMAIN_APPOINTMENT_STATUS.WAITING,
@@ -155,7 +149,6 @@ export class PerformCheckInUseCase {
       practitionerId: updated.staffId || '',
     });
 
-    // Send push notification to target user (parent/direct)
     const targetUserId =
       updated.parentUserId || updated.patientUserId || updated.createdBy;
     if (this.pushNotification && targetUserId) {

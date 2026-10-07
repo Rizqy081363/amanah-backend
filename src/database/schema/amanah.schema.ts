@@ -3149,6 +3149,9 @@ export const clinicSchedulePolicies = pgTable(
     defaultStartPrecisionMinutes: integer('default_start_precision_minutes')
       .default(1)
       .notNull(),
+    checkInWindowHours: integer('check_in_window_hours')
+      .default(24)
+      .notNull(),
     earlyMorningStart: text('early_morning_start').default('00:00').notNull(),
     earlyMorningEnd: text('early_morning_end').default('06:00').notNull(),
     morningStart: text('morning_start').default('06:00').notNull(),
@@ -3173,6 +3176,10 @@ export const clinicSchedulePolicies = pgTable(
     check(
       'clinic_schedule_policies_precision_positive',
       sql`default_start_precision_minutes > 0`,
+    ),
+    check(
+      'clinic_schedule_policies_check_in_window_positive',
+      sql`check_in_window_hours > 0`,
     ),
   ],
 );
