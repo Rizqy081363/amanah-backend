@@ -1165,6 +1165,9 @@ export class AdminDoctorAccumulatedPatientsData {
 
   @ApiProperty({ type: () => [AdminDoctorAccumulatedSessionItem] })
   sessions: AdminDoctorAccumulatedSessionItem[];
+
+  @ApiProperty({ type: () => [AdminSessionPatientItem] })
+  patients: AdminSessionPatientItem[];
 }
 
 export class AdminDoctorAccumulatedPatientsResponse {

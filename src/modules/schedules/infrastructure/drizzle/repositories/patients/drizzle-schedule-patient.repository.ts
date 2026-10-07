@@ -425,6 +425,10 @@ export class DrizzleSchedulePatientRepository {
       });
     }
 
+    const allPatients = sessionItems
+      .flatMap((s) => s.patients)
+      .sort((a, b) => a.timeSlot.localeCompare(b.timeSlot));
+
     return {
       success: true,
       data: {
@@ -435,6 +439,7 @@ export class DrizzleSchedulePatientRepository {
         accumulatedBookedCount,
         accumulatedAvailableSlots,
         sessions: sessionItems,
+        patients: allPatients,
       },
     };
   }
