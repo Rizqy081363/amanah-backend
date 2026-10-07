@@ -1,4 +1,5 @@
 import { AppointmentTemporalStatusHelper } from '@modules/appointments/domain/helpers/appointment-temporal-status.helper';
+import { computeConsultationMetrics } from '@modules/appointments/domain/helpers/consultation-duration.helper';
 import { APPOINTMENT_STATUS_BADGE_MAP } from '@modules/schedules/domain/constants/schedule.constants';
 import type { BookedPatientEntity } from '@modules/schedules/domain/entities/schedule.entity';
 
@@ -52,6 +53,28 @@ export class BookedPatientMapper {
     );
     const statusBadge = APPOINTMENT_STATUS_BADGE_MAP[status] || status;
 
+    const actualStartedAt = apt.actualStartedAt
+      ? new Date(apt.actualStartedAt)
+      : apt.startedAt
+        ? new Date(apt.startedAt)
+        : apt.queueTickets?.[0]?.startedAt
+          ? new Date(apt.queueTickets[0].startedAt)
+          : null;
+
+    const actualCompletedAt = apt.actualCompletedAt
+      ? new Date(apt.actualCompletedAt)
+      : apt.completedAt
+        ? new Date(apt.completedAt)
+        : apt.queueTickets?.[0]?.completedAt
+          ? new Date(apt.queueTickets[0].completedAt)
+          : null;
+
+    const { elapsedSeconds, formattedDuration } = computeConsultationMetrics(
+      actualStartedAt,
+      actualCompletedAt,
+      status,
+    );
+
     return {
       id: apt.patientProfile?.id || apt.patientId,
       appointmentId: apt.id,
@@ -70,6 +93,10 @@ export class BookedPatientMapper {
       status,
       statusBadge,
       avatarUrl: apt.patientProfile?.avatarUrl || null,
+      actualStartedAt,
+      actualCompletedAt,
+      consultationElapsedSeconds: elapsedSeconds,
+      consultationDurationFormatted: formattedDuration,
     };
   }
 }

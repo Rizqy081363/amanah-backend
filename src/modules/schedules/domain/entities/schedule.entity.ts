@@ -94,6 +94,10 @@ export class BookedPatientEntity {
   status: string;
   statusBadge: string;
   avatarUrl?: string | null;
+  actualStartedAt?: Date | string | null;
+  actualCompletedAt?: Date | string | null;
+  consultationElapsedSeconds?: number | null;
+  consultationDurationFormatted?: string | null;
 }
 
 export class ClinicRoomReferenceEntity {
