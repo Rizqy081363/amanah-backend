@@ -17,6 +17,20 @@ export class QueryAppointmentDto {
   poliklinikId?: string;
 
   @ApiPropertyOptional({
+    description: 'Filter berdasarkan Nama Poliklinik',
+  })
+  @IsString()
+  @IsOptional()
+  poliklinikName?: string;
+
+  @ApiPropertyOptional({
+    description: 'Pencarian nama pasien, nomor antrean, dokter, atau keluhan',
+  })
+  @IsString()
+  @IsOptional()
+  search?: string;
+
+  @ApiPropertyOptional({
     example: '2026-09-18',
     description: 'Filter tanggal kunjungan (YYYY-MM-DD)',
   })

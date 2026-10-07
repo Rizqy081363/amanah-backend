@@ -118,10 +118,12 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
     offset = 0,
     filters?: {
       poliklinikId?: string;
+      poliklinikName?: string;
       date?: string;
       session?: string;
       status?: string;
       patientId?: string;
+      search?: string;
       cursor?: string;
     },
   ): Promise<AppointmentFindAllResult> {
@@ -162,11 +164,34 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
     if (filters?.poliklinikId) {
       results = results.filter((a) => a.poliklinikId === filters.poliklinikId);
     }
+    if (filters?.poliklinikName) {
+      const pn = filters.poliklinikName.toLowerCase().trim();
+      results = results.filter(
+        (a) => a.poliklinikName && a.poliklinikName.toLowerCase().includes(pn),
+      );
+    }
     if (filters?.session) {
       results = results.filter((a) => a.session === filters.session);
     }
     if (filters?.status) {
       results = results.filter((a) => a.status === filters.status);
+    }
+    if (filters?.search) {
+      const q = filters.search.toLowerCase().trim();
+      results = results.filter((a) =>
+        [
+          a.patientName,
+          a.bookingCode,
+          a.queueNumber,
+          a.doctorName,
+          a.poliklinikName,
+          a.complaint,
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase()
+          .includes(q),
+      );
     }
 
     const hasNextPage = results.length > limit;
@@ -186,6 +211,7 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
         nextCursor,
         hasNextPage,
         limit,
+        total: results.length,
       },
     };
   }

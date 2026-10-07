@@ -26,10 +26,12 @@ export abstract class AppointmentRepository {
     offset?: number,
     filters?: {
       poliklinikId?: string;
+      poliklinikName?: string;
       date?: string;
       session?: string;
       status?: string;
       patientId?: string;
+      search?: string;
       cursor?: string;
     },
   ): Promise<AppointmentFindAllResult>;

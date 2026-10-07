@@ -146,10 +146,12 @@ export class AppointmentsService {
 
     const result = await this.appointmentRepo.findAll(limit, offset, {
       poliklinikId: query.poliklinikId,
+      poliklinikName: query.poliklinikName,
       date: query.date,
       session: query.session,
       status: query.status,
       patientId: query.patientId,
+      search: query.search,
       cursor: query.cursor,
     });
 
