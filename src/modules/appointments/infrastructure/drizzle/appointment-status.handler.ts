@@ -51,8 +51,10 @@ export class AppointmentStatusHandler {
       }
     }
 
-    let dbStatus: typeof appointments.$inferSelect.status = DB_APPOINTMENT_STATUS.BOOKED;
-    let ticketStatus: typeof queueTickets.$inferSelect.status = QUEUE_TICKET_STATUS.WAITING;
+    let dbStatus: typeof appointments.$inferSelect.status =
+      DB_APPOINTMENT_STATUS.BOOKED;
+    let ticketStatus: typeof queueTickets.$inferSelect.status =
+      QUEUE_TICKET_STATUS.WAITING;
     const nowStr = new Date().toISOString();
 
     const updateApt: Record<string, any> = {

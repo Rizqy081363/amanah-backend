@@ -16,7 +16,6 @@ import {
 } from '../../../../database/schema';
 import {
   ScheduleShiftRegistry,
-  SESSION_TO_SHIFT_MAP,
   SHIFT_TIMING_CONFIGS,
 } from '../../../schedules/domain/constants/schedule-shift.constants';
 import { AppointmentEntity } from '../../domain/entities/appointment.entity';
@@ -292,10 +291,23 @@ export class AppointmentCreationHandler {
           ? 'pregnancy'
           : null);
 
+    const targetUnitId = data.poliklinikId || room?.unitId;
+    let unitPrefix: string | null = null;
+    if (targetUnitId) {
+      const unit = await db.query.clinicUnits.findFirst({
+        where: eq(clinicUnits.id, targetUnitId),
+      });
+      if (unit?.queuePrefix) {
+        unitPrefix = unit.queuePrefix;
+      }
+    }
+
     let numericQueueNumber = 1;
     if (practitionerId && data.appointmentDate) {
       const [maxQ] = await db
-        .select({ max: sql<number>`COALESCE(MAX(${appointments.queueNumber}), 0)` })
+        .select({
+          max: sql<number>`COALESCE(MAX(${appointments.queueNumber}), 0)`,
+        })
         .from(appointments)
         .where(
           and(
@@ -306,7 +318,35 @@ export class AppointmentCreationHandler {
       numericQueueNumber = Number(maxQ?.max || 0) + 1;
     }
 
-    const [startH, startM] = (startTime || '08:00').split(':').map((v) => parseInt(v, 10));
+    let ticketIndex = numericQueueNumber;
+    let formattedTicketNumber = unitPrefix
+      ? `${unitPrefix}-${String(ticketIndex).padStart(3, '0')}`
+      : String(ticketIndex);
+
+    if (data.layananId && data.appointmentDate) {
+      const existingTickets = await db
+        .select({ queueNumber: queueTickets.queueNumber })
+        .from(queueTickets)
+        .where(
+          and(
+            eq(queueTickets.serviceId, data.layananId),
+            eq(queueTickets.queueDate, data.appointmentDate),
+          ),
+        );
+
+      const usedNumbers = new Set(existingTickets.map((t) => t.queueNumber));
+      while (usedNumbers.has(formattedTicketNumber)) {
+        ticketIndex++;
+        formattedTicketNumber = unitPrefix
+          ? `${unitPrefix}-${String(ticketIndex).padStart(3, '0')}`
+          : String(ticketIndex);
+      }
+    }
+    numericQueueNumber = ticketIndex;
+
+    const [startH, startM] = (startTime || '08:00')
+      .split(':')
+      .map((v) => parseInt(v, 10));
     const estimatedStart = new Date(`${data.appointmentDate}T00:00:00.000Z`);
     estimatedStart.setUTCHours(
       Number.isNaN(startH) ? 8 : startH,
@@ -343,17 +383,6 @@ export class AppointmentCreationHandler {
         medicalFlow: effectiveMedicalFlow,
       })
       .returning();
-
-    let formattedTicketNumber = String(numericQueueNumber);
-    const targetUnitId = data.poliklinikId || room?.unitId;
-    if (targetUnitId) {
-      const unit = await db.query.clinicUnits.findFirst({
-        where: eq(clinicUnits.id, targetUnitId),
-      });
-      if (unit?.queuePrefix) {
-        formattedTicketNumber = `${unit.queuePrefix}-${String(numericQueueNumber).padStart(3, '0')}`;
-      }
-    }
 
     const [ticket] = await db
       .insert(queueTickets)

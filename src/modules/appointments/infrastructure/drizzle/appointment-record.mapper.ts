@@ -128,7 +128,9 @@ export class AppointmentRecordMapper {
       actualCompletedAt,
       consultationElapsedSeconds: elapsedSeconds,
       consultationDurationFormatted: formattedDuration,
-      estimatedStartAt: apt.estimatedStartAt ? new Date(apt.estimatedStartAt) : null,
+      estimatedStartAt: apt.estimatedStartAt
+        ? new Date(apt.estimatedStartAt)
+        : null,
       estimatedEndAt: apt.estimatedEndAt ? new Date(apt.estimatedEndAt) : null,
       completedAt: apt.completedAt ? new Date(apt.completedAt) : null,
       createdAt: new Date(apt.createdAt),

@@ -9,6 +9,13 @@ import {
 } from '../../../../database/schema';
 import { CLINIC_POLICY_FALLBACK_CONFIG } from '../../../schedules/domain/constants/schedule.constants';
 import { SchedulePolicyReader } from '../../../schedules/infrastructure/drizzle/queries/schedule-policy.reader';
+import type {
+  AppointmentFilter,
+  AppointmentListResult,
+  AppointmentRepositoryPort,
+  CreateAppointmentInput,
+  TransitionStatusInput,
+} from '../../application/ports/appointment-repository.port';
 import {
   DB_APPOINTMENT_STATUS,
   QUEUE_TICKET_STATUS,
@@ -25,13 +32,6 @@ import {
   toDbStatus,
   toDomainStatus,
 } from '../../domain/types/appointment.types';
-import type {
-  AppointmentFilter,
-  AppointmentListResult,
-  AppointmentRepositoryPort,
-  CreateAppointmentInput,
-  TransitionStatusInput,
-} from '../../application/ports/appointment-repository.port';
 
 @Injectable()
 export class AppointmentHardenedDrizzleRepository
@@ -219,8 +219,8 @@ export class AppointmentHardenedDrizzleRepository
       input.expectedStatus === 'WAITING'
         ? ['waiting', 'booked', 'checked_in']
         : input.expectedStatus === 'IN_SERVICE'
-        ? ['in_service']
-        : [];
+          ? ['in_service']
+          : [];
 
     const targetDbStatus = toDbStatus(input.targetStatus);
 
@@ -262,7 +262,11 @@ export class AppointmentHardenedDrizzleRepository
       if (!existing) {
         throw new AppointmentNotFoundError(input.id);
       }
-      throw new StaleStatusError(input.id, input.expectedStatus, existing.status);
+      throw new StaleStatusError(
+        input.id,
+        input.expectedStatus,
+        existing.status,
+      );
     }
 
     try {
@@ -270,21 +274,27 @@ export class AppointmentHardenedDrizzleRepository
         targetDbStatus === DB_APPOINTMENT_STATUS.IN_SERVICE
           ? QUEUE_TICKET_STATUS.IN_SERVICE
           : targetDbStatus === DB_APPOINTMENT_STATUS.COMPLETED
-          ? QUEUE_TICKET_STATUS.COMPLETED
-          : targetDbStatus === DB_APPOINTMENT_STATUS.CANCELLED
-          ? QUEUE_TICKET_STATUS.CANCELLED
-          : targetDbStatus === DB_APPOINTMENT_STATUS.LATE
-          ? QUEUE_TICKET_STATUS.SKIPPED
-          : QUEUE_TICKET_STATUS.WAITING;
+            ? QUEUE_TICKET_STATUS.COMPLETED
+            : targetDbStatus === DB_APPOINTMENT_STATUS.CANCELLED
+              ? QUEUE_TICKET_STATUS.CANCELLED
+              : targetDbStatus === DB_APPOINTMENT_STATUS.LATE
+                ? QUEUE_TICKET_STATUS.SKIPPED
+                : QUEUE_TICKET_STATUS.WAITING;
 
       const updateTicketPayload: Record<string, any> = {
         status: ticketStatus as any,
         updatedAt: new Date().toISOString(),
       };
-      if (targetDbStatus === DB_APPOINTMENT_STATUS.IN_SERVICE && input.actualStartedAt) {
+      if (
+        targetDbStatus === DB_APPOINTMENT_STATUS.IN_SERVICE &&
+        input.actualStartedAt
+      ) {
         updateTicketPayload.startedAt = input.actualStartedAt.toISOString();
       }
-      if (targetDbStatus === DB_APPOINTMENT_STATUS.COMPLETED && input.actualCompletedAt) {
+      if (
+        targetDbStatus === DB_APPOINTMENT_STATUS.COMPLETED &&
+        input.actualCompletedAt
+      ) {
         updateTicketPayload.completedAt = input.actualCompletedAt.toISOString();
       }
 
@@ -342,7 +352,9 @@ export class AppointmentHardenedDrizzleRepository
           ] as any),
         );
       } else {
-        conditions.push(eq(appointments.status, toDbStatus(filter.status) as any));
+        conditions.push(
+          eq(appointments.status, toDbStatus(filter.status) as any),
+        );
       }
     }
 
@@ -382,7 +394,10 @@ export class AppointmentHardenedDrizzleRepository
     };
   }
 
-  private mapToRecord(apt: any, fallbackDurationMs?: number): AppointmentRecord {
+  private mapToRecord(
+    apt: any,
+    fallbackDurationMs?: number,
+  ): AppointmentRecord {
     const status = toDomainStatus(apt.status);
     const queueNumber = Number(
       apt.queueNumber || apt.queueTickets?.[0]?.queueNumber || 1,

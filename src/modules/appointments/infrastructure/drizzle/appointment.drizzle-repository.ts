@@ -9,11 +9,11 @@ import {
   patientProfiles,
   queueTickets,
 } from '../../../../database/schema';
-import { AppointmentEntity } from '../../domain/entities/appointment.entity';
 import {
   DOMAIN_APPOINTMENT_STATUS,
   QUEUE_TICKET_STATUS,
 } from '../../domain/constants/appointment-lifecycle.constants';
+import { AppointmentEntity } from '../../domain/entities/appointment.entity';
 import {
   AppointmentFindAllResult,
   AppointmentRepository,
