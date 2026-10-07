@@ -24,6 +24,13 @@ export class QueryAppointmentDto {
   poliklinikName?: string;
 
   @ApiPropertyOptional({
+    description: 'Filter berdasarkan Nama Layanan/Service',
+  })
+  @IsString()
+  @IsOptional()
+  serviceName?: string;
+
+  @ApiPropertyOptional({
     description: 'Pencarian nama pasien, nomor antrean, dokter, atau keluhan',
   })
   @IsString()

@@ -27,6 +27,7 @@ export abstract class AppointmentRepository {
     filters?: {
       poliklinikId?: string;
       poliklinikName?: string;
+      serviceName?: string;
       date?: string;
       session?: string;
       status?: string;

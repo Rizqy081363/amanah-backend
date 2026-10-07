@@ -119,6 +119,7 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
     filters?: {
       poliklinikId?: string;
       poliklinikName?: string;
+      serviceName?: string;
       date?: string;
       session?: string;
       status?: string;
@@ -170,6 +171,12 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
         (a) => a.poliklinikName && a.poliklinikName.toLowerCase().includes(pn),
       );
     }
+    if (filters?.serviceName) {
+      const sn = filters.serviceName.toLowerCase().trim();
+      results = results.filter(
+        (a) => a.layananName && a.layananName.toLowerCase().includes(sn),
+      );
+    }
     if (filters?.session) {
       results = results.filter((a) => a.session === filters.session);
     }
@@ -185,6 +192,7 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
           a.queueNumber,
           a.doctorName,
           a.poliklinikName,
+          a.layananName,
           a.complaint,
         ]
           .filter(Boolean)
