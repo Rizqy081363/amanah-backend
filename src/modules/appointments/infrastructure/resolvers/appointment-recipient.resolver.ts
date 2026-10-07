@@ -22,7 +22,9 @@ export class AppointmentRecipientResolver {
    * 3. The specifically assigned Practitioner (`staffId`), if provided.
    * Other doctors/midwives DO NOT receive the appointment notification.
    */
-  async resolveScopedClinicRecipients(assignedStaffId?: string | null): Promise<string[]> {
+  async resolveScopedClinicRecipients(
+    assignedStaffId?: string | null,
+  ): Promise<string[]> {
     if (!this.db) {
       return [];
     }
@@ -33,14 +35,17 @@ export class AppointmentRecipientResolver {
         .from(userRoles)
         .innerJoin(roles, sql`${userRoles.roleId} = ${roles.id}`)
         .where(
-          inArray(
-            sql`lower(${roles.code})`,
-            ['admin', 'staff_worker', 'frontdesk'],
-          ),
+          inArray(sql`lower(${roles.code})`, [
+            'admin',
+            'staff_worker',
+            'frontdesk',
+          ]),
         );
 
       const recipientIds = new Set<string>(
-        adminWorkerRecords.map((r) => r.userId).filter((id): id is string => Boolean(id)),
+        adminWorkerRecords
+          .map((r) => r.userId)
+          .filter((id): id is string => Boolean(id)),
       );
 
       if (assignedStaffId) {
@@ -87,4 +92,3 @@ export class AppointmentRecipientResolver {
     }
   }
 }
-

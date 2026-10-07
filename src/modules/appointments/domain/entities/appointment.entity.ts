@@ -41,6 +41,7 @@ export class AppointmentEntity {
   cancellationReason?: string | null;
   calledAt?: Date | null;
   lastCalledAt?: Date | null;
+  checkedInAt?: Date | null;
   actualStartedAt?: Date | null;
   actualCompletedAt?: Date | null;
   consultationElapsedSeconds?: number | null;

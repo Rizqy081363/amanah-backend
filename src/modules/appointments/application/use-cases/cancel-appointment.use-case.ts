@@ -30,7 +30,10 @@ export class CancelAppointmentUseCase {
     private readonly redisService?: RedisService,
   ) {}
 
-  async execute(appointmentId: string, reason?: string): Promise<AppointmentRecord> {
+  async execute(
+    appointmentId: string,
+    reason?: string,
+  ): Promise<AppointmentRecord> {
     const cancelledAt = new Date();
     const updated = await this.appointmentRepo.transitionStatus({
       id: appointmentId,

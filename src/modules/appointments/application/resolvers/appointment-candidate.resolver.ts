@@ -243,7 +243,12 @@ export class AppointmentCandidateResolver {
             eq(practitionerScheduleSessions.status, 'open'),
             sql`${practitionerScheduleSessions.startTime} <= ${startTime}::time AND ${practitionerScheduleSessions.endTime} > ${startTime}::time`,
             apt.practitionerId
-              ? not(eq(practitionerScheduleSessions.practitionerId, apt.practitionerId))
+              ? not(
+                  eq(
+                    practitionerScheduleSessions.practitionerId,
+                    apt.practitionerId,
+                  ),
+                )
               : sql`true`,
           ),
           with: {
@@ -252,7 +257,8 @@ export class AppointmentCandidateResolver {
         });
       for (const s of conflictingSessions) {
         if (!s.roomId) continue;
-        if (apt.practitionerId && s.practitionerId === apt.practitionerId) continue;
+        if (apt.practitionerId && s.practitionerId === apt.practitionerId)
+          continue;
 
         // Exclude sessions that have already finished (isElapsed / past / completed)
         const isSessionFinished =
@@ -292,10 +298,11 @@ export class AppointmentCandidateResolver {
       roomOccupantMap.set(c.roomId, {
         practitionerId: c.practitionerId || undefined,
         doctorName:
-          c.practitioner?.displayName ||
-          c.practitioner?.staffProfile?.fullName,
+          c.practitioner?.displayName || c.practitioner?.staffProfile?.fullName,
         bookingCode: c.bookingCode,
-        startTime: c.scheduledStartTime ? c.scheduledStartTime.slice(0, 5) : undefined,
+        startTime: c.scheduledStartTime
+          ? c.scheduledStartTime.slice(0, 5)
+          : undefined,
       });
     }
 

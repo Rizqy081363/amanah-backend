@@ -41,7 +41,10 @@ export class CallPatientUseCase {
     }
 
     const calledAt = new Date();
-    const updated = await this.appointmentRepo.updateLastCalledAt(appointmentId, calledAt);
+    const updated = await this.appointmentRepo.updateLastCalledAt(
+      appointmentId,
+      calledAt,
+    );
 
     await this.realtimeEmitter.emitPatientCalled({
       appointmentId: updated.id,
@@ -63,7 +66,9 @@ export class CallPatientUseCase {
           },
         })
         .catch((error) => {
-          this.logger.warn(`Push notification failed for patient ${updated.patientUserId}: ${error.message}`);
+          this.logger.warn(
+            `Push notification failed for patient ${updated.patientUserId}: ${error.message}`,
+          );
         });
     }
 

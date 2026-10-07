@@ -98,7 +98,9 @@ export class AppointmentAssignmentService {
 
       if (existingConflict) {
         const isConflictFinished =
-          ['completed', 'cancelled', 'no_show'].includes(existingConflict.status) ||
+          ['completed', 'cancelled', 'no_show'].includes(
+            existingConflict.status,
+          ) ||
           AppointmentTemporalStatusHelper.isElapsed({
             scheduledDate: existingConflict.scheduledDate,
             scheduledStartTime: existingConflict.scheduledStartTime,
@@ -107,7 +109,9 @@ export class AppointmentAssignmentService {
 
         if (!isConflictFinished) {
           throw new DoctorCollisionException(
-            targetDoc.displayName || targetDoc.staffProfile?.fullName || 'Dokter',
+            targetDoc.displayName ||
+              targetDoc.staffProfile?.fullName ||
+              'Dokter',
             `${apt.scheduledStartTime.slice(0, 5)} WIB`,
           );
         }
@@ -129,7 +133,8 @@ export class AppointmentAssignmentService {
 
       if (matchingSession) {
         targetSessionId = matchingSession.id;
-        targetRoomId = apt.roomId || matchingSession.roomId || targetDoc.defaultRoomId;
+        targetRoomId =
+          apt.roomId || matchingSession.roomId || targetDoc.defaultRoomId;
       } else {
         // Create canonical schedule session on-the-fly for target doctor
         const sessionName = resolveSessionFromTime(apt.scheduledStartTime);
@@ -272,7 +277,9 @@ export class AppointmentAssignmentService {
 
       if (conflictingAppt) {
         const isApptFinished =
-          ['completed', 'cancelled', 'no_show'].includes(conflictingAppt.status) ||
+          ['completed', 'cancelled', 'no_show'].includes(
+            conflictingAppt.status,
+          ) ||
           AppointmentTemporalStatusHelper.isElapsed({
             scheduledDate: conflictingAppt.scheduledDate,
             scheduledStartTime: conflictingAppt.scheduledStartTime,
@@ -291,20 +298,25 @@ export class AppointmentAssignmentService {
       }
 
       // Check room collision with other doctor schedule sessions
-      const conflictingSession =
-        tx.query.practitionerScheduleSessions?.findFirst
-          ? await tx.query.practitionerScheduleSessions.findFirst({
-              where: and(
-                eq(practitionerScheduleSessions.roomId, targetRoomId),
-                eq(practitionerScheduleSessions.scheduleDate, apt.scheduledDate),
-                eq(practitionerScheduleSessions.status, 'open'),
-                sql`${practitionerScheduleSessions.startTime} <= ${apt.scheduledStartTime}::time AND ${practitionerScheduleSessions.endTime} > ${apt.scheduledStartTime}::time`,
-                apt.practitionerId
-                  ? not(eq(practitionerScheduleSessions.practitionerId, apt.practitionerId))
-                  : sql`true`,
-              ),
-            })
-          : null;
+      const conflictingSession = tx.query.practitionerScheduleSessions
+        ?.findFirst
+        ? await tx.query.practitionerScheduleSessions.findFirst({
+            where: and(
+              eq(practitionerScheduleSessions.roomId, targetRoomId),
+              eq(practitionerScheduleSessions.scheduleDate, apt.scheduledDate),
+              eq(practitionerScheduleSessions.status, 'open'),
+              sql`${practitionerScheduleSessions.startTime} <= ${apt.scheduledStartTime}::time AND ${practitionerScheduleSessions.endTime} > ${apt.scheduledStartTime}::time`,
+              apt.practitionerId
+                ? not(
+                    eq(
+                      practitionerScheduleSessions.practitionerId,
+                      apt.practitionerId,
+                    ),
+                  )
+                : sql`true`,
+            ),
+          })
+        : null;
 
       if (conflictingSession) {
         const isSessionFinished =

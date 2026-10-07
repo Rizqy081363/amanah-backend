@@ -10,8 +10,12 @@ describe('planSlot', () => {
       slotMinutes: 30,
     });
 
-    expect(result.estimatedStartAt.toISOString()).toBe('2026-10-06T08:00:00.000Z');
-    expect(result.estimatedEndAt.toISOString()).toBe('2026-10-06T08:30:00.000Z');
+    expect(result.estimatedStartAt.toISOString()).toBe(
+      '2026-10-06T08:00:00.000Z',
+    );
+    expect(result.estimatedEndAt.toISOString()).toBe(
+      '2026-10-06T08:30:00.000Z',
+    );
   });
 
   it('should plan second slot offset by slot duration', () => {
@@ -22,8 +26,12 @@ describe('planSlot', () => {
       slotMinutes: 30,
     });
 
-    expect(result.estimatedStartAt.toISOString()).toBe('2026-10-06T08:30:00.000Z');
-    expect(result.estimatedEndAt.toISOString()).toBe('2026-10-06T09:00:00.000Z');
+    expect(result.estimatedStartAt.toISOString()).toBe(
+      '2026-10-06T08:30:00.000Z',
+    );
+    expect(result.estimatedEndAt.toISOString()).toBe(
+      '2026-10-06T09:00:00.000Z',
+    );
   });
 
   it('should handle custom slot durations', () => {
@@ -34,7 +42,11 @@ describe('planSlot', () => {
       slotMinutes: 20,
     });
 
-    expect(result.estimatedStartAt.toISOString()).toBe('2026-10-06T09:40:00.000Z');
-    expect(result.estimatedEndAt.toISOString()).toBe('2026-10-06T10:00:00.000Z');
+    expect(result.estimatedStartAt.toISOString()).toBe(
+      '2026-10-06T09:40:00.000Z',
+    );
+    expect(result.estimatedEndAt.toISOString()).toBe(
+      '2026-10-06T10:00:00.000Z',
+    );
   });
 });

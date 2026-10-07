@@ -403,4 +403,3 @@ describe('AppointmentsNotificationRules', () => {
     expect(doctorTitle).toBe('Perubahan Dokter Janji Temu');
   });
 });
-

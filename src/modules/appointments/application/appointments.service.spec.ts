@@ -11,21 +11,24 @@ describe('AppointmentsService - Event Publishing', () => {
   it('should publish APPOINTMENT_EVENTS.CREATED domain event on appointment creation', async () => {
     const mockRepo: Partial<AppointmentRepository> = {
       getNextQueueIndex: mock(async () => 1),
-      create: mock(async (data: any) => ({
-        id: 'apt-created-1',
-        patientId: data.patientId,
-        poliklinikId: data.poliklinikId,
-        layananId: data.layananId,
-        staffId: data.staffId,
-        appointmentDate: data.appointmentDate,
-        session: data.session,
-        queueNumber: data.queueNumber,
-        status: data.status,
-        visitType: data.visitType,
-        complaint: data.complaint,
-        createdAt: new Date('2026-09-29T10:00:00.000Z'),
-        updatedAt: new Date('2026-09-29T10:00:00.000Z'),
-      } as any)),
+      create: mock(
+        async (data: any) =>
+          ({
+            id: 'apt-created-1',
+            patientId: data.patientId,
+            poliklinikId: data.poliklinikId,
+            layananId: data.layananId,
+            staffId: data.staffId,
+            appointmentDate: data.appointmentDate,
+            session: data.session,
+            queueNumber: data.queueNumber,
+            status: data.status,
+            visitType: data.visitType,
+            complaint: data.complaint,
+            createdAt: new Date('2026-09-29T10:00:00.000Z'),
+            updatedAt: new Date('2026-09-29T10:00:00.000Z'),
+          }) as any,
+      ),
     };
 
     const mockRawPublisher: NotificationPublisher = {

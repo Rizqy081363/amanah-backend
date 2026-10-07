@@ -61,7 +61,9 @@ export class CompleteServiceUseCase {
         hour: '2-digit',
         minute: '2-digit',
       });
-      const patientInfo = updated.patientName ? ` (${updated.patientName})` : '';
+      const patientInfo = updated.patientName
+        ? ` (${updated.patientName})`
+        : '';
       this.pushNotification
         .sendPush({
           userId: updated.patientUserId,

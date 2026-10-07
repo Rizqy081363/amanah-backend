@@ -430,9 +430,7 @@ export class AppointmentHardenedDrizzleRepository
       apt.createdBy ||
       null;
     const parentUserName =
-      primaryAffiliation?.user?.name ||
-      primaryAffiliation?.user?.email ||
-      null;
+      primaryAffiliation?.user?.name || primaryAffiliation?.user?.email || null;
 
     return {
       id: apt.id,

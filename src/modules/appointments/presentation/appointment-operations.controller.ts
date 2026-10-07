@@ -61,7 +61,8 @@ export class AppointmentOperationsController {
   @Post(':id/complete')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Selesaikan pemeriksaan konsultasi pasien (IN_SERVICE -> COMPLETED)',
+    summary:
+      'Selesaikan pemeriksaan konsultasi pasien (IN_SERVICE -> COMPLETED)',
   })
   @ApiParam({ name: 'id', description: 'ID unik janji temu' })
   @ApiOkResponse({ description: 'Pemeriksaan selesai' })

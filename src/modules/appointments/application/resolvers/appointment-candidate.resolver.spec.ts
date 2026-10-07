@@ -276,4 +276,3 @@ describe('AppointmentCandidateResolver', () => {
     expect(room2?.occupantDetails).toBeNull();
   });
 });
-

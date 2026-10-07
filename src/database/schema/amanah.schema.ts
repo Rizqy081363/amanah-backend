@@ -1987,6 +1987,43 @@ export const clinicalEncounters = pgTable(
   ],
 );
 
+export const appointmentCheckIns = pgTable(
+  'appointment_check_ins',
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    appointmentId: uuid('appointment_id')
+      .notNull()
+      .references(() => appointments.id, { onDelete: 'cascade' }),
+    token: text('token').notNull(),
+    manualCode: text('manual_code').notNull(),
+    expiresAt: timestamp('expires_at', {
+      withTimezone: true,
+      mode: 'string',
+    }).notNull(),
+    isUsed: boolean('is_used').default(false).notNull(),
+    usedAt: timestamp('used_at', {
+      withTimezone: true,
+      mode: 'string',
+    }),
+    usedByUserId: uuid('used_by_user_id'),
+    createdBy: uuid('created_by'),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex('appointment_check_ins_token_idx').on(table.token),
+    index('appointment_check_ins_code_idx').on(table.manualCode),
+    index('appointment_check_ins_appointment_idx').on(table.appointmentId),
+    index('appointment_check_ins_active_lookup_idx')
+      .on(table.manualCode, table.isUsed)
+      .where(sql`is_used = false`),
+  ],
+);
+
 export const attendanceQrSessions = pgTable(
   'attendance_qr_sessions',
   {

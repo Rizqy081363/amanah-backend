@@ -10,7 +10,11 @@ export class AppointmentDomainError extends Error {
 }
 
 export class StaleStatusError extends AppointmentDomainError {
-  constructor(appointmentId: string, expectedStatus: string, currentStatus?: string) {
+  constructor(
+    appointmentId: string,
+    expectedStatus: string,
+    currentStatus?: string,
+  ) {
     super(
       'STALE_STATUS',
       `Janji temu ${appointmentId} telah diperbarui oleh pengguna lain. Status saat ini tidak sesuai (diharapkan: ${expectedStatus}).`,

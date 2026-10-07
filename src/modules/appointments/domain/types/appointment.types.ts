@@ -1,4 +1,5 @@
 export type AppointmentStatus =
+  | 'BOOKED'
   | 'WAITING'
   | 'IN_SERVICE'
   | 'COMPLETED'
@@ -17,6 +18,7 @@ export type DbAppointmentStatus =
   | 'late';
 
 export type AppointmentAction =
+  | 'CHECK_IN'
   | 'CALL'
   | 'START_SERVICE'
   | 'COMPLETE'
@@ -26,6 +28,7 @@ export const ALLOWED_TRANSITIONS: Record<
   AppointmentStatus,
   readonly AppointmentStatus[]
 > = {
+  BOOKED: ['WAITING', 'CANCELLED', 'LATE'],
   WAITING: ['IN_SERVICE', 'CANCELLED', 'LATE'],
   IN_SERVICE: ['COMPLETED'],
   COMPLETED: [],
@@ -37,6 +40,8 @@ export function toDomainStatus(
   dbStatus: DbAppointmentStatus | string | null | undefined,
 ): AppointmentStatus {
   switch (dbStatus) {
+    case 'booked':
+      return 'BOOKED';
     case 'in_service':
       return 'IN_SERVICE';
     case 'completed':
@@ -47,6 +52,8 @@ export function toDomainStatus(
     case 'late':
     case 'no_show':
       return 'LATE';
+    case 'waiting':
+    case 'checked_in':
     default:
       return 'WAITING';
   }
@@ -56,6 +63,8 @@ export function toDbStatus(
   domainStatus: AppointmentStatus,
 ): DbAppointmentStatus {
   switch (domainStatus) {
+    case 'BOOKED':
+      return 'booked';
     case 'IN_SERVICE':
       return 'in_service';
     case 'COMPLETED':
@@ -73,6 +82,8 @@ export function resolveAllowedActions(
   status: AppointmentStatus,
 ): AppointmentAction[] {
   switch (status) {
+    case 'BOOKED':
+      return ['CHECK_IN', 'CANCEL'];
     case 'WAITING':
       return ['CALL', 'START_SERVICE', 'CANCEL'];
     case 'IN_SERVICE':
@@ -119,6 +130,7 @@ export interface AppointmentRecord {
   estimatedEndAt: Date;
   actualStartedAt?: Date | null;
   actualCompletedAt?: Date | null;
+  checkedInAt?: Date | null;
   consultationElapsedSeconds?: number | null;
   consultationDurationFormatted?: string | null;
   lastCalledAt?: Date | null;

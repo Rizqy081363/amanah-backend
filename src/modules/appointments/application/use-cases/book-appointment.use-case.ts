@@ -44,13 +44,14 @@ export class BookAppointmentUseCase {
     const policy = await this.policyReader.getPolicy(prac);
     const slotMinutes = policy.durationMinutes || 30;
 
-    const session = await this.db.query?.practitionerScheduleSessions?.findFirst?.({
-      where: and(
-        eq(practitionerScheduleSessions.practitionerId, input.practitionerId),
-        eq(practitionerScheduleSessions.scheduleDate, input.scheduledDate),
-        eq(practitionerScheduleSessions.status, 'open'),
-      ),
-    });
+    const session =
+      await this.db.query?.practitionerScheduleSessions?.findFirst?.({
+        where: and(
+          eq(practitionerScheduleSessions.practitionerId, input.practitionerId),
+          eq(practitionerScheduleSessions.scheduleDate, input.scheduledDate),
+          eq(practitionerScheduleSessions.status, 'open'),
+        ),
+      });
 
     const startTimeStr = session?.startTime || '08:00';
     const [hours, minutes] = startTimeStr.split(':').map(Number);
@@ -62,11 +63,27 @@ export class BookAppointmentUseCase {
     )}`;
 
     try {
-      return await this.attemptBooking(input, dayStart, slotMinutes, bookingCode);
+      return await this.attemptBooking(
+        input,
+        dayStart,
+        slotMinutes,
+        bookingCode,
+      );
     } catch (err: any) {
-      if (err?.code === '23505' || err?.message?.includes('unique') || err?.message?.includes('duplicate')) {
-        this.logger.warn(`Queue collision detected for practitioner ${input.practitionerId}. Retrying with next queue number.`);
-        return await this.attemptBooking(input, dayStart, slotMinutes, bookingCode);
+      if (
+        err?.code === '23505' ||
+        err?.message?.includes('unique') ||
+        err?.message?.includes('duplicate')
+      ) {
+        this.logger.warn(
+          `Queue collision detected for practitioner ${input.practitionerId}. Retrying with next queue number.`,
+        );
+        return await this.attemptBooking(
+          input,
+          dayStart,
+          slotMinutes,
+          bookingCode,
+        );
       }
       throw err;
     }

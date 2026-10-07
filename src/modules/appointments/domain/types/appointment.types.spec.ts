@@ -9,8 +9,11 @@ describe('appointment.types', () => {
   describe('toDomainStatus', () => {
     it('should map waiting and legacy statuses to WAITING', () => {
       expect(toDomainStatus('waiting')).toBe('WAITING');
-      expect(toDomainStatus('booked')).toBe('WAITING');
       expect(toDomainStatus('checked_in')).toBe('WAITING');
+    });
+
+    it('should map booked to BOOKED', () => {
+      expect(toDomainStatus('booked')).toBe('BOOKED');
     });
 
     it('should map in_service to IN_SERVICE', () => {
@@ -34,6 +37,7 @@ describe('appointment.types', () => {
 
   describe('toDbStatus', () => {
     it('should map domain statuses to database enum values', () => {
+      expect(toDbStatus('BOOKED')).toBe('booked');
       expect(toDbStatus('WAITING')).toBe('waiting');
       expect(toDbStatus('IN_SERVICE')).toBe('in_service');
       expect(toDbStatus('COMPLETED')).toBe('completed');
@@ -43,6 +47,10 @@ describe('appointment.types', () => {
   });
 
   describe('resolveAllowedActions', () => {
+    it('should allow CHECK_IN, CANCEL for BOOKED', () => {
+      expect(resolveAllowedActions('BOOKED')).toEqual(['CHECK_IN', 'CANCEL']);
+    });
+
     it('should allow CALL, START_SERVICE, CANCEL for WAITING', () => {
       expect(resolveAllowedActions('WAITING')).toEqual([
         'CALL',

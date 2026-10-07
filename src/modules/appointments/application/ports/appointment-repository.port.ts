@@ -1,4 +1,7 @@
-import type { AppointmentRecord, AppointmentStatus } from '../../domain/types/appointment.types';
+import type {
+  AppointmentRecord,
+  AppointmentStatus,
+} from '../../domain/types/appointment.types';
 
 export interface CreateAppointmentInput {
   bookingCode: string;
@@ -38,12 +41,21 @@ export interface AppointmentListResult {
   total: number;
 }
 
-export const APPOINTMENT_REPOSITORY_PORT = Symbol('APPOINTMENT_REPOSITORY_PORT');
+export const APPOINTMENT_REPOSITORY_PORT = Symbol(
+  'APPOINTMENT_REPOSITORY_PORT',
+);
 
 export interface AppointmentRepositoryPort {
   findById(id: string): Promise<AppointmentRecord | null>;
-  getNextQueueNumber(practitionerId: string, scheduledDate: string, tx?: unknown): Promise<number>;
-  createWithSlot(input: CreateAppointmentInput, tx?: unknown): Promise<AppointmentRecord>;
+  getNextQueueNumber(
+    practitionerId: string,
+    scheduledDate: string,
+    tx?: unknown,
+  ): Promise<number>;
+  createWithSlot(
+    input: CreateAppointmentInput,
+    tx?: unknown,
+  ): Promise<AppointmentRecord>;
   updateLastCalledAt(id: string, calledAt: Date): Promise<AppointmentRecord>;
   transitionStatus(input: TransitionStatusInput): Promise<AppointmentRecord>;
   sweepLateness(threshold: Date): Promise<number>;

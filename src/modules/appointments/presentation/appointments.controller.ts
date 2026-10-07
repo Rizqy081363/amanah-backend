@@ -7,6 +7,7 @@ import {
   HttpCode,
   HttpStatus,
   NotFoundException,
+  Optional,
   Param,
   Patch,
   Post,
@@ -42,7 +43,10 @@ import {
   parseBusinessDate,
 } from '../../../common/time/clinic-time.service';
 import { AppointmentsService } from '../application/appointments.service';
+import { GenerateCheckInQrUseCase } from '../application/use-cases/generate-check-in-qr.use-case';
+import { PerformCheckInUseCase } from '../application/use-cases/perform-check-in.use-case';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
+import { PerformCheckInDto } from './dto/perform-check-in.dto';
 import { QueryAppointmentDto } from './dto/query-appointment.dto';
 import { RescheduleAppointmentDto } from './dto/reschedule-appointment.dto';
 import { UpdateAppointmentStatusDto } from './dto/update-appointment-status.dto';
@@ -53,6 +57,10 @@ export class AppointmentsController {
   constructor(
     private readonly appointmentsService: AppointmentsService,
     private readonly clinicTimeService: ClinicTimeService,
+    @Optional()
+    private readonly generateCheckInQrUseCase?: GenerateCheckInQrUseCase,
+    @Optional()
+    private readonly performCheckInUseCase?: PerformCheckInUseCase,
   ) {}
 
   @ApiBearerAuth('access-token')
@@ -251,6 +259,43 @@ export class AppointmentsController {
       res.setHeader('ETag', formatETag(result.version));
     }
     return result;
+  }
+
+  @ApiBearerAuth('access-token')
+  @UseGuards(HybridAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'STAF')
+  @Post(':id/check-in-qr')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Admin menghasilkan kredensial QR Code dan kode manual untuk check-in pasien',
+    description:
+      'Menghasilkan token QR Code dan 6 digit kode acak verifikasi check-in.',
+  })
+  async generateCheckInQr(@Param('id') id: string, @CurrentUser() user?: any) {
+    if (!this.generateCheckInQrUseCase) {
+      throw new NotFoundException('Fitur QR check-in belum diaktifkan');
+    }
+    return this.generateCheckInQrUseCase.execute(id, user?.id || user?.sub);
+  }
+
+  @ApiBearerAuth('access-token')
+  @UseGuards(HybridAuthGuard)
+  @Post('check-in')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Pasien/Kiosk melakukan check-in via QR scan atau kode manual',
+    description:
+      'Memvalidasi kredensial dan mentransisikan status janji temu dari BOOKED menjadi WAITING.',
+  })
+  async performCheckIn(
+    @Body() body: PerformCheckInDto,
+    @CurrentUser() user?: any,
+  ) {
+    if (!this.performCheckInUseCase) {
+      throw new NotFoundException('Fitur check-in belum diaktifkan');
+    }
+    return this.performCheckInUseCase.execute(body, user);
   }
 
   @ApiBearerAuth('access-token')

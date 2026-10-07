@@ -5,9 +5,11 @@ import {
   HttpCode,
   HttpStatus,
   Inject,
+  Optional,
   Param,
   ParseUUIDPipe,
   Post,
+  UseFilters,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -25,12 +27,11 @@ import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
 import { Roles } from '../../../common/auth/roles.decorator';
 import { RolesGuard } from '../../../common/auth/roles.guard';
 import { AppointmentCallLifecycleService } from '../application/appointment-call-lifecycle.service';
+import { CallPatientUseCase } from '../application/use-cases/call-patient.use-case';
 import { APPOINTMENT_CALL_REPOSITORY } from '../domain/constants/appointment-lifecycle.constants';
 import { AppointmentCallRepository } from '../domain/repositories/appointment-call.repository';
-import { Optional, UseFilters } from '@nestjs/common';
-import { CallPatientUseCase } from '../application/use-cases/call-patient.use-case';
-import { AppointmentDomainExceptionFilter } from './filters/appointment-domain-exception.filter';
 import { AppointmentCallActionDto } from './dto/appointment-call.dto';
+import { AppointmentDomainExceptionFilter } from './filters/appointment-domain-exception.filter';
 
 @ApiTags('Appointments Lifecycle (Panggilan & Status Antrean)')
 @UseFilters(AppointmentDomainExceptionFilter)
@@ -71,7 +72,11 @@ export class AppointmentCallController {
     @CurrentUser() user: any,
   ) {
     const callerId = user?.id || user?.sub || 'system';
-    const result = await this.callLifecycleService.callPatient(id, callerId, body?.notes);
+    const result = await this.callLifecycleService.callPatient(
+      id,
+      callerId,
+      body?.notes,
+    );
     if (this.callPatientUseCase) {
       try {
         await this.callPatientUseCase.execute(id);

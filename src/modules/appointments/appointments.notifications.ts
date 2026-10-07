@@ -1,7 +1,5 @@
 import { Injectable, OnModuleInit, Optional } from '@nestjs/common';
-import {
-  NotificationIntent,
-} from '../notifications/domain/entities/notification-rule.entity';
+import { NotificationIntent } from '../notifications/domain/entities/notification-rule.entity';
 import { NotificationRulesRegistry } from '../notifications/registry/notification-rules-registry';
 import { APPOINTMENT_EVENTS } from './domain/constants/appointment-lifecycle.constants';
 import { AppointmentRecipientResolver } from './infrastructure/resolvers/appointment-recipient.resolver';
@@ -22,7 +20,10 @@ export class AppointmentsNotificationRules implements OnModuleInit {
       eventType: APPOINTMENT_EVENTS.CREATED,
       category: 'appointment',
       defaultChannels: ['in_app'],
-      resolveIntents: async (payload: any, actor?: any): Promise<NotificationIntent[]> => {
+      resolveIntents: async (
+        payload: any,
+        actor?: any,
+      ): Promise<NotificationIntent[]> => {
         const intents: NotificationIntent[] = [];
         const isActorPatient =
           actor?.userId &&
@@ -358,7 +359,10 @@ export class AppointmentsNotificationRules implements OnModuleInit {
       eventType: APPOINTMENT_EVENTS.RESCHEDULED,
       category: 'appointment',
       defaultChannels: ['in_app'],
-      resolveIntents: async (payload: any, actor?: any): Promise<NotificationIntent[]> => {
+      resolveIntents: async (
+        payload: any,
+        actor?: any,
+      ): Promise<NotificationIntent[]> => {
         const intents: NotificationIntent[] = [];
         const isClinicActor =
           payload.rescheduledByRole === 'admin' ||
@@ -514,7 +518,10 @@ export class AppointmentsNotificationRules implements OnModuleInit {
       eventType: APPOINTMENT_EVENTS.CANCELLED,
       category: 'appointment',
       defaultChannels: ['in_app'],
-      resolveIntents: async (payload: any, actor?: any): Promise<NotificationIntent[]> => {
+      resolveIntents: async (
+        payload: any,
+        actor?: any,
+      ): Promise<NotificationIntent[]> => {
         const intents: NotificationIntent[] = [];
         const isClinicActor =
           payload.cancelledByRole === 'admin' ||

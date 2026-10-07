@@ -44,16 +44,33 @@ export class AppointmentTemporalStatusHelper {
     status: string,
     _isElapsed: boolean = false,
   ): AppointmentEntity['status'] {
-    if (status === 'cancelled' || status === 'BATAL' || status === 'CANCELLED') {
+    if (
+      status === 'cancelled' ||
+      status === 'BATAL' ||
+      status === 'CANCELLED'
+    ) {
       return 'CANCELLED';
     }
-    if (status === 'completed' || status === 'SELESAI' || status === 'COMPLETED') {
+    if (
+      status === 'completed' ||
+      status === 'SELESAI' ||
+      status === 'COMPLETED'
+    ) {
       return 'COMPLETED';
     }
-    if (status === 'in_service' || status === 'SEDANG_DIPERIKSA' || status === 'IN_SERVICE') {
+    if (
+      status === 'in_service' ||
+      status === 'SEDANG_DIPERIKSA' ||
+      status === 'IN_SERVICE'
+    ) {
       return 'IN_SERVICE';
     }
-    if (status === 'late' || status === 'TERLAMBAT' || status === 'LATE' || status === 'no_show') {
+    if (
+      status === 'late' ||
+      status === 'TERLAMBAT' ||
+      status === 'LATE' ||
+      status === 'no_show'
+    ) {
       return 'LATE';
     }
     return 'WAITING';

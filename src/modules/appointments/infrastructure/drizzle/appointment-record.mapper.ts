@@ -57,9 +57,7 @@ export class AppointmentRecordMapper {
       apt.createdBy ||
       null;
     const parentUserName =
-      primaryAffiliation?.user?.name ||
-      primaryAffiliation?.user?.email ||
-      null;
+      primaryAffiliation?.user?.name || primaryAffiliation?.user?.email || null;
 
     const patientUserId = parentUserId;
     const patientAvatarUrl =
@@ -146,6 +144,7 @@ export class AppointmentRecordMapper {
         : ticket?.calledAt
           ? new Date(ticket.calledAt)
           : null,
+      checkedInAt: apt.checkedInAt ? new Date(apt.checkedInAt) : null,
       actualStartedAt,
       actualCompletedAt,
       consultationElapsedSeconds: elapsedSeconds,
