@@ -9,6 +9,12 @@ import {
 import { AppointmentEntity } from '../../domain/entities/appointment.entity';
 import { computeConsultationMetrics } from '../../domain/helpers/consultation-duration.helper';
 import {
+  DB_APPOINTMENT_STATUS,
+  DOMAIN_APPOINTMENT_STATUS,
+  QUEUE_TICKET_STATUS,
+} from '../../domain/constants/appointment-lifecycle.constants';
+import { isAppointmentLate } from '../../domain/services/appointment-lateness.predicate';
+import {
   resolveAllowedActions,
   toDomainStatus,
 } from '../../domain/types/appointment.types';
@@ -34,8 +40,26 @@ export class AppointmentRecordMapper {
     apt: any,
     ticket?: any | null,
     poliklinikIdOverride?: string,
+    windowHours?: number,
   ): AppointmentEntity {
-    const domainStatus = toDomainStatus(apt.status);
+    let domainStatus = toDomainStatus(apt.status);
+    let rawStatus = apt.status;
+
+    if (
+      windowHours !== undefined &&
+      (apt.status === DB_APPOINTMENT_STATUS.BOOKED ||
+        apt.status === DB_APPOINTMENT_STATUS.WAITING ||
+        apt.status === DB_APPOINTMENT_STATUS.CHECKED_IN)
+    ) {
+      const scheduledDateObj = new Date(
+        `${apt.scheduledDate}T${apt.scheduledStartTime || '00:00:00'}`,
+      );
+      if (isAppointmentLate(scheduledDateObj, new Date(), windowHours)) {
+        domainStatus = DOMAIN_APPOINTMENT_STATUS.LATE;
+        rawStatus = DB_APPOINTMENT_STATUS.LATE;
+      }
+    }
+
     const session = AppointmentRecordMapper.resolveSession(apt);
 
     const poliId =
@@ -130,9 +154,9 @@ export class AppointmentRecordMapper {
           : apt.queueNumber
             ? String(apt.queueNumber)
             : '1'),
-      ticketStatus: ticket?.status || 'waiting',
+      ticketStatus: ticket?.status || QUEUE_TICKET_STATUS.WAITING,
       status: domainStatus,
-      rawStatus: apt.status,
+      rawStatus,
       allowedActions: resolveAllowedActions(domainStatus),
       visitType:
         apt.visitType === 'follow_up' ? 'Kontrol Ulang' : 'Pemeriksaan Baru',

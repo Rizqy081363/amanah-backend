@@ -5,7 +5,11 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { DEFAULT_CHECK_IN_CONFIG } from '../../domain/constants/appointment-check-in.config';
+import {
+  DEFAULT_CHECK_IN_CONFIG,
+  hoursToMilliseconds,
+  TIME_CONSTANTS,
+} from '../../domain/constants/appointment-check-in.config';
 import { DOMAIN_APPOINTMENT_STATUS } from '../../domain/constants/appointment-lifecycle.constants';
 import type { CheckInQrData } from '../../domain/entities/appointment-check-in.entity';
 import {
@@ -76,11 +80,14 @@ export class GenerateCheckInQrUseCase {
     );
 
     const eligibilityDeadlineMs =
-      scheduledDateObj.getTime() + windowHours * 60 * 60 * 1000;
+      scheduledDateObj.getTime() + hoursToMilliseconds(windowHours);
     const appointmentEligibilityDeadline = new Date(eligibilityDeadlineMs);
     const remainingSeconds = Math.max(
       0,
-      Math.floor((eligibilityDeadlineMs - Date.now()) / 1000),
+      Math.floor(
+        (eligibilityDeadlineMs - Date.now()) /
+          TIME_CONSTANTS.MILLISECONDS_PER_SECOND,
+      ),
     );
 
     await this.checkInRepo.createCheckIn({

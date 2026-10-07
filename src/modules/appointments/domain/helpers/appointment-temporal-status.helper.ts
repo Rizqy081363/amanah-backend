@@ -1,5 +1,6 @@
 import { parseClockTime } from '../../../schedules/domain/schedule-projection';
 import { getClinicNow } from '../../../schedules/domain/services/schedule-date.formatter';
+import { DB_APPOINTMENT_STATUS } from '../constants/appointment-lifecycle.constants';
 import type { AppointmentEntity } from '../entities/appointment.entity';
 import { toDomainStatus } from '../types/appointment.types';
 
@@ -50,15 +51,15 @@ export class AppointmentTemporalStatusHelper {
 
   static resolveDbStatus(status: string, _isElapsed: boolean = false): string {
     if (
-      status === 'cancelled' ||
-      status === 'no_show' ||
-      status === 'no_doctor' ||
-      status === 'late'
+      status === DB_APPOINTMENT_STATUS.CANCELLED ||
+      status === DB_APPOINTMENT_STATUS.NO_SHOW ||
+      status === DB_APPOINTMENT_STATUS.NO_DOCTOR ||
+      status === DB_APPOINTMENT_STATUS.LATE
     ) {
       return status;
     }
-    if (status === 'completed') {
-      return 'completed';
+    if (status === DB_APPOINTMENT_STATUS.COMPLETED) {
+      return DB_APPOINTMENT_STATUS.COMPLETED;
     }
     return status;
   }

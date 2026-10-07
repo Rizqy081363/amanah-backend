@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, count, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, or, sql } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
@@ -18,6 +18,7 @@ import type {
 } from '../../application/ports/appointment-repository.port';
 import {
   DB_APPOINTMENT_STATUS,
+  DOMAIN_APPOINTMENT_STATUS,
   QUEUE_TICKET_STATUS,
 } from '../../domain/constants/appointment-lifecycle.constants';
 import {
@@ -142,7 +143,7 @@ export class AppointmentHardenedDrizzleRepository
         scheduledStartTime: startTimeStr,
         scheduledEndTime: endTimeStr,
         queueNumber: input.queueNumber,
-        status: 'waiting',
+        status: DB_APPOINTMENT_STATUS.WAITING,
         estimatedStartAt: input.estimatedStartAt.toISOString(),
         estimatedEndAt: input.estimatedEndAt.toISOString(),
         complaint: input.notes || null,
@@ -157,7 +158,7 @@ export class AppointmentHardenedDrizzleRepository
           roomId: input.roomId || null,
           queueDate: input.scheduledDate,
           queueNumber: String(input.queueNumber),
-          status: 'waiting',
+          status: QUEUE_TICKET_STATUS.WAITING,
           priority: 'regular',
           waitingPosition: input.queueNumber,
         });
@@ -182,9 +183,9 @@ export class AppointmentHardenedDrizzleRepository
         and(
           eq(appointments.id, id),
           inArray(appointments.status, [
-            'waiting',
-            'booked',
-            'checked_in',
+            DB_APPOINTMENT_STATUS.WAITING,
+            DB_APPOINTMENT_STATUS.BOOKED,
+            DB_APPOINTMENT_STATUS.CHECKED_IN,
           ] as any),
         ),
       )
@@ -218,10 +219,14 @@ export class AppointmentHardenedDrizzleRepository
     input: TransitionStatusInput,
   ): Promise<AppointmentRecord> {
     const allowedStatuses =
-      input.expectedStatus === 'WAITING'
-        ? ['waiting', 'booked', 'checked_in']
-        : input.expectedStatus === 'IN_SERVICE'
-          ? ['in_service']
+      input.expectedStatus === DOMAIN_APPOINTMENT_STATUS.WAITING
+        ? [
+            DB_APPOINTMENT_STATUS.WAITING,
+            DB_APPOINTMENT_STATUS.BOOKED,
+            DB_APPOINTMENT_STATUS.CHECKED_IN,
+          ]
+        : input.expectedStatus === DOMAIN_APPOINTMENT_STATUS.IN_SERVICE
+          ? [DB_APPOINTMENT_STATUS.IN_SERVICE]
           : [];
 
     const targetDbStatus = toDbStatus(input.targetStatus);
@@ -314,17 +319,20 @@ export class AppointmentHardenedDrizzleRepository
     const updated = await this.db
       .update(appointments)
       .set({
-        status: 'late',
+        status: DB_APPOINTMENT_STATUS.LATE,
         updatedAt: new Date().toISOString(),
       })
       .where(
         and(
           inArray(appointments.status, [
-            'waiting',
-            'booked',
-            'checked_in',
+            DB_APPOINTMENT_STATUS.WAITING,
+            DB_APPOINTMENT_STATUS.BOOKED,
+            DB_APPOINTMENT_STATUS.CHECKED_IN,
           ] as any),
-          sql`${appointments.estimatedStartAt} <= ${threshold.toISOString()}`,
+          or(
+            sql`${appointments.estimatedStartAt} <= ${threshold.toISOString()}`,
+            sql`(${appointments.scheduledDate} || ' ' || ${appointments.scheduledStartTime})::timestamptz <= ${threshold.toISOString()}::timestamptz`,
+          ),
         ),
       )
       .returning({ id: appointments.id });
@@ -345,12 +353,12 @@ export class AppointmentHardenedDrizzleRepository
       conditions.push(eq(appointments.patientId, filter.patientId));
     }
     if (filter.status) {
-      if (filter.status === 'WAITING') {
+      if (filter.status === DOMAIN_APPOINTMENT_STATUS.WAITING) {
         conditions.push(
           inArray(appointments.status, [
-            'waiting',
-            'booked',
-            'checked_in',
+            DB_APPOINTMENT_STATUS.WAITING,
+            DB_APPOINTMENT_STATUS.BOOKED,
+            DB_APPOINTMENT_STATUS.CHECKED_IN,
           ] as any),
         );
       } else {

@@ -10,6 +10,7 @@ import {
   queueTickets,
 } from '../../../../database/schema';
 import {
+  DB_APPOINTMENT_STATUS,
   DOMAIN_APPOINTMENT_STATUS,
   QUEUE_TICKET_STATUS,
 } from '../../domain/constants/appointment-lifecycle.constants';
@@ -18,6 +19,7 @@ import {
   AppointmentFindAllResult,
   AppointmentRepository,
 } from '../../domain/repositories/appointment.repository';
+import { AppointmentPolicyReader } from '../../domain/services/appointment-policy.reader';
 import { AdminUpdateAppointmentStatusDto } from '../../presentation/dto/admin-update-appointment-status.dto';
 import { CancelAppointmentDto } from '../../presentation/dto/cancel-appointment.dto';
 import { RescheduleAppointmentDto } from '../../presentation/dto/reschedule-appointment.dto';
@@ -27,12 +29,71 @@ import { AppointmentRecordMapper } from './appointment-record.mapper';
 import { AppointmentRescheduleHandler } from './appointment-reschedule.handler';
 import { AppointmentStatusHandler } from './appointment-status.handler';
 
+const APPOINTMENT_RELATIONS = {
+  queueTickets: true,
+  patientProfile: { with: { patientAffiliations: { with: { user: true } } } },
+  clinicService: true,
+  practitionerScheduleSession: true,
+  clinicRoom: { with: { clinicUnit: true } },
+  practitioner: { with: { staffProfile: true, medicalSpecialty: true } },
+} as const;
+
 @Injectable()
 export class AppointmentDrizzleRepository implements AppointmentRepository {
   constructor(
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,
+    private readonly policyReader?: AppointmentPolicyReader,
   ) {}
+
+  private async getWindowHours(): Promise<number | undefined> {
+    if (this.policyReader) {
+      try {
+        return await this.policyReader.getCheckInWindowHours();
+      } catch (_) {}
+    }
+    return undefined;
+  }
+
+  private async persistLateness(ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    try {
+      await this.db
+        .update(appointments)
+        .set({
+          status: DB_APPOINTMENT_STATUS.LATE,
+          updatedAt: new Date().toISOString(),
+        })
+        .where(inArray(appointments.id, ids));
+    } catch (_) {}
+  }
+
+  private mapAndSweep(
+    records: any[],
+    windowHours?: number,
+    poliId?: string,
+  ): AppointmentEntity[] {
+    const staleLateIds: string[] = [];
+    const results = records.map((apt) => {
+      const entity = AppointmentRecordMapper.toEntity(
+        apt,
+        apt.queueTickets?.[0],
+        poliId,
+        windowHours,
+      );
+      if (
+        entity.status === DOMAIN_APPOINTMENT_STATUS.LATE &&
+        apt.status !== DB_APPOINTMENT_STATUS.LATE
+      ) {
+        staleLateIds.push(apt.id);
+      }
+      return entity;
+    });
+    if (staleLateIds.length > 0) {
+      this.persistLateness(staleLateIds).catch(() => {});
+    }
+    return results;
+  }
 
   async create(
     data: Omit<AppointmentEntity, 'id' | 'createdAt' | 'updatedAt'>,
@@ -45,28 +106,11 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
   async findById(id: string): Promise<AppointmentEntity | null> {
     const apt = await this.db.query.appointments.findFirst({
       where: eq(appointments.id, id),
-      with: {
-        queueTickets: true,
-        patientProfile: {
-          with: { patientAffiliations: { with: { user: true } } },
-        },
-        clinicService: true,
-        practitionerScheduleSession: true,
-        clinicRoom: {
-          with: {
-            clinicUnit: true,
-          },
-        },
-        practitioner: {
-          with: {
-            staffProfile: true,
-            medicalSpecialty: true,
-          },
-        },
-      },
+      with: APPOINTMENT_RELATIONS,
     });
     if (!apt) return null;
-    return AppointmentRecordMapper.toEntity(apt, apt.queueTickets?.[0]);
+    const windowHours = await this.getWindowHours();
+    return this.mapAndSweep([apt], windowHours)[0] || null;
   }
 
   async findAll(
@@ -109,30 +153,11 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
       limit: fetchLimit,
       offset: filters?.cursor ? 0 : offset,
       orderBy: [desc(appointments.createdAt), desc(appointments.id)],
-      with: {
-        queueTickets: true,
-        patientProfile: {
-          with: { patientAffiliations: { with: { user: true } } },
-        },
-        clinicService: true,
-        practitionerScheduleSession: true,
-        clinicRoom: {
-          with: {
-            clinicUnit: true,
-          },
-        },
-        practitioner: {
-          with: {
-            staffProfile: true,
-            medicalSpecialty: true,
-          },
-        },
-      },
+      with: APPOINTMENT_RELATIONS,
     });
 
-    let results = records.map((apt) =>
-      AppointmentRecordMapper.toEntity(apt, apt.queueTickets?.[0]),
-    );
+    const windowHours = await this.getWindowHours();
+    let results = this.mapAndSweep(records, windowHours);
 
     if (filters?.poliklinikId) {
       results = results.filter((a) => a.poliklinikId === filters.poliklinikId);
@@ -176,43 +201,23 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
       ),
       with: {
         appointment: {
-          with: {
-            patientProfile: {
-              with: { patientAffiliations: { with: { user: true } } },
-            },
-            clinicService: true,
-            practitionerScheduleSession: true,
-            clinicRoom: { with: { clinicUnit: true } },
-            practitioner: {
-              with: { staffProfile: true, medicalSpecialty: true },
-            },
-            queueTickets: true,
-          },
+          with: APPOINTMENT_RELATIONS,
         },
       },
     });
     if (!ticket?.appointment) return null;
-    return AppointmentRecordMapper.toEntity(ticket.appointment, ticket);
+    const windowHours = await this.getWindowHours();
+    return this.mapAndSweep([ticket.appointment], windowHours)[0] || null;
   }
 
   async findByPatientId(patientId: string): Promise<AppointmentEntity[]> {
     const records = await this.db.query.appointments.findMany({
       where: eq(appointments.patientId, patientId),
       orderBy: [desc(appointments.scheduledDate)],
-      with: {
-        queueTickets: true,
-        patientProfile: {
-          with: { patientAffiliations: { with: { user: true } } },
-        },
-        clinicService: true,
-        practitionerScheduleSession: true,
-        clinicRoom: { with: { clinicUnit: true } },
-        practitioner: { with: { staffProfile: true, medicalSpecialty: true } },
-      },
+      with: APPOINTMENT_RELATIONS,
     });
-    return records.map((apt) =>
-      AppointmentRecordMapper.toEntity(apt, apt.queueTickets?.[0]),
-    );
+    const windowHours = await this.getWindowHours();
+    return this.mapAndSweep(records, windowHours);
   }
 
   async findByUserId(userId: string): Promise<AppointmentEntity[]> {
@@ -243,21 +248,11 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
     const records = await this.db.query.appointments.findMany({
       where: whereCondition,
       orderBy: [desc(appointments.scheduledDate), desc(appointments.createdAt)],
-      with: {
-        queueTickets: true,
-        patientProfile: {
-          with: { patientAffiliations: { with: { user: true } } },
-        },
-        clinicService: true,
-        practitionerScheduleSession: true,
-        clinicRoom: { with: { clinicUnit: true } },
-        practitioner: { with: { staffProfile: true, medicalSpecialty: true } },
-      },
+      with: APPOINTMENT_RELATIONS,
     });
 
-    return records.map((apt) =>
-      AppointmentRecordMapper.toEntity(apt, apt.queueTickets?.[0]),
-    );
+    const windowHours = await this.getWindowHours();
+    return this.mapAndSweep(records, windowHours);
   }
 
   async getRescheduleOptions(
@@ -420,7 +415,7 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
   async delete(id: string): Promise<boolean> {
     const updated = await this.updateStatus(
       id,
-      'CANCELLED',
+      DOMAIN_APPOINTMENT_STATUS.CANCELLED,
       undefined,
       'Dihapus oleh pengguna',
     );
