@@ -9,7 +9,7 @@ import {
 } from '../../../../database/schema';
 
 @ApiTags('v2 - Catalog')
-@Controller('v2/catalog')
+@Controller({ path: 'catalog', version: '2' })
 export class V2CatalogController {
   constructor(@Inject(DRIZZLE_SOURCE) private readonly db: any) {}
 

@@ -30,7 +30,7 @@ import { DrizzleQueueEngineRepository } from '../../infrastructure/drizzle/drizz
 import { CallNextDto, CreateClosureDto } from '../dto/create-closure.dto';
 
 @ApiTags('v2 - Admin Queue')
-@Controller('v2/admin')
+@Controller({ path: 'admin', version: '2' })
 export class V2AdminQueueController {
   constructor(
     @Inject(DRIZZLE_SOURCE) private readonly db: any,

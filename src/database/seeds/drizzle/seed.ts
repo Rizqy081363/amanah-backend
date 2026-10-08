@@ -13,6 +13,7 @@ import { seedKiaIntakes } from './kia-intakes.seed';
 import { seedMasterCatalog } from './master-catalog.seed';
 import { seedMaternalCatalogs } from './maternal-catalogs.seed';
 import { seedVaccineCatalog } from './vaccine-catalog.seed';
+import { cleanOperationalDevData } from './clean-dev-data';
 
 type QueryOneInput = {
   client: PoolClient;
@@ -773,32 +774,7 @@ const seedAdminScheduleShowcase = async (
   const fallbackServiceId =
     generalServiceId ?? firstValue(context.serviceIdsByCode.values());
 
-  await context.client.query(`
-    UPDATE appointments SET schedule_session_id = NULL WHERE schedule_session_id IS NOT NULL;
-    DELETE FROM queue_tickets WHERE appointment_id IN (
-      SELECT id FROM appointments WHERE booking_code IN (
-        'BOOK-ZIKRI-TODAY-01',
-        'BOOK-ZIKRI-TODAY-02',
-        'BOOK-DEV-0001',
-        'BOOK-DEV-TODAY-01',
-        'BOOK-DEV-TODAY-02',
-        'BOOK-DEV-YEST-01'
-      )
-    );
-    DELETE FROM appointments WHERE booking_code IN (
-      'BOOK-ZIKRI-TODAY-01',
-      'BOOK-ZIKRI-TODAY-02',
-      'BOOK-DEV-0001',
-      'BOOK-DEV-TODAY-01',
-      'BOOK-DEV-TODAY-02',
-      'BOOK-DEV-YEST-01'
-    );
-    DELETE FROM practitioner_schedule_sessions;
-    DELETE FROM practitioner_schedule_day_settings;
-    DELETE FROM practitioner_leave_periods;
-    DELETE FROM practitioner_schedule_closures;
-    DELETE FROM schedule_reschedule_events;
-  `);
+  await cleanOperationalDevData(context.client);
 
   const practitionersResult =
     await context.client.query<PractitionerShowcaseRow>(
@@ -967,7 +943,7 @@ const seedAdminScheduleShowcase = async (
           'booked',
           current_date,
           '08:00',
-          '08:30',
+          '12:00',
           1,
           'Pemeriksaan rutin gula darah dan kontrol tensi berkala'
         )
@@ -1045,8 +1021,8 @@ const seedAdminScheduleShowcase = async (
           'new_visit',
           'waiting',
           current_date,
-          '08:30',
-          '09:00',
+          '08:00',
+          '12:00',
           2,
           'Konsultasi alergi kulit dan gatal-gatal kambuhan'
         )
@@ -1099,47 +1075,37 @@ const seedAdminScheduleShowcase = async (
       `,
       [appt2.id, todayMorningSession.service_id, todayMorningSession.room_id],
     );
-
-    await context.client.query(
-      `
-        UPDATE practitioner_schedule_sessions
-        SET available_slots = GREATEST(0, capacity - 2)
-        WHERE id = $1
-      `,
-      [todayMorningSession.id],
-    );
   }
 
   // 3. Seed representative manual closure & reschedule event facts for showcase doctor
+  const adminUserId = context.userIdsByEmail.get('admin@amanah.com');
 
   await context.client.query(
     `
-      INSERT INTO practitioner_schedule_closures (
+      INSERT INTO clinic_closure (
         id,
-        practitioner_id,
-        schedule_date,
         scope,
-        context_code,
-        start_time,
-        end_time,
-        category,
-        reason_code,
-        reason_text
+        doctor_id,
+        room_id,
+        starts_at,
+        ends_at,
+        input_kind,
+        reason,
+        created_by
       )
       VALUES (
         gen_random_uuid(),
+        'doctor',
         $1,
-        current_date,
-        'INTERVAL',
-        'morning',
-        '11:00',
-        '11:30',
-        'OTHER',
-        'MEETING',
-        'Rapat Koordinasi Komite Medik'
+        $2,
+        (current_date + time '11:00:00')::timestamptz,
+        (current_date + time '12:00:00')::timestamptz,
+        'session',
+        'Rapat Koordinasi Komite Medik',
+        $3
       )
     `,
-    [showcasePractitionerId],
+    [showcasePractitionerId, fallbackRoomId, adminUserId],
   );
 
   await context.client.query(
@@ -1230,7 +1196,7 @@ const seedOperationalExamples = async (context: SeedContext): Promise<void> => {
       morningTemplate.startTime,
       morningTemplate.endTime,
       morningTemplate.capacity,
-      morningTemplate.capacity - 1, // 1 slot booked by BOOK-DEV-0001
+      morningTemplate.capacity,
     ],
   });
 
@@ -1262,8 +1228,8 @@ const seedOperationalExamples = async (context: SeedContext): Promise<void> => {
         'new_visit',
         'booked',
         current_date + 1,
-        '08:30',
-        '09:00',
+        '06:00',
+        '12:00',
         1,
         'Demam ringan dan batuk sejak dua hari'
       )
@@ -1355,8 +1321,8 @@ const seedOperationalExamples = async (context: SeedContext): Promise<void> => {
         'new_visit',
         'completed',
         current_date,
-        '09:00',
-        '09:30',
+        '06:00',
+        '12:00',
         3,
         'Pemeriksaan dan kontrol tensi rutin'
       )
@@ -1386,7 +1352,7 @@ const seedOperationalExamples = async (context: SeedContext): Promise<void> => {
       SET queue_number = 'UM-003',
           status = 'completed',
           updated_at = now()
-    `,
+      `,
     [aptTodayCompleted.id, generalServiceId, firstRoomId],
   );
 
@@ -1439,8 +1405,8 @@ const seedOperationalExamples = async (context: SeedContext): Promise<void> => {
         'new_visit',
         'waiting',
         current_date,
-        '10:30',
-        '11:00',
+        '06:00',
+        '12:00',
         4,
         'Batuk kering dan tenggorokan gatal sejak 3 hari'
       )
@@ -1497,8 +1463,8 @@ const seedOperationalExamples = async (context: SeedContext): Promise<void> => {
         'new_visit',
         'completed',
         current_date - 1,
-        '09:00',
-        '09:30',
+        '06:00',
+        '12:00',
         1,
         'Pusing berputar bila bangun tidur'
       )

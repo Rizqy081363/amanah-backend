@@ -92,3 +92,117 @@ function Wait-E2EApiReady([string]$url = (Get-E2EBaseUrl), [int]$timeoutSeconds 
 
     throw "API is not reachable at $url after ${timeoutSeconds}s. Last error: $lastError. Check docker-compose ps -a and docker-compose logs api."
 }
+
+# ------------------------------------------------------------------------------
+# CENTRALIZED ASSERTION ENGINE & COUNTERS
+# ------------------------------------------------------------------------------
+$global:E2EPassCount = 0
+$global:E2EFailCount = 0
+
+function Assert-Test([string]$name, [bool]$condition, [string]$details = "") {
+    if ($condition) {
+        Write-Host " [PASS] $name" -ForegroundColor Green
+        $global:E2EPassCount++
+    } else {
+        Write-Host " [FAIL] $name - $details" -ForegroundColor Red
+        $global:E2EFailCount++
+        throw "Assertion Failed: $name. Details: $details"
+    }
+}
+
+function Reset-TestCounters {
+    $global:E2EPassCount = 0
+    $global:E2EFailCount = 0
+}
+
+function Print-TestSummary([string]$suiteName = "Test Suite") {
+    Write-Host "`n==============================================================================" -ForegroundColor Cyan
+    Write-Host " $suiteName - RESULT SUMMARY" -ForegroundColor Cyan
+    Write-Host " Passed: $global:E2EPassCount | Failed: $global:E2EFailCount" -ForegroundColor $(if ($global:E2EFailCount -eq 0) { "Green" } else { "Red" })
+    Write-Host "==============================================================================" -ForegroundColor Cyan
+    if ($global:E2EFailCount -gt 0) {
+        throw "$suiteName failed with $global:E2EFailCount error(s)."
+    }
+}
+
+# ------------------------------------------------------------------------------
+# CANONICAL CREDENTIAL SOURCES
+# ------------------------------------------------------------------------------
+function Get-AdminCredentials {
+    return @{
+        email = "admin@amanah.com"
+        password = "secret123"
+    }
+}
+
+function Get-DoctorCredentials {
+    return @{
+        email = "dokter@amanah.com"
+        password = "secret123"
+    }
+}
+
+function Get-PatientCredentials {
+    return @{
+        email = "pasien@amanah.com"
+        password = "secret123"
+    }
+}
+
+# ------------------------------------------------------------------------------
+# AUTHENTICATION HELPERS
+# ------------------------------------------------------------------------------
+function Login-User([string]$email, [string]$password) {
+    $apiUrl = Get-E2EApiBaseUrl
+    $payload = @{
+        email = $email
+        password = $password
+    } | ConvertTo-Json
+
+    $res = Invoke-RestMethod -Uri "$apiUrl/auth/email/login" -Method Post -Body $payload -ContentType "application/json"
+    $token = $res.token
+
+    return @{
+        token = $token
+        user = $res.user
+        headers = @{
+            Authorization = "Bearer $token"
+            "Content-Type" = "application/json"
+        }
+    }
+}
+
+function Login-Admin {
+    $cred = Get-AdminCredentials
+    return Login-User $cred.email $cred.password
+}
+
+function Login-Doctor {
+    $cred = Get-DoctorCredentials
+    return Login-User $cred.email $cred.password
+}
+
+function Login-Patient {
+    $cred = Get-PatientCredentials
+    return Login-User $cred.email $cred.password
+}
+
+# ------------------------------------------------------------------------------
+# API RESPONSE DATA EXTRACTOR
+# ------------------------------------------------------------------------------
+function Get-ResponseData($response) {
+    if ($response -is [System.Management.Automation.PSCustomObject] -and $response.PSObject.Properties['data']) {
+        return $response.data
+    }
+    return $response
+}
+
+# ------------------------------------------------------------------------------
+# DIRECT DOCKER POSTGRESQL QUERY HELPER
+# ------------------------------------------------------------------------------
+function Run-DockerSql([string]$sql, [string]$container = "backend-postgres-1", [string]$user = "amanah", [string]$db = "amanah_healthcare") {
+    $cleanSql = $sql -replace "`r`n", " " -replace "`n", " "
+    $cmd = "docker exec -i $container psql -U $user -d $db -t -A -c `"$cleanSql`""
+    $res = Invoke-Expression $cmd
+    return $res
+}

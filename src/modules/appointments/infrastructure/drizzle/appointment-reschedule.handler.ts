@@ -357,6 +357,7 @@ async function synchronizeQueueTicket(
     throw new NotFoundException('Layanan klinik tidak ditemukan');
   }
   const categoryPrefix = service.codePrefix;
+  const categoryId = service.serviceCategoryId;
 
   const sessionDef = targetSession.sessionShift
     ? await tx.query.sessionDefs.findFirst({
@@ -367,10 +368,10 @@ async function synchronizeQueueTicket(
   let numericQueueNumber: number;
   let formattedTicketNumber: string;
 
-  if (service?.id && sessionDef?.id) {
+  if (categoryId && sessionDef?.id) {
     const counterRes = await tx.execute(sql`
       INSERT INTO queue_counter (service_date, category_id, session_id, last_no)
-      VALUES (${targetDate}, ${service.id}::uuid, ${sessionDef.id}::uuid, 1)
+      VALUES (${targetDate}, ${categoryId}::uuid, ${sessionDef.id}::uuid, 1)
       ON CONFLICT (service_date, category_id, session_id)
       DO UPDATE SET last_no = queue_counter.last_no + 1
       RETURNING last_no;
@@ -393,12 +394,26 @@ async function synchronizeQueueTicket(
     .from(queueTickets)
     .where(eq(queueTickets.appointmentId, apt.id));
 
+  if (oldTickets.length > 0) {
+    for (const oldT of oldTickets) {
+      await tx
+        .update(queueTickets)
+        .set({
+          appointmentId: null,
+          legacyRef: oldT.legacyRef || apt.id,
+          status: QUEUE_TICKET_STATUS.CANCELLED,
+          updatedAt: nowIso,
+        })
+        .where(eq(queueTickets.id, oldT.id));
+    }
+  }
+
   const [newTicket] = await tx
     .insert(queueTickets)
     .values({
       appointmentId: apt.id,
       serviceId: apt.serviceId,
-      categoryId: service?.id || null,
+      categoryId: categoryId || null,
       sessionId: sessionDef?.id || null,
       patientId: apt.patientId || null,
       doctorId: targetSession.practitionerId || null,
@@ -415,18 +430,15 @@ async function synchronizeQueueTicket(
     })
     .returning();
 
-  if (oldTickets.length > 0) {
+  if (oldTickets.length > 0 && newTicket) {
     for (const oldT of oldTickets) {
-      if (oldT.id !== newTicket?.id) {
-        await tx
-          .update(queueTickets)
-          .set({
-            status: QUEUE_TICKET_STATUS.CANCELLED,
-            movedTo: newTicket ? newTicket.id : null,
-            updatedAt: nowIso,
-          })
-          .where(eq(queueTickets.id, oldT.id));
-      }
+      await tx
+        .update(queueTickets)
+        .set({
+          movedTo: newTicket.id,
+          updatedAt: nowIso,
+        })
+        .where(eq(queueTickets.id, oldT.id));
     }
   }
 

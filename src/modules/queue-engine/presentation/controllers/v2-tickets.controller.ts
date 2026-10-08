@@ -42,7 +42,7 @@ import {
 } from '../dto/create-ticket.dto';
 
 @ApiTags('v2 - Tickets')
-@Controller('v2/tickets')
+@Controller({ path: 'tickets', version: '2' })
 export class V2TicketsController {
   constructor(
     @Inject(DRIZZLE_SOURCE) private readonly db: any,
