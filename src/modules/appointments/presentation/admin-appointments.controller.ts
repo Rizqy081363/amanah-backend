@@ -51,10 +51,9 @@ export class AdminAppointmentsController {
   @Patch(':appointmentId/cancel')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary:
-      'Membatalkan janji temu pasien dan memulihkan kuota slot sesi (Admin/Staf)',
+    summary: 'Membatalkan janji temu pasien (Admin/Staf)',
     description:
-      'Membatalkan janji temu, memvalidasi state machine (menolak in_service dan completed dengan 400 Bad Request), idempoten untuk yang sudah berstatus batal, serta mengembalikan kuota slot sesi (+1) dan mengembalikan status sesi ke open bila sebelumnya penuh/terisi.',
+      'Membatalkan janji temu, memvalidasi state machine (menolak in_service dan completed dengan 400 Bad Request), dan idempoten untuk yang sudah berstatus batal.',
   })
   @ApiParam({
     name: 'appointmentId',
@@ -62,8 +61,7 @@ export class AdminAppointmentsController {
     example: '6d3a26e2-77fb-466d-9096-d3b2400c443d',
   })
   @ApiOkResponse({
-    description:
-      'Janji temu berhasil dibatalkan dan 1 slot kuota sesi telah dipulihkan',
+    description: 'Janji temu berhasil dibatalkan',
   })
   @ApiNotFoundResponse({
     description: 'Janji temu tidak ditemukan',

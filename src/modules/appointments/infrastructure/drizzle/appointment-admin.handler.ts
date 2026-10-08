@@ -83,61 +83,8 @@ export class AppointmentAdminHandler {
         })
         .where(eq(queueTickets.appointmentId, appointmentId));
 
-      let sessionResult: any = null;
-      let targetSessionId = apt.scheduleSessionId;
-      if (!targetSessionId && apt.practitionerId && apt.scheduledDate) {
-        const apptStart =
-          apt.scheduledStartTime?.length === 5
-            ? `${apt.scheduledStartTime}:00`
-            : apt.scheduledStartTime || '08:00:00';
-        const candidateSessions =
-          await tx.query.practitionerScheduleSessions.findMany({
-            where: and(
-              eq(
-                practitionerScheduleSessions.practitionerId,
-                apt.practitionerId,
-              ),
-              eq(practitionerScheduleSessions.scheduleDate, apt.scheduledDate),
-            ),
-          });
-        const matched =
-          candidateSessions.find((s) => {
-            const sStart =
-              s.startTime.length === 5 ? `${s.startTime}:00` : s.startTime;
-            const sEnd = s.endTime.length === 5 ? `${s.endTime}:00` : s.endTime;
-            return apptStart >= sStart && apptStart < sEnd;
-          }) || candidateSessions[0];
-        if (matched) targetSessionId = matched.id;
-      }
-
-      if (targetSessionId) {
-        const [session] = await tx
-          .select()
-          .from(practitionerScheduleSessions)
-          .where(eq(practitionerScheduleSessions.id, targetSessionId))
-          .for('update');
-
-        if (session) {
-          const newAvailable = Math.min(
-            session.capacity,
-            session.availableSlots + 1,
-          );
-          await tx
-            .update(practitionerScheduleSessions)
-            .set({
-              availableSlots: newAvailable,
-              updatedAt: nowIso,
-            })
-            .where(eq(practitionerScheduleSessions.id, session.id));
-
-          sessionResult = {
-            sessionId: session.id,
-            restoredAvailableSlots: newAvailable,
-            totalCapacity: session.capacity,
-            sessionStatus: session.status,
-          };
-        }
-      }
+      // In queue ticketing model, appointments do not manipulate session slot counters
+      const sessionResult = null;
 
       await tx.insert(appointmentStatusEvents).values({
         appointmentId,
@@ -149,8 +96,7 @@ export class AppointmentAdminHandler {
 
       return {
         success: true,
-        message:
-          'Janji temu berhasil dibatalkan dan 1 slot kuota sesi telah dipulihkan',
+        message: 'Janji temu berhasil dibatalkan',
         data: {
           appointmentId: apt.id,
           previousStatus: apt.status,
@@ -254,72 +200,8 @@ export class AppointmentAdminHandler {
         })
         .where(eq(queueTickets.appointmentId, appointmentId));
 
-      let sessionResult: any = null;
-      let targetSessionId = apt.scheduleSessionId;
-      if (
-        (targetStatus === DB_APPOINTMENT_STATUS.CANCELLED ||
-          targetStatus === DB_APPOINTMENT_STATUS.NO_SHOW) &&
-        previousStatus !== DB_APPOINTMENT_STATUS.CANCELLED &&
-        previousStatus !== DB_APPOINTMENT_STATUS.NO_SHOW
-      ) {
-        if (!targetSessionId && apt.practitionerId && apt.scheduledDate) {
-          const apptStart =
-            apt.scheduledStartTime?.length === 5
-              ? `${apt.scheduledStartTime}:00`
-              : apt.scheduledStartTime || '08:00:00';
-          const candidateSessions =
-            await tx.query.practitionerScheduleSessions.findMany({
-              where: and(
-                eq(
-                  practitionerScheduleSessions.practitionerId,
-                  apt.practitionerId,
-                ),
-                eq(
-                  practitionerScheduleSessions.scheduleDate,
-                  apt.scheduledDate,
-                ),
-              ),
-            });
-          const matched =
-            candidateSessions.find((s) => {
-              const sStart =
-                s.startTime.length === 5 ? `${s.startTime}:00` : s.startTime;
-              const sEnd =
-                s.endTime.length === 5 ? `${s.endTime}:00` : s.endTime;
-              return apptStart >= sStart && apptStart < sEnd;
-            }) || candidateSessions[0];
-          if (matched) targetSessionId = matched.id;
-        }
-
-        if (targetSessionId) {
-          const [session] = await tx
-            .select()
-            .from(practitionerScheduleSessions)
-            .where(eq(practitionerScheduleSessions.id, targetSessionId))
-            .for('update');
-
-          if (session) {
-            const newAvailable = Math.min(
-              session.capacity,
-              session.availableSlots + 1,
-            );
-            await tx
-              .update(practitionerScheduleSessions)
-              .set({
-                availableSlots: newAvailable,
-                updatedAt: nowIso,
-              })
-              .where(eq(practitionerScheduleSessions.id, session.id));
-
-            sessionResult = {
-              sessionId: session.id,
-              restoredAvailableSlots: newAvailable,
-              totalCapacity: session.capacity,
-              sessionStatus: session.status,
-            };
-          }
-        }
-      }
+      // In queue ticketing model, appointments do not manipulate session slot counters
+      const sessionResult = null;
 
       await tx.insert(appointmentStatusEvents).values({
         appointmentId,

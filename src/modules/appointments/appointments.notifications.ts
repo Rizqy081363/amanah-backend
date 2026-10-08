@@ -625,7 +625,7 @@ export class AppointmentsNotificationRules implements OnModuleInit {
         ) {
           return `Janji temu Anda (${payload.queueNumber || '-'}) telah dibatalkan oleh pihak klinik. Alasan: ${payload.reason || 'Dibatalkan oleh staf'}.`;
         }
-        return `Pasien ${payload.patientName || 'Pasien'} membatalkan janji temu (${payload.queueNumber || '-'}). Alasan: ${payload.reason || 'Dibatalkan oleh pasien'}. Slot kuota telah dipulihkan.`;
+        return `Pasien ${payload.patientName || 'Pasien'} membatalkan janji temu (${payload.queueNumber || '-'}). Alasan: ${payload.reason || 'Dibatalkan oleh pasien'}.`;
       },
       senderName: (payload: any) =>
         payload.cancelledByRole === 'admin' ||

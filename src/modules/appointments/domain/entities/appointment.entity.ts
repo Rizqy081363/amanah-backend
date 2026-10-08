@@ -48,6 +48,8 @@ export class AppointmentEntity {
   consultationDurationFormatted?: string | null;
   estimatedStartAt?: Date | null;
   estimatedEndAt?: Date | null;
+  etaRange?: string | null;
+  aheadCount?: number | null;
   completedAt?: Date | null;
   rawStatus?: string;
   allowedActions?: AppointmentAction[];

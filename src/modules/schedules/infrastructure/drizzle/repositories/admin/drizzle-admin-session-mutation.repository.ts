@@ -1,6 +1,12 @@
 import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
-import { clinicRooms, practitionerScheduleSessions } from '@database/schema';
+import {
+  appointments,
+  clinicRooms,
+  clinicClosures,
+  practitionerScheduleSessions,
+  queueTickets,
+} from '@database/schema';
 import { resolveCanonicalShift } from '@modules/schedules/domain/constants/schedule-shift.constants';
 import {
   AdminScheduleStatusRequest,
@@ -20,7 +26,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 
 @Injectable()
 export class DrizzleAdminSessionMutationRepository {
@@ -207,6 +213,43 @@ export class DrizzleAdminSessionMutationRepository {
       updateValues.status = status;
       if (status === SchedulePersistenceStatus.CLOSED) {
         updateValues.availableSlots = 0;
+        await this.db.insert(clinicClosures).values({
+          scope: 'doctor',
+          doctorId: existingSession.practitionerId,
+          startsAt: `${existingSession.scheduleDate}T${existingSession.startTime}`,
+          endsAt: `${existingSession.scheduleDate}T${existingSession.endTime}`,
+          inputKind: 'session',
+          reason: 'Sesi jadwal ditutup oleh admin klinik.',
+        });
+
+        await this.db
+          .update(queueTickets)
+          .set({
+            carriedOver: true,
+            updatedAt: new Date().toISOString(),
+          })
+          .where(
+            and(
+              eq(queueTickets.sessionId, sessionId),
+              eq(queueTickets.queueDate, existingSession.scheduleDate),
+            ),
+          );
+
+        await this.db
+          .update(appointments)
+          .set({
+            status: 'cancelled',
+            cancelledAt: new Date().toISOString(),
+            cancelReason:
+              'Sesi jadwal praktik dokter ditutup operasional oleh admin klinik.',
+            updatedAt: new Date().toISOString(),
+          })
+          .where(
+            and(
+              eq(appointments.scheduleSessionId, sessionId),
+              inArray(appointments.status, ['booked', 'waiting']),
+            ),
+          );
       } else if (
         body.slot_tersedia === undefined &&
         (existingSession.availableSlots === 0 ||

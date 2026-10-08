@@ -41,7 +41,6 @@ import { and, asc, eq, gt, gte, inArray, lt, not, or } from 'drizzle-orm';
 import { DrizzleRescheduleEligibilityEvaluator } from './drizzle-reschedule-eligibility.evaluator';
 import { publishRescheduleNotifications } from './reschedule-notification.helper';
 import {
-  carveOutSourceSlotFromSession,
   mutateRescheduleSessionRecords,
 } from './reschedule-session-mutation.helper';
 
@@ -272,27 +271,6 @@ export class DrizzleScheduleRescheduleRepository {
           });
         }
       }
-
-      // Check slot conflict with active appointments
-      const targetSlotOccupied = await this.db.query.appointments.findFirst({
-        where: and(
-          eq(appointments.practitionerId, practitioner.id),
-          eq(appointments.scheduledDate, body.targetDate),
-          eq(appointments.scheduledStartTime, targetStartFormatted),
-          inArray(appointments.status, [...ACTIVE_APPOINTMENT_STATUSES]),
-        ),
-      });
-      if (targetSlotOccupied) {
-        throw new ConflictException({
-          code: 'SLOT_ALREADY_OCCUPIED',
-          message: `Slot waktu ${body.targetStartTime} sudah terisi oleh janji temu pasien lain.`,
-          metadata: {
-            conflictingAppointmentId: targetSlotOccupied.id,
-            scheduledDate: body.targetDate,
-            scheduledStartTime: body.targetStartTime,
-          },
-        });
-      }
     } else {
       await this.conflictQuery.checkConflicts(
         practitioner.id,
@@ -360,35 +338,30 @@ export class DrizzleScheduleRescheduleRepository {
           body.rescheduleActiveAppointments !== false &&
           appointmentsToMove.length > 0
         ) {
-          const duration = preview.effectiveConsultationDurationMinutes;
-          const startMin = parseClockTime(body.targetStartTime);
-
-          for (let i = 0; i < appointmentsToMove.length; i++) {
-            const appt = appointmentsToMove[i];
-            const apptStartMin = startMin + i * duration;
-            const apptEndMin = apptStartMin + duration;
-            const apptStartTime = formatClockTime(apptStartMin);
-            const apptEndTime = formatClockTime(apptEndMin);
-
-            await tx
-              .update(appointments)
-              .set({
-                scheduleSessionId: existingTargetSession.id,
-                scheduledDate: body.targetDate,
-                scheduledStartTime: `${apptStartTime}:00`,
-                scheduledEndTime: `${apptEndTime}:00`,
-                roomId:
-                  targetRoomId || existingTargetSession.roomId || appt.roomId,
-                updatedAt: new Date().toISOString(),
-              })
-              .where(eq(appointments.id, appt.id));
-          }
+          await tx
+            .update(appointments)
+            .set({
+              scheduleSessionId: existingTargetSession.id,
+              scheduledDate: body.targetDate,
+              scheduledStartTime: `${body.targetStartTime}:00`,
+              scheduledEndTime: `${targetEndTime}:00`,
+              roomId:
+                targetRoomId || existingTargetSession.roomId || null,
+              updatedAt: new Date().toISOString(),
+            })
+            .where(
+              inArray(
+                appointments.id,
+                appointmentsToMove.map((a) => a.id),
+              ),
+            );
 
           await tx
             .update(queueTickets)
             .set({
               queueDate: body.targetDate,
               roomId: targetRoomId || existingTargetSession.roomId || undefined,
+              carriedOver: true,
               updatedAt: new Date().toISOString(),
             })
             .where(
@@ -415,21 +388,18 @@ export class DrizzleScheduleRescheduleRepository {
           }
         }
 
-        if (body.unscheduleSourceSlot) {
-          await carveOutSourceSlotFromSession({
-            tx,
-            session,
-            sourceSlotStartMin,
-            sourceSlotEndMin,
-            sessStartMin,
-            sessEndMin,
-            durationMinutes,
-            remainingAppointments,
-          });
-        } else if (
-          existingTargetSession.id !== session.id &&
-          appointmentsToMove.length > 0
-        ) {
+        if (existingTargetSession.id === session.id) {
+          await tx
+            .update(practitionerScheduleSessions)
+            .set({
+              scheduleDate: body.targetDate,
+              startTime: `${body.targetStartTime}:00`,
+              endTime: `${targetEndTime}:00`,
+              roomId: targetRoomId || session.roomId,
+              updatedAt: new Date().toISOString(),
+            })
+            .where(eq(practitionerScheduleSessions.id, session.id));
+        } else if (appointmentsToMove.length > 0) {
           await tx
             .update(practitionerScheduleSessions)
             .set({

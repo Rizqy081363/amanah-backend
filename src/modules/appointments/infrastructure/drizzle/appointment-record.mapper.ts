@@ -115,6 +115,39 @@ export class AppointmentRecordMapper {
       domainStatus,
     );
 
+    const estimatedStartAt = apt.estimatedStartAt
+      ? new Date(apt.estimatedStartAt)
+      : null;
+    const estimatedEndAt = apt.estimatedEndAt
+      ? new Date(apt.estimatedEndAt)
+      : null;
+
+    let etaRange: string | null = null;
+    if (estimatedStartAt) {
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const startH = pad(estimatedStartAt.getHours());
+      const startM = pad(estimatedStartAt.getMinutes());
+      if (estimatedEndAt) {
+        const endH = pad(estimatedEndAt.getHours());
+        const endM = pad(estimatedEndAt.getMinutes());
+        etaRange = `${startH}:${startM} - ${endH}:${endM}`;
+      } else {
+        etaRange = `~${startH}:${startM}`;
+      }
+    } else if (apt.scheduledStartTime) {
+      etaRange = apt.scheduledStartTime.slice(0, 5);
+      if (apt.scheduledEndTime) {
+        etaRange += ` - ${apt.scheduledEndTime.slice(0, 5)}`;
+      }
+    }
+
+    const numQueue = Number(apt.queueNumber) || 1;
+    const aheadCount =
+      domainStatus === DOMAIN_APPOINTMENT_STATUS.BOOKED ||
+      domainStatus === DOMAIN_APPOINTMENT_STATUS.WAITING
+        ? Math.max(0, numQueue - 1)
+        : 0;
+
     return {
       id: apt.id,
       bookingCode: apt.bookingCode || null,
@@ -129,14 +162,14 @@ export class AppointmentRecordMapper {
       patientName: apt.patientProfile?.fullName || 'Pasien Amanah',
       patientAvatarUrl,
       poliklinikId: poliId,
-      poliklinikName: apt.clinicRoom?.clinicUnit?.name || 'Poliklinik Amanah',
+      poliklinikName: apt.clinicRoom?.clinicUnit?.name || apt.clinicService?.name || 'Poliklinik Amanah',
       layananId: apt.serviceId,
       layananName: apt.clinicService?.name || 'Konsultasi Dokter',
       staffId: apt.practitionerId || null,
       doctorName:
         apt.practitioner?.staffProfile?.fullName ||
         apt.practitioner?.name ||
-        'Dokter Amanah',
+        null,
       doctorSpecialty: apt.practitioner?.medicalSpecialty?.name || null,
       doctorAvatarUrl,
       roomName: apt.clinicRoom?.name || null,
@@ -173,10 +206,10 @@ export class AppointmentRecordMapper {
       actualCompletedAt,
       consultationElapsedSeconds: elapsedSeconds,
       consultationDurationFormatted: formattedDuration,
-      estimatedStartAt: apt.estimatedStartAt
-        ? new Date(apt.estimatedStartAt)
-        : null,
-      estimatedEndAt: apt.estimatedEndAt ? new Date(apt.estimatedEndAt) : null,
+      estimatedStartAt,
+      estimatedEndAt,
+      etaRange,
+      aheadCount,
       completedAt: apt.completedAt ? new Date(apt.completedAt) : null,
       createdAt: new Date(apt.createdAt),
       updatedAt: new Date(apt.updatedAt),

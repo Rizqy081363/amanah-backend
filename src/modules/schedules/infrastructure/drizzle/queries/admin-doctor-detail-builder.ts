@@ -1,4 +1,7 @@
-import { DEFAULT_CONSULTATION_DURATION_MINUTES } from '@modules/schedules/domain/constants/schedule.constants';
+import {
+  DEFAULT_CONSULTATION_DURATION_MINUTES,
+  INACTIVE_APPOINTMENT_STATUSES,
+} from '@modules/schedules/domain/constants/schedule.constants';
 import {
   type AdminDoctorDailySession,
   type AdminDoctorMonthlyDayEntity,
@@ -143,7 +146,9 @@ export function buildMonthlySchedule(
       // For slot occupancy/capacity calculations: only active appointments
       const activeMatchingAppts = matchingAppts.filter(
         (a) =>
-          !['cancelled', 'no_show'].includes(a.status?.toLowerCase() || ''),
+          !INACTIVE_APPOINTMENT_STATUSES.includes(
+            (a.status?.toLowerCase() || '') as any,
+          ),
       );
 
       const shiftDef = SHIFT_DEFINITIONS.find((d) => d.shift === s.sessionShift);
@@ -209,7 +214,10 @@ export function buildMonthlySchedule(
       0,
     );
     const dayBookedPatients = dayAppts.filter(
-      (a) => !['cancelled', 'no_show'].includes(a.status?.toLowerCase() || ''),
+      (a) =>
+        !INACTIVE_APPOINTMENT_STATUSES.includes(
+          (a.status?.toLowerCase() || '') as any,
+        ),
     ).length;
 
     monthlySchedule.push({
@@ -298,44 +306,23 @@ export function buildDailySessions(
       persistedAvailableSlots: s.availableSlots,
       bookedCount: matchingAppts.filter(
         (a) =>
-          !['cancelled', 'no_show'].includes(a.status?.toLowerCase() || ''),
+          !INACTIVE_APPOINTMENT_STATUSES.includes(
+            (a.status?.toLowerCase() || '') as any,
+          ),
       ).length,
       isCuti: isEvalCuti,
       isClosed: s.status === 'closed',
     });
 
-    const sStartMin = parseClockTime(jamMulai);
     const sEndMin = parseClockTime(jamSelesai);
-    let pastUnbookedSlots = 0;
-
+    let activeAvailable = 0;
     if (isPastDate) {
-      pastUnbookedSlots = metrics.availableSlots;
-    } else if (isToday) {
-      for (let m = sStartMin; m < sEndMin; m += validDuration) {
-        const slotEnd = m + validDuration;
-        if (slotEnd <= curMinutes) {
-          const hasAppt = matchingAppts.some((a) => {
-            const aStart = parseClockTime(
-              a.scheduledStartTime?.length === 5
-                ? a.scheduledStartTime
-                : a.scheduledStartTime?.slice(0, 5) || '08:00',
-            );
-            const aEnd = a.scheduledEndTime
-              ? parseClockTime(a.scheduledEndTime.slice(0, 5))
-              : aStart + validDuration;
-            return aStart < slotEnd && aEnd > m;
-          });
-          if (!hasAppt) {
-            pastUnbookedSlots++;
-          }
-        }
-      }
+      activeAvailable = 0;
+    } else if (isToday && curMinutes >= sEndMin) {
+      activeAvailable = 0;
+    } else {
+      activeAvailable = Math.max(0, metrics.availableSlots);
     }
-
-    const activeAvailable = Math.max(
-      0,
-      metrics.availableSlots - pastUnbookedSlots,
-    );
 
     const roomName = s.clinicRoom
       ? `${s.clinicRoom.name}${s.clinicRoom.location ? `, ${s.clinicRoom.location}` : ''}`

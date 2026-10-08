@@ -274,22 +274,7 @@ export class DrizzleRescheduleEligibilityEvaluator {
           });
 
           if (existingTargetSession) {
-            const targetSlotOccupied =
-              await this.db.query.appointments.findFirst({
-                where: and(
-                  eq(appointments.practitionerId, practitioner.id),
-                  eq(appointments.scheduledDate, query.targetDate),
-                  eq(appointments.scheduledStartTime, targetStartSec),
-                  inArray(appointments.status, [
-                    ...ACTIVE_APPOINTMENT_STATUSES,
-                  ]),
-                ),
-              });
-            if (targetSlotOccupied) {
-              targetValidation.isTargetEligible = false;
-              targetValidation.conflictCode = 'SLOT_ALREADY_OCCUPIED';
-              targetValidation.conflictMessage = `Slot waktu ${query.targetStartTime} sudah terisi oleh janji temu pasien lain.`;
-            } else if (targetRoomId) {
+            if (targetRoomId) {
               const otherDoctorInRoom =
                 await this.db.query.practitionerScheduleSessions.findFirst({
                   where: and(

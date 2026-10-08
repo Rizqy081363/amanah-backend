@@ -16,7 +16,6 @@ import {
   APPOINTMENT_REPOSITORY,
   type AppointmentRepository,
 } from '../../domain/repositories/appointment.repository';
-import { isAppointmentLate } from '../../domain/services/appointment-lateness.predicate';
 import { AppointmentPolicyReader } from '../../domain/services/appointment-policy.reader';
 import {
   APPOINTMENT_CHECK_IN_REPOSITORY_PORT,
@@ -66,12 +65,7 @@ export class GenerateCheckInQrUseCase {
       `${apt.appointmentDate}T${apt.scheduledStartTime || '00:00:00'}`,
     );
 
-    if (isAppointmentLate(scheduledDateObj, new Date(), windowHours)) {
-      throw new BadRequestException(
-        'Janji temu telah melewati batas waktu check-in (kedaluwarsa).',
-      );
-    }
-
+    // In the queue ticketing model, patients are not rejected from generating QR/checking in on service day.
     await this.checkInRepo.invalidateExistingTokens(appointmentId);
 
     const token = randomUUID();
@@ -79,8 +73,13 @@ export class GenerateCheckInQrUseCase {
       DEFAULT_CHECK_IN_CONFIG.codeLength,
     );
 
-    const eligibilityDeadlineMs =
-      scheduledDateObj.getTime() + hoursToMilliseconds(windowHours);
+    const windowMs = hoursToMilliseconds(windowHours);
+    const endOfDay = new Date(`${apt.appointmentDate}T23:59:59.999Z`);
+    const eligibilityDeadlineMs = Math.max(
+      scheduledDateObj.getTime() + windowMs,
+      endOfDay.getTime(),
+      Date.now() + windowMs,
+    );
     const appointmentEligibilityDeadline = new Date(eligibilityDeadlineMs);
     const remainingSeconds = Math.max(
       0,

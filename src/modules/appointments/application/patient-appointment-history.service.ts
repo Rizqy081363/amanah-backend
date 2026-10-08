@@ -9,11 +9,15 @@ import {
   practitioners,
 } from '../../../database/schema';
 import { PatientAppointmentHistoryQueryDto } from '../presentation/dto/patient-appointment-history-query.dto';
+import { DB_APPOINTMENT_STATUS } from '../domain/constants/appointment-lifecycle.constants';
 
 export interface HistoricalAppointmentItem {
   id: string;
   bookingCode: string;
-  status: 'completed' | 'cancelled' | 'no_show';
+  status:
+    | typeof DB_APPOINTMENT_STATUS.COMPLETED
+    | typeof DB_APPOINTMENT_STATUS.CANCELLED
+    | typeof DB_APPOINTMENT_STATUS.NO_SHOW;
   scheduledDate: string;
   scheduledStartTime: string;
   scheduledEndTime?: string | null;

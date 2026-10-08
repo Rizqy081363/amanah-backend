@@ -104,59 +104,6 @@ export class AppointmentStatusHandler {
         updateApt.cancelReason = cancellationReason;
       }
       updateTicket.status = ticketStatus;
-
-      let targetSessionId = existing.scheduleSessionId;
-      if (
-        !targetSessionId &&
-        existing.practitionerId &&
-        existing.scheduledDate
-      ) {
-        const apptStart =
-          existing.scheduledStartTime?.length === 5
-            ? `${existing.scheduledStartTime}:00`
-            : existing.scheduledStartTime || '08:00:00';
-        const candidateSessions =
-          await db.query.practitionerScheduleSessions.findMany({
-            where: and(
-              eq(
-                practitionerScheduleSessions.practitionerId,
-                existing.practitionerId,
-              ),
-              eq(
-                practitionerScheduleSessions.scheduleDate,
-                existing.scheduledDate,
-              ),
-            ),
-          });
-        const matched =
-          candidateSessions.find((s) => {
-            const sStart =
-              s.startTime.length === 5 ? `${s.startTime}:00` : s.startTime;
-            const sEnd = s.endTime.length === 5 ? `${s.endTime}:00` : s.endTime;
-            return apptStart >= sStart && apptStart < sEnd;
-          }) || candidateSessions[0];
-        if (matched) targetSessionId = matched.id;
-      }
-
-      if (targetSessionId && existing.status !== 'cancelled') {
-        const [session] = await db
-          .select()
-          .from(practitionerScheduleSessions)
-          .where(eq(practitionerScheduleSessions.id, targetSessionId));
-        if (session) {
-          const newAvailable = Math.min(
-            session.capacity,
-            session.availableSlots + 1,
-          );
-          await db
-            .update(practitionerScheduleSessions)
-            .set({
-              availableSlots: newAvailable,
-              updatedAt: nowStr,
-            })
-            .where(eq(practitionerScheduleSessions.id, session.id));
-        }
-      }
     }
 
     const whereConditions = [eq(appointments.id, id)];

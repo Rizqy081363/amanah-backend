@@ -218,18 +218,13 @@ export class PatientScheduleBookingController {
       for (const s of matching) {
         totalCapacity += s.capacity;
 
-        const bookedTimes = new Set(
-          existingAppointments
-            .filter(
-              (a) =>
-                (a.scheduleSessionId && a.scheduleSessionId === s.id) ||
-                (a.practitionerId === s.practitionerId &&
-                  a.scheduledStartTime &&
-                  a.scheduledStartTime >= s.startTime &&
-                  a.scheduledStartTime < s.endTime),
-            )
-            .map((a) => a.scheduledStartTime?.slice(0, 5))
-            .filter(Boolean) as string[],
+        const sessionActiveAppointments = existingAppointments.filter(
+          (a) =>
+            (a.scheduleSessionId && a.scheduleSessionId === s.id) ||
+            (a.practitionerId === s.practitionerId &&
+              a.scheduledStartTime &&
+              a.scheduledStartTime >= s.startTime &&
+              a.scheduledStartTime < s.endTime),
         );
 
         const doctorAvailable = calculateDoctorSessionAvailableSlots({
@@ -239,7 +234,7 @@ export class PatientScheduleBookingController {
           capacity: s.capacity,
           availableSlots: s.availableSlots,
           durationMinutes: estimatedDuration,
-          bookedStartTimes: bookedTimes,
+          bookedStartTimes: sessionActiveAppointments.map((a) => a.id),
         });
 
         totalAvailable += doctorAvailable;

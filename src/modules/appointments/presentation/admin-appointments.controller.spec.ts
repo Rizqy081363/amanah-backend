@@ -75,8 +75,7 @@ describe('AdminAppointmentsController', () => {
     it('should cancel an appointment and recover session slot', async () => {
       const mockResult = {
         success: true,
-        message:
-          'Janji temu berhasil dibatalkan dan 1 slot kuota sesi telah dipulihkan',
+        message: 'Janji temu berhasil dibatalkan',
         data: {
           appointmentId: 'apt-uuid-1',
           previousStatus: 'waiting',

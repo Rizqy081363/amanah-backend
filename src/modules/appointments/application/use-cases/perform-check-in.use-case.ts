@@ -13,7 +13,6 @@ import {
   APPOINTMENT_REPOSITORY,
   type AppointmentRepository,
 } from '../../domain/repositories/appointment.repository';
-import { isAppointmentLate } from '../../domain/services/appointment-lateness.predicate';
 import { AppointmentPolicyReader } from '../../domain/services/appointment-policy.reader';
 import {
   APPOINTMENT_CHECK_IN_REPOSITORY_PORT,
@@ -100,16 +99,8 @@ export class PerformCheckInUseCase {
       );
     }
 
-    const windowHours = await this.policyReader.getCheckInWindowHours();
-    const scheduledDateObj = new Date(
-      `${appointment.appointmentDate}T${appointment.scheduledStartTime || '00:00:00'}`,
-    );
-
-    if (isAppointmentLate(scheduledDateObj, new Date(), windowHours)) {
-      throw new BadRequestException(
-        'Janji temu telah melewati batas waktu kedatangan (kedaluwarsa).',
-      );
-    }
+    // In the queue ticketing model, physically attending patients are never rejected.
+    // Check-in transitions status to WAITING and marks physical arrival at clinic.
 
     const actorUserId = actorUser?.id || actorUser?.sub || null;
 

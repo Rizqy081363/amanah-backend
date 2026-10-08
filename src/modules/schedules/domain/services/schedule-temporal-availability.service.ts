@@ -116,34 +116,21 @@ export function calculateDoctorSessionAvailableSlots(
     return 0;
   }
 
-  const startMinutes = parseClockTime(input.startTime.slice(0, 5));
   const endMinutes = parseSessionEndMinutes(input.startTime, input.endTime);
-  const duration = input.durationMinutes > 0 ? input.durationMinutes : 30;
-
-  const bookedTimes =
-    input.bookedStartTimes instanceof Set
-      ? input.bookedStartTimes
-      : new Set((input.bookedStartTimes || []).map((t) => t.slice(0, 5)));
-
-  let candidateMinutes = startMinutes;
-  let allocatableCount = 0;
-
-  while (candidateMinutes + duration <= endMinutes) {
-    if (isToday && candidateMinutes + duration <= clinicNow.currentMinutes) {
-      candidateMinutes += duration;
-      continue;
-    }
-
-    const hh = String(Math.floor(candidateMinutes / 60) % 24).padStart(2, '0');
-    const mm = String(candidateMinutes % 60).padStart(2, '0');
-    const timeStr = `${hh}:${mm}`;
-
-    if (!bookedTimes.has(timeStr)) {
-      allocatableCount++;
-    }
-
-    candidateMinutes += duration;
+  if (isToday && endMinutes <= clinicNow.currentMinutes) {
+    return 0;
   }
 
-  return Math.max(0, Math.min(input.availableSlots, allocatableCount));
+  const bookedCount =
+    input.bookedStartTimes instanceof Set
+      ? input.bookedStartTimes.size
+      : Array.isArray(input.bookedStartTimes)
+        ? input.bookedStartTimes.length
+        : 0;
+
+  const sessionCapacity =
+    input.capacity > 0 ? input.capacity : Math.max(0, input.availableSlots);
+
+  return Math.max(0, sessionCapacity - bookedCount);
 }
+

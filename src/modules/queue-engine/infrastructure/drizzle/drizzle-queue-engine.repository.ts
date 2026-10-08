@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { and, desc, eq, isNull, or, sql } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import {
+  appointments,
   doctorAssignments,
   queueCounters,
   queueTickets,
@@ -54,7 +55,7 @@ export class DrizzleQueueEngineRepository implements IQueueEngineRepository {
     const { roomId, doctorId, categoryId, serviceDate } = params;
 
     const res = await this.db.execute(sql`
-      SELECT id, category_id, session_id, queue_date, queue_number, patient_id, status
+      SELECT id, appointment_id, category_id, session_id, queue_date, queue_number, patient_id, status
       FROM queue_tickets
       WHERE queue_date = ${serviceDate}
         AND (${categoryId ?? null}::uuid IS NULL OR category_id = ${categoryId ?? null}::uuid)
@@ -82,6 +83,19 @@ export class DrizzleQueueEngineRepository implements IQueueEngineRepository {
       })
       .where(eq(queueTickets.id, target.id))
       .returning();
+
+    if (target.appointment_id) {
+      await this.db
+        .update(appointments)
+        .set({
+          status: 'called',
+          practitionerId: doctorId,
+          roomId: roomId,
+          lastCalledAt: nowIso,
+          updatedAt: nowIso,
+        })
+        .where(eq(appointments.id, target.appointment_id));
+    }
 
     return this.mapToDomainTicket(updated);
   }

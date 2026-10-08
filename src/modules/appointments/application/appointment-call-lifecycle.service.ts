@@ -17,7 +17,9 @@ import {
   APPOINTMENT_CALL_REPOSITORY,
   APPOINTMENT_CALL_STATUS,
   APPOINTMENT_EVENTS,
+  DB_APPOINTMENT_STATUS,
   MAX_PATIENT_CALL_ATTEMPTS,
+  QUEUE_TICKET_STATUS,
 } from '../domain/constants/appointment-lifecycle.constants';
 import { AppointmentCallRepository } from '../domain/repositories/appointment-call.repository';
 import {
@@ -98,7 +100,7 @@ export class AppointmentCallLifecycleService {
       appointmentId,
       details.status,
       details.ticketId,
-      'called',
+      QUEUE_TICKET_STATUS.CALLED,
     );
 
     await this.invalidateQueueCache();
@@ -184,9 +186,9 @@ export class AppointmentCallLifecycleService {
 
     await this.callRepo.updateAppointmentAndTicketStatus(
       appointmentId,
-      'in_service',
+      DB_APPOINTMENT_STATUS.IN_SERVICE,
       details.ticketId,
-      'in_service',
+      QUEUE_TICKET_STATUS.IN_SERVICE,
     );
 
     await this.invalidateQueueCache();
@@ -320,16 +322,16 @@ export class AppointmentCallLifecycleService {
         attemptNumber: latestAttempt.attemptNumber,
         remainingAttempts:
           MAX_PATIENT_CALL_ATTEMPTS - latestAttempt.attemptNumber,
-        status: 'waiting',
+        status: QUEUE_TICKET_STATUS.WAITING,
       };
     }
 
     // Terminal: Reached 3 attempts, mark appointment as NO_SHOW and ticket as SKIPPED
     await this.callRepo.updateAppointmentAndTicketStatus(
       appointmentId,
-      'no_show',
+      DB_APPOINTMENT_STATUS.NO_SHOW,
       details.ticketId,
-      'skipped',
+      QUEUE_TICKET_STATUS.SKIPPED,
     );
 
     await this.invalidateQueueCache();

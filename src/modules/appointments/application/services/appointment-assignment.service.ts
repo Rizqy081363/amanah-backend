@@ -17,6 +17,7 @@ import {
   SESSION_TO_SHIFT_MAP,
 } from '../../../schedules/domain/constants/schedule-shift.constants';
 import { AppointmentEntity } from '../../domain/entities/appointment.entity';
+import { SchedulePersistenceStatus } from '../../../schedules/domain/schedule-status';
 import {
   AppointmentNotFoundException,
   AppointmentTerminalStateException,
@@ -157,8 +158,7 @@ export class AppointmentAssignmentService {
               apt.scheduledEndTime ||
               sql`${apt.scheduledStartTime}::time + interval '${duration} minutes'`,
             capacity: 1,
-            availableSlots: 0,
-            status: 'open',
+            status: SchedulePersistenceStatus.OPEN,
             roomId: effectiveRoomId,
           })
           .returning();
@@ -167,30 +167,17 @@ export class AppointmentAssignmentService {
         targetRoomId = effectiveRoomId;
       }
 
-      // 5. Transfer session capacity (old session increment/close, target session decrement)
+      // 5. Transfer session status (old session close if requested)
       if (apt.scheduleSessionId && apt.scheduleSessionId !== targetSessionId) {
         if (opts?.closeOldSchedule) {
-          // Edge Case 5 & 6: Close old doctor's session and lock remaining slots
           await tx
             .update(practitionerScheduleSessions)
             .set({
-              status: 'closed',
-              availableSlots: 0,
+              status: SchedulePersistenceStatus.CLOSED,
               notes: opts?.reason || 'Sesi ditutup saat pengalihan dokter',
             })
             .where(eq(practitionerScheduleSessions.id, apt.scheduleSessionId));
-        } else {
-          await tx
-            .update(practitionerScheduleSessions)
-            .set({ availableSlots: sql`LEAST(capacity, available_slots + 1)` })
-            .where(eq(practitionerScheduleSessions.id, apt.scheduleSessionId));
         }
-      }
-      if (targetSessionId) {
-        await tx
-          .update(practitionerScheduleSessions)
-          .set({ availableSlots: sql`GREATEST(0, available_slots - 1)` })
-          .where(eq(practitionerScheduleSessions.id, targetSessionId));
       }
 
       // 6. Update appointment assignment

@@ -16,9 +16,10 @@ import {
   queueTickets,
   sessionDefs,
 } from '../../../../database/schema';
-import { AppointmentEntity } from '../../domain/entities/appointment.entity';
 import { RescheduleAppointmentDto } from '../../presentation/dto/reschedule-appointment.dto';
-import { allocateAppointmentTiming } from './appointment-timing.helper';
+import type { AppointmentEntity } from '../../domain/entities/appointment.entity';
+import { QUEUE_TICKET_STATUS } from '../../domain/constants/appointment-lifecycle.constants';
+import { SchedulePersistenceStatus } from '../../../schedules/domain/schedule-status';
 import {
   DEFAULT_FALLBACK_CAPACITY,
   resolveQueueLoadStatus,
@@ -70,9 +71,7 @@ export class AppointmentRescheduleHandler {
         }
         const cap =
           sess.capacity > 0 ? sess.capacity : DEFAULT_FALLBACK_CAPACITY;
-        const booked = Math.max(0, cap - sess.availableSlots);
-        const loadRatio = booked / cap;
-        const loadStatus = resolveQueueLoadStatus(loadRatio);
+        const loadStatus = resolveQueueLoadStatus(0);
 
         groupedByDate[sess.scheduleDate].push({
           sessionId: sess.id,
@@ -80,10 +79,9 @@ export class AppointmentRescheduleHandler {
           endTime: sess.endTime.slice(0, 5),
           shift: sess.sessionLabel,
           sessionShift: sess.sessionShift,
-          availableSlots: sess.availableSlots,
           capacity: sess.capacity,
           loadStatus,
-          isAvailable: true,
+          isAvailable: sess.status !== SchedulePersistenceStatus.CLOSED,
         });
       }
 
@@ -275,92 +273,21 @@ async function resolveTargetScheduleSession(
 }
 
 async function transferSessionCapacity(
-  tx: DrizzleDatabase,
-  oldSessionId: string | null,
-  targetSession: typeof practitionerScheduleSessions.$inferSelect,
-  nowIso: string,
+  _tx: DrizzleDatabase,
+  _oldSessionId: string | null,
+  _targetSession: typeof practitionerScheduleSessions.$inferSelect,
+  _nowIso: string,
 ): Promise<void> {
-  await tx
-    .update(practitionerScheduleSessions)
-    .set({
-      availableSlots: Math.max(0, targetSession.availableSlots - 1),
-      updatedAt: nowIso,
-    })
-    .where(eq(practitionerScheduleSessions.id, targetSession.id));
-
-  if (!oldSessionId || oldSessionId === targetSession.id) {
-    return;
-  }
-
-  const [oldSession] = await tx
-    .select()
-    .from(practitionerScheduleSessions)
-    .where(eq(practitionerScheduleSessions.id, oldSessionId))
-    .for('update');
-
-  if (oldSession) {
-    await tx
-      .update(practitionerScheduleSessions)
-      .set({
-        availableSlots: Math.min(
-          oldSession.capacity,
-          oldSession.availableSlots + 1,
-        ),
-        updatedAt: nowIso,
-      })
-      .where(eq(practitionerScheduleSessions.id, oldSession.id));
-  }
+  // In the queue ticketing model, sessions are not constrained by fixed slot decrements
 }
 
 async function allocateRescheduledTiming(
-  tx: DrizzleDatabase,
-  currentApt: typeof appointments.$inferSelect,
+  _tx: DrizzleDatabase,
+  _currentApt: typeof appointments.$inferSelect,
   targetSession: typeof practitionerScheduleSessions.$inferSelect,
-  targetDate: string,
-  appointmentId: string,
+  _targetDate: string,
+  _appointmentId: string,
 ): Promise<{ startTime: string; endTime: string }> {
-  const existingAppts = await tx.query.appointments.findMany({
-    where: and(
-      eq(appointments.practitionerId, targetSession.practitionerId),
-      eq(appointments.scheduledDate, targetDate),
-      inArray(appointments.status, [
-        'booked',
-        'checked_in',
-        'waiting',
-        'in_service',
-      ]),
-    ),
-  });
-
-  const otherApptTimes = existingAppts
-    .filter((a) => a.id !== appointmentId && a.scheduledStartTime)
-    .map((a) => a.scheduledStartTime as string);
-
-  // When the patient reschedules within the same session on the same date,
-  // their current timing is freed but must not be immediately re-assigned to
-  // them. Add their own timing to the occupied set so the allocator advances
-  // to the next genuinely free timing.
-  const isSameSession =
-    currentApt.scheduleSessionId === targetSession.id &&
-    currentApt.scheduledDate === targetDate;
-
-  const existingTimes =
-    isSameSession && currentApt.scheduledStartTime
-      ? [...otherApptTimes, currentApt.scheduledStartTime]
-      : otherApptTimes;
-
-  const sessionTiming = allocateAppointmentTiming(
-    targetSession.startTime,
-    targetSession.endTime,
-    existingTimes,
-    30,
-    targetDate,
-  );
-
-  if (sessionTiming) {
-    return sessionTiming;
-  }
-
   return {
     startTime: targetSession.startTime.slice(0, 5),
     endTime: targetSession.endTime.slice(0, 5),
@@ -478,7 +405,7 @@ async function synchronizeQueueTicket(
       roomId: targetSession.roomId ?? apt.roomId,
       queueDate: targetDate,
       queueNumber: formattedTicketNumber,
-      status: 'waiting',
+      status: QUEUE_TICKET_STATUS.WAITING,
       priority: 'regular',
       waitingPosition: numericQueueNumber,
       carriedOver: true,
@@ -494,7 +421,7 @@ async function synchronizeQueueTicket(
         await tx
           .update(queueTickets)
           .set({
-            status: 'cancelled',
+            status: QUEUE_TICKET_STATUS.CANCELLED,
             movedTo: newTicket ? newTicket.id : null,
             updatedAt: nowIso,
           })

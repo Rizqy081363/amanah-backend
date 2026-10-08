@@ -2,10 +2,12 @@ import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
   appointments,
+  clinicClosures,
   practitionerLeavePeriods,
   practitionerScheduleDaySettings,
   practitionerScheduleSessions,
   practitioners,
+  queueTickets,
 } from '@database/schema';
 import { DEFAULT_TARGET_QUOTA } from '@modules/schedules/domain/constants/schedule.constants';
 import {
@@ -301,19 +303,45 @@ export class DrizzleAdminScheduleMutationRepository {
       )
       .returning();
 
-    // 2. Soft-cancel active appointments if day is closed
+    // 2. Soft-cancel unserved appointments and protect checked_in patients if day is closed
     let cancelledAppointmentsCount = 0;
     if (isClosed) {
-      const activeAppts = await this.db.query.appointments.findMany({
+      // Record clinic closure
+      await this.db.insert(clinicClosures).values({
+        scope: 'doctor',
+        doctorId: practitionerId,
+        startsAt: `${date}T00:00:00.000Z`,
+        endsAt: `${date}T23:59:59.999Z`,
+        inputKind: 'day',
+        reason: notes || 'Jadwal praktik dokter ditutup operasional oleh admin klinik.',
+      });
+
+      // Update associated queue tickets to carried over
+      await this.db
+        .update(queueTickets)
+        .set({
+          carriedOver: true,
+          updatedAt: new Date().toISOString(),
+        })
+        .where(
+          and(
+            eq(queueTickets.doctorId, practitionerId),
+            eq(queueTickets.queueDate, date),
+          ),
+        );
+
+      // Only unserved appointments ('booked', 'waiting') are soft-cancelled.
+      // Checked-in patients ('checked_in') are preserved for staff decision per Rule R15.
+      const unservedAppts = await this.db.query.appointments.findMany({
         where: and(
           eq(appointments.practitionerId, practitionerId),
           eq(appointments.scheduledDate, date),
-          inArray(appointments.status, ['booked', 'checked_in', 'waiting']),
+          inArray(appointments.status, ['booked', 'waiting']),
         ),
       });
 
-      cancelledAppointmentsCount = activeAppts.length;
-      if (activeAppts.length > 0) {
+      cancelledAppointmentsCount = unservedAppts.length;
+      if (unservedAppts.length > 0) {
         const cancelReason = notes
           ? `[PENUTUPAN_JADWAL] ${notes}`
           : 'Jadwal praktik dokter ditutup operasional oleh admin klinik.';
@@ -330,7 +358,7 @@ export class DrizzleAdminScheduleMutationRepository {
             and(
               eq(appointments.practitionerId, practitionerId),
               eq(appointments.scheduledDate, date),
-              inArray(appointments.status, ['booked', 'checked_in', 'waiting']),
+              inArray(appointments.status, ['booked', 'waiting']),
             ),
           );
       }
@@ -339,7 +367,7 @@ export class DrizzleAdminScheduleMutationRepository {
     return {
       success: true,
       message: isClosed
-        ? 'Jadwal hari berhasil ditutup dan seluruh sesi dinonaktifkan (pasien aktif dibatalkan secara soft delete)'
+        ? 'Jadwal hari berhasil ditutup dan seluruh sesi dinonaktifkan (pasien menunggu dialihkan / dicatat, pasien hadir dilindungi)'
         : 'Jadwal hari berhasil dibuka kembali dan seluruh sesi diaktifkan',
       data: {
         date,

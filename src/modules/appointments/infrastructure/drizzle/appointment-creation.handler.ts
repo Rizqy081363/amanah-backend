@@ -19,10 +19,13 @@ import {
   ScheduleShiftRegistry,
   SHIFT_TIMING_CONFIGS,
 } from '../../../schedules/domain/constants/schedule-shift.constants';
-import { ClinicConfigService } from '@common/clinic-config';
 import { AppointmentEntity } from '../../domain/entities/appointment.entity';
+import {
+  DB_APPOINTMENT_STATUS,
+  QUEUE_TICKET_STATUS,
+} from '../../domain/constants/appointment-lifecycle.constants';
+import type { ClinicConfigService } from '../../../../common/clinic-config/clinic-config.service';
 import { AppointmentRecordMapper } from './appointment-record.mapper';
-import { allocateAppointmentTiming } from './appointment-timing.helper';
 
 export class AppointmentCreationHandler {
   static async create(
@@ -123,152 +126,10 @@ export class AppointmentCreationHandler {
       }
     }
 
-    let room: typeof clinicRooms.$inferSelect | undefined;
-    const unitRooms = data.poliklinikId
-      ? await db.query.clinicRooms.findMany({
-          where: eq(clinicRooms.unitId, data.poliklinikId),
-        })
-      : [];
-    const unitRoomIds = new Set(unitRooms.map((r) => r.id));
-    if (unitRooms.length > 0) {
-      room = unitRooms[0];
-    }
-
-    let scheduleSessionId: string | null = null;
-    let startTime = defaultStart;
-    let endTime = defaultEnd;
-
-    if (data.appointmentDate) {
-      const sessionConditions = [
-        eq(practitionerScheduleSessions.scheduleDate, data.appointmentDate),
-        eq(practitionerScheduleSessions.sessionShift, targetShift),
-        eq(practitionerScheduleSessions.status, 'open'),
-      ];
-      if (practitionerId) {
-        sessionConditions.push(
-          eq(practitionerScheduleSessions.practitionerId, practitionerId),
-        );
-      }
-
-      const allCandidateSessions =
-        await db.query.practitionerScheduleSessions.findMany({
-          where: and(...sessionConditions),
-          orderBy: [asc(practitionerScheduleSessions.startTime)],
-          with: {
-            clinicRoom: true,
-            practitioner: {
-              with: {
-                staffProfile: true,
-                medicalSpecialty: true,
-              },
-            },
-          },
-        });
-
-      const candidateSessions = allCandidateSessions.filter((s) => {
-        if (data.poliklinikId) {
-          const inUnit =
-            (s.roomId && unitRoomIds.has(s.roomId)) ||
-            s.clinicRoom?.unitId === data.poliklinikId;
-          if (!inUnit) return false;
-        }
-        if (isLayananKebidanan) {
-          const prac = s.practitioner;
-          const isMidwife = prac?.staffProfile?.staffType === 'midwife';
-          const isKiaSpecialty =
-            prac?.medicalSpecialty?.code === 'maternal_child_health';
-          if (!isMidwife && !isKiaSpecialty) return false;
-        }
-        return true;
-      });
-
-      let matchedSession: (typeof allCandidateSessions)[number] | undefined;
-      let matchedTiming: { startTime: string; endTime: string } | null = null;
-      let matchedRoom = room;
-
-      for (const candidate of candidateSessions) {
-        let candidateRoom = room;
-        if (candidate.roomId) {
-          const foundRoom = unitRooms.find((r) => r.id === candidate.roomId);
-          if (foundRoom) {
-            candidateRoom = foundRoom;
-          } else {
-            candidateRoom = await db.query.clinicRooms.findFirst({
-              where: eq(clinicRooms.id, candidate.roomId),
-            });
-          }
-        }
-
-        const targetPracId = candidate.practitionerId;
-        const targetRoomId = candidateRoom?.id;
-
-        const occupancyConditions: any[] = [
-          eq(appointments.scheduledDate, data.appointmentDate),
-          not(inArray(appointments.status, ['cancelled', 'no_show'])),
-        ];
-
-        if (targetPracId && targetRoomId) {
-          occupancyConditions.push(
-            or(
-              eq(appointments.practitionerId, targetPracId),
-              eq(appointments.roomId, targetRoomId),
-            ),
-          );
-        } else if (targetPracId) {
-          occupancyConditions.push(
-            eq(appointments.practitionerId, targetPracId),
-          );
-        } else if (targetRoomId) {
-          occupancyConditions.push(eq(appointments.roomId, targetRoomId));
-        }
-
-        const existingAppts = await db.query.appointments.findMany({
-          where: and(...occupancyConditions),
-        });
-
-        const existingTimes = existingAppts
-          .filter((a) => a.scheduledStartTime)
-          .map((a) => a.scheduledStartTime as string);
-
-        const sessionTiming = allocateAppointmentTiming(
-          candidate.startTime,
-          candidate.endTime,
-          existingTimes,
-          policy?.defaultConsultationDurationMinutes ?? 30,
-          data.appointmentDate,
-        );
-
-        if (sessionTiming) {
-          matchedSession = candidate;
-          matchedTiming = sessionTiming;
-          matchedRoom = candidateRoom;
-          practitionerId = targetPracId;
-          break;
-        }
-      }
-
-      const selectedSession = matchedSession || candidateSessions[0];
-      if (selectedSession) {
-        scheduleSessionId = selectedSession.id;
-        startTime = matchedTiming?.startTime || selectedSession.startTime;
-        endTime = matchedTiming?.endTime || selectedSession.endTime;
-        if (matchedRoom || selectedSession.clinicRoom) {
-          room = (matchedRoom || selectedSession.clinicRoom) ?? undefined;
-        }
-        if (selectedSession.availableSlots > 0) {
-          await db
-            .update(practitionerScheduleSessions)
-            .set({
-              availableSlots: Math.max(0, selectedSession.availableSlots - 1),
-              updatedAt: new Date().toISOString(),
-            })
-            .where(eq(practitionerScheduleSessions.id, selectedSession.id));
-        }
-      } else {
-        startTime = defaultStart;
-        endTime = defaultEnd;
-      }
-    }
+    // Room and doctor assignment are runtime resources (assigned at call, not at booking)
+    const scheduleSessionId: string | null = null;
+    const startTime = defaultStart;
+    const endTime = defaultEnd;
 
     const effectiveMedicalFlow =
       (clinicServiceRecord?.medicalFlow as any) ||
@@ -280,7 +141,7 @@ export class AppointmentCreationHandler {
           ? 'pregnancy'
           : null);
 
-    const targetUnitId = data.poliklinikId || room?.unitId;
+    const targetUnitId = data.poliklinikId;
     let unitPrefix: string | null = null;
     if (targetUnitId) {
       const unit = await db.query.clinicUnits.findFirst({
@@ -359,8 +220,8 @@ export class AppointmentCreationHandler {
     const [startH, startM] = (startTime || '08:00')
       .split(':')
       .map((v) => parseInt(v, 10));
-    const estimatedStart = new Date(`${data.appointmentDate}T00:00:00.000Z`);
-    estimatedStart.setUTCHours(
+    const baseStart = new Date(`${data.appointmentDate}T00:00:00.000Z`);
+    baseStart.setUTCHours(
       Number.isNaN(startH) ? 8 : startH,
       Number.isNaN(startM) ? 0 : startM,
       0,
@@ -368,7 +229,12 @@ export class AppointmentCreationHandler {
     );
 
     const consultationMinutes =
-      policy?.defaultConsultationDurationMinutes ?? 30;
+      policy?.defaultConsultationDurationMinutes ?? 20;
+    const queueOffsetMinutes =
+      Math.max(0, numericQueueNumber - 1) * consultationMinutes;
+    const estimatedStart = new Date(
+      baseStart.getTime() + queueOffsetMinutes * 60_000,
+    );
     const estimatedEnd = new Date(
       estimatedStart.getTime() + consultationMinutes * 60_000,
     );
@@ -381,10 +247,10 @@ export class AppointmentCreationHandler {
         practitionerId: practitionerId || null,
         scheduleSessionId: scheduleSessionId || null,
         serviceId: data.layananId,
-        roomId: room ? room.id : null,
+        roomId: null,
         visitType:
           data.visitType === 'Kontrol Ulang' ? 'follow_up' : 'new_visit',
-        status: 'booked',
+        status: DB_APPOINTMENT_STATUS.BOOKED,
         scheduledDate: data.appointmentDate,
         scheduledStartTime: startTime,
         scheduledEndTime: endTime,
@@ -407,10 +273,10 @@ export class AppointmentCreationHandler {
         sessionId: sessionId,
         patientId: data.patientId || null,
         doctorId: practitionerId || null,
-        roomId: room ? room.id : null,
+        roomId: null,
         queueDate: data.appointmentDate,
         queueNumber: formattedTicketNumber,
-        status: 'waiting',
+        status: QUEUE_TICKET_STATUS.WAITING,
         priority: 'regular',
         waitingPosition: numericQueueNumber,
         projectedStart: estimatedStart.toISOString(),
