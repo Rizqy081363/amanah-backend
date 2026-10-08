@@ -1,3 +1,4 @@
+import { ClinicConfigService } from '@common/clinic-config';
 import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import { clinicSchedulePolicies } from '@database/schema';
@@ -5,7 +6,7 @@ import {
   DEFAULT_CONSULTATION_DURATION_MINUTES,
   DEFAULT_START_PRECISION_MINUTES,
 } from '@modules/schedules/domain/constants/schedule.constants';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
 
 export interface EffectiveSchedulePolicy {
@@ -15,21 +16,50 @@ export interface EffectiveSchedulePolicy {
 
 @Injectable()
 export class SchedulePolicyReader {
+  private readonly clinicConfig?: ClinicConfigService;
+  private readonly db?: DrizzleDatabase;
+
   constructor(
+    @Optional()
+    clinicConfigOrDb?: ClinicConfigService | DrizzleDatabase,
+    @Optional()
     @Inject(DRIZZLE_SOURCE)
-    private readonly db: DrizzleDatabase,
-  ) {}
+    db?: DrizzleDatabase,
+  ) {
+    if (clinicConfigOrDb && 'getSchedulePolicy' in clinicConfigOrDb) {
+      this.clinicConfig = clinicConfigOrDb;
+      this.db = db;
+    } else {
+      this.db = (clinicConfigOrDb as DrizzleDatabase) ?? db;
+    }
+  }
 
   async getClinicSchedulePolicy(): Promise<EffectiveSchedulePolicy> {
-    const policy = await this.db.query?.clinicSchedulePolicies?.findFirst?.({
-      where: eq(clinicSchedulePolicies.code, 'default'),
-    });
+    if (this.clinicConfig) {
+      const policy = await this.clinicConfig.getSchedulePolicy();
+      return {
+        durationMinutes: policy.defaultConsultationDurationMinutes,
+        startPrecisionMinutes: policy.defaultStartPrecisionMinutes,
+      };
+    }
+    if (this.db?.query?.clinicSchedulePolicies?.findFirst) {
+      const policy = await this.db.query.clinicSchedulePolicies.findFirst({
+        where: eq(clinicSchedulePolicies.code, 'default'),
+      });
+      if (policy) {
+        return {
+          durationMinutes:
+            policy.defaultConsultationDurationMinutes ??
+            DEFAULT_CONSULTATION_DURATION_MINUTES,
+          startPrecisionMinutes:
+            policy.defaultStartPrecisionMinutes ??
+            DEFAULT_START_PRECISION_MINUTES,
+        };
+      }
+    }
     return {
-      durationMinutes:
-        policy?.defaultConsultationDurationMinutes ??
-        DEFAULT_CONSULTATION_DURATION_MINUTES,
-      startPrecisionMinutes:
-        policy?.defaultStartPrecisionMinutes ?? DEFAULT_START_PRECISION_MINUTES,
+      durationMinutes: DEFAULT_CONSULTATION_DURATION_MINUTES,
+      startPrecisionMinutes: DEFAULT_START_PRECISION_MINUTES,
     };
   }
 

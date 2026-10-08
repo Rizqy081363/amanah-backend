@@ -4,12 +4,12 @@ import {
   appointmentStatusEvents,
   appointments,
   clinicRooms,
-  clinicSchedulePolicies,
   practitionerScheduleSessions,
   practitioners,
 } from '@database/schema';
 import { Inject, Injectable } from '@nestjs/common';
 import { and, eq, inArray, not, sql } from 'drizzle-orm';
+import { ClinicConfigService } from '@common/clinic-config';
 import { RedisService } from '../../../../common/redis/redis.service';
 import { ACTIVE_APPOINTMENT_STATUSES } from '../../../schedules/domain/constants/schedule.constants';
 import {
@@ -38,6 +38,7 @@ export class AppointmentAssignmentService {
     private readonly db: DrizzleDatabase,
     private readonly redisService: RedisService,
     private readonly notificationPublisher: AppointmentNotificationPublisher,
+    private readonly clinicConfig: ClinicConfigService,
     @Inject('FIND_APPOINTMENT_BY_ID')
     private readonly findAppointmentById: (
       id: string,
@@ -139,10 +140,8 @@ export class AppointmentAssignmentService {
         // Create canonical schedule session on-the-fly for target doctor
         const sessionName = resolveSessionFromTime(apt.scheduledStartTime);
         const shift = SESSION_TO_SHIFT_MAP[sessionName] || 'morning';
-        const policy = await tx.query.clinicSchedulePolicies.findFirst({
-          where: eq(clinicSchedulePolicies.code, 'default'),
-        });
-        const duration = policy?.defaultConsultationDurationMinutes ?? 30;
+        const policy = await this.clinicConfig.getSchedulePolicy();
+        const duration = policy.defaultConsultationDurationMinutes;
 
         const effectiveRoomId = apt.roomId || targetDoc.defaultRoomId;
 

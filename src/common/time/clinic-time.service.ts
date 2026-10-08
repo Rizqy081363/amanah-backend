@@ -1,10 +1,7 @@
-import { BadRequestException, Inject, Injectable, Optional } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Temporal } from '@js-temporal/polyfill';
-import { eq } from 'drizzle-orm';
-import { DRIZZLE_SOURCE } from '../../database/drizzle/drizzle.constants';
-import { DrizzleDatabase } from '../../database/drizzle/drizzle.provider';
-import { clinicSchedulePolicies } from '../../database/schema';
+import { ClinicConfigService } from '../clinic-config/clinic-config.service';
 import { AllConfigType } from '../../config/config.type';
 import { Clock } from './clock';
 
@@ -30,9 +27,7 @@ export class ClinicTimeService {
   constructor(
     private readonly clock: Clock,
     private readonly config: ConfigService<AllConfigType, true>,
-    @Optional()
-    @Inject(DRIZZLE_SOURCE)
-    private readonly db?: DrizzleDatabase,
+    private readonly clinicConfig: ClinicConfigService,
   ) {
     this.timezone = this.config.getOrThrow('time.clinicTimezone', {
       infer: true,
@@ -40,16 +35,7 @@ export class ClinicTimeService {
   }
 
   async getOperationalHours(): Promise<string> {
-    if (!this.db?.query?.clinicSchedulePolicies?.findFirst) {
-      return '06:00 - 24:00';
-    }
-    const policy = await this.db.query.clinicSchedulePolicies.findFirst({
-      where: eq(clinicSchedulePolicies.code, 'default'),
-    });
-    if (!policy) {
-      return '06:00 - 24:00';
-    }
-    return `${policy.morningStart} - ${policy.nightEnd}`;
+    return this.clinicConfig.getOperationalHours();
   }
 
   today(): BusinessDate {

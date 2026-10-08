@@ -1,3 +1,4 @@
+import { ClinicConfigModule } from '@common/clinic-config';
 import { RedisModule } from '@common/redis/redis.module';
 import { SCHEDULE_REPOSITORY } from '@modules/schedules/domain/repositories/schedule.repository';
 import { AppointmentOccupationQuery } from '@modules/schedules/infrastructure/drizzle/queries/appointment-occupation.query';
@@ -28,7 +29,7 @@ import { SchedulesController } from '@modules/schedules/presentation/schedules.c
 import { Module } from '@nestjs/common';
 
 @Module({
-  imports: [RedisModule],
+  imports: [RedisModule, ClinicConfigModule],
   controllers: [
     PatientScheduleBookingController,
     SchedulesController,

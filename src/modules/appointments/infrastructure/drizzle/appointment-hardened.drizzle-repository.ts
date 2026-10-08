@@ -1,12 +1,13 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { and, asc, count, desc, eq, inArray, or, sql } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
   appointments,
-  clinicSchedulePolicies,
   queueTickets,
 } from '../../../../database/schema';
+import { ClinicConfigService } from '@common/clinic-config';
+import { TIME_CONSTANTS } from '../../domain/constants/appointment-check-in.config';
 import { CLINIC_POLICY_FALLBACK_CONFIG } from '../../../schedules/domain/constants/schedule.constants';
 import { SchedulePolicyReader } from '../../../schedules/infrastructure/drizzle/queries/schedule-policy.reader';
 import type {
@@ -38,38 +39,37 @@ import {
 export class AppointmentHardenedDrizzleRepository
   implements AppointmentRepositoryPort
 {
-  private cachedDurationMs: number | null = null;
+  private cachedDurationMinutes: number | null = null;
 
   constructor(
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,
+    @Optional()
+    private readonly clinicConfig?: ClinicConfigService,
     private readonly policyReader?: SchedulePolicyReader,
   ) {}
 
-  private async getPolicyDurationMs(): Promise<number> {
-    if (this.cachedDurationMs !== null) {
-      return this.cachedDurationMs;
+  private async getPolicyDurationMinutes(): Promise<number> {
+    if (this.cachedDurationMinutes !== null) {
+      return this.cachedDurationMinutes;
+    }
+    if (this.clinicConfig) {
+      try {
+        const policy = await this.clinicConfig.getSchedulePolicy();
+        this.cachedDurationMinutes = policy.defaultConsultationDurationMinutes;
+        return this.cachedDurationMinutes;
+      } catch (_) {}
     }
     if (this.policyReader) {
       try {
         const policy = await this.policyReader.getClinicSchedulePolicy();
-        this.cachedDurationMs = policy.durationMinutes * 60_000;
-        return this.cachedDurationMs;
+        this.cachedDurationMinutes = policy.durationMinutes;
+        return this.cachedDurationMinutes;
       } catch (_) {}
     }
-    try {
-      const policy = await this.db.query.clinicSchedulePolicies.findFirst({
-        where: eq(clinicSchedulePolicies.code, 'default'),
-      });
-      if (policy?.defaultConsultationDurationMinutes) {
-        this.cachedDurationMs =
-          policy.defaultConsultationDurationMinutes * 60_000;
-        return this.cachedDurationMs;
-      }
-    } catch (_) {}
-    this.cachedDurationMs =
-      CLINIC_POLICY_FALLBACK_CONFIG.consultationDurationMinutes * 60_000;
-    return this.cachedDurationMs;
+    this.cachedDurationMinutes =
+      CLINIC_POLICY_FALLBACK_CONFIG.consultationDurationMinutes;
+    return this.cachedDurationMinutes;
   }
 
   async findById(id: string): Promise<AppointmentRecord | null> {
@@ -92,8 +92,8 @@ export class AppointmentHardenedDrizzleRepository
     });
 
     if (!row) return null;
-    const durationMs = await this.getPolicyDurationMs();
-    return this.mapToRecord(row, durationMs);
+    const durationMinutes = await this.getPolicyDurationMinutes();
+    return this.mapToRecord(row, durationMinutes);
   }
 
   async getNextQueueNumber(
@@ -399,16 +399,16 @@ export class AppointmentHardenedDrizzleRepository
       },
     });
 
-    const durationMs = await this.getPolicyDurationMs();
+    const durationMinutes = await this.getPolicyDurationMinutes();
     return {
-      items: rows.map((r) => this.mapToRecord(r, durationMs)),
+      items: rows.map((r) => this.mapToRecord(r, durationMinutes)),
       total: Number(countResult?.total || 0),
     };
   }
 
   private mapToRecord(
     apt: any,
-    fallbackDurationMs?: number,
+    fallbackDurationMinutes?: number,
   ): AppointmentRecord {
     const status = toDomainStatus(apt.status);
     const queueNumber = Number(
@@ -417,13 +417,16 @@ export class AppointmentHardenedDrizzleRepository
     const estimatedStartAt = apt.estimatedStartAt
       ? new Date(apt.estimatedStartAt)
       : new Date(apt.createdAt);
-    const durationMs =
-      fallbackDurationMs ??
-      this.cachedDurationMs ??
-      CLINIC_POLICY_FALLBACK_CONFIG.consultationDurationMinutes * 60_000;
+    const durationMinutes =
+      fallbackDurationMinutes ??
+      this.cachedDurationMinutes ??
+      CLINIC_POLICY_FALLBACK_CONFIG.consultationDurationMinutes;
     const estimatedEndAt = apt.estimatedEndAt
       ? new Date(apt.estimatedEndAt)
-      : new Date(estimatedStartAt.getTime() + durationMs);
+      : new Date(
+          estimatedStartAt.getTime() +
+            durationMinutes * TIME_CONSTANTS.MILLISECONDS_PER_MINUTE,
+        );
 
     const primaryAffiliation = apt.patientProfile?.patientAffiliations?.[0];
     const isAffiliated =

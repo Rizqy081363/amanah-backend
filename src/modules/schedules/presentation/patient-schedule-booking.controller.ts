@@ -21,10 +21,10 @@ import { DrizzleDatabase } from '../../../database/drizzle/drizzle.provider';
 import {
   appointments,
   clinicRooms,
-  clinicSchedulePolicies,
   clinicUnits,
   practitionerScheduleSessions,
 } from '../../../database/schema';
+import { ClinicConfigService } from '@common/clinic-config';
 import {
   CANONICAL_STAFF_SHIFTS,
   type CanonicalSessionName,
@@ -66,6 +66,7 @@ export class PatientScheduleBookingController {
   constructor(
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,
+    private readonly clinicConfig: ClinicConfigService,
   ) {}
 
   @Get('booking-options')
@@ -101,10 +102,8 @@ export class PatientScheduleBookingController {
     const dayOfWeek = targetDate.getUTCDay();
     const dayName = INDONESIAN_DAY_NAMES[dayOfWeek];
 
-    const policy = await this.db.query.clinicSchedulePolicies.findFirst({
-      where: eq(clinicSchedulePolicies.code, 'default'),
-    });
-    const estimatedDuration = policy?.defaultConsultationDurationMinutes ?? 30;
+    const policy = await this.clinicConfig.getSchedulePolicy();
+    const estimatedDuration = policy.defaultConsultationDurationMinutes;
 
     let unitName: string | null = null;
     let unitRooms: Array<typeof clinicRooms.$inferSelect> = [];

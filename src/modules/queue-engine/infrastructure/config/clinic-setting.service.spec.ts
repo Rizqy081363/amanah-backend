@@ -1,8 +1,10 @@
 import { MissingConfigKeyError } from '../../domain/services/clinic-setting.reader';
+import { ClinicConfigService } from '../../../../common/clinic-config/clinic-config.service';
 import { ClinicSettingService } from './clinic-setting.service';
 
 describe('ClinicSettingService', () => {
   let service: ClinicSettingService;
+  let clinicConfigService: ClinicConfigService;
   let mockDb: any;
 
   const mockRows = [
@@ -40,10 +42,16 @@ describe('ClinicSettingService', () => {
 
   beforeEach(() => {
     mockDb = {
-      select: jest.fn().mockReturnThis(),
-      from: jest.fn().mockResolvedValue(mockRows),
+      select: jest.fn().mockReturnValue({
+        from: jest.fn().mockResolvedValue(mockRows),
+      }),
+      query: {
+        clinicSchedulePolicies: { findFirst: jest.fn().mockResolvedValue(null) },
+        clinicProfiles: { findFirst: jest.fn().mockResolvedValue(null) },
+      },
     };
-    service = new ClinicSettingService(mockDb);
+    clinicConfigService = new ClinicConfigService(mockDb);
+    service = new ClinicSettingService(clinicConfigService);
   });
 
   it('should return global setting when no scope is provided', async () => {

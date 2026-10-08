@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { and, count, desc, eq, inArray, lt, or } from 'drizzle-orm';
 import { decodeCursor, encodeCursor } from '../../../../common/pagination';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
@@ -20,6 +20,7 @@ import {
   AppointmentRepository,
 } from '../../domain/repositories/appointment.repository';
 import { AppointmentPolicyReader } from '../../domain/services/appointment-policy.reader';
+import { ClinicConfigService } from '@common/clinic-config';
 import { AdminUpdateAppointmentStatusDto } from '../../presentation/dto/admin-update-appointment-status.dto';
 import { CancelAppointmentDto } from '../../presentation/dto/cancel-appointment.dto';
 import { RescheduleAppointmentDto } from '../../presentation/dto/reschedule-appointment.dto';
@@ -43,10 +44,17 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
   constructor(
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,
+    @Optional()
+    private readonly clinicConfig?: ClinicConfigService,
     private readonly policyReader?: AppointmentPolicyReader,
   ) {}
 
   private async getWindowHours(): Promise<number | undefined> {
+    if (this.clinicConfig) {
+      try {
+        return await this.clinicConfig.getCheckInWindowHours();
+      } catch (_) {}
+    }
     if (this.policyReader) {
       try {
         return await this.policyReader.getCheckInWindowHours();
@@ -98,8 +106,11 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
   async create(
     data: Omit<AppointmentEntity, 'id' | 'createdAt' | 'updatedAt'>,
   ): Promise<AppointmentEntity> {
-    return AppointmentCreationHandler.create(this.db, data, (id) =>
-      this.findById(id),
+    return AppointmentCreationHandler.create(
+      this.db,
+      data,
+      (id) => this.findById(id),
+      this.clinicConfig,
     );
   }
 

@@ -1,16 +1,11 @@
+import { MissingConfigKeyError } from '@common/clinic-config';
+
 export interface ScopeQuery {
   doctorId?: string;
   categoryId?: string;
 }
 
-export class MissingConfigKeyError extends Error {
-  constructor(public readonly key: string) {
-    super(
-      `Missing required configuration key: '${key}'. All clinic settings must be defined in database table clinic_setting.`,
-    );
-    this.name = 'MissingConfigKeyError';
-  }
-}
+export { MissingConfigKeyError };
 
 export interface IClinicSettingReader {
   get<T = any>(key: string, scope?: ScopeQuery): Promise<T>;

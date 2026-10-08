@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ClinicConfigModule } from '../../common/clinic-config/clinic-config.module';
 import { DrizzleModule } from '../../database/drizzle/drizzle.module';
 import { SchedulePolicyReader } from '../schedules/infrastructure/drizzle/queries/schedule-policy.reader';
 import { AppointmentCallLifecycleService } from './application/appointment-call-lifecycle.service';
@@ -40,7 +41,7 @@ import { AppointmentDomainExceptionFilter } from './presentation/filters/appoint
 import { PatientAppointmentHistoryController } from './presentation/patient-appointment-history.controller';
 
 @Module({
-  imports: [DrizzleModule],
+  imports: [DrizzleModule, ClinicConfigModule],
   controllers: [
     AppointmentsController,
     AdminAppointmentsController,

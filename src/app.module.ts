@@ -9,6 +9,7 @@ import { CorrelationIdMiddleware } from './common/middleware/correlation-id.midd
 import { OutboxModule } from './common/outbox/outbox.module';
 import { RabbitMQModule } from './common/rabbitmq/rabbitmq.module';
 import { RedisModule } from './common/redis/redis.module';
+import { ClinicConfigModule } from './common/clinic-config/clinic-config.module';
 import { ClinicTimeModule } from './common/time/clinic-time.module';
 import appConfig from './config/app.config';
 import realtimeConfig from './config/realtime.config';
@@ -54,6 +55,7 @@ import { QueueEngineModule } from './modules/queue-engine/queue-engine.module';
       verboseMemoryLeak: true,
     }),
     DrizzleModule,
+    ClinicConfigModule,
     RedisModule,
     RabbitMQModule,
     ClinicTimeModule,

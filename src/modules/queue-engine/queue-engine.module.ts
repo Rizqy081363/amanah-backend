@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ClinicConfigModule } from '../../common/clinic-config/clinic-config.module';
 import { CalendarService } from './domain/services/calendar.service';
 import { ClinicSettingService } from './infrastructure/config/clinic-setting.service';
 import { ClosureEngineService } from './domain/services/closure-engine.service';
@@ -14,6 +15,7 @@ import { V2AdminQueueController } from './presentation/controllers/v2-admin-queu
 export const QUEUE_ENGINE_REPOSITORY = 'QUEUE_ENGINE_REPOSITORY';
 
 @Module({
+  imports: [ClinicConfigModule],
   controllers: [
     V2CatalogController,
     V2TicketsController,

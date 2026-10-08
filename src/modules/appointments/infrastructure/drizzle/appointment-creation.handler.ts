@@ -19,6 +19,7 @@ import {
   ScheduleShiftRegistry,
   SHIFT_TIMING_CONFIGS,
 } from '../../../schedules/domain/constants/schedule-shift.constants';
+import { ClinicConfigService } from '@common/clinic-config';
 import { AppointmentEntity } from '../../domain/entities/appointment.entity';
 import { AppointmentRecordMapper } from './appointment-record.mapper';
 import { allocateAppointmentTiming } from './appointment-timing.helper';
@@ -28,6 +29,7 @@ export class AppointmentCreationHandler {
     db: DrizzleDatabase,
     data: Omit<AppointmentEntity, 'id' | 'createdAt' | 'updatedAt'>,
     findById: (id: string) => Promise<AppointmentEntity | null>,
+    clinicConfig?: ClinicConfigService,
   ): Promise<AppointmentEntity> {
     const bookingCode = `BOOK-${Date.now().toString(36).toUpperCase()}-${Math.floor(
       Math.random() * 1000,
@@ -35,9 +37,11 @@ export class AppointmentCreationHandler {
 
     const targetShift = ScheduleShiftRegistry.resolve(data.session).shift;
 
-    const policy = await db.query.clinicSchedulePolicies.findFirst({
-      where: eq(clinicSchedulePolicies.code, 'default'),
-    });
+    const policy = clinicConfig
+      ? await clinicConfig.getSchedulePolicy()
+      : await db.query.clinicSchedulePolicies.findFirst({
+          where: eq(clinicSchedulePolicies.code, 'default'),
+        });
 
     const shiftConfig =
       SHIFT_TIMING_CONFIGS[targetShift] || SHIFT_TIMING_CONFIGS.morning;

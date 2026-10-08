@@ -34,6 +34,7 @@ import { EstimatorService } from '../../domain/services/estimator.service';
 import { QueueEngineService } from '../../domain/services/queue-engine.service';
 import { SimulatorService } from '../../domain/services/simulator.service';
 import { ClinicSettingService } from '../../infrastructure/config/clinic-setting.service';
+import { ClinicConfigService } from '@common/clinic-config';
 import { DrizzleQueueEngineRepository } from '../../infrastructure/drizzle/drizzle-queue-engine.repository';
 import {
   CreateQueueTicketDto,
@@ -50,6 +51,7 @@ export class V2TicketsController {
     private readonly estimator: EstimatorService,
     private readonly simulator: SimulatorService,
     private readonly clinicSetting: ClinicSettingService,
+    private readonly clinicConfig: ClinicConfigService,
   ) {}
 
   @Post()
@@ -91,23 +93,16 @@ export class V2TicketsController {
         categoryId: dto.categoryId,
       });
 
-    const priorMinutes = await this.clinicSetting.get<number>(
-      QUEUE_CONFIG_KEYS.PRIOR_MINUTES,
-      {
-        categoryId: dto.categoryId,
-      },
-    );
-    const priorWeight = await this.clinicSetting.get<number>(
-      QUEUE_CONFIG_KEYS.PRIOR_WEIGHT,
-      {
-        categoryId: dto.categoryId,
-      },
-    );
+    const priors = await this.clinicConfig.getDurationPriors({
+      categoryId: dto.categoryId,
+    });
 
     const avgDuration = this.estimator.estimateDuration({
       durationsMinutes: recentDurations,
-      priorMinutes,
-      priorWeight,
+      priorMinutes: priors.priorMinutes,
+      priorWeight: priors.priorWeight,
+      minMinutes: priors.minMinutes,
+      maxMinutes: priors.maxMinutes,
     });
 
     // 3. Multi-lane ETA simulation
