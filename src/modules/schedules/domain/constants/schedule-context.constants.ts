@@ -1,7 +1,7 @@
 import {
   SHIFT_DEFINITIONS,
   type ShiftDefinition,
-} from '../factories/schedule-slot.factory';
+} from '../factories/schedule-session.factory';
 
 export type ScheduleContextDefinition = ShiftDefinition;
 

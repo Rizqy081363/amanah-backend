@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'bun:test';
-import { planSlot } from './appointment-slot.planner';
+import { planAppointmentTiming } from './appointment-timing.planner';
 
-describe('planSlot', () => {
-  it('should plan first slot at day start', () => {
+describe('planAppointmentTiming', () => {
+  it('should plan first ticket timing at session start', () => {
     const dayStart = new Date('2026-10-06T08:00:00.000Z');
-    const result = planSlot({
+    const result = planAppointmentTiming({
       dayStart,
       queueNumber: 1,
-      slotMinutes: 30,
+      durationMinutes: 30,
     });
 
     expect(result.estimatedStartAt.toISOString()).toBe(
@@ -18,12 +18,12 @@ describe('planSlot', () => {
     );
   });
 
-  it('should plan second slot offset by slot duration', () => {
+  it('should plan second ticket offset by consultation duration', () => {
     const dayStart = new Date('2026-10-06T08:00:00.000Z');
-    const result = planSlot({
+    const result = planAppointmentTiming({
       dayStart,
       queueNumber: 2,
-      slotMinutes: 30,
+      durationMinutes: 30,
     });
 
     expect(result.estimatedStartAt.toISOString()).toBe(
@@ -34,12 +34,12 @@ describe('planSlot', () => {
     );
   });
 
-  it('should handle custom slot durations', () => {
+  it('should handle custom consultation durations', () => {
     const dayStart = new Date('2026-10-06T09:00:00.000Z');
-    const result = planSlot({
+    const result = planAppointmentTiming({
       dayStart,
       queueNumber: 3,
-      slotMinutes: 20,
+      durationMinutes: 20,
     });
 
     expect(result.estimatedStartAt.toISOString()).toBe(

@@ -1,5 +1,6 @@
 import { TimeInterval } from '../types/calendar.types';
 import { DomainQueueTicket } from '../types/queue.types';
+import { QUEUE_TICKET_STATUS } from '../constants/queue-engine.constants';
 import { CalendarService } from './calendar.service';
 
 export interface ClosureImpactEvaluation {
@@ -37,12 +38,15 @@ export class ClosureEngineService {
 
     for (const ticket of tickets) {
       // 1. In-service tickets are NEVER interrupted (Rule 3.2 in penutupan-hari-sesi-jam.md)
-      if (ticket.status === 'in_service') {
+      if (ticket.status === QUEUE_TICKET_STATUS.IN_SERVICE) {
         inServiceUntouched.push(ticket);
         continue;
       }
 
-      if (ticket.status === 'waiting' || ticket.status === 'called') {
+      if (
+        ticket.status === QUEUE_TICKET_STATUS.WAITING ||
+        ticket.status === QUEUE_TICKET_STATUS.CALLED
+      ) {
         const ticketStartMs = ticket.projectedStart
           ? ticket.projectedStart.getTime()
           : closureStartMs;

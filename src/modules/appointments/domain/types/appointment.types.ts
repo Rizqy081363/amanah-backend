@@ -93,16 +93,26 @@ export function resolveAllowedActions(
   }
 }
 
-export interface AppointmentSlotInput {
+export interface AppointmentTimingInput {
   dayStart: Date;
   queueNumber: number;
-  slotMinutes: number;
+  durationMinutes: number;
 }
 
-export interface PlannedSlot {
+export interface EstimatedTiming {
   estimatedStartAt: Date;
   estimatedEndAt: Date;
 }
+
+/** @deprecated Use AppointmentTimingInput */
+export type AppointmentSlotInput = {
+  dayStart: Date;
+  queueNumber: number;
+  slotMinutes?: number;
+  durationMinutes?: number;
+};
+/** @deprecated Use EstimatedTiming */
+export type PlannedSlot = EstimatedTiming;
 
 export interface AppointmentRecord {
   id: string;

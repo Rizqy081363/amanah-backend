@@ -17,7 +17,7 @@ import {
   type ScheduleEntity,
   type ScheduleProjectionEntity,
 } from '@modules/schedules/domain/entities/schedule.entity';
-import { ScheduleSlotFactory } from '@modules/schedules/domain/factories/schedule-slot.factory';
+import { ScheduleSessionFactory } from '@modules/schedules/domain/factories/schedule-session.factory';
 import {
   parseClockTime,
   projectScheduleIntervals,
@@ -184,7 +184,7 @@ export class DrizzleScheduleAvailabilityRepository {
 
     const fillShift = query.fillShift === true;
 
-    const timing = ScheduleSlotFactory.calculateSessionTiming(
+    const timing = ScheduleSessionFactory.calculateSessionTiming(
       context,
       query.startTime,
       policy,
@@ -227,7 +227,7 @@ export class DrizzleScheduleAvailabilityRepository {
     const context = ScheduleContextResolver.resolve(body.scheduleContextId);
     const policy = await this.policyReader.getPolicy(practitioner);
 
-    const timing = ScheduleSlotFactory.calculateSessionTiming(
+    const timing = ScheduleSessionFactory.calculateSessionTiming(
       context,
       body.startTime,
       policy,

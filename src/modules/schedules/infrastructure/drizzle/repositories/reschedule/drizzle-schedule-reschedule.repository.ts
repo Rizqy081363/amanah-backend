@@ -12,7 +12,7 @@ import { type NotificationPublisher } from '@modules/notifications/contracts/dom
 import { NOTIFICATION_PUBLISHER } from '@modules/notifications/notifications.constants';
 import { ACTIVE_APPOINTMENT_STATUSES } from '@modules/schedules/domain/constants/schedule.constants';
 import type { RescheduleEligibilityEntity } from '@modules/schedules/domain/entities/schedule.entity';
-import { ScheduleSlotFactory } from '@modules/schedules/domain/factories/schedule-slot.factory';
+import { ScheduleSessionFactory } from '@modules/schedules/domain/factories/schedule-session.factory';
 import {
   formatClockTime,
   parseClockTime,
@@ -130,7 +130,7 @@ export class DrizzleScheduleRescheduleRepository {
 
     let targetContextId = body.targetScheduleContextId;
     if (!targetContextId) {
-      targetContextId = ScheduleSlotFactory.resolveShiftFromClockTime(
+      targetContextId = ScheduleSessionFactory.resolveShiftFromClockTime(
         body.targetStartTime,
       ).contextId;
     }
@@ -167,7 +167,7 @@ export class DrizzleScheduleRescheduleRepository {
       ? sourceSlotStartMin + durationMinutes
       : sessEndMin;
 
-    const timing = ScheduleSlotFactory.calculateSessionTiming(
+    const timing = ScheduleSessionFactory.calculateSessionTiming(
       context,
       body.targetStartTime,
       { durationMinutes },

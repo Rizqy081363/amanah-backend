@@ -21,7 +21,7 @@ import {
 } from '../../../schedules/domain/constants/schedule-shift.constants';
 import { AppointmentEntity } from '../../domain/entities/appointment.entity';
 import { AppointmentRecordMapper } from './appointment-record.mapper';
-import { allocateSlotTiming } from './appointment-slot.helper';
+import { allocateAppointmentTiming } from './appointment-timing.helper';
 
 export class AppointmentCreationHandler {
   static async create(
@@ -179,8 +179,7 @@ export class AppointmentCreationHandler {
       });
 
       let matchedSession: (typeof allCandidateSessions)[number] | undefined;
-      let matchedSlotTiming: { startTime: string; endTime: string } | null =
-        null;
+      let matchedTiming: { startTime: string; endTime: string } | null = null;
       let matchedRoom = room;
 
       for (const candidate of candidateSessions) {
@@ -227,7 +226,7 @@ export class AppointmentCreationHandler {
           .filter((a) => a.scheduledStartTime)
           .map((a) => a.scheduledStartTime as string);
 
-        const slotTiming = allocateSlotTiming(
+        const sessionTiming = allocateAppointmentTiming(
           candidate.startTime,
           candidate.endTime,
           existingTimes,
@@ -235,9 +234,9 @@ export class AppointmentCreationHandler {
           data.appointmentDate,
         );
 
-        if (slotTiming) {
+        if (sessionTiming) {
           matchedSession = candidate;
-          matchedSlotTiming = slotTiming;
+          matchedTiming = sessionTiming;
           matchedRoom = candidateRoom;
           practitionerId = targetPracId;
           break;
@@ -247,8 +246,8 @@ export class AppointmentCreationHandler {
       const selectedSession = matchedSession || candidateSessions[0];
       if (selectedSession) {
         scheduleSessionId = selectedSession.id;
-        startTime = matchedSlotTiming?.startTime || selectedSession.startTime;
-        endTime = matchedSlotTiming?.endTime || selectedSession.endTime;
+        startTime = matchedTiming?.startTime || selectedSession.startTime;
+        endTime = matchedTiming?.endTime || selectedSession.endTime;
         if (matchedRoom || selectedSession.clinicRoom) {
           room = (matchedRoom || selectedSession.clinicRoom) ?? undefined;
         }

@@ -20,7 +20,6 @@ import type {
   ScheduleOptionsReferenceEntity,
   ScheduleProjectionEntity,
 } from '@modules/schedules/domain/entities/schedule.entity';
-import type { ScheduleSlotAvailabilityData } from '@modules/schedules/domain/entities/schedule-bootstrap.entity';
 import type { ScheduleRepository } from '@modules/schedules/domain/repositories/schedule.repository';
 import type { AdminDoctorScheduleDetailQueryDto } from '@modules/schedules/presentation/dto/admin-doctor-schedule-detail-query.dto';
 import type { AdminDoctorSchedulesQueryDto } from '@modules/schedules/presentation/dto/admin-doctor-schedules-query.dto';
@@ -33,7 +32,6 @@ import type { GetSessionPatientsQueryDto } from '@modules/schedules/presentation
 import type { RescheduleAdminDoctorSessionDto } from '@modules/schedules/presentation/dto/reschedule-admin-doctor-session.dto';
 import type { ScheduleOccupancyQueryDto } from '@modules/schedules/presentation/dto/schedule-occupancy-query.dto';
 import type { ScheduleProjectionQueryDto } from '@modules/schedules/presentation/dto/schedule-projection-query.dto';
-import type { ScheduleSlotAvailabilityQueryDto } from '@modules/schedules/presentation/dto/schedule-slot-availability-query.dto';
 import type { UpdateAdminDoctorScheduleDto } from '@modules/schedules/presentation/dto/update-admin-doctor-schedule.dto';
 import type { UpdateAdminDoctorSessionDto } from '@modules/schedules/presentation/dto/update-admin-doctor-session.dto';
 import type { UpdatePractitionerSchedulePolicyDto } from '@modules/schedules/presentation/dto/update-practitioner-schedule-policy.dto';
@@ -47,7 +45,6 @@ import {
   DrizzleAdminScheduleMutationRepository,
   DrizzleClinicalPractitionerRepository,
   DrizzleScheduleAvailabilityRepository,
-  DrizzleScheduleBootstrapRepository,
   DrizzleScheduleDayRepository,
   DrizzleScheduleOccupancyRepository,
   DrizzleSchedulePatientRepository,
@@ -68,7 +65,6 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
   private readonly rescheduleRepo: DrizzleScheduleRescheduleRepository;
   private readonly patientRepo: DrizzleSchedulePatientRepository;
   private readonly clinicalPractitionerRepo: DrizzleClinicalPractitionerRepository;
-  private readonly bootstrapRepo: DrizzleScheduleBootstrapRepository;
   private readonly adminListQuery: DrizzleAdminDoctorScheduleListQuery;
   private readonly adminDetailQuery: DrizzleAdminDoctorScheduleDetailQuery;
   private readonly adminMutationRepo: DrizzleAdminScheduleMutationRepository;
@@ -90,7 +86,6 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
     @Optional() refRepo?: DrizzleScheduleReferenceRepository,
     @Optional() availabilityRepo?: DrizzleScheduleAvailabilityRepository,
     @Optional() occupancyRepo?: DrizzleScheduleOccupancyRepository,
-    @Optional() bootstrapRepo?: DrizzleScheduleBootstrapRepository,
     @Optional() patientRepo?: DrizzleSchedulePatientRepository,
     @Optional()
     clinicalPractitionerRepo?: DrizzleClinicalPractitionerRepository,
@@ -130,13 +125,6 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
     this.occupancyRepo =
       occupancyRepo ??
       new DrizzleScheduleOccupancyRepository(
-        db,
-        resolvedPractitioner,
-        resolvedPolicy,
-      );
-    this.bootstrapRepo =
-      bootstrapRepo ??
-      new DrizzleScheduleBootstrapRepository(
         db,
         resolvedPractitioner,
         resolvedPolicy,
@@ -347,13 +335,6 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
     return this.occupancyRepo.getOccupancyOverview(staffId, query);
   }
 
-  // Slot Availability (SSOT Anti-Collision Grid)
-  getSlotAvailability(
-    staffId: string,
-    query: ScheduleSlotAvailabilityQueryDto,
-  ): Promise<ScheduleSlotAvailabilityData> {
-    return this.bootstrapRepo.getSlotAvailability(staffId, query);
-  }
 
   // Patients
   getBookedPatients(

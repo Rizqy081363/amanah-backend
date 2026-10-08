@@ -9,7 +9,6 @@ import { GetSessionPatientsQueryDto } from '@modules/schedules/presentation/dto/
 import { RescheduleAdminDoctorSessionDto } from '@modules/schedules/presentation/dto/reschedule-admin-doctor-session.dto';
 import { ScheduleOccupancyQueryDto } from '@modules/schedules/presentation/dto/schedule-occupancy-query.dto';
 import { ScheduleProjectionQueryDto } from '@modules/schedules/presentation/dto/schedule-projection-query.dto';
-import { ScheduleSlotAvailabilityQueryDto } from '@modules/schedules/presentation/dto/schedule-slot-availability-query.dto';
 import { UpdateAdminDoctorScheduleDto } from '@modules/schedules/presentation/dto/update-admin-doctor-schedule.dto';
 import { UpdateAdminDoctorSessionDto } from '@modules/schedules/presentation/dto/update-admin-doctor-session.dto';
 import { UpdatePractitionerSchedulePolicyDto } from '@modules/schedules/presentation/dto/update-practitioner-schedule-policy.dto';
@@ -31,7 +30,6 @@ import {
   ScheduleOptionsReferenceEntity,
   ScheduleProjectionEntity,
 } from '../entities/schedule.entity';
-import type { ScheduleSlotAvailabilityData } from '../entities/schedule-bootstrap.entity';
 
 export const SCHEDULE_REPOSITORY = 'SCHEDULE_REPOSITORY';
 export const ScheduleRepository = Symbol('ScheduleRepository');
@@ -130,10 +128,6 @@ export interface ScheduleRepository {
     staffId: string,
     query: ScheduleOccupancyQueryDto,
   ): Promise<ScheduleOccupancyOverviewData>;
-  getSlotAvailability(
-    staffId: string,
-    query: ScheduleSlotAvailabilityQueryDto,
-  ): Promise<ScheduleSlotAvailabilityData>;
 
   // Admin & Patient Domain methods (BE-SCHED-001)
   findAdminDoctorSchedules(

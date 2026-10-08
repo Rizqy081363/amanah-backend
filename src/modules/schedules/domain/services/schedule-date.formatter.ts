@@ -37,16 +37,8 @@ function formatClock(minutes: number): string {
   return `${h}:${m}`;
 }
 
-function formatSessionSlot(
-  session: AdminDoctorDailySession,
-  slotDurationMinutes: number,
-): string {
-  const startMin = toMinutes(session.jam_mulai);
-  const endMin = Math.min(
-    startMin + slotDurationMinutes,
-    toMinutes(session.jam_selesai),
-  );
-  return `${session.nama_sesi} (${formatClock(startMin)} - ${formatClock(endMin)})`;
+function formatSessionTiming(session: AdminDoctorDailySession): string {
+  return `${session.nama_sesi} (${session.jam_mulai} - ${session.jam_selesai})`;
 }
 
 export function getNextDate(dateStr: string): string {
@@ -55,7 +47,6 @@ export function getNextDate(dateStr: string): string {
 
 function resolveTomorrowSchedule(
   tomorrowSesiHarian: AdminDoctorDailySession[] | null | undefined,
-  slotDurationMinutes: number,
 ): string {
   if (!tomorrowSesiHarian || tomorrowSesiHarian.length === 0) {
     return 'Selesai';
@@ -67,7 +58,7 @@ function resolveTomorrowSchedule(
   if (openTomorrow.length === 0) {
     return 'Selesai';
   }
-  return `Besok, ${formatSessionSlot(openTomorrow[0], slotDurationMinutes)}`;
+  return `Besok, ${formatSessionTiming(openTomorrow[0])}`;
 }
 
 export function computeUpcomingSchedule(
@@ -75,7 +66,7 @@ export function computeUpcomingSchedule(
   todayStr: string,
   sesiHarian: AdminDoctorDailySession[],
   isCuti: boolean,
-  slotDurationMinutes: number,
+  _durationMinutes?: number,
   tomorrowSesiHarian?: AdminDoctorDailySession[] | null,
   refDate?: Date,
 ): string {
@@ -88,7 +79,7 @@ export function computeUpcomingSchedule(
   if (openSessions.length === 0) return 'Praktik Ditutup';
 
   if (targetDate > todayStr) {
-    return formatSessionSlot(openSessions[0], slotDurationMinutes);
+    return formatSessionTiming(openSessions[0]);
   }
 
   if (targetDate < todayStr) {
@@ -105,27 +96,7 @@ export function computeUpcomingSchedule(
 
   if (activeIndex !== -1) {
     const activeSession = openSessions[activeIndex];
-    const startM = toMinutes(activeSession.jam_mulai);
-    const endM = toMinutes(activeSession.jam_selesai);
-    const currentSlotIndex = Math.floor(
-      (currentMinutes - startM) / slotDurationMinutes,
-    );
-    const nextSlotStartMin =
-      startM + (currentSlotIndex + 1) * slotDurationMinutes;
-
-    if (nextSlotStartMin < endM) {
-      const nextSlotEndMin = Math.min(
-        nextSlotStartMin + slotDurationMinutes,
-        endM,
-      );
-      return `${activeSession.nama_sesi} (${formatClock(nextSlotStartMin)} - ${formatClock(nextSlotEndMin)})`;
-    }
-
-    const nextSession = openSessions[activeIndex + 1];
-    if (nextSession) {
-      return formatSessionSlot(nextSession, slotDurationMinutes);
-    }
-    return resolveTomorrowSchedule(tomorrowSesiHarian, slotDurationMinutes);
+    return formatSessionTiming(activeSession);
   }
 
   const upcomingSession = openSessions.find(
@@ -133,10 +104,10 @@ export function computeUpcomingSchedule(
   );
 
   if (upcomingSession) {
-    return formatSessionSlot(upcomingSession, slotDurationMinutes);
+    return formatSessionTiming(upcomingSession);
   }
 
-  return resolveTomorrowSchedule(tomorrowSesiHarian, slotDurationMinutes);
+  return resolveTomorrowSchedule(tomorrowSesiHarian);
 }
 
 export function getClinicNow(

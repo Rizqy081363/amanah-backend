@@ -18,7 +18,7 @@ import {
 } from '../../../../database/schema';
 import { AppointmentEntity } from '../../domain/entities/appointment.entity';
 import { RescheduleAppointmentDto } from '../../presentation/dto/reschedule-appointment.dto';
-import { allocateSlotTiming } from './appointment-slot.helper';
+import { allocateAppointmentTiming } from './appointment-timing.helper';
 import {
   DEFAULT_FALLBACK_CAPACITY,
   resolveQueueLoadStatus,
@@ -150,7 +150,7 @@ export class AppointmentRescheduleHandler {
         nowIso,
       );
 
-      const slotTiming = await allocateRescheduledSlotTiming(
+      const sessionTiming = await allocateRescheduledTiming(
         tx,
         apt,
         targetSession,
@@ -163,7 +163,7 @@ export class AppointmentRescheduleHandler {
         apt,
         targetSession,
         targetDate,
-        slotTiming,
+        sessionTiming,
         userId,
         nowIso,
       );
@@ -312,7 +312,7 @@ async function transferSessionCapacity(
   }
 }
 
-async function allocateRescheduledSlotTiming(
+async function allocateRescheduledTiming(
   tx: DrizzleDatabase,
   currentApt: typeof appointments.$inferSelect,
   targetSession: typeof practitionerScheduleSessions.$inferSelect,
@@ -337,9 +337,9 @@ async function allocateRescheduledSlotTiming(
     .map((a) => a.scheduledStartTime as string);
 
   // When the patient reschedules within the same session on the same date,
-  // their current slot is freed but must not be immediately re-assigned to
-  // them. Add their own slot to the occupied set so the allocator advances
-  // to the next genuinely free slot.
+  // their current timing is freed but must not be immediately re-assigned to
+  // them. Add their own timing to the occupied set so the allocator advances
+  // to the next genuinely free timing.
   const isSameSession =
     currentApt.scheduleSessionId === targetSession.id &&
     currentApt.scheduledDate === targetDate;
@@ -349,7 +349,7 @@ async function allocateRescheduledSlotTiming(
       ? [...otherApptTimes, currentApt.scheduledStartTime]
       : otherApptTimes;
 
-  const slotTiming = allocateSlotTiming(
+  const sessionTiming = allocateAppointmentTiming(
     targetSession.startTime,
     targetSession.endTime,
     existingTimes,
@@ -357,8 +357,8 @@ async function allocateRescheduledSlotTiming(
     targetDate,
   );
 
-  if (slotTiming) {
-    return slotTiming;
+  if (sessionTiming) {
+    return sessionTiming;
   }
 
   return {
@@ -372,7 +372,7 @@ async function persistRescheduledAppointment(
   apt: typeof appointments.$inferSelect,
   targetSession: typeof practitionerScheduleSessions.$inferSelect,
   targetDate: string,
-  slotTiming: { startTime: string; endTime: string },
+  sessionTiming: { startTime: string; endTime: string },
   userId: string,
   nowIso: string,
 ): Promise<void> {
@@ -382,8 +382,8 @@ async function persistRescheduledAppointment(
       practitionerId: targetSession.practitionerId,
       roomId: targetSession.roomId ?? apt.roomId,
       scheduledDate: targetDate,
-      scheduledStartTime: slotTiming.startTime,
-      scheduledEndTime: slotTiming.endTime,
+      scheduledStartTime: sessionTiming.startTime,
+      scheduledEndTime: sessionTiming.endTime,
       scheduleSessionId: targetSession.id,
       updatedBy: userId,
       updatedAt: nowIso,

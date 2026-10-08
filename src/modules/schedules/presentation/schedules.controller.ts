@@ -41,7 +41,6 @@ import {
   RescheduleEligibilityResponse,
   ScheduleOccupancyOverviewResponse,
 } from '../domain/entities/schedule.entity';
-import { ScheduleSlotAvailabilityData } from '../domain/entities/schedule-bootstrap.entity';
 import {
   SCHEDULE_REPOSITORY,
   ScheduleRepository,
@@ -59,7 +58,6 @@ import { RoomReferenceQueryDto } from './dto/room-reference-query.dto';
 import { ScheduleContextQueryDto } from './dto/schedule-context-query.dto';
 import { ScheduleOccupancyQueryDto } from './dto/schedule-occupancy-query.dto';
 import { ScheduleProjectionQueryDto } from './dto/schedule-projection-query.dto';
-import { ScheduleSlotAvailabilityQueryDto } from './dto/schedule-slot-availability-query.dto';
 import { UpdateScheduleDto } from './dto/update-schedule.dto';
 import { UpsertDaySettingDto } from './dto/upsert-day-setting.dto';
 
@@ -502,32 +500,6 @@ export class SchedulesController {
     const data = await this.scheduleRepo.getOccupancyOverview(staffId, query);
     return {
       success: true,
-      data,
-    };
-  }
-
-  @Get('slot-availability')
-  @Roles('STAF', 'ADMIN')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'Menghitung ketersediaan slot anti-bentrok (SSOT Grid)',
-    description:
-      'Menghitung ketersediaan slot untuk shift dan ruangan tertentu, mendeteksi bentrok temporal lampau, cuti, jadwal dokter sendiri, dan okupansi ruangan oleh dokter lain.',
-  })
-  @ApiOkResponse({
-    description: 'Ketersediaan slot berhasil dihitung',
-    type: ScheduleSlotAvailabilityData,
-  })
-  async getSlotAvailability(
-    @Query() query: ScheduleSlotAvailabilityQueryDto,
-    @CurrentUser() user: any,
-  ) {
-    const staffId = this.resolveTargetStaffId(user, query.staffId);
-    const data = await this.scheduleRepo.getSlotAvailability(staffId, query);
-    return {
-      success: true,
-      statusCode: HttpStatus.OK,
-      message: 'Ketersediaan slot berhasil dihitung',
       data,
     };
   }

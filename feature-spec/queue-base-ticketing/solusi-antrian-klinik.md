@@ -7,7 +7,7 @@ Intuisi Anda sudah benar. Pasien harus **selalu bisa mendaftar dan selalu mendap
 Masalah di sistem sekarang bukan di ruangan atau di jumlah dokter. Masalahnya, **satu konsep "slot" dipakai untuk tiga hal sekaligus**: janji ke pasien, alokasi dokter dan ruangan, dan estimasi waktu. Akibatnya keterbatasan internal bocor ke UI pasien dalam bentuk sesi yang *disabled*.
 
 Solusi inti:
-
+di db cek aja 
 1. Pasien memilih **layanan (Umum/Bidan) + hari + preferensi waktu**, bukan ruangan, bukan slot.
 2. Sistem **selalu menerbitkan tiket** berisi nomor antrian dan estimasi jam. Tidak ada sesi yang di-disable. Kalau sesi tidak bisa dipakai, pasien **dialihkan otomatis** ke sesi terdekat.
 3. **Ruangan tidak dihapus.** Ruangan disembunyikan dari pasien dan baru ditetapkan saat pasien dipanggil.

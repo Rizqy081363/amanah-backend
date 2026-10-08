@@ -8,7 +8,7 @@ import {
   type ScheduleEntity,
   ScheduleOperationalStatus,
 } from '@modules/schedules/domain/entities/schedule.entity';
-import type { SessionShiftType } from '@modules/schedules/domain/factories/schedule-slot.factory';
+import type { SessionShiftType } from '@modules/schedules/domain/factories/schedule-session.factory';
 import { parseClockTime } from '@modules/schedules/domain/schedule-projection';
 import { resolveSessionOperationalStatus } from '@modules/schedules/domain/schedule-status';
 

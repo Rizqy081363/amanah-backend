@@ -4,15 +4,11 @@ import {
   type AdminDoctorMonthlyDayEntity,
   ScheduleOperationalStatus,
 } from '@modules/schedules/domain/entities/schedule.entity';
-import { ScheduleSlotFactory } from '@modules/schedules/domain/factories/schedule-slot.factory';
 import {
-  AVAILABILITY_STATE,
-  CLOSURE_CATEGORY,
-  EFFECTIVE_SLOT_STATUS,
-  SHIFT_OPERATIONAL_STATUS,
-  SLOT_UI_STATUS,
-  TEMPORAL_STATE,
-} from '@modules/schedules/domain/resolvers/schedule-slot-state.resolver';
+  ScheduleSessionFactory,
+  SHIFT_DEFINITIONS,
+} from '@modules/schedules/domain/factories/schedule-session.factory';
+
 import { parseClockTime } from '@modules/schedules/domain/schedule-projection';
 import {
   resolveAggregateOperationalStatus,
@@ -28,6 +24,9 @@ export interface MonthlyScheduleBuildContext {
   monthSessions: any[];
   monthAppointments: any[];
   consultationDurationMinutes: number;
+  doctorAssignments?: any[];
+  shiftExceptions?: any[];
+  clinicPolicy?: any;
 }
 
 export function buildMonthlySchedule(
@@ -42,6 +41,9 @@ export function buildMonthlySchedule(
     monthSessions,
     monthAppointments,
     consultationDurationMinutes,
+    doctorAssignments,
+    shiftExceptions,
+    clinicPolicy,
   } = ctx;
 
   const monthlySchedule: AdminDoctorMonthlyDayEntity[] = [];
@@ -52,7 +54,63 @@ export function buildMonthlySchedule(
     const leave = monthLeaves.find(
       (l) => l.startDate <= dateStr && l.endDate >= dateStr,
     );
-    const daySessions = monthSessions.filter((s) => s.scheduleDate === dateStr);
+    let daySessions = monthSessions.filter((s) => s.scheduleDate === dateStr);
+
+    if (
+      daySessions.length === 0 &&
+      doctorAssignments &&
+      doctorAssignments.length > 0
+    ) {
+      const dayDow = new Date(Date.UTC(targetYear, targetMonth - 1, d)).getUTCDay();
+      const assignments = doctorAssignments.filter(
+        (da) => da.dow === null || da.dow === dayDow,
+      );
+
+      daySessions = assignments
+        .filter((da) => da.sessionDef && da.sessionDef.isActive)
+        .map((da) => {
+          const sched = da.sessionDef.schedules?.find(
+            (s: any) => s.dow === dayDow && s.isActive,
+          );
+          if (!sched) return null;
+
+          const exception = (shiftExceptions || []).find(
+            (se: any) =>
+              se.serviceDate === dateStr &&
+              (!se.sessionId || se.sessionId === da.sessionId),
+          );
+          if (exception?.type === 'leave') return null;
+
+          const shiftCode = da.sessionDef.code;
+          const shiftDef =
+            SHIFT_DEFINITIONS.find((sd) => sd.shift === shiftCode) ||
+            SHIFT_DEFINITIONS[1];
+          const startTime = (
+            sched.startsAt || shiftDef.boundaryStartTime
+          ).slice(0, 5);
+          const endTime = (
+            sched.endsAt || shiftDef.boundaryEndTime
+          ).slice(0, 5);
+          const defaultCapacity = clinicPolicy?.targetQuota || 20;
+
+          return {
+            id: `recurring-${da.id}-${dateStr}`,
+            practitionerId: da.doctorId,
+            scheduleDate: dateStr,
+            startTime,
+            endTime,
+            sessionShift: shiftCode,
+            sessionLabel: shiftDef.label,
+            capacity: defaultCapacity,
+            availableSlots: defaultCapacity,
+            status: 'open',
+            clinicRoom: da.preferredRoom,
+            notes: null,
+          };
+        })
+        .filter((s): s is NonNullable<typeof s> => s !== null);
+    }
+
     const dayAppts = monthAppointments.filter(
       (a) => a.scheduledDate === dateStr,
     );
@@ -88,9 +146,13 @@ export function buildMonthlySchedule(
           !['cancelled', 'no_show'].includes(a.status?.toLowerCase() || ''),
       );
 
-      const metrics = ScheduleSlotFactory.calculateSessionMetrics({
-        startTime: s.startTime ? s.startTime.slice(0, 5) : '08:00',
-        endTime: s.endTime ? s.endTime.slice(0, 5) : '12:00',
+      const shiftDef = SHIFT_DEFINITIONS.find((d) => d.shift === s.sessionShift);
+      const boundaryStart = shiftDef?.boundaryStartTime || SHIFT_DEFINITIONS[1].boundaryStartTime;
+      const boundaryEnd = shiftDef?.boundaryEndTime || SHIFT_DEFINITIONS[1].boundaryEndTime;
+
+      const metrics = ScheduleSessionFactory.calculateSessionMetrics({
+        startTime: s.startTime ? s.startTime.slice(0, 5) : boundaryStart,
+        endTime: s.endTime ? s.endTime.slice(0, 5) : boundaryEnd,
         durationMinutes:
           consultationDurationMinutes || DEFAULT_CONSULTATION_DURATION_MINUTES,
         persistedCapacity: s.capacity,
@@ -228,7 +290,7 @@ export function buildDailySessions(
       return aStart >= sessStart && aStart < sessEnd;
     });
 
-    const metrics = ScheduleSlotFactory.calculateSessionMetrics({
+    const metrics = ScheduleSessionFactory.calculateSessionMetrics({
       startTime: jamMulai,
       endTime: jamSelesai,
       durationMinutes: validDuration,
@@ -313,158 +375,55 @@ export function buildDailySessions(
   });
 }
 
-export function buildTimelineAndMetrics(contextProjections: any[]) {
-  const timelineIntervals = contextProjections
-    .flatMap((cp) =>
-      cp.slots.map((slot: any) => ({
-        intervalId: slot.intervalId,
-        slotId: slot.slotId,
-        intervalIndex: slot.slotIndex,
-        slotIndex: slot.slotIndex,
-        timeStart: slot.startTime,
-        timeEnd: slot.endTime,
-        startTime: slot.startTime,
-        endTime: slot.endTime,
-        status: (slot.effectiveStatus === EFFECTIVE_SLOT_STATUS.AVAILABLE
-          ? ScheduleOperationalStatus.OPEN
-          : slot.effectiveStatus === EFFECTIVE_SLOT_STATUS.OCCUPIED
-            ? ScheduleOperationalStatus.OCCUPIED
-            : ScheduleOperationalStatus.CLOSED) as
-          | 'OPEN'
-          | 'OCCUPIED'
-          | 'CLOSED',
-        displayLabel: (slot.effectiveStatus === EFFECTIVE_SLOT_STATUS.AVAILABLE
-          ? 'Buka'
-          : slot.effectiveStatus === EFFECTIVE_SLOT_STATUS.OCCUPIED
-            ? 'Terisi'
-            : slot.effectiveStatus === EFFECTIVE_SLOT_STATUS.EXPIRED
-              ? 'Kadaluarsa'
-              : slot.effectiveStatus === EFFECTIVE_SLOT_STATUS.CLOSED
-                ? 'Tutup'
-                : 'Belum Terisi') as 'Buka' | 'Terisi' | 'Tutup',
-        isOccupied: slot.availabilityState === AVAILABILITY_STATE.OCCUPIED,
-        appointmentRef: slot.appointment
-          ? {
-              appointmentId: slot.appointment.id,
-              queueNumber: slot.appointment.queueNumber ?? null,
-              status: slot.appointment.status ?? null,
-            }
-          : undefined,
-        closedReason: slot.closure
-          ? slot.closure.category === CLOSURE_CATEGORY.LEAVE
-            ? ('LEAVE' as const)
-            : ('SCHEDULE_CLOSED' as const)
-          : undefined,
-        temporalState: slot.temporalState,
-        availabilityState: slot.availabilityState,
-        effectiveStatus: slot.effectiveStatus,
-        isSelectable: slot.isSelectable,
-        timeRange: slot.timeRange,
-        uiStatus: slot.uiStatus,
-        uiLabel: slot.uiLabel,
-        uiSubLabel: slot.uiSubLabel,
-        uiVariant: slot.uiVariant,
-        isClickable: slot.isClickable,
-        actionType: slot.actionType,
-        sessionId: slot.sessionId,
-        patientInfo: slot.patientInfo,
-        rescheduleInfo: slot.rescheduleInfo,
-        closureInfo: slot.closureInfo,
-        closure: slot.closure,
-        appointment: slot.appointment,
-        reschedule: slot.reschedule,
-      })),
-    )
-    .sort((a: any, b: any) => a.startTime.localeCompare(b.startTime));
+export function buildTimelineAndMetrics(
+  _contextProjections: any[] = [],
+  sesiHarian: any[] = [],
+) {
+  const totalCapacity = sesiHarian.reduce(
+    (acc, s) => acc + (s.kapasitas_total || s.capacity || 0),
+    0,
+  );
+  const totalAvailable = sesiHarian.reduce(
+    (acc, s) => acc + (s.slot_tersedia || s.availableSlots || 0),
+    0,
+  );
+  const totalBooked = sesiHarian.reduce((acc, s) => acc + (s.terisi || 0), 0);
 
-  const totalDayTheoreticalSlots = contextProjections.reduce(
-    (acc, cp) => acc + (cp.metrics?.totalSlots ?? cp.counts.total),
-    0,
-  );
-  const totalDayScheduledSlots = contextProjections.reduce(
-    (acc, cp) =>
-      acc +
-      (cp.metrics?.scheduledSlots ??
-        cp.counts.available + cp.counts.occupied + cp.counts.closed),
-    0,
-  );
-  const totalDayUnscheduledSlots = contextProjections.reduce((acc, cp) => {
-    if (cp.operationalStatus === SHIFT_OPERATIONAL_STATUS.NO_PRACTICE)
-      return acc;
-    const futureUnscheduled = (cp.slots || []).filter(
-      (s: any) =>
-        s.availabilityState === AVAILABILITY_STATE.UNSCHEDULED &&
-        s.temporalState !== TEMPORAL_STATE.PAST,
-    ).length;
-    return acc + futureUnscheduled;
-  }, 0);
-  const totalDayAvailableSlots = contextProjections.reduce(
-    (acc, cp) => acc + (cp.metrics?.availableSlots ?? cp.counts.available),
-    0,
-  );
-  const totalDayCompletedSlots = timelineIntervals.filter(
-    (s: any) => s.uiStatus === SLOT_UI_STATUS.COMPLETED,
-  ).length;
-  const totalDayOccupiedSlots = contextProjections.reduce(
-    (acc, cp) => acc + (cp.metrics?.occupiedSlots ?? cp.counts.occupied),
-    0,
-  );
-  const totalDayClosedSlots = contextProjections.reduce(
-    (acc, cp) => acc + (cp.metrics?.closedSlots ?? cp.counts.closed),
-    0,
-  );
-  const totalDayActiveBookableSlots =
-    totalDayAvailableSlots + totalDayOccupiedSlots;
   const dayOccupancyPercentage =
-    totalDayActiveBookableSlots > 0
-      ? Number(
-          ((totalDayOccupiedSlots / totalDayActiveBookableSlots) * 100).toFixed(
-            2,
-          ),
-        )
-      : 0;
-  const dayCoveragePercentage =
-    totalDayTheoreticalSlots > 0
-      ? Number(
-          ((totalDayScheduledSlots / totalDayTheoreticalSlots) * 100).toFixed(
-            2,
-          ),
-        )
+    totalCapacity > 0
+      ? Number(((totalBooked / totalCapacity) * 100).toFixed(2))
       : 0;
 
   const dayMetrics = {
-    totalSlots: totalDayTheoreticalSlots,
-    totalDaySlots: totalDayTheoreticalSlots,
-    scheduledSlots: totalDayScheduledSlots,
-    unscheduledSlots: totalDayUnscheduledSlots,
-    availableSlots: totalDayAvailableSlots,
-    completedSlots: totalDayCompletedSlots,
-    occupiedSlots: totalDayOccupiedSlots,
-    closedSlots: totalDayClosedSlots,
-    activeBookableSlots: totalDayActiveBookableSlots,
+    totalSlots: totalCapacity,
+    totalDaySlots: totalCapacity,
+    scheduledSlots: totalCapacity,
+    unscheduledSlots: 0,
+    availableSlots: totalAvailable,
+    completedSlots: 0,
+    occupiedSlots: totalBooked,
+    closedSlots: 0,
+    activeBookableSlots: totalCapacity,
     occupancy: {
-      occupied: totalDayOccupiedSlots,
-      capacity: totalDayActiveBookableSlots,
+      occupied: totalBooked,
+      capacity: totalCapacity,
       percentage: dayOccupancyPercentage,
-      displayText: `Okupansi Pasien: ${totalDayOccupiedSlots}/${totalDayActiveBookableSlots} Slot (${dayOccupancyPercentage}%)`,
+      displayText: `Okupansi Pasien: ${totalBooked}/${totalCapacity} (${dayOccupancyPercentage}%)`,
     },
     patientOccupancy: {
-      occupied: totalDayOccupiedSlots,
-      capacity: totalDayActiveBookableSlots,
+      occupied: totalBooked,
+      capacity: totalCapacity,
       percentage: dayOccupancyPercentage,
-      displayText: `Okupansi Pasien: ${totalDayOccupiedSlots}/${totalDayActiveBookableSlots} Slot (${dayOccupancyPercentage}%)`,
+      displayText: `Okupansi Pasien: ${totalBooked}/${totalCapacity} (${dayOccupancyPercentage}%)`,
     },
     scheduleCoverage: {
-      scheduled: totalDayScheduledSlots,
-      total: totalDayTheoreticalSlots,
-      percentage: dayCoveragePercentage,
-      displayText: `Cakupan Jadwal: ${totalDayScheduledSlots}/${totalDayTheoreticalSlots} Slot (${dayCoveragePercentage}%)`,
+      scheduled: totalCapacity,
+      total: totalCapacity,
+      percentage: totalCapacity > 0 ? 100 : 0,
+      displayText: `Cakupan Jadwal: ${totalCapacity}/${totalCapacity} (100%)`,
     },
-    unscheduledNotice:
-      totalDayUnscheduledSlots > 0
-        ? `${totalDayUnscheduledSlots} slot belum dijadwalkan`
-        : 'Semua slot telah terjadwal',
+    unscheduledNotice: 'Semua sesi telah terjadwal',
   };
 
-  return { timelineIntervals, dayMetrics };
+  return { timelineIntervals: [], dayMetrics };
 }

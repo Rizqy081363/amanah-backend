@@ -1,6 +1,6 @@
 import { getClinicNow } from '../../../schedules/domain/services/schedule-date.formatter';
 
-export function allocateSlotTiming(
+export function allocateAppointmentTiming(
   sessionStart: string,
   sessionEnd: string,
   existingStartTimes: string[],
@@ -61,3 +61,6 @@ export function allocateSlotTiming(
 
   return null;
 }
+
+// Deprecated alias for backwards compatibility during migration
+export { allocateAppointmentTiming as allocateSlotTiming };

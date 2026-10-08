@@ -3,6 +3,10 @@ import {
   PatientTicketView,
   QueueTicketStatus,
 } from '../types/queue.types';
+import {
+  PATIENT_QUEUE_STATUS_LABELS,
+  QUEUE_TICKET_STATUS,
+} from '../constants/queue-engine.constants';
 
 export class QueueEngineService {
   /**
@@ -24,9 +28,9 @@ export class QueueEngineService {
   }): DomainQueueTicket {
     const { ticket, roomId, doctorId, calledAt } = params;
 
-    if (ticket.status !== 'waiting') {
+    if (ticket.status !== QUEUE_TICKET_STATUS.WAITING) {
       throw new Error(
-        `Cannot call ticket ${ticket.id}: invalid status '${ticket.status}'. Only 'waiting' tickets can be called.`,
+        `Cannot call ticket ${ticket.id}: invalid status '${ticket.status}'. Only '${QUEUE_TICKET_STATUS.WAITING}' tickets can be called.`,
       );
     }
 
@@ -36,7 +40,7 @@ export class QueueEngineService {
 
     return {
       ...ticket,
-      status: 'called',
+      status: QUEUE_TICKET_STATUS.CALLED,
       roomId,
       doctorId,
       calledAt: calledAt ?? new Date(),
@@ -52,7 +56,10 @@ export class QueueEngineService {
   }): DomainQueueTicket {
     const { ticket, startedAt } = params;
 
-    if (ticket.status !== 'called' && ticket.status !== 'waiting') {
+    if (
+      ticket.status !== QUEUE_TICKET_STATUS.CALLED &&
+      ticket.status !== QUEUE_TICKET_STATUS.WAITING
+    ) {
       throw new Error(
         `Cannot start service for ticket ${ticket.id}: status is '${ticket.status}'.`,
       );
@@ -60,7 +67,7 @@ export class QueueEngineService {
 
     return {
       ...ticket,
-      status: 'in_service',
+      status: QUEUE_TICKET_STATUS.IN_SERVICE,
       startedAt: startedAt ?? new Date(),
     };
   }
@@ -74,15 +81,15 @@ export class QueueEngineService {
   }): DomainQueueTicket {
     const { ticket, completedAt } = params;
 
-    if (ticket.status !== 'in_service') {
+    if (ticket.status !== QUEUE_TICKET_STATUS.IN_SERVICE) {
       throw new Error(
-        `Cannot complete ticket ${ticket.id}: status is '${ticket.status}'. Ticket must be 'in_service'.`,
+        `Cannot complete ticket ${ticket.id}: status is '${ticket.status}'. Ticket must be '${QUEUE_TICKET_STATUS.IN_SERVICE}'.`,
       );
     }
 
     return {
       ...ticket,
-      status: 'completed',
+      status: QUEUE_TICKET_STATUS.COMPLETED,
       completedAt: completedAt ?? new Date(),
     };
   }
@@ -94,9 +101,9 @@ export class QueueEngineService {
     const { ticket } = params;
 
     if (
-      ticket.status === 'completed' ||
-      ticket.status === 'in_service' ||
-      ticket.status === 'cancelled'
+      ticket.status === QUEUE_TICKET_STATUS.COMPLETED ||
+      ticket.status === QUEUE_TICKET_STATUS.IN_SERVICE ||
+      ticket.status === QUEUE_TICKET_STATUS.CANCELLED
     ) {
       throw new Error(
         `Cannot cancel ticket ${ticket.id}: status is '${ticket.status}'.`,
@@ -105,7 +112,7 @@ export class QueueEngineService {
 
     return {
       ...ticket,
-      status: 'cancelled',
+      status: QUEUE_TICKET_STATUS.CANCELLED,
     };
   }
 
@@ -113,24 +120,7 @@ export class QueueEngineService {
    * Converts status to Indonesian patient label
    */
   getPatientStatusLabel(status: QueueTicketStatus): string {
-    switch (status) {
-      case 'waiting':
-        return 'Menunggu Antrean';
-      case 'called':
-        return 'Dipanggil ke Ruangan';
-      case 'in_service':
-        return 'Sedang Dilayani';
-      case 'completed':
-        return 'Selesai';
-      case 'cancelled':
-        return 'Dibatalkan';
-      case 'no_show':
-        return 'Tidak Hadir';
-      case 'expired':
-        return 'Kedaluwarsa';
-      default:
-        return status;
-    }
+    return PATIENT_QUEUE_STATUS_LABELS[status] || status;
   }
 
   /**
@@ -157,9 +147,9 @@ export class QueueEngineService {
 
     // RULE P7 & Section 2: Room and Doctor are NEVER visible while waiting
     const isCalledOrActive =
-      ticket.status === 'called' ||
-      ticket.status === 'in_service' ||
-      ticket.status === 'completed';
+      ticket.status === QUEUE_TICKET_STATUS.CALLED ||
+      ticket.status === QUEUE_TICKET_STATUS.IN_SERVICE ||
+      ticket.status === QUEUE_TICKET_STATUS.COMPLETED;
 
     return {
       ticketCode: ticket.queueNumber,

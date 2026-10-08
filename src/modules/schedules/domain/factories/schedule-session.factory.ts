@@ -20,21 +20,12 @@ export interface ShiftDefinition {
   aliases: string[];
 }
 
-export interface TheoreticalSlot {
-  slotIndex: number;
-  startTime: string;
-  endTime: string;
-  startMinutes: number;
-  endMinutes: number;
-  timeRange: string;
-}
-
 /**
  * 24-Hour Cycle divided cleanly into 4 equal shifts of 6 hours (360 minutes) each.
- * Dini Hari: 00:00 - 06:00 (360m) -> 12 slots @ 30m
- * Pagi:      06:00 - 12:00 (360m) -> 12 slots @ 30m
- * Siang:     12:00 - 18:00 (360m) -> 12 slots @ 30m
- * Malam:     18:00 - 24:00 (360m) -> 12 slots @ 30m
+ * Dini Hari: 00:00 - 06:00
+ * Pagi:      06:00 - 12:00
+ * Siang:     12:00 - 18:00
+ * Malam:     18:00 - 24:00
  */
 export const SHIFT_DEFINITIONS: ShiftDefinition[] = [
   {
@@ -87,7 +78,7 @@ export const SHIFT_DEFINITIONS: ShiftDefinition[] = [
   },
 ];
 
-export class ScheduleSlotFactory {
+export class ScheduleSessionFactory {
   /**
    * Resolves a shift definition by contextId, shift name, or alias.
    */
@@ -127,35 +118,23 @@ export class ScheduleSlotFactory {
   }
 
   /**
-   * Calculates total available slots for a full shift based on dynamic consultation duration.
-   * e.g. 360m / 30m = 12 slots.
+   * Calculates session capacity dynamically from time range and duration.
    */
-  static calculateShiftTotalSlots(durationMinutes: number): number {
-    if (durationMinutes <= 0) return 0;
-    return Math.floor(360 / durationMinutes);
-  }
-
-  /**
-   * Calculates remaining slots in a shift from a specific time to shift boundary end.
-   * e.g. Starting at 09:00 in morning shift (boundaryEnd 12:00 = 720m):
-   * (720 - 540) / 30 = 6 slots.
-   */
-  static calculateRemainingSlotsFromTime(
-    boundaryEndMinutes: number,
-    currentMinutes: number,
+  static calculateCapacity(
+    startTime: string,
+    endTime: string,
     durationMinutes: number,
   ): number {
-    if (durationMinutes <= 0) return 0;
-    return Math.max(
-      0,
-      Math.floor((boundaryEndMinutes - currentMinutes) / durationMinutes),
-    );
+    const startMin = parseClockTime(startTime);
+    const endMin = parseClockTime(endTime);
+    const validDuration = durationMinutes > 0 ? durationMinutes : 30;
+    const available = endMin - startMin;
+    if (available <= 0) return 0;
+    return Math.floor(available / validDuration);
   }
 
   /**
    * Factory calculation for session timing and capacity.
-   * - By default (without endTime or slotsCount), advances by 1 consultation duration (e.g. 14:00 -> 14:30).
-   * - If fillShift is explicitly true, fills up to the shift boundary end.
    */
   static calculateSessionTiming(
     context: ShiftDefinition,
@@ -227,7 +206,7 @@ export class ScheduleSlotFactory {
       if (endMinutes > boundaryEnd) {
         throw new UnprocessableEntityException({
           code: 'SLOTS_EXCEED_BOUNDARY',
-          message: 'Jumlah slot yang diminta melebihi batas waktu shift.',
+          message: 'Jumlah kuota yang diminta melebihi batas waktu shift.',
           metadata: {
             slotsCount: options.slotsCount,
             boundaryEndTime: context.boundaryEndTime,
@@ -239,8 +218,6 @@ export class ScheduleSlotFactory {
       capacity = Math.floor((boundaryEnd - startMinutes) / durationMinutes);
       endMinutes = startMinutes + capacity * durationMinutes;
     } else {
-      // CANONICAL DEFAULT: 1 consultation session based on practitioner duration
-      // e.g. 14:00 -> 14:30
       endMinutes = startMinutes + durationMinutes;
       if (endMinutes > boundaryEnd) {
         throw new UnprocessableEntityException({
@@ -285,67 +262,6 @@ export class ScheduleSlotFactory {
   }
 
   /**
-   * Generates pure theoretical slots for a given shift context and interval duration.
-   * e.g. 360 minutes / 30m = 12 discrete theoretical slots.
-   */
-  static generateTheoreticalSlots(
-    context: ShiftDefinition | SessionShiftType | string,
-    intervalMinutes: number,
-  ): TheoreticalSlot[] {
-    const def =
-      typeof context === 'string'
-        ? ScheduleSlotFactory.resolveShiftDefinition(context)
-        : 'boundaryStartMinutes' in context
-          ? context
-          : ScheduleSlotFactory.resolveShiftDefinition((context as any).shift);
-    const validInterval = intervalMinutes > 0 ? intervalMinutes : 30;
-    const totalSlots = Math.floor(
-      (def.boundaryEndMinutes - def.boundaryStartMinutes) / validInterval,
-    );
-
-    const slots: TheoreticalSlot[] = [];
-    for (let i = 0; i < totalSlots; i++) {
-      const startMin = def.boundaryStartMinutes + i * validInterval;
-      const endMin = startMin + validInterval;
-      const startTime = formatClockTime(startMin);
-      const endTime = formatClockTime(endMin);
-      slots.push({
-        slotIndex: i + 1,
-        startTime,
-        endTime,
-        startMinutes: startMin,
-        endMinutes: endMin,
-        timeRange: `${startTime} - ${endTime} WIB`,
-      });
-    }
-
-    return slots;
-  }
-
-  /**
-   * Generates discrete consultation intervals for a given shift using pure math.
-   */
-  static generateShiftSlots(
-    shift: SessionShiftType,
-    durationMinutes: number,
-  ): Array<{
-    slotIndex: number;
-    startTime: string;
-    endTime: string;
-    timeRange: string;
-  }> {
-    return ScheduleSlotFactory.generateTheoreticalSlots(
-      shift,
-      durationMinutes,
-    ).map((slot) => ({
-      slotIndex: slot.slotIndex,
-      startTime: slot.startTime,
-      endTime: slot.endTime,
-      timeRange: slot.timeRange,
-    }));
-  }
-
-  /**
    * Factory function to dynamically create showcase or default session parameters
    * for seeders or automated scheduling, avoiding hardcoded time literals.
    */
@@ -361,12 +277,12 @@ export class ScheduleSlotFactory {
     capacity: number;
     availableSlots: number;
   } {
-    const def = ScheduleSlotFactory.resolveShiftDefinition(shift);
+    const def = ScheduleSessionFactory.resolveShiftDefinition(shift);
     const validDuration = durationMinutes > 0 ? durationMinutes : 30;
-    const maxSlots = Math.floor(
+    const maxCapacity = Math.floor(
       (def.boundaryEndMinutes - def.boundaryStartMinutes) / validDuration,
     );
-    const capacity = Math.min(slotsCount || maxSlots, maxSlots);
+    const capacity = Math.min(slotsCount || maxCapacity, maxCapacity);
     const endMinutes = def.boundaryStartMinutes + capacity * validDuration;
 
     return {
@@ -380,24 +296,7 @@ export class ScheduleSlotFactory {
   }
 
   /**
-   * Calculates session capacity dynamically from time range and duration.
-   */
-  static calculateCapacity(
-    startTime: string,
-    endTime: string,
-    durationMinutes: number,
-  ): number {
-    const startMin = parseClockTime(startTime);
-    const endMin = parseClockTime(endTime);
-    const validDuration = durationMinutes > 0 ? durationMinutes : 30;
-    const available = endMin - startMin;
-    if (available <= 0) return 0;
-    return Math.floor(available / validDuration);
-  }
-
-  /**
-   * Calculates canonical slot metrics for a session using pure math and domain rules.
-   * Eliminates hardcoded capacity, ensures valid shift labeling, and computes accurate displaySlot.
+   * Calculates canonical capacity and load metrics for a session using pure math and domain rules.
    */
   static calculateSessionMetrics(params: {
     startTime: string;
@@ -416,12 +315,12 @@ export class ScheduleSlotFactory {
     bookedCount: number;
     displaySlot: string;
   } {
-    const shiftDef = ScheduleSlotFactory.resolveShiftFromClockTime(
+    const shiftDef = ScheduleSessionFactory.resolveShiftFromClockTime(
       params.startTime,
     );
     const validDuration =
       params.durationMinutes > 0 ? params.durationMinutes : 30;
-    const calculatedCapacity = ScheduleSlotFactory.calculateCapacity(
+    const calculatedCapacity = ScheduleSessionFactory.calculateCapacity(
       params.startTime,
       params.endTime,
       validDuration,

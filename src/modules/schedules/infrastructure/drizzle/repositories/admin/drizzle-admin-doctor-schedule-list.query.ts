@@ -2,10 +2,12 @@ import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
   appointments,
+  doctorAssignments,
   practitionerLeavePeriods,
   practitionerScheduleDaySettings,
   practitionerScheduleSessions,
   practitioners,
+  shiftExceptions,
 } from '@database/schema';
 import {
   DEFAULT_CONSULTATION_DURATION_MINUTES,
@@ -17,7 +19,11 @@ import {
   type AdminDoctorScheduleListResponse,
   ScheduleOperationalStatus,
 } from '@modules/schedules/domain/entities/schedule.entity';
-import { ScheduleSlotFactory } from '@modules/schedules/domain/factories/schedule-slot.factory';
+import {
+  ScheduleSessionFactory,
+  SHIFT_DEFINITIONS,
+  type SessionShiftType,
+} from '@modules/schedules/domain/factories/schedule-session.factory';
 import {
   resolveAggregateOperationalStatus,
   resolveSessionOperationalStatus,
@@ -58,6 +64,8 @@ export class DrizzleAdminDoctorScheduleListQuery {
     }
 
     const [targetYear, targetMonth] = targetDate.split('-').map(Number);
+    const [tYear, tMonth, tDay] = targetDate.split('-').map(Number);
+    const targetDow = new Date(Date.UTC(tYear, tMonth - 1, tDay)).getUTCDay();
 
     const [
       pracs,
@@ -66,6 +74,8 @@ export class DrizzleAdminDoctorScheduleListQuery {
       allSessions,
       allAppointments,
       clinicPolicy,
+      allDoctorAssignments,
+      allShiftExceptions,
     ] = await Promise.all([
       this.db.query.practitioners.findMany({
         with: {
@@ -105,6 +115,20 @@ export class DrizzleAdminDoctorScheduleListQuery {
         ),
       }),
       this.policyReader.getClinicSchedulePolicy(),
+      this.db.query.doctorAssignments.findMany({
+        where: eq(doctorAssignments.isActive, true),
+        with: {
+          sessionDef: {
+            with: {
+              schedules: true,
+            },
+          },
+          preferredRoom: true,
+        },
+      }),
+      this.db.query.shiftExceptions.findMany({
+        where: eq(shiftExceptions.serviceDate, targetDate),
+      }),
     ]);
 
     const cards: AdminDoctorScheduleCardEntity[] = [];
@@ -119,9 +143,75 @@ export class DrizzleAdminDoctorScheduleListQuery {
           al.startDate <= targetDate &&
           al.endDate >= targetDate,
       );
-      const sessions = allSessions.filter(
+      let sessions = allSessions.filter(
         (s) => s.practitionerId === p.id && s.scheduleDate === targetDate,
       );
+
+      // Recurring Roster SSOT: when no explicit manual session exists for target date,
+      // dynamically resolve sessions from doctor_assignment + session_schedule
+      if (sessions.length === 0) {
+        const assignments = allDoctorAssignments.filter(
+          (da) =>
+            da.doctorId === p.id &&
+            (da.dow === null || da.dow === targetDow),
+        );
+
+        sessions = assignments
+          .filter((da) => da.sessionDef && da.sessionDef.isActive)
+          .map((da) => {
+            const sched = da.sessionDef.schedules?.find(
+              (s) => s.dow === targetDow && s.isActive,
+            );
+            if (!sched) return null;
+
+            const exception = allShiftExceptions.find(
+              (se) =>
+                se.doctorId === p.id &&
+                (!se.sessionId || se.sessionId === da.sessionId),
+            );
+            if (exception?.type === 'leave') return null;
+
+            const shiftCode = da.sessionDef.code as SessionShiftType;
+            const shiftDef =
+              SHIFT_DEFINITIONS.find((sd) => sd.shift === shiftCode) ||
+              SHIFT_DEFINITIONS[1];
+            const startTime = (
+              sched.startsAt || shiftDef.boundaryStartTime
+            ).slice(0, 5);
+            const endTime = (
+              sched.endsAt || shiftDef.boundaryEndTime
+            ).slice(0, 5);
+            const defaultCapacity = (clinicPolicy as any)?.targetQuota || 20;
+
+            let sessionLabel = shiftDef.label;
+            if (da.sessionDef.labelKey === 'session.morning') {
+              sessionLabel = 'Sesi Pagi';
+            } else if (da.sessionDef.labelKey === 'session.afternoon') {
+              sessionLabel = 'Sesi Siang';
+            } else if (da.sessionDef.labelKey === 'session.night') {
+              sessionLabel = 'Sesi Malam';
+            } else if (da.sessionDef.labelKey === 'session.early_morning') {
+              sessionLabel = 'Sesi Dini Hari';
+            }
+
+            return {
+              id: `recurring-${da.id}-${targetDate}`,
+              practitionerId: p.id,
+              scheduleDate: targetDate,
+              startTime,
+              endTime,
+              sessionShift: shiftCode,
+              sessionLabel,
+              capacity: defaultCapacity,
+              availableSlots: defaultCapacity,
+              status: 'open',
+              clinicRoom: da.preferredRoom || p.clinicRoom,
+              notes: null,
+            };
+          })
+          .filter((s): s is NonNullable<typeof s> => s !== null)
+          .sort((a, b) => a.startTime.localeCompare(b.startTime)) as any;
+      }
 
       const isCuti = Boolean(daySetting?.isLeave || activeLeave);
       const cutiReason = isCuti
@@ -135,18 +225,22 @@ export class DrizzleAdminDoctorScheduleListQuery {
         : 'Belum Ditentukan';
 
       const sesiHarian: AdminDoctorDailySession[] = sessions.map((s) => {
-        const jamMulai = s.startTime ? s.startTime.slice(0, 5) : '08:00';
-        const jamSelesai = s.endTime ? s.endTime.slice(0, 5) : '12:00';
+        const shiftDef = SHIFT_DEFINITIONS.find((d) => d.shift === s.sessionShift);
+        const boundaryStart = shiftDef?.boundaryStartTime || SHIFT_DEFINITIONS[1].boundaryStartTime;
+        const boundaryEnd = shiftDef?.boundaryEndTime || SHIFT_DEFINITIONS[1].boundaryEndTime;
+
+        const jamMulai = s.startTime ? s.startTime.slice(0, 5) : boundaryStart;
+        const jamSelesai = s.endTime ? s.endTime.slice(0, 5) : boundaryEnd;
         const sessStart = s.startTime
           ? s.startTime.length === 5
             ? `${s.startTime}:00`
             : s.startTime
-          : '08:00:00';
+          : `${boundaryStart}:00`;
         const sessEnd = s.endTime
           ? s.endTime.length === 5
             ? `${s.endTime}:00`
             : s.endTime
-          : '12:00:00';
+          : `${boundaryEnd}:00`;
 
         const matchingAppts = allAppointments.filter((a) => {
           if (a.scheduleSessionId && a.scheduleSessionId === s.id) return true;
@@ -154,7 +248,7 @@ export class DrizzleAdminDoctorScheduleListQuery {
           const aStart =
             a.scheduledStartTime?.length === 5
               ? `${a.scheduledStartTime}:00`
-              : a.scheduledStartTime || '08:00:00';
+              : a.scheduledStartTime || `${boundaryStart}:00`;
           return aStart >= sessStart && aStart < sessEnd;
         });
 
@@ -163,7 +257,7 @@ export class DrizzleAdminDoctorScheduleListQuery {
           clinicPolicy.durationMinutes ||
           DEFAULT_CONSULTATION_DURATION_MINUTES;
 
-        const metrics = ScheduleSlotFactory.calculateSessionMetrics({
+        const metrics = ScheduleSessionFactory.calculateSessionMetrics({
           startTime: jamMulai,
           endTime: jamSelesai,
           durationMinutes,

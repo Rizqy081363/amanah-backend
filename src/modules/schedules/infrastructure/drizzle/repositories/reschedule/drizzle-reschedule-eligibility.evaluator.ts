@@ -13,7 +13,7 @@ import {
   type RescheduleSourceSessionInfo,
   ScheduleOperationalStatus,
 } from '@modules/schedules/domain/entities/schedule.entity';
-import { ScheduleSlotFactory } from '@modules/schedules/domain/factories/schedule-slot.factory';
+import { ScheduleSessionFactory } from '@modules/schedules/domain/factories/schedule-session.factory';
 import {
   resolveSessionOperationalStatus,
   SchedulePersistenceStatus,
@@ -178,7 +178,7 @@ export class DrizzleRescheduleEligibilityEvaluator {
       targetValidation.evaluated = true;
 
       try {
-        const targetContext = ScheduleSlotFactory.resolveShiftFromClockTime(
+        const targetContext = ScheduleSessionFactory.resolveShiftFromClockTime(
           query.targetStartTime,
         );
         const durationMinutes =
@@ -187,7 +187,7 @@ export class DrizzleRescheduleEligibilityEvaluator {
             ? practitioner.consultationDurationMinutes
             : 30;
 
-        const timing = ScheduleSlotFactory.calculateSessionTiming(
+        const timing = ScheduleSessionFactory.calculateSessionTiming(
           targetContext,
           query.targetStartTime,
           { durationMinutes },

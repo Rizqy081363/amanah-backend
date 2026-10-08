@@ -2,9 +2,9 @@ import 'dotenv/config';
 import bcrypt from 'bcryptjs';
 import { Pool, type PoolClient, type QueryResultRow } from 'pg';
 import {
-  ScheduleSlotFactory,
+  ScheduleSessionFactory,
   type SessionShiftType,
-} from '../../../modules/schedules/domain/factories/schedule-slot.factory';
+} from '../../../modules/schedules/domain/factories/schedule-session.factory';
 import {
   DEVELOPMENT_ROLE_SEEDS,
   DEVELOPMENT_USER_SEEDS,
@@ -858,7 +858,7 @@ const seedAdminScheduleShowcase = async (
     ];
 
     for (const d of dates) {
-      const template = ScheduleSlotFactory.createSessionTemplate(
+      const template = ScheduleSessionFactory.createSessionTemplate(
         d.shift,
         durationMinutes,
       );
@@ -1187,7 +1187,7 @@ const seedOperationalExamples = async (context: SeedContext): Promise<void> => {
 
   // Pure factory template for operational example
   const durationMinutes = 30;
-  const morningTemplate = ScheduleSlotFactory.createSessionTemplate(
+  const morningTemplate = ScheduleSessionFactory.createSessionTemplate(
     'morning',
     durationMinutes,
   );

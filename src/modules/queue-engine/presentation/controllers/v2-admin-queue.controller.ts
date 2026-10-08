@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Inject,
+  NotFoundException,
   Param,
   Post,
 } from '@nestjs/common';
@@ -12,9 +13,17 @@ import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import {
   clinicClosures,
   clinicRooms,
+  queueNotificationOutbox,
   queueTickets,
   sessionSchedules,
+  ticketEvents,
 } from '../../../../database/schema';
+import {
+  OutboxStatus,
+  QUEUE_OUTBOX_KINDS,
+  QUEUE_TICKET_EVENTS,
+  QUEUE_TICKET_STATUS,
+} from '../../domain/constants/queue-engine.constants';
 import { CalendarService } from '../../domain/services/calendar.service';
 import { ClosureEngineService } from '../../domain/services/closure-engine.service';
 import { DrizzleQueueEngineRepository } from '../../infrastructure/drizzle/drizzle-queue-engine.repository';
@@ -69,10 +78,78 @@ export class V2AdminQueueController {
       };
     }
 
+    // 3. Record audit event and outbox
+    await this.db.insert(ticketEvents).values({
+      ticketId: ticket.id,
+      event: QUEUE_TICKET_EVENTS.CALLED,
+      fromStatus: QUEUE_TICKET_STATUS.WAITING,
+      toStatus: QUEUE_TICKET_STATUS.CALLED,
+      payload: {
+        roomId,
+        roomName: room.name,
+        doctorId: dto.doctorId,
+        calledAt: new Date().toISOString(),
+      },
+    });
+
+    await this.db.insert(queueNotificationOutbox).values({
+      ticketId: ticket.id,
+      kind: QUEUE_OUTBOX_KINDS.TICKET_CALLED,
+      payload: {
+        ticketId: ticket.id,
+        patientId: ticket.patientId,
+        queueNumber: ticket.queueNumber,
+        roomId,
+        roomName: room.name,
+        doctorId: dto.doctorId,
+      },
+      status: OutboxStatus.PENDING,
+    });
+
     return {
       success: true,
       message: `Berhasil memanggil nomor ${ticket.queueNumber}`,
       data: ticket,
+    };
+  }
+
+  @Post('tickets/:id/requeue')
+  @ApiOperation({ summary: 'Requeue a called ticket back to waiting state' })
+  async requeueTicket(@Param('id') id: string) {
+    const [ticket] = await this.db
+      .select()
+      .from(queueTickets)
+      .where(eq(queueTickets.id, id))
+      .limit(1);
+
+    if (!ticket) {
+      throw new NotFoundException(`Ticket not found: ${id}`);
+    }
+
+    await this.db
+      .update(queueTickets)
+      .set({
+        status: QUEUE_TICKET_STATUS.WAITING,
+        roomId: null,
+        doctorId: null,
+        calledAt: null,
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(queueTickets.id, id));
+
+    await this.db.insert(ticketEvents).values({
+      ticketId: id,
+      event: QUEUE_TICKET_EVENTS.REQUEUED,
+      fromStatus: ticket.status,
+      toStatus: QUEUE_TICKET_STATUS.WAITING,
+      payload: {
+        requeuedAt: new Date().toISOString(),
+      },
+    });
+
+    return {
+      success: true,
+      message: `Tiket ${ticket.queueNumber} berhasil dikembalikan ke antrean tunggu.`,
     };
   }
 

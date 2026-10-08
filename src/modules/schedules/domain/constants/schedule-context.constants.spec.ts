@@ -1,4 +1,4 @@
-import { SHIFT_DEFINITIONS } from '../factories/schedule-slot.factory';
+import { SHIFT_DEFINITIONS } from '../factories/schedule-session.factory';
 import { SCHEDULE_CONTEXT_DEFINITIONS } from './schedule-context.constants';
 
 describe('schedule context constants', () => {

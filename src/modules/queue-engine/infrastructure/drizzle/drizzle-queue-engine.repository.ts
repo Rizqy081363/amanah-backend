@@ -10,6 +10,10 @@ import {
 } from '../../../../database/schema';
 import { IQueueEngineRepository } from '../../domain/repositories/queue-engine.repository';
 import { QueueEngineService } from '../../domain/services/queue-engine.service';
+import {
+  QUEUE_TICKET_SOURCE,
+  QUEUE_TICKET_STATUS,
+} from '../../domain/constants/queue-engine.constants';
 import { DomainQueueTicket, QueueTicketStatus } from '../../domain/types/queue.types';
 
 @Injectable()
@@ -70,7 +74,7 @@ export class DrizzleQueueEngineRepository implements IQueueEngineRepository {
     const [updated] = await this.db
       .update(queueTickets)
       .set({
-        status: 'called',
+        status: QUEUE_TICKET_STATUS.CALLED,
         roomId,
         doctorId,
         calledAt: nowIso,
@@ -149,9 +153,9 @@ export class DrizzleQueueEngineRepository implements IQueueEngineRepository {
       eq(queueTickets.queueDate, serviceDate),
       eq(queueTickets.sessionId, sessionId),
       or(
-        eq(queueTickets.status, 'waiting'),
-        eq(queueTickets.status, 'called'),
-        eq(queueTickets.status, 'in_service'),
+        eq(queueTickets.status, QUEUE_TICKET_STATUS.WAITING),
+        eq(queueTickets.status, QUEUE_TICKET_STATUS.CALLED),
+        eq(queueTickets.status, QUEUE_TICKET_STATUS.IN_SERVICE),
       ),
     ];
 
@@ -187,7 +191,7 @@ export class DrizzleQueueEngineRepository implements IQueueEngineRepository {
       completedAt: row.completedAt ? new Date(row.completedAt) : null,
       carriedOver: Boolean(row.carriedOver),
       movedTo: row.movedTo,
-      source: row.source || 'online',
+      source: row.source || QUEUE_TICKET_SOURCE.ONLINE,
     };
   }
 }

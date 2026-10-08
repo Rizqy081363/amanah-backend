@@ -7,7 +7,7 @@ import {
   practitioners,
 } from '../../../../database/schema';
 import { SchedulePolicyReader } from '../../../schedules/infrastructure/drizzle/queries/schedule-policy.reader';
-import { planSlot } from '../../domain/services/appointment-slot.planner';
+import { planAppointmentTiming } from '../../domain/services/appointment-timing.planner';
 import type { AppointmentRecord } from '../../domain/types/appointment.types';
 import {
   APPOINTMENT_REPOSITORY_PORT,
@@ -100,10 +100,10 @@ export class BookAppointmentUseCase {
       input.scheduledDate,
     );
 
-    const planned = planSlot({
+    const planned = planAppointmentTiming({
       dayStart,
       queueNumber,
-      slotMinutes,
+      durationMinutes: slotMinutes,
     });
 
     return await this.appointmentRepo.createWithSlot({

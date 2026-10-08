@@ -14,14 +14,26 @@ import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import {
   clinicRooms,
   practitioners,
+  queueNotificationOutbox,
   queueTickets,
   serviceCategories,
   sessionDefs,
   sessionSchedules,
+  ticketEvents,
 } from '../../../../database/schema';
+import {
+  OutboxStatus,
+  QUEUE_CONFIG_KEYS,
+  QUEUE_OUTBOX_KINDS,
+  QUEUE_PRIORITY,
+  QUEUE_TICKET_EVENTS,
+  QUEUE_TICKET_SOURCE,
+  QUEUE_TICKET_STATUS,
+} from '../../domain/constants/queue-engine.constants';
 import { EstimatorService } from '../../domain/services/estimator.service';
 import { QueueEngineService } from '../../domain/services/queue-engine.service';
 import { SimulatorService } from '../../domain/services/simulator.service';
+import { ClinicSettingService } from '../../infrastructure/config/clinic-setting.service';
 import { DrizzleQueueEngineRepository } from '../../infrastructure/drizzle/drizzle-queue-engine.repository';
 import {
   CreateQueueTicketDto,
@@ -37,6 +49,7 @@ export class V2TicketsController {
     private readonly queueEngine: QueueEngineService,
     private readonly estimator: EstimatorService,
     private readonly simulator: SimulatorService,
+    private readonly clinicSetting: ClinicSettingService,
   ) {}
 
   @Post()
@@ -77,10 +90,24 @@ export class V2TicketsController {
       await this.queueRepo.getRecentCompletedDurations({
         categoryId: dto.categoryId,
       });
+
+    const priorMinutes = await this.clinicSetting.get<number>(
+      QUEUE_CONFIG_KEYS.PRIOR_MINUTES,
+      {
+        categoryId: dto.categoryId,
+      },
+    );
+    const priorWeight = await this.clinicSetting.get<number>(
+      QUEUE_CONFIG_KEYS.PRIOR_WEIGHT,
+      {
+        categoryId: dto.categoryId,
+      },
+    );
+
     const avgDuration = this.estimator.estimateDuration({
       durationsMinutes: recentDurations,
-      priorMinutes: 30,
-      priorWeight: 5,
+      priorMinutes,
+      priorWeight,
     });
 
     // 3. Multi-lane ETA simulation
@@ -109,8 +136,14 @@ export class V2TicketsController {
       )
       .limit(1);
 
-    const startTimeStr = scheduleRow?.startsAt || '08:00:00';
-    const endTimeStr = scheduleRow?.endsAt || '12:00:00';
+    if (!scheduleRow) {
+      throw new BadRequestException(
+        `Jadwal operasional sesi tidak ditemukan untuk hari ke-${dow}`,
+      );
+    }
+
+    const startTimeStr = scheduleRow.startsAt;
+    const endTimeStr = scheduleRow.endsAt;
 
     const [sH, sM] = startTimeStr.split(':').map(Number);
     const [eH, eM] = endTimeStr.split(':').map(Number);
@@ -136,18 +169,18 @@ export class V2TicketsController {
     const [inserted] = await this.db
       .insert(queueTickets)
       .values({
-        serviceId: category.id, // linked to service_categories or clinicServices
+        serviceId: category.id,
         categoryId: category.id,
         sessionId: session.id,
         patientId: dto.patientId,
         queueDate: dto.serviceDate,
         queueNumber: formatted,
-        status: 'waiting',
-        priority: 'regular',
+        status: QUEUE_TICKET_STATUS.WAITING,
+        priority: QUEUE_PRIORITY.REGULAR,
         waitingPosition: seq,
         projectedStart: projectedStart.toISOString(),
         projectedEnd: projectedEnd.toISOString(),
-        source: 'online',
+        source: QUEUE_TICKET_SOURCE.ONLINE,
       })
       .returning();
 
@@ -165,12 +198,12 @@ export class V2TicketsController {
         serviceDate: dto.serviceDate,
         queueNumber: formatted,
         patientId: dto.patientId,
-        status: 'waiting',
+        status: QUEUE_TICKET_STATUS.WAITING,
         waitingPosition: seq,
         projectedStart,
         projectedEnd,
         carriedOver: false,
-        source: 'online',
+        source: QUEUE_TICKET_SOURCE.ONLINE,
       },
       categoryName: category.name,
       sessionLabel: session.labelKey,
@@ -178,10 +211,41 @@ export class V2TicketsController {
       etaRange: etaWindow.displayRange,
     });
 
+    // Record audit event
+    await this.db.insert(ticketEvents).values({
+      ticketId: inserted.id,
+      event: QUEUE_TICKET_EVENTS.CREATED,
+      toStatus: QUEUE_TICKET_STATUS.WAITING,
+      payload: {
+        queueNumber: formatted,
+        serviceDate: dto.serviceDate,
+        sessionId: session.id,
+        categoryId: category.id,
+        waitingPosition: seq,
+        source: QUEUE_TICKET_SOURCE.ONLINE,
+      },
+    });
+
+    // Record outbox for notifications
+    await this.db.insert(queueNotificationOutbox).values({
+      ticketId: inserted.id,
+      kind: QUEUE_OUTBOX_KINDS.TICKET_CREATED,
+      payload: {
+        ticketId: inserted.id,
+        patientId: dto.patientId,
+        queueNumber: formatted,
+        categoryName: category.name,
+        sessionLabel: session.labelKey,
+        etaRange: etaWindow.displayRange,
+      },
+      status: OutboxStatus.PENDING,
+    });
+
     return {
       success: true,
       data: {
         id: inserted.id,
+        queueNumber: formatted,
         ...patientView,
         projectedStart: projectedStart.toISOString(),
         projectedEnd: projectedEnd.toISOString(),
@@ -279,6 +343,7 @@ export class V2TicketsController {
       success: true,
       data: {
         id: ticket.id,
+        queueNumber: ticket.queueNumber,
         ...patientView,
         projectedStart: ticket.projectedStart,
         projectedEnd: ticket.projectedEnd,
@@ -305,9 +370,9 @@ export class V2TicketsController {
     }
 
     if (
-      oldTicket.status === 'completed' ||
-      oldTicket.status === 'in_service' ||
-      oldTicket.status === 'cancelled'
+      oldTicket.status === QUEUE_TICKET_STATUS.COMPLETED ||
+      oldTicket.status === QUEUE_TICKET_STATUS.IN_SERVICE ||
+      oldTicket.status === QUEUE_TICKET_STATUS.CANCELLED
     ) {
       throw new BadRequestException(
         `Cannot reschedule ticket with status '${oldTicket.status}'.`,
@@ -318,7 +383,7 @@ export class V2TicketsController {
     await this.db
       .update(queueTickets)
       .set({
-        status: 'cancelled',
+        status: QUEUE_TICKET_STATUS.CANCELLED,
         updatedAt: new Date().toISOString(),
       })
       .where(eq(queueTickets.id, id));
@@ -347,6 +412,35 @@ export class V2TicketsController {
         movedTo: result.data.id,
       })
       .where(eq(queueTickets.id, id));
+
+    // Audit and Outbox for reschedule
+    await this.db.insert(ticketEvents).values({
+      ticketId: id,
+      event: QUEUE_TICKET_EVENTS.RESCHEDULED,
+      fromStatus: oldTicket.status,
+      toStatus: QUEUE_TICKET_STATUS.CANCELLED,
+      payload: {
+        newTicketId: result.data.id,
+        newQueueNumber: result.data.ticketCode,
+        serviceDate: dto.serviceDate,
+        reason: dto.reason,
+      },
+    });
+
+    await this.db.insert(queueNotificationOutbox).values({
+      ticketId: result.data.id,
+      kind: QUEUE_OUTBOX_KINDS.TICKET_RESCHEDULED,
+      payload: {
+        oldTicketId: id,
+        newTicketId: result.data.id,
+        patientId: oldTicket.patientId,
+        queueNumber: result.data.ticketCode,
+        categoryName: result.data.serviceCategoryName,
+        sessionLabel: result.data.sessionLabel,
+        etaRange: result.data.etaWindowDisplay,
+      },
+      status: OutboxStatus.PENDING,
+    });
 
     return result;
   }

@@ -558,36 +558,5 @@ describe('SchedulesController', () => {
         data: mockOverview,
       });
     });
-
-    it('returns slot availability anti-collision grid for authenticated practitioner', async () => {
-      const mockAvailability: any = {
-        date: '2026-09-25',
-        shift: 'night',
-        shiftLabel: 'Sesi Malam',
-        roomId: 'room-1',
-        roomName: 'Ruang Poli Umum 1',
-        boundary: { startTime: '18:00', endTime: '24:00' },
-        intervalMinutes: 30,
-        summary: { totalSlots: 12, availableSlots: 10, occupiedSlots: 2 },
-        slots: [],
-      };
-      mockScheduleRepo.getSlotAvailability.mockResolvedValue(mockAvailability);
-
-      const result = await controller.getSlotAvailability(
-        { date: '2026-09-25', shift: 'night', roomId: 'room-1' },
-        mockStaffUser,
-      );
-
-      expect(mockScheduleRepo.getSlotAvailability).toHaveBeenCalledWith(
-        'practitioner-uuid-1',
-        { date: '2026-09-25', shift: 'night', roomId: 'room-1' },
-      );
-      expect(result).toEqual({
-        success: true,
-        statusCode: 200,
-        message: 'Ketersediaan slot berhasil dihitung',
-        data: mockAvailability,
-      });
-    });
   });
 });

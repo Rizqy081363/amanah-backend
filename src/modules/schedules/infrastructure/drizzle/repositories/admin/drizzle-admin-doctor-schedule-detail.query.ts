@@ -2,12 +2,14 @@ import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
   appointments,
+  doctorAssignments,
   practitionerLeavePeriods,
   practitionerScheduleClosures,
   practitionerScheduleDaySettings,
   practitionerScheduleSessions,
   practitioners,
   scheduleRescheduleEvents,
+  shiftExceptions,
 } from '@database/schema';
 import { DEFAULT_CONSULTATION_DURATION_MINUTES } from '@modules/schedules/domain/constants/schedule.constants';
 import { SCHEDULE_CONTEXT_DEFINITIONS } from '@modules/schedules/domain/constants/schedule-context.constants';
@@ -15,7 +17,6 @@ import {
   type AdminDoctorScheduleDetailResponse,
   ScheduleOperationalStatus,
 } from '@modules/schedules/domain/entities/schedule.entity';
-import { ScheduleSlotStateResolver } from '@modules/schedules/domain/resolvers/schedule-slot-state.resolver';
 import { resolveAggregateOperationalStatus } from '@modules/schedules/domain/schedule-status';
 import { formatIndoMonthYear } from '@modules/schedules/domain/services/schedule-date.formatter';
 import { ScheduleRecordMapper } from '@modules/schedules/infrastructure/drizzle/mappers/schedule-record.mapper';
@@ -249,80 +250,11 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
         : Promise.resolve([]),
     ]);
 
-    const contextProjections = SCHEDULE_CONTEXT_DEFINITIONS.map((ctxDef) => {
-      return ScheduleSlotStateResolver.resolveContextProjection({
-        scheduleDate: evalDate,
-        context: ctxDef,
-        intervalMinutes: effectiveConsultationDuration,
-        openedRanges: evalSessions.map((s) => ({
-          id: s.id,
-          startTime: s.startTime ? s.startTime.slice(0, 5) : '08:00',
-          endTime: s.endTime ? s.endTime.slice(0, 5) : '12:00',
-          status: s.status,
-          sessionShift: s.sessionShift || undefined,
-          notes: s.notes,
-        })),
-        appointments: evalAppts.map((a) => ({
-          id: a.id,
-          bookingCode: a.bookingCode || undefined,
-          patientId: a.patientId,
-          patientName: a.patientProfile?.fullName || undefined,
-          startTime: a.scheduledStartTime
-            ? a.scheduledStartTime.slice(0, 5)
-            : '08:00',
-          endTime: a.scheduledEndTime ? a.scheduledEndTime.slice(0, 5) : null,
-          status: a.status,
-          queueNumber: a.queueTickets?.[0]?.queueNumber || null,
-        })),
-        leavePeriods: evalLeave
-          ? [
-              {
-                id: evalLeave.id,
-                startDate: evalLeave.startDate,
-                endDate: evalLeave.endDate,
-                reason: evalLeave.reason,
-              },
-            ]
-          : evalDaySetting?.isLeave
-            ? [
-                {
-                  id: evalDaySetting.id,
-                  startDate: evalDate,
-                  endDate: evalDate,
-                  reason: evalDaySetting.leaveReason || 'Cuti Dokter',
-                },
-              ]
-            : [],
-        closures: evalClosures.map((c) => ({
-          id: c.id,
-          scheduleDate: c.scheduleDate,
-          scope: c.scope as any,
-          contextCode: c.contextCode,
-          startTime: c.startTime ? c.startTime.slice(0, 5) : null,
-          endTime: c.endTime ? c.endTime.slice(0, 5) : null,
-          category: 'OTHER',
-          reasonCode: c.reasonCode,
-          reasonText: c.reasonText,
-        })),
-        rescheduleEvents: evalReschedules.map((r) => ({
-          id: r.id,
-          scheduleSessionId: r.scheduleSessionId,
-          sourceDate: r.sourceDate,
-          sourceStartTime: r.sourceStartTime.slice(0, 5),
-          sourceEndTime: r.sourceEndTime.slice(0, 5),
-          sourceRoomId: r.sourceRoomId,
-          targetDate: r.targetDate,
-          targetStartTime: r.targetStartTime.slice(0, 5),
-          targetEndTime: r.targetEndTime.slice(0, 5),
-          targetRoomId: r.targetRoomId,
-          reasonCode: r.reasonCode,
-          reasonText: r.reasonText,
-        })),
-      });
-    });
-
-    const { timelineIntervals, dayMetrics } =
-      buildTimelineAndMetrics(contextProjections);
+    const { timelineIntervals, dayMetrics } = buildTimelineAndMetrics(
+      [],
+      sesiHarian,
+    );
+    const contextProjections: any[] = [];
 
     return {
       success: true,

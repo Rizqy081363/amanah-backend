@@ -1603,16 +1603,6 @@ export const appointments = pgTable(
       .notNull(),
   },
   (table) => [
-    uniqueIndex('appointments_active_practitioner_slot_unique')
-      .using(
-        'btree',
-        table.practitionerId.asc().nullsLast().op('uuid_ops'),
-        table.scheduledDate.asc().nullsLast().op('date_ops'),
-        table.scheduledStartTime.asc().nullsLast().op('date_ops'),
-      )
-      .where(
-        sql`((practitioner_id IS NOT NULL) AND (status = ANY (ARRAY['booked'::appointment_status, 'checked_in'::appointment_status, 'waiting'::appointment_status, 'in_service'::appointment_status])))`,
-      ),
     uniqueIndex('appointments_practitioner_date_queue_unique')
       .using(
         'btree',

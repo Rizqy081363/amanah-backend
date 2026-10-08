@@ -14,12 +14,7 @@ import { SCHEDULE_CONTEXT_DEFINITIONS } from '@modules/schedules/domain/constant
 import {
   type ScheduleOccupancyOverviewData,
   type ScheduleShiftOccupancyEntity,
-  type ScheduleShiftSlotEntity,
-  type ScheduleSlotConflictInfoEntity,
-  type ScheduleSlotStatus,
 } from '@modules/schedules/domain/entities/schedule.entity';
-import { ScheduleSlotStateResolver } from '@modules/schedules/domain/resolvers/schedule-slot-state.resolver';
-import { parseClockTime } from '@modules/schedules/domain/schedule-projection';
 import { SchedulePolicyReader } from '@modules/schedules/infrastructure/drizzle/queries/schedule-policy.reader';
 import { PractitionerResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/practitioner.resolver';
 import type { ScheduleOccupancyQueryDto } from '@modules/schedules/presentation/dto/schedule-occupancy-query.dto';
@@ -141,151 +136,18 @@ export class DrizzleScheduleOccupancyRepository {
     );
 
     for (const ctxDef of SCHEDULE_CONTEXT_DEFINITIONS) {
-      const proj = ScheduleSlotStateResolver.resolveContextProjection({
-        scheduleDate: query.date,
-        context: ctxDef,
-        intervalMinutes: durationMinutes,
-        openedRanges: doctorSessions.map((s) => ({
-          id: s.id,
-          startTime: s.startTime ? s.startTime.slice(0, 5) : '08:00',
-          endTime: s.endTime ? s.endTime.slice(0, 5) : '12:00',
-          status: s.status,
-          sessionShift: s.sessionShift || undefined,
-          notes: s.notes,
-        })),
-        appointments: doctorAppts.map((a) => ({
-          id: a.id,
-          bookingCode: a.bookingCode || undefined,
-          patientId: a.patientId,
-          patientName: a.patientProfile?.fullName || undefined,
-          startTime: a.scheduledStartTime
-            ? a.scheduledStartTime.slice(0, 5)
-            : '08:00',
-          endTime: a.scheduledEndTime ? a.scheduledEndTime.slice(0, 5) : null,
-          status: a.status,
-          queueNumber: a.queueTickets?.[0]?.queueNumber || null,
-        })),
-        leavePeriods: isCuti
-          ? [
-              {
-                id: activeLeave?.id || daySetting?.id || 'leave',
-                startDate: activeLeave?.startDate || query.date,
-                endDate: activeLeave?.endDate || query.date,
-                reason: cutiReason,
-              },
-            ]
-          : [],
-        closures: dayClosures.map((c) => ({
-          id: c.id,
-          scheduleDate: c.scheduleDate,
-          scope: c.scope as any,
-          contextCode: c.contextCode,
-          startTime: c.startTime ? c.startTime.slice(0, 5) : null,
-          endTime: c.endTime ? c.endTime.slice(0, 5) : null,
-          category: 'OTHER',
-          reasonCode: c.reasonCode,
-          reasonText: c.reasonText,
-        })),
-        rescheduleEvents: dayReschedules.map((r) => ({
-          id: r.id,
-          scheduleSessionId: r.scheduleSessionId,
-          sourceDate: r.sourceDate,
-          sourceStartTime: r.sourceStartTime.slice(0, 5),
-          sourceEndTime: r.sourceEndTime.slice(0, 5),
-          sourceRoomId: r.sourceRoomId,
-          targetDate: r.targetDate,
-          targetStartTime: r.targetStartTime.slice(0, 5),
-          targetEndTime: r.targetEndTime.slice(0, 5),
-          targetRoomId: r.targetRoomId,
-          reasonCode: r.reasonCode,
-          reasonText: r.reasonText,
-        })),
-      });
-
-      const slots: ScheduleShiftSlotEntity[] = proj.slots.map((slot) => {
-        let isAvailable = true;
-        let status: ScheduleSlotStatus = 'AVAILABLE';
-        let displayLabel = 'Tersedia';
-        let conflictInfo: ScheduleSlotConflictInfoEntity | null = null;
-
-        const selfSession = activeSessions.find((s) => {
-          if (s.practitionerId !== practitionerId) return false;
-          const sessStart = parseClockTime(s.startTime.slice(0, 5));
-          const sessEnd = parseClockTime(s.endTime.slice(0, 5));
-          return sessStart < slot.endMinutes && sessEnd > slot.startMinutes;
-        });
-
-        if (slot.closure?.category === 'LEAVE' || isCuti) {
-          isAvailable = false;
-          status = 'CLOSED_LEAVE';
-          displayLabel = 'Cuti';
-          conflictInfo = {
-            type: 'LEAVE',
-            message:
-              slot.closure?.reasonText ||
-              cutiReason ||
-              'Dokter tercatat sedang cuti',
-            practitionerId,
-            practitionerName,
-          };
-        } else if (selfSession) {
-          isAvailable = false;
-          status = 'OCCUPIED_BY_SELF';
-          displayLabel = `Jadwal Anda (${selfSession.clinicRoom?.name || 'Ruangan'})`;
-          conflictInfo = {
-            type: 'SELF',
-            message: 'Anda telah memiliki jadwal pada jam ini',
-            sessionId: selfSession.id,
-            practitionerId,
-            practitionerName,
-            roomId: selfSession.roomId,
-            roomName: selfSession.clinicRoom?.name,
-          };
-        } else if (query.roomId) {
-          const otherSession = activeSessions.find((s) => {
-            if (s.roomId !== query.roomId) return false;
-            if (s.practitionerId === practitionerId) return false;
-            const sessStart = parseClockTime(s.startTime.slice(0, 5));
-            const sessEnd = parseClockTime(s.endTime.slice(0, 5));
-            return sessStart < slot.endMinutes && sessEnd > slot.startMinutes;
-          });
-
-          if (otherSession) {
-            isAvailable = false;
-            status = 'OCCUPIED_BY_OTHER';
-            const otherDoctorName =
-              otherSession.practitioner?.staffProfile?.fullName ||
-              otherSession.practitioner?.displayName ||
-              'Dokter lain';
-            const roomName =
-              otherSession.clinicRoom?.name || targetRoomName || 'Ruangan';
-            displayLabel = `Terisi (${otherDoctorName} - ${roomName})`;
-            conflictInfo = {
-              type: 'OTHER',
-              message: `Ruangan telah digunakan oleh ${otherDoctorName}`,
-              sessionId: otherSession.id,
-              practitionerId: otherSession.practitionerId,
-              practitionerName: otherDoctorName,
-              roomId: otherSession.roomId,
-              roomName,
-            };
-          }
-        }
-
-        return {
-          slotIndex: slot.slotIndex,
-          startTime: slot.startTime,
-          endTime: slot.endTime,
-          timeRange: slot.timeRange,
-          isAvailable,
-          status,
-          displayLabel,
-          conflictInfo,
-        };
-      });
-
-      const shiftAvailableCount = slots.filter((s) => s.isAvailable).length;
-      const shiftOccupiedCount = slots.filter((s) => !s.isAvailable).length;
+      const shiftSessions = doctorSessions.filter(
+        (s) => s.sessionShift === ctxDef.shift,
+      );
+      const shiftCap = shiftSessions.reduce(
+        (acc, s) => acc + (s.capacity || 0),
+        0,
+      );
+      const shiftAvail = shiftSessions.reduce(
+        (acc, s) => acc + (s.availableSlots || 0),
+        0,
+      );
+      const shiftOcc = Math.max(0, shiftCap - shiftAvail);
 
       shifts.push({
         contextId: ctxDef.contextId,
@@ -294,10 +156,10 @@ export class DrizzleScheduleOccupancyRepository {
         timeRange: `${ctxDef.boundaryStartTime} - ${ctxDef.boundaryEndTime} WIB`,
         boundaryStartTime: ctxDef.boundaryStartTime,
         boundaryEndTime: ctxDef.boundaryEndTime,
-        totalSlots: slots.length,
-        availableSlotsCount: shiftAvailableCount,
-        occupiedSlotsCount: shiftOccupiedCount,
-        slots,
+        totalSlots: shiftCap,
+        availableSlotsCount: isCuti ? 0 : shiftAvail,
+        occupiedSlotsCount: isCuti ? 0 : shiftOcc,
+        slots: [],
       });
     }
 
