@@ -35,6 +35,10 @@ import {
   calculateDoctorSessionAvailableSlots,
   evaluateSessionTemporalAvailability,
 } from '../domain/services/schedule-temporal-availability.service';
+import {
+  DEFAULT_FALLBACK_CAPACITY,
+  resolveQueueLoadStatus,
+} from '../../queue-engine/domain/constants/queue-load.constants';
 
 interface BookingShiftDef {
   session: CanonicalSessionName;
@@ -269,18 +273,24 @@ export class PatientScheduleBookingController {
         endTime: s.endTime,
       }));
 
+      const effectiveCapacity =
+        totalCapacity > 0 ? totalCapacity : DEFAULT_FALLBACK_CAPACITY;
+      const loadRatio = totalBooked / effectiveCapacity;
+      const loadStatus = resolveQueueLoadStatus(loadRatio);
+
       return {
         session: shiftDef.session,
         shift: shiftDef.shift,
         label: matching[0]?.sessionLabel || shiftDef.label,
         startTime: matching[0]?.startTime || shiftDef.defaultStartTime,
         endTime: matching[0]?.endTime || shiftDef.defaultEndTime,
-        capacity: totalCapacity,
+        capacity: effectiveCapacity,
         availableSlots: temporalResult.effectiveAvailableSlots,
         bookedSlots: totalBooked,
         isPast: temporalResult.isPast,
         isDisabled: temporalResult.isDisabled,
         disabledReason: temporalResult.disabledReason,
+        loadStatus,
         practitioners: practitionersList,
       };
     });

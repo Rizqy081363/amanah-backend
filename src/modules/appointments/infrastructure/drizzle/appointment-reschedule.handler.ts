@@ -4,19 +4,25 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import { and, asc, eq, gte, inArray } from 'drizzle-orm';
+import { and, asc, eq, gte, inArray, sql } from 'drizzle-orm';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
   appointmentStatusEvents,
   appointments,
+  clinicServices,
   patientAffiliations,
   patientProfiles,
   practitionerScheduleSessions,
   queueTickets,
+  sessionDefs,
 } from '../../../../database/schema';
 import { AppointmentEntity } from '../../domain/entities/appointment.entity';
 import { RescheduleAppointmentDto } from '../../presentation/dto/reschedule-appointment.dto';
 import { allocateSlotTiming } from './appointment-slot.helper';
+import {
+  DEFAULT_FALLBACK_CAPACITY,
+  resolveQueueLoadStatus,
+} from '../../../queue-engine/domain/constants/queue-load.constants';
 
 export class AppointmentRescheduleHandler {
   static async getRescheduleOptions(
@@ -62,6 +68,12 @@ export class AppointmentRescheduleHandler {
         if (!groupedByDate[sess.scheduleDate]) {
           groupedByDate[sess.scheduleDate] = [];
         }
+        const cap =
+          sess.capacity > 0 ? sess.capacity : DEFAULT_FALLBACK_CAPACITY;
+        const booked = Math.max(0, cap - sess.availableSlots);
+        const loadRatio = booked / cap;
+        const loadStatus = resolveQueueLoadStatus(loadRatio);
+
         groupedByDate[sess.scheduleDate].push({
           sessionId: sess.id,
           startTime: sess.startTime.slice(0, 5),
@@ -70,7 +82,8 @@ export class AppointmentRescheduleHandler {
           sessionShift: sess.sessionShift,
           availableSlots: sess.availableSlots,
           capacity: sess.capacity,
-          isAvailable: sess.availableSlots > 0,
+          loadStatus,
+          isAvailable: true,
         });
       }
 
@@ -213,6 +226,11 @@ async function validateRescheduleAuthorization(
 function validateAppointmentStateForReschedule(
   apt: typeof appointments.$inferSelect,
 ): void {
+  if (apt.checkedInAt) {
+    throw new BadRequestException(
+      'Pasien sudah melakukan check-in di klinik. Perubahan jadwal hanya dapat dilakukan oleh petugas klinik.',
+    );
+  }
   if (
     apt.status === 'in_service' ||
     apt.status === 'completed' ||
@@ -250,12 +268,6 @@ async function resolveTargetScheduleSession(
   if (targetSession.status !== 'open') {
     throw new BadRequestException(
       'Sesi jadwal yang dipilih sedang tidak aktif atau ditutup',
-    );
-  }
-
-  if (targetSession.availableSlots <= 0) {
-    throw new BadRequestException(
-      'Slot kuota pada sesi jadwal yang dipilih sudah penuh',
     );
   }
 
@@ -345,13 +357,14 @@ async function allocateRescheduledSlotTiming(
     targetDate,
   );
 
-  if (!slotTiming) {
-    throw new UnprocessableEntityException(
-      'Tidak ada slot antrean yang tersedia untuk jadwal yang dipilih',
-    );
+  if (slotTiming) {
+    return slotTiming;
   }
 
-  return slotTiming;
+  return {
+    startTime: targetSession.startTime.slice(0, 5),
+    endTime: targetSession.endTime.slice(0, 5),
+  };
 }
 
 async function persistRescheduledAppointment(
@@ -410,25 +423,93 @@ async function synchronizeQueueTicket(
   targetDate: string,
   nowIso: string,
 ): Promise<void> {
-  let nextQueueNumber: string | undefined;
-  if (targetDate !== apt.scheduledDate) {
-    nextQueueNumber = await calculateRescheduledQueueNumber(
+  const service = await tx.query.clinicServices.findFirst({
+    where: eq(clinicServices.id, apt.serviceId),
+  });
+  if (!service) {
+    throw new NotFoundException('Layanan klinik tidak ditemukan');
+  }
+  const categoryPrefix = service.codePrefix;
+
+  const sessionDef = targetSession.sessionShift
+    ? await tx.query.sessionDefs.findFirst({
+        where: eq(sessionDefs.code, targetSession.sessionShift),
+      })
+    : null;
+
+  let numericQueueNumber: number;
+  let formattedTicketNumber: string;
+
+  if (service?.id && sessionDef?.id) {
+    const counterRes = await tx.execute(sql`
+      INSERT INTO queue_counter (service_date, category_id, session_id, last_no)
+      VALUES (${targetDate}, ${service.id}::uuid, ${sessionDef.id}::uuid, 1)
+      ON CONFLICT (service_date, category_id, session_id)
+      DO UPDATE SET last_no = queue_counter.last_no + 1
+      RETURNING last_no;
+    `);
+    numericQueueNumber = Number(counterRes.rows[0]?.last_no ?? 1);
+    formattedTicketNumber = `${categoryPrefix}-${String(numericQueueNumber).padStart(3, '0')}`;
+  } else {
+    formattedTicketNumber = await calculateRescheduledQueueNumber(
       tx,
       apt.serviceId,
       targetDate,
       targetSession.sessionLabel,
     );
+    const parsed = parseInt(formattedTicketNumber.split('-')[1] || '1', 10);
+    numericQueueNumber = Number.isNaN(parsed) ? 1 : parsed;
+  }
+
+  const oldTickets = await tx
+    .select()
+    .from(queueTickets)
+    .where(eq(queueTickets.appointmentId, apt.id));
+
+  const [newTicket] = await tx
+    .insert(queueTickets)
+    .values({
+      appointmentId: apt.id,
+      serviceId: apt.serviceId,
+      categoryId: service?.id || null,
+      sessionId: sessionDef?.id || null,
+      patientId: apt.patientId || null,
+      doctorId: targetSession.practitionerId || null,
+      roomId: targetSession.roomId ?? apt.roomId,
+      queueDate: targetDate,
+      queueNumber: formattedTicketNumber,
+      status: 'waiting',
+      priority: 'regular',
+      waitingPosition: numericQueueNumber,
+      carriedOver: true,
+      source: 'online',
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    })
+    .returning();
+
+  if (oldTickets.length > 0) {
+    for (const oldT of oldTickets) {
+      if (oldT.id !== newTicket?.id) {
+        await tx
+          .update(queueTickets)
+          .set({
+            status: 'cancelled',
+            movedTo: newTicket ? newTicket.id : null,
+            updatedAt: nowIso,
+          })
+          .where(eq(queueTickets.id, oldT.id));
+      }
+    }
   }
 
   await tx
-    .update(queueTickets)
+    .update(appointments)
     .set({
-      queueDate: targetDate,
-      roomId: targetSession.roomId ?? apt.roomId,
-      ...(nextQueueNumber ? { queueNumber: nextQueueNumber } : {}),
+      queueNumber: numericQueueNumber,
       updatedAt: nowIso,
     })
-    .where(eq(queueTickets.appointmentId, apt.id));
+    .where(eq(appointments.id, apt.id));
 }
 
 async function recordRescheduleStatusEvent(

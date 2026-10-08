@@ -1,0 +1,253 @@
+import {
+  boolean,
+  date,
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  primaryKey,
+  text,
+  time,
+  timestamp,
+  uniqueIndex,
+  uuid,
+  varchar,
+} from 'drizzle-orm/pg-core';
+import {
+  clinicRooms,
+  patientProfiles,
+  practitioners,
+  serviceCategories,
+  users,
+} from './amanah.schema';
+
+// ============================================================================
+// 1. CONFIGURATION REGISTRY (data, not code)
+// ============================================================================
+export const clinicSettings = pgTable('clinic_setting', {
+  key: text('key').primaryKey().notNull(),
+  scopeType: varchar('scope_type', { length: 20 }).default('global').notNull(),
+  scopeId: text('scope_id'),
+  value: jsonb('value').notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+    .defaultNow()
+    .notNull(),
+});
+
+// ============================================================================
+// 2. CLINIC-OWNED SESSION DEFINITIONS & SCHEDULES
+// ============================================================================
+export const sessionDefs = pgTable('session_def', {
+  id: uuid('id').defaultRandom().primaryKey().notNull(),
+  code: text('code').notNull().unique(),
+  labelKey: text('label_key').notNull(),
+  codePrefix: varchar('code_prefix', { length: 4 }).notNull(),
+  sortOrder: integer('sort_order').notNull(),
+  isActive: boolean('is_active').default(true).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+    .defaultNow()
+    .notNull(),
+});
+
+export const sessionSchedules = pgTable(
+  'session_schedule',
+  {
+    id: uuid('id').defaultRandom().primaryKey().notNull(),
+    sessionId: uuid('session_id')
+      .notNull()
+      .references(() => sessionDefs.id, { onDelete: 'cascade' }),
+    dow: integer('dow').notNull(), // 0 = Sunday .. 6 = Saturday
+    startsAt: time('starts_at').notNull(),
+    endsAt: time('ends_at').notNull(),
+    isActive: boolean('is_active').default(true).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index('idx_session_schedule_dow_session').on(table.dow, table.sessionId),
+  ],
+);
+
+// ============================================================================
+// 3. CLINIC ROSTER (doctor_assignment & shift_exception)
+// ============================================================================
+export const doctorAssignments = pgTable(
+  'doctor_assignment',
+  {
+    id: uuid('id').defaultRandom().primaryKey().notNull(),
+    doctorId: uuid('doctor_id')
+      .notNull()
+      .references(() => practitioners.id, { onDelete: 'cascade' }),
+    categoryId: uuid('category_id')
+      .notNull()
+      .references(() => serviceCategories.id, { onDelete: 'cascade' }),
+    sessionId: uuid('session_id')
+      .notNull()
+      .references(() => sessionDefs.id, { onDelete: 'cascade' }),
+    dow: integer('dow'), // NULL = all regular open days
+    preferredRoomId: uuid('preferred_room_id').references(
+      () => clinicRooms.id,
+      { onDelete: 'set null' },
+    ),
+    isActive: boolean('is_active').default(true).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index('idx_doctor_assignment_lookup').on(
+      table.categoryId,
+      table.sessionId,
+      table.isActive,
+    ),
+  ],
+);
+
+export const shiftExceptions = pgTable(
+  'shift_exception',
+  {
+    id: uuid('id').defaultRandom().primaryKey().notNull(),
+    doctorId: uuid('doctor_id')
+      .notNull()
+      .references(() => practitioners.id, { onDelete: 'cascade' }),
+    serviceDate: date('service_date').notNull(),
+    sessionId: uuid('session_id').references(() => sessionDefs.id, {
+      onDelete: 'set null',
+    }),
+    type: varchar('type', { length: 20 }).notNull(), // 'leave' | 'extra'
+    note: text('note'),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index('idx_shift_exception_date_doctor').on(
+      table.serviceDate,
+      table.doctorId,
+    ),
+  ],
+);
+
+// ============================================================================
+// 4. OPENINGS & CLOSURES (Intervals half-open [starts_at, ends_at))
+// ============================================================================
+export const extraOpenings = pgTable('extra_opening', {
+  id: uuid('id').defaultRandom().primaryKey().notNull(),
+  categoryId: uuid('category_id').references(() => serviceCategories.id, {
+    onDelete: 'cascade',
+  }),
+  startsAt: timestamp('starts_at', { withTimezone: true, mode: 'string' }).notNull(),
+  endsAt: timestamp('ends_at', { withTimezone: true, mode: 'string' }).notNull(),
+  note: text('note'),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+    .defaultNow()
+    .notNull(),
+});
+
+export const clinicClosures = pgTable(
+  'clinic_closure',
+  {
+    id: uuid('id').defaultRandom().primaryKey().notNull(),
+    scope: varchar('scope', { length: 20 }).default('clinic').notNull(), // 'clinic' | 'category' | 'doctor' | 'room'
+    categoryId: uuid('category_id').references(() => serviceCategories.id, {
+      onDelete: 'cascade',
+    }),
+    doctorId: uuid('doctor_id').references(() => practitioners.id, {
+      onDelete: 'cascade',
+    }),
+    roomId: uuid('room_id').references(() => clinicRooms.id, {
+      onDelete: 'cascade',
+    }),
+    startsAt: timestamp('starts_at', { withTimezone: true, mode: 'string' }).notNull(),
+    endsAt: timestamp('ends_at', { withTimezone: true, mode: 'string' }).notNull(),
+    inputKind: varchar('input_kind', { length: 20 }).notNull(), // 'day' | 'session' | 'range'
+    lastCallBufferMin: integer('last_call_buffer_min').default(0).notNull(),
+    reason: text('reason'),
+    createdBy: uuid('created_by').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true, mode: 'string' }),
+  },
+  (table) => [
+    index('idx_clinic_closure_period').on(table.startsAt, table.endsAt),
+  ],
+);
+
+// ============================================================================
+// 5. ATOMIC QUEUE COUNTER
+// ============================================================================
+export const queueCounters = pgTable(
+  'queue_counter',
+  {
+    serviceDate: date('service_date').notNull(),
+    categoryId: uuid('category_id')
+      .notNull()
+      .references(() => serviceCategories.id, { onDelete: 'cascade' }),
+    sessionId: uuid('session_id')
+      .notNull()
+      .references(() => sessionDefs.id, { onDelete: 'cascade' }),
+    lastNo: integer('last_no').default(0).notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.serviceDate, table.categoryId, table.sessionId],
+      name: 'queue_counter_pkey',
+    }),
+  ],
+);
+
+// ============================================================================
+// 6. AUDIT & OUTBOX
+// ============================================================================
+export const ticketEvents = pgTable(
+  'ticket_event',
+  {
+    id: uuid('id').defaultRandom().primaryKey().notNull(),
+    ticketId: uuid('ticket_id').notNull(),
+    event: text('event').notNull(),
+    fromStatus: text('from_status'),
+    toStatus: text('to_status'),
+    actor: jsonb('actor'),
+    at: timestamp('at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+    payload: jsonb('payload'),
+  },
+  (table) => [
+    index('idx_ticket_event_ticket_at').on(table.ticketId, table.at),
+  ],
+);
+
+export const queueNotificationOutbox = pgTable(
+  'queue_notification_outbox',
+  {
+    id: uuid('id').defaultRandom().primaryKey().notNull(),
+    ticketId: uuid('ticket_id'),
+    kind: text('kind').notNull(),
+    payload: jsonb('payload').notNull(),
+    status: varchar('status', { length: 20 }).default('pending').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+    sentAt: timestamp('sent_at', { withTimezone: true, mode: 'string' }),
+  },
+  (table) => [
+    index('idx_queue_outbox_pending').on(table.status, table.createdAt),
+  ],
+);

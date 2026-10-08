@@ -653,6 +653,7 @@ export const serviceCategories = pgTable(
     id: uuid().defaultRandom().primaryKey().notNull(),
     code: text().notNull(),
     name: text().notNull(),
+    codePrefix: varchar('code_prefix', { length: 8 }),
     description: text(),
     displayOrder: integer('display_order').default(0).notNull(),
     isActive: boolean('is_active').default(true).notNull(),
@@ -1787,9 +1788,13 @@ export const queueTickets = pgTable(
   'queue_tickets',
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
-    appointmentId: uuid('appointment_id').notNull(),
+    appointmentId: uuid('appointment_id'),
     serviceId: uuid('service_id').notNull(),
+    categoryId: uuid('category_id'),
+    sessionId: uuid('session_id'),
     roomId: uuid('room_id'),
+    doctorId: uuid('doctor_id'),
+    patientId: uuid('patient_id'),
     queueDate: date('queue_date').notNull(),
     queueNumber: text('queue_number').notNull(),
     priority: queuePriority().default('regular').notNull(),
@@ -1800,12 +1805,34 @@ export const queueTickets = pgTable(
       withTimezone: true,
       mode: 'string',
     }),
+    projectedStart: timestamp('projected_start', {
+      withTimezone: true,
+      mode: 'string',
+    }),
+    projectedEnd: timestamp('projected_end', {
+      withTimezone: true,
+      mode: 'string',
+    }),
+    actualStart: timestamp('actual_start', {
+      withTimezone: true,
+      mode: 'string',
+    }),
+    actualEnd: timestamp('actual_end', {
+      withTimezone: true,
+      mode: 'string',
+    }),
     calledAt: timestamp('called_at', { withTimezone: true, mode: 'string' }),
     startedAt: timestamp('started_at', { withTimezone: true, mode: 'string' }),
     completedAt: timestamp('completed_at', {
       withTimezone: true,
       mode: 'string',
     }),
+    carriedOver: boolean('carried_over').default(false).notNull(),
+    movedTo: uuid('moved_to'),
+    expiredAt: timestamp('expired_at', { withTimezone: true, mode: 'string' }),
+    autoClosed: boolean('auto_closed').default(false).notNull(),
+    legacyRef: text('legacy_ref'),
+    source: varchar('source', { length: 16 }).default('online').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
       .notNull(),
@@ -1841,7 +1868,6 @@ export const queueTickets = pgTable(
       foreignColumns: [clinicServices.id],
       name: 'queue_tickets_service_id_fkey',
     }).onDelete('restrict'),
-    unique('queue_tickets_appointment_id_key').on(table.appointmentId),
     unique('queue_tickets_unique_number_per_service_date').on(
       table.serviceId,
       table.queueDate,

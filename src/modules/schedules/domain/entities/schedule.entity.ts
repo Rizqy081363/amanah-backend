@@ -311,6 +311,22 @@ export class AdminDoctorDailySession {
   ruang: string;
 
   @ApiProperty({
+    description: 'ID ruangan praktik',
+    nullable: true,
+    required: false,
+    example: null,
+  })
+  ruang_id?: string | null;
+
+  @ApiProperty({
+    description: 'ID ruangan praktik (alias)',
+    nullable: true,
+    required: false,
+    example: null,
+  })
+  roomId?: string | null;
+
+  @ApiProperty({
     description: 'Flag apakah sesi ini memenuhi syarat untuk di-reschedule',
     example: true,
   })

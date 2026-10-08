@@ -13,6 +13,7 @@ import {
   practitionerScheduleSessions,
   practitioners,
   queueTickets,
+  sessionDefs,
 } from '../../../../database/schema';
 import {
   ScheduleShiftRegistry,
@@ -243,41 +244,26 @@ export class AppointmentCreationHandler {
         }
       }
 
-      if (matchedSession && matchedSlotTiming) {
-        scheduleSessionId = matchedSession.id;
-        startTime = matchedSlotTiming.startTime;
-        endTime = matchedSlotTiming.endTime;
-        if (matchedRoom) {
-          room = matchedRoom;
+      const selectedSession = matchedSession || candidateSessions[0];
+      if (selectedSession) {
+        scheduleSessionId = selectedSession.id;
+        startTime = matchedSlotTiming?.startTime || selectedSession.startTime;
+        endTime = matchedSlotTiming?.endTime || selectedSession.endTime;
+        if (matchedRoom || selectedSession.clinicRoom) {
+          room = (matchedRoom || selectedSession.clinicRoom) ?? undefined;
         }
-        if (matchedSession.availableSlots > 0) {
+        if (selectedSession.availableSlots > 0) {
           await db
             .update(practitionerScheduleSessions)
             .set({
-              availableSlots: Math.max(0, matchedSession.availableSlots - 1),
+              availableSlots: Math.max(0, selectedSession.availableSlots - 1),
               updatedAt: new Date().toISOString(),
             })
-            .where(eq(practitionerScheduleSessions.id, matchedSession.id));
+            .where(eq(practitionerScheduleSessions.id, selectedSession.id));
         }
-      } else if (candidateSessions.length > 0) {
-        throw new UnprocessableEntityException(
-          'Tidak ada slot antrean yang tersedia untuk sesi ini karena waktu praktik telah terlewati atau kuota penuh.',
-        );
       } else {
-        const defaultSlot = allocateSlotTiming(
-          defaultStart,
-          defaultEnd,
-          [],
-          policy?.defaultConsultationDurationMinutes ?? 30,
-          data.appointmentDate,
-        );
-        if (!defaultSlot) {
-          throw new UnprocessableEntityException(
-            'Tidak ada jadwal atau slot antrean yang tersedia untuk sesi yang dipilih.',
-          );
-        }
-        startTime = defaultSlot.startTime;
-        endTime = defaultSlot.endTime;
+        startTime = defaultStart;
+        endTime = defaultEnd;
       }
     }
 
@@ -318,12 +304,37 @@ export class AppointmentCreationHandler {
       numericQueueNumber = Number(maxQ?.max || 0) + 1;
     }
 
-    let ticketIndex = numericQueueNumber;
-    let formattedTicketNumber = unitPrefix
-      ? `${unitPrefix}-${String(ticketIndex).padStart(3, '0')}`
-      : String(ticketIndex);
+    const categoryId =
+      clinicServiceRecord?.categoryId ||
+      clinicServiceRecord?.serviceCategory?.id ||
+      null;
+    const categoryPrefix =
+      clinicServiceRecord?.codePrefix ||
+      clinicServiceRecord?.serviceCategory?.codePrefix ||
+      unitPrefix;
 
-    if (data.layananId && data.appointmentDate) {
+    const normalizedSession = (data.session || '').trim().toLowerCase();
+    const sessionRecord = await db.query.sessionDefs.findFirst({
+      where: or(
+        ilike(sessionDefs.code, `%${normalizedSession}%`),
+        ilike(sessionDefs.labelKey, `%${normalizedSession}%`),
+      ),
+    });
+    const sessionId = sessionRecord?.id || null;
+
+    let formattedTicketNumber = `${categoryPrefix}-${String(numericQueueNumber).padStart(3, '0')}`;
+
+    if (categoryId && sessionId) {
+      const counterRes = await db.execute(sql`
+        INSERT INTO queue_counter (service_date, category_id, session_id, last_no)
+        VALUES (${data.appointmentDate}, ${categoryId}::uuid, ${sessionId}::uuid, 1)
+        ON CONFLICT (service_date, category_id, session_id)
+        DO UPDATE SET last_no = queue_counter.last_no + 1
+        RETURNING last_no;
+      `);
+      numericQueueNumber = Number(counterRes.rows[0]?.last_no ?? 1);
+      formattedTicketNumber = `${categoryPrefix}-${String(numericQueueNumber).padStart(3, '0')}`;
+    } else {
       const existingTickets = await db
         .select({ queueNumber: queueTickets.queueNumber })
         .from(queueTickets)
@@ -333,16 +344,14 @@ export class AppointmentCreationHandler {
             eq(queueTickets.queueDate, data.appointmentDate),
           ),
         );
-
       const usedNumbers = new Set(existingTickets.map((t) => t.queueNumber));
+      let ticketIndex = numericQueueNumber;
       while (usedNumbers.has(formattedTicketNumber)) {
         ticketIndex++;
-        formattedTicketNumber = unitPrefix
-          ? `${unitPrefix}-${String(ticketIndex).padStart(3, '0')}`
-          : String(ticketIndex);
+        formattedTicketNumber = `${categoryPrefix}-${String(ticketIndex).padStart(3, '0')}`;
       }
+      numericQueueNumber = ticketIndex;
     }
-    numericQueueNumber = ticketIndex;
 
     const [startH, startM] = (startTime || '08:00')
       .split(':')
@@ -391,12 +400,19 @@ export class AppointmentCreationHandler {
       .values({
         appointmentId: apt.id,
         serviceId: data.layananId,
+        categoryId: categoryId,
+        sessionId: sessionId,
+        patientId: data.patientId || null,
+        doctorId: practitionerId || null,
         roomId: room ? room.id : null,
         queueDate: data.appointmentDate,
         queueNumber: formattedTicketNumber,
         status: 'waiting',
         priority: 'regular',
-        waitingPosition: 1,
+        waitingPosition: numericQueueNumber,
+        projectedStart: estimatedStart.toISOString(),
+        projectedEnd: estimatedEnd.toISOString(),
+        source: 'online',
       })
       .returning();
 

@@ -68,7 +68,9 @@ export class AppointmentStatusHandler {
       dbStatus = DB_APPOINTMENT_STATUS.WAITING;
       ticketStatus = QUEUE_TICKET_STATUS.WAITING;
       updateApt.status = dbStatus;
+      updateApt.checkedInAt = nowStr;
       updateTicket.status = ticketStatus;
+      updateTicket.checkedInAt = nowStr;
     } else if (status === DOMAIN_APPOINTMENT_STATUS.IN_SERVICE) {
       dbStatus = DB_APPOINTMENT_STATUS.IN_SERVICE;
       ticketStatus = QUEUE_TICKET_STATUS.IN_SERVICE;
@@ -83,6 +85,7 @@ export class AppointmentStatusHandler {
       }
       updateTicket.status = ticketStatus;
       updateTicket.startedAt = nowStr;
+      updateTicket.actualStart = nowStr;
     } else if (status === DOMAIN_APPOINTMENT_STATUS.COMPLETED) {
       dbStatus = DB_APPOINTMENT_STATUS.COMPLETED;
       ticketStatus = QUEUE_TICKET_STATUS.COMPLETED;
@@ -91,6 +94,7 @@ export class AppointmentStatusHandler {
       updateApt.actualCompletedAt = nowStr;
       updateTicket.status = ticketStatus;
       updateTicket.completedAt = nowStr;
+      updateTicket.actualEnd = nowStr;
     } else if (status === DOMAIN_APPOINTMENT_STATUS.CANCELLED) {
       dbStatus = DB_APPOINTMENT_STATUS.CANCELLED;
       ticketStatus = QUEUE_TICKET_STATUS.CANCELLED;

@@ -7,3 +7,5 @@ export * from './maternal.relations';
 export * from './maternal.schema';
 export * from './outbox.schema';
 export * from './push-subscriptions.schema';
+export * from './queue-ticketing.relations';
+export * from './queue-ticketing.schema';

@@ -305,6 +305,8 @@ export function buildDailySessions(
       display_slot: metrics.displaySlot,
       status_sesi: sessionOpStatus,
       ruang: roomName,
+      ruang_id: s.roomId || null,
+      roomId: s.roomId || null,
       is_reschedule_eligible: isRescheduleEligible,
       reschedule_ineligibility_reason: rescheduleIneligibilityReason,
     };

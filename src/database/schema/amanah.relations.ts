@@ -66,6 +66,7 @@ import {
   maternalHealthConditionResponses,
   maternalHusbandProfiles,
 } from './maternal.schema';
+import { sessionDefs } from './queue-ticketing.schema';
 
 export const userDevicesRelations = relations(userDevices, ({ one, many }) => ({
   user: one(users, {
@@ -569,6 +570,26 @@ export const queueTicketsRelations = relations(queueTickets, ({ one }) => ({
   clinicService: one(clinicServices, {
     fields: [queueTickets.serviceId],
     references: [clinicServices.id],
+  }),
+  category: one(serviceCategories, {
+    fields: [queueTickets.categoryId],
+    references: [serviceCategories.id],
+  }),
+  sessionDef: one(sessionDefs, {
+    fields: [queueTickets.sessionId],
+    references: [sessionDefs.id],
+  }),
+  practitioner: one(practitioners, {
+    fields: [queueTickets.doctorId],
+    references: [practitioners.id],
+  }),
+  patientProfile: one(patientProfiles, {
+    fields: [queueTickets.patientId],
+    references: [patientProfiles.id],
+  }),
+  movedToTicket: one(queueTickets, {
+    fields: [queueTickets.movedTo],
+    references: [queueTickets.id],
   }),
 }));
 

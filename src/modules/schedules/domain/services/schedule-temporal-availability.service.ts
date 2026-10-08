@@ -79,30 +79,18 @@ export function evaluateSessionTemporalAvailability(
     };
   }
 
-  if (input.practitionerSessions.length === 0) {
-    return {
-      isPast: false,
-      isDisabled: true,
-      disabledReason: BOOKING_SESSION_DISABLED_REASONS.NO_SCHEDULE,
-      effectiveAvailableSlots: 0,
-    };
-  }
-
-  const isFull = input.totalAvailableSlots <= 0;
-  if (isFull) {
-    return {
-      isPast: false,
-      isDisabled: true,
-      disabledReason: BOOKING_SESSION_DISABLED_REASONS.QUOTA_FULL,
-      effectiveAvailableSlots: 0,
-    };
-  }
+  // Under the queue-ticket model (Rule P4), patients are never blocked from booking.
+  // Capacity limits adjust wait estimates or display soft load warnings rather than disabling controls.
+  const fallbackSlots =
+    input.practitionerSessions.length === 0
+      ? 20
+      : Math.max(1, input.totalAvailableSlots);
 
   return {
     isPast: false,
     isDisabled: false,
     disabledReason: null,
-    effectiveAvailableSlots: input.totalAvailableSlots,
+    effectiveAvailableSlots: fallbackSlots,
   };
 }
 

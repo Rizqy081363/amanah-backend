@@ -31,6 +31,7 @@ import { PatientsModule } from './modules/patients/patients.module';
 import { SchedulesModule } from './modules/schedules/schedules.module';
 import { StaffsModule } from './modules/staffs/staffs.module';
 import { SupportTicketsModule } from './modules/support-tickets/support-tickets.module';
+import { QueueEngineModule } from './modules/queue-engine/queue-engine.module';
 
 @Module({
   imports: [
@@ -74,6 +75,7 @@ import { SupportTicketsModule } from './modules/support-tickets/support-tickets.
     AttendanceModule,
     LeavesModule,
     SupportTicketsModule,
+    QueueEngineModule,
   ],
 })
 export class AppModule implements NestModule {

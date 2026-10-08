@@ -23,11 +23,9 @@ import {
   resolveSessionOperationalStatus,
 } from '@modules/schedules/domain/schedule-status';
 import {
-  computeUpcomingSchedule,
   formatIndoDate,
   formatIndoMonthYear,
   getClinicNow,
-  getNextDate,
 } from '@modules/schedules/domain/services/schedule-date.formatter';
 import { ScheduleRecordMapper } from '@modules/schedules/infrastructure/drizzle/mappers/schedule-record.mapper';
 import { SchedulePolicyReader } from '@modules/schedules/infrastructure/drizzle/queries/schedule-policy.reader';
@@ -59,13 +57,6 @@ export class DrizzleAdminDoctorScheduleListQuery {
       }
     }
 
-    const todayStr = clinicTodayStr;
-    const isTodayQuery = targetDate === todayStr;
-    const tomorrowDateStr = isTodayQuery ? getNextDate(targetDate) : null;
-    const queryDates = tomorrowDateStr
-      ? [targetDate, tomorrowDateStr]
-      : [targetDate];
-
     const [targetYear, targetMonth] = targetDate.split('-').map(Number);
 
     const [
@@ -89,22 +80,19 @@ export class DrizzleAdminDoctorScheduleListQuery {
         orderBy: [asc(practitioners.displayName)],
       }),
       this.db.query.practitionerScheduleDaySettings.findMany({
-        where: inArray(
+        where: eq(
           practitionerScheduleDaySettings.scheduleDate,
-          queryDates,
+          targetDate,
         ),
       }),
       this.db.query.practitionerLeavePeriods.findMany({
         where: and(
-          lte(
-            practitionerLeavePeriods.startDate,
-            tomorrowDateStr || targetDate,
-          ),
+          lte(practitionerLeavePeriods.startDate, targetDate),
           gte(practitionerLeavePeriods.endDate, targetDate),
         ),
       }),
       this.db.query.practitionerScheduleSessions.findMany({
-        where: inArray(practitionerScheduleSessions.scheduleDate, queryDates),
+        where: eq(practitionerScheduleSessions.scheduleDate, targetDate),
         with: {
           clinicRoom: true,
         },
@@ -257,63 +245,7 @@ export class DrizzleAdminDoctorScheduleListQuery {
         slotTerisiAkumulasi = totalBooked;
         slotKapasitasAkumulasi = totalCapacity;
         displayAkumulasiSlot = `${slotTerisiAkumulasi} / ${slotKapasitasAkumulasi}`;
-        const doctorDuration =
-          p.consultationDurationMinutes ||
-          clinicPolicy.durationMinutes ||
-          DEFAULT_CONSULTATION_DURATION_MINUTES;
-        let tomorrowSesiHarian: AdminDoctorDailySession[] | null = null;
-        if (tomorrowDateStr) {
-          const tomorrowDaySetting = allDaySettings.find(
-            (ds) =>
-              ds.practitionerId === p.id && ds.scheduleDate === tomorrowDateStr,
-          );
-          const tomorrowActiveLeave = allActiveLeaves.find(
-            (al) =>
-              al.practitionerId === p.id &&
-              al.startDate <= tomorrowDateStr &&
-              al.endDate >= tomorrowDateStr,
-          );
-          const isTomorrowCuti = Boolean(
-            tomorrowDaySetting?.isLeave || tomorrowActiveLeave,
-          );
-          if (!isTomorrowCuti) {
-            const tomorrowSessions = allSessions.filter(
-              (s) =>
-                s.practitionerId === p.id && s.scheduleDate === tomorrowDateStr,
-            );
-            tomorrowSesiHarian = tomorrowSessions.map((s) => {
-              const jamMulai = s.startTime ? s.startTime.slice(0, 5) : '08:00';
-              const jamSelesai = s.endTime ? s.endTime.slice(0, 5) : '12:00';
-              return {
-                id: s.id,
-                nama_sesi: s.sessionLabel || 'Praktik',
-                jam_mulai: jamMulai,
-                jam_selesai: jamSelesai,
-                waktu: `${jamMulai} - ${jamSelesai}`,
-                kuota_pasien: s.capacity ?? 0,
-                slot_tersedia: s.availableSlots ?? 0,
-                pasien_terdaftar: 0,
-                display_slot: `0 / ${s.capacity ?? 0}`,
-                status_sesi:
-                  s.status === 'closed'
-                    ? ScheduleOperationalStatus.CLOSED
-                    : ScheduleOperationalStatus.OPEN,
-                ruang: defaultRoomName,
-                is_reschedule_eligible: s.status !== 'closed',
-                reschedule_ineligibility_reason: null,
-              };
-            });
-          }
-        }
-
-        jadwalPraktikMendatang = computeUpcomingSchedule(
-          targetDate,
-          todayStr,
-          sesiHarian,
-          isCuti,
-          doctorDuration,
-          tomorrowSesiHarian,
-        );
+        jadwalPraktikMendatang = '-';
         if (sesiHarian.length > 0) {
           const starts = sesiHarian.map((s) => s.jam_mulai).sort();
           const ends = sesiHarian.map((s) => s.jam_selesai).sort();

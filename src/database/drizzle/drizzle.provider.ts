@@ -10,6 +10,8 @@ import * as immunizationTables from '../schema/immunization.schema';
 import * as maternalRelations from '../schema/maternal.relations';
 import * as maternalTables from '../schema/maternal.schema';
 import * as outboxTables from '../schema/outbox.schema';
+import * as queueTicketingRelations from '../schema/queue-ticketing.relations';
+import * as queueTicketingTables from '../schema/queue-ticketing.schema';
 import { DRIZZLE_SOURCE, POSTGRES_POOL } from './drizzle.constants';
 
 const schema = {
@@ -20,6 +22,8 @@ const schema = {
   ...immunizationTables,
   ...immunizationRelations,
   ...outboxTables,
+  ...queueTicketingTables,
+  ...queueTicketingRelations,
 };
 
 export type DrizzleDatabase = NodePgDatabase<typeof schema>;
