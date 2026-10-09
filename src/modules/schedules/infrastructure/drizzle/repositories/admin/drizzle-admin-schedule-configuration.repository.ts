@@ -27,6 +27,12 @@ import {
   Optional,
 } from '@nestjs/common';
 import { and, asc, eq, gte, inArray, sql } from 'drizzle-orm';
+import {
+  ClinicSettingCategory,
+  ClinicSettingControlType,
+  ClinicSettingOptionDescriptor,
+  getClinicSettingMetadata,
+} from './admin-clinic-setting-metadata';
 import { ScheduleShiftRegistry } from '@modules/schedules/domain/constants/schedule-shift.constants';
 import { DrizzleScheduleConfigurationImpactEvaluator } from './drizzle-schedule-configuration-impact.evaluator';
 
@@ -65,9 +71,16 @@ export interface CanonicalClinicSettingConfig {
   key: string;
   scopeType: string;
   value: any;
-  category: 'duration' | 'queue' | 'notification' | 'general';
+  category: ClinicSettingCategory;
   label: string;
   description: string;
+  controlType: ClinicSettingControlType;
+  unit?: string;
+  min?: number;
+  max?: number;
+  step?: number;
+  options?: ClinicSettingOptionDescriptor[];
+  isAdminFacing: boolean;
 }
 
 export interface ScheduleConfigurationData {
@@ -76,97 +89,6 @@ export interface ScheduleConfigurationData {
   weeklyTemplates: CanonicalWeeklyTemplateConfig[];
   clinicSettings: CanonicalClinicSettingConfig[];
 }
-
-const CLINIC_SETTING_DESCRIPTIONS: Record<
-  string,
-  { label: string; description: string; category: 'duration' | 'queue' | 'notification' | 'general' }
-> = {
-  'duration.prior_minutes': {
-    label: 'Estimasi Durasi Konsultasi Default (Menit)',
-    description: 'Durasi acuan per pasien untuk perhitungan jadwal dan estimasi pelayanan',
-    category: 'duration',
-  },
-  'duration.valid_min_minutes': {
-    label: 'Batas Minimum Durasi Konsultasi (Menit)',
-    description: 'Ambang batas waktu tercepat konsultasi yang diizinkan sistem',
-    category: 'duration',
-  },
-  'duration.valid_max_minutes': {
-    label: 'Batas Maksimum Durasi Konsultasi (Menit)',
-    description: 'Ambang batas waktu maksimal konsultasi yang diizinkan sistem',
-    category: 'duration',
-  },
-  'duration.min_remaining_minutes': {
-    label: 'Buffer Waktu Minimum Tersisa (Menit)',
-    description: 'Waktu tersisa sebelum sesi berakhir untuk menerima pasien baru',
-    category: 'duration',
-  },
-  'closure.min_open_segment_minutes': {
-    label: 'Durasi Minimum Segmentasi Sesi Buka (Menit)',
-    description: 'Batas durasi minimal sebuah segmen shift dapat dibuka',
-    category: 'duration',
-  },
-  'queue.arrive_early_minutes': {
-    label: 'Anjuran Kedatangan Lebih Awal (Menit)',
-    description: 'Waktu sebelum estimasi panggilan saat pasien dianjurkan tiba di klinik',
-    category: 'queue',
-  },
-  'queue.no_show_grace_minutes': {
-    label: 'Toleransi Waktu Keterlambatan Pasien (Menit)',
-    description: 'Tenggat waktu tunggu sebelum antrean pasien dialihkan atau dibatalkan',
-    category: 'queue',
-  },
-  'queue.no_show_call_attempts': {
-    label: 'Maksimal Percobaan Panggilan Pasien',
-    description: 'Jumlah pengulangan pemanggilan antrean sebelum ditandai tidak hadir',
-    category: 'queue',
-  },
-  'queue.overflow_tolerance_minutes': {
-    label: 'Toleransi Antrean Melebihi Shift (Menit)',
-    description: 'Batas kelonggaran pelayanan pasien ketika melewati jam resmi sesi',
-    category: 'queue',
-  },
-  'queue.search_horizon_days': {
-    label: 'Batas Horizon Reservasi Jadwal (Hari)',
-    description: 'Jarak hari maksimal ke depan bagi pasien untuk membuat reservasi',
-    category: 'queue',
-  },
-  'ticket.max_active_per_patient_category_day': {
-    label: 'Maksimal Tiket Aktif Pasien Per Hari',
-    description: 'Batas jumlah nomor antrean aktif yang dapat dimiliki seorang pasien',
-    category: 'queue',
-  },
-  'ticket.reschedule_warn_when_ahead_lte': {
-    label: 'Peringatan Reschedule Tiket Berjarak Dekat',
-    description: 'Peringatan otomatis bila pasien di depan antrean tersisa sedikit',
-    category: 'queue',
-  },
-  'ticket.show_doctor_when_called': {
-    label: 'Tampilkan Nama Dokter Saat Panggilan',
-    description: 'Menampilkan nama praktisi yang memanggil pada layar display antrean',
-    category: 'queue',
-  },
-  'eta.display_round_minutes': {
-    label: 'Pembulatan Estimasi ETA Display (Menit)',
-    description: 'Faktor pembulatan menit pada estimasi kedatangan antrean',
-    category: 'notification',
-  },
-  'eta.notify_delay_minutes': {
-    label: 'Jeda Notifikasi Pengingat Pasien (Menit)',
-    description: 'Waktu pemberitahuan sebelum giliran pasien tiba di klinik',
-    category: 'notification',
-  },
-  'notify.channel': {
-    label: 'Kanal Distribusi Notifikasi',
-    description: 'Kanal utama pengiriman pembaruan status jadwal dan antrean',
-    category: 'notification',
-  },
-  'feature.queue_engine': {
-    label: 'Status Mesin Antrean Cerdas',
-    description: 'Status aktivasi otomasi mesin antrean klinik (off / manual / smart)',
-    category: 'general',
-  },
-};
 
 @Injectable()
 export class DrizzleAdminScheduleConfigurationRepository {
@@ -304,21 +226,26 @@ export class DrizzleAdminScheduleConfigurationRepository {
     }
 
     const clinicSettingsConfig: CanonicalClinicSettingConfig[] =
-      rawClinicSettings.map((cs) => {
-        const meta = CLINIC_SETTING_DESCRIPTIONS[cs.key] ?? {
-          label: cs.key,
-          description: `Konfigurasi parameter ${cs.key}`,
-          category: 'general' as const,
-        };
-        return {
-          key: cs.key,
-          scopeType: cs.scopeType,
-          value: cs.value,
-          category: meta.category,
-          label: meta.label,
-          description: meta.description,
-        };
-      });
+      rawClinicSettings
+        .map((cs) => {
+          const meta = getClinicSettingMetadata(cs.key);
+          return {
+            key: cs.key,
+            scopeType: cs.scopeType,
+            value: cs.value,
+            category: meta.category,
+            label: meta.label,
+            description: meta.description,
+            controlType: meta.controlType,
+            unit: meta.unit,
+            min: meta.min,
+            max: meta.max,
+            step: meta.step,
+            options: meta.options,
+            isAdminFacing: meta.isAdminFacing,
+          };
+        })
+        .filter((item) => item.isAdminFacing);
 
     return {
       days,

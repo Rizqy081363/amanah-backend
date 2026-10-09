@@ -1,0 +1,339 @@
+export type ClinicSettingCategory =
+  | 'general'
+  | 'duration'
+  | 'queue'
+  | 'notification';
+
+export type ClinicSettingControlType =
+  | 'text'
+  | 'number'
+  | 'boolean'
+  | 'select';
+
+export interface ClinicSettingOptionDescriptor {
+  value: string;
+  label: string;
+  description?: string;
+  flagCode?: string;
+  countryCode?: string;
+}
+
+export interface ClinicSettingMetadataDescriptor {
+  isAdminFacing: boolean;
+  category: ClinicSettingCategory;
+  label: string;
+  description: string;
+  controlType: ClinicSettingControlType;
+  unit?: string;
+  min?: number;
+  max?: number;
+  step?: number;
+  options?: ClinicSettingOptionDescriptor[];
+}
+
+export const CLINIC_SETTING_METADATA_REGISTRY: Record<
+  string,
+  ClinicSettingMetadataDescriptor
+> = {
+  // --- Operational Settings (Admin-Facing) ---
+  'clinic.locale': {
+    isAdminFacing: true,
+    category: 'general',
+    label: 'Negara & Format Bahasa',
+    description: 'Format regional untuk penanggalan, nomor telepon, dan bahasa komunikasi.',
+    controlType: 'select',
+    options: [
+      {
+        value: 'id-ID',
+        label: 'Indonesia (ID)',
+        description: 'Bahasa Indonesia (IDR, format 24 jam)',
+        flagCode: 'id',
+        countryCode: 'ID',
+      },
+    ],
+  },
+  'clinic.timezone': {
+    isAdminFacing: true,
+    category: 'general',
+    label: 'Zona Waktu Operasional',
+    description: 'Zona waktu rujukan untuk perhitungan jam buka shift dan giliran antrean.',
+    controlType: 'select',
+    options: [
+      { value: 'Asia/Jakarta', label: 'WIB - Waktu Indonesia Barat (UTC+7)' },
+      { value: 'Asia/Makassar', label: 'WITA - Waktu Indonesia Tengah (UTC+8)' },
+      { value: 'Asia/Jayapura', label: 'WIT - Waktu Indonesia Timur (UTC+9)' },
+    ],
+  },
+  'feature.queue_engine': {
+    isAdminFacing: true,
+    category: 'general',
+    label: 'Otomasi Mesin Antrean',
+    description: 'Mode pengendalian pemanggilan dan kalkulasi antrean klinik.',
+    controlType: 'select',
+    options: [
+      { value: 'off', label: 'Manual (Dipanggil Petugas)' },
+      { value: 'manual', label: 'Semi-Otomatis (Bantuan Sistem)' },
+      { value: 'smart', label: 'Otomatis Cerdas (Smart Engine)' },
+    ],
+  },
+  'notify.channel': {
+    isAdminFacing: true,
+    category: 'notification',
+    label: 'Kanal Utama Notifikasi',
+    description: 'Kanal pengiriman informasi status antrean dan jadwal konsultasi.',
+    controlType: 'select',
+    options: [
+      { value: 'in_app', label: 'Aplikasi Klinik (In-App)' },
+      { value: 'whatsapp', label: 'Pesan WhatsApp' },
+      { value: 'sms', label: 'Pesan SMS' },
+    ],
+  },
+  'duration.prior_minutes': {
+    isAdminFacing: true,
+    category: 'duration',
+    label: 'Estimasi Durasi Konsultasi',
+    description: 'Durasi rata-rata per pasien untuk acuan jadwal dan estimasi pelayanan.',
+    controlType: 'number',
+    unit: 'menit',
+    min: 5,
+    max: 120,
+    step: 5,
+  },
+  'duration.valid_min_minutes': {
+    isAdminFacing: true,
+    category: 'duration',
+    label: 'Batas Minimum Durasi Konsultasi',
+    description: 'Ambang batas waktu konsultasi tercepat yang diizinkan sistem.',
+    controlType: 'number',
+    unit: 'menit',
+    min: 1,
+    max: 30,
+    step: 1,
+  },
+  'duration.valid_max_minutes': {
+    isAdminFacing: true,
+    category: 'duration',
+    label: 'Batas Maksimum Durasi Konsultasi',
+    description: 'Ambang batas waktu konsultasi maksimal sebelum evaluasi pelayanan.',
+    controlType: 'number',
+    unit: 'menit',
+    min: 30,
+    max: 240,
+    step: 5,
+  },
+  'duration.min_remaining_minutes': {
+    isAdminFacing: true,
+    category: 'duration',
+    label: 'Batas Sisa Waktu Akhir Shift',
+    description: 'Waktu minimal sebelum jam shift berakhir untuk menerima pasien baru.',
+    controlType: 'number',
+    unit: 'menit',
+    min: 0,
+    max: 60,
+    step: 5,
+  },
+  'queue.arrive_early_minutes': {
+    isAdminFacing: true,
+    category: 'queue',
+    label: 'Anjuran Waktu Tiba Pasien',
+    description: 'Waktu sebelum estimasi panggilan saat pasien dianjurkan tiba di klinik.',
+    controlType: 'number',
+    unit: 'menit',
+    min: 0,
+    max: 60,
+    step: 5,
+  },
+  'queue.overflow_tolerance_minutes': {
+    isAdminFacing: true,
+    category: 'queue',
+    label: 'Toleransi Pelayanan Melewati Shift',
+    description: 'Batas kelonggaran waktu dokter melayani pasien setelah jam resmi shift selesai.',
+    controlType: 'number',
+    unit: 'menit',
+    min: 0,
+    max: 120,
+    step: 5,
+  },
+  'queue.no_show_grace_minutes': {
+    isAdminFacing: true,
+    category: 'queue',
+    label: 'Tenggat Keterlambatan Pasien',
+    description: 'Waktu tunggu pemanggilan sebelum antrean dialihkan atau ditandai tidak hadir.',
+    controlType: 'number',
+    unit: 'menit',
+    min: 1,
+    max: 60,
+    step: 1,
+  },
+  'queue.no_show_call_attempts': {
+    isAdminFacing: true,
+    category: 'queue',
+    label: 'Batas Pengulangan Panggilan',
+    description: 'Jumlah pengulangan pemanggilan nomor antrean sebelum dialihkan.',
+    controlType: 'number',
+    unit: 'kali',
+    min: 1,
+    max: 10,
+    step: 1,
+  },
+  'queue.search_horizon_days': {
+    isAdminFacing: true,
+    category: 'queue',
+    label: 'Batas Reservasi Jadwal ke Depan',
+    description: 'Jarak hari maksimal ke depan bagi pasien untuk membuat reservasi jadwal.',
+    controlType: 'number',
+    unit: 'hari',
+    min: 1,
+    max: 90,
+    step: 1,
+  },
+  'ticket.max_active_per_patient_category_day': {
+    isAdminFacing: true,
+    category: 'queue',
+    label: 'Batas Antrean Aktif Per Pasien',
+    description: 'Batas jumlah tiket antrean aktif per pasien pada poli yang sama per hari.',
+    controlType: 'number',
+    unit: 'tiket',
+    min: 1,
+    max: 5,
+    step: 1,
+  },
+  'ticket.reschedule_warn_when_ahead_lte': {
+    isAdminFacing: true,
+    category: 'queue',
+    label: 'Peringatan Jadwal Ulang Berjarak Dekat',
+    description: 'Peringatan otomatis bila pasien di depan antrean tersisa sedikit.',
+    controlType: 'number',
+    unit: 'antrean',
+    min: 0,
+    max: 10,
+    step: 1,
+  },
+  'ticket.show_doctor_when_called': {
+    isAdminFacing: true,
+    category: 'queue',
+    label: 'Tampilkan Nama Dokter di Layar Antrean',
+    description: 'Menampilkan nama praktisi yang memanggil pada layar display antrean.',
+    controlType: 'boolean',
+  },
+  'eta.display_round_minutes': {
+    isAdminFacing: true,
+    category: 'notification',
+    label: 'Pembulatan Estimasi Waktu di Layar',
+    description: 'Faktor pembulatan menit pada estimasi kedatangan antrean di display.',
+    controlType: 'number',
+    unit: 'menit',
+    min: 1,
+    max: 30,
+    step: 1,
+  },
+  'eta.notify_delay_minutes': {
+    isAdminFacing: true,
+    category: 'notification',
+    label: 'Jeda Notifikasi Pengingat Pasien',
+    description: 'Waktu pemberitahuan sebelum giliran pasien tiba di klinik.',
+    controlType: 'number',
+    unit: 'menit',
+    min: 1,
+    max: 60,
+    step: 5,
+  },
+
+  // --- Internal Algorithm & Infrastructure Tunables (Hidden from Clinic Administrators) ---
+  'closure.min_open_segment_minutes': {
+    isAdminFacing: false,
+    category: 'duration',
+    label: 'Min Open Segment Minutes',
+    description: 'Internal segmentation threshold',
+    controlType: 'number',
+  },
+  'closure.last_call_buffer_minutes': {
+    isAdminFacing: false,
+    category: 'duration',
+    label: 'Last Call Buffer Minutes',
+    description: 'Internal closure buffer',
+    controlType: 'number',
+  },
+  'closure.long_confirm_days': {
+    isAdminFacing: false,
+    category: 'duration',
+    label: 'Long Confirm Days',
+    description: 'Internal closure lookahead',
+    controlType: 'number',
+  },
+  'eta.spread_z': {
+    isAdminFacing: false,
+    category: 'notification',
+    label: 'ETA Spread Z',
+    description: 'Gaussian distribution factor',
+    controlType: 'number',
+  },
+  'eta.update_threshold_minutes': {
+    isAdminFacing: false,
+    category: 'notification',
+    label: 'ETA Update Threshold Minutes',
+    description: 'Hysteresis refresh threshold',
+    controlType: 'number',
+  },
+  'feature.legacy_compat': {
+    isAdminFacing: false,
+    category: 'general',
+    label: 'Legacy Compatibility',
+    description: 'Internal legacy route switch',
+    controlType: 'boolean',
+  },
+  'duration.prior_weight': {
+    isAdminFacing: false,
+    category: 'duration',
+    label: 'Prior Weight',
+    description: 'Bayesian model prior weight',
+    controlType: 'number',
+  },
+  'duration.window_days': {
+    isAdminFacing: false,
+    category: 'duration',
+    label: 'Window Days',
+    description: 'Historical sample window',
+    controlType: 'number',
+  },
+  'duration.min_samples': {
+    isAdminFacing: false,
+    category: 'duration',
+    label: 'Min Samples',
+    description: 'Minimum sample size',
+    controlType: 'number',
+  },
+  'duration.stale_factor': {
+    isAdminFacing: false,
+    category: 'duration',
+    label: 'Stale Factor',
+    description: 'Outlier multiplier',
+    controlType: 'number',
+  },
+  'queue.load_ratio.ok_max': {
+    isAdminFacing: false,
+    category: 'queue',
+    label: 'Queue OK Ratio Max',
+    description: 'Load ratio threshold',
+    controlType: 'number',
+  },
+  'queue.load_ratio.busy_max': {
+    isAdminFacing: false,
+    category: 'queue',
+    label: 'Queue Busy Ratio Max',
+    description: 'Load ratio threshold',
+    controlType: 'number',
+  },
+};
+
+export function getClinicSettingMetadata(key: string): ClinicSettingMetadataDescriptor {
+  return (
+    CLINIC_SETTING_METADATA_REGISTRY[key] ?? {
+      isAdminFacing: false,
+      category: 'general',
+      label: key,
+      description: `Parameter sistem ${key}`,
+      controlType: 'text',
+    }
+  );
+}

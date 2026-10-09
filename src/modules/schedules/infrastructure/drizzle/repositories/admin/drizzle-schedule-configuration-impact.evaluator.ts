@@ -13,6 +13,7 @@ import {
 } from '@modules/schedules/presentation/dto/admin-schedule-configuration.dto';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { and, eq, gte, inArray, sql } from 'drizzle-orm';
+import { ScheduleShiftRegistry } from '@modules/schedules/domain/constants/schedule-shift.constants';
 
 @Injectable()
 export class DrizzleScheduleConfigurationImpactEvaluator {
@@ -83,9 +84,12 @@ export class DrizzleScheduleConfigurationImpactEvaluator {
         const apptCount = apptCountResult[0]?.count ?? 0;
         affectedAppointmentsCount += apptCount;
 
+        const shiftDesc = ScheduleShiftRegistry.find(dbDef.code);
+        const shiftName = shiftDesc?.label ?? dbDef.code;
+
         if (assignedDocs.length > 0 || apptCount > 0) {
           warnings.push(
-            `Shift master "${dbDef.code}" dinonaktifkan: terdapat ${assignedDocs.length} dokter terdaftar dan ${apptCount} janji temu aktif di masa depan.`,
+            `Penonaktifan shift "${shiftName}" akan menutup jadwal seluruh dokter pada shift ini.`,
           );
         }
       }
@@ -111,7 +115,8 @@ export class DrizzleScheduleConfigurationImpactEvaluator {
           .limit(1);
 
         const dayLabel = dayInfo?.nameId ?? `Hari ${targetTpl.dow}`;
-        const shiftLabel = dbDef?.code ?? 'Shift';
+        const shiftDesc = dbDef ? ScheduleShiftRegistry.find(dbDef.code) : null;
+        const shiftLabel = shiftDesc?.label ?? dbDef?.code ?? 'Shift';
 
         // Hitung dokter yang terikat pada slot hari dan shift ini
         const slotDocs = await this.db
@@ -152,7 +157,7 @@ export class DrizzleScheduleConfigurationImpactEvaluator {
 
           if (slotDocs.length > 0 || apptCount > 0) {
             warnings.push(
-              `Slot mingguan ${dayLabel} (${shiftLabel}) dinonaktifkan: terdapat ${slotDocs.length} dokter terikat dan ${apptCount} janji temu aktif.`,
+              `Jadwal praktik dokter pada ${dayLabel} (${shiftLabel}) akan dinonaktifkan.`,
             );
           }
         }
