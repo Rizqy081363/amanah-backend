@@ -7,11 +7,13 @@ import { SchedulePolicyReader } from '@modules/schedules/infrastructure/drizzle/
 import {
   DrizzleAdminDoctorScheduleDetailQuery,
   DrizzleAdminDoctorScheduleListQuery,
+  DrizzleAdminScheduleConfigurationRepository,
   DrizzleAdminScheduleMutationRepository,
   DrizzleAdminSessionMutationRepository,
   DrizzleClinicalPractitionerRepository,
   DrizzleRescheduleEligibilityEvaluator,
   DrizzleScheduleAvailabilityRepository,
+  DrizzleScheduleConfigurationImpactEvaluator,
   DrizzleScheduleDayRepository,
   DrizzleScheduleOccupancyRepository,
   DrizzleSchedulePatientRepository,
@@ -23,6 +25,7 @@ import { PractitionerResolver } from '@modules/schedules/infrastructure/drizzle/
 import { RoomResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/room.resolver';
 import { ScheduleDrizzleRepository } from '@modules/schedules/infrastructure/drizzle/schedule.drizzle-repository';
 import { AdminDoctorSchedulesController } from '@modules/schedules/presentation/admin-doctor-schedules.controller';
+import { AdminScheduleConfigurationController } from '@modules/schedules/presentation/admin-schedule-configuration.controller';
 import { ClinicalPractitionersController } from '@modules/schedules/presentation/clinical-practitioners.controller';
 import { PatientScheduleBookingController } from '@modules/schedules/presentation/patient-schedule-booking.controller';
 import { SchedulesController } from '@modules/schedules/presentation/schedules.controller';
@@ -34,6 +37,7 @@ import { Module } from '@nestjs/common';
     PatientScheduleBookingController,
     SchedulesController,
     AdminDoctorSchedulesController,
+    AdminScheduleConfigurationController,
     ClinicalPractitionersController,
   ],
   providers: [
@@ -55,6 +59,8 @@ import { Module } from '@nestjs/common';
     DrizzleAdminDoctorScheduleListQuery,
     DrizzleAdminDoctorScheduleDetailQuery,
     DrizzleAdminScheduleMutationRepository,
+    DrizzleAdminScheduleConfigurationRepository,
+    DrizzleScheduleConfigurationImpactEvaluator,
     {
       provide: SCHEDULE_REPOSITORY,
       useClass: ScheduleDrizzleRepository,
@@ -79,6 +85,8 @@ import { Module } from '@nestjs/common';
     DrizzleAdminDoctorScheduleDetailQuery,
     DrizzleAdminScheduleMutationRepository,
     DrizzleAdminSessionMutationRepository,
+    DrizzleAdminScheduleConfigurationRepository,
+    DrizzleScheduleConfigurationImpactEvaluator,
     DrizzleRescheduleEligibilityEvaluator,
   ],
 })

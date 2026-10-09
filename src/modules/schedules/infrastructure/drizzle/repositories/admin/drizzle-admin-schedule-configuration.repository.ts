@@ -1,0 +1,461 @@
+import { ClinicConfigService } from '@common/clinic-config';
+import { RedisService } from '@common/redis/redis.service';
+import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
+import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
+import {
+  appointments,
+  clinicSettings,
+  doctorAssignments,
+  masterDays,
+  practitionerScheduleSessions,
+  sessionDefs,
+  sessionSchedules,
+} from '@database/schema';
+import {
+  EvaluateScheduleImpactDto,
+  ScheduleConfigurationImpactResultDto,
+  UpdateClinicSettingItemDto,
+  UpdateScheduleConfigurationBatchDto,
+  UpdateSessionDefDto,
+  UpdateWeeklyTemplateItemDto,
+} from '@modules/schedules/presentation/dto/admin-schedule-configuration.dto';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  Logger,
+  Optional,
+} from '@nestjs/common';
+import { and, asc, eq, gte, inArray, sql } from 'drizzle-orm';
+import { ScheduleShiftRegistry } from '@modules/schedules/domain/constants/schedule-shift.constants';
+import { DrizzleScheduleConfigurationImpactEvaluator } from './drizzle-schedule-configuration-impact.evaluator';
+
+export interface CanonicalDayInfo {
+  dow: number;
+  label: string;
+}
+
+export interface CanonicalSessionDefConfig {
+  id: string;
+  code: string;
+  labelKey: string;
+  label: string;
+  timeRange: string;
+  codePrefix: string;
+  sortOrder: number;
+  isActive: boolean;
+  defaultStartsAt: string;
+  defaultEndsAt: string;
+}
+
+export interface CanonicalWeeklyTemplateConfig {
+  id: string;
+  sessionId: string;
+  sessionCode: string;
+  sessionLabel: string;
+  dow: number;
+  dowLabel: string;
+  startsAt: string;
+  endsAt: string;
+  isActive: boolean;
+  isMasterActive: boolean;
+}
+
+export interface CanonicalClinicSettingConfig {
+  key: string;
+  scopeType: string;
+  value: any;
+  category: 'duration' | 'queue' | 'notification' | 'general';
+  label: string;
+  description: string;
+}
+
+export interface ScheduleConfigurationData {
+  days: CanonicalDayInfo[];
+  sessionDefs: CanonicalSessionDefConfig[];
+  weeklyTemplates: CanonicalWeeklyTemplateConfig[];
+  clinicSettings: CanonicalClinicSettingConfig[];
+}
+
+const CLINIC_SETTING_DESCRIPTIONS: Record<
+  string,
+  { label: string; description: string; category: 'duration' | 'queue' | 'notification' | 'general' }
+> = {
+  'duration.prior_minutes': {
+    label: 'Estimasi Durasi Konsultasi Default (Menit)',
+    description: 'Durasi acuan per pasien untuk perhitungan jadwal dan estimasi pelayanan',
+    category: 'duration',
+  },
+  'duration.valid_min_minutes': {
+    label: 'Batas Minimum Durasi Konsultasi (Menit)',
+    description: 'Ambang batas waktu tercepat konsultasi yang diizinkan sistem',
+    category: 'duration',
+  },
+  'duration.valid_max_minutes': {
+    label: 'Batas Maksimum Durasi Konsultasi (Menit)',
+    description: 'Ambang batas waktu maksimal konsultasi yang diizinkan sistem',
+    category: 'duration',
+  },
+  'duration.min_remaining_minutes': {
+    label: 'Buffer Waktu Minimum Tersisa (Menit)',
+    description: 'Waktu tersisa sebelum sesi berakhir untuk menerima pasien baru',
+    category: 'duration',
+  },
+  'closure.min_open_segment_minutes': {
+    label: 'Durasi Minimum Segmentasi Sesi Buka (Menit)',
+    description: 'Batas durasi minimal sebuah segmen shift dapat dibuka',
+    category: 'duration',
+  },
+  'queue.arrive_early_minutes': {
+    label: 'Anjuran Kedatangan Lebih Awal (Menit)',
+    description: 'Waktu sebelum estimasi panggilan saat pasien dianjurkan tiba di klinik',
+    category: 'queue',
+  },
+  'queue.no_show_grace_minutes': {
+    label: 'Toleransi Waktu Keterlambatan Pasien (Menit)',
+    description: 'Tenggat waktu tunggu sebelum antrean pasien dialihkan atau dibatalkan',
+    category: 'queue',
+  },
+  'queue.no_show_call_attempts': {
+    label: 'Maksimal Percobaan Panggilan Pasien',
+    description: 'Jumlah pengulangan pemanggilan antrean sebelum ditandai tidak hadir',
+    category: 'queue',
+  },
+  'queue.overflow_tolerance_minutes': {
+    label: 'Toleransi Antrean Melebihi Shift (Menit)',
+    description: 'Batas kelonggaran pelayanan pasien ketika melewati jam resmi sesi',
+    category: 'queue',
+  },
+  'queue.search_horizon_days': {
+    label: 'Batas Horizon Reservasi Jadwal (Hari)',
+    description: 'Jarak hari maksimal ke depan bagi pasien untuk membuat reservasi',
+    category: 'queue',
+  },
+  'ticket.max_active_per_patient_category_day': {
+    label: 'Maksimal Tiket Aktif Pasien Per Hari',
+    description: 'Batas jumlah nomor antrean aktif yang dapat dimiliki seorang pasien',
+    category: 'queue',
+  },
+  'ticket.reschedule_warn_when_ahead_lte': {
+    label: 'Peringatan Reschedule Tiket Berjarak Dekat',
+    description: 'Peringatan otomatis bila pasien di depan antrean tersisa sedikit',
+    category: 'queue',
+  },
+  'ticket.show_doctor_when_called': {
+    label: 'Tampilkan Nama Dokter Saat Panggilan',
+    description: 'Menampilkan nama praktisi yang memanggil pada layar display antrean',
+    category: 'queue',
+  },
+  'eta.display_round_minutes': {
+    label: 'Pembulatan Estimasi ETA Display (Menit)',
+    description: 'Faktor pembulatan menit pada estimasi kedatangan antrean',
+    category: 'notification',
+  },
+  'eta.notify_delay_minutes': {
+    label: 'Jeda Notifikasi Pengingat Pasien (Menit)',
+    description: 'Waktu pemberitahuan sebelum giliran pasien tiba di klinik',
+    category: 'notification',
+  },
+  'notify.channel': {
+    label: 'Kanal Distribusi Notifikasi',
+    description: 'Kanal utama pengiriman pembaruan status jadwal dan antrean',
+    category: 'notification',
+  },
+  'feature.queue_engine': {
+    label: 'Status Mesin Antrean Cerdas',
+    description: 'Status aktivasi otomasi mesin antrean klinik (off / manual / smart)',
+    category: 'general',
+  },
+};
+
+@Injectable()
+export class DrizzleAdminScheduleConfigurationRepository {
+  private readonly logger = new Logger(
+    DrizzleAdminScheduleConfigurationRepository.name,
+  );
+
+  constructor(
+    @Inject(DRIZZLE_SOURCE)
+    private readonly db: DrizzleDatabase,
+    private readonly clinicConfigService: ClinicConfigService,
+    private readonly impactEvaluator: DrizzleScheduleConfigurationImpactEvaluator,
+    @Optional()
+    @Inject(RedisService)
+    private readonly redisService?: RedisService,
+  ) {}
+
+  private async invalidateCaches(): Promise<void> {
+    this.clinicConfigService.invalidateCache();
+    if (!this.redisService) return;
+    try {
+      await this.redisService.invalidateTags(
+        'schedule',
+        'schedule:list',
+        'schedule:detail',
+        'schedule:patients',
+        'booking',
+      );
+    } catch {
+      // Safe fallback when redis is unreachable
+    }
+  }
+
+  async getConfiguration(): Promise<ScheduleConfigurationData> {
+    const [
+      rawSessionDefs,
+      rawWeeklySchedules,
+      rawClinicSettings,
+      rawMasterDays,
+    ] = await Promise.all([
+      this.db
+        .select()
+        .from(sessionDefs)
+        .orderBy(asc(sessionDefs.sortOrder)),
+      this.db
+        .select({
+          id: sessionSchedules.id,
+          sessionId: sessionSchedules.sessionId,
+          sessionCode: sessionDefs.code,
+          sessionLabelKey: sessionDefs.labelKey,
+          dow: sessionSchedules.dow,
+          startsAt: sessionSchedules.startsAt,
+          endsAt: sessionSchedules.endsAt,
+          isActive: sessionSchedules.isActive,
+        })
+        .from(sessionSchedules)
+        .innerJoin(sessionDefs, eq(sessionSchedules.sessionId, sessionDefs.id))
+        .orderBy(asc(sessionSchedules.dow), asc(sessionDefs.sortOrder)),
+      this.db
+        .select()
+        .from(clinicSettings)
+        .orderBy(asc(clinicSettings.key)),
+      this.db
+        .select({
+          dow: masterDays.dow,
+          label: masterDays.nameId,
+        })
+        .from(masterDays)
+        .orderBy(asc(masterDays.sortOrder)),
+    ]);
+
+    const days: CanonicalDayInfo[] = rawMasterDays;
+
+    const sessionDefsConfig: CanonicalSessionDefConfig[] = rawSessionDefs.map(
+      (sd) => {
+        const descriptor = ScheduleShiftRegistry.find(sd.code);
+        const startTimeStr = sd.defaultStartsAt
+          ? sd.defaultStartsAt.slice(0, 5)
+          : (descriptor?.defaultStartTime ?? '');
+        const endTimeStr = sd.defaultEndsAt
+          ? sd.defaultEndsAt.slice(0, 5)
+          : (descriptor?.defaultEndTime ?? '');
+        return {
+          id: sd.id,
+          code: sd.code,
+          labelKey: sd.labelKey,
+          label: descriptor?.label ?? sd.code,
+          timeRange: startTimeStr && endTimeStr ? `${startTimeStr} - ${endTimeStr}` : '',
+          codePrefix: sd.codePrefix,
+          sortOrder: sd.sortOrder,
+          isActive: sd.isActive,
+          defaultStartsAt: sd.defaultStartsAt,
+          defaultEndsAt: sd.defaultEndsAt,
+        };
+      },
+    );
+
+    const weeklyTemplates: CanonicalWeeklyTemplateConfig[] = [];
+
+    for (const day of days) {
+      for (const def of rawSessionDefs) {
+        const descriptor = ScheduleShiftRegistry.find(def.code);
+        const found = rawWeeklySchedules.find(
+          (ws) => ws.dow === day.dow && ws.sessionId === def.id,
+        );
+
+        if (found) {
+          weeklyTemplates.push({
+            id: found.id,
+            sessionId: found.sessionId,
+            sessionCode: found.sessionCode,
+            sessionLabel: descriptor?.label ?? found.sessionCode,
+            dow: found.dow,
+            dowLabel: day.label,
+            startsAt: found.startsAt,
+            endsAt: found.endsAt,
+            isActive: found.isActive,
+            isMasterActive: def.isActive,
+          });
+        } else {
+          weeklyTemplates.push({
+            id: '',
+            sessionId: def.id,
+            sessionCode: def.code,
+            sessionLabel: descriptor?.label ?? def.code,
+            dow: day.dow,
+            dowLabel: day.label,
+            startsAt: def.defaultStartsAt,
+            endsAt: def.defaultEndsAt,
+            isActive: false,
+            isMasterActive: def.isActive,
+          });
+        }
+      }
+    }
+
+    const clinicSettingsConfig: CanonicalClinicSettingConfig[] =
+      rawClinicSettings.map((cs) => {
+        const meta = CLINIC_SETTING_DESCRIPTIONS[cs.key] ?? {
+          label: cs.key,
+          description: `Konfigurasi parameter ${cs.key}`,
+          category: 'general' as const,
+        };
+        return {
+          key: cs.key,
+          scopeType: cs.scopeType,
+          value: cs.value,
+          category: meta.category,
+          label: meta.label,
+          description: meta.description,
+        };
+      });
+
+    return {
+      days,
+      sessionDefs: sessionDefsConfig,
+      weeklyTemplates,
+      clinicSettings: clinicSettingsConfig,
+    };
+  }
+
+  async updateSessionDefs(
+    defs: UpdateSessionDefDto[],
+    executor: any = this.db,
+  ): Promise<void> {
+    if (!defs || defs.length === 0) return;
+    const now = new Date().toISOString();
+    for (const def of defs) {
+      await executor
+        .update(sessionDefs)
+        .set({
+          ...(typeof def.isActive === 'boolean' && { isActive: def.isActive }),
+          ...(typeof def.sortOrder === 'number' && { sortOrder: def.sortOrder }),
+          updatedAt: now,
+        })
+        .where(eq(sessionDefs.id, def.id));
+    }
+    if (executor === this.db) {
+      await this.invalidateCaches();
+    }
+  }
+
+  async updateWeeklyTemplates(
+    templates: UpdateWeeklyTemplateItemDto[],
+    executor: any = this.db,
+  ): Promise<void> {
+    if (!templates || templates.length === 0) return;
+    const now = new Date().toISOString();
+
+    const allDefs = await executor
+      .select({ id: sessionDefs.id, code: sessionDefs.code, isActive: sessionDefs.isActive })
+      .from(sessionDefs);
+    const defMap = new Map<string, { id: string; code: string; isActive: boolean }>(
+      allDefs.map((d: any) => [d.id, d]),
+    );
+
+    for (const item of templates) {
+      if (item.isActive) {
+        const master = defMap.get(item.sessionId);
+        if (master && !master.isActive) {
+          throw new BadRequestException(
+            `Shift master '${master.code}' sedang nonaktif. Template jadwal mingguan tidak dapat diaktifkan.`,
+          );
+        }
+      }
+
+      if (item.startsAt >= item.endsAt) {
+        throw new BadRequestException(
+          `Waktu mulai (${item.startsAt}) harus lebih awal dari waktu selesai (${item.endsAt})`,
+        );
+      }
+
+      const existing = item.id && item.id.trim() !== ''
+        ? await executor.select().from(sessionSchedules).where(eq(sessionSchedules.id, item.id)).limit(1)
+        : await executor.select().from(sessionSchedules).where(
+            and(
+              eq(sessionSchedules.sessionId, item.sessionId),
+              eq(sessionSchedules.dow, item.dow),
+            ),
+          ).limit(1);
+
+      if (existing && existing.length > 0) {
+        await executor
+          .update(sessionSchedules)
+          .set({
+            startsAt: item.startsAt,
+            endsAt: item.endsAt,
+            isActive: item.isActive,
+            updatedAt: now,
+          })
+          .where(eq(sessionSchedules.id, existing[0].id));
+      } else {
+        await executor.insert(sessionSchedules).values({
+          sessionId: item.sessionId,
+          dow: item.dow,
+          startsAt: item.startsAt,
+          endsAt: item.endsAt,
+          isActive: item.isActive,
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+    }
+    if (executor === this.db) {
+      await this.invalidateCaches();
+    }
+  }
+
+  async updateClinicSettings(
+    settings: UpdateClinicSettingItemDto[],
+    executor: any = this.db,
+  ): Promise<void> {
+    if (!settings || settings.length === 0) return;
+    const now = new Date().toISOString();
+
+    for (const item of settings) {
+      await executor
+        .update(clinicSettings)
+        .set({
+          value: item.value,
+          updatedAt: now,
+        })
+        .where(eq(clinicSettings.key, item.key));
+    }
+    if (executor === this.db) {
+      await this.invalidateCaches();
+    }
+  }
+
+  async batchUpdateConfiguration(
+    dto: UpdateScheduleConfigurationBatchDto,
+  ): Promise<void> {
+    await this.db.transaction(async (tx) => {
+      if (dto.sessionDefs && dto.sessionDefs.length > 0) {
+        await this.updateSessionDefs(dto.sessionDefs, tx);
+      }
+      if (dto.weeklyTemplates && dto.weeklyTemplates.length > 0) {
+        await this.updateWeeklyTemplates(dto.weeklyTemplates, tx);
+      }
+      if (dto.clinicSettings && dto.clinicSettings.length > 0) {
+        await this.updateClinicSettings(dto.clinicSettings, tx);
+      }
+    });
+    await this.invalidateCaches();
+  }
+
+  async evaluateImpact(
+    dto: EvaluateScheduleImpactDto,
+  ): Promise<ScheduleConfigurationImpactResultDto> {
+    return this.impactEvaluator.evaluate(dto);
+  }
+}

@@ -17,6 +17,7 @@ import {
   resolveAggregateOperationalStatus,
   resolveSessionOperationalStatus,
 } from '@modules/schedules/domain/schedule-status';
+import { ScheduleShiftRegistry } from '@modules/schedules/domain/constants/schedule-shift.constants';
 
 export interface MonthlyScheduleBuildContext {
   targetYear: number;
@@ -122,16 +123,19 @@ export function buildMonthlySchedule(
     let dayNotes: string | null = null;
 
     const daySessionStatuses = daySessions.map((s) => {
+      const descriptor = ScheduleShiftRegistry.find(s.sessionShift || s.sessionLabel);
+      const defaultStart = descriptor ? `${descriptor.defaultStartTime}:00` : '';
+      const defaultEnd = descriptor ? `${descriptor.defaultEndTime}:00` : '';
       const sessStart = s.startTime
         ? s.startTime.length === 5
           ? `${s.startTime}:00`
           : s.startTime
-        : '08:00:00';
+        : defaultStart;
       const sessEnd = s.endTime
         ? s.endTime.length === 5
           ? `${s.endTime}:00`
           : s.endTime
-        : '12:00:00';
+        : defaultEnd;
 
       const matchingAppts = dayAppts.filter((a) => {
         if (a.scheduleSessionId && a.scheduleSessionId === s.id) return true;
@@ -139,7 +143,7 @@ export function buildMonthlySchedule(
         const aStart =
           a.scheduledStartTime?.length === 5
             ? `${a.scheduledStartTime}:00`
-            : a.scheduledStartTime || '08:00:00';
+            : a.scheduledStartTime || sessStart;
         return aStart >= sessStart && aStart < sessEnd;
       });
 
@@ -275,18 +279,21 @@ export function buildDailySessions(
     consultationDurationMinutes || DEFAULT_CONSULTATION_DURATION_MINUTES;
 
   return evalSessions.map((s) => {
-    const jamMulai = s.startTime ? s.startTime.slice(0, 5) : '08:00';
-    const jamSelesai = s.endTime ? s.endTime.slice(0, 5) : '12:00';
+    const descriptor = ScheduleShiftRegistry.find(s.sessionShift || s.sessionLabel);
+    const defaultStart = descriptor?.defaultStartTime ?? '';
+    const defaultEnd = descriptor?.defaultEndTime ?? '';
+    const jamMulai = s.startTime ? s.startTime.slice(0, 5) : defaultStart;
+    const jamSelesai = s.endTime ? s.endTime.slice(0, 5) : defaultEnd;
     const sessStart = s.startTime
       ? s.startTime.length === 5
         ? `${s.startTime}:00`
         : s.startTime
-      : '08:00:00';
+      : (defaultStart ? `${defaultStart}:00` : '');
     const sessEnd = s.endTime
       ? s.endTime.length === 5
         ? `${s.endTime}:00`
         : s.endTime
-      : '12:00:00';
+      : (defaultEnd ? `${defaultEnd}:00` : '');
 
     const matchingAppts = evalAppts.filter((a) => {
       if (a.scheduleSessionId && a.scheduleSessionId === s.id) return true;
@@ -294,7 +301,7 @@ export function buildDailySessions(
       const aStart =
         a.scheduledStartTime?.length === 5
           ? `${a.scheduledStartTime}:00`
-          : a.scheduledStartTime || '08:00:00';
+          : a.scheduledStartTime || sessStart;
       return aStart >= sessStart && aStart < sessEnd;
     });
 

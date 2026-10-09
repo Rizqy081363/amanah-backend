@@ -76,6 +76,6 @@ async function runStandalone(): Promise<void> {
   }
 }
 
-if (import.meta.main) {
+if (typeof require !== 'undefined' && require.main === module) {
   runStandalone();
 }

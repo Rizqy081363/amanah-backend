@@ -11,6 +11,7 @@ import {
   clinicClosures,
   doctorAssignments,
   extraOpenings,
+  masterDays,
   queueCounters,
   queueNotificationOutbox,
   sessionDefs,
@@ -18,6 +19,11 @@ import {
   shiftExceptions,
   ticketEvents,
 } from './queue-ticketing.schema';
+
+export const masterDaysRelations = relations(masterDays, ({ many }) => ({
+  sessionSchedules: many(sessionSchedules),
+  doctorAssignments: many(doctorAssignments),
+}));
 
 export const sessionDefsRelations = relations(sessionDefs, ({ many }) => ({
   schedules: many(sessionSchedules),
@@ -29,6 +35,10 @@ export const sessionSchedulesRelations = relations(sessionSchedules, ({ one }) =
   sessionDef: one(sessionDefs, {
     fields: [sessionSchedules.sessionId],
     references: [sessionDefs.id],
+  }),
+  masterDay: one(masterDays, {
+    fields: [sessionSchedules.dow],
+    references: [masterDays.dow],
   }),
 }));
 
@@ -44,6 +54,10 @@ export const doctorAssignmentsRelations = relations(doctorAssignments, ({ one })
   sessionDef: one(sessionDefs, {
     fields: [doctorAssignments.sessionId],
     references: [sessionDefs.id],
+  }),
+  masterDay: one(masterDays, {
+    fields: [doctorAssignments.dow],
+    references: [masterDays.dow],
   }),
   preferredRoom: one(clinicRooms, {
     fields: [doctorAssignments.preferredRoomId],

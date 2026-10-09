@@ -35,6 +35,26 @@ export const clinicSettings = pgTable('clinic_setting', {
 });
 
 // ============================================================================
+// 1.1 CANONICAL MASTER DAYS (SSOT for calendar day names, sort order, & relations)
+// ============================================================================
+export const masterDays = pgTable('master_day', {
+  dow: integer('dow').primaryKey().notNull(), // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+  code: text('code').notNull().unique(),
+  nameId: text('name_id').notNull(),
+  nameEn: text('name_en').notNull(),
+  shortNameId: varchar('short_name_id', { length: 10 }).notNull(),
+  shortNameEn: varchar('short_name_en', { length: 10 }).notNull(),
+  sortOrder: integer('sort_order').notNull().unique(),
+  isWeekend: boolean('is_weekend').default(false).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+    .defaultNow()
+    .notNull(),
+});
+
+// ============================================================================
 // 2. CLINIC-OWNED SESSION DEFINITIONS & SCHEDULES
 // ============================================================================
 export const sessionDefs = pgTable('session_def', {
@@ -44,6 +64,8 @@ export const sessionDefs = pgTable('session_def', {
   codePrefix: varchar('code_prefix', { length: 4 }).notNull(),
   sortOrder: integer('sort_order').notNull(),
   isActive: boolean('is_active').default(true).notNull(),
+  defaultStartsAt: time('default_starts_at').notNull(),
+  defaultEndsAt: time('default_ends_at').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
     .defaultNow()
     .notNull(),
@@ -59,7 +81,9 @@ export const sessionSchedules = pgTable(
     sessionId: uuid('session_id')
       .notNull()
       .references(() => sessionDefs.id, { onDelete: 'cascade' }),
-    dow: integer('dow').notNull(), // 0 = Sunday .. 6 = Saturday
+    dow: integer('dow')
+      .notNull()
+      .references(() => masterDays.dow, { onDelete: 'restrict' }), // 0 = Sunday .. 6 = Saturday
     startsAt: time('starts_at').notNull(),
     endsAt: time('ends_at').notNull(),
     isActive: boolean('is_active').default(true).notNull(),
@@ -91,7 +115,9 @@ export const doctorAssignments = pgTable(
     sessionId: uuid('session_id')
       .notNull()
       .references(() => sessionDefs.id, { onDelete: 'cascade' }),
-    dow: integer('dow'), // NULL = all regular open days
+    dow: integer('dow').references(() => masterDays.dow, {
+      onDelete: 'restrict',
+    }), // NULL = all regular open days
     preferredRoomId: uuid('preferred_room_id').references(
       () => clinicRooms.id,
       { onDelete: 'set null' },
