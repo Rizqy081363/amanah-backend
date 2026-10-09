@@ -16,14 +16,14 @@ import {
   queueTickets,
   sessionDefs,
 } from '../../../../database/schema';
-import { RescheduleAppointmentDto } from '../../presentation/dto/reschedule-appointment.dto';
-import type { AppointmentEntity } from '../../domain/entities/appointment.entity';
-import { QUEUE_TICKET_STATUS } from '../../domain/constants/appointment-lifecycle.constants';
-import { SchedulePersistenceStatus } from '../../../schedules/domain/schedule-status';
 import {
   DEFAULT_FALLBACK_CAPACITY,
   resolveQueueLoadStatus,
 } from '../../../queue-engine/domain/constants/queue-load.constants';
+import { SchedulePersistenceStatus } from '../../../schedules/domain/schedule-status';
+import { QUEUE_TICKET_STATUS } from '../../domain/constants/appointment-lifecycle.constants';
+import type { AppointmentEntity } from '../../domain/entities/appointment.entity';
+import { RescheduleAppointmentDto } from '../../presentation/dto/reschedule-appointment.dto';
 
 export class AppointmentRescheduleHandler {
   static async getRescheduleOptions(
@@ -49,47 +49,62 @@ export class AppointmentRescheduleHandler {
     validateAppointmentStateForReschedule(apt);
 
     let availableDates: any[] = [];
+    const today = new Date().toISOString().split('T')[0];
+    const whereConditions: any[] = [
+      gte(practitionerScheduleSessions.scheduleDate, today),
+      eq(practitionerScheduleSessions.status, 'open'),
+    ];
+
     if (apt.practitionerId) {
-      const today = new Date().toISOString().split('T')[0];
-      const candidateSessions =
-        await db.query.practitionerScheduleSessions.findMany({
-          where: and(
-            eq(practitionerScheduleSessions.practitionerId, apt.practitionerId),
-            gte(practitionerScheduleSessions.scheduleDate, today),
-            eq(practitionerScheduleSessions.status, 'open'),
-          ),
-          orderBy: [
-            asc(practitionerScheduleSessions.scheduleDate),
-            asc(practitionerScheduleSessions.startTime),
-          ],
-        });
-
-      const groupedByDate: Record<string, any[]> = {};
-      for (const sess of candidateSessions) {
-        if (!groupedByDate[sess.scheduleDate]) {
-          groupedByDate[sess.scheduleDate] = [];
-        }
-        const cap =
-          sess.capacity > 0 ? sess.capacity : DEFAULT_FALLBACK_CAPACITY;
-        const loadStatus = resolveQueueLoadStatus(0);
-
-        groupedByDate[sess.scheduleDate].push({
-          sessionId: sess.id,
-          startTime: sess.startTime.slice(0, 5),
-          endTime: sess.endTime.slice(0, 5),
-          shift: sess.sessionLabel,
-          sessionShift: sess.sessionShift,
-          capacity: sess.capacity,
-          loadStatus,
-          isAvailable: sess.status !== SchedulePersistenceStatus.CLOSED,
-        });
-      }
-
-      availableDates = Object.entries(groupedByDate).map(([date, shifts]) => ({
-        date,
-        shifts,
-      }));
+      whereConditions.push(
+        eq(practitionerScheduleSessions.practitionerId, apt.practitionerId),
+      );
+    } else if (apt.serviceId) {
+      whereConditions.push(
+        eq(practitionerScheduleSessions.serviceId, apt.serviceId),
+      );
     }
+
+    const candidateSessions =
+      await db.query.practitionerScheduleSessions.findMany({
+        where: and(...whereConditions),
+        orderBy: [
+          asc(practitionerScheduleSessions.scheduleDate),
+          asc(practitionerScheduleSessions.startTime),
+        ],
+      });
+
+    const groupedByDate: Record<string, any[]> = {};
+    for (const sess of candidateSessions) {
+      if (!groupedByDate[sess.scheduleDate]) {
+        groupedByDate[sess.scheduleDate] = [];
+      }
+      const alreadyHasShift = groupedByDate[sess.scheduleDate].some(
+        (s: any) =>
+          s.startTime === sess.startTime.slice(0, 5) ||
+          s.shift === sess.sessionLabel,
+      );
+      if (alreadyHasShift) continue;
+
+      const cap = sess.capacity > 0 ? sess.capacity : DEFAULT_FALLBACK_CAPACITY;
+      const loadStatus = resolveQueueLoadStatus(0);
+
+      groupedByDate[sess.scheduleDate].push({
+        sessionId: sess.id,
+        startTime: sess.startTime.slice(0, 5),
+        endTime: sess.endTime.slice(0, 5),
+        shift: sess.sessionLabel,
+        sessionShift: sess.sessionShift,
+        capacity: sess.capacity,
+        loadStatus,
+        isAvailable: sess.status !== SchedulePersistenceStatus.CLOSED,
+      });
+    }
+
+    availableDates = Object.entries(groupedByDate).map(([date, shifts]) => ({
+      date,
+      shifts,
+    }));
 
     return {
       appointmentId: apt.id,
@@ -377,7 +392,10 @@ async function synchronizeQueueTicket(
       RETURNING last_no;
     `);
     numericQueueNumber = Number(counterRes.rows[0]?.last_no ?? 1);
-    formattedTicketNumber = `${categoryPrefix}-${String(numericQueueNumber).padStart(3, '0')}`;
+    const sessionPrefix = sessionDef?.codePrefix
+      ? `${sessionDef.codePrefix}`
+      : '';
+    formattedTicketNumber = `${categoryPrefix}-${sessionPrefix}${String(numericQueueNumber).padStart(3, '0')}`;
   } else {
     formattedTicketNumber = await calculateRescheduledQueueNumber(
       tx,

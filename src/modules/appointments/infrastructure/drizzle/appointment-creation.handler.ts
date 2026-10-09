@@ -1,5 +1,6 @@
 import { UnprocessableEntityException } from '@nestjs/common';
 import { and, asc, eq, ilike, inArray, not, or, sql } from 'drizzle-orm';
+import type { ClinicConfigService } from '../../../../common/clinic-config/clinic-config.service';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
   appointments,
@@ -19,12 +20,11 @@ import {
   ScheduleShiftRegistry,
   SHIFT_TIMING_CONFIGS,
 } from '../../../schedules/domain/constants/schedule-shift.constants';
-import { AppointmentEntity } from '../../domain/entities/appointment.entity';
 import {
   DB_APPOINTMENT_STATUS,
   QUEUE_TICKET_STATUS,
 } from '../../domain/constants/appointment-lifecycle.constants';
-import type { ClinicConfigService } from '../../../../common/clinic-config/clinic-config.service';
+import { AppointmentEntity } from '../../domain/entities/appointment.entity';
 import { AppointmentRecordMapper } from './appointment-record.mapper';
 
 export class AppointmentCreationHandler {
@@ -180,13 +180,17 @@ export class AppointmentCreationHandler {
     const normalizedSession = (data.session || '').trim().toLowerCase();
     const sessionRecord = await db.query.sessionDefs.findFirst({
       where: or(
+        eq(sessionDefs.code, targetShift),
         ilike(sessionDefs.code, `%${normalizedSession}%`),
         ilike(sessionDefs.labelKey, `%${normalizedSession}%`),
       ),
     });
     const sessionId = sessionRecord?.id || null;
 
-    let formattedTicketNumber = `${categoryPrefix}-${String(numericQueueNumber).padStart(3, '0')}`;
+    const sessionPrefix = sessionRecord?.codePrefix
+      ? `${sessionRecord.codePrefix}`
+      : '';
+    let formattedTicketNumber = `${categoryPrefix}-${sessionPrefix}${String(numericQueueNumber).padStart(3, '0')}`;
 
     if (categoryId && sessionId) {
       const counterRes = await db.execute(sql`
@@ -197,7 +201,7 @@ export class AppointmentCreationHandler {
         RETURNING last_no;
       `);
       numericQueueNumber = Number(counterRes.rows[0]?.last_no ?? 1);
-      formattedTicketNumber = `${categoryPrefix}-${String(numericQueueNumber).padStart(3, '0')}`;
+      formattedTicketNumber = `${categoryPrefix}-${sessionPrefix}${String(numericQueueNumber).padStart(3, '0')}`;
     } else {
       const existingTickets = await db
         .select({ queueNumber: queueTickets.queueNumber })

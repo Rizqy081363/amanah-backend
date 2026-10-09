@@ -15,7 +15,8 @@ $suites = @(
     @{ Name = "2. Reschedule Workflow"; File = "appointment/test-reschedule.ps1" },
     @{ Name = "3. Call & Service Lifecycle"; File = "appointment/test-call-lifecycle.ps1" },
     @{ Name = "4. Cancellation Workflow"; File = "appointment/test-cancel.ps1" },
-    @{ Name = "5. Closure & Rule R15 Protection"; File = "appointment/test-closure.ps1" }
+    @{ Name = "5. Closure & Rule R15 Protection"; File = "appointment/test-closure.ps1" },
+    @{ Name = "6. Multi-Patient & Operational Edge Cases"; File = "appointment/test-multi-patient-edge-cases.ps1" }
 )
 
 Write-Host "==============================================================================" -ForegroundColor Green
