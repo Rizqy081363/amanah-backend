@@ -1,3 +1,4 @@
+import { ClinicConfigService } from '@common/clinic-config';
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import { and, count, desc, eq, inArray, lt, or } from 'drizzle-orm';
 import { decodeCursor, encodeCursor } from '../../../../common/pagination';
@@ -20,7 +21,7 @@ import {
   AppointmentRepository,
 } from '../../domain/repositories/appointment.repository';
 import { AppointmentPolicyReader } from '../../domain/services/appointment-policy.reader';
-import { ClinicConfigService } from '@common/clinic-config';
+import { AppointmentPoliklinikResolver } from '../../domain/services/appointment-poliklinik.resolver';
 import { AdminUpdateAppointmentStatusDto } from '../../presentation/dto/admin-update-appointment-status.dto';
 import { CancelAppointmentDto } from '../../presentation/dto/cancel-appointment.dto';
 import { RescheduleAppointmentDto } from '../../presentation/dto/reschedule-appointment.dto';
@@ -36,7 +37,13 @@ const APPOINTMENT_RELATIONS = {
   clinicService: true,
   practitionerScheduleSession: true,
   clinicRoom: { with: { clinicUnit: true } },
-  practitioner: { with: { staffProfile: true, medicalSpecialty: true } },
+  practitioner: {
+    with: {
+      clinicRoom: { with: { clinicUnit: true } },
+      staffProfile: { with: { clinicUnit: true } },
+      medicalSpecialty: true,
+    },
+  },
 } as const;
 
 @Injectable()
@@ -47,6 +54,8 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
     @Optional()
     private readonly clinicConfig?: ClinicConfigService,
     private readonly policyReader?: AppointmentPolicyReader,
+    @Optional()
+    private readonly poliklinikResolver?: AppointmentPoliklinikResolver,
   ) {}
 
   private async getWindowHours(): Promise<number | undefined> {
@@ -76,17 +85,23 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
     } catch (_) {}
   }
 
-  private mapAndSweep(
+  private async mapAndSweep(
     records: any[],
     windowHours?: number,
     poliId?: string,
-  ): AppointmentEntity[] {
+  ): Promise<AppointmentEntity[]> {
+    if (this.poliklinikResolver) {
+      await this.poliklinikResolver.loadFromDatabase();
+    }
     const staleLateIds: string[] = [];
     const results = records.map((apt) => {
+      const resolvedUnit = this.poliklinikResolver
+        ? this.poliklinikResolver.resolveSync(apt, poliId)
+        : undefined;
       const entity = AppointmentRecordMapper.toEntity(
         apt,
         apt.queueTickets?.[0],
-        poliId,
+        resolvedUnit || poliId,
         windowHours,
       );
       if (
@@ -121,7 +136,7 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
     });
     if (!apt) return null;
     const windowHours = await this.getWindowHours();
-    return this.mapAndSweep([apt], windowHours)[0] || null;
+    return (await this.mapAndSweep([apt], windowHours))[0] || null;
   }
 
   async findAll(
@@ -137,6 +152,10 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
       patientId?: string;
       search?: string;
       cursor?: string;
+      doctorId?: string;
+      doctorName?: string;
+      roomId?: string;
+      roomName?: string;
     },
   ): Promise<AppointmentFindAllResult> {
     const conditions: any[] = [];
@@ -145,6 +164,12 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
     }
     if (filters?.patientId) {
       conditions.push(eq(appointments.patientId, filters.patientId));
+    }
+    if (filters?.doctorId) {
+      conditions.push(eq(appointments.practitionerId, filters.doctorId));
+    }
+    if (filters?.roomId) {
+      conditions.push(eq(appointments.roomId, filters.roomId));
     }
 
     if (filters?.cursor) {
@@ -171,22 +196,39 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
     });
 
     const windowHours = await this.getWindowHours();
-    let results = this.mapAndSweep(records, windowHours);
+    let results = await this.mapAndSweep(records, windowHours);
 
     if (filters?.poliklinikId) {
       results = results.filter((a) => a.poliklinikId === filters.poliklinikId);
     }
     if (filters?.poliklinikName) {
       const pn = filters.poliklinikName.toLowerCase().trim();
-      results = results.filter(
-        (a) => a.poliklinikName && a.poliklinikName.toLowerCase().includes(pn),
+      results = results.filter((a) =>
+        a.poliklinikName?.toLowerCase().includes(pn),
       );
     }
     if (filters?.serviceName) {
       const sn = filters.serviceName.toLowerCase().trim();
-      results = results.filter(
-        (a) => a.layananName && a.layananName.toLowerCase().includes(sn),
+      results = results.filter((a) =>
+        a.layananName?.toLowerCase().includes(sn),
       );
+    }
+    if (filters?.doctorId) {
+      results = results.filter(
+        (a) =>
+          a.staffId === filters.doctorId || a.doctorId === filters.doctorId,
+      );
+    }
+    if (filters?.doctorName) {
+      const dn = filters.doctorName.toLowerCase().trim();
+      results = results.filter((a) => a.doctorName?.toLowerCase().includes(dn));
+    }
+    if (filters?.roomId) {
+      results = results.filter((a) => a.roomId === filters.roomId);
+    }
+    if (filters?.roomName) {
+      const rn = filters.roomName.toLowerCase().trim();
+      results = results.filter((a) => a.roomName?.toLowerCase().includes(rn));
     }
     if (filters?.session) {
       results = results.filter((a) => a.session === filters.session);
@@ -252,7 +294,9 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
     });
     if (!ticket?.appointment) return null;
     const windowHours = await this.getWindowHours();
-    return this.mapAndSweep([ticket.appointment], windowHours)[0] || null;
+    return (
+      (await this.mapAndSweep([ticket.appointment], windowHours))[0] || null
+    );
   }
 
   async findByPatientId(patientId: string): Promise<AppointmentEntity[]> {
@@ -262,7 +306,7 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
       with: APPOINTMENT_RELATIONS,
     });
     const windowHours = await this.getWindowHours();
-    return this.mapAndSweep(records, windowHours);
+    return await this.mapAndSweep(records, windowHours);
   }
 
   async findByUserId(userId: string): Promise<AppointmentEntity[]> {
@@ -297,7 +341,7 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
     });
 
     const windowHours = await this.getWindowHours();
-    return this.mapAndSweep(records, windowHours);
+    return await this.mapAndSweep(records, windowHours);
   }
 
   async getRescheduleOptions(
@@ -330,18 +374,12 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
     date: string,
     session?: string,
   ): Promise<AppointmentEntity[]> {
+    if (this.poliklinikResolver) {
+      await this.poliklinikResolver.loadFromDatabase();
+    }
     const records = await this.db.query.appointments.findMany({
       where: eq(appointments.scheduledDate, date),
-      with: {
-        queueTickets: true,
-        practitionerScheduleSession: true,
-        clinicRoom: { with: { clinicUnit: true } },
-        patientProfile: {
-          with: { patientAffiliations: { with: { user: true } } },
-        },
-        clinicService: true,
-        practitioner: { with: { staffProfile: true, medicalSpecialty: true } },
-      },
+      with: APPOINTMENT_RELATIONS,
     });
 
     return records
@@ -359,13 +397,16 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
         }
         return true;
       })
-      .map((apt) =>
-        AppointmentRecordMapper.toEntity(
+      .map((apt) => {
+        const resolvedUnit = this.poliklinikResolver
+          ? this.poliklinikResolver.resolveSync(apt, poliklinikId)
+          : undefined;
+        return AppointmentRecordMapper.toEntity(
           apt,
           apt.queueTickets?.[0],
-          poliklinikId,
-        ),
-      );
+          resolvedUnit || poliklinikId,
+        );
+      });
   }
 
   async findDisplayQueue(date: string, poliklinikId?: string): Promise<any> {

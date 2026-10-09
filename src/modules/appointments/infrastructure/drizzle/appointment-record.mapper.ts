@@ -6,13 +6,13 @@ import {
   resolveSessionFromTime,
   SHIFT_TO_SESSION_MAP,
 } from '../../../schedules/domain/constants/schedule-shift.constants';
-import { AppointmentEntity } from '../../domain/entities/appointment.entity';
-import { computeConsultationMetrics } from '../../domain/helpers/consultation-duration.helper';
 import {
   DB_APPOINTMENT_STATUS,
   DOMAIN_APPOINTMENT_STATUS,
   QUEUE_TICKET_STATUS,
 } from '../../domain/constants/appointment-lifecycle.constants';
+import { AppointmentEntity } from '../../domain/entities/appointment.entity';
+import { computeConsultationMetrics } from '../../domain/helpers/consultation-duration.helper';
 import { isAppointmentLate } from '../../domain/services/appointment-lateness.predicate';
 import {
   resolveAllowedActions,
@@ -39,7 +39,10 @@ export class AppointmentRecordMapper {
   static toEntity(
     apt: any,
     ticket?: any | null,
-    poliklinikIdOverride?: string,
+    poliklinikIdOverride?:
+      | string
+      | { poliklinikId: string; poliklinikName: string }
+      | null,
     windowHours?: number,
   ): AppointmentEntity {
     let domainStatus = toDomainStatus(apt.status);
@@ -61,12 +64,6 @@ export class AppointmentRecordMapper {
     }
 
     const session = AppointmentRecordMapper.resolveSession(apt);
-
-    const poliId =
-      poliklinikIdOverride ||
-      apt.clinicRoom?.unitId ||
-      apt.clinicRoom?.clinicUnit?.id ||
-      '';
 
     const primaryAffiliation = apt.patientProfile?.patientAffiliations?.[0];
     const isAffiliated =
@@ -148,6 +145,31 @@ export class AppointmentRecordMapper {
         ? Math.max(0, numQueue - 1)
         : 0;
 
+    const overrideObj =
+      typeof poliklinikIdOverride === 'object' && poliklinikIdOverride !== null
+        ? (poliklinikIdOverride as {
+            poliklinikId: string;
+            poliklinikName: string;
+          })
+        : null;
+
+    const poliId =
+      overrideObj?.poliklinikId ||
+      apt.clinicRoom?.unitId ||
+      apt.clinicRoom?.clinicUnit?.id ||
+      apt.practitioner?.clinicRoom?.unitId ||
+      apt.practitioner?.clinicRoom?.clinicUnit?.id ||
+      apt.practitioner?.staffProfile?.primaryUnitId ||
+      apt.practitioner?.staffProfile?.clinicUnit?.id ||
+      (typeof poliklinikIdOverride === 'string' ? poliklinikIdOverride : '');
+
+    const resolvedPoliName =
+      overrideObj?.poliklinikName ||
+      apt.clinicRoom?.clinicUnit?.name ||
+      apt.practitioner?.clinicRoom?.clinicUnit?.name ||
+      apt.practitioner?.staffProfile?.clinicUnit?.name ||
+      '';
+
     return {
       id: apt.id,
       bookingCode: apt.bookingCode || null,
@@ -162,16 +184,18 @@ export class AppointmentRecordMapper {
       patientName: apt.patientProfile?.fullName || 'Pasien Amanah',
       patientAvatarUrl,
       poliklinikId: poliId,
-      poliklinikName: apt.clinicRoom?.clinicUnit?.name || apt.clinicService?.name || 'Poliklinik Amanah',
+      poliklinikName: resolvedPoliName,
       layananId: apt.serviceId,
       layananName: apt.clinicService?.name || 'Konsultasi Dokter',
       staffId: apt.practitionerId || null,
+      doctorId: apt.practitionerId || null,
       doctorName:
         apt.practitioner?.staffProfile?.fullName ||
         apt.practitioner?.name ||
         null,
       doctorSpecialty: apt.practitioner?.medicalSpecialty?.name || null,
       doctorAvatarUrl,
+      roomId: apt.roomId || null,
       roomName: apt.clinicRoom?.name || null,
       roomLocation: apt.clinicRoom?.location || null,
       appointmentDate: apt.scheduledDate,

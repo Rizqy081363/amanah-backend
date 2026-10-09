@@ -1603,18 +1603,11 @@ export const appointments = pgTable(
       .notNull(),
   },
   (table) => [
-    uniqueIndex('appointments_practitioner_date_queue_unique')
+    index('appointments_waiting_lateness_idx')
       .using(
         'btree',
-        table.practitionerId.asc().nullsLast().op('uuid_ops'),
-        table.scheduledDate.asc().nullsLast().op('date_ops'),
-        table.queueNumber.asc().nullsLast().op('int4_ops'),
+        table.estimatedStartAt.asc().nullsLast().op('timestamptz_ops'),
       )
-      .where(
-        sql`((practitioner_id IS NOT NULL) AND (queue_number IS NOT NULL))`,
-      ),
-    index('appointments_waiting_lateness_idx')
-      .using('btree', table.estimatedStartAt.asc().nullsLast().op('timestamptz_ops'))
       .where(
         sql`(status = ANY (ARRAY['waiting'::appointment_status, 'booked'::appointment_status]))`,
       ),
@@ -3165,9 +3158,7 @@ export const clinicSchedulePolicies = pgTable(
     defaultStartPrecisionMinutes: integer('default_start_precision_minutes')
       .default(1)
       .notNull(),
-    checkInWindowHours: integer('check_in_window_hours')
-      .default(24)
-      .notNull(),
+    checkInWindowHours: integer('check_in_window_hours').default(24).notNull(),
     earlyMorningStart: text('early_morning_start').default('00:00').notNull(),
     earlyMorningEnd: text('early_morning_end').default('06:00').notNull(),
     morningStart: text('morning_start').default('06:00').notNull(),

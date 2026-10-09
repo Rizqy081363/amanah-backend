@@ -1,3 +1,4 @@
+import { ClinicConfigService } from '@common/clinic-config';
 import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
@@ -6,18 +7,19 @@ import {
   clinicRooms,
   practitionerScheduleSessions,
   practitioners,
+  queueTickets,
 } from '@database/schema';
 import { Inject, Injectable } from '@nestjs/common';
 import { and, eq, inArray, not, sql } from 'drizzle-orm';
-import { ClinicConfigService } from '@common/clinic-config';
 import { RedisService } from '../../../../common/redis/redis.service';
 import { ACTIVE_APPOINTMENT_STATUSES } from '../../../schedules/domain/constants/schedule.constants';
 import {
   resolveSessionFromTime,
   SESSION_TO_SHIFT_MAP,
+  ScheduleShiftRegistry,
 } from '../../../schedules/domain/constants/schedule-shift.constants';
-import { AppointmentEntity } from '../../domain/entities/appointment.entity';
 import { SchedulePersistenceStatus } from '../../../schedules/domain/schedule-status';
+import { AppointmentEntity } from '../../domain/entities/appointment.entity';
 import {
   AppointmentNotFoundException,
   AppointmentTerminalStateException,
@@ -138,9 +140,10 @@ export class AppointmentAssignmentService {
         targetRoomId =
           apt.roomId || matchingSession.roomId || targetDoc.defaultRoomId;
       } else {
-        // Create canonical schedule session on-the-fly for target doctor
         const sessionName = resolveSessionFromTime(apt.scheduledStartTime);
         const shift = SESSION_TO_SHIFT_MAP[sessionName] || 'morning';
+        const shiftDescriptor = ScheduleShiftRegistry.getByShift(shift as any);
+        const resolvedSessionLabel = shiftDescriptor?.label || 'Dini Hari';
         const policy = await this.clinicConfig.getSchedulePolicy();
         const duration = policy.defaultConsultationDurationMinutes;
 
@@ -151,7 +154,7 @@ export class AppointmentAssignmentService {
           .values({
             practitionerId: targetDoctorId,
             scheduleDate: apt.scheduledDate,
-            sessionLabel: `Sesi ${shift.toUpperCase()}`,
+            sessionLabel: resolvedSessionLabel,
             sessionShift: shift,
             startTime: apt.scheduledStartTime,
             endTime:
@@ -191,6 +194,14 @@ export class AppointmentAssignmentService {
           updatedAt: new Date().toISOString(),
         })
         .where(eq(appointments.id, appointmentId));
+
+      await tx
+        .update(queueTickets)
+        .set({
+          doctorId: targetDoctorId,
+          roomId: targetRoomId,
+        })
+        .where(eq(queueTickets.appointmentId, appointmentId));
 
       // 7. Audit log event
       const defaultReason = `Perubahan dokter ke ${targetDoc.displayName || targetDoc.staffProfile?.fullName || targetDoctorId}`;
@@ -332,6 +343,13 @@ export class AppointmentAssignmentService {
           updatedAt: new Date().toISOString(),
         })
         .where(eq(appointments.id, appointmentId));
+
+      await tx
+        .update(queueTickets)
+        .set({
+          roomId: targetRoomId,
+        })
+        .where(eq(queueTickets.appointmentId, appointmentId));
 
       await tx.insert(appointmentStatusEvents).values({
         appointmentId,

@@ -348,10 +348,11 @@ export function buildDailySessions(
       : sessionOpStatus === ScheduleOperationalStatus.CLOSED
         ? 'Sesi berstatus Tutup. Sesi yang sudah ditutup tidak dapat di-reschedule. Silakan gunakan menu Edit Jadwal untuk membuka sesi.'
         : null;
+    const sessionTitle = descriptor?.label || s.sessionLabel || metrics.sessionLabel;
 
     return {
       id: s.id,
-      nama_sesi: s.sessionLabel || metrics.sessionLabel,
+      nama_sesi: sessionTitle,
       jam_mulai: jamMulai,
       jam_selesai: jamSelesai,
       waktu: `${jamMulai} - ${jamSelesai}`,

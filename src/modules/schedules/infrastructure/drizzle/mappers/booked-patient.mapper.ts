@@ -40,7 +40,7 @@ export class BookedPatientMapper {
     const room =
       apt.clinicRoom?.name ||
       apt.practitionerScheduleSession?.clinicRoom?.name ||
-      'Ruang Periksa';
+      null;
 
     const isElapsed = AppointmentTemporalStatusHelper.isElapsed({
       scheduledDate: apt.scheduledDate,

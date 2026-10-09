@@ -204,6 +204,13 @@
       "when": 1791312000000,
       "tag": "0028_create_master_day_table",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1791313000000,
+      "tag": "0029_drop_obsolete_practitioner_queue_unique",
+      "breakpoints": true
     }
   ]
 }

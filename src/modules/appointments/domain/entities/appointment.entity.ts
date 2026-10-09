@@ -22,9 +22,11 @@ export class AppointmentEntity {
   layananId: string;
   layananName?: string;
   staffId?: string | null;
+  doctorId?: string | null;
   doctorName?: string | null;
   doctorSpecialty?: string | null;
   doctorAvatarUrl?: string | null;
+  roomId?: string | null;
   roomName?: string | null;
   roomLocation?: string | null;
   appointmentDate: string;

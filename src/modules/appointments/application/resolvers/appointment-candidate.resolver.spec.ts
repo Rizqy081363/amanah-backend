@@ -69,10 +69,12 @@ describe('AppointmentCandidateResolver', () => {
     expect(targetDoc).toBeDefined();
     expect(targetDoc?.availability).toBe('AVAILABLE');
     expect(targetDoc?.existingSessionId).toBe('sess-1');
+    expect((targetDoc as any)?.defaultRoomName).toBeUndefined();
 
     const midwifeDoc = allDoctors.find((d) => d.id === 'doc-midwife');
     expect(midwifeDoc).toBeDefined();
     expect(midwifeDoc?.availability).toBe('SCHEDULE_REQUIRED');
+    expect((midwifeDoc as any)?.defaultRoomName).toBeUndefined();
   });
 
   it('should identify occupied and available rooms correctly', async () => {

@@ -154,6 +154,10 @@ export class AppointmentsService {
       patientId: query.patientId,
       search: query.search,
       cursor: query.cursor,
+      doctorId: query.doctorId,
+      doctorName: query.doctorName,
+      roomId: query.roomId,
+      roomName: query.roomName,
     });
 
     return {

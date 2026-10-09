@@ -34,6 +34,10 @@ export abstract class AppointmentRepository {
       patientId?: string;
       search?: string;
       cursor?: string;
+      doctorId?: string;
+      doctorName?: string;
+      roomId?: string;
+      roomName?: string;
     },
   ): Promise<AppointmentFindAllResult>;
   abstract findByQueueNumber(

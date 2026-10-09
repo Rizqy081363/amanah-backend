@@ -22,7 +22,6 @@ export interface DoctorCandidateItem {
   staffType: string;
   availability: 'AVAILABLE' | 'SCHEDULE_REQUIRED';
   existingSessionId: string | null;
-  defaultRoomName: string | null;
 }
 
 export interface DoctorCandidateGroup {
@@ -65,7 +64,14 @@ export class AppointmentCandidateResolver {
   ): Promise<DoctorCandidatesResult> {
     const apt = await this.db.query.appointments.findFirst({
       where: eq(appointments.id, appointmentId),
-      with: { practitioner: true },
+      with: {
+        practitioner: true,
+        clinicService: {
+          with: {
+            medicalSpecialty: true,
+          },
+        },
+      },
     });
 
     if (!apt) {
@@ -79,17 +85,14 @@ export class AppointmentCandidateResolver {
     const startTime = apt.scheduledStartTime;
     const formattedTime = startTime.slice(0, 5);
 
-    // 1. Fetch all active practitioners
     const allPractitioners = await this.db.query.practitioners.findMany({
       where: eq(practitioners.isAcceptingAppointments, true),
       with: {
         staffProfile: true,
         medicalSpecialty: true,
-        clinicRoom: true,
       },
     });
 
-    // 2. Fetch doctors with conflicting appointments at the same date & time slot
     const conflictingAppts = await this.db.query.appointments.findMany({
       where: and(
         eq(appointments.scheduledDate, scheduledDate),
@@ -113,7 +116,6 @@ export class AppointmentCandidateResolver {
         .filter(Boolean),
     );
 
-    // 3. Fetch existing open schedule sessions for this date that cover the start time
     const existingSessions =
       await this.db.query.practitionerScheduleSessions.findMany({
         where: and(
@@ -125,9 +127,7 @@ export class AppointmentCandidateResolver {
     const groupMap = new Map<string, DoctorCandidateGroup>();
 
     for (const p of allPractitioners) {
-      // Exclude current doctor
       if (p.id === apt.practitionerId) continue;
-      // Exclude doctor already occupied with another patient at this exact slot
       if (occupiedDoctorIds.has(p.id)) continue;
 
       const matchingSession = existingSessions.find(
@@ -158,16 +158,28 @@ export class AppointmentCandidateResolver {
         staffType: p.staffProfile?.staffType || 'doctor',
         availability: matchingSession ? 'AVAILABLE' : 'SCHEDULE_REQUIRED',
         existingSessionId: matchingSession?.id || null,
-        defaultRoomName: p.clinicRoom?.name || null,
       });
     }
+
+    const targetSpecialtyName =
+      apt.clinicService?.medicalSpecialty?.name || null;
+
+    const sortedGroups = Array.from(groupMap.values()).sort((a, b) => {
+      if (targetSpecialtyName) {
+        if (a.name === targetSpecialtyName && b.name !== targetSpecialtyName)
+          return -1;
+        if (b.name === targetSpecialtyName && a.name !== targetSpecialtyName)
+          return 1;
+      }
+      return a.name.localeCompare(b.name);
+    });
 
     return {
       appointmentId: apt.id,
       currentDoctorId: apt.practitionerId,
       scheduledDate,
       scheduledTime: `${formattedTime} WIB`,
-      groups: Array.from(groupMap.values()),
+      groups: sortedGroups,
     };
   }
 

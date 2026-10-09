@@ -61,6 +61,34 @@ export class QueryAppointmentDto {
   status?: string;
 
   @ApiPropertyOptional({
+    description: 'Filter ID Dokter/Practitioner',
+  })
+  @IsString()
+  @IsOptional()
+  doctorId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Filter Nama Dokter/Practitioner',
+  })
+  @IsString()
+  @IsOptional()
+  doctorName?: string;
+
+  @ApiPropertyOptional({
+    description: 'Filter ID Ruangan',
+  })
+  @IsString()
+  @IsOptional()
+  roomId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Filter Nama Ruangan',
+  })
+  @IsString()
+  @IsOptional()
+  roomName?: string;
+
+  @ApiPropertyOptional({
     description: 'Filter berdasarkan ID Pasien',
   })
   @IsString()
