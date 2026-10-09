@@ -10,6 +10,7 @@ import {
 import {
   clinicClosures,
   doctorAssignments,
+  doctorScheduleStatusHistory,
   extraOpenings,
   masterDays,
   queueCounters,
@@ -126,6 +127,28 @@ export const queueNotificationOutboxRelations = relations(
     ticket: one(queueTickets, {
       fields: [queueNotificationOutbox.ticketId],
       references: [queueTickets.id],
+    }),
+  }),
+);
+
+export const doctorScheduleStatusHistoryRelations = relations(
+  doctorScheduleStatusHistory,
+  ({ one }) => ({
+    practitioner: one(practitioners, {
+      fields: [doctorScheduleStatusHistory.doctorId],
+      references: [practitioners.id],
+    }),
+    sessionDef: one(sessionDefs, {
+      fields: [doctorScheduleStatusHistory.sessionId],
+      references: [sessionDefs.id],
+    }),
+    masterDay: one(masterDays, {
+      fields: [doctorScheduleStatusHistory.dow],
+      references: [masterDays.dow],
+    }),
+    changedByUser: one(users, {
+      fields: [doctorScheduleStatusHistory.changedBy],
+      references: [users.id],
     }),
   }),
 );

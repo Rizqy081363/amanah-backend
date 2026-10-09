@@ -211,6 +211,13 @@
       "when": 1791313000000,
       "tag": "0029_drop_obsolete_practitioner_queue_unique",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1791314000000,
+      "tag": "0030_doctor_schedule_history_and_roster",
+      "breakpoints": true
     }
   ]
 }

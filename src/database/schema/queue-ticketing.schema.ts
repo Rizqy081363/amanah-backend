@@ -4,6 +4,7 @@ import {
   index,
   integer,
   jsonb,
+  pgEnum,
   pgTable,
   primaryKey,
   text,
@@ -99,9 +100,17 @@ export const sessionSchedules = pgTable(
   ],
 );
 
-// ============================================================================
-// 3. CLINIC ROSTER (doctor_assignment & shift_exception)
-// ============================================================================
+export const doctorScheduleHistoryAction = pgEnum(
+  'doctor_schedule_history_action',
+  [
+    'open_schedule',
+    'close_schedule',
+    'assign_roster',
+    'remove_roster',
+    'override_date',
+  ],
+);
+
 export const doctorAssignments = pgTable(
   'doctor_assignment',
   {
@@ -109,15 +118,15 @@ export const doctorAssignments = pgTable(
     doctorId: uuid('doctor_id')
       .notNull()
       .references(() => practitioners.id, { onDelete: 'cascade' }),
-    categoryId: uuid('category_id')
-      .notNull()
-      .references(() => serviceCategories.id, { onDelete: 'cascade' }),
+    categoryId: uuid('category_id').references(() => serviceCategories.id, {
+      onDelete: 'cascade',
+    }),
     sessionId: uuid('session_id')
       .notNull()
       .references(() => sessionDefs.id, { onDelete: 'cascade' }),
     dow: integer('dow').references(() => masterDays.dow, {
       onDelete: 'restrict',
-    }), // NULL = all regular open days
+    }),
     preferredRoomId: uuid('preferred_room_id').references(
       () => clinicRooms.id,
       { onDelete: 'set null' },
@@ -136,6 +145,41 @@ export const doctorAssignments = pgTable(
       table.sessionId,
       table.isActive,
     ),
+  ],
+);
+
+export const doctorScheduleStatusHistory = pgTable(
+  'doctor_schedule_status_history',
+  {
+    id: uuid('id').defaultRandom().primaryKey().notNull(),
+    doctorId: uuid('doctor_id')
+      .notNull()
+      .references(() => practitioners.id, { onDelete: 'cascade' }),
+    scheduleDate: date('schedule_date'),
+    sessionId: uuid('session_id').references(() => sessionDefs.id, {
+      onDelete: 'set null',
+    }),
+    dow: integer('dow').references(() => masterDays.dow, {
+      onDelete: 'restrict',
+    }),
+    action: doctorScheduleHistoryAction('action').notNull(),
+    previousStatus: varchar('previous_status', { length: 20 }),
+    newStatus: varchar('new_status', { length: 20 }),
+    reason: text('reason'),
+    metadata: jsonb('metadata').default({}),
+    changedBy: uuid('changed_by').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index('idx_doctor_sched_hist_doctor_date').on(
+      table.doctorId,
+      table.scheduleDate,
+    ),
+    index('idx_doctor_sched_hist_created_at').on(table.createdAt),
   ],
 );
 
