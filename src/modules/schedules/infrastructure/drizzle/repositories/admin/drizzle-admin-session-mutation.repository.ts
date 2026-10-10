@@ -198,11 +198,22 @@ export class DrizzleAdminSessionMutationRepository {
       const status = toDaySessionPersistenceStatus(requestedStatus);
       updateValues.status = status;
       if (status === SchedulePersistenceStatus.CLOSED) {
+        const sTime =
+          existingSession.startTime.length === 5
+            ? `${existingSession.startTime}:00`
+            : existingSession.startTime;
+        const eTime =
+          existingSession.endTime.length === 5
+            ? `${existingSession.endTime}:00`
+            : existingSession.endTime;
+        const sessionStart = new Date(`${existingSession.scheduleDate}T${sTime}Z`);
+        const sessionEnd = new Date(`${existingSession.scheduleDate}T${eTime}Z`);
+
         await this.db.insert(clinicClosures).values({
           scope: 'doctor',
           doctorId: existingSession.practitionerId,
-          startsAt: `${existingSession.scheduleDate}T${existingSession.startTime}`,
-          endsAt: `${existingSession.scheduleDate}T${existingSession.endTime}`,
+          startsAt: sessionStart.toISOString(),
+          endsAt: sessionEnd.toISOString(),
           inputKind: 'session',
           reason: 'Sesi jadwal ditutup oleh admin klinik.',
         });

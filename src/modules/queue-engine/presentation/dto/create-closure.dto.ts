@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import {
+  IsBoolean,
   IsDateString,
   IsIn,
   IsInt,
@@ -59,6 +60,11 @@ export class CreateClosureDto {
   @IsOptional()
   @IsString()
   reason?: string;
+
+  @ApiProperty({ required: false, description: 'Confirmation for closures > longConfirmDays' })
+  @IsOptional()
+  @IsBoolean()
+  confirmedLongClosure?: boolean;
 }
 
 export class CallNextDto {

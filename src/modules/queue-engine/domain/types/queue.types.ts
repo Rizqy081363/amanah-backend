@@ -23,6 +23,8 @@ export interface DomainQueueTicket {
   calledAt?: Date | null;
   startedAt?: Date | null;
   completedAt?: Date | null;
+  checkedInAt?: Date | null;
+  priority?: string | boolean;
   carriedOver: boolean;
   movedTo?: string | null;
   source: string;

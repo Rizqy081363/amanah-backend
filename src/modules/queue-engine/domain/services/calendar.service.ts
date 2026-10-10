@@ -1,21 +1,48 @@
+import { Injectable, Optional } from '@nestjs/common';
 import {
   ClosureInterval,
   ExtraOpeningInterval,
   ScheduledShift,
   TimeInterval,
 } from '../types/calendar.types';
+import { ClinicSettingService } from '../../infrastructure/config/clinic-setting.service';
 
+@Injectable()
 export class CalendarService {
+  constructor(
+    @Optional() private readonly settingReader?: ClinicSettingService,
+  ) {}
+
+  /**
+   * Retrieves dynamic minimum open segment duration from PostgreSQL clinic_setting
+   */
+  async getMinSegmentMinutes(scope?: { categoryId?: string }): Promise<number> {
+    if (this.settingReader) {
+      try {
+        return await this.settingReader.getNumber(
+          'closure.min_open_segment_minutes',
+          scope,
+        );
+      } catch {
+        // Fallback if key missing
+      }
+    }
+    return 15;
+  }
+
   /**
    * Subtract closures from base intervals using half-open semantics [start, end).
+   * Rule R7: Any remaining segment < minSegmentMinutes is considered closed.
    */
   subtractIntervals(
     base: TimeInterval[],
     closures: TimeInterval[],
+    minSegmentMinutes: number = 15,
   ): TimeInterval[] {
     if (!closures.length) return [...base];
 
     let current = [...base];
+    const minSegmentMs = minSegmentMinutes * 60_000;
 
     for (const c of closures) {
       const next: TimeInterval[] = [];
@@ -52,7 +79,9 @@ export class CalendarService {
       current = next;
     }
 
-    return current.filter((i) => i.start.getTime() < i.end.getTime());
+    return current.filter(
+      (i) => i.end.getTime() - i.start.getTime() >= minSegmentMs,
+    );
   }
 
   /**
@@ -114,9 +143,36 @@ export class CalendarService {
   }
 
   /**
+   * Returns the exact next open timestamp (Rule 2.2):
+   * - If already open at timestamp, returns timestamp.
+   * - If closed, returns the start of the next open segment.
+   * - If no further open segments exist on that day, returns null.
+   */
+  nextOpenDate(
+    timestamp: Date,
+    effectiveSegments: TimeInterval[],
+  ): Date | null {
+    const t = timestamp.getTime();
+    const sorted = [...effectiveSegments].sort(
+      (a, b) => a.start.getTime() - b.start.getTime(),
+    );
+
+    for (const seg of sorted) {
+      if (t >= seg.start.getTime() && t < seg.end.getTime()) {
+        return timestamp;
+      }
+      if (t < seg.start.getTime()) {
+        return seg.start;
+      }
+    }
+
+    return null;
+  }
+
+  /**
    * Computes effective open segments for a specific date and category
    */
-  effectiveOpenSegments(params: {
+  async effectiveOpenSegments(params: {
     dateStr: string; // YYYY-MM-DD
     categoryId?: string | null;
     doctorId?: string | null;
@@ -124,9 +180,24 @@ export class CalendarService {
     schedules: ScheduledShift[];
     closures: ClosureInterval[];
     extras: ExtraOpeningInterval[];
-  }): TimeInterval[] {
-    const { dateStr, categoryId, doctorId, roomId, schedules, closures, extras } =
-      params;
+    minSegmentMinutes?: number;
+  }): Promise<TimeInterval[]> {
+    const {
+      dateStr,
+      categoryId,
+      doctorId,
+      roomId,
+      schedules,
+      closures,
+      extras,
+      minSegmentMinutes,
+    } = params;
+
+    const minSeg =
+      minSegmentMinutes ??
+      (await this.getMinSegmentMinutes({
+        categoryId: categoryId || undefined,
+      }));
 
     // 1. Convert active schedules for this day-of-week to TimeIntervals
     const targetDate = new Date(`${dateStr}T00:00:00.000Z`);
@@ -161,7 +232,11 @@ export class CalendarService {
       .map((c) => ({ start: c.startsAt, end: c.endsAt }));
 
     // 3. Subtract closures
-    const remaining = this.subtractIntervals(baseIntervals, activeClosures);
+    const remaining = this.subtractIntervals(
+      baseIntervals,
+      activeClosures,
+      minSeg,
+    );
 
     // 4. Add extra openings matching scope
     const matchingExtras = extras

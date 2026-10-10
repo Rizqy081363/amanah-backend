@@ -271,12 +271,15 @@ export class DrizzleAdminScheduleMutationRepository {
     // 2. Soft-cancel unserved appointments and protect checked_in patients if day is closed
     let cancelledAppointmentsCount = 0;
     if (isClosed) {
+      const startDate = new Date(`${date}T00:00:00.000Z`);
+      const nextDayDate = new Date(startDate.getTime() + 24 * 60 * 60 * 1000);
+
       // Record clinic closure
       await this.db.insert(clinicClosures).values({
         scope: 'doctor',
         doctorId: practitionerId,
-        startsAt: `${date}T00:00:00.000Z`,
-        endsAt: `${date}T23:59:59.999Z`,
+        startsAt: startDate.toISOString(),
+        endsAt: nextDayDate.toISOString(),
         inputKind: 'day',
         reason: notes || 'Jadwal praktik dokter ditutup operasional oleh admin klinik.',
       });

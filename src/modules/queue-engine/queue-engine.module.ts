@@ -28,8 +28,9 @@ export const QUEUE_ENGINE_REPOSITORY = 'QUEUE_ENGINE_REPOSITORY';
     QueueEngineService,
     {
       provide: ClosureEngineService,
-      useFactory: (calendar: CalendarService) => new ClosureEngineService(calendar),
-      inject: [CalendarService],
+      useFactory: (calendar: CalendarService, settings: ClinicSettingService) =>
+        new ClosureEngineService(calendar, settings),
+      inject: [CalendarService, ClinicSettingService],
     },
     ClinicSettingService,
     DrizzleQueueEngineRepository,
