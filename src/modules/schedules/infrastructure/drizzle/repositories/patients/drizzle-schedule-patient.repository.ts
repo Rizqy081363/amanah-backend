@@ -20,6 +20,7 @@ import { PractitionerResolver } from '@modules/schedules/infrastructure/drizzle/
 import type { GetAdminDoctorPatientsQueryDto } from '@modules/schedules/presentation/dto/get-admin-doctor-patients-query.dto';
 import type { GetSessionPatientsQueryDto } from '@modules/schedules/presentation/dto/get-session-patients-query.dto';
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { isUUID } from 'class-validator';
 import { and, asc, eq, gte, inArray, isNull, lt, or } from 'drizzle-orm';
 
 @Injectable()
@@ -37,7 +38,7 @@ export class DrizzleSchedulePatientRepository {
   ): Promise<BookedPatientEntity[]> {
     const conditions: any[] = [];
 
-    if (sessionId) {
+    if (sessionId && isUUID(sessionId)) {
       const session = await this.db.query.sessionDefs.findFirst({
         where: eq(sessionDefs.id, sessionId),
       });
@@ -102,19 +103,80 @@ export class DrizzleSchedulePatientRepository {
       );
     }
 
-    const sessionDef = await this.db.query.sessionDefs.findFirst({
-      where: eq(sessionDefs.id, sessionId),
-    });
+    let effectiveSessionDef: any = null;
+    let effectiveRoom: any = null;
+    let sessDate: string =
+      query.date || new Date().toISOString().slice(0, 10);
 
-    const assignment = sessionDef
-      ? null
-      : await this.db.query.doctorAssignments.findFirst({
+    if (isUUID(sessionId)) {
+      // 1. Prioritaskan penugasan dokter (doctor_assignment)
+      const assignment = await this.db.query.doctorAssignments.findFirst({
+        where: and(
+          eq(doctorAssignments.id, sessionId),
+          eq(doctorAssignments.doctorId, practitioner.id),
+        ),
+        with: {
+          sessionDef: {
+            with: { schedules: true },
+          },
+          preferredRoom: {
+            with: {
+              clinicUnit: true,
+            },
+          },
+        },
+      });
+
+      if (assignment) {
+        effectiveSessionDef = assignment.sessionDef;
+        effectiveRoom = assignment.preferredRoom || null;
+      } else {
+        // 2. Fallback ke master sesi klinik (session_def)
+        const sessionDef = await this.db.query.sessionDefs.findFirst({
+          where: eq(sessionDefs.id, sessionId),
+          with: { schedules: true },
+        });
+
+        if (sessionDef) {
+          effectiveSessionDef = sessionDef;
+          // Cari preferred room dokter jika ada penugasan untuk sesi ini
+          const docAssignment = await this.db.query.doctorAssignments.findFirst(
+            {
+              where: and(
+                eq(doctorAssignments.sessionId, sessionDef.id),
+                eq(doctorAssignments.doctorId, practitioner.id),
+              ),
+              with: {
+                preferredRoom: {
+                  with: {
+                    clinicUnit: true,
+                  },
+                },
+              },
+            },
+          );
+          effectiveRoom = docAssignment?.preferredRoom || null;
+        }
+      }
+    } else if (sessionId.startsWith('roster-')) {
+      // 3. Fallback backward-compatibility untuk ID roster: roster-{daId}-{YYYY-MM-DD}
+      const rosterMatch = sessionId.match(
+        /^roster-([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})-(\d{4}-\d{2}-\d{2})$/i,
+      );
+      if (rosterMatch) {
+        const daId = rosterMatch[1];
+        const rosterDate = rosterMatch[2];
+        sessDate = query.date || rosterDate;
+
+        const assignment = await this.db.query.doctorAssignments.findFirst({
           where: and(
-            eq(doctorAssignments.id, sessionId),
+            eq(doctorAssignments.id, daId),
             eq(doctorAssignments.doctorId, practitioner.id),
           ),
           with: {
-            sessionDef: true,
+            sessionDef: {
+              with: { schedules: true },
+            },
             preferredRoom: {
               with: {
                 clinicUnit: true,
@@ -123,15 +185,35 @@ export class DrizzleSchedulePatientRepository {
           },
         });
 
-    const effectiveSessionDef = sessionDef ?? assignment?.sessionDef;
-    const effectiveRoom = assignment?.preferredRoom || null;
+        if (assignment) {
+          effectiveSessionDef = assignment.sessionDef;
+          effectiveRoom = assignment.preferredRoom || null;
+        }
+      }
+    }
 
-    const sessDate =
-      (query as any).date || new Date().toISOString().slice(0, 10);
-    const sessStartTime =
-      effectiveSessionDef?.defaultStartsAt.slice(0, 5) || '08:00';
-    const sessEndTime =
-      effectiveSessionDef?.defaultEndsAt.slice(0, 5) || '12:00';
+    if (!effectiveSessionDef) {
+      throw new NotFoundException(
+        `Sesi jadwal dengan ID ${sessionId} tidak ditemukan untuk dokter ini`,
+      );
+    }
+
+    // Resolusikan jam operasional spesifik per hari jika ada di session_schedule
+    const targetDow = new Date(sessDate).getDay();
+    const daySchedule = effectiveSessionDef.schedules?.find(
+      (s: any) => s.dow === targetDow && s.isActive,
+    );
+
+    const sessStartTime = (
+      daySchedule?.startsAt ||
+      effectiveSessionDef.defaultStartsAt ||
+      '08:00'
+    ).slice(0, 5);
+    const sessEndTime = (
+      daySchedule?.endsAt ||
+      effectiveSessionDef.defaultEndsAt ||
+      '12:00'
+    ).slice(0, 5);
     const sessStart = `${sessStartTime}:00`;
     const sessEnd = `${sessEndTime}:00`;
 
@@ -140,8 +222,8 @@ export class DrizzleSchedulePatientRepository {
       scheduleDate: sessDate,
       startTime: sessStartTime,
       endTime: sessEndTime,
-      sessionLabel: effectiveSessionDef?.labelKey || 'Sesi Praktik',
-      sessionShift: effectiveSessionDef?.code || 'morning',
+      sessionLabel: effectiveSessionDef.labelKey || 'Sesi Praktik',
+      sessionShift: effectiveSessionDef.code || 'morning',
       clinicRoom: effectiveRoom,
     };
 
@@ -403,6 +485,7 @@ export class DrizzleSchedulePatientRepository {
         {
           status: query.status,
           search: query.search,
+          date,
         },
       );
 

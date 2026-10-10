@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export enum ScheduleOperationalStatus {
   OPEN = 'OPEN',
@@ -301,6 +301,12 @@ export class AdminDoctorDailySession {
     example: null,
   })
   reschedule_ineligibility_reason?: string | null;
+
+  @ApiPropertyOptional({
+    description: 'Tanggal kalender spesifik untuk sesi ini (YYYY-MM-DD)',
+    example: '2026-10-10',
+  })
+  tanggal?: string;
 }
 
 export class AdminDoctorScheduleCardEntity {

@@ -357,6 +357,7 @@ export function buildDailySessions(
       roomId: s.roomId || null,
       is_reschedule_eligible: isRescheduleEligible,
       reschedule_ineligibility_reason: rescheduleIneligibilityReason,
+      tanggal: s.scheduleDate || scheduleDate || curDate,
     };
   });
 }

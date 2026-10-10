@@ -24,6 +24,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { isUUID } from 'class-validator';
 import {
   and,
   asc,
@@ -126,9 +127,9 @@ export class DrizzleScheduleSessionRepository {
 
   async findById(id: string): Promise<ScheduleEntity | null> {
     if (id.startsWith('roster-')) {
-      const parts = id.split('-');
-      const daId = parts[1];
-      const targetDate = parts.slice(2).join('-');
+      const daId = id.slice(7, 43);
+      const targetDate = id.slice(44);
+      if (!isUUID(daId)) return null;
       const da = await this.db.query.doctorAssignments.findFirst({
         where: eq(doctorAssignments.id, daId),
         with: {
@@ -184,6 +185,10 @@ export class DrizzleScheduleSessionRepository {
         clinicRoom: da.preferredRoom,
         clinicService: null,
       });
+    }
+
+    if (!isUUID(id)) {
+      return null;
     }
 
     const exception = await this.db.query.shiftExceptions.findFirst({
@@ -588,12 +593,19 @@ export class DrizzleScheduleSessionRepository {
     }
 
     if (id.startsWith('roster-')) {
-      const daId = id.split('-')[1];
+      const daId = id.slice(7, 43);
+      if (!isUUID(daId)) {
+        throw new NotFoundException(`Format ID roster ${id} tidak valid`);
+      }
       await this.db
         .update(doctorAssignments)
         .set({ isActive: false, updatedAt: new Date().toISOString() })
         .where(eq(doctorAssignments.id, daId));
       return true;
+    }
+
+    if (!isUUID(id)) {
+      throw new NotFoundException(`Format ID sesi ${id} tidak valid`);
     }
 
     await this.db

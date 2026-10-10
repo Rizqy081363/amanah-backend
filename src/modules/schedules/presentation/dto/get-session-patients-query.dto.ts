@@ -19,4 +19,12 @@ export class GetSessionPatientsQueryDto {
   @IsOptional()
   @IsString()
   search?: string;
+
+  @ApiPropertyOptional({
+    description: 'Tanggal sesi praktik (format YYYY-MM-DD)',
+    example: '2026-10-10',
+  })
+  @IsOptional()
+  @IsString()
+  date?: string;
 }

@@ -26,6 +26,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { isUUID } from 'class-validator';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 
 @Injectable()
@@ -154,10 +155,21 @@ export class DrizzleAdminSessionMutationRepository {
     let existingEndTime = '12:00:00';
     let roomId: string | null = null;
 
+    if ((body as any)?.date) {
+      targetDate = (body as any).date;
+    }
+
     if (sessionId.startsWith('roster-')) {
-      const parts = sessionId.split('-');
-      const daId = parts[1];
-      targetDate = parts.slice(2).join('-');
+      const daId = sessionId.slice(7, 43);
+      const rosterDate = sessionId.slice(44);
+      if (rosterDate && !(body as any)?.date) {
+        targetDate = rosterDate;
+      }
+      if (!isUUID(daId)) {
+        throw new NotFoundException(
+          `Format ID roster sesi ${sessionId} tidak valid`,
+        );
+      }
       const da = await this.db.query.doctorAssignments.findFirst({
         where: and(
           eq(doctorAssignments.id, daId),
@@ -174,32 +186,32 @@ export class DrizzleAdminSessionMutationRepository {
       existingStartTime = da.sessionDef?.defaultStartsAt || '08:00:00';
       existingEndTime = da.sessionDef?.defaultEndsAt || '12:00:00';
       roomId = da.preferredRoomId;
-    } else {
-      const ex = await this.db.query.shiftExceptions.findFirst({
+    } else if (isUUID(sessionId)) {
+      const da = await this.db.query.doctorAssignments.findFirst({
         where: and(
-          eq(shiftExceptions.id, sessionId),
-          eq(shiftExceptions.doctorId, practitioner.id),
+          eq(doctorAssignments.id, sessionId),
+          eq(doctorAssignments.doctorId, practitioner.id),
         ),
         with: { sessionDef: true },
       });
-      if (ex) {
-        targetDate = ex.serviceDate;
-        targetSessionDefId = ex.sessionId;
-        existingStartTime = ex.sessionDef?.defaultStartsAt || '08:00:00';
-        existingEndTime = ex.sessionDef?.defaultEndsAt || '12:00:00';
+      if (da) {
+        targetSessionDefId = da.sessionId;
+        existingStartTime = da.sessionDef?.defaultStartsAt || '08:00:00';
+        existingEndTime = da.sessionDef?.defaultEndsAt || '12:00:00';
+        roomId = da.preferredRoomId;
       } else {
-        const da = await this.db.query.doctorAssignments.findFirst({
+        const ex = await this.db.query.shiftExceptions.findFirst({
           where: and(
-            eq(doctorAssignments.id, sessionId),
-            eq(doctorAssignments.doctorId, practitioner.id),
+            eq(shiftExceptions.id, sessionId),
+            eq(shiftExceptions.doctorId, practitioner.id),
           ),
           with: { sessionDef: true },
         });
-        if (da) {
-          targetSessionDefId = da.sessionId;
-          existingStartTime = da.sessionDef?.defaultStartsAt || '08:00:00';
-          existingEndTime = da.sessionDef?.defaultEndsAt || '12:00:00';
-          roomId = da.preferredRoomId;
+        if (ex) {
+          targetDate = ex.serviceDate;
+          targetSessionDefId = ex.sessionId;
+          existingStartTime = ex.sessionDef?.defaultStartsAt || '08:00:00';
+          existingEndTime = ex.sessionDef?.defaultEndsAt || '12:00:00';
         } else {
           const sDef = await this.db.query.sessionDefs.findFirst({
             where: eq(sessionDefs.id, sessionId),
@@ -215,6 +227,10 @@ export class DrizzleAdminSessionMutationRepository {
           }
         }
       }
+    } else {
+      throw new NotFoundException(
+        `Format ID sesi ${sessionId} tidak valid`,
+      );
     }
 
     const startTimeFormatted = body.jam_mulai
