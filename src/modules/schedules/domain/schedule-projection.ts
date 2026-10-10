@@ -18,7 +18,7 @@ export interface ScheduleProjectionInput {
   selectedStartTime: string;
   boundaryEndTime: string;
   durationMinutes: number;
-  appointments: AppointmentOccupation[];
+  appointments?: AppointmentOccupation[];
   closedReason?: ScheduleClosedReason;
 }
 
@@ -42,133 +42,37 @@ export interface ScheduleProjectedInterval {
 
 export interface ScheduleProjectionResult {
   projectedEndTime: string;
+  nominalCapacity: number;
+  durationMinutes: number;
+  isClosed: boolean;
+  closedReason?: ScheduleClosedReason;
+  /**
+   * @deprecated Artificial 30-minute intervals are eliminated in accordance with Queue Paradigm.
+   * Kept empty for graceful backward-compatibility.
+   */
   intervals: ScheduleProjectedInterval[];
 }
-
-const DISPLAY_LABEL_BY_STATUS: Record<
-  ScheduleIntervalStatus,
-  ScheduleProjectedInterval['displayLabel']
-> = {
-  OPEN: 'Buka',
-  OCCUPIED: 'Terisi',
-  CLOSED: 'Tutup',
-};
 
 export function projectScheduleProjection(
   input: ScheduleProjectionInput,
 ): ScheduleProjectionResult {
   const startMinutes = parseClockTime(input.selectedStartTime);
   const boundaryEndMinutes = parseClockTime(input.boundaryEndTime);
-  const intervalsCount = Math.max(
+  const duration = Math.max(1, input.durationMinutes);
+  const nominalCapacity = Math.max(
     0,
-    Math.floor((boundaryEndMinutes - startMinutes) / input.durationMinutes),
+    Math.floor((boundaryEndMinutes - startMinutes) / duration),
   );
-  const projectedEndMinutes =
-    startMinutes + intervalsCount * input.durationMinutes;
+  const projectedEndMinutes = startMinutes + nominalCapacity * duration;
 
   return {
     projectedEndTime: formatClockTime(projectedEndMinutes),
-    intervals: buildIntervals({
-      input,
-      startMinutes,
-      intervalsCount,
-    }),
+    nominalCapacity,
+    durationMinutes: duration,
+    isClosed: Boolean(input.closedReason),
+    closedReason: input.closedReason,
+    intervals: [],
   };
-}
-
-function buildIntervals(params: {
-  input: ScheduleProjectionInput;
-  startMinutes: number;
-  intervalsCount: number;
-}): ScheduleProjectedInterval[] {
-  const intervals: ScheduleProjectedInterval[] = [];
-
-  for (let index = 0; index < params.intervalsCount; index++) {
-    const intervalStart =
-      params.startMinutes + index * params.input.durationMinutes;
-    const intervalEnd = intervalStart + params.input.durationMinutes;
-    const appointment = findOverlappingAppointment(
-      params.input.appointments,
-      intervalStart,
-      intervalEnd,
-    );
-    const status = resolveIntervalStatus(
-      params.input.closedReason,
-      appointment,
-    );
-
-    intervals.push({
-      intervalId: buildIntervalId(
-        params.input.scheduleId,
-        intervalStart,
-        intervalEnd,
-      ),
-      intervalIndex: index + 1,
-      startTime: formatClockTime(intervalStart),
-      endTime: formatClockTime(intervalEnd),
-      status,
-      displayLabel: DISPLAY_LABEL_BY_STATUS[status],
-      isOccupied: status === 'OCCUPIED',
-      ...(appointment && !params.input.closedReason
-        ? { appointmentRef: toAppointmentRef(appointment) }
-        : {}),
-      ...(params.input.closedReason
-        ? { closedReason: params.input.closedReason }
-        : {}),
-    });
-  }
-
-  return intervals;
-}
-
-function resolveIntervalStatus(
-  closedReason: ScheduleClosedReason | undefined,
-  appointment: AppointmentOccupation | undefined,
-): ScheduleIntervalStatus {
-  if (closedReason) {
-    return 'CLOSED';
-  }
-  if (appointment) {
-    return 'OCCUPIED';
-  }
-  return 'OPEN';
-}
-
-function findOverlappingAppointment(
-  appointments: AppointmentOccupation[],
-  intervalStart: number,
-  intervalEnd: number,
-): AppointmentOccupation | undefined {
-  return appointments.find((appointment) => {
-    const appointmentStart = parseClockTime(appointment.startTime);
-    if (!appointment.endTime) {
-      return (
-        appointmentStart >= intervalStart && appointmentStart < intervalEnd
-      );
-    }
-
-    const appointmentEnd = parseClockTime(appointment.endTime);
-    return appointmentStart < intervalEnd && appointmentEnd > intervalStart;
-  });
-}
-
-function toAppointmentRef(
-  appointment: AppointmentOccupation,
-): ScheduleAppointmentRef {
-  return {
-    appointmentId: appointment.appointmentId,
-    queueNumber: appointment.queueNumber ?? null,
-    status: appointment.status ?? null,
-  };
-}
-
-function buildIntervalId(
-  scheduleId: string | undefined,
-  startMinutes: number,
-  endMinutes: number,
-): string {
-  const prefix = scheduleId || 'projection';
-  return `${prefix}:${formatClockTime(startMinutes)}-${formatClockTime(endMinutes)}`;
 }
 
 export function parseClockTime(value: string): number {
@@ -183,3 +87,4 @@ export function formatClockTime(totalMinutes: number): string {
   const minutes = totalMinutes % 60;
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
 }
+

@@ -288,4 +288,14 @@ export class ClinicConfigService {
       showDoctorWhenCalled,
     };
   }
+
+  async getLoadRatioThresholds(
+    scope?: ScopeQuery,
+  ): Promise<{ okMax: number; busyMax: number }> {
+    const [okMax, busyMax] = await Promise.all([
+      this.getNumber('queue.load_ratio.ok_max', scope).catch(() => 0.9),
+      this.getNumber('queue.load_ratio.busy_max', scope).catch(() => 1.1),
+    ]);
+    return { okMax, busyMax };
+  }
 }

@@ -7,21 +7,22 @@ import {
   sessionDefs,
   shiftExceptions,
 } from '@database/schema';
+import { ClinicConfigService } from '@common/clinic-config/clinic-config.service';
 import { SimulatorService } from '@modules/queue-engine/domain/services/simulator.service';
 import { SCHEDULE_CONTEXT_DEFINITIONS } from '@modules/schedules/domain/constants/schedule-context.constants';
 import {
-  type ScheduleOccupancyOverviewData,
-  type ScheduleShiftOccupancyEntity,
+  type ScheduleCapacityOverviewData,
+  type ScheduleShiftCapacityEntity,
 } from '@modules/schedules/domain/entities/schedule.entity';
 import { parseClockTime } from '@modules/schedules/domain/schedule-projection';
 import { SchedulePolicyReader } from '@modules/schedules/infrastructure/drizzle/queries/schedule-policy.reader';
 import { PractitionerResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/practitioner.resolver';
-import type { ScheduleOccupancyQueryDto } from '@modules/schedules/presentation/dto/schedule-occupancy-query.dto';
+import type { ScheduleCapacityQueryDto } from '@modules/schedules/presentation/dto/schedule-capacity-query.dto';
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { and, asc, eq, inArray, isNull, or } from 'drizzle-orm';
 
 @Injectable()
-export class DrizzleScheduleOccupancyRepository {
+export class DrizzleScheduleCapacityRepository {
   private readonly simulatorService = new SimulatorService();
 
   constructor(
@@ -29,12 +30,13 @@ export class DrizzleScheduleOccupancyRepository {
     private readonly db: DrizzleDatabase,
     private readonly practitionerResolver: PractitionerResolver,
     private readonly policyReader: SchedulePolicyReader,
+    private readonly clinicConfigService: ClinicConfigService,
   ) {}
 
-  async getOccupancyOverview(
+  async getCapacityOverview(
     staffId: string,
-    query: ScheduleOccupancyQueryDto,
-  ): Promise<ScheduleOccupancyOverviewData> {
+    query: ScheduleCapacityQueryDto,
+  ): Promise<ScheduleCapacityOverviewData> {
     const practitioner = await this.practitionerResolver.resolve(staffId);
     if (!practitioner) {
       throw new NotFoundException(
@@ -49,6 +51,9 @@ export class DrizzleScheduleOccupancyRepository {
       'Dokter';
     const policy = await this.policyReader.getPolicy(practitioner);
     const durationMinutes = policy.durationMinutes;
+
+    // 0. Resolve load ratio thresholds dynamically from clinic_setting
+    const loadThresholds = await this.clinicConfigService.getLoadRatioThresholds();
 
     // 1. Check if practitioner is on leave on target date via shiftExceptions
     const activeLeave = await this.db.query.shiftExceptions.findFirst({
@@ -107,7 +112,7 @@ export class DrizzleScheduleOccupancyRepository {
     const doctorsOnLeaveIds = new Set(dateLeaveExceptions.map((ex) => ex.doctorId));
 
     // 4. Construct shifts with authoritative lane capacity & queue load
-    const shifts: ScheduleShiftOccupancyEntity[] = [];
+    const shifts: ScheduleShiftCapacityEntity[] = [];
 
     for (const ctxDef of SCHEDULE_CONTEXT_DEFINITIONS) {
       const matchingSessionDef = allSessionDefs.find(
@@ -127,7 +132,6 @@ export class DrizzleScheduleOccupancyRepository {
         if (workingDoctors.length > 0) {
           laneCapacity = Math.min(workingDoctors.length, totalClinicRooms);
         } else if (!isOnLeave) {
-          // Fallback to single doctor lane if assigned doctor has no explicit roster row yet
           laneCapacity = 1;
         }
       } else if (!isOnLeave) {
@@ -163,17 +167,15 @@ export class DrizzleScheduleOccupancyRepository {
       );
       const activeTicketsCount = sessionTickets.length;
 
-      // Calculate load status and occupancy rate
+      // Calculate load status and load ratio dynamically using thresholds
       const loadStatus = this.simulatorService.resolveLoadStatus(
         activeTicketsCount,
         nominalCapacity,
+        loadThresholds,
       );
-      const occupancyRate =
+      const loadRatio =
         nominalCapacity > 0
-          ? Math.min(
-              100,
-              Math.round((activeTicketsCount / nominalCapacity) * 100),
-            )
+          ? Number((activeTicketsCount / nominalCapacity).toFixed(2))
           : 0;
 
       shifts.push({
@@ -187,7 +189,7 @@ export class DrizzleScheduleOccupancyRepository {
         activeTickets: activeTicketsCount,
         nominalCapacity,
         loadStatus,
-        occupancyRate,
+        loadRatio,
       });
     }
 
@@ -199,12 +201,9 @@ export class DrizzleScheduleOccupancyRepository {
       (sum, s) => sum + (s.nominalCapacity ?? 0),
       0,
     );
-    const overallOccupancyRate =
+    const overallLoadRatio =
       totalNominalCapacity > 0
-        ? Math.min(
-            100,
-            Math.round((totalActiveTickets / totalNominalCapacity) * 100),
-          )
+        ? Number((totalActiveTickets / totalNominalCapacity).toFixed(2))
         : 0;
 
     return {
@@ -220,7 +219,7 @@ export class DrizzleScheduleOccupancyRepository {
         totalShifts: shifts.length,
         totalActiveTickets,
         totalNominalCapacity,
-        overallOccupancyRate,
+        overallLoadRatio,
       },
       shifts,
     };

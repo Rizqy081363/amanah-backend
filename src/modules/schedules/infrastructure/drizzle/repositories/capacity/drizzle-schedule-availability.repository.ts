@@ -288,6 +288,10 @@ export class DrizzleScheduleAvailabilityRepository {
       durationEditableByCurrentUser: params.durationEditableByCurrentUser,
       allowedStartPrecisionMinutes: params.policy.startPrecisionMinutes,
       timezone: this.getTimezone(),
+      nominalCapacity: projected.nominalCapacity,
+      capacity: projected.nominalCapacity,
+      isClosed: projected.isClosed,
+      closedReason: projected.closedReason,
       intervals: projected.intervals,
       version: params.updatedAt
         ? generateEntityVersion(params.updatedAt)

@@ -235,7 +235,11 @@ export class ScheduleProjectionEntity {
   durationEditableByCurrentUser: boolean;
   allowedStartPrecisionMinutes: number;
   timezone: string;
-  intervals: ScheduleProjectedIntervalEntity[];
+  nominalCapacity?: number;
+  capacity?: number;
+  isClosed?: boolean;
+  closedReason?: string;
+  intervals?: ScheduleProjectedIntervalEntity[];
   version?: string;
   updatedAt?: string | null;
 }
@@ -605,7 +609,7 @@ export class ClinicalPractitionersResponse {
 }
 
 
-export class ScheduleShiftOccupancyEntity {
+export class ScheduleShiftCapacityEntity {
   @ApiProperty({ example: 'early_morning' })
   contextId: string;
 
@@ -636,14 +640,14 @@ export class ScheduleShiftOccupancyEntity {
   @ApiProperty({ example: 12, required: false })
   nominalCapacity?: number;
 
-  @ApiProperty({ example: 'NORMAL', required: false })
+  @ApiProperty({ example: 'Lancar', required: false })
   loadStatus?: string;
 
-  @ApiProperty({ example: 42, required: false })
-  occupancyRate?: number;
+  @ApiProperty({ example: 0.42, required: false })
+  loadRatio?: number;
 }
 
-export class ScheduleOccupancySummaryEntity {
+export class ScheduleCapacitySummaryEntity {
   @ApiProperty({ example: 4 })
   totalShifts: number;
 
@@ -653,11 +657,11 @@ export class ScheduleOccupancySummaryEntity {
   @ApiProperty({ example: 48, required: false })
   totalNominalCapacity?: number;
 
-  @ApiProperty({ example: 10, required: false })
-  overallOccupancyRate?: number;
+  @ApiProperty({ example: 0.1, required: false })
+  overallLoadRatio?: number;
 }
 
-export class ScheduleOccupancyOverviewData {
+export class ScheduleCapacityOverviewData {
   @ApiProperty({ example: '2026-09-25' })
   date: string;
 
@@ -685,19 +689,19 @@ export class ScheduleOccupancyOverviewData {
   @ApiProperty({ nullable: true, example: null })
   cutiReason?: string | null;
 
-  @ApiProperty({ type: () => ScheduleOccupancySummaryEntity })
-  summary: ScheduleOccupancySummaryEntity;
+  @ApiProperty({ type: () => ScheduleCapacitySummaryEntity })
+  summary: ScheduleCapacitySummaryEntity;
 
-  @ApiProperty({ type: () => [ScheduleShiftOccupancyEntity] })
-  shifts: ScheduleShiftOccupancyEntity[];
+  @ApiProperty({ type: () => [ScheduleShiftCapacityEntity] })
+  shifts: ScheduleShiftCapacityEntity[];
 }
 
-export class ScheduleOccupancyOverviewResponse {
+export class ScheduleCapacityOverviewResponse {
   @ApiProperty({ example: true })
   success: boolean;
 
-  @ApiProperty({ type: () => ScheduleOccupancyOverviewData })
-  data: ScheduleOccupancyOverviewData;
+  @ApiProperty({ type: () => ScheduleCapacityOverviewData })
+  data: ScheduleCapacityOverviewData;
 }
 
 export class RescheduleSourceSessionInfo {

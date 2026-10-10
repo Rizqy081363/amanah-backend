@@ -39,7 +39,7 @@ import { resolveCanonicalShift } from '../domain/constants/schedule-shift.consta
 import {
   AdminSessionPatientsResponse,
   RescheduleEligibilityResponse,
-  ScheduleOccupancyOverviewResponse,
+  ScheduleCapacityOverviewResponse,
 } from '../domain/entities/schedule.entity';
 import {
   SCHEDULE_REPOSITORY,
@@ -53,8 +53,8 @@ import { GetSessionPatientsQueryDto } from './dto/get-session-patients-query.dto
 import { QueryScheduleDto } from './dto/query-schedule.dto';
 import { RescheduleAdminDoctorSessionDto } from './dto/reschedule-admin-doctor-session.dto';
 import { RoomReferenceQueryDto } from './dto/room-reference-query.dto';
+import { ScheduleCapacityQueryDto } from './dto/schedule-capacity-query.dto';
 import { ScheduleContextQueryDto } from './dto/schedule-context-query.dto';
-import { ScheduleOccupancyQueryDto } from './dto/schedule-occupancy-query.dto';
 import { ScheduleProjectionQueryDto } from './dto/schedule-projection-query.dto';
 import { UpdateScheduleDto } from './dto/update-schedule.dto';
 
@@ -411,12 +411,12 @@ export class SchedulesController {
   @Get('projection')
   @Roles('STAF', 'ADMIN')
   @ApiOperation({
-    summary: 'Preview projection interval dari start time dokter',
+    summary: 'Preview proyeksi kapasitas dan durasi konsultasi shift',
     description:
-      'Memproyeksikan interval availability dari start time arbitrary tanpa membulatkan jam mulai.',
+      'Memproyeksikan kapasitas nominal dan durasi konsultasi shift tanpa pemotongan petak interval kaku.',
   })
   @ApiOkResponse({
-    description: 'Projection availability berhasil dihitung',
+    description: 'Proyeksi kapasitas shift berhasil dihitung',
   })
   async previewScheduleProjection(
     @Query() query: ScheduleProjectionQueryDto,
@@ -430,7 +430,7 @@ export class SchedulesController {
     );
   }
 
-  @Get('occupancy-overview')
+  @Get('capacity-overview')
   @Roles('STAF', 'ADMIN')
   @ApiOperation({
     summary:
@@ -439,15 +439,15 @@ export class SchedulesController {
       'Menampilkan kapasitas lane (min dokter bertugas dan ruangan aktif), kapasitas nominal, serta rasio beban antrean aktif untuk seluruh shift.',
   })
   @ApiOkResponse({
-    description: 'Ringkasan okupansi berhasil diambil',
-    type: ScheduleOccupancyOverviewResponse,
+    description: 'Ringkasan kapasitas lane dan beban antrean berhasil diambil',
+    type: ScheduleCapacityOverviewResponse,
   })
-  async getOccupancyOverview(
-    @Query() query: ScheduleOccupancyQueryDto,
+  async getCapacityOverview(
+    @Query() query: ScheduleCapacityQueryDto,
     @CurrentUser() user: any,
   ) {
     const staffId = this.resolveTargetStaffId(user, query.staffId);
-    const data = await this.scheduleRepo.getOccupancyOverview(staffId, query);
+    const data = await this.scheduleRepo.getCapacityOverview(staffId, query);
     return {
       success: true,
       data,

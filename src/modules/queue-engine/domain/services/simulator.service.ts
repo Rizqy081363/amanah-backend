@@ -1,5 +1,6 @@
 import { TimeInterval } from '../types/calendar.types';
 import {
+  LoadRatioThresholds,
   QueueLoadStatus,
   resolveQueueLoadStatus,
 } from '../constants/queue-load.constants';
@@ -52,10 +53,11 @@ export class SimulatorService {
   resolveLoadStatus(
     ticketsCount: number,
     nominalCapacity: number,
+    thresholds?: LoadRatioThresholds,
   ): LoadStatus {
-    if (nominalCapacity <= 0) return resolveQueueLoadStatus(999);
+    if (nominalCapacity <= 0) return resolveQueueLoadStatus(999, thresholds);
     const ratio = ticketsCount / nominalCapacity;
-    return resolveQueueLoadStatus(ratio);
+    return resolveQueueLoadStatus(ratio, thresholds);
   }
 
   /**

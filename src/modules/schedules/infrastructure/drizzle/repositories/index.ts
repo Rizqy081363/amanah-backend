@@ -1,5 +1,6 @@
 export * from './admin';
-export * from './occupancy';
+export * from './capacity';
 export * from './patients';
 export * from './reschedule';
 export * from './shared';
+

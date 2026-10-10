@@ -1,3 +1,4 @@
+import { ClinicConfigService } from '@common/clinic-config/clinic-config.service';
 import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import type { NotificationPublisher } from '@modules/notifications/contracts/domain-event.interface';
@@ -14,9 +15,9 @@ import type {
   DayScheduleSettingEntity,
   RescheduleEligibilityEntity,
   ScheduleAvailabilityMutationResponse,
+  ScheduleCapacityOverviewData,
   ScheduleContextEntity,
   ScheduleEntity,
-  ScheduleOccupancyOverviewData,
   ScheduleOptionsReferenceEntity,
   ScheduleProjectionEntity,
 } from '@modules/schedules/domain/entities/schedule.entity';
@@ -29,7 +30,7 @@ import type { CreateAdminDoctorSessionDto } from '@modules/schedules/presentatio
 import type { GetAdminDoctorPatientsQueryDto } from '@modules/schedules/presentation/dto/get-admin-doctor-patients-query.dto';
 import type { GetSessionPatientsQueryDto } from '@modules/schedules/presentation/dto/get-session-patients-query.dto';
 import type { RescheduleAdminDoctorSessionDto } from '@modules/schedules/presentation/dto/reschedule-admin-doctor-session.dto';
-import type { ScheduleOccupancyQueryDto } from '@modules/schedules/presentation/dto/schedule-occupancy-query.dto';
+import type { ScheduleCapacityQueryDto } from '@modules/schedules/presentation/dto/schedule-capacity-query.dto';
 import type { ScheduleProjectionQueryDto } from '@modules/schedules/presentation/dto/schedule-projection-query.dto';
 import type { UpdateAdminDoctorScheduleDto } from '@modules/schedules/presentation/dto/update-admin-doctor-schedule.dto';
 import type { UpdateAdminDoctorSessionDto } from '@modules/schedules/presentation/dto/update-admin-doctor-session.dto';
@@ -43,8 +44,8 @@ import {
   DrizzleAdminScheduleMutationRepository,
   DrizzleClinicalPractitionerRepository,
   DrizzleScheduleAvailabilityRepository,
+  DrizzleScheduleCapacityRepository,
   DrizzleScheduleDayRepository,
-  DrizzleScheduleOccupancyRepository,
   DrizzleSchedulePatientRepository,
   DrizzleScheduleReferenceRepository,
   DrizzleScheduleRescheduleRepository,
@@ -59,7 +60,7 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
   private readonly dayRepo: DrizzleScheduleDayRepository;
   private readonly refRepo: DrizzleScheduleReferenceRepository;
   private readonly availabilityRepo: DrizzleScheduleAvailabilityRepository;
-  private readonly occupancyRepo: DrizzleScheduleOccupancyRepository;
+  private readonly capacityRepo: DrizzleScheduleCapacityRepository;
   private readonly rescheduleRepo: DrizzleScheduleRescheduleRepository;
   private readonly patientRepo: DrizzleSchedulePatientRepository;
   private readonly clinicalPractitionerRepo: DrizzleClinicalPractitionerRepository;
@@ -83,13 +84,14 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
     @Optional() dayRepo?: DrizzleScheduleDayRepository,
     @Optional() refRepo?: DrizzleScheduleReferenceRepository,
     @Optional() availabilityRepo?: DrizzleScheduleAvailabilityRepository,
-    @Optional() occupancyRepo?: DrizzleScheduleOccupancyRepository,
+    @Optional() capacityRepo?: DrizzleScheduleCapacityRepository,
     @Optional() patientRepo?: DrizzleSchedulePatientRepository,
     @Optional()
     clinicalPractitionerRepo?: DrizzleClinicalPractitionerRepository,
     @Optional() adminListQuery?: DrizzleAdminDoctorScheduleListQuery,
     @Optional() adminDetailQuery?: DrizzleAdminDoctorScheduleDetailQuery,
     @Optional() adminMutationRepo?: DrizzleAdminScheduleMutationRepository,
+    @Optional() clinicConfigService?: ClinicConfigService,
   ) {
     const resolvedPractitioner =
       practitionerResolver ?? new PractitionerResolver(db);
@@ -98,6 +100,8 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
     const resolvedConflict = conflictQuery ?? new ScheduleConflictQuery(db);
     const resolvedOccupation =
       occupationQuery ?? new AppointmentOccupationQuery(db);
+    const resolvedConfig =
+      clinicConfigService ?? new ClinicConfigService(db);
 
     this.sessionRepo =
       sessionRepo ??
@@ -120,12 +124,13 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
         resolvedConflict,
         resolvedOccupation,
       );
-    this.occupancyRepo =
-      occupancyRepo ??
-      new DrizzleScheduleOccupancyRepository(
+    this.capacityRepo =
+      capacityRepo ??
+      new DrizzleScheduleCapacityRepository(
         db,
         resolvedPractitioner,
         resolvedPolicy,
+        resolvedConfig,
       );
     this.rescheduleRepo =
       rescheduleRepo ??
@@ -288,12 +293,12 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
   }
 
 
-  // Occupancy
-  getOccupancyOverview(
+  // Capacity & Load Overview
+  getCapacityOverview(
     staffId: string,
-    query: ScheduleOccupancyQueryDto,
-  ): Promise<ScheduleOccupancyOverviewData> {
-    return this.occupancyRepo.getOccupancyOverview(staffId, query);
+    query: ScheduleCapacityQueryDto,
+  ): Promise<ScheduleCapacityOverviewData> {
+    return this.capacityRepo.getCapacityOverview(staffId, query);
   }
 
 

@@ -1,33 +1,37 @@
 export const DEFAULT_FALLBACK_CAPACITY = 20;
 
 export const QUEUE_LOAD_STATUS = {
-  SENGGANG: 'Senggang',
-  NORMAL: 'Normal',
-  PADAT: 'Padat',
-  SANGAT_PADAT: 'Sangat Padat',
+  SMOOTH: 'Lancar',
+  BUSY: 'Ramai',
+  OVERLOADED: 'Melebihi Kapasitas',
 } as const;
 
 export type QueueLoadStatus =
   (typeof QUEUE_LOAD_STATUS)[keyof typeof QUEUE_LOAD_STATUS];
 
-export const QUEUE_LOAD_THRESHOLDS = {
-  SENGGANG_MAX_RATIO: 0.6,
-  NORMAL_MAX_RATIO: 0.9,
-  PADAT_MAX_RATIO: 1.2,
-} as const;
+export interface LoadRatioThresholds {
+  okMax: number;
+  busyMax: number;
+}
+
+export const DEFAULT_LOAD_RATIO_THRESHOLDS: LoadRatioThresholds = {
+  okMax: 0.9,
+  busyMax: 1.1,
+};
 
 /**
- * Resolves load status label dynamically based on load ratio
+ * Resolves load status label dynamically based on load ratio and configured thresholds from clinic_setting
+ * Aligned with feature-spec/queue-base-ticketing/antrian-tanpa-slot-30-menit.md Section 7
  */
-export function resolveQueueLoadStatus(loadRatio: number): QueueLoadStatus {
-  if (loadRatio < QUEUE_LOAD_THRESHOLDS.SENGGANG_MAX_RATIO) {
-    return QUEUE_LOAD_STATUS.SENGGANG;
+export function resolveQueueLoadStatus(
+  loadRatio: number,
+  thresholds: LoadRatioThresholds = DEFAULT_LOAD_RATIO_THRESHOLDS,
+): QueueLoadStatus {
+  if (loadRatio < thresholds.okMax) {
+    return QUEUE_LOAD_STATUS.SMOOTH;
   }
-  if (loadRatio <= QUEUE_LOAD_THRESHOLDS.NORMAL_MAX_RATIO) {
-    return QUEUE_LOAD_STATUS.NORMAL;
+  if (loadRatio <= thresholds.busyMax) {
+    return QUEUE_LOAD_STATUS.BUSY;
   }
-  if (loadRatio <= QUEUE_LOAD_THRESHOLDS.PADAT_MAX_RATIO) {
-    return QUEUE_LOAD_STATUS.PADAT;
-  }
-  return QUEUE_LOAD_STATUS.SANGAT_PADAT;
+  return QUEUE_LOAD_STATUS.OVERLOADED;
 }

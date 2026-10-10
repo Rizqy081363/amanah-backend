@@ -6,7 +6,7 @@ import { CreateAdminDoctorSessionDto } from '@modules/schedules/presentation/dto
 import { GetAdminDoctorPatientsQueryDto } from '@modules/schedules/presentation/dto/get-admin-doctor-patients-query.dto';
 import { GetSessionPatientsQueryDto } from '@modules/schedules/presentation/dto/get-session-patients-query.dto';
 import { RescheduleAdminDoctorSessionDto } from '@modules/schedules/presentation/dto/reschedule-admin-doctor-session.dto';
-import { ScheduleOccupancyQueryDto } from '@modules/schedules/presentation/dto/schedule-occupancy-query.dto';
+import { ScheduleCapacityQueryDto } from '@modules/schedules/presentation/dto/schedule-capacity-query.dto';
 import { ScheduleProjectionQueryDto } from '@modules/schedules/presentation/dto/schedule-projection-query.dto';
 import { UpdateAdminDoctorScheduleDto } from '@modules/schedules/presentation/dto/update-admin-doctor-schedule.dto';
 import { UpdateAdminDoctorSessionDto } from '@modules/schedules/presentation/dto/update-admin-doctor-session.dto';
@@ -22,9 +22,9 @@ import {
   DayScheduleSettingEntity,
   RescheduleEligibilityEntity,
   ScheduleAvailabilityMutationResponse,
+  ScheduleCapacityOverviewData,
   ScheduleContextEntity,
   ScheduleEntity,
-  ScheduleOccupancyOverviewData,
   ScheduleOptionsReferenceEntity,
   ScheduleProjectionEntity,
 } from '../entities/schedule.entity';
@@ -96,10 +96,10 @@ export interface ScheduleRepository {
     query: ScheduleProjectionQueryDto,
     durationEditableByCurrentUser: boolean,
   ): Promise<ScheduleProjectionEntity>;
-  getOccupancyOverview(
+  getCapacityOverview(
     staffId: string,
-    query: ScheduleOccupancyQueryDto,
-  ): Promise<ScheduleOccupancyOverviewData>;
+    query: ScheduleCapacityQueryDto,
+  ): Promise<ScheduleCapacityOverviewData>;
 
   // Admin & Patient Domain methods (BE-SCHED-001)
   findAdminDoctorSchedules(

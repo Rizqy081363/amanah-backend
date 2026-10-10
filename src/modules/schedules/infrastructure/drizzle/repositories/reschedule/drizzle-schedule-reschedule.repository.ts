@@ -20,7 +20,7 @@ import {
 } from '@modules/schedules/domain/schedule-projection';
 import { ScheduleContextResolver } from '@modules/schedules/domain/services/schedule-context-resolver';
 import { ScheduleConflictQuery } from '@modules/schedules/infrastructure/drizzle/queries/schedule-conflict.query';
-import { DrizzleScheduleAvailabilityRepository } from '@modules/schedules/infrastructure/drizzle/repositories/occupancy/drizzle-schedule-availability.repository';
+import { DrizzleScheduleAvailabilityRepository } from '@modules/schedules/infrastructure/drizzle/repositories/capacity/drizzle-schedule-availability.repository';
 import { PractitionerResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/practitioner.resolver';
 import type { CheckRescheduleEligibilityQueryDto } from '@modules/schedules/presentation/dto/check-reschedule-eligibility-query.dto';
 import type { RescheduleAdminDoctorSessionDto } from '@modules/schedules/presentation/dto/reschedule-admin-doctor-session.dto';
@@ -188,7 +188,8 @@ export class DrizzleScheduleRescheduleRepository {
     );
 
     if (
-      preview.intervals.some((interval) => interval.closedReason === 'LEAVE')
+      preview.closedReason === 'LEAVE' ||
+      preview.intervals?.some((interval) => interval.closedReason === 'LEAVE')
     ) {
       throw new ConflictException({
         code: 'DATE_CLOSED',

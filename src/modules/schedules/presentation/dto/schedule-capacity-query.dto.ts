@@ -1,9 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsDateString, IsNotEmpty, IsOptional, IsUUID } from 'class-validator';
 
-export class ScheduleOccupancyQueryDto {
+export class ScheduleCapacityQueryDto {
   @ApiProperty({
-    description: 'Tanggal target inspeksi ketersediaan jadwal shift (YYYY-MM-DD)',
+    description: 'Tanggal target inspeksi kapasitas dan beban layanan shift (YYYY-MM-DD)',
     example: '2026-09-25',
   })
   @IsNotEmpty({ message: 'Parameter date wajib disertakan' })
@@ -24,10 +24,11 @@ export class ScheduleOccupancyQueryDto {
 
   @ApiPropertyOptional({
     description:
-      'ID ruangan klinik yang dipilih untuk memeriksa bentrok pemakaian ruangan oleh dokter lain',
+      'ID ruangan klinik yang dipilih untuk memeriksa kapasitas ruangan',
     example: 'e3067341-a185-484d-91d6-84848fcff1ef',
   })
   @IsOptional()
   @IsUUID('4', { message: 'roomId harus berupa format UUID v4 yang valid' })
   roomId?: string;
 }
+
