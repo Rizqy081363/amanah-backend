@@ -1,17 +1,16 @@
 import { UnprocessableEntityException } from '@nestjs/common';
-import { and, asc, eq, ilike, inArray, not, or, sql } from 'drizzle-orm';
+import { and, asc, eq, ilike, inArray, isNull, not, or, sql } from 'drizzle-orm';
 import type { ClinicConfigService } from '../../../../common/clinic-config/clinic-config.service';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
   appointments,
   childImmunizationIntakes,
+  clinicClosures,
   clinicRooms,
-  clinicSchedulePolicies,
   clinicServices,
   clinicUnits,
   maternalHealthIntakes,
   medicalIntakeSubmissions,
-  practitionerScheduleSessions,
   practitioners,
   queueTickets,
   sessionDefs,
@@ -41,10 +40,8 @@ export class AppointmentCreationHandler {
     const targetShift = ScheduleShiftRegistry.resolve(data.session).shift;
 
     const policy = clinicConfig
-      ? await clinicConfig.getSchedulePolicy()
-      : await db.query.clinicSchedulePolicies.findFirst({
-          where: eq(clinicSchedulePolicies.code, 'default'),
-        });
+      ? await clinicConfig.getSchedulePolicy().catch(() => null)
+      : null;
 
     const shiftConfig =
       SHIFT_TIMING_CONFIGS[targetShift] || SHIFT_TIMING_CONFIGS.morning;
@@ -127,9 +124,77 @@ export class AppointmentCreationHandler {
     }
 
     // Room and doctor assignment are runtime resources (assigned at call, not at booking)
-    const scheduleSessionId: string | null = null;
     const startTime = defaultStart;
     const endTime = defaultEnd;
+
+    // Rule R19: Dialihkan, bukan ditolak
+    // If category or clinic is closed on requested date and shift, automatically reroute to next open date (horizon 14 days)
+    const categoryId =
+      clinicServiceRecord?.categoryId ||
+      clinicServiceRecord?.serviceCategory?.id ||
+      null;
+
+    const reqStartIso = `${data.appointmentDate}T${startTime}.000Z`;
+    const reqEndIso = `${data.appointmentDate}T${endTime}.000Z`;
+
+    const activeClosure = await db.query.clinicClosures.findFirst({
+      where: and(
+        isNull(clinicClosures.cancelledAt),
+        sql`${clinicClosures.startsAt} < ${reqEndIso} AND ${clinicClosures.endsAt} > ${reqStartIso}`,
+        or(
+          eq(clinicClosures.scope, 'clinic'),
+          categoryId
+            ? and(
+                eq(clinicClosures.scope, 'category'),
+                eq(clinicClosures.categoryId, categoryId),
+              )
+            : sql`FALSE`,
+        ),
+      ),
+    });
+
+    if (activeClosure) {
+      let candidateDate = new Date(`${data.appointmentDate}T00:00:00.000Z`);
+      let foundOpenDate: string | null = null;
+      for (let i = 1; i <= 14; i++) {
+        candidateDate.setUTCDate(candidateDate.getUTCDate() + 1);
+        const nextDateStr = candidateDate.toISOString().slice(0, 10);
+        const nextStartIso = `${nextDateStr}T${startTime}.000Z`;
+        const nextEndIso = `${nextDateStr}T${endTime}.000Z`;
+        const conflict = await db.query.clinicClosures.findFirst({
+          where: and(
+            isNull(clinicClosures.cancelledAt),
+            sql`${clinicClosures.startsAt} < ${nextEndIso} AND ${clinicClosures.endsAt} > ${nextStartIso}`,
+            or(
+              eq(clinicClosures.scope, 'clinic'),
+              categoryId
+                ? and(
+                    eq(clinicClosures.scope, 'category'),
+                    eq(clinicClosures.categoryId, categoryId),
+                  )
+                : sql`FALSE`,
+            ),
+          ),
+        });
+        if (!conflict) {
+          foundOpenDate = nextDateStr;
+          break;
+        }
+      }
+
+      if (!foundOpenDate) {
+        throw new UnprocessableEntityException(
+          `Layanan sedang tutup (${activeClosure.reason || 'Penutupan operasional'}). Tidak ada jadwal buka yang tersedia dalam 14 hari ke depan. Silakan hubungi admin klinik (Rule R19).`,
+        );
+      }
+
+      const originalDate = data.appointmentDate;
+      data.appointmentDate = foundOpenDate;
+      const rerouteNotice = `[Dialihkan otomatis dari ${originalDate} karena: ${activeClosure.reason || 'Penutupan operasional'}]`;
+      data.complaint = data.complaint
+        ? `${rerouteNotice} ${data.complaint}`
+        : rerouteNotice;
+    }
 
     const effectiveMedicalFlow =
       (clinicServiceRecord?.medicalFlow as any) ||
@@ -168,10 +233,6 @@ export class AppointmentCreationHandler {
       numericQueueNumber = Number(maxQ?.max || 0) + 1;
     }
 
-    const categoryId =
-      clinicServiceRecord?.categoryId ||
-      clinicServiceRecord?.serviceCategory?.id ||
-      null;
     const categoryPrefix =
       clinicServiceRecord?.codePrefix ||
       clinicServiceRecord?.serviceCategory?.codePrefix ||
@@ -249,7 +310,6 @@ export class AppointmentCreationHandler {
         bookingCode,
         patientId: data.patientId,
         practitionerId: practitionerId || null,
-        scheduleSessionId: scheduleSessionId || null,
         serviceId: data.layananId,
         roomId: null,
         visitType:

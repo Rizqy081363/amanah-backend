@@ -117,7 +117,7 @@ export class AppointmentHardenedDrizzleRepository
     return Number(result?.maxQueue || 0) + 1;
   }
 
-  async createWithSlot(
+  async createWithTiming(
     input: CreateAppointmentInput,
     tx?: unknown,
   ): Promise<AppointmentRecord> {

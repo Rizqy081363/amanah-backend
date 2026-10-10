@@ -3,11 +3,12 @@ import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
   appointments,
   clinicRooms,
-  practitionerScheduleSessions,
+  doctorAssignments,
   practitioners,
+  shiftExceptions,
 } from '@database/schema';
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, inArray, not, sql } from 'drizzle-orm';
+import { and, eq, inArray, not } from 'drizzle-orm';
 import { ACTIVE_APPOINTMENT_STATUSES } from '../../../schedules/domain/constants/schedule.constants';
 import {
   AppointmentNotFoundException,
@@ -116,31 +117,35 @@ export class AppointmentCandidateResolver {
         .filter(Boolean),
     );
 
-    const existingSessions =
-      await this.db.query.practitionerScheduleSessions.findMany({
-        where: and(
-          eq(practitionerScheduleSessions.scheduleDate, scheduledDate),
-          eq(practitionerScheduleSessions.status, 'open'),
-        ),
-      });
+    // Lapis 3: Shift exceptions (cuti dokter)
+    const leaves = await this.db.query.shiftExceptions.findMany({
+      where: and(
+        eq(shiftExceptions.serviceDate, scheduledDate),
+        eq(shiftExceptions.type, 'leave'),
+      ),
+    });
+    const onLeaveDoctorIds = new Set(leaves.map((l) => l.doctorId));
+
+    // Lapis 2: Penugasan roster dokter
+    const dow = new Date(`${scheduledDate}T00:00:00.000Z`).getUTCDay();
+    const rosterAssignments = await this.db.query.doctorAssignments.findMany({
+      where: and(
+        eq(doctorAssignments.dow, dow),
+        eq(doctorAssignments.isActive, true),
+      ),
+    });
+    const onRosterDoctorIds = new Set(
+      rosterAssignments.map((ra) => ra.doctorId),
+    );
 
     const groupMap = new Map<string, DoctorCandidateGroup>();
 
     for (const p of allPractitioners) {
       if (p.id === apt.practitionerId) continue;
       if (occupiedDoctorIds.has(p.id)) continue;
+      if (onLeaveDoctorIds.has(p.id)) continue;
 
-      const matchingSession = existingSessions.find(
-        (s) =>
-          s.practitionerId === p.id &&
-          s.startTime <= startTime &&
-          s.endTime > startTime &&
-          !AppointmentTemporalStatusHelper.isElapsed({
-            scheduledDate: s.scheduleDate,
-            scheduledStartTime: s.startTime,
-            scheduledEndTime: s.endTime,
-          }),
-      );
+      const isRostered = onRosterDoctorIds.has(p.id);
 
       const groupKey = p.medicalSpecialty?.name || 'Dokter Umum';
       if (!groupMap.has(groupKey)) {
@@ -156,8 +161,8 @@ export class AppointmentCandidateResolver {
         name: p.displayName || p.staffProfile?.fullName || 'Dokter',
         specialty: groupKey,
         staffType: p.staffProfile?.staffType || 'doctor',
-        availability: matchingSession ? 'AVAILABLE' : 'SCHEDULE_REQUIRED',
-        existingSessionId: matchingSession?.id || null,
+        availability: isRostered ? 'AVAILABLE' : 'SCHEDULE_REQUIRED',
+        existingSessionId: null,
       });
     }
 
@@ -205,15 +210,13 @@ export class AppointmentCandidateResolver {
       where: eq(clinicRooms.isActive, true),
     });
 
-    // If the target appointment's slot itself is already elapsed (past date or past clock time),
-    // no active room collision exists.
-    const isTargetSlotElapsed = AppointmentTemporalStatusHelper.isElapsed({
+    const isTargetTimeElapsed = AppointmentTemporalStatusHelper.isElapsed({
       scheduledDate,
       scheduledStartTime: startTime,
       scheduledEndTime: endTime,
     });
 
-    if (isTargetSlotElapsed) {
+    if (isTargetTimeElapsed) {
       return allRooms.map((room) => ({
         id: room.id,
         name: room.name,
@@ -246,57 +249,9 @@ export class AppointmentCandidateResolver {
       }
     >();
 
-    // Check doctor schedule sessions occupying rooms at this date and time
-    if (this.db.query.practitionerScheduleSessions) {
-      const conflictingSessions =
-        await this.db.query.practitionerScheduleSessions.findMany({
-          where: and(
-            eq(practitionerScheduleSessions.scheduleDate, scheduledDate),
-            eq(practitionerScheduleSessions.status, 'open'),
-            sql`${practitionerScheduleSessions.startTime} <= ${startTime}::time AND ${practitionerScheduleSessions.endTime} > ${startTime}::time`,
-            apt.practitionerId
-              ? not(
-                  eq(
-                    practitionerScheduleSessions.practitionerId,
-                    apt.practitionerId,
-                  ),
-                )
-              : sql`true`,
-          ),
-          with: {
-            practitioner: { with: { staffProfile: true } },
-          },
-        });
-      for (const s of conflictingSessions) {
-        if (!s.roomId) continue;
-        if (apt.practitionerId && s.practitionerId === apt.practitionerId)
-          continue;
-
-        // Exclude sessions that have already finished (isElapsed / past / completed)
-        const isSessionFinished =
-          s.status !== 'open' ||
-          AppointmentTemporalStatusHelper.isElapsed({
-            scheduledDate: s.scheduleDate,
-            scheduledStartTime: s.startTime,
-            scheduledEndTime: s.endTime,
-          });
-
-        if (isSessionFinished) continue;
-
-        roomOccupantMap.set(s.roomId, {
-          practitionerId: s.practitionerId || undefined,
-          doctorName:
-            s.practitioner?.displayName ||
-            s.practitioner?.staffProfile?.fullName,
-          startTime: s.startTime ? s.startTime.slice(0, 5) : undefined,
-        });
-      }
-    }
-
     for (const c of conflictingAppts) {
       if (!c.roomId) continue;
 
-      // Exclude appointments that have already completed/cancelled/no_show or elapsed (Sudah Selesai)
       const isApptFinished =
         ['completed', 'cancelled', 'no_show'].includes(c.status) ||
         AppointmentTemporalStatusHelper.isElapsed({

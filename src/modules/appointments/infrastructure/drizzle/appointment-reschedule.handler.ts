@@ -2,22 +2,20 @@ import {
   BadRequestException,
   ForbiddenException,
   NotFoundException,
-  UnprocessableEntityException,
 } from '@nestjs/common';
-import { and, asc, eq, gte, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, isNull, or, sql } from 'drizzle-orm';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
   appointmentStatusEvents,
   appointments,
+  clinicClosures,
   clinicServices,
   patientAffiliations,
   patientProfiles,
-  practitionerScheduleSessions,
   queueTickets,
   sessionDefs,
 } from '../../../../database/schema';
 import { resolveQueueLoadStatus } from '../../../queue-engine/domain/constants/queue-load.constants';
-import { SchedulePersistenceStatus } from '../../../schedules/domain/schedule-status';
 import { QUEUE_TICKET_STATUS } from '../../domain/constants/appointment-lifecycle.constants';
 import type { AppointmentEntity } from '../../domain/entities/appointment.entity';
 import { RescheduleAppointmentDto } from '../../presentation/dto/reschedule-appointment.dto';
@@ -45,61 +43,72 @@ export class AppointmentRescheduleHandler {
     await validateRescheduleAuthorization(db, apt, userId);
     validateAppointmentStateForReschedule(apt);
 
-    let availableDates: any[] = [];
     const today = new Date().toISOString().split('T')[0];
-    const whereConditions: any[] = [
-      gte(practitionerScheduleSessions.scheduleDate, today),
-      eq(practitionerScheduleSessions.status, 'open'),
-    ];
+    const categoryId = apt.clinicService?.serviceCategoryId || null;
 
-    if (apt.practitionerId) {
-      whereConditions.push(
-        eq(practitionerScheduleSessions.practitionerId, apt.practitionerId),
-      );
-    } else if (apt.serviceId) {
-      whereConditions.push(
-        eq(practitionerScheduleSessions.serviceId, apt.serviceId),
-      );
-    }
+    // Load active master sessions (Rule R1: Jam praktik milik klinik)
+    const masterSessions = await db.query.sessionDefs.findMany({
+      where: eq(sessionDefs.isActive, true),
+      orderBy: [asc(sessionDefs.sortOrder)],
+    });
 
-    const candidateSessions =
-      await db.query.practitionerScheduleSessions.findMany({
-        where: and(...whereConditions),
-        orderBy: [
-          asc(practitionerScheduleSessions.scheduleDate),
-          asc(practitionerScheduleSessions.startTime),
-        ],
-      });
+    // Load active closures
+    const activeClosures = await db
+      .select()
+      .from(clinicClosures)
+      .where(isNull(clinicClosures.cancelledAt));
 
-    const groupedByDate: Record<string, any[]> = {};
-    for (const sess of candidateSessions) {
-      if (!groupedByDate[sess.scheduleDate]) {
-        groupedByDate[sess.scheduleDate] = [];
+    const availableDates: any[] = [];
+    const baseDate = new Date(`${today}T00:00:00.000Z`);
+
+    for (let dayOffset = 0; dayOffset < 14; dayOffset++) {
+      const curDate = new Date(baseDate.getTime() + dayOffset * 86400000);
+      const dateStr = curDate.toISOString().slice(0, 10);
+      const shifts = [];
+
+      for (const sess of masterSessions) {
+        const sTime = sess.defaultStartsAt?.slice(0, 5) || '08:00';
+        const eTime = sess.defaultEndsAt?.slice(0, 5) || '12:00';
+        const shiftStartIso = `${dateStr}T${sTime}:00.000Z`;
+        const shiftEndIso = `${dateStr}T${eTime}:00.000Z`;
+
+        const isClosed = activeClosures.some((c: any) => {
+          const cStart = new Date(c.startsAt).getTime();
+          const cEnd = new Date(c.endsAt).getTime();
+          const sStart = new Date(shiftStartIso).getTime();
+          const sEnd = new Date(shiftEndIso).getTime();
+          const overlaps = cStart < sEnd && cEnd > sStart;
+          if (!overlaps) return false;
+          if (c.scope === 'clinic') return true;
+          if (
+            c.scope === 'category' &&
+            categoryId &&
+            c.categoryId === categoryId
+          )
+            return true;
+          return false;
+        });
+
+        if (!isClosed) {
+          shifts.push({
+            sessionId: sess.id,
+            startTime: sTime,
+            endTime: eTime,
+            shift: sess.labelKey,
+            sessionShift: sess.code,
+            loadStatus: resolveQueueLoadStatus(0),
+            isAvailable: true,
+          });
+        }
       }
-      const alreadyHasShift = groupedByDate[sess.scheduleDate].some(
-        (s: any) =>
-          s.startTime === sess.startTime.slice(0, 5) ||
-          s.shift === sess.sessionLabel,
-      );
-      if (alreadyHasShift) continue;
 
-      const loadStatus = resolveQueueLoadStatus(0);
-
-      groupedByDate[sess.scheduleDate].push({
-        sessionId: sess.id,
-        startTime: sess.startTime.slice(0, 5),
-        endTime: sess.endTime.slice(0, 5),
-        shift: sess.sessionLabel,
-        sessionShift: sess.sessionShift,
-        loadStatus,
-        isAvailable: sess.status !== SchedulePersistenceStatus.CLOSED,
-      });
+      if (shifts.length > 0) {
+        availableDates.push({
+          date: dateStr,
+          shifts,
+        });
+      }
     }
-
-    availableDates = Object.entries(groupedByDate).map(([date, shifts]) => ({
-      date,
-      shifts,
-    }));
 
     return {
       appointmentId: apt.id,
@@ -133,6 +142,13 @@ export class AppointmentRescheduleHandler {
     userId: string,
     findById: (id: string) => Promise<AppointmentEntity | null>,
   ): Promise<AppointmentEntity> {
+    const targetSessionId = dto.target_session_id || dto.newSessionId;
+    const targetDate = dto.target_date || dto.newDate;
+
+    if (!targetDate) {
+      throw new BadRequestException('Target tanggal reschedule wajib diisi');
+    }
+
     await db.transaction(async (tx) => {
       const [apt] = await tx
         .select()
@@ -147,36 +163,121 @@ export class AppointmentRescheduleHandler {
       await validateRescheduleAuthorization(tx, apt, userId);
       validateAppointmentStateForReschedule(apt);
 
-      const targetSession = await resolveTargetScheduleSession(tx, dto);
-      const targetDate = dto.target_date || dto.newDate!;
+      let targetSessionDef: any = null;
+      if (targetSessionId) {
+        targetSessionDef = await tx.query.sessionDefs.findFirst({
+          where: or(
+            eq(sessionDefs.id, targetSessionId),
+            eq(sessionDefs.code, targetSessionId),
+          ),
+        });
+      }
+      if (!targetSessionDef) {
+        targetSessionDef = await tx.query.sessionDefs.findFirst({
+          where: eq(sessionDefs.code, 'morning'),
+        });
+      }
+
+      const sTime = targetSessionDef?.defaultStartsAt?.slice(0, 5) || '08:00';
+      const eTime = targetSessionDef?.defaultEndsAt?.slice(0, 5) || '12:00';
       const nowIso = new Date().toISOString();
-      const sessionTiming = await allocateRescheduledTiming(
-        tx,
-        apt,
-        targetSession,
-        targetDate,
+
+      const service = await tx.query.clinicServices.findFirst({
+        where: eq(clinicServices.id, apt.serviceId),
+      });
+      const categoryPrefix = service?.codePrefix || 'U';
+      const categoryId = service?.serviceCategoryId || null;
+      const sessionPrefix = targetSessionDef?.codePrefix || '';
+
+      let numericQueueNumber = 1;
+      let formattedTicketNumber = `${categoryPrefix}-${sessionPrefix}001`;
+
+      if (categoryId && targetSessionDef?.id) {
+        const counterRes = await tx.execute(sql`
+          INSERT INTO queue_counter (service_date, category_id, session_id, last_no)
+          VALUES (${targetDate}, ${categoryId}::uuid, ${targetSessionDef.id}::uuid, 1)
+          ON CONFLICT (service_date, category_id, session_id)
+          DO UPDATE SET last_no = queue_counter.last_no + 1
+          RETURNING last_no;
+        `);
+        numericQueueNumber = Number(counterRes.rows[0]?.last_no ?? 1);
+        formattedTicketNumber = `${categoryPrefix}-${sessionPrefix}${String(numericQueueNumber).padStart(3, '0')}`;
+      } else {
+        const existingTickets = await tx
+          .select({ queueNumber: queueTickets.queueNumber })
+          .from(queueTickets)
+          .where(
+            and(
+              eq(queueTickets.serviceId, apt.serviceId),
+              eq(queueTickets.queueDate, targetDate),
+            ),
+          );
+        numericQueueNumber = existingTickets.length + 1;
+        formattedTicketNumber = `${categoryPrefix}-${sessionPrefix}${String(numericQueueNumber).padStart(3, '0')}`;
+      }
+
+      const oldTickets = await tx
+        .select()
+        .from(queueTickets)
+        .where(eq(queueTickets.appointmentId, apt.id));
+
+      const [newTicket] = await tx
+        .insert(queueTickets)
+        .values({
+          appointmentId: apt.id,
+          serviceId: apt.serviceId,
+          categoryId,
+          sessionId: targetSessionDef?.id || null,
+          patientId: apt.patientId || null,
+          doctorId: apt.practitionerId || null,
+          roomId: null,
+          queueDate: targetDate,
+          queueNumber: formattedTicketNumber,
+          status: QUEUE_TICKET_STATUS.WAITING,
+          priority: 'regular',
+          waitingPosition: numericQueueNumber,
+          carriedOver: true,
+          source: 'online',
+          createdAt: nowIso,
+          updatedAt: nowIso,
+        })
+        .returning();
+
+      if (oldTickets.length > 0 && newTicket) {
+        for (const oldT of oldTickets) {
+          await tx
+            .update(queueTickets)
+            .set({
+              status: QUEUE_TICKET_STATUS.CANCELLED,
+              movedTo: newTicket.id,
+              updatedAt: nowIso,
+            })
+            .where(eq(queueTickets.id, oldT.id));
+        }
+      }
+
+      await tx
+        .update(appointments)
+        .set({
+          scheduledDate: targetDate,
+          scheduledStartTime: sTime,
+          scheduledEndTime: eTime,
+          queueNumber: numericQueueNumber,
+          roomId: null,
+          updatedBy: userId,
+          updatedAt: nowIso,
+        })
+        .where(eq(appointments.id, apt.id));
+
+      await tx.insert(appointmentStatusEvents).values({
         appointmentId,
-      );
-
-      await persistRescheduledAppointment(
-        tx,
-        apt,
-        targetSession,
-        targetDate,
-        sessionTiming,
-        userId,
-        nowIso,
-      );
-
-      await synchronizeQueueTicket(tx, apt, targetSession, targetDate, nowIso);
-
-      await recordRescheduleStatusEvent(
-        tx,
-        appointmentId,
-        apt.status,
-        userId,
-        dto.reason,
-      );
+        previousStatus: apt.status,
+        newStatus: apt.status,
+        changedBy: userId,
+        reason:
+          dto.reason ||
+          'Reschedule janji temu pasien (reissue tiket antrean atomik)',
+      });
     });
 
     const updated = await findById(appointmentId);
@@ -240,224 +341,4 @@ function validateAppointmentStateForReschedule(
       'Janji temu tidak dapat dijadwalkan ulang pada status ini',
     );
   }
-}
-
-async function resolveTargetScheduleSession(
-  tx: DrizzleDatabase,
-  dto: RescheduleAppointmentDto,
-): Promise<typeof practitionerScheduleSessions.$inferSelect> {
-  const targetSessionId = dto.target_session_id || dto.newSessionId;
-  const targetDate = dto.target_date || dto.newDate;
-
-  if (!targetSessionId || !targetDate) {
-    throw new BadRequestException(
-      'Target sesi dan tanggal reschedule wajib diisi',
-    );
-  }
-
-  const [targetSession] = await tx
-    .select()
-    .from(practitionerScheduleSessions)
-    .where(eq(practitionerScheduleSessions.id, targetSessionId))
-    .for('update');
-
-  if (!targetSession) {
-    throw new NotFoundException('Sesi jadwal tujuan tidak ditemukan');
-  }
-
-  if (targetSession.status !== 'open') {
-    throw new BadRequestException(
-      'Sesi jadwal yang dipilih sedang tidak aktif atau ditutup',
-    );
-  }
-
-  return targetSession;
-}
-
-async function allocateRescheduledTiming(
-  _tx: DrizzleDatabase,
-  _currentApt: typeof appointments.$inferSelect,
-  targetSession: typeof practitionerScheduleSessions.$inferSelect,
-  _targetDate: string,
-  _appointmentId: string,
-): Promise<{ startTime: string; endTime: string }> {
-  return {
-    startTime: targetSession.startTime.slice(0, 5),
-    endTime: targetSession.endTime.slice(0, 5),
-  };
-}
-
-async function persistRescheduledAppointment(
-  tx: DrizzleDatabase,
-  apt: typeof appointments.$inferSelect,
-  targetSession: typeof practitionerScheduleSessions.$inferSelect,
-  targetDate: string,
-  sessionTiming: { startTime: string; endTime: string },
-  userId: string,
-  nowIso: string,
-): Promise<void> {
-  await tx
-    .update(appointments)
-    .set({
-      practitionerId: targetSession.practitionerId,
-      roomId: targetSession.roomId ?? apt.roomId,
-      scheduledDate: targetDate,
-      scheduledStartTime: sessionTiming.startTime,
-      scheduledEndTime: sessionTiming.endTime,
-      updatedBy: userId,
-      updatedAt: nowIso,
-    })
-    .where(eq(appointments.id, apt.id));
-}
-
-async function calculateRescheduledQueueNumber(
-  tx: DrizzleDatabase,
-  serviceId: string,
-  targetDate: string,
-  sessionLabel: string,
-): Promise<string> {
-  const existingTickets = await tx
-    .select({ queueNumber: queueTickets.queueNumber })
-    .from(queueTickets)
-    .where(
-      and(
-        eq(queueTickets.serviceId, serviceId),
-        eq(queueTickets.queueDate, targetDate),
-      ),
-    );
-
-  const usedNumbers = new Set(existingTickets.map((t) => t.queueNumber));
-  const prefix = (sessionLabel || 'P').charAt(0).toUpperCase();
-  let idx = existingTickets.length + 1;
-  while (usedNumbers.has(`${prefix}-${String(idx).padStart(3, '0')}`)) {
-    idx++;
-  }
-  return `${prefix}-${String(idx).padStart(3, '0')}`;
-}
-
-async function synchronizeQueueTicket(
-  tx: DrizzleDatabase,
-  apt: typeof appointments.$inferSelect,
-  targetSession: typeof practitionerScheduleSessions.$inferSelect,
-  targetDate: string,
-  nowIso: string,
-): Promise<void> {
-  const service = await tx.query.clinicServices.findFirst({
-    where: eq(clinicServices.id, apt.serviceId),
-  });
-  if (!service) {
-    throw new NotFoundException('Layanan klinik tidak ditemukan');
-  }
-  const categoryPrefix = service.codePrefix;
-  const categoryId = service.serviceCategoryId;
-
-  const sessionDef = targetSession.sessionShift
-    ? await tx.query.sessionDefs.findFirst({
-        where: eq(sessionDefs.code, targetSession.sessionShift),
-      })
-    : null;
-
-  let numericQueueNumber: number;
-  let formattedTicketNumber: string;
-
-  if (categoryId && sessionDef?.id) {
-    const counterRes = await tx.execute(sql`
-      INSERT INTO queue_counter (service_date, category_id, session_id, last_no)
-      VALUES (${targetDate}, ${categoryId}::uuid, ${sessionDef.id}::uuid, 1)
-      ON CONFLICT (service_date, category_id, session_id)
-      DO UPDATE SET last_no = queue_counter.last_no + 1
-      RETURNING last_no;
-    `);
-    numericQueueNumber = Number(counterRes.rows[0]?.last_no ?? 1);
-    const sessionPrefix = sessionDef?.codePrefix
-      ? `${sessionDef.codePrefix}`
-      : '';
-    formattedTicketNumber = `${categoryPrefix}-${sessionPrefix}${String(numericQueueNumber).padStart(3, '0')}`;
-  } else {
-    formattedTicketNumber = await calculateRescheduledQueueNumber(
-      tx,
-      apt.serviceId,
-      targetDate,
-      targetSession.sessionLabel,
-    );
-    const parsed = parseInt(formattedTicketNumber.split('-')[1] || '1', 10);
-    numericQueueNumber = Number.isNaN(parsed) ? 1 : parsed;
-  }
-
-  const oldTickets = await tx
-    .select()
-    .from(queueTickets)
-    .where(eq(queueTickets.appointmentId, apt.id));
-
-  if (oldTickets.length > 0) {
-    for (const oldT of oldTickets) {
-      await tx
-        .update(queueTickets)
-        .set({
-          appointmentId: null,
-          legacyRef: oldT.legacyRef || apt.id,
-          status: QUEUE_TICKET_STATUS.CANCELLED,
-          updatedAt: nowIso,
-        })
-        .where(eq(queueTickets.id, oldT.id));
-    }
-  }
-
-  const [newTicket] = await tx
-    .insert(queueTickets)
-    .values({
-      appointmentId: apt.id,
-      serviceId: apt.serviceId,
-      categoryId: categoryId || null,
-      sessionId: sessionDef?.id || null,
-      patientId: apt.patientId || null,
-      doctorId: targetSession.practitionerId || null,
-      roomId: targetSession.roomId ?? apt.roomId,
-      queueDate: targetDate,
-      queueNumber: formattedTicketNumber,
-      status: QUEUE_TICKET_STATUS.WAITING,
-      priority: 'regular',
-      waitingPosition: numericQueueNumber,
-      carriedOver: true,
-      source: 'online',
-      createdAt: nowIso,
-      updatedAt: nowIso,
-    })
-    .returning();
-
-  if (oldTickets.length > 0 && newTicket) {
-    for (const oldT of oldTickets) {
-      await tx
-        .update(queueTickets)
-        .set({
-          movedTo: newTicket.id,
-          updatedAt: nowIso,
-        })
-        .where(eq(queueTickets.id, oldT.id));
-    }
-  }
-
-  await tx
-    .update(appointments)
-    .set({
-      queueNumber: numericQueueNumber,
-      updatedAt: nowIso,
-    })
-    .where(eq(appointments.id, apt.id));
-}
-
-async function recordRescheduleStatusEvent(
-  tx: DrizzleDatabase,
-  appointmentId: string,
-  status: (typeof appointments.$inferSelect)['status'],
-  userId: string,
-  reason?: string,
-): Promise<void> {
-  await tx.insert(appointmentStatusEvents).values({
-    appointmentId,
-    previousStatus: status,
-    newStatus: status,
-    changedBy: userId,
-    reason: reason || 'Reschedule janji temu',
-  });
 }

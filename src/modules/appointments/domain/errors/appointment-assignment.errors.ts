@@ -23,23 +23,23 @@ export class AppointmentTerminalStateException extends BadRequestException {
 }
 
 export class DoctorCollisionException extends ConflictException {
-  constructor(doctorName: string, timeSlot: string) {
+  constructor(doctorName: string, scheduledTime: string) {
     super({
       code: 'DOCTOR_COLLISION',
-      message: `Dokter ${doctorName} sudah memiliki janji temu aktif pada jam ${timeSlot}.`,
+      message: `Dokter ${doctorName} sudah memiliki janji temu aktif pada jam ${scheduledTime}.`,
       doctorName,
-      timeSlot,
+      scheduledTime,
     });
   }
 }
 
 export class RoomOccupiedException extends ConflictException {
-  constructor(roomName: string, timeSlot: string) {
+  constructor(roomName: string, scheduledTime: string) {
     super({
       code: 'ROOM_OCCUPIED',
-      message: `${roomName} sudah terisi oleh jadwal/janji temu lain pada jam ${timeSlot}.`,
+      message: `${roomName} sudah terisi oleh jadwal/janji temu lain pada jam ${scheduledTime}.`,
       roomName,
-      timeSlot,
+      scheduledTime,
     });
   }
 }

@@ -104,16 +104,6 @@ export interface EstimatedTiming {
   estimatedEndAt: Date;
 }
 
-/** @deprecated Use AppointmentTimingInput */
-export type AppointmentSlotInput = {
-  dayStart: Date;
-  queueNumber: number;
-  slotMinutes?: number;
-  durationMinutes?: number;
-};
-/** @deprecated Use EstimatedTiming */
-export type PlannedSlot = EstimatedTiming;
-
 export interface AppointmentRecord {
   id: string;
   bookingCode: string;

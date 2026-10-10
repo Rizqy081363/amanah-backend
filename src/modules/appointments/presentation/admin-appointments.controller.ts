@@ -83,7 +83,7 @@ export class AdminAppointmentsController {
   @ApiOperation({
     summary: 'Memperbarui status alur antrean janji temu pasien (Admin/Staf)',
     description:
-      'Mengubah status antrean pasien (waiting, in_service, completed, no_show, cancelled). Memulihkan slot sesi kuota jika status dialihkan ke cancelled/no_show.',
+      'Mengubah status antrean pasien (waiting, in_service, completed, no_show, cancelled).',
   })
   @ApiParam({
     name: 'appointmentId',
@@ -128,7 +128,7 @@ export class AdminAppointmentsController {
     summary:
       'Mendapatkan kandidat ruangan yang tersedia untuk janji temu (Admin/Staf)',
     description:
-      'Mengambil daftar ruangan klinik beserta status ketersediaannya pada slot waktu janji temu ini.',
+      'Mengambil daftar ruangan klinik beserta status ketersediaannya pada jam janji temu ini.',
   })
   @ApiParam({
     name: 'appointmentId',

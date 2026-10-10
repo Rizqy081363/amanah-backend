@@ -105,7 +105,7 @@ export async function fetchAppointmentsForUser(
       a.id,
       a.booking_code,
       TO_CHAR(a.scheduled_date, 'YYYY-MM-DD') AS scheduled_date,
-      COALESCE(sess.session_label, TO_CHAR(a.scheduled_start_time, 'HH24:MI'), '-') AS session,
+      COALESCE(TO_CHAR(a.scheduled_start_time, 'HH24:MI'), '-') AS session,
       a.status,
       p.full_name AS patient_name,
       COALESCE(s.name, '-') AS service_name,
@@ -114,7 +114,6 @@ export async function fetchAppointmentsForUser(
     FROM appointments a
     JOIN patient_profiles p ON a.patient_id = p.id
     LEFT JOIN clinic_services s ON a.service_id = s.id
-    LEFT JOIN practitioner_schedule_sessions sess ON a.schedule_session_id = sess.id
     LEFT JOIN practitioners prac ON a.practitioner_id = prac.id
     LEFT JOIN staff_profiles pr ON prac.staff_profile_id = pr.id
     LEFT JOIN users u_doc ON pr.user_id = u_doc.id
@@ -182,14 +181,13 @@ export async function fetchPatientsWithAppointments(
 }
 
 export async function inspectAllAppointments(pool: Pool): Promise<AppointmentPurgeInspection> {
-  const [appts, tickets, events, attempts, intakes, encounters, sessions] = await Promise.all([
+  const [appts, tickets, events, attempts, intakes, encounters] = await Promise.all([
     pool.query('SELECT count(*) FROM appointments'),
     pool.query('SELECT count(*) FROM queue_tickets WHERE appointment_id IS NOT NULL'),
     pool.query('SELECT count(*) FROM appointment_status_events'),
     pool.query('SELECT count(*) FROM appointment_call_attempts'),
     pool.query('SELECT count(*) FROM medical_intake_submissions WHERE appointment_id IS NOT NULL'),
     pool.query('SELECT count(*) FROM clinical_encounters WHERE appointment_id IS NOT NULL'),
-    pool.query('SELECT count(*) FROM practitioner_schedule_sessions'),
   ]);
 
   return {
@@ -200,7 +198,7 @@ export async function inspectAllAppointments(pool: Pool): Promise<AppointmentPur
     callAttemptCount: parseInt(attempts.rows[0]?.count ?? '0', 10),
     intakeCount: parseInt(intakes.rows[0]?.count ?? '0', 10),
     encountersToUnlink: parseInt(encounters.rows[0]?.count ?? '0', 10),
-    sessionsToRestore: parseInt(sessions.rows[0]?.count ?? '0', 10),
+    sessionsToRestore: 0,
   };
 }
 
@@ -214,31 +212,8 @@ async function deleteAppointmentsCascade(client: PoolClient, apptIds: string[]):
   await client.query('UPDATE clinical_encounters SET appointment_id = NULL WHERE appointment_id = ANY($1::uuid[])', [apptIds]);
   await client.query('UPDATE patient_timeline_events SET appointment_id = NULL WHERE appointment_id = ANY($1::uuid[])', [apptIds]);
 
-  const sessionRes = await client.query(
-    'SELECT DISTINCT schedule_session_id FROM appointments WHERE id = ANY($1::uuid[]) AND schedule_session_id IS NOT NULL',
-    [apptIds],
-  );
-  const sessionIds = sessionRes.rows.map((r) => r.schedule_session_id).filter(Boolean);
-
   const delRes = await client.query('DELETE FROM appointments WHERE id = ANY($1::uuid[])', [apptIds]);
-  const deletedCount = delRes.rowCount ?? 0;
-
-  if (sessionIds.length > 0) {
-    await client.query(
-      `
-      UPDATE practitioner_schedule_sessions s
-      SET available_slots = GREATEST(0, s.capacity - (
-        SELECT count(*) FROM appointments a 
-        WHERE a.schedule_session_id = s.id 
-        AND a.status NOT IN ('cancelled', 'no_show')
-      )), updated_at = NOW()
-      WHERE s.id = ANY($1::uuid[])
-      `,
-      [sessionIds],
-    );
-  }
-
-  return deletedCount;
+  return delRes.rowCount ?? 0;
 }
 
 export async function executeAppointmentPurge(
@@ -261,8 +236,6 @@ export async function executeAppointmentPurge(
 
       const delAppt = await client.query('DELETE FROM appointments');
       totalDeleted = delAppt.rowCount ?? 0;
-
-      await client.query('UPDATE practitioner_schedule_sessions SET available_slots = capacity, updated_at = NOW()');
     } else if (options.userId) {
       const apptRes = await client.query(
         `SELECT a.id FROM appointments a
@@ -332,7 +305,7 @@ export async function runAppointmentPurgeInteractive(
         rl,
         'ALL APPOINTMENTS (SYSTEM-WIDE)',
         insp.appointmentCount,
-        'All queue tickets, status events, call attempts will be wiped. Doctor schedule session available slots will be restored to 100% capacity.',
+        'All queue tickets, status events, and call attempts will be wiped.',
       );
       if (!confirmed) {
         console.log('[INFO] Purge canceled.');
@@ -342,7 +315,7 @@ export async function runAppointmentPurgeInteractive(
       console.log('\n[INFO] Executing system-wide appointments purge...');
       const res = await executeAppointmentPurge(pool, redisClient, { isAll: true });
       if (res.success) {
-        console.log(`\n[SUCCESS] Purged ${res.deletedCount} appointments and refreshed schedule slots.`);
+        console.log(`\n[SUCCESS] Purged ${res.deletedCount} appointments and associated queue tickets.`);
       } else {
         console.log(`\n[ERROR] Failed to purge appointments: ${res.error}`);
       }
@@ -393,7 +366,7 @@ export async function runAppointmentPurgeInteractive(
           rl,
           `ALL appointments for user ${targetUserName || targetUserId}`,
           userAppts.length,
-          'Tickets, status events, and call attempts will be wiped. Schedule slots will be restored.',
+          'Tickets, status events, and call attempts will be wiped.',
         );
         if (!confirmed) continue;
 

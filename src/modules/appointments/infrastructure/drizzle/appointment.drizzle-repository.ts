@@ -35,7 +35,6 @@ const APPOINTMENT_RELATIONS = {
   queueTickets: true,
   patientProfile: { with: { patientAffiliations: { with: { user: true } } } },
   clinicService: true,
-  practitionerScheduleSession: true,
   clinicRoom: { with: { clinicUnit: true } },
   practitioner: {
     with: {

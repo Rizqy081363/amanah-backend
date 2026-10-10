@@ -5,20 +5,13 @@ import {
   appointmentStatusEvents,
   appointments,
   clinicRooms,
-  practitionerScheduleSessions,
   practitioners,
   queueTickets,
 } from '@database/schema';
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, inArray, not, sql } from 'drizzle-orm';
+import { and, eq, inArray, not } from 'drizzle-orm';
 import { RedisService } from '../../../../common/redis/redis.service';
 import { ACTIVE_APPOINTMENT_STATUSES } from '../../../schedules/domain/constants/schedule.constants';
-import {
-  resolveSessionFromTime,
-  SESSION_TO_SHIFT_MAP,
-  ScheduleShiftRegistry,
-} from '../../../schedules/domain/constants/schedule-shift.constants';
-import { SchedulePersistenceStatus } from '../../../schedules/domain/schedule-status';
 import { AppointmentEntity } from '../../domain/entities/appointment.entity';
 import {
   AppointmentNotFoundException,
@@ -89,7 +82,7 @@ export class AppointmentAssignmentService {
         );
       }
 
-      // 3. Collision check: ensure target doctor is not already occupied at this exact slot
+      // 3. Collision check: ensure target doctor is not already occupied at this exact time
       const existingConflict = await tx.query.appointments.findFirst({
         where: and(
           eq(appointments.practitionerId, targetDoctorId),
@@ -121,73 +114,11 @@ export class AppointmentAssignmentService {
         }
       }
 
-      // 4. Resolve or create target schedule session
-      let targetRoomId = apt.roomId;
+      // 4. Resolve target room
+      const targetRoomId =
+        apt.roomId || targetDoc.defaultRoomId || null;
 
-      const matchingSession =
-        await tx.query.practitionerScheduleSessions.findFirst({
-          where: and(
-            eq(practitionerScheduleSessions.practitionerId, targetDoctorId),
-            eq(practitionerScheduleSessions.scheduleDate, apt.scheduledDate),
-            sql`${practitionerScheduleSessions.startTime} <= ${apt.scheduledStartTime}`,
-            sql`${practitionerScheduleSessions.endTime} > ${apt.scheduledStartTime}`,
-          ),
-        });
-
-      if (matchingSession) {
-        targetRoomId =
-          apt.roomId || matchingSession.roomId || targetDoc.defaultRoomId;
-      } else {
-        const sessionName = resolveSessionFromTime(apt.scheduledStartTime);
-        const shift = SESSION_TO_SHIFT_MAP[sessionName] || 'morning';
-        const shiftDescriptor = ScheduleShiftRegistry.getByShift(shift as any);
-        const resolvedSessionLabel = shiftDescriptor?.label || 'Dini Hari';
-        const policy = await this.clinicConfig.getSchedulePolicy();
-        const duration = policy.defaultConsultationDurationMinutes;
-
-        const effectiveRoomId = apt.roomId || targetDoc.defaultRoomId;
-
-        await tx
-          .insert(practitionerScheduleSessions)
-          .values({
-            practitionerId: targetDoctorId,
-            scheduleDate: apt.scheduledDate,
-            sessionLabel: resolvedSessionLabel,
-            sessionShift: shift,
-            startTime: apt.scheduledStartTime,
-            endTime:
-              apt.scheduledEndTime ||
-              sql`${apt.scheduledStartTime}::time + interval '${duration} minutes'`,
-            status: SchedulePersistenceStatus.OPEN,
-            roomId: effectiveRoomId,
-          });
-
-        targetRoomId = effectiveRoomId;
-      }
-
-      // 5. Transfer session status (old session close if requested)
-      if (opts?.closeOldSchedule && apt.practitionerId) {
-        const oldSession =
-          await tx.query.practitionerScheduleSessions.findFirst({
-            where: and(
-              eq(practitionerScheduleSessions.practitionerId, apt.practitionerId),
-              eq(practitionerScheduleSessions.scheduleDate, apt.scheduledDate),
-              sql`${practitionerScheduleSessions.startTime} <= ${apt.scheduledStartTime}`,
-              sql`${practitionerScheduleSessions.endTime} > ${apt.scheduledStartTime}`,
-            ),
-          });
-        if (oldSession) {
-          await tx
-            .update(practitionerScheduleSessions)
-            .set({
-              status: SchedulePersistenceStatus.CLOSED,
-              notes: opts?.reason || 'Sesi ditutup saat pengalihan dokter',
-            })
-            .where(eq(practitionerScheduleSessions.id, oldSession.id));
-        }
-      }
-
-      // 6. Update appointment assignment
+      // 5. Update appointment assignment (Clinic-owned schedule session, dynamic queue ticketing)
       await tx
         .update(appointments)
         .set({
@@ -206,7 +137,7 @@ export class AppointmentAssignmentService {
         })
         .where(eq(queueTickets.appointmentId, appointmentId));
 
-      // 7. Audit log event
+      // 6. Audit log event
       const defaultReason = `Perubahan dokter ke ${targetDoc.displayName || targetDoc.staffProfile?.fullName || targetDoctorId}`;
       const finalReason = opts?.reason
         ? `${opts.reason} (Target: ${targetDoc.displayName || targetDoctorId})`
@@ -216,21 +147,19 @@ export class AppointmentAssignmentService {
         appointmentId,
         previousStatus: apt.status,
         newStatus: apt.status,
-        reason: opts?.closeOldSchedule
-          ? `${finalReason} - Sesi dokter sebelumnya ditutup`
-          : finalReason,
+        reason: finalReason,
         changedBy: currentUser?.id || currentUser?.sub,
       });
     });
 
-    // 8. Invalidate Redis caches
+    // 7. Invalidate Redis caches
     await this.redisService.deleteByPrefix('queue:');
     await this.redisService.invalidateTags('schedule', 'appointment', 'queue');
 
     const updated = await this.findAppointmentById(appointmentId);
     if (!updated) throw new AppointmentNotFoundException(appointmentId);
 
-    // 9. Publish real-time events via NotificationPublisher & Socket.IO
+    // 8. Publish real-time events via NotificationPublisher & Socket.IO
     await this.notificationPublisher.publishAssignmentChanged(
       updated,
       {
@@ -264,7 +193,7 @@ export class AppointmentAssignmentService {
         return; // Idempotent no-op
       }
 
-      // Check room collision
+      // Check room collision: one active patient per room at runtime
       const conflictingAppt = await tx.query.appointments.findFirst({
         where: and(
           eq(appointments.roomId, targetRoomId),
@@ -287,47 +216,6 @@ export class AppointmentAssignmentService {
           });
 
         if (!isApptFinished) {
-          const room = await tx.query.clinicRooms.findFirst({
-            where: eq(clinicRooms.id, targetRoomId),
-          });
-          throw new RoomOccupiedException(
-            room?.name || 'Ruangan',
-            `${apt.scheduledStartTime.slice(0, 5)} WIB`,
-          );
-        }
-      }
-
-      // Check room collision with other doctor schedule sessions
-      const conflictingSession = tx.query.practitionerScheduleSessions
-        ?.findFirst
-        ? await tx.query.practitionerScheduleSessions.findFirst({
-            where: and(
-              eq(practitionerScheduleSessions.roomId, targetRoomId),
-              eq(practitionerScheduleSessions.scheduleDate, apt.scheduledDate),
-              eq(practitionerScheduleSessions.status, 'open'),
-              sql`${practitionerScheduleSessions.startTime} <= ${apt.scheduledStartTime}::time AND ${practitionerScheduleSessions.endTime} > ${apt.scheduledStartTime}::time`,
-              apt.practitionerId
-                ? not(
-                    eq(
-                      practitionerScheduleSessions.practitionerId,
-                      apt.practitionerId,
-                    ),
-                  )
-                : sql`true`,
-            ),
-          })
-        : null;
-
-      if (conflictingSession) {
-        const isSessionFinished =
-          conflictingSession.status !== 'open' ||
-          AppointmentTemporalStatusHelper.isElapsed({
-            scheduledDate: conflictingSession.scheduleDate,
-            scheduledStartTime: conflictingSession.startTime,
-            scheduledEndTime: conflictingSession.endTime,
-          });
-
-        if (!isSessionFinished) {
           const room = await tx.query.clinicRooms.findFirst({
             where: eq(clinicRooms.id, targetRoomId),
           });

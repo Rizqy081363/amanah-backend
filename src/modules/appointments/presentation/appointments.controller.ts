@@ -456,7 +456,7 @@ export class AppointmentsController {
   @ApiOperation({
     summary: 'Melakukan penjadwalan ulang (reschedule) janji temu pasien',
     description:
-      'Memindahkan jadwal janji temu ke sesi dan tanggal baru secara atomik dengan pemulihan slot sesi lama.',
+      'Memindahkan jadwal janji temu ke sesi dan tanggal baru secara atomik melalui penerbitan tiket antrean baru.',
   })
   @ApiParam({
     name: 'id',

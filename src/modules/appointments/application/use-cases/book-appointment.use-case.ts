@@ -3,8 +3,9 @@ import { and, eq } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
-  practitionerScheduleSessions,
+  doctorAssignments,
   practitioners,
+  sessionDefs,
 } from '../../../../database/schema';
 import { SchedulePolicyReader } from '../../../schedules/infrastructure/drizzle/queries/schedule-policy.reader';
 import { planAppointmentTiming } from '../../domain/services/appointment-timing.planner';
@@ -42,18 +43,32 @@ export class BookAppointmentUseCase {
     });
 
     const policy = await this.policyReader.getPolicy(prac);
-    const slotMinutes = policy.durationMinutes || 30;
+    const durationMinutes = policy.durationMinutes || 30;
 
-    const session =
-      await this.db.query?.practitionerScheduleSessions?.findFirst?.({
-        where: and(
-          eq(practitionerScheduleSessions.practitionerId, input.practitionerId),
-          eq(practitionerScheduleSessions.scheduleDate, input.scheduledDate),
-          eq(practitionerScheduleSessions.status, 'open'),
-        ),
-      });
+    const targetDate = new Date(`${input.scheduledDate}T00:00:00.000Z`);
+    const dow = targetDate.getUTCDay();
 
-    const startTimeStr = session?.startTime || '08:00';
+    const assignment = await this.db.query?.doctorAssignments?.findFirst?.({
+      where: and(
+        eq(doctorAssignments.doctorId, input.practitionerId),
+        eq(doctorAssignments.dow, dow),
+        eq(doctorAssignments.isActive, true),
+      ),
+      with: {
+        sessionDef: true,
+      },
+    });
+
+    const morningSession = !assignment
+      ? await this.db.query?.sessionDefs?.findFirst?.({
+          where: eq(sessionDefs.code, 'morning'),
+        })
+      : null;
+
+    const startTimeStr =
+      assignment?.sessionDef?.defaultStartsAt ||
+      morningSession?.defaultStartsAt ||
+      '08:00';
     const [hours, minutes] = startTimeStr.split(':').map(Number);
     const dayStart = new Date(`${input.scheduledDate}T00:00:00.000Z`);
     dayStart.setUTCHours(hours || 8, minutes || 0, 0, 0);
@@ -66,7 +81,7 @@ export class BookAppointmentUseCase {
       return await this.attemptBooking(
         input,
         dayStart,
-        slotMinutes,
+        durationMinutes,
         bookingCode,
       );
     } catch (err: any) {
@@ -81,7 +96,7 @@ export class BookAppointmentUseCase {
         return await this.attemptBooking(
           input,
           dayStart,
-          slotMinutes,
+          durationMinutes,
           bookingCode,
         );
       }
@@ -92,7 +107,7 @@ export class BookAppointmentUseCase {
   private async attemptBooking(
     input: BookAppointmentInput,
     dayStart: Date,
-    slotMinutes: number,
+    durationMinutes: number,
     bookingCode: string,
   ): Promise<AppointmentRecord> {
     const queueNumber = await this.appointmentRepo.getNextQueueNumber(
@@ -103,16 +118,16 @@ export class BookAppointmentUseCase {
     const planned = planAppointmentTiming({
       dayStart,
       queueNumber,
-      durationMinutes: slotMinutes,
+      durationMinutes,
     });
 
-    return await this.appointmentRepo.createWithSlot({
+    return await this.appointmentRepo.createWithTiming({
       bookingCode,
       patientId: input.patientId,
       practitionerId: input.practitionerId,
       serviceId: input.serviceId,
       poliklinikId: input.poliklinikId,
-      roomId: input.roomId,
+      roomId: null,
       scheduledDate: input.scheduledDate,
       queueNumber,
       estimatedStartAt: planned.estimatedStartAt,

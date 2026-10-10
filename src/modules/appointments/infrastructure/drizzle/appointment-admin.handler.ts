@@ -4,7 +4,6 @@ import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
   appointmentStatusEvents,
   appointments,
-  practitionerScheduleSessions,
   queueTickets,
 } from '../../../../database/schema';
 import {
@@ -83,7 +82,7 @@ export class AppointmentAdminHandler {
         })
         .where(eq(queueTickets.appointmentId, appointmentId));
 
-      // In queue ticketing model, appointments do not manipulate session slot counters
+      // In queue ticketing model, appointments do not manipulate session capacity counters
       const sessionResult = null;
 
       await tx.insert(appointmentStatusEvents).values({
@@ -200,7 +199,7 @@ export class AppointmentAdminHandler {
         })
         .where(eq(queueTickets.appointmentId, appointmentId));
 
-      // In queue ticketing model, appointments do not manipulate session slot counters
+      // In queue ticketing model, appointments do not manipulate session capacity counters
       const sessionResult = null;
 
       await tx.insert(appointmentStatusEvents).values({

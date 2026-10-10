@@ -1,10 +1,8 @@
 import { generateEntityVersion } from '../../../../common/occ';
 import {
   type CanonicalSessionName,
-  type CanonicalStaffShift,
   resolveCanonicalShift,
   resolveSessionFromTime,
-  SHIFT_TO_SESSION_MAP,
 } from '../../../schedules/domain/constants/schedule-shift.constants';
 import {
   DB_APPOINTMENT_STATUS,
@@ -21,17 +19,8 @@ import {
 
 export class AppointmentRecordMapper {
   static resolveSession(apt: any): CanonicalSessionName {
-    if (apt.practitionerScheduleSession?.sessionShift) {
-      const shift = apt.practitionerScheduleSession
-        .sessionShift as CanonicalStaffShift;
-      if (SHIFT_TO_SESSION_MAP[shift]) {
-        return SHIFT_TO_SESSION_MAP[shift];
-      }
-    }
-    if (apt.practitionerScheduleSession?.sessionLabel) {
-      return resolveCanonicalShift({
-        session: apt.practitionerScheduleSession.sessionLabel,
-      }).session;
+    if (apt.session) {
+      return resolveCanonicalShift({ session: apt.session }).session;
     }
     return resolveSessionFromTime(apt.scheduledStartTime);
   }

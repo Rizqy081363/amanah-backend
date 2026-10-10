@@ -52,7 +52,7 @@ export interface AppointmentRepositoryPort {
     scheduledDate: string,
     tx?: unknown,
   ): Promise<number>;
-  createWithSlot(
+  createWithTiming(
     input: CreateAppointmentInput,
     tx?: unknown,
   ): Promise<AppointmentRecord>;

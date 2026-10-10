@@ -33,14 +33,11 @@ export class BookedPatientMapper {
       : '09:30';
     const timeSlot = `${start} - ${end} WIB`;
 
-    const sessionTitle = apt.practitionerScheduleSession?.sessionLabel
-      ? `Sesi ${apt.practitionerScheduleSession.sessionLabel}`
+    const sessionTitle = apt.session
+      ? `Sesi ${apt.session}`
       : 'Sesi Praktek';
 
-    const room =
-      apt.clinicRoom?.name ||
-      apt.practitionerScheduleSession?.clinicRoom?.name ||
-      null;
+    const room = apt.clinicRoom?.name || null;
 
     const isElapsed = AppointmentTemporalStatusHelper.isElapsed({
       scheduledDate: apt.scheduledDate,

@@ -8,7 +8,6 @@ import {
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
   appointments,
-  practitionerScheduleSessions,
   practitioners,
   queueTickets,
 } from '../../../../database/schema';

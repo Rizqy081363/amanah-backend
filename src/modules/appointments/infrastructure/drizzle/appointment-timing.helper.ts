@@ -61,6 +61,3 @@ export function allocateAppointmentTiming(
 
   return null;
 }
-
-// Deprecated alias for backwards compatibility during migration
-export { allocateAppointmentTiming as allocateSlotTiming };
