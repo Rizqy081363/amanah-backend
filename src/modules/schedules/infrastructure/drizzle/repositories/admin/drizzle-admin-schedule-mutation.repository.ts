@@ -3,13 +3,11 @@ import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
   appointments,
   clinicClosures,
-  practitionerLeavePeriods,
-  practitionerScheduleDaySettings,
   practitionerScheduleSessions,
   practitioners,
   queueTickets,
+  shiftExceptions,
 } from '@database/schema';
-import { DEFAULT_TARGET_QUOTA } from '@modules/schedules/domain/constants/schedule.constants';
 import {
   AdminScheduleStatusRequest,
   SchedulePersistenceStatus,
@@ -29,7 +27,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { DrizzleAdminDoctorScheduleDetailQuery } from './drizzle-admin-doctor-schedule-detail.query';
 import { DrizzleAdminSessionMutationRepository } from './drizzle-admin-session-mutation.repository';
 
@@ -93,44 +91,43 @@ export class DrizzleAdminScheduleMutationRepository {
       }
     }
 
-    // 1. Cuti override
+    // 1. Cuti override via shiftExceptions
     if (body.is_cuti !== undefined) {
-      const existingSetting =
-        await this.db.query.practitionerScheduleDaySettings.findFirst({
+      if (body.is_cuti) {
+        const existingLeave = await this.db.query.shiftExceptions.findFirst({
           where: and(
-            eq(practitionerScheduleDaySettings.practitionerId, practitionerId),
-            eq(practitionerScheduleDaySettings.scheduleDate, targetDate),
+            eq(shiftExceptions.doctorId, practitionerId),
+            eq(shiftExceptions.serviceDate, targetDate),
+            eq(shiftExceptions.type, 'leave'),
           ),
         });
 
-      if (existingSetting) {
-        await this.db
-          .update(practitionerScheduleDaySettings)
-          .set({
-            isLeave: body.is_cuti,
-            leaveReason:
-              body.cuti_reason || (body.is_cuti ? 'Cuti Dokter' : null),
-            updatedAt: new Date().toISOString(),
-          })
-          .where(eq(practitionerScheduleDaySettings.id, existingSetting.id));
+        if (existingLeave) {
+          await this.db
+            .update(shiftExceptions)
+            .set({
+              note: body.cuti_reason || 'Cuti Dokter',
+              updatedAt: new Date().toISOString(),
+            })
+            .where(eq(shiftExceptions.id, existingLeave.id));
+        } else {
+          await this.db.insert(shiftExceptions).values({
+            doctorId: practitionerId,
+            serviceDate: targetDate,
+            type: 'leave',
+            note: body.cuti_reason || 'Cuti Dokter',
+          });
+        }
       } else {
-        await this.db.insert(practitionerScheduleDaySettings).values({
-          practitionerId,
-          scheduleDate: targetDate,
-          targetQuota: body.kapasitas_per_hari || DEFAULT_TARGET_QUOTA,
-          isLeave: body.is_cuti,
-          leaveReason:
-            body.cuti_reason || (body.is_cuti ? 'Cuti Dokter' : null),
-        });
-      }
-
-      if (body.is_cuti && body.cuti_start && body.cuti_end) {
-        await this.db.insert(practitionerLeavePeriods).values({
-          practitionerId,
-          startDate: body.cuti_start,
-          endDate: body.cuti_end,
-          reason: body.cuti_reason || 'Cuti Operasional',
-        });
+        await this.db
+          .delete(shiftExceptions)
+          .where(
+            and(
+              eq(shiftExceptions.doctorId, practitionerId),
+              eq(shiftExceptions.serviceDate, targetDate),
+              eq(shiftExceptions.type, 'leave'),
+            ),
+          );
       }
 
       await this.db
@@ -139,7 +136,6 @@ export class DrizzleAdminScheduleMutationRepository {
           status: body.is_cuti
             ? SchedulePersistenceStatus.CLOSED
             : SchedulePersistenceStatus.OPEN,
-          availableSlots: body.is_cuti ? 0 : sql`capacity`,
           updatedAt: new Date().toISOString(),
         })
         .where(
@@ -168,22 +164,6 @@ export class DrizzleAdminScheduleMutationRepository {
         updatedAt: new Date().toISOString(),
       };
 
-      if (requestedStatus === AdminScheduleStatusRequest.CLOSED) {
-        updateValues.availableSlots = 0;
-      } else if (body.slot_tersedia !== undefined) {
-        if (body.kapasitas_per_hari !== undefined) {
-          updateValues.capacity = body.kapasitas_per_hari;
-          updateValues.availableSlots = Math.min(
-            body.slot_tersedia,
-            body.kapasitas_per_hari,
-          );
-        } else {
-          updateValues.availableSlots = sql`LEAST(${body.slot_tersedia}, capacity)`;
-        }
-      } else {
-        updateValues.availableSlots = sql`capacity`;
-      }
-
       await this.db
         .update(practitionerScheduleSessions)
         .set(updateValues)
@@ -194,35 +174,17 @@ export class DrizzleAdminScheduleMutationRepository {
           ),
         );
 
-      await this.db
-        .update(practitionerScheduleDaySettings)
-        .set({
-          isLeave: false,
-          leaveReason: null,
-          updatedAt: new Date().toISOString(),
-        })
-        .where(
-          and(
-            eq(practitionerScheduleDaySettings.practitionerId, practitionerId),
-            eq(practitionerScheduleDaySettings.scheduleDate, targetDate),
-          ),
-        );
-    }
-
-    // 3. Quota & slots override
-    if (body.kapasitas_per_hari !== undefined) {
-      await this.db
-        .update(practitionerScheduleDaySettings)
-        .set({
-          targetQuota: body.kapasitas_per_hari,
-          updatedAt: new Date().toISOString(),
-        })
-        .where(
-          and(
-            eq(practitionerScheduleDaySettings.practitionerId, practitionerId),
-            eq(practitionerScheduleDaySettings.scheduleDate, targetDate),
-          ),
-        );
+      if (requestedStatus === AdminScheduleStatusRequest.OPEN) {
+        await this.db
+          .delete(shiftExceptions)
+          .where(
+            and(
+              eq(shiftExceptions.doctorId, practitionerId),
+              eq(shiftExceptions.serviceDate, targetDate),
+              eq(shiftExceptions.type, 'leave'),
+            ),
+          );
+      }
     }
 
     return this.detailQuery.execute(practitionerId, {
@@ -252,33 +214,41 @@ export class DrizzleAdminScheduleMutationRepository {
     }
     const isClosed = requestedStatus === AdminScheduleStatusRequest.CLOSED;
 
-    const existingSetting =
-      await this.db.query.practitionerScheduleDaySettings.findFirst({
+    if (isClosed) {
+      const existingLeave = await this.db.query.shiftExceptions.findFirst({
         where: and(
-          eq(practitionerScheduleDaySettings.practitionerId, practitionerId),
-          eq(practitionerScheduleDaySettings.scheduleDate, date),
+          eq(shiftExceptions.doctorId, practitionerId),
+          eq(shiftExceptions.serviceDate, date),
+          eq(shiftExceptions.type, 'leave'),
         ),
       });
 
-    const leaveReason = isClosed ? (notes ?? null) : null;
-
-    if (existingSetting) {
-      await this.db
-        .update(practitionerScheduleDaySettings)
-        .set({
-          isLeave: false,
-          leaveReason,
-          updatedAt: new Date().toISOString(),
-        })
-        .where(eq(practitionerScheduleDaySettings.id, existingSetting.id));
+      if (existingLeave) {
+        await this.db
+          .update(shiftExceptions)
+          .set({
+            note: notes || 'Jadwal ditutup operasional oleh admin klinik.',
+            updatedAt: new Date().toISOString(),
+          })
+          .where(eq(shiftExceptions.id, existingLeave.id));
+      } else {
+        await this.db.insert(shiftExceptions).values({
+          doctorId: practitionerId,
+          serviceDate: date,
+          type: 'leave',
+          note: notes || 'Jadwal ditutup operasional oleh admin klinik.',
+        });
+      }
     } else {
-      await this.db.insert(practitionerScheduleDaySettings).values({
-        practitionerId,
-        scheduleDate: date,
-        targetQuota: DEFAULT_TARGET_QUOTA,
-        isLeave: false,
-        leaveReason,
-      });
+      await this.db
+        .delete(shiftExceptions)
+        .where(
+          and(
+            eq(shiftExceptions.doctorId, practitionerId),
+            eq(shiftExceptions.serviceDate, date),
+            eq(shiftExceptions.type, 'leave'),
+          ),
+        );
     }
 
     const sessionStatus = toDaySessionPersistenceStatus(requestedStatus);
@@ -286,11 +256,6 @@ export class DrizzleAdminScheduleMutationRepository {
       status: sessionStatus,
       updatedAt: new Date().toISOString(),
     };
-    if (isClosed) {
-      updateValues.availableSlots = 0;
-    } else {
-      updateValues.availableSlots = sql`capacity`;
-    }
 
     const updatedSessions = await this.db
       .update(practitionerScheduleSessions)

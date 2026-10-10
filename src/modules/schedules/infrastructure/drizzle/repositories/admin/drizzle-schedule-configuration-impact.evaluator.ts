@@ -4,7 +4,6 @@ import {
   appointments,
   doctorAssignments,
   masterDays,
-  practitionerScheduleSessions,
   sessionDefs,
 } from '@database/schema';
 import {
@@ -12,7 +11,7 @@ import {
   ScheduleConfigurationImpactResultDto,
 } from '@modules/schedules/presentation/dto/admin-schedule-configuration.dto';
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { and, eq, gte, inArray, sql } from 'drizzle-orm';
+import { and, eq, gte, inArray, lt, sql } from 'drizzle-orm';
 import { ScheduleShiftRegistry } from '@modules/schedules/domain/constants/schedule-shift.constants';
 
 @Injectable()
@@ -66,22 +65,23 @@ export class DrizzleScheduleConfigurationImpactEvaluator {
         }
 
         // Hitung janji temu pasien aktif di masa depan pada shift ini
-        const apptCountResult = await this.db
-          .select({ count: sql<number>`count(*)::int` })
-          .from(appointments)
-          .innerJoin(
-            practitionerScheduleSessions,
-            eq(appointments.scheduleSessionId, practitionerScheduleSessions.id),
-          )
-          .where(
-            and(
-              eq(practitionerScheduleSessions.sessionShift, dbDef.code as any),
-              gte(appointments.scheduledDate, todayStr),
-              inArray(appointments.status, activeStatuses as any),
-            ),
-          );
-
-        const apptCount = apptCountResult[0]?.count ?? 0;
+        const docIds = assignedDocs.map((doc) => doc.doctorId);
+        let apptCount = 0;
+        if (docIds.length > 0) {
+          const apptCountResult = await this.db
+            .select({ count: sql<number>`count(*)::int` })
+            .from(appointments)
+            .where(
+              and(
+                inArray(appointments.practitionerId, docIds),
+                gte(appointments.scheduledDate, todayStr),
+                gte(appointments.scheduledStartTime, dbDef.defaultStartsAt),
+                lt(appointments.scheduledStartTime, dbDef.defaultEndsAt),
+                inArray(appointments.status, activeStatuses as any),
+              ),
+            );
+          apptCount = apptCountResult[0]?.count ?? 0;
+        }
         affectedAppointmentsCount += apptCount;
 
         const shiftDesc = ScheduleShiftRegistry.find(dbDef.code);
@@ -118,8 +118,8 @@ export class DrizzleScheduleConfigurationImpactEvaluator {
         const shiftDesc = dbDef ? ScheduleShiftRegistry.find(dbDef.code) : null;
         const shiftLabel = shiftDesc?.label ?? dbDef?.code ?? 'Shift';
 
-        // Hitung dokter yang terikat pada slot hari dan shift ini
-        const slotDocs = await this.db
+        // Hitung dokter yang terikat pada jadwal hari dan shift ini
+        const assignedDayDocs = await this.db
           .select({ doctorId: doctorAssignments.doctorId })
           .from(doctorAssignments)
           .where(
@@ -130,7 +130,7 @@ export class DrizzleScheduleConfigurationImpactEvaluator {
             ),
           );
 
-        for (const doc of slotDocs) {
+        for (const doc of assignedDayDocs) {
           affectedDoctorIds.add(doc.doctorId);
         }
 
@@ -139,13 +139,8 @@ export class DrizzleScheduleConfigurationImpactEvaluator {
           const apptCountResult = await this.db
             .select({ count: sql<number>`count(*)::int` })
             .from(appointments)
-            .innerJoin(
-              practitionerScheduleSessions,
-              eq(appointments.scheduleSessionId, practitionerScheduleSessions.id),
-            )
             .where(
               and(
-                eq(practitionerScheduleSessions.sessionShift, dbDef.code as any),
                 gte(appointments.scheduledDate, todayStr),
                 sql`EXTRACT(DOW FROM ${appointments.scheduledDate}::date) = ${targetTpl.dow}`,
                 inArray(appointments.status, activeStatuses as any),
@@ -155,7 +150,7 @@ export class DrizzleScheduleConfigurationImpactEvaluator {
           const apptCount = apptCountResult[0]?.count ?? 0;
           affectedAppointmentsCount += apptCount;
 
-          if (slotDocs.length > 0 || apptCount > 0) {
+          if (assignedDayDocs.length > 0 || apptCount > 0) {
             warnings.push(
               `Jadwal praktik dokter pada ${dayLabel} (${shiftLabel}) akan dinonaktifkan.`,
             );

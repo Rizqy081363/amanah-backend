@@ -81,12 +81,6 @@ export class UpdateScheduleDto {
   @IsOptional()
   serviceId?: string;
 
-  @ApiPropertyOptional({ example: 10 })
-  @IsNumber()
-  @Min(1)
-  @IsOptional()
-  capacity?: number;
-
   @ApiPropertyOptional({ example: true })
   @IsBoolean()
   @IsOptional()

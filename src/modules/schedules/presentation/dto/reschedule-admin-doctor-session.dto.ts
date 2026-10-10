@@ -31,7 +31,7 @@ export class RescheduleAdminDoctorSessionDto {
 
   @ApiPropertyOptional({
     description:
-      'Jam mulai slot asal yang di-reschedule (format: HH:mm). Jika diisi, backend hanya me-reschedule slot spesifik ini.',
+      'Jam mulai rentang waktu asal yang di-reschedule (format: HH:mm). Jika diisi, backend me-reschedule sesi/rentang spesifik ini.',
     example: '12:00',
   })
   @IsOptional()
@@ -95,13 +95,4 @@ export class RescheduleAdminDoctorSessionDto {
   @IsOptional()
   @IsBoolean()
   rescheduleActiveAppointments?: boolean;
-
-  @ApiPropertyOptional({
-    description:
-      'Apakah slot waktu asal (sourceStartTime) otomatis di-unschedule sehingga tidak lagi berstatus Available/buka praktik',
-    default: false,
-  })
-  @IsOptional()
-  @IsBoolean()
-  unscheduleSourceSlot?: boolean;
 }

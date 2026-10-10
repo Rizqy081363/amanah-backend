@@ -2,17 +2,11 @@ import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
   appointments,
-  doctorAssignments,
-  practitionerLeavePeriods,
-  practitionerScheduleClosures,
-  practitionerScheduleDaySettings,
   practitionerScheduleSessions,
   practitioners,
-  scheduleRescheduleEvents,
   shiftExceptions,
 } from '@database/schema';
 import { DEFAULT_CONSULTATION_DURATION_MINUTES } from '@modules/schedules/domain/constants/schedule.constants';
-import { SCHEDULE_CONTEXT_DEFINITIONS } from '@modules/schedules/domain/constants/schedule-context.constants';
 import {
   type AdminDoctorScheduleDetailResponse,
   ScheduleOperationalStatus,
@@ -29,7 +23,7 @@ import { SchedulePolicyReader } from '@modules/schedules/infrastructure/drizzle/
 import { PractitionerResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/practitioner.resolver';
 import type { AdminDoctorScheduleDetailQueryDto } from '@modules/schedules/presentation/dto/admin-doctor-schedule-detail-query.dto';
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { and, asc, eq, gte, lte, or } from 'drizzle-orm';
+import { and, asc, eq, gte, lte } from 'drizzle-orm';
 
 @Injectable()
 export class DrizzleAdminDoctorScheduleDetailQuery {
@@ -103,24 +97,17 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
     const endDate = `${targetYear}-${String(targetMonth).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
 
     const [
-      monthSettings,
-      monthLeaves,
+      monthExceptions,
       monthSessions,
       monthAppointments,
       clinicPolicy,
     ] = await Promise.all([
-      this.db.query.practitionerScheduleDaySettings.findMany({
+      this.db.query.shiftExceptions.findMany({
         where: and(
-          eq(practitionerScheduleDaySettings.practitionerId, prac.id),
-          gte(practitionerScheduleDaySettings.scheduleDate, startDate),
-          lte(practitionerScheduleDaySettings.scheduleDate, endDate),
-        ),
-      }),
-      this.db.query.practitionerLeavePeriods.findMany({
-        where: and(
-          eq(practitionerLeavePeriods.practitionerId, prac.id),
-          lte(practitionerLeavePeriods.startDate, endDate),
-          gte(practitionerLeavePeriods.endDate, startDate),
+          eq(shiftExceptions.doctorId, prac.id),
+          gte(shiftExceptions.serviceDate, startDate),
+          lte(shiftExceptions.serviceDate, endDate),
+          eq(shiftExceptions.type, 'leave'),
         ),
       }),
       this.db.query.practitionerScheduleSessions.findMany({
@@ -139,8 +126,6 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
           eq(appointments.practitionerId, prac.id),
           gte(appointments.scheduledDate, startDate),
           lte(appointments.scheduledDate, endDate),
-          // Include cancelled/no_show so registeredPatientsCount stays accurate
-          // even after cancellation. The resolver separates active vs. all internally.
         ),
         with: {
           patientProfile: true,
@@ -155,11 +140,17 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
       clinicPolicy.durationMinutes ||
       DEFAULT_CONSULTATION_DURATION_MINUTES;
 
+    const monthLeaves = monthExceptions.map((e) => ({
+      startDate: e.serviceDate,
+      endDate: e.serviceDate,
+      reason: e.note,
+    }));
+
     const monthlySchedule = buildMonthlySchedule({
       targetYear,
       targetMonth,
       daysInMonth,
-      monthSettings,
+      monthSettings: [],
       monthLeaves,
       monthSessions,
       monthAppointments,
@@ -175,12 +166,7 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
         ? todayStr
         : startDate);
 
-    const evalDaySetting = monthSettings.find(
-      (s) => s.scheduleDate === evalDate,
-    );
-    const evalLeave = monthLeaves.find(
-      (l) => l.startDate <= evalDate && l.endDate >= evalDate,
-    );
+    const evalLeave = monthExceptions.find((e) => e.serviceDate === evalDate);
     const evalSessions = monthSessions.filter(
       (s) => s.scheduleDate === evalDate,
     );
@@ -188,13 +174,10 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
       (a) => a.scheduledDate === evalDate,
     );
 
-    const isEvalCuti = Boolean(evalDaySetting?.isLeave || evalLeave);
-    const evalCutiReason = isEvalCuti
-      ? evalDaySetting?.leaveReason || evalLeave?.reason || 'Cuti Dokter'
-      : null;
-    const evalCutiStart =
-      evalLeave?.startDate || (isEvalCuti ? evalDate : null);
-    const evalCutiEnd = evalLeave?.endDate || (isEvalCuti ? evalDate : null);
+    const isEvalCuti = Boolean(evalLeave);
+    const evalCutiReason = evalLeave?.note || (isEvalCuti ? 'Cuti Dokter' : null);
+    const evalCutiStart = isEvalCuti ? evalDate : null;
+    const evalCutiEnd = isEvalCuti ? evalDate : null;
 
     const defaultRoomName = prac.clinicRoom
       ? `${prac.clinicRoom.name}${prac.clinicRoom.location ? `, ${prac.clinicRoom.location}` : ''}`
@@ -211,44 +194,12 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
 
     const evalSessionOpStatuses = sesiHarian.map((s) => s.status_sesi);
 
-    const totalCapacity =
-      sesiHarian.length > 0
-        ? sesiHarian.reduce((acc, s) => acc + s.kuota_pasien, 0)
-        : (evalDaySetting?.targetQuota ?? 0);
-    const totalAvailable = isEvalCuti
-      ? 0
-      : sesiHarian.reduce((acc, s) => acc + s.slot_tersedia, 0);
-
     const evalAggregateOpStatus = resolveAggregateOperationalStatus({
       isClosedForLeave: isEvalCuti,
       sessionStatuses: evalSessionOpStatuses,
     });
 
-    const isEvalClosed =
-      evalAggregateOpStatus === ScheduleOperationalStatus.CLOSED;
     const statusDokter = evalAggregateOpStatus;
-
-    const [evalClosures, evalReschedules] = await Promise.all([
-      this.db.query.practitionerScheduleClosures?.findMany
-        ? this.db.query.practitionerScheduleClosures.findMany({
-            where: and(
-              eq(practitionerScheduleClosures.practitionerId, prac.id),
-              eq(practitionerScheduleClosures.scheduleDate, evalDate),
-            ),
-          })
-        : Promise.resolve([]),
-      this.db.query.scheduleRescheduleEvents?.findMany
-        ? this.db.query.scheduleRescheduleEvents.findMany({
-            where: and(
-              eq(scheduleRescheduleEvents.practitionerId, prac.id),
-              or(
-                eq(scheduleRescheduleEvents.targetDate, evalDate),
-                eq(scheduleRescheduleEvents.sourceDate, evalDate),
-              ),
-            ),
-          })
-        : Promise.resolve([]),
-    ]);
 
     const { timelineIntervals, dayMetrics } = buildTimelineAndMetrics(
       [],
@@ -273,8 +224,6 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
         ruang_praktik:
           sesiHarian.length > 0 ? sesiHarian[0].ruang : defaultRoomName,
         avatar: ScheduleRecordMapper.toAvatarUrl(prac.staffProfile),
-        slot_tersedia: isEvalClosed ? 0 : totalAvailable,
-        kapasitas_per_hari: isEvalClosed ? 0 : totalCapacity,
         bulan_jadwal: formatIndoMonthYear(targetYear, targetMonth),
         is_cuti: isEvalCuti,
         cuti_reason: evalCutiReason,

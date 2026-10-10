@@ -1237,7 +1237,6 @@ export const practitionerAvailability = pgTable(
     dayOfWeek: smallint('day_of_week').notNull(),
     startTime: time('start_time').notNull(),
     endTime: time('end_time').notNull(),
-    capacity: integer().default(0).notNull(),
     effectiveFrom: date('effective_from').notNull(),
     effectiveTo: date('effective_to'),
     isActive: boolean('is_active').default(true).notNull(),
@@ -1260,7 +1259,6 @@ export const practitionerAvailability = pgTable(
       foreignColumns: [practitioners.id],
       name: 'practitioner_availability_practitioner_id_fkey',
     }).onDelete('cascade'),
-    check('practitioner_availability_capacity_nonnegative', sql`capacity >= 0`),
     check(
       'practitioner_availability_day_range',
       sql`(day_of_week >= 0) AND (day_of_week <= 6)`,
@@ -1279,7 +1277,6 @@ export const practitionerScheduleDaySettings = pgTable(
     id: uuid().defaultRandom().primaryKey().notNull(),
     practitionerId: uuid('practitioner_id').notNull(),
     scheduleDate: date('schedule_date').notNull(),
-    targetQuota: integer('target_quota').default(0).notNull(),
     isLeave: boolean('is_leave').default(false).notNull(),
     leaveReason: text('leave_reason'),
     createdBy: uuid('created_by'),
@@ -1313,10 +1310,6 @@ export const practitionerScheduleDaySettings = pgTable(
     check(
       'practitioner_day_settings_leave_reason_not_blank',
       sql`(leave_reason IS NULL) OR (length(TRIM(BOTH FROM leave_reason)) > 0)`,
-    ),
-    check(
-      'practitioner_day_settings_target_quota_nonnegative',
-      sql`target_quota >= 0`,
     ),
   ],
 );
@@ -1466,8 +1459,6 @@ export const practitionerScheduleSessions = pgTable(
     sessionShift: staffShift('session_shift'),
     startTime: time('start_time').notNull(),
     endTime: time('end_time').notNull(),
-    capacity: integer().default(0).notNull(),
-    availableSlots: integer('available_slots').default(0).notNull(),
     status: scheduleStatus().default('open').notNull(),
     notes: text(),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
@@ -1520,18 +1511,6 @@ export const practitionerScheduleSessions = pgTable(
       table.practitionerId,
       table.scheduleDate,
       table.startTime,
-    ),
-    check(
-      'practitioner_schedule_sessions_available_lte_capacity',
-      sql`available_slots <= capacity`,
-    ),
-    check(
-      'practitioner_schedule_sessions_available_slots_nonnegative',
-      sql`available_slots >= 0`,
-    ),
-    check(
-      'practitioner_schedule_sessions_capacity_nonnegative',
-      sql`capacity >= 0`,
     ),
     check(
       'practitioner_schedule_sessions_time_order',

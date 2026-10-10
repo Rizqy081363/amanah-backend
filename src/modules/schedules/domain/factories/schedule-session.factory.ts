@@ -118,23 +118,7 @@ export class ScheduleSessionFactory {
   }
 
   /**
-   * Calculates session capacity dynamically from time range and duration.
-   */
-  static calculateCapacity(
-    startTime: string,
-    endTime: string,
-    durationMinutes: number,
-  ): number {
-    const startMin = parseClockTime(startTime);
-    const endMin = parseClockTime(endTime);
-    const validDuration = durationMinutes > 0 ? durationMinutes : 30;
-    const available = endMin - startMin;
-    if (available <= 0) return 0;
-    return Math.floor(available / validDuration);
-  }
-
-  /**
-   * Factory calculation for session timing and capacity.
+   * Factory calculation for session timing.
    */
   static calculateSessionTiming(
     context: ShiftDefinition,
@@ -142,15 +126,12 @@ export class ScheduleSessionFactory {
     policy: { durationMinutes: number; startPrecisionMinutes?: number },
     options?: {
       endTime?: string;
-      slotsCount?: number;
       fillShift?: boolean;
     },
   ): {
     startMinutes: number;
     endMinutes: number;
     endTime: string;
-    capacity: number;
-    remainingShiftSlots: number;
   } {
     const startMinutes = parseClockTime(selectedStartTime);
     const boundaryStart = context.boundaryStartMinutes;
@@ -183,7 +164,6 @@ export class ScheduleSessionFactory {
     }
 
     let endMinutes: number;
-    let capacity: number;
 
     if (options?.endTime) {
       const parsedEnd = parseClockTime(options.endTime);
@@ -200,64 +180,16 @@ export class ScheduleSessionFactory {
         });
       }
       endMinutes = parsedEnd;
-      capacity = Math.floor((endMinutes - startMinutes) / durationMinutes);
-    } else if (options?.slotsCount && options.slotsCount > 0) {
-      endMinutes = startMinutes + options.slotsCount * durationMinutes;
-      if (endMinutes > boundaryEnd) {
-        throw new UnprocessableEntityException({
-          code: 'SLOTS_EXCEED_BOUNDARY',
-          message: 'Jumlah kuota yang diminta melebihi batas waktu shift.',
-          metadata: {
-            slotsCount: options.slotsCount,
-            boundaryEndTime: context.boundaryEndTime,
-          },
-        });
-      }
-      capacity = options.slotsCount;
     } else if (options?.fillShift === true) {
-      capacity = Math.floor((boundaryEnd - startMinutes) / durationMinutes);
-      endMinutes = startMinutes + capacity * durationMinutes;
+      endMinutes = boundaryEnd;
     } else {
-      endMinutes = startMinutes + durationMinutes;
-      if (endMinutes > boundaryEnd) {
-        throw new UnprocessableEntityException({
-          code: 'DURATION_LEAVES_NO_CAPACITY',
-          message:
-            'Jam mulai terlalu dekat dengan akhir shift untuk satu sesi konsultasi.',
-          metadata: {
-            selectedStartTime,
-            boundaryEndTime: context.boundaryEndTime,
-            effectiveConsultationDurationMinutes: durationMinutes,
-          },
-        });
-      }
-      capacity = 1;
+      endMinutes = Math.min(boundaryEnd, startMinutes + durationMinutes);
     }
-
-    if (capacity < 1) {
-      throw new UnprocessableEntityException({
-        code: 'DURATION_LEAVES_NO_CAPACITY',
-        message:
-          'Jam mulai dan durasi konsultasi tidak menyisakan kapasitas interval.',
-        metadata: {
-          selectedStartTime,
-          boundaryEndTime: context.boundaryEndTime,
-          effectiveConsultationDurationMinutes: durationMinutes,
-        },
-      });
-    }
-
-    const remainingShiftSlots = Math.max(
-      0,
-      Math.floor((boundaryEnd - endMinutes) / durationMinutes),
-    );
 
     return {
       startMinutes,
       endMinutes,
       endTime: formatClockTime(endMinutes),
-      capacity,
-      remainingShiftSlots,
     };
   }
 
@@ -265,97 +197,45 @@ export class ScheduleSessionFactory {
    * Factory function to dynamically create showcase or default session parameters
    * for seeders or automated scheduling, avoiding hardcoded time literals.
    */
-  static createSessionTemplate(
-    shift: SessionShiftType,
-    durationMinutes: number,
-    slotsCount?: number,
-  ): {
+  static createSessionTemplate(shift: SessionShiftType): {
     label: string;
     shift: SessionShiftType;
     startTime: string;
     endTime: string;
-    capacity: number;
-    availableSlots: number;
   } {
     const def = ScheduleSessionFactory.resolveShiftDefinition(shift);
-    const validDuration = durationMinutes > 0 ? durationMinutes : 30;
-    const maxCapacity = Math.floor(
-      (def.boundaryEndMinutes - def.boundaryStartMinutes) / validDuration,
-    );
-    const capacity = Math.min(slotsCount || maxCapacity, maxCapacity);
-    const endMinutes = def.boundaryStartMinutes + capacity * validDuration;
 
     return {
       label: def.label,
       shift: def.shift,
       startTime: def.boundaryStartTime,
-      endTime: formatClockTime(endMinutes),
-      capacity,
-      availableSlots: capacity,
+      endTime: def.boundaryEndTime,
     };
   }
 
   /**
-   * Calculates canonical capacity and load metrics for a session using pure math and domain rules.
+   * Calculates canonical session metadata and booked metrics using pure math and domain rules.
    */
   static calculateSessionMetrics(params: {
     startTime: string;
     endTime: string;
     durationMinutes: number;
-    persistedCapacity?: number | null;
-    persistedAvailableSlots?: number | null;
     bookedCount: number;
     isCuti?: boolean;
     isClosed?: boolean;
   }): {
     shift: SessionShiftType;
     sessionLabel: string;
-    capacity: number;
-    availableSlots: number;
     bookedCount: number;
-    displaySlot: string;
   } {
     const shiftDef = ScheduleSessionFactory.resolveShiftFromClockTime(
       params.startTime,
     );
-    const validDuration =
-      params.durationMinutes > 0 ? params.durationMinutes : 30;
-    const calculatedCapacity = ScheduleSessionFactory.calculateCapacity(
-      params.startTime,
-      params.endTime,
-      validDuration,
-    );
-    const capacity =
-      calculatedCapacity > 0
-        ? calculatedCapacity
-        : params.persistedCapacity && params.persistedCapacity > 0
-          ? params.persistedCapacity
-          : 1;
-
-    const bookedCount =
-      params.bookedCount > 0
-        ? params.bookedCount
-        : params.persistedAvailableSlots !== undefined &&
-            params.persistedAvailableSlots !== null
-          ? Math.max(0, capacity - params.persistedAvailableSlots)
-          : 0;
-    const availableSlots =
-      params.isCuti || params.isClosed
-        ? 0
-        : params.persistedAvailableSlots !== undefined &&
-            params.persistedAvailableSlots !== null &&
-            params.bookedCount === 0
-          ? params.persistedAvailableSlots
-          : Math.max(0, capacity - bookedCount);
-    const displaySlot = `${bookedCount} / ${capacity}`;
 
     return {
       shift: shiftDef.shift,
       sessionLabel: shiftDef.label,
-      capacity,
-      availableSlots,
-      bookedCount,
-      displaySlot,
+      bookedCount: params.bookedCount || 0,
     };
   }
 }

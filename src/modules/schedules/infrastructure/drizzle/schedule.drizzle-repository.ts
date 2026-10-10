@@ -26,7 +26,6 @@ import type { AdminDoctorSchedulesQueryDto } from '@modules/schedules/presentati
 import type { CheckRescheduleEligibilityQueryDto } from '@modules/schedules/presentation/dto/check-reschedule-eligibility-query.dto';
 import type { ClinicalPractitionersQueryDto } from '@modules/schedules/presentation/dto/clinical-practitioners-query.dto';
 import type { CreateAdminDoctorSessionDto } from '@modules/schedules/presentation/dto/create-admin-doctor-session.dto';
-import type { CreateAvailabilityDto } from '@modules/schedules/presentation/dto/create-availability.dto';
 import type { GetAdminDoctorPatientsQueryDto } from '@modules/schedules/presentation/dto/get-admin-doctor-patients-query.dto';
 import type { GetSessionPatientsQueryDto } from '@modules/schedules/presentation/dto/get-session-patients-query.dto';
 import type { RescheduleAdminDoctorSessionDto } from '@modules/schedules/presentation/dto/reschedule-admin-doctor-session.dto';
@@ -34,7 +33,6 @@ import type { ScheduleOccupancyQueryDto } from '@modules/schedules/presentation/
 import type { ScheduleProjectionQueryDto } from '@modules/schedules/presentation/dto/schedule-projection-query.dto';
 import type { UpdateAdminDoctorScheduleDto } from '@modules/schedules/presentation/dto/update-admin-doctor-schedule.dto';
 import type { UpdateAdminDoctorSessionDto } from '@modules/schedules/presentation/dto/update-admin-doctor-session.dto';
-import type { UpdatePractitionerSchedulePolicyDto } from '@modules/schedules/presentation/dto/update-practitioner-schedule-policy.dto';
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import { AppointmentOccupationQuery } from './queries/appointment-occupation.query';
 import { ScheduleConflictQuery } from './queries/schedule-conflict.query';
@@ -235,26 +233,6 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
     return this.dayRepo.getCalendarSummary(staffId, month);
   }
 
-  getDaySettings(
-    staffId: string,
-    date: string,
-  ): Promise<DayScheduleSettingEntity> {
-    return this.dayRepo.getDaySettings(staffId, date);
-  }
-
-  upsertDaySettings(
-    staffId: string,
-    date: string,
-    data: {
-      targetQuota?: number;
-      isCuti?: boolean;
-      cutiReason?: string | null;
-      userId?: string;
-    },
-  ): Promise<DayScheduleSettingEntity> {
-    return this.dayRepo.upsertDaySettings(staffId, date, data);
-  }
-
   // References
   getRooms(
     date?: string,
@@ -309,23 +287,6 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
     );
   }
 
-  createAvailability(
-    staffId: string,
-    body: CreateAvailabilityDto,
-    options: {
-      userId: string;
-      durationEditableByCurrentUser: boolean;
-    },
-  ): Promise<ScheduleAvailabilityMutationResponse> {
-    return this.availabilityRepo.createAvailability(staffId, body, options);
-  }
-
-  updatePractitionerSchedulePolicy(
-    id: string,
-    body: UpdatePractitionerSchedulePolicyDto,
-  ): Promise<ScheduleContextEntity[]> {
-    return this.availabilityRepo.updatePractitionerSchedulePolicy(id, body);
-  }
 
   // Occupancy
   getOccupancyOverview(

@@ -214,8 +214,8 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
         newStatus: 'OPEN',
         reason: dto.reason || 'Pembaruan roster operasional mingguan dokter',
         metadata: {
-          assignedSlotsCount: activeItems.length,
-          slots: activeItems.map((a) => ({ dow: a.dow, sessionId: a.sessionId })),
+          assignedSessionsCount: activeItems.length,
+          assignedSessions: activeItems.map((a) => ({ dow: a.dow, sessionId: a.sessionId })),
         },
         changedBy: userId || null,
       });

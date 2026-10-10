@@ -21,7 +21,7 @@ export class ClinicalPractitionersController {
     summary:
       'Mendapatkan daftar dokter dan ketersediaan praktik untuk janji temu pasien',
     description:
-      'Menampilkan dokter aktif, spesialisasi, ruangan, estimasi jadwal, dan status ketersediaan slot pada tanggal yang diminta.',
+      'Menampilkan dokter aktif, spesialisasi, ruangan, estimasi jadwal, dan status ketersediaan jadwal pada tanggal yang diminta.',
   })
   @ApiOkResponse({
     description: 'Daftar dokter dan ketersediaan berhasil diambil',

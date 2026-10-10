@@ -3,7 +3,7 @@ import { IsDateString, IsNotEmpty, IsOptional, IsUUID } from 'class-validator';
 
 export class ScheduleOccupancyQueryDto {
   @ApiProperty({
-    description: 'Tanggal target inspeksi ketersediaan slot (YYYY-MM-DD)',
+    description: 'Tanggal target inspeksi ketersediaan jadwal shift (YYYY-MM-DD)',
     example: '2026-09-25',
   })
   @IsNotEmpty({ message: 'Parameter date wajib disertakan' })

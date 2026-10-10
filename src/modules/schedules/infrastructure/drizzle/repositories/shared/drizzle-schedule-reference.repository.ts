@@ -74,9 +74,6 @@ export class DrizzleScheduleReferenceRepository {
         timeRange: `${def.boundaryStartTime} - ${def.boundaryEndTime}`,
         startHour: Math.floor(def.boundaryStartMinutes / 60),
         endHour: Math.floor(def.boundaryEndMinutes / 60),
-        totalSlots: Math.floor(
-          (def.boundaryEndMinutes - def.boundaryStartMinutes) / clinicPolicy.durationMinutes,
-        ),
         durationMinutes: clinicPolicy.durationMinutes,
         precisionMinutes: clinicPolicy.startPrecisionMinutes,
       })),
@@ -92,19 +89,6 @@ export class DrizzleScheduleReferenceRepository {
         { id: 'OPEN', label: 'Buka' },
         { id: 'OCCUPIED', label: 'Terisi' },
         { id: 'CLOSED', label: 'Tutup' },
-      ],
-      slotStatuses: [
-        { id: 'AVAILABLE', label: 'Tersedia' },
-        { id: 'PAST', label: 'Sudah Selesai' },
-        { id: 'OCCUPIED_BY_OTHER', label: 'Terisi Dokter Lain' },
-        { id: 'OCCUPIED_BY_SELF', label: 'Jadwal Anda' },
-        { id: 'CLOSED_LEAVE', label: 'Cuti' },
-      ],
-      slotConflictTypes: [
-        { id: 'TEMPORAL_PAST', label: 'Waktu Berlalu' },
-        { id: 'ROOM_OCCUPIED', label: 'Ruangan Terisi' },
-        { id: 'PRACTITIONER_OVERLAP', label: 'Bentrok Jadwal Dokter' },
-        { id: 'LEAVE', label: 'Cuti Dokter' },
       ],
     };
   }

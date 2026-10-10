@@ -1,15 +1,9 @@
 import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
-  appointments,
   clinicRooms,
-  practitionerLeavePeriods,
-  practitionerScheduleClosures,
-  practitionerScheduleDaySettings,
-  practitionerScheduleSessions,
-  scheduleRescheduleEvents,
+  shiftExceptions,
 } from '@database/schema';
-import { ACTIVE_APPOINTMENT_STATUSES } from '@modules/schedules/domain/constants/schedule.constants';
 import { SCHEDULE_CONTEXT_DEFINITIONS } from '@modules/schedules/domain/constants/schedule-context.constants';
 import {
   type ScheduleOccupancyOverviewData,
@@ -19,7 +13,7 @@ import { SchedulePolicyReader } from '@modules/schedules/infrastructure/drizzle/
 import { PractitionerResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/practitioner.resolver';
 import type { ScheduleOccupancyQueryDto } from '@modules/schedules/presentation/dto/schedule-occupancy-query.dto';
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { and, eq, gte, inArray, lte, or } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 
 @Injectable()
 export class DrizzleScheduleOccupancyRepository {
@@ -49,27 +43,17 @@ export class DrizzleScheduleOccupancyRepository {
     const policy = await this.policyReader.getPolicy(practitioner);
     const durationMinutes = policy.durationMinutes;
 
-    // 1. Check if doctor is on leave on target date
-    const [daySetting, activeLeave] = await Promise.all([
-      this.db.query.practitionerScheduleDaySettings.findFirst({
-        where: and(
-          eq(practitionerScheduleDaySettings.practitionerId, practitionerId),
-          eq(practitionerScheduleDaySettings.scheduleDate, query.date),
-        ),
-      }),
-      this.db.query.practitionerLeavePeriods.findFirst({
-        where: and(
-          eq(practitionerLeavePeriods.practitionerId, practitionerId),
-          lte(practitionerLeavePeriods.startDate, query.date),
-          gte(practitionerLeavePeriods.endDate, query.date),
-        ),
-      }),
-    ]);
+    // 1. Check if doctor is on leave on target date via shiftExceptions
+    const activeLeave = await this.db.query.shiftExceptions.findFirst({
+      where: and(
+        eq(shiftExceptions.doctorId, practitionerId),
+        eq(shiftExceptions.serviceDate, query.date),
+        eq(shiftExceptions.type, 'leave'),
+      ),
+    });
 
-    const isCuti = Boolean(daySetting?.isLeave || activeLeave);
-    const cutiReason = isCuti
-      ? daySetting?.leaveReason || activeLeave?.reason || 'Cuti'
-      : null;
+    const isCuti = Boolean(activeLeave);
+    const cutiReason = isCuti ? activeLeave?.note || 'Cuti' : null;
 
     // 2. Resolve room name if roomId provided
     let targetRoomName: string | null = null;
@@ -80,75 +64,10 @@ export class DrizzleScheduleOccupancyRepository {
       targetRoomName = room?.name || 'Ruangan';
     }
 
-    // 3. Fetch active sessions, appointments, closures, and reschedules on target date
-    const [activeSessions, dayAppointments, dayClosures, dayReschedules] =
-      await Promise.all([
-        this.db.query.practitionerScheduleSessions.findMany({
-          where: eq(practitionerScheduleSessions.scheduleDate, query.date),
-          with: {
-            practitioner: {
-              with: {
-                staffProfile: true,
-              },
-            },
-            clinicRoom: true,
-          },
-        }),
-        this.db.query.appointments.findMany({
-          where: and(
-            eq(appointments.scheduledDate, query.date),
-            inArray(appointments.status, [...ACTIVE_APPOINTMENT_STATUSES]),
-          ),
-          with: {
-            patientProfile: true,
-            queueTickets: true,
-          },
-        }),
-        this.db.query.practitionerScheduleClosures?.findMany
-          ? this.db.query.practitionerScheduleClosures.findMany({
-              where: and(
-                eq(practitionerScheduleClosures.practitionerId, practitionerId),
-                eq(practitionerScheduleClosures.scheduleDate, query.date),
-              ),
-            })
-          : Promise.resolve([]),
-        this.db.query.scheduleRescheduleEvents?.findMany
-          ? this.db.query.scheduleRescheduleEvents.findMany({
-              where: and(
-                eq(scheduleRescheduleEvents.practitionerId, practitionerId),
-                or(
-                  eq(scheduleRescheduleEvents.targetDate, query.date),
-                  eq(scheduleRescheduleEvents.sourceDate, query.date),
-                ),
-              ),
-            })
-          : Promise.resolve([]),
-      ]);
-
-    // 4. Construct the 4 shifts and their slots using authoritative resolver
+    // 3. Construct the 4 shifts using authoritative context definitions
     const shifts: ScheduleShiftOccupancyEntity[] = [];
 
-    const doctorSessions = activeSessions.filter(
-      (s) => s.practitionerId === practitionerId,
-    );
-    const doctorAppts = dayAppointments.filter(
-      (a) => a.practitionerId === practitionerId,
-    );
-
     for (const ctxDef of SCHEDULE_CONTEXT_DEFINITIONS) {
-      const shiftSessions = doctorSessions.filter(
-        (s) => s.sessionShift === ctxDef.shift,
-      );
-      const shiftCap = shiftSessions.reduce(
-        (acc, s) => acc + (s.capacity || 0),
-        0,
-      );
-      const shiftAvail = shiftSessions.reduce(
-        (acc, s) => acc + (s.availableSlots || 0),
-        0,
-      );
-      const shiftOcc = Math.max(0, shiftCap - shiftAvail);
-
       shifts.push({
         contextId: ctxDef.contextId,
         contextLabel: ctxDef.contextLabel,
@@ -156,22 +75,8 @@ export class DrizzleScheduleOccupancyRepository {
         timeRange: `${ctxDef.boundaryStartTime} - ${ctxDef.boundaryEndTime} WIB`,
         boundaryStartTime: ctxDef.boundaryStartTime,
         boundaryEndTime: ctxDef.boundaryEndTime,
-        totalSlots: shiftCap,
-        availableSlotsCount: isCuti ? 0 : shiftAvail,
-        occupiedSlotsCount: isCuti ? 0 : shiftOcc,
-        slots: [],
       });
     }
-
-    const totalSlots = shifts.reduce((acc, s) => acc + s.totalSlots, 0);
-    const availableSlots = shifts.reduce(
-      (acc, s) => acc + s.availableSlotsCount,
-      0,
-    );
-    const occupiedSlots = shifts.reduce(
-      (acc, s) => acc + s.occupiedSlotsCount,
-      0,
-    );
 
     return {
       date: query.date,
@@ -184,9 +89,6 @@ export class DrizzleScheduleOccupancyRepository {
       cutiReason,
       summary: {
         totalShifts: shifts.length,
-        totalSlots,
-        availableSlots,
-        occupiedSlots,
       },
       shifts,
     };

@@ -2,7 +2,6 @@ import { generateEntityVersion } from '@common/occ';
 import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
-  practitionerScheduleDaySettings,
   practitionerScheduleSessions,
   practitioners,
 } from '@database/schema';
@@ -34,9 +33,7 @@ import { ScheduleConflictQuery } from '@modules/schedules/infrastructure/drizzle
 import { SchedulePolicyReader } from '@modules/schedules/infrastructure/drizzle/queries/schedule-policy.reader';
 import { PractitionerResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/practitioner.resolver';
 import { RoomResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/room.resolver';
-import type { CreateAvailabilityDto } from '@modules/schedules/presentation/dto/create-availability.dto';
 import type { ScheduleProjectionQueryDto } from '@modules/schedules/presentation/dto/schedule-projection-query.dto';
-import type { UpdatePractitionerSchedulePolicyDto } from '@modules/schedules/presentation/dto/update-practitioner-schedule-policy.dto';
 import {
   ConflictException,
   Inject,
@@ -125,14 +122,12 @@ export class DrizzleScheduleAvailabilityRepository {
       });
     }
 
-    const capacity = Math.floor(
-      (boundaryEnd - startMinutes) / policy.durationMinutes,
-    );
-    if (capacity < 1) {
+    const remainingMinutes = boundaryEnd - startMinutes;
+    if (remainingMinutes < policy.durationMinutes) {
       throw new UnprocessableEntityException({
-        code: 'DURATION_LEAVES_NO_CAPACITY',
+        code: 'DURATION_EXCEEDS_BOUNDARY',
         message:
-          'Jam mulai dan durasi konsultasi tidak menyisakan kapasitas interval.',
+          'Jam mulai dan durasi konsultasi melebihi batas shift.',
         metadata: {
           selectedStartTime,
           boundaryEndTime: context.boundaryEndTime,
@@ -190,7 +185,6 @@ export class DrizzleScheduleAvailabilityRepository {
       policy,
       {
         endTime: query.endTime,
-        slotsCount: query.slotsCount,
         fillShift,
       },
     );
@@ -205,158 +199,7 @@ export class DrizzleScheduleAvailabilityRepository {
       durationEditableByCurrentUser,
     });
 
-    projection.remainingShiftSlots = timing.remainingShiftSlots;
     return projection;
-  }
-
-  async createAvailability(
-    staffId: string,
-    body: CreateAvailabilityDto,
-    options: {
-      userId: string;
-      durationEditableByCurrentUser: boolean;
-    },
-  ): Promise<ScheduleAvailabilityMutationResponse> {
-    const practitioner = await this.practitionerResolver.resolve(staffId);
-    if (!practitioner) {
-      throw new NotFoundException(
-        `Praktisi medis dengan ID staf ${staffId} tidak ditemukan`,
-      );
-    }
-
-    const context = ScheduleContextResolver.resolve(body.scheduleContextId);
-    const policy = await this.policyReader.getPolicy(practitioner);
-
-    const timing = ScheduleSessionFactory.calculateSessionTiming(
-      context,
-      body.startTime,
-      policy,
-      {
-        endTime: body.endTime,
-        slotsCount: body.slotsCount,
-        fillShift: body.fillShift === true,
-      },
-    );
-
-    const preview = await this.projectAvailability(
-      practitioner.id,
-      {
-        date: body.date,
-        scheduleContextId: body.scheduleContextId,
-        startTime: body.startTime,
-        endTime: timing.endTime,
-        slotsCount: timing.capacity,
-        fillShift: false,
-        roomId: body.roomId,
-        serviceId: body.serviceId,
-      },
-      options.durationEditableByCurrentUser,
-    );
-
-    if (
-      preview.intervals.some((interval) => interval.closedReason === 'LEAVE')
-    ) {
-      throw new ConflictException({
-        code: 'DATE_CLOSED',
-        message:
-          'Availability tidak dapat dibuat karena tanggal ini ditutup untuk cuti.',
-        metadata: {
-          date: body.date,
-          closedReason: 'LEAVE',
-        },
-      });
-    }
-
-    const roomId = await this.roomResolver.resolveRoomId(
-      body.roomId,
-      body.poliklinikId,
-    );
-
-    await this.conflictQuery.checkConflicts(
-      practitioner.id,
-      body.date,
-      body.startTime,
-      timing.endTime,
-      roomId,
-    );
-
-    const daySetting =
-      await this.db.query.practitionerScheduleDaySettings.findFirst({
-        where: and(
-          eq(practitionerScheduleDaySettings.practitionerId, practitioner.id),
-          eq(practitionerScheduleDaySettings.scheduleDate, body.date),
-        ),
-      });
-
-    const [record] = await this.db
-      .insert(practitionerScheduleSessions)
-      .values({
-        practitionerId: practitioner.id,
-        daySettingId: daySetting?.id || null,
-        roomId,
-        serviceId: body.serviceId || null,
-        scheduleDate: body.date,
-        sessionLabel: context.contextLabel,
-        sessionShift: context.sessionShift,
-        startTime: `${body.startTime}:00`,
-        endTime: `${timing.endTime}:00`,
-        capacity: timing.capacity,
-        availableSlots: preview.intervals.filter(
-          (interval) => interval.status === 'OPEN',
-        ).length,
-        status: SchedulePersistenceStatus.OPEN,
-        notes: body.notes || null,
-      })
-      .returning();
-
-    const schedule = await this.findSessionById(record.id);
-    if (!schedule) {
-      throw new NotFoundException(
-        'Sesi jadwal gagal ditemukan setelah dibuat.',
-      );
-    }
-
-    const projection = await this.buildProjectionForSession(
-      record.id,
-      options.durationEditableByCurrentUser,
-    );
-    projection.remainingShiftSlots = timing.remainingShiftSlots;
-
-    return {
-      schedule,
-      projection,
-    };
-  }
-
-  async updatePractitionerSchedulePolicy(
-    id: string,
-    body: UpdatePractitionerSchedulePolicyDto,
-  ): Promise<ScheduleContextEntity[]> {
-    const practitioner = await this.practitionerResolver.resolve(id);
-    if (!practitioner) {
-      throw new NotFoundException(`Dokter dengan ID ${id} tidak ditemukan`);
-    }
-
-    const [updated] = await this.db
-      .update(practitioners)
-      .set({
-        consultationDurationMinutes: body.consultationDurationMinutes,
-        startPrecisionMinutes:
-          body.startPrecisionMinutes ?? practitioner.startPrecisionMinutes ?? 1,
-        updatedAt: new Date().toISOString(),
-      })
-      .where(eq(practitioners.id, practitioner.id))
-      .returning();
-
-    return this.getScheduleContexts(
-      updated.id,
-      this.clinicTimeService
-        ? this.clinicTimeService.today()
-        : new Intl.DateTimeFormat('en-CA', {
-            timeZone: this.getTimezone(),
-          }).format(new Date()),
-      true,
-    );
   }
 
   async buildProjectionForSession(
@@ -451,46 +294,11 @@ export class DrizzleScheduleAvailabilityRepository {
       durationEditableByCurrentUser: params.durationEditableByCurrentUser,
       allowedStartPrecisionMinutes: params.policy.startPrecisionMinutes,
       timezone: this.getTimezone(),
-      capacity: projected.capacity,
-      remainingShiftSlots: Math.max(
-        0,
-        Math.floor(
-          (parseClockTime(params.context.boundaryEndTime) -
-            parseClockTime(projected.projectedEndTime)) /
-            params.policy.durationMinutes,
-        ),
-      ),
       intervals: projected.intervals,
       version: params.updatedAt
         ? generateEntityVersion(params.updatedAt)
         : undefined,
       updatedAt: params.updatedAt ?? null,
     };
-  }
-
-  private async findSessionById(id: string): Promise<ScheduleEntity | null> {
-    const record = await this.db.query.practitionerScheduleSessions.findFirst({
-      where: eq(practitionerScheduleSessions.id, id),
-      with: {
-        practitioner: {
-          with: {
-            staffProfile: {
-              with: {
-                clinicUnit: true,
-                user: true,
-              },
-            },
-          },
-        },
-        clinicRoom: {
-          with: {
-            clinicUnit: true,
-          },
-        },
-        clinicService: true,
-      },
-    });
-
-    return record ? ScheduleRecordMapper.toEntity(record) : null;
   }
 }

@@ -51,8 +51,6 @@ export type ScheduleRecordMapperInput = {
   endTime: string;
   roomId?: string | null;
   serviceId?: string | null;
-  capacity: number;
-  availableSlots: number;
   status: string;
   notes?: string | null;
   createdAt: Date | string | number;
@@ -83,12 +81,8 @@ export function mapScheduleRecordToEntity(
       ? `${startTimeFormatted} - ${endTimeFormatted} WIB`
       : undefined;
 
-  const capacity = record.capacity ?? 0;
-  const availableSlots = record.availableSlots ?? capacity;
-  const bookedPatientCount = Math.max(0, capacity - availableSlots);
   const operationalStatus = resolveSessionOperationalStatus({
     isClosedForLeave: false,
-    availableSlots,
     persistedStatus: record.status,
   });
   const isAvailable = operationalStatus === ScheduleOperationalStatus.OPEN;
@@ -116,14 +110,6 @@ export function mapScheduleRecordToEntity(
     statusBadge = 'Selesai';
     badgeVariant = 'warning';
     effectiveStatus = 'COMPLETED';
-  } else if (availableSlots === 0) {
-    statusBadge = 'Penuh';
-    badgeVariant = 'primary';
-    effectiveStatus = 'OCCUPIED';
-  } else if (bookedPatientCount > 0) {
-    statusBadge = 'Terisi';
-    badgeVariant = 'primary';
-    effectiveStatus = 'OCCUPIED';
   }
 
   return {
@@ -157,9 +143,6 @@ export function mapScheduleRecordToEntity(
     roomId: record.roomId || null,
     roomName:
       record.clinicRoom?.name || (record.roomId ? 'Ruang Praktek' : null),
-    capacity,
-    availableSlots,
-    bookedPatientCount,
     status: operationalStatus,
     rawStatus: record.status,
     isAvailable,

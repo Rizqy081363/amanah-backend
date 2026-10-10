@@ -26,9 +26,6 @@ export class ScheduleEntity {
   timeRange?: string;
   roomId?: string | null;
   roomName?: string | null;
-  capacity?: number;
-  availableSlots?: number;
-  bookedPatientCount?: number;
   status?: string;
   rawStatus?: string;
   isAvailable: boolean;
@@ -52,11 +49,9 @@ export class DayScheduleSettingEntity {
   id?: string;
   practitionerId: string;
   scheduleDate: string;
-  targetQuota: number;
   isCuti: boolean;
   cutiReason?: string | null;
   totalBookedPatients?: number;
-  capacityPercentage?: number;
 }
 
 export class CalendarDaySummaryEntity {
@@ -65,9 +60,7 @@ export class CalendarDaySummaryEntity {
   isCuti: boolean;
   cutiReason: string | null;
   sessionCount: number;
-  targetQuota: number;
   bookedPatientCount: number;
-  capacityPercentage: number;
   status?: ScheduleOperationalStatus;
   isClosed?: boolean;
   notes?: string | null;
@@ -130,7 +123,6 @@ export class ScheduleOptionsReferenceEntity {
     timeRange?: string;
     startHour?: number;
     endHour?: number;
-    totalSlots?: number;
     durationMinutes?: number;
     precisionMinutes?: number;
   }[];
@@ -144,14 +136,6 @@ export class ScheduleOptionsReferenceEntity {
   durationScope?: string;
   canonicalIntervalStatuses?: {
     id: 'OPEN' | 'OCCUPIED' | 'CLOSED';
-    label: string;
-  }[];
-  slotStatuses?: {
-    id: string;
-    label: string;
-  }[];
-  slotConflictTypes?: {
-    id: string;
     label: string;
   }[];
 }
@@ -198,7 +182,6 @@ export class ScheduleProjectedIntervalEntity {
     | 'UNSCHEDULED';
   isSelectable?: boolean;
   timeRange?: string;
-  slotId?: string;
   timeStart?: string;
   timeEnd?: string;
   uiStatus?:
@@ -252,8 +235,6 @@ export class ScheduleProjectionEntity {
   durationEditableByCurrentUser: boolean;
   allowedStartPrecisionMinutes: number;
   timezone: string;
-  capacity: number;
-  remainingShiftSlots?: number;
   intervals: ScheduleProjectedIntervalEntity[];
   version?: string;
   updatedAt?: string | null;
@@ -280,25 +261,12 @@ export class AdminDoctorDailySession {
   @ApiProperty({ description: 'Rentang jam waktu sesi' })
   waktu: string;
 
-  @ApiProperty({ description: 'Kapasitas maksimal kuota pasien' })
-  kuota_pasien: number;
-
-  @ApiProperty({ description: 'Sisa kuota slot tersedia' })
-  slot_tersedia: number;
-
   @ApiProperty({
     description:
       'Jumlah pasien terdaftar pada sesi ini (dihitung riil dari appointment aktif oleh backend)',
     example: 0,
   })
   pasien_terdaftar: number;
-
-  @ApiProperty({
-    description:
-      'Format display slot pasien terdaftar terhadap kuota sesi (misal: "0 / 10")',
-    example: '0 / 10',
-  })
-  display_slot: string;
 
   @ApiProperty({
     description: 'Canonical effective session status',
@@ -391,12 +359,6 @@ export class AdminDoctorScheduleCardEntity {
   })
   avatar: string;
 
-  @ApiProperty({ description: 'Sisa slot pasien tersedia' })
-  slot_tersedia: number;
-
-  @ApiProperty({ description: 'Total kapasitas kuota pasien per hari' })
-  kapasitas_per_hari: number;
-
   @ApiProperty({ description: 'Rentang jam praktik hari ini' })
   jadwal_hari_ini: string;
 
@@ -406,26 +368,6 @@ export class AdminDoctorScheduleCardEntity {
     example: 'Sesi Pagi (08:00 - 11:30)',
   })
   jadwal_praktik_mendatang: string;
-
-  @ApiProperty({
-    description: 'Akumulasi total slot terisi pada hari tersebut',
-    example: 8,
-  })
-  slot_terisi_akumulasi: number;
-
-  @ApiProperty({
-    description:
-      'Akumulasi total kapasitas kuota pasien seluruh sesi pada hari tersebut',
-    example: 24,
-  })
-  slot_kapasitas_akumulasi: number;
-
-  @ApiProperty({
-    description:
-      'Format display slot akumulasi terisi terhadap total kapasitas (X / Y)',
-    example: '8 / 24',
-  })
-  display_akumulasi_slot: string;
 
   @ApiProperty({
     description: 'Canonical effective schedule status',
@@ -534,9 +476,6 @@ export class AdminDoctorMonthlyDayEntity {
   @ApiProperty({ example: 2, required: false })
   activeSessions?: number;
 
-  @ApiProperty({ example: 24, required: false })
-  totalCapacity?: number;
-
   @ApiProperty({ example: 0, required: false })
   bookedPatients?: number;
 
@@ -581,12 +520,6 @@ export class AdminDoctorScheduleDetailData {
   })
   avatar: string;
 
-  @ApiProperty({ description: 'Slot tersedia' })
-  slot_tersedia: number;
-
-  @ApiProperty({ description: 'Kapasitas per hari' })
-  kapasitas_per_hari: number;
-
   @ApiProperty({ description: 'Bulan jadwal' })
   bulan_jadwal: string;
 
@@ -630,14 +563,14 @@ export class AdminDoctorScheduleDetailData {
 
   @ApiProperty({
     description:
-      'Whole-day aggregated slot projection metrics and dual indicators',
+      'Whole-day aggregated projection metrics and dual indicators',
     required: false,
   })
   metrics?: any;
 
   @ApiProperty({
     description:
-      'Whole-day aggregated slot projection metrics and dual indicators',
+      'Whole-day aggregated projection metrics and dual indicators',
     required: false,
   })
   summary?: any;
@@ -671,82 +604,6 @@ export class ClinicalPractitionersResponse {
   data: ClinicalPractitionerEntity[];
 }
 
-export type ScheduleSlotOccupancyType = 'SELF' | 'OTHER' | 'LEAVE';
-
-export class ScheduleSlotConflictInfoEntity {
-  @ApiProperty({ enum: ['SELF', 'OTHER', 'LEAVE'], example: 'SELF' })
-  type: ScheduleSlotOccupancyType;
-
-  @ApiProperty({ example: 'Anda sudah memiliki jadwal di jam ini' })
-  message: string;
-
-  @ApiProperty({
-    nullable: true,
-    example: '8489be4c-7c05-4c07-b352-7bf579b29cb1',
-  })
-  sessionId?: string | null;
-
-  @ApiProperty({
-    nullable: true,
-    example: '3cb62e10-450b-43e5-aba9-49ec37079ebb',
-  })
-  practitionerId?: string | null;
-
-  @ApiProperty({ nullable: true, example: 'dr. Ahmad Santoso' })
-  practitionerName?: string | null;
-
-  @ApiProperty({
-    nullable: true,
-    example: 'e3067341-a185-484d-91d6-84848fcff1ef',
-  })
-  roomId?: string | null;
-
-  @ApiProperty({ nullable: true, example: 'Ruang Poli 1' })
-  roomName?: string | null;
-}
-
-export type ScheduleSlotStatus =
-  | 'AVAILABLE'
-  | 'OCCUPIED_BY_SELF'
-  | 'OCCUPIED_BY_OTHER'
-  | 'CLOSED_LEAVE';
-
-export class ScheduleShiftSlotEntity {
-  @ApiProperty({ example: 1 })
-  slotIndex: number;
-
-  @ApiProperty({ example: '02:00' })
-  startTime: string;
-
-  @ApiProperty({ example: '02:30' })
-  endTime: string;
-
-  @ApiProperty({ example: '02:00 - 02:30 WIB' })
-  timeRange: string;
-
-  @ApiProperty({ example: true })
-  isAvailable: boolean;
-
-  @ApiProperty({
-    enum: [
-      'AVAILABLE',
-      'OCCUPIED_BY_SELF',
-      'OCCUPIED_BY_OTHER',
-      'CLOSED_LEAVE',
-    ],
-    example: 'AVAILABLE',
-  })
-  status: ScheduleSlotStatus;
-
-  @ApiProperty({ example: 'Tersedia' })
-  displayLabel: string;
-
-  @ApiProperty({
-    nullable: true,
-    type: () => ScheduleSlotConflictInfoEntity,
-  })
-  conflictInfo?: ScheduleSlotConflictInfoEntity | null;
-}
 
 export class ScheduleShiftOccupancyEntity {
   @ApiProperty({ example: 'early_morning' })
@@ -769,32 +626,11 @@ export class ScheduleShiftOccupancyEntity {
 
   @ApiProperty({ example: '06:00' })
   boundaryEndTime: string;
-
-  @ApiProperty({ example: 12 })
-  totalSlots: number;
-
-  @ApiProperty({ example: 11 })
-  availableSlotsCount: number;
-
-  @ApiProperty({ example: 1 })
-  occupiedSlotsCount: number;
-
-  @ApiProperty({ type: () => [ScheduleShiftSlotEntity] })
-  slots: ScheduleShiftSlotEntity[];
 }
 
 export class ScheduleOccupancySummaryEntity {
   @ApiProperty({ example: 4 })
   totalShifts: number;
-
-  @ApiProperty({ example: 42 })
-  totalSlots: number;
-
-  @ApiProperty({ example: 35 })
-  availableSlots: number;
-
-  @ApiProperty({ example: 7 })
-  occupiedSlots: number;
 }
 
 export class ScheduleOccupancyOverviewData {
@@ -1107,12 +943,6 @@ export class AdminSessionPatientsData {
   @ApiProperty({ example: '11:30' })
   endTime: string;
 
-  @ApiProperty({ example: 12 })
-  capacity: number;
-
-  @ApiProperty({ example: 4 })
-  availableSlots: number;
-
   @ApiProperty({ example: 8 })
   bookedCount: number;
 
@@ -1147,12 +977,6 @@ export class AdminDoctorAccumulatedSessionItem {
   @ApiProperty({ example: '11:30' })
   endTime: string;
 
-  @ApiProperty({ example: 12 })
-  capacity: number;
-
-  @ApiProperty({ example: 4 })
-  availableSlots: number;
-
   @ApiProperty({ example: 8 })
   bookedCount: number;
 
@@ -1170,14 +994,8 @@ export class AdminDoctorAccumulatedPatientsData {
   @ApiProperty({ example: '2026-09-24' })
   date: string;
 
-  @ApiProperty({ example: 48 })
-  accumulatedCapacity: number;
-
   @ApiProperty({ example: 18 })
   accumulatedBookedCount: number;
-
-  @ApiProperty({ example: 30 })
-  accumulatedAvailableSlots: number;
 
   @ApiProperty({ type: () => [AdminDoctorAccumulatedSessionItem] })
   sessions: AdminDoctorAccumulatedSessionItem[];

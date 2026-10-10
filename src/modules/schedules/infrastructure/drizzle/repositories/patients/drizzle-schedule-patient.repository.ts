@@ -51,18 +51,13 @@ export class DrizzleSchedulePatientRepository {
             ? `${session.endTime}:00`
             : session.endTime;
         conditions.push(
-          or(
-            eq(appointments.scheduleSessionId, sessionId),
-            and(
-              eq(appointments.practitionerId, session.practitionerId),
-              eq(appointments.scheduledDate, session.scheduleDate),
-              gte(appointments.scheduledStartTime, sessStart),
-              lt(appointments.scheduledStartTime, sessEnd),
-            ),
+          and(
+            eq(appointments.practitionerId, session.practitionerId),
+            eq(appointments.scheduledDate, session.scheduleDate),
+            gte(appointments.scheduledStartTime, sessStart),
+            lt(appointments.scheduledStartTime, sessEnd),
           ),
         );
-      } else {
-        conditions.push(eq(appointments.scheduleSessionId, sessionId));
       }
     }
     if (date) {
@@ -136,14 +131,11 @@ export class DrizzleSchedulePatientRepository {
     const sessEnd =
       session.endTime.length === 5 ? `${session.endTime}:00` : session.endTime;
 
-    const sessionMatchCondition = or(
-      eq(appointments.scheduleSessionId, sessionId),
-      and(
-        eq(appointments.practitionerId, practitioner.id),
-        eq(appointments.scheduledDate, session.scheduleDate),
-        gte(appointments.scheduledStartTime, sessStart),
-        lt(appointments.scheduledStartTime, sessEnd),
-      ),
+    const sessionMatchCondition = and(
+      eq(appointments.practitionerId, practitioner.id),
+      eq(appointments.scheduledDate, session.scheduleDate),
+      gte(appointments.scheduledStartTime, sessStart),
+      lt(appointments.scheduledStartTime, sessEnd),
     );
 
     const conditions: any[] = [sessionMatchCondition];
@@ -180,20 +172,6 @@ export class DrizzleSchedulePatientRepository {
         clinicService: true,
       },
     });
-
-    const unlinkedApptIds = aptRecords
-      .filter((a) => !a.scheduleSessionId)
-      .map((a) => a.id);
-
-    if (unlinkedApptIds.length > 0) {
-      await this.db
-        .update(appointments)
-        .set({
-          scheduleSessionId: session.id,
-          updatedAt: new Date().toISOString(),
-        })
-        .where(inArray(appointments.id, unlinkedApptIds));
-    }
 
     let mappedPatients: AdminSessionPatientItem[] = aptRecords.map((apt) => {
       const ageStr = BookedPatientMapper.calculateAgeString(
@@ -333,8 +311,6 @@ export class DrizzleSchedulePatientRepository {
         scheduleDate: session.scheduleDate,
         startTime: session.startTime.slice(0, 5),
         endTime: session.endTime.slice(0, 5),
-        capacity: session.capacity,
-        availableSlots: session.availableSlots,
         bookedCount: activeBookedCount,
         clinicRoom: session.clinicRoom
           ? {
@@ -394,8 +370,6 @@ export class DrizzleSchedulePatientRepository {
     });
 
     const sessionItems: any[] = [];
-    let accumulatedCapacity = 0;
-    let accumulatedAvailableSlots = 0;
     let accumulatedBookedCount = 0;
 
     for (const s of sessions) {
@@ -408,8 +382,6 @@ export class DrizzleSchedulePatientRepository {
         },
       );
 
-      accumulatedCapacity += s.capacity;
-      accumulatedAvailableSlots += s.availableSlots;
       accumulatedBookedCount += sessionResult.data.bookedCount;
 
       sessionItems.push({
@@ -418,8 +390,6 @@ export class DrizzleSchedulePatientRepository {
         shift: sessionResult.data.shift,
         startTime: sessionResult.data.startTime,
         endTime: sessionResult.data.endTime,
-        capacity: s.capacity,
-        availableSlots: s.availableSlots,
         bookedCount: sessionResult.data.bookedCount,
         patients: sessionResult.data.patients,
       });
@@ -435,9 +405,7 @@ export class DrizzleSchedulePatientRepository {
         doctorId: practitioner.id,
         doctorName,
         date,
-        accumulatedCapacity,
         accumulatedBookedCount,
-        accumulatedAvailableSlots,
         sessions: sessionItems,
         patients: allPatients,
       },

@@ -3,13 +3,9 @@ import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
   appointments,
   clinicRooms,
-  practitionerScheduleDaySettings,
   practitionerScheduleSessions,
 } from '@database/schema';
-import {
-  ACTIVE_APPOINTMENT_STATUSES,
-  DEFAULT_TARGET_QUOTA,
-} from '@modules/schedules/domain/constants/schedule.constants';
+import { ACTIVE_APPOINTMENT_STATUSES } from '@modules/schedules/domain/constants/schedule.constants';
 import type { ScheduleEntity } from '@modules/schedules/domain/entities/schedule.entity';
 import {
   AdminScheduleStatusRequest,
@@ -55,60 +51,7 @@ export class DrizzleScheduleSessionRepository {
     private readonly conflictQuery: ScheduleConflictQuery,
   ) {}
 
-  /**
-   * Batch-counts active appointments per session ID.
-   * Returns a Map<sessionId, count> for accurate bookedPatientCount,
-   * replacing the broken `capacity - availableSlots` formula which
-   * returns `capacity` when a session is CLOSED (availableSlots forced to 0).
-   */
-  private async getActiveAppointmentCountsBySessionIds(
-    sessionIds: string[],
-  ): Promise<Map<string, number>> {
-    if (sessionIds.length === 0) return new Map();
 
-    const rows = await this.db
-      .select({
-        sessionId: appointments.scheduleSessionId,
-        appointmentCount: count(appointments.id),
-      })
-      .from(appointments)
-      .where(
-        and(
-          inArray(appointments.scheduleSessionId, sessionIds),
-          inArray(appointments.status, [...ACTIVE_APPOINTMENT_STATUSES]),
-        ),
-      )
-      .groupBy(appointments.scheduleSessionId);
-
-    const countMap = new Map<string, number>();
-    for (const row of rows) {
-      if (row.sessionId) {
-        countMap.set(row.sessionId, Number(row.appointmentCount));
-      }
-    }
-    return countMap;
-  }
-
-  /**
-   * Patches bookedPatientCount and availableSlots on ScheduleEntity[]
-   * using actual appointment counts from the appointments table.
-   * This is necessary because when admin closes a session,
-   * `availableSlots` is force-set to 0, making `capacity - availableSlots`
-   * incorrectly report `capacity` as bookedPatientCount.
-   */
-  private patchBookedCountFromActualAppointments(
-    entities: ScheduleEntity[],
-    countMap: Map<string, number>,
-  ): ScheduleEntity[] {
-    return entities.map((entity) => {
-      const actualCount = countMap.get(entity.id) ?? 0;
-      return {
-        ...entity,
-        bookedPatientCount: actualCount,
-        availableSlots: Math.max(0, (entity.capacity ?? 0) - actualCount),
-      };
-    });
-  }
 
   async create(
     data: Omit<ScheduleEntity, 'id' | 'createdAt' | 'updatedAt'>,
@@ -144,8 +87,6 @@ export class DrizzleScheduleSessionRepository {
       if (room) roomId = room.id;
     }
 
-    const capacity = data.capacity ?? DEFAULT_TARGET_QUOTA;
-
     await this.conflictQuery.checkConflicts(
       practitionerId,
       targetDate,
@@ -154,19 +95,11 @@ export class DrizzleScheduleSessionRepository {
       roomId,
     );
 
-    const daySetting =
-      await this.db.query.practitionerScheduleDaySettings.findFirst({
-        where: and(
-          eq(practitionerScheduleDaySettings.practitionerId, practitionerId),
-          eq(practitionerScheduleDaySettings.scheduleDate, targetDate),
-        ),
-      });
-
     const [record] = await this.db
       .insert(practitionerScheduleSessions)
       .values({
         practitionerId,
-        daySettingId: daySetting?.id || null,
+        daySettingId: null,
         roomId,
         serviceId: data.serviceId || null,
         scheduleDate: targetDate,
@@ -178,8 +111,6 @@ export class DrizzleScheduleSessionRepository {
             : defaultStartTime,
         endTime:
           defaultEndTime.length === 5 ? `${defaultEndTime}:00` : defaultEndTime,
-        capacity,
-        availableSlots: capacity,
         status: data.isAvailable
           ? SchedulePersistenceStatus.OPEN
           : SchedulePersistenceStatus.CLOSED,
@@ -197,9 +128,7 @@ export class DrizzleScheduleSessionRepository {
     });
 
     if (!record) return null;
-    const entity = ScheduleRecordMapper.toEntity(record);
-    const countMap = await this.getActiveAppointmentCountsBySessionIds([id]);
-    return this.patchBookedCountFromActualAppointments([entity], countMap)[0];
+    return ScheduleRecordMapper.toEntity(record);
   }
 
   async findAll(
@@ -289,11 +218,7 @@ export class DrizzleScheduleSessionRepository {
       with: SESSION_RECORD_RELATIONS,
     });
 
-    const entities = records.map((r) => ScheduleRecordMapper.toEntity(r));
-    const sessionIds = entities.map((e) => e.id);
-    const countMap =
-      await this.getActiveAppointmentCountsBySessionIds(sessionIds);
-    return this.patchBookedCountFromActualAppointments(entities, countMap);
+    return records.map((r) => ScheduleRecordMapper.toEntity(r));
   }
 
   async findByPoliAndDate(poliklinikId: string, date: string): Promise<any[]> {
@@ -361,10 +286,6 @@ export class DrizzleScheduleSessionRepository {
       updateValues.sessionShift = shift;
     }
 
-    if (data.capacity !== undefined) {
-      updateValues.capacity = data.capacity;
-    }
-
     if (data.serviceId !== undefined) {
       updateValues.serviceId = data.serviceId;
     }
@@ -378,28 +299,11 @@ export class DrizzleScheduleSessionRepository {
           metadata: { status: data.status },
         });
       }
-      const isOpen = requestedStatus === AdminScheduleStatusRequest.OPEN;
       updateValues.status = toDaySessionPersistenceStatus(requestedStatus);
-      if (!isOpen) {
-        updateValues.availableSlots = 0;
-      } else if (
-        existing.availableSlots === 0 ||
-        existing.availableSlots === null
-      ) {
-        updateValues.availableSlots = sql`capacity`;
-      }
     } else if (data.isAvailable !== undefined) {
       updateValues.status = data.isAvailable
         ? SchedulePersistenceStatus.OPEN
         : SchedulePersistenceStatus.CLOSED;
-      if (!data.isAvailable) {
-        updateValues.availableSlots = 0;
-      } else if (
-        existing.availableSlots === 0 ||
-        existing.availableSlots === null
-      ) {
-        updateValues.availableSlots = sql`capacity`;
-      }
     }
 
     if (data.notes !== undefined) {
@@ -439,18 +343,12 @@ export class DrizzleScheduleSessionRepository {
     id: string,
     isAvailable: boolean,
   ): Promise<ScheduleEntity | null> {
-    const existing = await this.findById(id);
     const updateValues: Record<string, any> = {
       status: isAvailable
         ? SchedulePersistenceStatus.OPEN
         : SchedulePersistenceStatus.CLOSED,
       updatedAt: new Date().toISOString(),
     };
-    if (!isAvailable) {
-      updateValues.availableSlots = 0;
-    } else if (!existing || existing.availableSlots === 0) {
-      updateValues.availableSlots = sql`capacity`;
-    }
 
     const [record] = await this.db
       .update(practitionerScheduleSessions)
@@ -482,15 +380,10 @@ export class DrizzleScheduleSessionRepository {
 
     const activeAppointments = await this.db.query.appointments.findMany({
       where: and(
-        or(
-          eq(appointments.scheduleSessionId, id),
-          and(
-            eq(appointments.practitionerId, existingSession.practitionerId),
-            eq(appointments.scheduledDate, existingSession.scheduleDate),
-            gte(appointments.scheduledStartTime, sessStart),
-            lt(appointments.scheduledStartTime, sessEnd),
-          ),
-        ),
+        eq(appointments.practitionerId, existingSession.practitionerId),
+        eq(appointments.scheduledDate, existingSession.scheduleDate),
+        gte(appointments.scheduledStartTime, sessStart),
+        lt(appointments.scheduledStartTime, sessEnd),
         inArray(appointments.status, [...ACTIVE_APPOINTMENT_STATUSES]),
       ),
     });
@@ -526,27 +419,6 @@ export class DrizzleScheduleSessionRepository {
           ),
         });
 
-      if (remainingOpen.length === 0) {
-        await this.db
-          .update(practitionerScheduleDaySettings)
-          .set({
-            leaveReason: null,
-            updatedAt: new Date().toISOString(),
-          })
-          .where(
-            and(
-              eq(
-                practitionerScheduleDaySettings.practitionerId,
-                existingSession.practitionerId,
-              ),
-              eq(
-                practitionerScheduleDaySettings.scheduleDate,
-                existingSession.scheduleDate,
-              ),
-              eq(practitionerScheduleDaySettings.isLeave, false),
-            ),
-          );
-      }
     }
 
     return res.length > 0;

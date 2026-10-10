@@ -51,16 +51,6 @@ export class ScheduleProjectionQueryDto {
   endTime?: string;
 
   @ApiPropertyOptional({
-    description: 'Jumlah slot sesi konsultasi yang ingin diproyeksikan.',
-    example: 1,
-  })
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @IsOptional()
-  slotsCount?: number;
-
-  @ApiPropertyOptional({
     description:
       'Jika true, backend memproyeksikan seluruh interval hingga batas akhir shift.',
     example: false,

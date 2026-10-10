@@ -77,7 +77,6 @@ export function isClosedScheduleStatus(value?: string | null): boolean {
 
 export function resolveSessionOperationalStatus(params: {
   isClosedForLeave: boolean;
-  availableSlots: number;
   persistedStatus: string;
 }): ScheduleOperationalStatus {
   if (params.isClosedForLeave) {
@@ -93,10 +92,6 @@ export function resolveSessionOperationalStatus(params: {
 
   if (persistedStatus === SchedulePersistenceStatus.CLOSED) {
     return ScheduleOperationalStatus.CLOSED;
-  }
-
-  if (params.availableSlots <= 0) {
-    return ScheduleOperationalStatus.OCCUPIED;
   }
 
   return ScheduleOperationalStatus.OPEN;

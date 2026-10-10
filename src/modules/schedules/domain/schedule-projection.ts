@@ -41,7 +41,6 @@ export interface ScheduleProjectedInterval {
 }
 
 export interface ScheduleProjectionResult {
-  capacity: number;
   projectedEndTime: string;
   intervals: ScheduleProjectedInterval[];
 }
@@ -60,19 +59,19 @@ export function projectScheduleIntervals(
 ): ScheduleProjectionResult {
   const startMinutes = parseClockTime(input.selectedStartTime);
   const boundaryEndMinutes = parseClockTime(input.boundaryEndTime);
-  const capacity = Math.max(
+  const intervalsCount = Math.max(
     0,
     Math.floor((boundaryEndMinutes - startMinutes) / input.durationMinutes),
   );
-  const projectedEndMinutes = startMinutes + capacity * input.durationMinutes;
+  const projectedEndMinutes =
+    startMinutes + intervalsCount * input.durationMinutes;
 
   return {
-    capacity,
     projectedEndTime: formatClockTime(projectedEndMinutes),
     intervals: buildIntervals({
       input,
       startMinutes,
-      capacity,
+      intervalsCount,
     }),
   };
 }
@@ -80,11 +79,11 @@ export function projectScheduleIntervals(
 function buildIntervals(params: {
   input: ScheduleProjectionInput;
   startMinutes: number;
-  capacity: number;
+  intervalsCount: number;
 }): ScheduleProjectedInterval[] {
   const intervals: ScheduleProjectedInterval[] = [];
 
-  for (let index = 0; index < params.capacity; index++) {
+  for (let index = 0; index < params.intervalsCount; index++) {
     const intervalStart =
       params.startMinutes + index * params.input.durationMinutes;
     const intervalEnd = intervalStart + params.input.durationMinutes;

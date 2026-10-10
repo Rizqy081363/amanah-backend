@@ -44,26 +44,6 @@ export class CreateAdminDoctorSessionDto {
   @IsString()
   jam_selesai: string;
 
-  @ApiProperty({
-    description: 'Batas kuota pasien untuk sesi ini',
-    example: 10,
-  })
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  kuota_pasien: number;
-
-  @ApiPropertyOptional({
-    description:
-      'Jumlah slot pasien yang tersedia (default sama dengan kuota_pasien)',
-    example: 10,
-  })
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(0)
-  slot_tersedia?: number;
-
   @ApiPropertyOptional({
     description: 'Canonical session operating status',
     enum: AdminScheduleStatusRequest,

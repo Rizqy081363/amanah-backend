@@ -151,7 +151,7 @@ export class DoctorScheduleHistoryItemEntity {
   @ApiProperty({ example: 'OPEN', nullable: true })
   newStatus: string | null;
 
-  @ApiProperty({ example: 'Buka kembali kuota konsultasi', nullable: true })
+  @ApiProperty({ example: 'Buka kembali jadwal konsultasi', nullable: true })
   reason: string | null;
 
   @ApiProperty({ example: 'Admin Super', nullable: true })

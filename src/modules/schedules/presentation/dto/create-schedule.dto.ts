@@ -113,16 +113,6 @@ export class CreateScheduleDto {
   endTime?: string;
 
   @ApiPropertyOptional({
-    example: 8,
-    default: 8,
-    description: 'Kapasitas maksimal kuota antrean pasien',
-  })
-  @IsNumber()
-  @Min(1)
-  @IsOptional()
-  capacity?: number = 8;
-
-  @ApiPropertyOptional({
     example: 'Praktek spesialis reguler',
     description: 'Catatan tambahan jadwal',
   })

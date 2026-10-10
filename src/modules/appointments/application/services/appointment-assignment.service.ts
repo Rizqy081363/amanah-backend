@@ -122,7 +122,6 @@ export class AppointmentAssignmentService {
       }
 
       // 4. Resolve or create target schedule session
-      let targetSessionId = apt.scheduleSessionId;
       let targetRoomId = apt.roomId;
 
       const matchingSession =
@@ -136,7 +135,6 @@ export class AppointmentAssignmentService {
         });
 
       if (matchingSession) {
-        targetSessionId = matchingSession.id;
         targetRoomId =
           apt.roomId || matchingSession.roomId || targetDoc.defaultRoomId;
       } else {
@@ -149,7 +147,7 @@ export class AppointmentAssignmentService {
 
         const effectiveRoomId = apt.roomId || targetDoc.defaultRoomId;
 
-        const [createdSession] = await tx
+        await tx
           .insert(practitionerScheduleSessions)
           .values({
             practitionerId: targetDoctorId,
@@ -160,26 +158,32 @@ export class AppointmentAssignmentService {
             endTime:
               apt.scheduledEndTime ||
               sql`${apt.scheduledStartTime}::time + interval '${duration} minutes'`,
-            capacity: 1,
             status: SchedulePersistenceStatus.OPEN,
             roomId: effectiveRoomId,
-          })
-          .returning();
+          });
 
-        targetSessionId = createdSession.id;
         targetRoomId = effectiveRoomId;
       }
 
       // 5. Transfer session status (old session close if requested)
-      if (apt.scheduleSessionId && apt.scheduleSessionId !== targetSessionId) {
-        if (opts?.closeOldSchedule) {
+      if (opts?.closeOldSchedule && apt.practitionerId) {
+        const oldSession =
+          await tx.query.practitionerScheduleSessions.findFirst({
+            where: and(
+              eq(practitionerScheduleSessions.practitionerId, apt.practitionerId),
+              eq(practitionerScheduleSessions.scheduleDate, apt.scheduledDate),
+              sql`${practitionerScheduleSessions.startTime} <= ${apt.scheduledStartTime}`,
+              sql`${practitionerScheduleSessions.endTime} > ${apt.scheduledStartTime}`,
+            ),
+          });
+        if (oldSession) {
           await tx
             .update(practitionerScheduleSessions)
             .set({
               status: SchedulePersistenceStatus.CLOSED,
               notes: opts?.reason || 'Sesi ditutup saat pengalihan dokter',
             })
-            .where(eq(practitionerScheduleSessions.id, apt.scheduleSessionId));
+            .where(eq(practitionerScheduleSessions.id, oldSession.id));
         }
       }
 
@@ -188,7 +192,6 @@ export class AppointmentAssignmentService {
         .update(appointments)
         .set({
           practitionerId: targetDoctorId,
-          scheduleSessionId: targetSessionId,
           roomId: targetRoomId,
           updatedBy: currentUser?.id || currentUser?.sub,
           updatedAt: new Date().toISOString(),

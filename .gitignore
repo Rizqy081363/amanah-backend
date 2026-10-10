@@ -42,3 +42,12 @@ lerna-debug.log*
 
 # Claude Code runtime state
 .claude/scheduled_tasks.lock
+
+# Database backups
+/backup/*.sql
+/backup/*.dump
+/backup/*.tar
+!/backup/.gitkeep
+
+# ERD visualizer output
+/.erd-dist

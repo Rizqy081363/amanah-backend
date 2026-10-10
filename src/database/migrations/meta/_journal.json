@@ -218,6 +218,27 @@
       "when": 1791314000000,
       "tag": "0030_doctor_schedule_history_and_roster",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1791315000000,
+      "tag": "0031_drop_legacy_slot_and_quota_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1791316000000,
+      "tag": "0032_drop_legacy_schedule_capacity_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1791317000000,
+      "tag": "0033_drop_legacy_practitioner_slot_architecture",
+      "breakpoints": true
     }
   ]
 }

@@ -95,8 +95,6 @@ export function buildMonthlySchedule(
           const endTime = (
             sched.endsAt || shiftDef.boundaryEndTime
           ).slice(0, 5);
-          const defaultCapacity = clinicPolicy?.targetQuota || 20;
-
           return {
             id: `recurring-${da.id}-${dateStr}`,
             practitionerId: da.doctorId,
@@ -105,8 +103,6 @@ export function buildMonthlySchedule(
             endTime,
             sessionShift: shiftCode,
             sessionLabel: shiftDef.label,
-            capacity: defaultCapacity,
-            availableSlots: defaultCapacity,
             status: 'open',
             clinicRoom: da.preferredRoom,
             notes: null,
@@ -138,7 +134,6 @@ export function buildMonthlySchedule(
         : defaultEnd;
 
       const matchingAppts = dayAppts.filter((a) => {
-        if (a.scheduleSessionId && a.scheduleSessionId === s.id) return true;
         if (a.practitionerId !== s.practitionerId) return false;
         const aStart =
           a.scheduledStartTime?.length === 5
@@ -147,7 +142,7 @@ export function buildMonthlySchedule(
         return aStart >= sessStart && aStart < sessEnd;
       });
 
-      // For slot occupancy/capacity calculations: only active appointments
+      // Only active appointments counted for booked metrics
       const activeMatchingAppts = matchingAppts.filter(
         (a) =>
           !INACTIVE_APPOINTMENT_STATUSES.includes(
@@ -164,7 +159,6 @@ export function buildMonthlySchedule(
         endTime: s.endTime ? s.endTime.slice(0, 5) : boundaryEnd,
         durationMinutes:
           consultationDurationMinutes || DEFAULT_CONSULTATION_DURATION_MINUTES,
-        persistedCapacity: s.capacity,
         bookedCount: activeMatchingAppts.length,
         isCuti,
         isClosed: s.status === 'closed',
@@ -172,7 +166,6 @@ export function buildMonthlySchedule(
 
       return resolveSessionOperationalStatus({
         isClosedForLeave: isCuti,
-        availableSlots: metrics.availableSlots,
         persistedStatus: s.status,
       });
     });
@@ -213,10 +206,6 @@ export function buildMonthlySchedule(
     const dayActiveSessions = daySessions.filter(
       (s) => s.status !== 'closed',
     ).length;
-    const dayTotalCapacity = daySessions.reduce(
-      (acc, s) => acc + (s.capacity ?? 0),
-      0,
-    );
     const dayBookedPatients = dayAppts.filter(
       (a) =>
         !INACTIVE_APPOINTMENT_STATUSES.includes(
@@ -233,7 +222,6 @@ export function buildMonthlySchedule(
       statusLabel,
       badgeVariant,
       activeSessions: dayActiveSessions,
-      totalCapacity: dayTotalCapacity,
       bookedPatients: dayBookedPatients,
       isClickable: true,
     });
@@ -296,7 +284,6 @@ export function buildDailySessions(
       : (defaultEnd ? `${defaultEnd}:00` : '');
 
     const matchingAppts = evalAppts.filter((a) => {
-      if (a.scheduleSessionId && a.scheduleSessionId === s.id) return true;
       if (a.practitionerId !== s.practitionerId) return false;
       const aStart =
         a.scheduledStartTime?.length === 5
@@ -309,8 +296,6 @@ export function buildDailySessions(
       startTime: jamMulai,
       endTime: jamSelesai,
       durationMinutes: validDuration,
-      persistedCapacity: s.capacity,
-      persistedAvailableSlots: s.availableSlots,
       bookedCount: matchingAppts.filter(
         (a) =>
           !INACTIVE_APPOINTMENT_STATUSES.includes(
@@ -321,23 +306,12 @@ export function buildDailySessions(
       isClosed: s.status === 'closed',
     });
 
-    const sEndMin = parseClockTime(jamSelesai);
-    let activeAvailable = 0;
-    if (isPastDate) {
-      activeAvailable = 0;
-    } else if (isToday && curMinutes >= sEndMin) {
-      activeAvailable = 0;
-    } else {
-      activeAvailable = Math.max(0, metrics.availableSlots);
-    }
-
     const roomName = s.clinicRoom
       ? `${s.clinicRoom.name}${s.clinicRoom.location ? `, ${s.clinicRoom.location}` : ''}`
       : defaultRoomName;
 
     const sessionOpStatus = resolveSessionOperationalStatus({
       isClosedForLeave: isEvalCuti,
-      availableSlots: activeAvailable,
       persistedStatus: s.status,
     });
 
@@ -356,10 +330,7 @@ export function buildDailySessions(
       jam_mulai: jamMulai,
       jam_selesai: jamSelesai,
       waktu: `${jamMulai} - ${jamSelesai}`,
-      kuota_pasien: metrics.capacity,
-      slot_tersedia: activeAvailable,
       pasien_terdaftar: metrics.bookedCount,
-      display_slot: metrics.displaySlot,
       status_sesi: sessionOpStatus,
       ruang: roomName,
       ruang_id: s.roomId || null,
@@ -374,49 +345,14 @@ export function buildTimelineAndMetrics(
   _contextProjections: any[] = [],
   sesiHarian: any[] = [],
 ) {
-  const totalCapacity = sesiHarian.reduce(
-    (acc, s) => acc + (s.kapasitas_total || s.capacity || 0),
+  const totalBooked = sesiHarian.reduce(
+    (acc, s) => acc + (s.pasien_terdaftar || 0),
     0,
   );
-  const totalAvailable = sesiHarian.reduce(
-    (acc, s) => acc + (s.slot_tersedia || s.availableSlots || 0),
-    0,
-  );
-  const totalBooked = sesiHarian.reduce((acc, s) => acc + (s.terisi || 0), 0);
-
-  const dayOccupancyPercentage =
-    totalCapacity > 0
-      ? Number(((totalBooked / totalCapacity) * 100).toFixed(2))
-      : 0;
 
   const dayMetrics = {
-    totalSlots: totalCapacity,
-    totalDaySlots: totalCapacity,
-    scheduledSlots: totalCapacity,
-    unscheduledSlots: 0,
-    availableSlots: totalAvailable,
-    completedSlots: 0,
-    occupiedSlots: totalBooked,
-    closedSlots: 0,
-    activeBookableSlots: totalCapacity,
-    occupancy: {
-      occupied: totalBooked,
-      capacity: totalCapacity,
-      percentage: dayOccupancyPercentage,
-      displayText: `Okupansi Pasien: ${totalBooked}/${totalCapacity} (${dayOccupancyPercentage}%)`,
-    },
-    patientOccupancy: {
-      occupied: totalBooked,
-      capacity: totalCapacity,
-      percentage: dayOccupancyPercentage,
-      displayText: `Okupansi Pasien: ${totalBooked}/${totalCapacity} (${dayOccupancyPercentage}%)`,
-    },
-    scheduleCoverage: {
-      scheduled: totalCapacity,
-      total: totalCapacity,
-      percentage: totalCapacity > 0 ? 100 : 0,
-      displayText: `Cakupan Jadwal: ${totalCapacity}/${totalCapacity} (100%)`,
-    },
+    totalBookedPatients: totalBooked,
+    activeSessionsCount: sesiHarian.length,
     unscheduledNotice: 'Semua sesi telah terjadwal',
   };
 

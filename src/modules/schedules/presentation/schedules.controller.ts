@@ -48,9 +48,7 @@ import {
 import { BookedPatientsQueryDto } from './dto/booked-patients-query.dto';
 import { CalendarSummaryQueryDto } from './dto/calendar-summary-query.dto';
 import { CheckRescheduleEligibilityQueryDto } from './dto/check-reschedule-eligibility-query.dto';
-import { CreateAvailabilityDto } from './dto/create-availability.dto';
 import { CreateScheduleDto } from './dto/create-schedule.dto';
-import { GetDaySettingQueryDto } from './dto/get-day-setting-query.dto';
 import { GetSessionPatientsQueryDto } from './dto/get-session-patients-query.dto';
 import { QueryScheduleDto } from './dto/query-schedule.dto';
 import { RescheduleAdminDoctorSessionDto } from './dto/reschedule-admin-doctor-session.dto';
@@ -59,7 +57,6 @@ import { ScheduleContextQueryDto } from './dto/schedule-context-query.dto';
 import { ScheduleOccupancyQueryDto } from './dto/schedule-occupancy-query.dto';
 import { ScheduleProjectionQueryDto } from './dto/schedule-projection-query.dto';
 import { UpdateScheduleDto } from './dto/update-schedule.dto';
-import { UpsertDaySettingDto } from './dto/upsert-day-setting.dto';
 
 @ApiTags('Schedules (Jadwal Dokter & Bidan)')
 @ApiBearerAuth('access-token')
@@ -126,13 +123,13 @@ export class SchedulesController {
   @ApiOperation({
     summary: 'Menambahkan jadwal jaga/praktek staf (Admin/Staf)',
     description:
-      'Membuat slot jadwal praktek dokter/bidan pada tanggal dan sesi tertentu dengan batas kuota pasien.',
+      'Membuat jadwal praktek dokter/bidan pada tanggal dan shift tertentu.',
   })
   @ApiCreatedResponse({
     description: 'Jadwal praktek berhasil dibuat',
   })
   @ApiUnprocessableEntityResponse({
-    description: 'Validasi waktu atau kuota jadwal gagal',
+    description: 'Validasi waktu atau jadwal gagal',
   })
   async createSchedule(
     @Body() body: CreateScheduleDto,
@@ -180,7 +177,6 @@ export class SchedulesController {
       sessionLabel,
       startTime: body.startTime,
       endTime: body.endTime,
-      capacity: body.capacity ?? 8,
       isAvailable: body.isAvailable ?? true,
       notes: body.notes,
     });
@@ -274,53 +270,7 @@ export class SchedulesController {
     return this.scheduleRepo.getCalendarSummary(staffId, query.month);
   }
 
-  @Get('day-settings')
-  @Roles('STAF', 'ADMIN')
-  @ApiOperation({
-    summary: 'Melihat pengaturan target kuota dan cuti harian dokter',
-    description:
-      'Mengambil pengaturan harian jadwal dokter (target kuota pasien, status cuti, dan persentase kapasitas).',
-  })
-  @ApiOkResponse({
-    description: 'Pengaturan jadwal harian berhasil diambil',
-  })
-  async getDaySettings(
-    @Query() query: GetDaySettingQueryDto,
-    @CurrentUser() user: any,
-  ) {
-    const staffId = user.staff?.practitionerId || user.staff?.id;
-    if (!staffId) {
-      throw new ForbiddenException('User bukan staf atau praktisi terdaftar');
-    }
-    return this.scheduleRepo.getDaySettings(staffId, query.date);
-  }
 
-  @Put('day-settings')
-  @Roles('STAF', 'ADMIN')
-  @ApiOperation({
-    summary:
-      'Menyimpan atau memperbarui pengaturan kuota dan cuti harian dokter',
-    description:
-      'Menetapkan target kuota pasien per hari atau mengaktifkan status cuti dokter pada tanggal tertentu.',
-  })
-  @ApiOkResponse({
-    description: 'Pengaturan jadwal harian berhasil diperbarui',
-  })
-  async updateDaySettings(
-    @Body() body: UpsertDaySettingDto,
-    @CurrentUser() user: any,
-  ) {
-    const staffId = user.staff?.practitionerId || user.staff?.id;
-    if (!staffId) {
-      throw new ForbiddenException('User bukan staf atau praktisi terdaftar');
-    }
-    return this.scheduleRepo.upsertDaySettings(staffId, body.date, {
-      targetQuota: body.targetQuota,
-      isCuti: body.isCuti,
-      cutiReason: body.cutiReason,
-      userId: user.id,
-    });
-  }
 
   @Patch('days/:date')
   @Roles('STAF', 'ADMIN')
@@ -484,12 +434,12 @@ export class SchedulesController {
   @Roles('STAF', 'ADMIN')
   @ApiOperation({
     summary:
-      'Melihat ringkasan okupansi slot jadwal per shift (Anti-Collision Grid)',
+      'Melihat ringkasan okupansi jadwal per shift (Anti-Collision Grid)',
     description:
-      'Menampilkan status ketersediaan setiap slot konsultasi di seluruh 4 shift (dini hari, pagi, siang, malam) untuk mencegah bentrok jadwal dokter atau ruangan sebelum submit.',
+      'Menampilkan status ketersediaan di seluruh 4 shift (dini hari, pagi, siang, malam) untuk mencegah bentrok jadwal dokter atau ruangan sebelum submit.',
   })
   @ApiOkResponse({
-    description: 'Ringkasan okupansi slot berhasil diambil',
+    description: 'Ringkasan okupansi berhasil diambil',
     type: ScheduleOccupancyOverviewResponse,
   })
   async getOccupancyOverview(
@@ -504,28 +454,7 @@ export class SchedulesController {
     };
   }
 
-  @Post('availability')
-  @Roles('STAF', 'ADMIN')
-  @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({
-    summary: 'Membuat availability dokter tanpa input endTime manual',
-    description:
-      'Menerima tanggal, konteks jadwal, dan startTime. Backend menghitung endTime, kapasitas, dan interval canonical.',
-  })
-  @ApiCreatedResponse({
-    description: 'Availability berhasil dibuat beserta projection canonical',
-  })
-  async createAvailability(
-    @Body() body: CreateAvailabilityDto,
-    @CurrentUser() user: any,
-  ) {
-    const staffId = this.resolveTargetStaffId(user, body.staffId);
 
-    return this.scheduleRepo.createAvailability(staffId, body, {
-      userId: user.id,
-      durationEditableByCurrentUser: user.systemRole === 'ADMIN',
-    });
-  }
 
   @Get('booked-patients')
   @Roles('STAF', 'ADMIN')
@@ -759,7 +688,7 @@ export class SchedulesController {
   @ApiOperation({
     summary: 'Mengaktifkan / menonaktifkan ketersediaan jadwal staf',
     description:
-      'Mengaktifkan atau menonaktifkan kuota penerimaan janji temu pasien pada jadwal terkait.',
+      'Mengaktifkan atau menonaktifkan status buka/tutup pada jadwal terkait.',
   })
   @ApiParam({
     name: 'id',
@@ -806,7 +735,7 @@ export class SchedulesController {
   @ApiOperation({
     summary: 'Memperbarui informasi jadwal praktek',
     description:
-      'Mengubah jam mulai, jam selesai, kuota kapasitas, ruangan, atau catatan jadwal praktek.',
+      'Mengubah jam mulai, jam selesai, ruangan, status buka/tutup, atau catatan jadwal praktek.',
   })
   @ApiParam({
     name: 'id',
@@ -834,7 +763,6 @@ export class SchedulesController {
       sessionLabel: body.sessionType || body.session,
       startTime: body.startTime,
       endTime: body.endTime,
-      capacity: body.capacity,
       roomId: body.roomId,
       poliklinikId: body.poliklinikId,
       serviceId: body.serviceId,
@@ -854,7 +782,7 @@ export class SchedulesController {
   @ApiOperation({
     summary: 'Menghapus jadwal staf (Admin / Staf Dokter)',
     description:
-      'Menghapus slot jadwal praktek dokter dari sistem dengan perlindungan booking aktif.',
+      'Menghapus jadwal praktek dokter dari sistem dengan perlindungan booking aktif.',
   })
   @ApiParam({
     name: 'id',

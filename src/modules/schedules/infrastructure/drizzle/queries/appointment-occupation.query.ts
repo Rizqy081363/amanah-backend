@@ -2,9 +2,8 @@ import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
   appointments,
-  practitionerLeavePeriods,
-  practitionerScheduleDaySettings,
   practitionerScheduleSessions,
+  shiftExceptions,
 } from '@database/schema';
 import { ACTIVE_APPOINTMENT_STATUSES } from '@modules/schedules/domain/constants/schedule.constants';
 import type {
@@ -12,7 +11,7 @@ import type {
   ScheduleClosedReason,
 } from '@modules/schedules/domain/schedule-projection';
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, gte, inArray, lt, lte, or } from 'drizzle-orm';
+import { and, eq, gte, inArray, lt } from 'drizzle-orm';
 
 @Injectable()
 export class AppointmentOccupationQuery {
@@ -25,26 +24,15 @@ export class AppointmentOccupationQuery {
     practitionerId: string,
     date: string,
   ): Promise<ScheduleClosedReason | undefined> {
-    const daySetting =
-      await this.db.query.practitionerScheduleDaySettings.findFirst({
-        where: and(
-          eq(practitionerScheduleDaySettings.practitionerId, practitionerId),
-          eq(practitionerScheduleDaySettings.scheduleDate, date),
-        ),
-      });
-    if (daySetting?.isLeave) {
-      return 'LEAVE';
-    }
-
-    const activeLeave = await this.db.query.practitionerLeavePeriods.findFirst({
+    const leaveException = await this.db.query.shiftExceptions.findFirst({
       where: and(
-        eq(practitionerLeavePeriods.practitionerId, practitionerId),
-        lte(practitionerLeavePeriods.startDate, date),
-        gte(practitionerLeavePeriods.endDate, date),
+        eq(shiftExceptions.doctorId, practitionerId),
+        eq(shiftExceptions.serviceDate, date),
+        eq(shiftExceptions.type, 'leave'),
       ),
     });
 
-    return activeLeave ? 'LEAVE' : undefined;
+    return leaveException ? 'LEAVE' : undefined;
   }
 
   async getAppointmentOccupations(params: {
@@ -73,16 +61,9 @@ export class AppointmentOccupationQuery {
             ? `${session.endTime}:00`
             : session.endTime;
         conditions.push(
-          or(
-            eq(appointments.scheduleSessionId, params.sessionId),
-            and(
-              gte(appointments.scheduledStartTime, sessStart),
-              lt(appointments.scheduledStartTime, sessEnd),
-            )!,
-          )!,
+          gte(appointments.scheduledStartTime, sessStart),
+          lt(appointments.scheduledStartTime, sessEnd),
         );
-      } else {
-        conditions.push(eq(appointments.scheduleSessionId, params.sessionId));
       }
     }
 

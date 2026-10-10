@@ -91,14 +91,6 @@ export class DrizzleAdminSessionMutationRepository {
     }
     const status = toDaySessionPersistenceStatus(requestedStatus);
 
-    const capacity = body.kuota_pasien;
-    const availableSlots =
-      status === SchedulePersistenceStatus.CLOSED
-        ? 0
-        : body.slot_tersedia !== undefined
-          ? body.slot_tersedia
-          : capacity;
-
     const [session] = await this.db
       .insert(practitionerScheduleSessions)
       .values({
@@ -108,8 +100,6 @@ export class DrizzleAdminSessionMutationRepository {
         sessionShift: shift,
         startTime: startTimeFormatted,
         endTime: endTimeFormatted,
-        capacity,
-        availableSlots,
         roomId,
         status,
       })
@@ -195,10 +185,6 @@ export class DrizzleAdminSessionMutationRepository {
     if (body.jam_selesai) updateValues.endTime = endTimeFormatted;
     if (body.ruang) updateValues.roomId = roomId;
 
-    if (body.kuota_pasien !== undefined) {
-      updateValues.capacity = body.kuota_pasien;
-    }
-
     if (body.status_sesi) {
       const requestedStatus = toAdminScheduleStatusRequest(body.status_sesi);
       if (!requestedStatus) {
@@ -212,7 +198,6 @@ export class DrizzleAdminSessionMutationRepository {
       const status = toDaySessionPersistenceStatus(requestedStatus);
       updateValues.status = status;
       if (status === SchedulePersistenceStatus.CLOSED) {
-        updateValues.availableSlots = 0;
         await this.db.insert(clinicClosures).values({
           scope: 'doctor',
           doctorId: existingSession.practitionerId,
@@ -246,21 +231,12 @@ export class DrizzleAdminSessionMutationRepository {
           })
           .where(
             and(
-              eq(appointments.scheduleSessionId, sessionId),
+              eq(appointments.practitionerId, existingSession.practitionerId),
+              eq(appointments.scheduledDate, existingSession.scheduleDate),
               inArray(appointments.status, ['booked', 'waiting']),
             ),
           );
-      } else if (
-        body.slot_tersedia === undefined &&
-        (existingSession.availableSlots === 0 ||
-          existingSession.availableSlots === null)
-      ) {
-        updateValues.availableSlots = sql`capacity`;
       }
-    }
-
-    if (body.slot_tersedia !== undefined) {
-      updateValues.availableSlots = body.slot_tersedia;
     }
 
     const [updated] = await this.db

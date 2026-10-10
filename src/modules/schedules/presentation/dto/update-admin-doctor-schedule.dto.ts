@@ -54,26 +54,6 @@ export class UpdateAdminDoctorScheduleDto {
   status_jadwal?: AdminScheduleStatusRequest;
 
   @ApiPropertyOptional({
-    description: 'Jumlah slot pasien yang tersedia',
-    example: 0,
-  })
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(0)
-  slot_tersedia?: number;
-
-  @ApiPropertyOptional({
-    description: 'Kapasitas maksimal pasien per hari',
-    example: 30,
-  })
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  kapasitas_per_hari?: number;
-
-  @ApiPropertyOptional({
     description: 'Ruang tempat praktik dokter',
     example: 'Poli Penyakit Dalam, Room 201',
   })

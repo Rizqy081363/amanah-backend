@@ -27,7 +27,6 @@ import { ScheduleDrizzleRepository } from '@modules/schedules/infrastructure/dri
 import { AdminDoctorSchedulesController } from '@modules/schedules/presentation/admin-doctor-schedules.controller';
 import { AdminScheduleConfigurationController } from '@modules/schedules/presentation/admin-schedule-configuration.controller';
 import { ClinicalPractitionersController } from '@modules/schedules/presentation/clinical-practitioners.controller';
-import { PatientScheduleBookingController } from '@modules/schedules/presentation/patient-schedule-booking.controller';
 import { SchedulesController } from '@modules/schedules/presentation/schedules.controller';
 import { DoctorRosterModule } from '@modules/schedules/doctor-roster/doctor-roster.module';
 import { Module } from '@nestjs/common';
@@ -35,7 +34,6 @@ import { Module } from '@nestjs/common';
 @Module({
   imports: [RedisModule, ClinicConfigModule, DoctorRosterModule],
   controllers: [
-    PatientScheduleBookingController,
     SchedulesController,
     AdminDoctorSchedulesController,
     AdminScheduleConfigurationController,

@@ -3,7 +3,6 @@ import { AdminDoctorSchedulesQueryDto } from '@modules/schedules/presentation/dt
 import { CheckRescheduleEligibilityQueryDto } from '@modules/schedules/presentation/dto/check-reschedule-eligibility-query.dto';
 import { ClinicalPractitionersQueryDto } from '@modules/schedules/presentation/dto/clinical-practitioners-query.dto';
 import { CreateAdminDoctorSessionDto } from '@modules/schedules/presentation/dto/create-admin-doctor-session.dto';
-import { CreateAvailabilityDto } from '@modules/schedules/presentation/dto/create-availability.dto';
 import { GetAdminDoctorPatientsQueryDto } from '@modules/schedules/presentation/dto/get-admin-doctor-patients-query.dto';
 import { GetSessionPatientsQueryDto } from '@modules/schedules/presentation/dto/get-session-patients-query.dto';
 import { RescheduleAdminDoctorSessionDto } from '@modules/schedules/presentation/dto/reschedule-admin-doctor-session.dto';
@@ -11,7 +10,6 @@ import { ScheduleOccupancyQueryDto } from '@modules/schedules/presentation/dto/s
 import { ScheduleProjectionQueryDto } from '@modules/schedules/presentation/dto/schedule-projection-query.dto';
 import { UpdateAdminDoctorScheduleDto } from '@modules/schedules/presentation/dto/update-admin-doctor-schedule.dto';
 import { UpdateAdminDoctorSessionDto } from '@modules/schedules/presentation/dto/update-admin-doctor-session.dto';
-import { UpdatePractitionerSchedulePolicyDto } from '@modules/schedules/presentation/dto/update-practitioner-schedule-policy.dto';
 import {
   AdminDoctorAccumulatedPatientsResponse,
   AdminDoctorScheduleDetailResponse,
@@ -73,20 +71,6 @@ export interface ScheduleRepository {
     staffId: string,
     month: string,
   ): Promise<CalendarSummaryResponse>;
-  getDaySettings(
-    staffId: string,
-    date: string,
-  ): Promise<DayScheduleSettingEntity>;
-  upsertDaySettings(
-    staffId: string,
-    date: string,
-    data: {
-      targetQuota?: number;
-      isCuti?: boolean;
-      cutiReason?: string | null;
-      userId?: string;
-    },
-  ): Promise<DayScheduleSettingEntity>;
   getBookedPatients(
     sessionId?: string,
     date?: string,
@@ -112,18 +96,6 @@ export interface ScheduleRepository {
     query: ScheduleProjectionQueryDto,
     durationEditableByCurrentUser: boolean,
   ): Promise<ScheduleProjectionEntity>;
-  createAvailability(
-    staffId: string,
-    body: CreateAvailabilityDto,
-    options: {
-      userId: string;
-      durationEditableByCurrentUser: boolean;
-    },
-  ): Promise<ScheduleAvailabilityMutationResponse>;
-  updatePractitionerSchedulePolicy(
-    id: string,
-    body: UpdatePractitionerSchedulePolicyDto,
-  ): Promise<ScheduleContextEntity[]>;
   getOccupancyOverview(
     staffId: string,
     query: ScheduleOccupancyQueryDto,

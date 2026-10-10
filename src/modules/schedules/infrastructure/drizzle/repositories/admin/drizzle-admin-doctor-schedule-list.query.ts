@@ -3,8 +3,6 @@ import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
   appointments,
   doctorAssignments,
-  practitionerLeavePeriods,
-  practitionerScheduleDaySettings,
   practitionerScheduleSessions,
   practitioners,
   shiftExceptions,
@@ -69,8 +67,6 @@ export class DrizzleAdminDoctorScheduleListQuery {
 
     const [
       pracs,
-      allDaySettings,
-      allActiveLeaves,
       allSessions,
       allAppointments,
       clinicPolicy,
@@ -88,18 +84,6 @@ export class DrizzleAdminDoctorScheduleListQuery {
           clinicRoom: true,
         },
         orderBy: [asc(practitioners.displayName)],
-      }),
-      this.db.query.practitionerScheduleDaySettings.findMany({
-        where: eq(
-          practitionerScheduleDaySettings.scheduleDate,
-          targetDate,
-        ),
-      }),
-      this.db.query.practitionerLeavePeriods.findMany({
-        where: and(
-          lte(practitionerLeavePeriods.startDate, targetDate),
-          gte(practitionerLeavePeriods.endDate, targetDate),
-        ),
       }),
       this.db.query.practitionerScheduleSessions.findMany({
         where: eq(practitionerScheduleSessions.scheduleDate, targetDate),
@@ -134,14 +118,8 @@ export class DrizzleAdminDoctorScheduleListQuery {
     const cards: AdminDoctorScheduleCardEntity[] = [];
 
     for (const p of pracs) {
-      const daySetting = allDaySettings.find(
-        (ds) => ds.practitionerId === p.id && ds.scheduleDate === targetDate,
-      );
-      const activeLeave = allActiveLeaves.find(
-        (al) =>
-          al.practitionerId === p.id &&
-          al.startDate <= targetDate &&
-          al.endDate >= targetDate,
+      const activeLeave = allShiftExceptions.find(
+        (se) => se.doctorId === p.id && se.type === 'leave',
       );
       let sessions = allSessions.filter(
         (s) => s.practitionerId === p.id && s.scheduleDate === targetDate,
@@ -181,7 +159,6 @@ export class DrizzleAdminDoctorScheduleListQuery {
             const endTime = (
               sched.endsAt || shiftDef.boundaryEndTime
             ).slice(0, 5);
-            const defaultCapacity = (clinicPolicy as any)?.targetQuota || 20;
 
             let sessionLabel = shiftDef.label;
             if (da.sessionDef.labelKey === 'session.morning') {
@@ -202,8 +179,6 @@ export class DrizzleAdminDoctorScheduleListQuery {
               endTime,
               sessionShift: shiftCode,
               sessionLabel,
-              capacity: defaultCapacity,
-              availableSlots: defaultCapacity,
               status: 'open',
               clinicRoom: da.preferredRoom || p.clinicRoom,
               notes: null,
@@ -213,12 +188,10 @@ export class DrizzleAdminDoctorScheduleListQuery {
           .sort((a, b) => a.startTime.localeCompare(b.startTime)) as any;
       }
 
-      const isCuti = Boolean(daySetting?.isLeave || activeLeave);
-      const cutiReason = isCuti
-        ? daySetting?.leaveReason || activeLeave?.reason || 'Cuti Dokter'
-        : null;
-      const cutiStart = activeLeave?.startDate || (isCuti ? targetDate : null);
-      const cutiEnd = activeLeave?.endDate || (isCuti ? targetDate : null);
+      const isCuti = Boolean(activeLeave);
+      const cutiReason = isCuti ? activeLeave?.note || 'Cuti Dokter' : null;
+      const cutiStart = isCuti ? targetDate : null;
+      const cutiEnd = isCuti ? targetDate : null;
 
       const defaultRoomName = p.clinicRoom
         ? `${p.clinicRoom.name}${p.clinicRoom.location ? `, ${p.clinicRoom.location}` : ''}`
@@ -243,7 +216,6 @@ export class DrizzleAdminDoctorScheduleListQuery {
           : `${boundaryEnd}:00`;
 
         const matchingAppts = allAppointments.filter((a) => {
-          if (a.scheduleSessionId && a.scheduleSessionId === s.id) return true;
           if (a.practitionerId !== s.practitionerId) return false;
           const aStart =
             a.scheduledStartTime?.length === 5
@@ -261,8 +233,6 @@ export class DrizzleAdminDoctorScheduleListQuery {
           startTime: jamMulai,
           endTime: jamSelesai,
           durationMinutes,
-          persistedCapacity: s.capacity,
-          persistedAvailableSlots: s.availableSlots,
           bookedCount: matchingAppts.length,
           isCuti,
           isClosed: s.status === 'closed',
@@ -274,7 +244,6 @@ export class DrizzleAdminDoctorScheduleListQuery {
 
         const sessionOpStatus = resolveSessionOperationalStatus({
           isClosedForLeave: isCuti,
-          availableSlots: metrics.availableSlots,
           persistedStatus: s.status,
         });
 
@@ -292,10 +261,7 @@ export class DrizzleAdminDoctorScheduleListQuery {
           jam_mulai: jamMulai,
           jam_selesai: jamSelesai,
           waktu: `${jamMulai} - ${jamSelesai}`,
-          kuota_pasien: metrics.capacity,
-          slot_tersedia: metrics.availableSlots,
           pasien_terdaftar: metrics.bookedCount,
-          display_slot: metrics.displaySlot,
           status_sesi: sessionOpStatus,
           ruang: roomName,
           is_reschedule_eligible: isRescheduleEligible,
@@ -305,17 +271,6 @@ export class DrizzleAdminDoctorScheduleListQuery {
 
       const sessionOpStatuses = sesiHarian.map((s) => s.status_sesi);
 
-      const totalCapacity =
-        sesiHarian.length > 0
-          ? sesiHarian.reduce((acc, s) => acc + s.kuota_pasien, 0)
-          : (daySetting?.targetQuota ?? 0);
-      const totalAvailable = isCuti
-        ? 0
-        : sesiHarian.reduce((acc, s) => acc + s.slot_tersedia, 0);
-      const totalBooked = isCuti
-        ? 0
-        : sesiHarian.reduce((acc, s) => acc + s.pasien_terdaftar, 0);
-
       const aggregateOpStatus = resolveAggregateOperationalStatus({
         isClosedForLeave: isCuti,
         sessionStatuses: sessionOpStatuses,
@@ -324,9 +279,6 @@ export class DrizzleAdminDoctorScheduleListQuery {
       const isClosed = aggregateOpStatus === ScheduleOperationalStatus.CLOSED;
       const scheduleStatus = aggregateOpStatus;
 
-      let slotTerisiAkumulasi = 0;
-      let slotKapasitasAkumulasi = 0;
-      let displayAkumulasiSlot = '-';
       let jadwalHariIni = '-';
       let jadwalPraktikMendatang = 'Tidak Ada Jadwal';
 
@@ -336,9 +288,6 @@ export class DrizzleAdminDoctorScheduleListQuery {
         jadwalPraktikMendatang =
           sesiHarian.length === 0 ? 'Tidak Ada Jadwal' : 'Praktik Ditutup';
       } else {
-        slotTerisiAkumulasi = totalBooked;
-        slotKapasitasAkumulasi = totalCapacity;
-        displayAkumulasiSlot = `${slotTerisiAkumulasi} / ${slotKapasitasAkumulasi}`;
         jadwalPraktikMendatang = '-';
         if (sesiHarian.length > 0) {
           const starts = sesiHarian.map((s) => s.jam_mulai).sort();
@@ -407,13 +356,8 @@ export class DrizzleAdminDoctorScheduleListQuery {
         ruang_praktik: ruangPraktik,
         tanggal_praktik: formatIndoDate(targetDate),
         avatar: ScheduleRecordMapper.toAvatarUrl(p.staffProfile),
-        slot_tersedia: isClosed ? 0 : totalAvailable,
-        kapasitas_per_hari: isClosed ? 0 : totalCapacity,
         jadwal_hari_ini: jadwalHariIni,
         jadwal_praktik_mendatang: jadwalPraktikMendatang,
-        slot_terisi_akumulasi: slotTerisiAkumulasi,
-        slot_kapasitas_akumulasi: slotKapasitasAkumulasi,
-        display_akumulasi_slot: displayAkumulasiSlot,
         status_jadwal: scheduleStatus,
         bulan_jadwal: formatIndoMonthYear(targetYear, targetMonth),
         is_cuti: isCuti,

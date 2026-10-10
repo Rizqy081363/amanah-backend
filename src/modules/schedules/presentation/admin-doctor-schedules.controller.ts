@@ -54,7 +54,6 @@ import { RescheduleAdminDoctorSessionDto } from './dto/reschedule-admin-doctor-s
 import { UpdateAdminDayStatusDto } from './dto/update-admin-day-status.dto';
 import { UpdateAdminDoctorScheduleDto } from './dto/update-admin-doctor-schedule.dto';
 import { UpdateAdminDoctorSessionDto } from './dto/update-admin-doctor-session.dto';
-import { UpdatePractitionerSchedulePolicyDto } from './dto/update-practitioner-schedule-policy.dto';
 
 @ApiTags('Admin Doctor Schedules (Supervisi Jadwal Dokter)')
 @ApiBearerAuth('access-token')
@@ -112,7 +111,7 @@ export class AdminDoctorSchedulesController {
   @ApiOperation({
     summary: 'Mendapatkan daftar jadwal seluruh dokter untuk supervisi admin',
     description:
-      'Menampilkan daftar dokter dengan agregasi kapasitas harian, sisa slot, status buka/penuh/cuti, dan filter poli/status/bulan.',
+      'Menampilkan daftar dokter dengan status buka/cuti/tutup dan filter poli/status/bulan.',
   })
   @ApiOkResponse({
     type: AdminDoctorScheduleListResponse,
@@ -179,7 +178,7 @@ export class AdminDoctorSchedulesController {
   @ApiOperation({
     summary: 'Memperbarui operasional jadwal dan status cuti dokter (Admin)',
     description:
-      'Menetapkan atau membatalkan cuti darurat, mengatur kapasitas pasien, slot, atau menutup praktik hari ini.',
+      'Menetapkan atau membatalkan cuti darurat atau menutup praktik hari ini.',
   })
   @ApiParam({
     name: 'id',
@@ -211,7 +210,7 @@ export class AdminDoctorSchedulesController {
     summary:
       'Memperbarui operasional jadwal dan status cuti dokter via PUT (Admin)',
     description:
-      'Menetapkan atau membatalkan cuti darurat, mengatur kapasitas pasien, slot, atau menutup praktik hari ini.',
+      'Menetapkan atau membatalkan cuti darurat atau menutup praktik hari ini.',
   })
   @ApiParam({
     name: 'id',
@@ -238,36 +237,7 @@ export class AdminDoctorSchedulesController {
     return result;
   }
 
-  @Patch(':id/duration')
-  @Roles('ADMIN')
-  @ApiOperation({
-    summary: 'Mengubah durasi konsultasi efektif dokter (Admin)',
-    description:
-      'Admin mengatur durasi konsultasi per pasien dan presisi input start time yang digunakan projection backend.',
-  })
-  @ApiParam({
-    name: 'id',
-    description: 'ID unik dokter / praktisi medis',
-    example: '123e4567-e89b-12d3-a456-426614174000',
-  })
-  @ApiOkResponse({
-    description:
-      'Durasi konsultasi dokter berhasil diperbarui dan konteks jadwal dikembalikan',
-  })
-  @ApiNotFoundResponse({
-    description: 'Dokter tidak ditemukan',
-  })
-  async updateSchedulePolicy(
-    @Param('id') id: string,
-    @Body() body: UpdatePractitionerSchedulePolicyDto,
-  ) {
-    const result = await this.scheduleRepo.updatePractitionerSchedulePolicy(
-      id,
-      body,
-    );
-    await this.invalidateScheduleCaches();
-    return result;
-  }
+
 
   @Patch(':id/days/:date')
   @Roles('ADMIN', 'STAF')
@@ -381,7 +351,7 @@ export class AdminDoctorSchedulesController {
   @ApiOperation({
     summary: 'Memperbarui sesi shift praktik dokter (Admin & Dokter)',
     description:
-      'Mengubah jam mulai/selesai, kuota pasien, sisa slot, status sesi, atau ruangan praktik untuk sesi tertentu.',
+      'Mengubah jam mulai/selesai, status sesi, atau ruangan praktik untuk sesi tertentu.',
   })
   @ApiParam({
     name: 'id',
@@ -572,7 +542,7 @@ export class AdminDoctorSchedulesController {
     summary:
       'Mendapatkan akumulasi daftar seluruh pasien dokter pada tanggal tertentu (4 Sesi)',
     description:
-      'Menampilkan akumulasi kapasitas, slot terisi, sisa slot, dan daftar pasien per sesi pada tanggal yang dipilih.',
+      'Menampilkan daftar pasien dan antrean per sesi pada tanggal yang dipilih.',
   })
   @ApiParam({
     name: 'id',

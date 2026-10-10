@@ -3,9 +3,8 @@ import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
   appointments,
   clinicRooms,
-  practitionerLeavePeriods,
-  practitionerScheduleDaySettings,
   practitionerScheduleSessions,
+  shiftExceptions,
 } from '@database/schema';
 import { ACTIVE_APPOINTMENT_STATUSES } from '@modules/schedules/domain/constants/schedule.constants';
 import {
@@ -79,40 +78,28 @@ export class DrizzleRescheduleEligibilityEvaluator {
     const sessEnd =
       session.endTime.length === 5 ? `${session.endTime}:00` : session.endTime;
 
-    const [sourceDaySetting, sourceLeave, activeAppts] = await Promise.all([
-      this.db.query.practitionerScheduleDaySettings.findFirst({
+    const [sourceLeave, activeAppts] = await Promise.all([
+      this.db.query.shiftExceptions.findFirst({
         where: and(
-          eq(practitionerScheduleDaySettings.practitionerId, practitioner.id),
-          eq(practitionerScheduleDaySettings.scheduleDate, sourceDate),
-        ),
-      }),
-      this.db.query.practitionerLeavePeriods.findFirst({
-        where: and(
-          eq(practitionerLeavePeriods.practitionerId, practitioner.id),
-          lte(practitionerLeavePeriods.startDate, sourceDate),
-          gte(practitionerLeavePeriods.endDate, sourceDate),
+          eq(shiftExceptions.doctorId, practitioner.id),
+          eq(shiftExceptions.serviceDate, sourceDate),
+          eq(shiftExceptions.type, 'leave'),
         ),
       }),
       this.db.query.appointments.findMany({
         where: and(
-          or(
-            eq(appointments.scheduleSessionId, sessionId),
-            and(
-              eq(appointments.practitionerId, practitioner.id),
-              eq(appointments.scheduledDate, sourceDate),
-              gte(appointments.scheduledStartTime, sessStart),
-              lt(appointments.scheduledStartTime, sessEnd),
-            ),
-          ),
+          eq(appointments.practitionerId, practitioner.id),
+          eq(appointments.scheduledDate, sourceDate),
+          gte(appointments.scheduledStartTime, sessStart),
+          lt(appointments.scheduledStartTime, sessEnd),
           inArray(appointments.status, [...ACTIVE_APPOINTMENT_STATUSES]),
         ),
       }),
     ]);
 
-    const isSourceCuti = Boolean(sourceDaySetting?.isLeave || sourceLeave);
+    const isSourceCuti = Boolean(sourceLeave);
     const sourceStatus = resolveSessionOperationalStatus({
       isClosedForLeave: isSourceCuti,
-      availableSlots: session.availableSlots ?? 0,
       persistedStatus: session.status,
     });
     const isSourceClosed = sourceStatus === ScheduleOperationalStatus.CLOSED;
@@ -212,29 +199,15 @@ export class DrizzleRescheduleEligibilityEvaluator {
           }
         }
 
-        const [targetDaySetting, targetLeave] = await Promise.all([
-          this.db.query.practitionerScheduleDaySettings.findFirst({
-            where: and(
-              eq(
-                practitionerScheduleDaySettings.practitionerId,
-                practitioner.id,
-              ),
-              eq(
-                practitionerScheduleDaySettings.scheduleDate,
-                query.targetDate,
-              ),
-            ),
-          }),
-          this.db.query.practitionerLeavePeriods.findFirst({
-            where: and(
-              eq(practitionerLeavePeriods.practitionerId, practitioner.id),
-              lte(practitionerLeavePeriods.startDate, query.targetDate),
-              gte(practitionerLeavePeriods.endDate, query.targetDate),
-            ),
-          }),
-        ]);
+        const targetLeave = await this.db.query.shiftExceptions.findFirst({
+          where: and(
+            eq(shiftExceptions.doctorId, practitioner.id),
+            eq(shiftExceptions.serviceDate, query.targetDate),
+            eq(shiftExceptions.type, 'leave'),
+          ),
+        });
 
-        if (targetDaySetting?.isLeave || targetLeave) {
+        if (targetLeave) {
           targetValidation.isTargetEligible = false;
           targetValidation.conflictCode = 'DATE_CLOSED';
           targetValidation.conflictMessage =

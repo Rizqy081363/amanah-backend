@@ -152,7 +152,6 @@ export function resolveSessionFromTime(
 export const BOOKING_SESSION_DISABLED_REASONS = {
   ELAPSED: 'Waktu praktik sesi ini telah berakhir',
   NO_SCHEDULE: 'Dokter/bidan tidak ada jadwal praktik pada sesi ini',
-  QUOTA_FULL: 'Kuota antrean pada sesi ini sudah penuh',
 } as const;
 
 export type BookingSessionDisabledReason =

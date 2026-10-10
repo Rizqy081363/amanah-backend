@@ -16,10 +16,7 @@ import {
   queueTickets,
   sessionDefs,
 } from '../../../../database/schema';
-import {
-  DEFAULT_FALLBACK_CAPACITY,
-  resolveQueueLoadStatus,
-} from '../../../queue-engine/domain/constants/queue-load.constants';
+import { resolveQueueLoadStatus } from '../../../queue-engine/domain/constants/queue-load.constants';
 import { SchedulePersistenceStatus } from '../../../schedules/domain/schedule-status';
 import { QUEUE_TICKET_STATUS } from '../../domain/constants/appointment-lifecycle.constants';
 import type { AppointmentEntity } from '../../domain/entities/appointment.entity';
@@ -86,7 +83,6 @@ export class AppointmentRescheduleHandler {
       );
       if (alreadyHasShift) continue;
 
-      const cap = sess.capacity > 0 ? sess.capacity : DEFAULT_FALLBACK_CAPACITY;
       const loadStatus = resolveQueueLoadStatus(0);
 
       groupedByDate[sess.scheduleDate].push({
@@ -95,7 +91,6 @@ export class AppointmentRescheduleHandler {
         endTime: sess.endTime.slice(0, 5),
         shift: sess.sessionLabel,
         sessionShift: sess.sessionShift,
-        capacity: sess.capacity,
         loadStatus,
         isAvailable: sess.status !== SchedulePersistenceStatus.CLOSED,
       });
@@ -155,14 +150,6 @@ export class AppointmentRescheduleHandler {
       const targetSession = await resolveTargetScheduleSession(tx, dto);
       const targetDate = dto.target_date || dto.newDate!;
       const nowIso = new Date().toISOString();
-
-      await transferSessionCapacity(
-        tx,
-        apt.scheduleSessionId,
-        targetSession,
-        nowIso,
-      );
-
       const sessionTiming = await allocateRescheduledTiming(
         tx,
         apt,
@@ -287,15 +274,6 @@ async function resolveTargetScheduleSession(
   return targetSession;
 }
 
-async function transferSessionCapacity(
-  _tx: DrizzleDatabase,
-  _oldSessionId: string | null,
-  _targetSession: typeof practitionerScheduleSessions.$inferSelect,
-  _nowIso: string,
-): Promise<void> {
-  // In the queue ticketing model, sessions are not constrained by fixed slot decrements
-}
-
 async function allocateRescheduledTiming(
   _tx: DrizzleDatabase,
   _currentApt: typeof appointments.$inferSelect,
@@ -326,7 +304,6 @@ async function persistRescheduledAppointment(
       scheduledDate: targetDate,
       scheduledStartTime: sessionTiming.startTime,
       scheduledEndTime: sessionTiming.endTime,
-      scheduleSessionId: targetSession.id,
       updatedBy: userId,
       updatedAt: nowIso,
     })

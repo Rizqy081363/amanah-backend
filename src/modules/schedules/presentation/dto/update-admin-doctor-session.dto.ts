@@ -29,26 +29,6 @@ export class UpdateAdminDoctorSessionDto {
   jam_selesai?: string;
 
   @ApiPropertyOptional({
-    description: 'Kapasitas maksimal kuota pasien',
-    example: 15,
-  })
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  kuota_pasien?: number;
-
-  @ApiPropertyOptional({
-    description: 'Slot antrean pasien yang tersedia',
-    example: 10,
-  })
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(0)
-  slot_tersedia?: number;
-
-  @ApiPropertyOptional({
     description: 'Canonical session operating status',
     enum: AdminScheduleStatusRequest,
     example: AdminScheduleStatusRequest.OPEN,
