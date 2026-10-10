@@ -100,16 +100,16 @@ export function mapScheduleRecordToEntity(
 
   let statusBadge = 'Buka';
   let badgeVariant = 'success';
-  let effectiveStatus = 'AVAILABLE';
+  let effectiveStatus = ScheduleOperationalStatus.OPEN;
 
   if (!isAvailable) {
     statusBadge = 'Tutup';
     badgeVariant = 'warning';
-    effectiveStatus = 'CLOSED';
+    effectiveStatus = ScheduleOperationalStatus.CLOSED;
   } else if (isPast) {
     statusBadge = 'Selesai';
     badgeVariant = 'warning';
-    effectiveStatus = 'COMPLETED';
+    effectiveStatus = ScheduleOperationalStatus.CLOSED;
   }
 
   return {

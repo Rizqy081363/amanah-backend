@@ -213,8 +213,8 @@ export class DrizzleScheduleCapacityRepository {
       effectiveConsultationDurationMinutes: durationMinutes,
       roomId: query.roomId || null,
       roomName: targetRoomName,
-      isCuti: isOnLeave,
-      cutiReason: leaveReason,
+      isOnLeave,
+      leaveReason,
       summary: {
         totalShifts: shifts.length,
         totalActiveTickets,

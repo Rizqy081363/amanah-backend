@@ -1,4 +1,4 @@
-export type ScheduleIntervalStatus = 'OPEN' | 'OCCUPIED' | 'CLOSED';
+export type ScheduleIntervalStatus = 'OPEN' | 'CLOSED';
 
 export type ScheduleClosedReason =
   | 'LEAVE'
@@ -34,8 +34,7 @@ export interface ScheduleProjectedInterval {
   startTime: string;
   endTime: string;
   status: ScheduleIntervalStatus;
-  displayLabel: 'Buka' | 'Terisi' | 'Tutup';
-  isOccupied: boolean;
+  displayLabel: 'Buka' | 'Tutup';
   appointmentRef?: ScheduleAppointmentRef;
   closedReason?: ScheduleClosedReason;
 }

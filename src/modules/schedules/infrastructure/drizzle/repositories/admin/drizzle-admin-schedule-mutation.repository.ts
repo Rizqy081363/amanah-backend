@@ -57,7 +57,7 @@ export class DrizzleAdminScheduleMutationRepository {
     const practitionerId = practitioner.id;
 
     const targetDate =
-      body.date || body.cuti_start || new Date().toISOString().slice(0, 10);
+      body.date || body.leave_start || new Date().toISOString().slice(0, 10);
 
     // 0. Ruang Praktik resolution & persistence
     if (body.ruang_praktik) {
@@ -84,9 +84,10 @@ export class DrizzleAdminScheduleMutationRepository {
       }
     }
 
-    // 1. Cuti override via shiftExceptions
-    if (body.is_cuti !== undefined) {
-      if (body.is_cuti) {
+    // 1. Leave override via shiftExceptions
+    const isOnLeave = body.is_on_leave;
+    if (isOnLeave !== undefined) {
+      if (isOnLeave) {
         const existingLeave = await this.db.query.shiftExceptions.findFirst({
           where: and(
             eq(shiftExceptions.doctorId, practitionerId),
@@ -99,7 +100,7 @@ export class DrizzleAdminScheduleMutationRepository {
           await this.db
             .update(shiftExceptions)
             .set({
-              note: body.cuti_reason || 'Cuti Dokter',
+              note: body.leave_reason || 'Dokter Cuti',
               updatedAt: new Date().toISOString(),
             })
             .where(eq(shiftExceptions.id, existingLeave.id));
@@ -108,7 +109,7 @@ export class DrizzleAdminScheduleMutationRepository {
             doctorId: practitionerId,
             serviceDate: targetDate,
             type: 'leave',
-            note: body.cuti_reason || 'Cuti Dokter',
+            note: body.leave_reason || 'Dokter Cuti',
           });
         }
       } else {

@@ -82,39 +82,33 @@ export class DrizzleScheduleDayRepository {
       );
 
       const hasSchedule = dayAssignments.length > 0;
-      const isCuti = Boolean(leaveException);
-      const cutiReason = leaveException?.note || (isCuti ? 'Cuti Dokter' : null);
+      const isOnLeave = Boolean(leaveException);
+      const leaveReason = leaveException?.note || (isOnLeave ? 'Dokter Cuti' : null);
       const sessionCount = dayAssignments.length;
       const bookedPatientCount = dayAppointments.length;
 
       let dayOpStatus: ScheduleOperationalStatus;
-      if (isCuti) {
+      if (isOnLeave || !hasSchedule) {
         dayOpStatus = ScheduleOperationalStatus.CLOSED;
-      } else if (!hasSchedule) {
-        dayOpStatus = ScheduleOperationalStatus.CLOSED;
-      } else if (bookedPatientCount > 0) {
-        dayOpStatus = ScheduleOperationalStatus.OCCUPIED;
       } else {
         dayOpStatus = ScheduleOperationalStatus.OPEN;
       }
 
       const isClosed = dayOpStatus === ScheduleOperationalStatus.CLOSED;
       let dayNotes: string | null = null;
-      if (isCuti) {
-        dayNotes = cutiReason || 'Cuti Dokter';
+      if (isOnLeave) {
+        dayNotes = leaveReason || 'Dokter Cuti';
       } else if (!hasSchedule) {
         dayNotes = null;
       } else if (dayOpStatus === ScheduleOperationalStatus.CLOSED) {
         dayNotes = 'Jadwal ditutup oleh dokter/admin';
-      } else if (dayOpStatus === ScheduleOperationalStatus.OCCUPIED) {
-        dayNotes = 'Interval terisi oleh pasien reservasi';
       }
 
       days.push({
         date,
         hasSchedule,
-        isCuti,
-        cutiReason,
+        isOnLeave,
+        leaveReason,
         sessionCount,
         bookedPatientCount,
         status: dayOpStatus,

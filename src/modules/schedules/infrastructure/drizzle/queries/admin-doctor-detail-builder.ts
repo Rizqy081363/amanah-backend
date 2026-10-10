@@ -5,6 +5,7 @@ import {
 import {
   type AdminDoctorDailySession,
   type AdminDoctorMonthlyDayEntity,
+  ScheduleClosureReason,
   ScheduleOperationalStatus,
 } from '@modules/schedules/domain/entities/schedule.entity';
 import {
@@ -74,27 +75,36 @@ export function buildMonthlySchedule(
         .filter((da) => da.sessionDef && da.sessionDef.isActive)
         .map((da) => {
           const sched = da.sessionDef.schedules?.find(
-            (s: any) => s.dow === dayDow && s.isActive,
+            (s: any) => s.dow === dayDow,
           );
-          if (!sched) return null;
+          const isMasterActive = Boolean(sched && sched.isActive);
 
           const exception = (shiftExceptions || []).find(
             (se: any) =>
               se.serviceDate === dateStr &&
               (!se.sessionId || se.sessionId === da.sessionId),
           );
-          if (exception?.type === 'leave') return null;
+          const isLeave = exception?.type === 'leave';
 
           const shiftCode = da.sessionDef.code;
           const shiftDef =
             SHIFT_DEFINITIONS.find((sd) => sd.shift === shiftCode) ||
             SHIFT_DEFINITIONS[1];
           const startTime = (
-            sched.startsAt || shiftDef.boundaryStartTime
+            sched?.startsAt || shiftDef.boundaryStartTime
           ).slice(0, 5);
           const endTime = (
-            sched.endsAt || shiftDef.boundaryEndTime
+            sched?.endsAt || shiftDef.boundaryEndTime
           ).slice(0, 5);
+
+          const isClosed = !isMasterActive || isLeave;
+          let closureReason: ScheduleClosureReason | null = null;
+          if (isLeave) {
+            closureReason = ScheduleClosureReason.DOCTOR_LEAVE;
+          } else if (!isMasterActive) {
+            closureReason = ScheduleClosureReason.CLINIC_CLOSED;
+          }
+
           return {
             id: `recurring-${da.id}-${dateStr}`,
             practitionerId: da.doctorId,
@@ -103,19 +113,19 @@ export function buildMonthlySchedule(
             endTime,
             sessionShift: shiftCode,
             sessionLabel: shiftDef.label,
-            status: 'open',
+            status: isClosed ? 'closed' : 'open',
             clinicRoom: da.preferredRoom,
-            notes: null,
+            notes: isLeave ? 'Dokter Cuti' : !isMasterActive ? 'Klinik Tutup' : null,
+            closureReason,
           };
-        })
-        .filter((s): s is NonNullable<typeof s> => s !== null);
+        });
     }
 
     const dayAppts = monthAppointments.filter(
       (a) => a.scheduledDate === dateStr,
     );
 
-    const isCuti = Boolean(daySetting?.isLeave || leave);
+    const isOnLeave = Boolean(daySetting?.isLeave || leave);
     let dayNotes: string | null = null;
 
     const daySessionStatuses = daySessions.map((s) => {
@@ -160,27 +170,27 @@ export function buildMonthlySchedule(
         durationMinutes:
           consultationDurationMinutes || DEFAULT_CONSULTATION_DURATION_MINUTES,
         bookedCount: activeMatchingAppts.length,
-        isCuti,
+        isOnLeave,
         isClosed: s.status === 'closed',
       });
 
       return resolveSessionOperationalStatus({
-        isClosedForLeave: isCuti,
+        isClosedForLeave: isOnLeave,
         persistedStatus: s.status,
       });
     });
 
     const dayOpStatus = resolveAggregateOperationalStatus({
-      isClosedForLeave: isCuti,
+      isClosedForLeave: isOnLeave,
       sessionStatuses: daySessionStatuses,
     });
 
-    let dayStatus: 'OPEN' | 'CLOSED' | 'CUTI' | 'EMPTY';
+    let dayStatus: 'OPEN' | 'CLOSED' | 'LEAVE' | 'EMPTY';
     let statusLabel: string;
     let badgeVariant: 'success' | 'danger' | 'warning' | 'neutral';
 
-    if (isCuti) {
-      dayStatus = 'CUTI';
+    if (isOnLeave) {
+      dayStatus = 'LEAVE';
       statusLabel = 'Cuti';
       badgeVariant = 'warning';
       dayNotes = daySetting?.leaveReason || leave?.reason || 'Cuti Dokter';
@@ -198,9 +208,6 @@ export function buildMonthlySchedule(
       dayStatus = 'OPEN';
       statusLabel = 'Buka';
       badgeVariant = 'success';
-      if (dayOpStatus === ScheduleOperationalStatus.OCCUPIED) {
-        dayNotes = 'Interval terisi oleh pasien reservasi';
-      }
     }
 
     const dayActiveSessions = daySessions.filter(
@@ -234,7 +241,8 @@ export interface DailySessionBuildContext {
   evalSessions: any[];
   evalAppts: any[];
   consultationDurationMinutes: number;
-  isEvalCuti: boolean;
+  isOnLeave?: boolean;
+  isEvalOnLeave?: boolean;
   defaultRoomName: string;
   scheduleDate?: string;
   currentDate?: string;
@@ -248,12 +256,12 @@ export function buildDailySessions(
     evalSessions,
     evalAppts,
     consultationDurationMinutes,
-    isEvalCuti,
     defaultRoomName,
     scheduleDate,
     currentDate,
     currentTime,
   } = ctx;
+  const isEvalOnLeave = ctx.isEvalOnLeave ?? ctx.isOnLeave ?? false;
 
   const now = new Date();
   const curDate = currentDate || now.toISOString().slice(0, 10);
@@ -302,7 +310,7 @@ export function buildDailySessions(
             (a.status?.toLowerCase() || '') as any,
           ),
       ).length,
-      isCuti: isEvalCuti,
+      isOnLeave: isEvalOnLeave,
       isClosed: s.status === 'closed',
     });
 
@@ -311,18 +319,29 @@ export function buildDailySessions(
       : defaultRoomName;
 
     const sessionOpStatus = resolveSessionOperationalStatus({
-      isClosedForLeave: isEvalCuti,
+      isClosedForLeave: isEvalOnLeave,
       persistedStatus: s.status,
     });
 
     const isRescheduleEligible =
-      !isEvalCuti && sessionOpStatus !== ScheduleOperationalStatus.CLOSED;
-    const rescheduleIneligibilityReason = isEvalCuti
+      !isEvalOnLeave && sessionOpStatus !== ScheduleOperationalStatus.CLOSED;
+    const rescheduleIneligibilityReason = isEvalOnLeave
       ? 'Sesi tidak dapat di-reschedule karena dokter sedang cuti.'
       : sessionOpStatus === ScheduleOperationalStatus.CLOSED
         ? 'Sesi berstatus Tutup. Sesi yang sudah ditutup tidak dapat di-reschedule. Silakan gunakan menu Edit Jadwal untuk membuka sesi.'
         : null;
     const sessionTitle = descriptor?.label || s.sessionLabel || metrics.sessionLabel;
+
+    let closureReason: ScheduleClosureReason | null = null;
+    if (sessionOpStatus === ScheduleOperationalStatus.CLOSED) {
+      if (isEvalOnLeave || s.isLeave) {
+        closureReason = ScheduleClosureReason.DOCTOR_LEAVE;
+      } else if (s.closureReason) {
+        closureReason = s.closureReason;
+      } else {
+        closureReason = ScheduleClosureReason.ADMIN_OVERRIDE;
+      }
+    }
 
     return {
       id: s.id,
@@ -332,6 +351,7 @@ export function buildDailySessions(
       waktu: `${jamMulai} - ${jamSelesai}`,
       pasien_terdaftar: metrics.bookedCount,
       status_sesi: sessionOpStatus,
+      closure_reason: closureReason,
       ruang: roomName,
       ruang_id: s.roomId || null,
       roomId: s.roomId || null,

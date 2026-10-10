@@ -14,6 +14,7 @@ import {
   type AdminDoctorDailySession,
   type AdminDoctorScheduleCardEntity,
   type AdminDoctorScheduleListResponse,
+  ScheduleClosureReason,
   ScheduleOperationalStatus,
 } from '@modules/schedules/domain/entities/schedule.entity';
 import {
@@ -122,26 +123,26 @@ export class DrizzleAdminDoctorScheduleListQuery {
         .filter((da) => da.sessionDef && da.sessionDef.isActive)
         .map((da) => {
           const sched = da.sessionDef.schedules?.find(
-            (s) => s.dow === targetDow && s.isActive,
+            (s) => s.dow === targetDow,
           );
-          if (!sched) return null;
+          const isMasterActive = Boolean(sched && sched.isActive);
 
           const exception = allShiftExceptions.find(
             (se) =>
               se.doctorId === p.id &&
               (!se.sessionId || se.sessionId === da.sessionId),
           );
-          if (exception?.type === 'leave') return null;
+          const isLeave = exception?.type === 'leave';
 
           const shiftCode = da.sessionDef.code as SessionShiftType;
           const shiftDef =
             SHIFT_DEFINITIONS.find((sd) => sd.shift === shiftCode) ||
             SHIFT_DEFINITIONS[1];
           const startTime = (
-            sched.startsAt || shiftDef.boundaryStartTime
+            sched?.startsAt || shiftDef.boundaryStartTime
           ).slice(0, 5);
           const endTime = (
-            sched.endsAt || shiftDef.boundaryEndTime
+            sched?.endsAt || shiftDef.boundaryEndTime
           ).slice(0, 5);
 
           let sessionLabel = shiftDef.label;
@@ -155,6 +156,14 @@ export class DrizzleAdminDoctorScheduleListQuery {
             sessionLabel = 'Sesi Dini Hari';
           }
 
+          const isClosed = !isMasterActive || isLeave;
+          let closureReason: ScheduleClosureReason | null = null;
+          if (isLeave) {
+            closureReason = ScheduleClosureReason.DOCTOR_LEAVE;
+          } else if (!isMasterActive) {
+            closureReason = ScheduleClosureReason.CLINIC_CLOSED;
+          }
+
           return {
             id: `recurring-${da.id}-${targetDate}`,
             practitionerId: p.id,
@@ -163,18 +172,18 @@ export class DrizzleAdminDoctorScheduleListQuery {
             endTime,
             sessionShift: shiftCode,
             sessionLabel,
-            status: 'open',
+            status: isClosed ? 'closed' : 'open',
             clinicRoom: da.preferredRoom || p.clinicRoom,
-            notes: null,
+            notes: isLeave ? 'Dokter Cuti' : !isMasterActive ? 'Klinik Tutup' : null,
+            closureReason,
           };
         })
-        .filter((s): s is NonNullable<typeof s> => s !== null)
         .sort((a, b) => a.startTime.localeCompare(b.startTime)) as any;
 
-      const isCuti = Boolean(activeLeave);
-      const cutiReason = isCuti ? activeLeave?.note || 'Cuti Dokter' : null;
-      const cutiStart = isCuti ? targetDate : null;
-      const cutiEnd = isCuti ? targetDate : null;
+      const isOnLeave = Boolean(activeLeave);
+      const leaveReason = isOnLeave ? activeLeave?.note || 'Dokter Cuti' : null;
+      const leaveStart = isOnLeave ? targetDate : null;
+      const leaveEnd = isOnLeave ? targetDate : null;
 
       const defaultRoomName = p.clinicRoom
         ? `${p.clinicRoom.name}${p.clinicRoom.location ? `, ${p.clinicRoom.location}` : ''}`
@@ -217,7 +226,7 @@ export class DrizzleAdminDoctorScheduleListQuery {
           endTime: jamSelesai,
           durationMinutes,
           bookedCount: matchingAppts.length,
-          isCuti,
+          isOnLeave,
           isClosed: s.status === 'closed',
         });
 
@@ -226,17 +235,28 @@ export class DrizzleAdminDoctorScheduleListQuery {
           : defaultRoomName;
 
         const sessionOpStatus = resolveSessionOperationalStatus({
-          isClosedForLeave: isCuti,
+          isClosedForLeave: isOnLeave,
           persistedStatus: s.status,
         });
 
         const isRescheduleEligible =
-          !isCuti && sessionOpStatus !== ScheduleOperationalStatus.CLOSED;
-        const rescheduleIneligibilityReason = isCuti
+          !isOnLeave && sessionOpStatus !== ScheduleOperationalStatus.CLOSED;
+        const rescheduleIneligibilityReason = isOnLeave
           ? 'Sesi tidak dapat di-reschedule karena dokter sedang cuti.'
           : sessionOpStatus === ScheduleOperationalStatus.CLOSED
             ? 'Sesi berstatus Tutup. Sesi yang sudah ditutup tidak dapat di-reschedule. Silakan gunakan menu Edit Jadwal untuk membuka sesi.'
             : null;
+
+        let closureReason: ScheduleClosureReason | null = null;
+        if (sessionOpStatus === ScheduleOperationalStatus.CLOSED) {
+          if (isOnLeave) {
+            closureReason = ScheduleClosureReason.DOCTOR_LEAVE;
+          } else if (s.closureReason) {
+            closureReason = s.closureReason;
+          } else {
+            closureReason = ScheduleClosureReason.ADMIN_OVERRIDE;
+          }
+        }
 
         return {
           id: s.id,
@@ -246,6 +266,7 @@ export class DrizzleAdminDoctorScheduleListQuery {
           waktu: `${jamMulai} - ${jamSelesai}`,
           pasien_terdaftar: metrics.bookedCount,
           status_sesi: sessionOpStatus,
+          closure_reason: closureReason,
           ruang: roomName,
           is_reschedule_eligible: isRescheduleEligible,
           reschedule_ineligibility_reason: rescheduleIneligibilityReason,
@@ -255,7 +276,7 @@ export class DrizzleAdminDoctorScheduleListQuery {
       const sessionOpStatuses = sesiHarian.map((s) => s.status_sesi);
 
       const aggregateOpStatus = resolveAggregateOperationalStatus({
-        isClosedForLeave: isCuti,
+        isClosedForLeave: isOnLeave,
         sessionStatuses: sessionOpStatuses,
       });
 
@@ -265,8 +286,8 @@ export class DrizzleAdminDoctorScheduleListQuery {
       let jadwalHariIni = '-';
       let jadwalPraktikMendatang = 'Tidak Ada Jadwal';
 
-      if (isCuti) {
-        jadwalPraktikMendatang = 'Cuti Dokter';
+      if (isOnLeave) {
+        jadwalPraktikMendatang = 'Dokter Cuti';
       } else if (isClosed) {
         jadwalPraktikMendatang =
           sesiHarian.length === 0 ? 'Tidak Ada Jadwal' : 'Praktik Ditutup';
@@ -321,7 +342,7 @@ export class DrizzleAdminDoctorScheduleListQuery {
           throw new BadRequestException({
             code: 'INVALID_SCHEDULE_STATUS_FILTER',
             message:
-              'Status filter must use canonical values: OPEN, OCCUPIED, CLOSED.',
+              'Status filter must use canonical values: OPEN, CLOSED.',
             metadata: { invalidStatuses },
           });
         }
@@ -343,10 +364,10 @@ export class DrizzleAdminDoctorScheduleListQuery {
         jadwal_praktik_mendatang: jadwalPraktikMendatang,
         status_jadwal: scheduleStatus,
         bulan_jadwal: formatIndoMonthYear(targetYear, targetMonth),
-        is_cuti: isCuti,
-        cuti_reason: cutiReason,
-        cuti_start: cutiStart,
-        cuti_end: cutiEnd,
+        is_on_leave: isOnLeave,
+        leave_reason: leaveReason,
+        leave_start: leaveStart,
+        leave_end: leaveEnd,
         sesi_harian: sesiHarian,
       });
     }

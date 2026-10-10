@@ -113,13 +113,5 @@ export function resolveAggregateOperationalStatus(params: {
     return ScheduleOperationalStatus.OPEN;
   }
 
-  if (
-    params.sessionStatuses.some(
-      (status) => status === ScheduleOperationalStatus.OCCUPIED,
-    )
-  ) {
-    return ScheduleOperationalStatus.OCCUPIED;
-  }
-
   return ScheduleOperationalStatus.CLOSED;
 }

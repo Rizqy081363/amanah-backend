@@ -496,18 +496,48 @@ export class DrizzleScheduleSessionRepository {
     const practitioner = await this.practitionerResolver.resolve(existing.staffId);
     const practitionerId = practitioner ? practitioner.id : existing.staffId;
 
+    let targetSessionDefId: string | null = null;
+    const da = await this.db.query.doctorAssignments.findFirst({
+      where: eq(doctorAssignments.id, id),
+    });
+    if (da) {
+      targetSessionDefId = da.sessionId;
+    }
+
     if (data.status !== undefined || data.isAvailable !== undefined) {
       const isClosed =
         data.status === SchedulePersistenceStatus.CLOSED ||
         data.isAvailable === false;
 
       if (isClosed) {
-        await this.db.insert(shiftExceptions).values({
-          doctorId: practitionerId,
-          serviceDate: targetDate,
-          type: 'leave',
-          note: data.notes || 'Sesi jadwal dinonaktifkan',
+        const existingLeave = await this.db.query.shiftExceptions.findFirst({
+          where: and(
+            eq(shiftExceptions.doctorId, practitionerId),
+            eq(shiftExceptions.serviceDate, targetDate),
+            eq(shiftExceptions.type, 'leave'),
+            targetSessionDefId
+              ? eq(shiftExceptions.sessionId, targetSessionDefId)
+              : sql`TRUE`,
+          ),
         });
+
+        if (existingLeave) {
+          await this.db
+            .update(shiftExceptions)
+            .set({
+              note: data.notes || 'Sesi jadwal dinonaktifkan',
+              updatedAt: new Date().toISOString(),
+            })
+            .where(eq(shiftExceptions.id, existingLeave.id));
+        } else {
+          await this.db.insert(shiftExceptions).values({
+            doctorId: practitionerId,
+            serviceDate: targetDate,
+            sessionId: targetSessionDefId,
+            type: 'leave',
+            note: data.notes || 'Sesi jadwal dinonaktifkan',
+          });
+        }
       } else {
         await this.db
           .delete(shiftExceptions)
@@ -516,6 +546,9 @@ export class DrizzleScheduleSessionRepository {
               eq(shiftExceptions.doctorId, practitionerId),
               eq(shiftExceptions.serviceDate, targetDate),
               eq(shiftExceptions.type, 'leave'),
+              targetSessionDefId
+                ? eq(shiftExceptions.sessionId, targetSessionDefId)
+                : sql`TRUE`,
             ),
           );
       }

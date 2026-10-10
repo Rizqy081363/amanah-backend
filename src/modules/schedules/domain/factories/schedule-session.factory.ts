@@ -221,7 +221,7 @@ export class ScheduleSessionFactory {
     endTime: string;
     durationMinutes: number;
     bookedCount: number;
-    isCuti?: boolean;
+    isOnLeave?: boolean;
     isClosed?: boolean;
   }): {
     shift: SessionShiftType;

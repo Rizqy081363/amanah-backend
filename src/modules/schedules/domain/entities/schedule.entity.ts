@@ -2,8 +2,14 @@ import { ApiProperty } from '@nestjs/swagger';
 
 export enum ScheduleOperationalStatus {
   OPEN = 'OPEN',
-  OCCUPIED = 'OCCUPIED',
   CLOSED = 'CLOSED',
+}
+
+export enum ScheduleClosureReason {
+  CLINIC_CLOSED = 'CLINIC_CLOSED',
+  NOT_ROSTERED = 'NOT_ROSTERED',
+  DOCTOR_LEAVE = 'DOCTOR_LEAVE',
+  ADMIN_OVERRIDE = 'ADMIN_OVERRIDE',
 }
 
 export class ScheduleEntity {
@@ -49,16 +55,16 @@ export class DayScheduleSettingEntity {
   id?: string;
   practitionerId: string;
   scheduleDate: string;
-  isCuti: boolean;
-  cutiReason?: string | null;
+  isOnLeave: boolean;
+  leaveReason?: string | null;
   totalBookedPatients?: number;
 }
 
 export class CalendarDaySummaryEntity {
   date: string;
   hasSchedule: boolean;
-  isCuti: boolean;
-  cutiReason: string | null;
+  isOnLeave: boolean;
+  leaveReason: string | null;
   sessionCount: number;
   bookedPatientCount: number;
   status?: ScheduleOperationalStatus;
@@ -135,7 +141,7 @@ export class ScheduleOptionsReferenceEntity {
   durationSource?: string;
   durationScope?: string;
   canonicalIntervalStatuses?: {
-    id: 'OPEN' | 'OCCUPIED' | 'CLOSED';
+    id: 'OPEN' | 'CLOSED';
     label: string;
   }[];
 }
@@ -167,41 +173,16 @@ export class ScheduleProjectedIntervalEntity {
   intervalIndex: number;
   startTime: string;
   endTime: string;
-  status: 'OPEN' | 'OCCUPIED' | 'CLOSED';
-  displayLabel: 'Buka' | 'Terisi' | 'Tutup';
-  isOccupied: boolean;
+  status: 'OPEN' | 'CLOSED';
+  displayLabel: 'Buka' | 'Tutup';
   appointmentRef?: ScheduleIntervalAppointmentRefEntity;
   closedReason?: 'LEAVE' | 'SCHEDULE_CLOSED' | 'OUTSIDE_BOUNDARY';
-  temporalState?: 'PAST' | 'CURRENT' | 'FUTURE';
-  availabilityState?: 'UNSCHEDULED' | 'AVAILABLE' | 'OCCUPIED' | 'CLOSED';
-  effectiveStatus?:
-    | 'EXPIRED'
-    | 'CLOSED'
-    | 'OCCUPIED'
-    | 'AVAILABLE'
-    | 'UNSCHEDULED';
   isSelectable?: boolean;
   timeRange?: string;
   timeStart?: string;
   timeEnd?: string;
-  uiStatus?:
-    | 'UNSCHEDULED_PAST'
-    | 'UNSCHEDULED'
-    | 'COMPLETED'
-    | 'AVAILABLE'
-    | 'OCCUPIED'
-    | 'CLOSED_LEAVE'
-    | 'CLOSED_CLINIC';
   uiLabel?: string;
   uiSubLabel?: string;
-  uiVariant?:
-    | 'neutral_disabled'
-    | 'dashed_border'
-    | 'muted_gray'
-    | 'success_green'
-    | 'info_blue'
-    | 'sky_badge'
-    | 'danger_red';
   isClickable?: boolean;
   actionType?: 'NONE' | 'ADD_SESSION' | 'VIEW_SESSION' | 'VIEW_PATIENTS';
   sessionId?: string | null;
@@ -278,6 +259,15 @@ export class AdminDoctorDailySession {
     example: 'OPEN',
   })
   status_sesi: ScheduleOperationalStatus;
+
+  @ApiProperty({
+    description: 'Closure reason code if status_sesi is CLOSED',
+    enum: ScheduleClosureReason,
+    nullable: true,
+    required: false,
+    example: null,
+  })
+  closure_reason?: ScheduleClosureReason | null;
 
   @ApiProperty({ description: 'Nama dan lokasi ruangan praktik' })
   ruang: string;
@@ -384,7 +374,7 @@ export class AdminDoctorScheduleCardEntity {
   bulan_jadwal: string;
 
   @ApiProperty({ description: 'Menandakan dokter sedang cuti' })
-  is_cuti: boolean;
+  is_on_leave: boolean;
 
   @ApiProperty({
     description: 'Alasan cuti dokter',
@@ -392,7 +382,7 @@ export class AdminDoctorScheduleCardEntity {
     type: String,
     example: null,
   })
-  cuti_reason: string | null;
+  leave_reason: string | null;
 
   @ApiProperty({
     description: 'Tanggal mulai cuti',
@@ -400,7 +390,7 @@ export class AdminDoctorScheduleCardEntity {
     type: String,
     example: null,
   })
-  cuti_start: string | null;
+  leave_start: string | null;
 
   @ApiProperty({
     description: 'Tanggal selesai cuti',
@@ -408,7 +398,7 @@ export class AdminDoctorScheduleCardEntity {
     type: String,
     example: null,
   })
-  cuti_end: string | null;
+  leave_end: string | null;
 
   @ApiProperty({
     description: 'Daftar sesi shift praktik hari ini',
@@ -461,11 +451,11 @@ export class AdminDoctorMonthlyDayEntity {
   notes: string | null;
 
   @ApiProperty({
-    enum: ['OPEN', 'CLOSED', 'CUTI', 'EMPTY'],
+    enum: ['OPEN', 'CLOSED', 'LEAVE', 'EMPTY'],
     example: 'OPEN',
     required: false,
   })
-  dayStatus?: 'OPEN' | 'CLOSED' | 'CUTI' | 'EMPTY';
+  dayStatus?: 'OPEN' | 'CLOSED' | 'LEAVE' | 'EMPTY';
 
   @ApiProperty({ example: 'Buka', required: false })
   statusLabel?: string;
@@ -528,16 +518,16 @@ export class AdminDoctorScheduleDetailData {
   bulan_jadwal: string;
 
   @ApiProperty({ description: 'Status cuti' })
-  is_cuti: boolean;
+  is_on_leave: boolean;
 
   @ApiProperty({ nullable: true, type: String, example: null })
-  cuti_reason: string | null;
+  leave_reason: string | null;
 
   @ApiProperty({ nullable: true, type: String, example: null })
-  cuti_start: string | null;
+  leave_start: string | null;
 
   @ApiProperty({ nullable: true, type: String, example: null })
-  cuti_end: string | null;
+  leave_end: string | null;
 
   @ApiProperty({ type: () => [AdminDoctorMonthlyDayEntity] })
   monthly_schedule: AdminDoctorMonthlyDayEntity[];
@@ -684,10 +674,10 @@ export class ScheduleCapacityOverviewData {
   roomName?: string | null;
 
   @ApiProperty({ example: false })
-  isCuti: boolean;
+  isOnLeave: boolean;
 
   @ApiProperty({ nullable: true, example: null })
-  cutiReason?: string | null;
+  leaveReason?: string | null;
 
   @ApiProperty({ type: () => ScheduleCapacitySummaryEntity })
   summary: ScheduleCapacitySummaryEntity;

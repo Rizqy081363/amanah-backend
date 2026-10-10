@@ -87,7 +87,6 @@ export class DrizzleScheduleReferenceRepository {
       durationScope: 'clinic-default',
       canonicalIntervalStatuses: [
         { id: 'OPEN', label: 'Buka' },
-        { id: 'OCCUPIED', label: 'Terisi' },
         { id: 'CLOSED', label: 'Tutup' },
       ],
     };
@@ -119,7 +118,6 @@ export class DrizzleScheduleReferenceRepository {
         })),
         statuses: [
           { id: ScheduleOperationalStatus.OPEN, label: 'Buka' },
-          { id: ScheduleOperationalStatus.OCCUPIED, label: 'Terisi' },
           { id: ScheduleOperationalStatus.CLOSED, label: 'Tutup' },
         ],
       },

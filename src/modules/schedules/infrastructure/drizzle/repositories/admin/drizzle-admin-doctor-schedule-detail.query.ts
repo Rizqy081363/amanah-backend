@@ -9,6 +9,7 @@ import {
 import { DEFAULT_CONSULTATION_DURATION_MINUTES } from '@modules/schedules/domain/constants/schedule.constants';
 import {
   type AdminDoctorScheduleDetailResponse,
+  ScheduleClosureReason,
   ScheduleOperationalStatus,
 } from '@modules/schedules/domain/entities/schedule.entity';
 import { resolveAggregateOperationalStatus } from '@modules/schedules/domain/schedule-status';
@@ -153,17 +154,27 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
             e.serviceDate === dayDate &&
             (!e.sessionId || e.sessionId === da.sessionId),
         );
-        if (exception?.type === 'leave') continue;
+        const isLeave = exception?.type === 'leave';
 
         const sched = da.sessionDef.schedules?.find(
-          (s) => s.dow === dayDow && s.isActive,
+          (s) => s.dow === dayDow,
         );
+        const isMasterActive = Boolean(sched && sched.isActive);
+
         const startTime = (
           sched?.startsAt || da.sessionDef.defaultStartsAt
         ).slice(0, 5);
         const endTime = (
           sched?.endsAt || da.sessionDef.defaultEndsAt
         ).slice(0, 5);
+
+        const isClosed = !isMasterActive || isLeave;
+        let closureReason: ScheduleClosureReason | null = null;
+        if (isLeave) {
+          closureReason = ScheduleClosureReason.DOCTOR_LEAVE;
+        } else if (!isMasterActive) {
+          closureReason = ScheduleClosureReason.CLINIC_CLOSED;
+        }
 
         monthSessions.push({
           id: `roster-${da.id}-${dayDate}`,
@@ -173,9 +184,10 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
           endTime,
           sessionShift: da.sessionDef.code,
           sessionLabel: da.sessionDef.labelKey,
-          status: 'open',
+          status: isClosed ? 'closed' : 'open',
           clinicRoom: da.preferredRoom || prac.clinicRoom,
-          notes: null,
+          notes: isLeave ? 'Dokter isOnLeave' : !isMasterActive ? 'Klinik Tutup' : null,
+          closureReason,
         });
       }
     }
@@ -219,10 +231,10 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
       (a) => a.scheduledDate === evalDate,
     );
 
-    const isEvalCuti = Boolean(evalLeave);
-    const evalCutiReason = evalLeave?.note || (isEvalCuti ? 'Cuti Dokter' : null);
-    const evalCutiStart = isEvalCuti ? evalDate : null;
-    const evalCutiEnd = isEvalCuti ? evalDate : null;
+    const isEvalOnLeave = Boolean(evalLeave);
+    const evalLeaveReason = evalLeave?.note || (isEvalOnLeave ? 'Dokter Cuti' : null);
+    const evalLeaveStart = isEvalOnLeave ? evalDate : null;
+    const evalLeaveEnd = isEvalOnLeave ? evalDate : null;
 
     const defaultRoomName = prac.clinicRoom
       ? `${prac.clinicRoom.name}${prac.clinicRoom.location ? `, ${prac.clinicRoom.location}` : ''}`
@@ -232,7 +244,7 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
       evalSessions,
       evalAppts,
       consultationDurationMinutes: effectiveConsultationDuration,
-      isEvalCuti,
+      isOnLeave: isEvalOnLeave,
       defaultRoomName,
       scheduleDate: evalDate,
     });
@@ -240,7 +252,7 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
     const evalSessionOpStatuses = sesiHarian.map((s) => s.status_sesi);
 
     const evalAggregateOpStatus = resolveAggregateOperationalStatus({
-      isClosedForLeave: isEvalCuti,
+      isClosedForLeave: isEvalOnLeave,
       sessionStatuses: evalSessionOpStatuses,
     });
 
@@ -270,10 +282,10 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
           sesiHarian.length > 0 ? sesiHarian[0].ruang : defaultRoomName,
         avatar: ScheduleRecordMapper.toAvatarUrl(prac.staffProfile),
         bulan_jadwal: formatIndoMonthYear(targetYear, targetMonth),
-        is_cuti: isEvalCuti,
-        cuti_reason: evalCutiReason,
-        cuti_start: evalCutiStart,
-        cuti_end: evalCutiEnd,
+        is_on_leave: isEvalOnLeave,
+        leave_reason: evalLeaveReason,
+        leave_start: evalLeaveStart,
+        leave_end: evalLeaveEnd,
         monthly_schedule: monthlySchedule,
         sesi_harian: sesiHarian,
         timeline_intervals: timelineIntervals,

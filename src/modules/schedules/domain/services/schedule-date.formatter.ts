@@ -65,12 +65,12 @@ export function computeUpcomingSchedule(
   targetDate: string,
   todayStr: string,
   sesiHarian: AdminDoctorDailySession[],
-  isCuti: boolean,
+  isOnLeave: boolean,
   _durationMinutes?: number,
   tomorrowSesiHarian?: AdminDoctorDailySession[] | null,
   refDate?: Date,
 ): string {
-  if (isCuti) return 'Cuti Dokter';
+  if (isOnLeave) return 'Dokter Cuti';
   if (!sesiHarian || sesiHarian.length === 0) return 'Tidak Ada Jadwal';
   const openSessions = sesiHarian
     .filter((s) => s.status_sesi !== ScheduleOperationalStatus.CLOSED)

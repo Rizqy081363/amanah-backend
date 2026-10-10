@@ -17,15 +17,15 @@ export class UpdateAdminDoctorScheduleDto {
   })
   @IsOptional()
   @IsBoolean()
-  is_cuti?: boolean;
+  is_on_leave?: boolean;
 
   @ApiPropertyOptional({
     description: 'Alasan dokter cuti',
-    example: 'Cuti Tahunan & Pemulihan Operasi',
+    example: 'Cuti Tahunan',
   })
   @IsOptional()
   @IsString()
-  cuti_reason?: string;
+  leave_reason?: string;
 
   @ApiPropertyOptional({
     description: 'Tanggal mulai cuti (format YYYY-MM-DD)',
@@ -33,7 +33,7 @@ export class UpdateAdminDoctorScheduleDto {
   })
   @IsOptional()
   @IsString()
-  cuti_start?: string;
+  leave_start?: string;
 
   @ApiPropertyOptional({
     description: 'Tanggal selesai cuti (format YYYY-MM-DD)',
@@ -41,11 +41,11 @@ export class UpdateAdminDoctorScheduleDto {
   })
   @IsOptional()
   @IsString()
-  cuti_end?: string;
+  leave_end?: string;
 
   @ApiPropertyOptional({
     description:
-      'Canonical schedule operating status. Leave/cuti is controlled by is_cuti, not this field.',
+      'Canonical schedule operating status. Doctor leave is controlled by is_on_leave, not this field.',
     enum: AdminScheduleStatusRequest,
     example: AdminScheduleStatusRequest.CLOSED,
   })
