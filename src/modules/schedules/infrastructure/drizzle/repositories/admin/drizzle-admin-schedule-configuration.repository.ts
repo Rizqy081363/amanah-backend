@@ -7,7 +7,6 @@ import {
   clinicSettings,
   doctorAssignments,
   masterDays,
-  practitionerScheduleSessions,
   sessionDefs,
   sessionSchedules,
 } from '@database/schema';

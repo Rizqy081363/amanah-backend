@@ -68,16 +68,10 @@ export function evaluateSessionTemporalAvailability(
   const isPast =
     isPastDate || (isToday && effectiveEndMinutes <= clinicNow.currentMinutes);
 
-  if (isPast) {
-    return {
-      isPast: true,
-      isDisabled: true,
-      disabledReason: BOOKING_SESSION_DISABLED_REASONS.ELAPSED,
-    };
-  }
-
+  // Aligned with Queue Paradigm Rule R19: Operational status signals past or ongoing shift,
+  // never artificially hard-blocking or disabling sessions.
   return {
-    isPast: false,
+    isPast,
     isDisabled: false,
     disabledReason: null,
   };

@@ -3,22 +3,18 @@ import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
   appointments,
   clinicRooms,
-  practitionerScheduleSessions,
+  doctorAssignments,
+  sessionDefs,
+  shiftExceptions,
 } from '@database/schema';
 import { ACTIVE_APPOINTMENT_STATUSES } from '@modules/schedules/domain/constants/schedule.constants';
 import type { ScheduleEntity } from '@modules/schedules/domain/entities/schedule.entity';
-import {
-  AdminScheduleStatusRequest,
-  SchedulePersistenceStatus,
-  toAdminScheduleStatusRequest,
-  toDaySessionPersistenceStatus,
-} from '@modules/schedules/domain/schedule-status';
+import { SchedulePersistenceStatus } from '@modules/schedules/domain/schedule-status';
 import { ScheduleRecordMapper } from '@modules/schedules/infrastructure/drizzle/mappers/schedule-record.mapper';
 import { ScheduleConflictQuery } from '@modules/schedules/infrastructure/drizzle/queries/schedule-conflict.query';
 import {
   resolveDefaultSessionTimes,
   resolveSessionShift,
-  SESSION_RECORD_RELATIONS,
 } from '@modules/schedules/infrastructure/drizzle/queries/session-query-relations';
 import { PractitionerResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/practitioner.resolver';
 import {
@@ -31,12 +27,10 @@ import {
 import {
   and,
   asc,
-  count,
   desc,
   eq,
   gte,
   inArray,
-  lt,
   lte,
   or,
   sql,
@@ -50,8 +44,6 @@ export class DrizzleScheduleSessionRepository {
     private readonly practitionerResolver: PractitionerResolver,
     private readonly conflictQuery: ScheduleConflictQuery,
   ) {}
-
-
 
   async create(
     data: Omit<ScheduleEntity, 'id' | 'createdAt' | 'updatedAt'>,
@@ -95,40 +87,189 @@ export class DrizzleScheduleSessionRepository {
       roomId,
     );
 
-    const [record] = await this.db
-      .insert(practitionerScheduleSessions)
+    const sessionDef =
+      (await this.db.query.sessionDefs.findFirst({
+        where: eq(sessionDefs.code, shift),
+      })) || (await this.db.query.sessionDefs.findFirst());
+
+    const isAvailable = data.isAvailable ?? true;
+    const [exception] = await this.db
+      .insert(shiftExceptions)
       .values({
-        practitionerId,
-        daySettingId: null,
-        roomId,
-        serviceId: data.serviceId || null,
-        scheduleDate: targetDate,
-        sessionLabel,
-        sessionShift: shift,
-        startTime:
-          defaultStartTime.length === 5
-            ? `${defaultStartTime}:00`
-            : defaultStartTime,
-        endTime:
-          defaultEndTime.length === 5 ? `${defaultEndTime}:00` : defaultEndTime,
-        status: data.isAvailable
-          ? SchedulePersistenceStatus.OPEN
-          : SchedulePersistenceStatus.CLOSED,
-        notes: data.notes || null,
+        doctorId: practitionerId,
+        serviceDate: targetDate,
+        sessionId: sessionDef?.id || null,
+        type: isAvailable ? 'extra' : 'leave',
+        note: data.notes || sessionLabel,
       })
       .returning();
 
-    return (await this.findById(record.id)) as ScheduleEntity;
+    const entity = (await this.findById(exception.id)) || ({
+      id: exception.id,
+      staffId: practitioner.staffProfileId || practitioner.id,
+      scheduleDate: targetDate,
+      session: data.session || 'PAGI',
+      sessionShift: shift,
+      sessionLabel,
+      startTime: defaultStartTime.slice(0, 5),
+      endTime: defaultEndTime.slice(0, 5),
+      roomId,
+      poliklinikId: data.poliklinikId,
+      isAvailable,
+      notes: data.notes || null,
+      createdAt: exception.createdAt,
+      updatedAt: exception.updatedAt,
+    } as any);
+
+    return entity;
   }
 
   async findById(id: string): Promise<ScheduleEntity | null> {
-    const record = await this.db.query.practitionerScheduleSessions.findFirst({
-      where: eq(practitionerScheduleSessions.id, id),
-      with: SESSION_RECORD_RELATIONS,
+    if (id.startsWith('roster-')) {
+      const parts = id.split('-');
+      const daId = parts[1];
+      const targetDate = parts.slice(2).join('-');
+      const da = await this.db.query.doctorAssignments.findFirst({
+        where: eq(doctorAssignments.id, daId),
+        with: {
+          sessionDef: {
+            with: { schedules: true },
+          },
+          preferredRoom: {
+            with: { clinicUnit: true },
+          },
+          practitioner: {
+            with: {
+              staffProfile: {
+                with: { clinicUnit: true },
+              },
+            },
+          },
+        },
+      });
+      if (!da || !da.sessionDef) return null;
+
+      const dayDow = new Date(targetDate).getDay();
+      const sched = da.sessionDef.schedules?.find(
+        (s) => s.dow === dayDow && s.isActive,
+      );
+      const startTime = (sched?.startsAt || da.sessionDef.defaultStartsAt).slice(0, 5);
+      const endTime = (sched?.endsAt || da.sessionDef.defaultEndsAt).slice(0, 5);
+
+      const exception = await this.db.query.shiftExceptions.findFirst({
+        where: and(
+          eq(shiftExceptions.doctorId, da.doctorId),
+          eq(shiftExceptions.serviceDate, targetDate),
+          eq(shiftExceptions.sessionId, da.sessionId),
+        ),
+      });
+
+      const isLeave = exception?.type === 'leave';
+
+      return ScheduleRecordMapper.toEntity({
+        id,
+        practitionerId: da.doctorId,
+        scheduleDate: targetDate,
+        sessionLabel: da.sessionDef.labelKey,
+        sessionShift: da.sessionDef.code as any,
+        startTime: `${startTime}:00`,
+        endTime: `${endTime}:00`,
+        roomId: da.preferredRoomId,
+        serviceId: da.categoryId,
+        status: isLeave ? SchedulePersistenceStatus.CLOSED : SchedulePersistenceStatus.OPEN,
+        notes: exception?.note || null,
+        createdAt: da.createdAt,
+        updatedAt: da.updatedAt,
+        practitioner: da.practitioner,
+        clinicRoom: da.preferredRoom,
+        clinicService: null,
+      });
+    }
+
+    const exception = await this.db.query.shiftExceptions.findFirst({
+      where: eq(shiftExceptions.id, id),
+      with: {
+        sessionDef: true,
+        practitioner: {
+          with: {
+            staffProfile: {
+              with: { clinicUnit: true },
+            },
+            clinicRoom: true,
+          },
+        },
+      },
     });
 
-    if (!record) return null;
-    return ScheduleRecordMapper.toEntity(record);
+    if (exception) {
+      const sDef = exception.sessionDef;
+      const startTime = sDef?.defaultStartsAt || '08:00:00';
+      const endTime = sDef?.defaultEndsAt || '12:00:00';
+      const isLeave = exception.type === 'leave';
+
+      return ScheduleRecordMapper.toEntity({
+        id: exception.id,
+        practitionerId: exception.doctorId,
+        scheduleDate: exception.serviceDate,
+        sessionLabel: sDef?.labelKey || 'Sesi Praktik',
+        sessionShift: (sDef?.code as any) || 'morning',
+        startTime,
+        endTime,
+        roomId: exception.practitioner?.defaultRoomId || null,
+        serviceId: null,
+        status: isLeave ? SchedulePersistenceStatus.CLOSED : SchedulePersistenceStatus.OPEN,
+        notes: exception.note,
+        createdAt: exception.createdAt,
+        updatedAt: exception.updatedAt,
+        practitioner: exception.practitioner,
+        clinicRoom: exception.practitioner?.clinicRoom || null,
+        clinicService: null,
+      });
+    }
+
+    const da = await this.db.query.doctorAssignments.findFirst({
+      where: eq(doctorAssignments.id, id),
+      with: {
+        sessionDef: true,
+        preferredRoom: {
+          with: { clinicUnit: true },
+        },
+        practitioner: {
+          with: {
+            staffProfile: {
+              with: { clinicUnit: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (da && da.sessionDef) {
+      const today = new Date().toISOString().slice(0, 10);
+      const startTime = da.sessionDef.defaultStartsAt || '08:00:00';
+      const endTime = da.sessionDef.defaultEndsAt || '12:00:00';
+
+      return ScheduleRecordMapper.toEntity({
+        id: da.id,
+        practitionerId: da.doctorId,
+        scheduleDate: today,
+        sessionLabel: da.sessionDef.labelKey,
+        sessionShift: da.sessionDef.code as any,
+        startTime,
+        endTime,
+        roomId: da.preferredRoomId,
+        serviceId: da.categoryId,
+        status: da.isActive ? SchedulePersistenceStatus.OPEN : SchedulePersistenceStatus.CLOSED,
+        notes: null,
+        createdAt: da.createdAt,
+        updatedAt: da.updatedAt,
+        practitioner: da.practitioner,
+        clinicRoom: da.preferredRoom,
+        clinicService: null,
+      });
+    }
+
+    return null;
   }
 
   async findAll(
@@ -140,35 +281,88 @@ export class DrizzleScheduleSessionRepository {
       date?: string;
     },
   ): Promise<ScheduleEntity[]> {
-    const conditions: any[] = [];
-    if (filters?.date) {
-      conditions.push(
-        eq(practitionerScheduleSessions.scheduleDate, filters.date),
-      );
-    }
+    const targetDate = filters?.date || new Date().toISOString().slice(0, 10);
+    const targetDow = new Date(targetDate).getDay();
 
-    const records = await this.db.query.practitionerScheduleSessions.findMany({
-      where: conditions.length > 0 ? and(...conditions) : undefined,
-      limit,
-      offset,
-      orderBy: [
-        desc(practitionerScheduleSessions.scheduleDate),
-        asc(practitionerScheduleSessions.startTime),
-        desc(practitionerScheduleSessions.id),
-      ],
-      with: SESSION_RECORD_RELATIONS,
-    });
-
-    let result = records.map((r) => ScheduleRecordMapper.toEntity(r));
-
-    if (filters?.poliklinikId) {
-      result = result.filter((s) => s.poliklinikId === filters.poliklinikId);
-    }
+    let practitionerId: string | undefined;
     if (filters?.staffId) {
-      result = result.filter((s) => s.staffId === filters.staffId);
+      const practitioner = await this.practitionerResolver.resolve(filters.staffId);
+      if (practitioner) practitionerId = practitioner.id;
     }
 
-    return result;
+    const [assignments, exceptions] = await Promise.all([
+      this.db.query.doctorAssignments.findMany({
+        where: and(
+          eq(doctorAssignments.isActive, true),
+          practitionerId ? eq(doctorAssignments.doctorId, practitionerId) : sql`TRUE`,
+          or(eq(doctorAssignments.dow, targetDow), sql`${doctorAssignments.dow} IS NULL`),
+        ),
+        with: {
+          sessionDef: {
+            with: { schedules: true },
+          },
+          preferredRoom: {
+            with: { clinicUnit: true },
+          },
+          practitioner: {
+            with: {
+              staffProfile: {
+                with: { clinicUnit: true },
+              },
+            },
+          },
+        },
+      }),
+      this.db.query.shiftExceptions.findMany({
+        where: and(
+          eq(shiftExceptions.serviceDate, targetDate),
+          practitionerId ? eq(shiftExceptions.doctorId, practitionerId) : sql`TRUE`,
+        ),
+      }),
+    ]);
+
+    const results: ScheduleEntity[] = [];
+
+    for (const da of assignments) {
+      if (!da.sessionDef || !da.sessionDef.isActive) continue;
+
+      const ex = exceptions.find(
+        (e) => e.doctorId === da.doctorId && (!e.sessionId || e.sessionId === da.sessionId),
+      );
+      const isLeave = ex?.type === 'leave';
+
+      const sched = da.sessionDef.schedules?.find(
+        (s) => s.dow === targetDow && s.isActive,
+      );
+      const startTime = sched?.startsAt || da.sessionDef.defaultStartsAt;
+      const endTime = sched?.endsAt || da.sessionDef.defaultEndsAt;
+
+      const entity = ScheduleRecordMapper.toEntity({
+        id: `roster-${da.id}-${targetDate}`,
+        practitionerId: da.doctorId,
+        scheduleDate: targetDate,
+        sessionLabel: da.sessionDef.labelKey,
+        sessionShift: da.sessionDef.code as any,
+        startTime,
+        endTime,
+        roomId: da.preferredRoomId,
+        serviceId: da.categoryId,
+        status: isLeave ? SchedulePersistenceStatus.CLOSED : SchedulePersistenceStatus.OPEN,
+        notes: ex?.note || null,
+        createdAt: da.createdAt,
+        updatedAt: da.updatedAt,
+        practitioner: da.practitioner,
+        clinicRoom: da.preferredRoom,
+        clinicService: null,
+      });
+
+      if (filters?.poliklinikId && entity.poliklinikId !== filters.poliklinikId) {
+        continue;
+      }
+      results.push(entity);
+    }
+
+    return results.slice(offset, offset + limit);
   }
 
   async findByStaffId(staffId: string): Promise<ScheduleEntity[]> {
@@ -189,56 +383,102 @@ export class DrizzleScheduleSessionRepository {
     }
     const targetId = practitioner.id;
 
-    const conditions: any[] = [
-      eq(practitionerScheduleSessions.practitionerId, targetId),
-    ];
+    const startDate = filters?.date || filters?.startDate || new Date().toISOString().slice(0, 10);
+    const endDate = filters?.date || filters?.endDate || startDate;
 
-    if (filters?.date) {
-      conditions.push(
-        eq(practitionerScheduleSessions.scheduleDate, filters.date),
+    const [assignments, exceptions] = await Promise.all([
+      this.db.query.doctorAssignments.findMany({
+        where: and(
+          eq(doctorAssignments.doctorId, targetId),
+          eq(doctorAssignments.isActive, true),
+        ),
+        with: {
+          sessionDef: {
+            with: { schedules: true },
+          },
+          preferredRoom: {
+            with: { clinicUnit: true },
+          },
+          practitioner: {
+            with: {
+              staffProfile: {
+                with: { clinicUnit: true },
+              },
+            },
+          },
+        },
+      }),
+      this.db.query.shiftExceptions.findMany({
+        where: and(
+          eq(shiftExceptions.doctorId, targetId),
+          gte(shiftExceptions.serviceDate, startDate),
+          lte(shiftExceptions.serviceDate, endDate),
+        ),
+      }),
+    ]);
+
+    const results: ScheduleEntity[] = [];
+    const startObj = new Date(startDate);
+    const endObj = new Date(endDate);
+
+    for (let d = new Date(startObj); d <= endObj; d.setDate(d.getDate() + 1)) {
+      const curDateStr = d.toISOString().slice(0, 10);
+      const curDow = d.getDay();
+
+      const dayAssignments = assignments.filter(
+        (da) => da.dow === null || da.dow === curDow,
       );
-    }
-    if (filters?.startDate) {
-      conditions.push(
-        gte(practitionerScheduleSessions.scheduleDate, filters.startDate),
-      );
-    }
-    if (filters?.endDate) {
-      conditions.push(
-        lte(practitionerScheduleSessions.scheduleDate, filters.endDate),
-      );
+
+      for (const da of dayAssignments) {
+        if (!da.sessionDef || !da.sessionDef.isActive) continue;
+
+        const ex = exceptions.find(
+          (e) =>
+            e.serviceDate === curDateStr &&
+            (!e.sessionId || e.sessionId === da.sessionId),
+        );
+        const isLeave = ex?.type === 'leave';
+
+        const sched = da.sessionDef.schedules?.find(
+          (s) => s.dow === curDow && s.isActive,
+        );
+        const startTime = sched?.startsAt || da.sessionDef.defaultStartsAt;
+        const endTime = sched?.endsAt || da.sessionDef.defaultEndsAt;
+
+        results.push(
+          ScheduleRecordMapper.toEntity({
+            id: `roster-${da.id}-${curDateStr}`,
+            practitionerId: da.doctorId,
+            scheduleDate: curDateStr,
+            sessionLabel: da.sessionDef.labelKey,
+            sessionShift: da.sessionDef.code as any,
+            startTime,
+            endTime,
+            roomId: da.preferredRoomId,
+            serviceId: da.categoryId,
+            status: isLeave
+              ? SchedulePersistenceStatus.CLOSED
+              : SchedulePersistenceStatus.OPEN,
+            notes: ex?.note || null,
+            createdAt: da.createdAt,
+            updatedAt: da.updatedAt,
+            practitioner: da.practitioner,
+            clinicRoom: da.preferredRoom,
+            clinicService: null,
+          }),
+        );
+      }
     }
 
-    const records = await this.db.query.practitionerScheduleSessions.findMany({
-      where: and(...conditions),
-      orderBy: [
-        asc(practitionerScheduleSessions.scheduleDate),
-        asc(practitionerScheduleSessions.startTime),
-      ],
-      with: SESSION_RECORD_RELATIONS,
-    });
-
-    return records.map((r) => ScheduleRecordMapper.toEntity(r));
+    return results;
   }
 
   async findByPoliAndDate(poliklinikId: string, date: string): Promise<any[]> {
-    const sessions = await this.db.query.practitionerScheduleSessions.findMany({
-      where: and(
-        eq(practitionerScheduleSessions.scheduleDate, date),
-        eq(practitionerScheduleSessions.status, SchedulePersistenceStatus.OPEN),
-      ),
-      with: SESSION_RECORD_RELATIONS,
+    const list = await this.findAll(100, 0, {
+      poliklinikId,
+      date,
     });
-
-    return sessions
-      .filter((s) => {
-        if (!poliklinikId) return true;
-        return (
-          s.clinicRoom?.unitId === poliklinikId ||
-          s.practitioner?.staffProfile?.primaryUnitId === poliklinikId
-        );
-      })
-      .map((s) => ScheduleRecordMapper.toEntity(s));
+    return list.filter((s) => s.isAvailable);
   }
 
   async update(
@@ -248,142 +488,61 @@ export class DrizzleScheduleSessionRepository {
     const existing = await this.findById(id);
     if (!existing) return null;
 
-    const updateValues: Record<string, any> = {
-      updatedAt: new Date().toISOString(),
-    };
-
     let targetDate = existing.scheduleDate || existing.specificDate!;
     if (data.scheduleDate || data.specificDate) {
       targetDate = (data.scheduleDate || data.specificDate)!;
-      updateValues.scheduleDate = targetDate;
     }
 
-    let startTime = existing.startTime!;
-    if (data.startTime) {
-      startTime = data.startTime;
-      updateValues.startTime =
-        startTime.length === 5 ? `${startTime}:00` : startTime;
-    }
+    const practitioner = await this.practitionerResolver.resolve(existing.staffId);
+    const practitionerId = practitioner ? practitioner.id : existing.staffId;
 
-    let endTime = existing.endTime!;
-    if (data.endTime) {
-      endTime = data.endTime;
-      updateValues.endTime = endTime.length === 5 ? `${endTime}:00` : endTime;
-    }
+    if (data.status !== undefined || data.isAvailable !== undefined) {
+      const isClosed =
+        data.status === SchedulePersistenceStatus.CLOSED ||
+        data.isAvailable === false;
 
-    let roomId = existing.roomId;
-    if (data.roomId !== undefined) {
-      roomId = data.roomId;
-      updateValues.roomId = roomId;
-    }
-
-    if (data.session || data.sessionShift || data.sessionLabel) {
-      const { shift, defaultLabel } = resolveSessionShift({
-        session: data.session,
-        sessionShift: data.sessionShift,
-      });
-      updateValues.sessionLabel = data.sessionLabel || defaultLabel;
-      updateValues.sessionShift = shift;
-    }
-
-    if (data.serviceId !== undefined) {
-      updateValues.serviceId = data.serviceId;
-    }
-
-    if (data.status !== undefined) {
-      const requestedStatus = toAdminScheduleStatusRequest(data.status);
-      if (!requestedStatus) {
-        throw new BadRequestException({
-          code: 'INVALID_SCHEDULE_STATUS',
-          message: 'status must use canonical values only: OPEN or CLOSED.',
-          metadata: { status: data.status },
+      if (isClosed) {
+        await this.db.insert(shiftExceptions).values({
+          doctorId: practitionerId,
+          serviceDate: targetDate,
+          type: 'leave',
+          note: data.notes || 'Sesi jadwal dinonaktifkan',
         });
+      } else {
+        await this.db
+          .delete(shiftExceptions)
+          .where(
+            and(
+              eq(shiftExceptions.doctorId, practitionerId),
+              eq(shiftExceptions.serviceDate, targetDate),
+              eq(shiftExceptions.type, 'leave'),
+            ),
+          );
       }
-      updateValues.status = toDaySessionPersistenceStatus(requestedStatus);
-    } else if (data.isAvailable !== undefined) {
-      updateValues.status = data.isAvailable
-        ? SchedulePersistenceStatus.OPEN
-        : SchedulePersistenceStatus.CLOSED;
     }
 
-    if (data.notes !== undefined) {
-      updateValues.notes = data.notes;
-    }
-
-    if (
-      data.startTime ||
-      data.endTime ||
-      data.roomId !== undefined ||
-      data.scheduleDate
-    ) {
-      const practitioner = await this.practitionerResolver.resolve(
-        existing.staffId,
-      );
-      const practitionerId = practitioner ? practitioner.id : existing.staffId;
-      await this.conflictQuery.checkConflicts(
-        practitionerId,
-        targetDate,
-        startTime,
-        endTime,
-        roomId,
-        id,
-      );
-    }
-
-    const [updated] = await this.db
-      .update(practitionerScheduleSessions)
-      .set(updateValues)
-      .where(eq(practitionerScheduleSessions.id, id))
-      .returning();
-
-    return updated ? this.findById(updated.id) : null;
+    return this.findById(id);
   }
 
   async toggleAvailability(
     id: string,
     isAvailable: boolean,
   ): Promise<ScheduleEntity | null> {
-    const updateValues: Record<string, any> = {
-      status: isAvailable
-        ? SchedulePersistenceStatus.OPEN
-        : SchedulePersistenceStatus.CLOSED,
-      updatedAt: new Date().toISOString(),
-    };
-
-    const [record] = await this.db
-      .update(practitionerScheduleSessions)
-      .set(updateValues)
-      .where(eq(practitionerScheduleSessions.id, id))
-      .returning();
-
-    return record ? this.findById(record.id) : null;
+    return this.update(id, { isAvailable });
   }
 
   async delete(id: string): Promise<boolean> {
-    const existingSession =
-      await this.db.query.practitionerScheduleSessions.findFirst({
-        where: eq(practitionerScheduleSessions.id, id),
-      });
+    const existing = await this.findById(id);
+    if (!existing) return false;
 
-    if (!existingSession) {
-      return false;
-    }
-
-    const sessStart =
-      existingSession.startTime.length === 5
-        ? `${existingSession.startTime}:00`
-        : existingSession.startTime;
-    const sessEnd =
-      existingSession.endTime.length === 5
-        ? `${existingSession.endTime}:00`
-        : existingSession.endTime;
+    const practitioner = await this.practitionerResolver.resolve(existing.staffId);
+    const practitionerId = practitioner ? practitioner.id : existing.staffId;
+    const targetDate = existing.scheduleDate || existing.specificDate!;
 
     const activeAppointments = await this.db.query.appointments.findMany({
       where: and(
-        eq(appointments.practitionerId, existingSession.practitionerId),
-        eq(appointments.scheduledDate, existingSession.scheduleDate),
-        gte(appointments.scheduledStartTime, sessStart),
-        lt(appointments.scheduledStartTime, sessEnd),
+        eq(appointments.practitionerId, practitionerId),
+        eq(appointments.scheduledDate, targetDate),
         inArray(appointments.status, [...ACTIVE_APPOINTMENT_STATUSES]),
       ),
     });
@@ -395,32 +554,19 @@ export class DrizzleScheduleSessionRepository {
       });
     }
 
-    const res = await this.db
-      .delete(practitionerScheduleSessions)
-      .where(eq(practitionerScheduleSessions.id, id))
-      .returning();
-
-    if (res.length > 0 && existingSession) {
-      const remainingOpen =
-        await this.db.query.practitionerScheduleSessions.findMany({
-          where: and(
-            eq(
-              practitionerScheduleSessions.practitionerId,
-              existingSession.practitionerId,
-            ),
-            eq(
-              practitionerScheduleSessions.scheduleDate,
-              existingSession.scheduleDate,
-            ),
-            eq(
-              practitionerScheduleSessions.status,
-              SchedulePersistenceStatus.OPEN,
-            ),
-          ),
-        });
-
+    if (id.startsWith('roster-')) {
+      const daId = id.split('-')[1];
+      await this.db
+        .update(doctorAssignments)
+        .set({ isActive: false, updatedAt: new Date().toISOString() })
+        .where(eq(doctorAssignments.id, daId));
+      return true;
     }
 
-    return res.length > 0;
+    await this.db
+      .delete(shiftExceptions)
+      .where(eq(shiftExceptions.id, id));
+
+    return true;
   }
 }

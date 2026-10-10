@@ -3,7 +3,8 @@ import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
   appointments,
   clinicRooms,
-  practitionerScheduleSessions,
+  doctorAssignments,
+  sessionDefs,
   shiftExceptions,
 } from '@database/schema';
 import { ACTIVE_APPOINTMENT_STATUSES } from '@modules/schedules/domain/constants/schedule.constants';
@@ -13,10 +14,7 @@ import {
   ScheduleOperationalStatus,
 } from '@modules/schedules/domain/entities/schedule.entity';
 import { ScheduleSessionFactory } from '@modules/schedules/domain/factories/schedule-session.factory';
-import {
-  resolveSessionOperationalStatus,
-  SchedulePersistenceStatus,
-} from '@modules/schedules/domain/schedule-status';
+import { resolveSessionOperationalStatus } from '@modules/schedules/domain/schedule-status';
 import { ScheduleConflictQuery } from '@modules/schedules/infrastructure/drizzle/queries/schedule-conflict.query';
 import { PractitionerResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/practitioner.resolver';
 import type { CheckRescheduleEligibilityQueryDto } from '@modules/schedules/presentation/dto/check-reschedule-eligibility-query.dto';
@@ -26,7 +24,7 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
-import { and, eq, gt, gte, inArray, lt, lte, not, or } from 'drizzle-orm';
+import { and, eq, gte, inArray, lt } from 'drizzle-orm';
 
 @Injectable()
 export class DrizzleRescheduleEligibilityEvaluator {
@@ -54,29 +52,35 @@ export class DrizzleRescheduleEligibilityEvaluator {
       throw new NotFoundException(`Dokter dengan ID ${id} tidak ditemukan`);
     }
 
-    const session = await this.db.query.practitionerScheduleSessions.findFirst({
-      where: and(
-        eq(practitionerScheduleSessions.id, sessionId),
-        eq(practitionerScheduleSessions.practitionerId, practitioner.id),
-      ),
-      with: {
-        clinicRoom: true,
-      },
+    const sessionDef = await this.db.query.sessionDefs.findFirst({
+      where: eq(sessionDefs.id, sessionId),
     });
 
-    if (!session) {
+    const assignment = sessionDef
+      ? null
+      : await this.db.query.doctorAssignments.findFirst({
+          where: and(
+            eq(doctorAssignments.id, sessionId),
+            eq(doctorAssignments.doctorId, practitioner.id),
+          ),
+          with: {
+            sessionDef: true,
+          },
+        });
+
+    const effectiveSessionDef = sessionDef ?? assignment?.sessionDef;
+    if (!effectiveSessionDef) {
       throw new NotFoundException(
         `Sesi jadwal dengan ID ${sessionId} tidak ditemukan untuk dokter ini`,
       );
     }
 
-    const sourceDate = session.scheduleDate;
-    const sessStart =
-      session.startTime.length === 5
-        ? `${session.startTime}:00`
-        : session.startTime;
-    const sessEnd =
-      session.endTime.length === 5 ? `${session.endTime}:00` : session.endTime;
+    const sourceDate =
+      (query as any).sourceDate ||
+      query.targetDate ||
+      new Date().toISOString().split('T')[0];
+    const sessStart = `${effectiveSessionDef.defaultStartsAt.slice(0, 5)}:00`;
+    const sessEnd = `${effectiveSessionDef.defaultEndsAt.slice(0, 5)}:00`;
 
     const [sourceLeave, activeAppts] = await Promise.all([
       this.db.query.shiftExceptions.findFirst({
@@ -97,10 +101,10 @@ export class DrizzleRescheduleEligibilityEvaluator {
       }),
     ]);
 
-    const isSourceCuti = Boolean(sourceLeave);
+    const isSourceLeave = Boolean(sourceLeave);
     const sourceStatus = resolveSessionOperationalStatus({
-      isClosedForLeave: isSourceCuti,
-      persistedStatus: session.status,
+      isClosedForLeave: isSourceLeave,
+      persistedStatus: 'open',
     });
     const isSourceClosed = sourceStatus === ScheduleOperationalStatus.CLOSED;
 
@@ -110,22 +114,19 @@ export class DrizzleRescheduleEligibilityEvaluator {
     if (isSourceClosed) {
       isSourceEligible = false;
       rejectionReason =
-        'Sesi berstatus Tutup. Sesi yang sudah ditutup tidak dapat di-reschedule. Silakan gunakan menu Edit Jadwal untuk membuka sesi.';
-    } else if (isSourceCuti) {
+        'Sesi berstatus Tutup. Sesi yang sudah ditutup tidak dapat di-reschedule.';
+    } else if (isSourceLeave) {
       isSourceEligible = false;
       rejectionReason =
         'Sesi berstatus Cuti. Cuti dokter tidak dapat di-reschedule.';
     }
 
     let roomName = 'Belum Ditentukan';
-    if (session.clinicRoom) {
-      roomName = `${session.clinicRoom.name}${session.clinicRoom.location ? `, ${session.clinicRoom.location}` : ''}`;
-    } else if (session.roomId || practitioner.defaultRoomId) {
+    const effectiveRoomId =
+      assignment?.preferredRoomId || practitioner.defaultRoomId || null;
+    if (effectiveRoomId) {
       const room = await this.db.query.clinicRooms.findFirst({
-        where: eq(
-          clinicRooms.id,
-          (session.roomId || practitioner.defaultRoomId)!,
-        ),
+        where: eq(clinicRooms.id, effectiveRoomId),
       });
       if (room) {
         roomName = `${room.name}${room.location ? `, ${room.location}` : ''}`;
@@ -133,15 +134,15 @@ export class DrizzleRescheduleEligibilityEvaluator {
     }
 
     const sourceSessionInfo: RescheduleSourceSessionInfo = {
-      id: session.id,
-      scheduleDate: session.scheduleDate,
-      startTime: session.startTime.slice(0, 5),
-      endTime: session.endTime.slice(0, 5),
-      timeRange: `${session.startTime.slice(0, 5)} - ${session.endTime.slice(0, 5)} WIB`,
-      status: session.status,
+      id: effectiveSessionDef.id,
+      scheduleDate: sourceDate,
+      startTime: effectiveSessionDef.defaultStartsAt.slice(0, 5),
+      endTime: effectiveSessionDef.defaultEndsAt.slice(0, 5),
+      timeRange: `${effectiveSessionDef.defaultStartsAt.slice(0, 5)} - ${effectiveSessionDef.defaultEndsAt.slice(0, 5)} WIB`,
+      status: 'open',
       statusLabel: sourceStatus,
-      sessionLabel: session.sessionLabel || 'Sesi Praktik',
-      sessionShift: session.sessionShift || 'morning',
+      sessionLabel: effectiveSessionDef.labelKey || 'Sesi Praktik',
+      sessionShift: effectiveSessionDef.code || 'morning',
       roomName,
       activeAppointmentsCount: activeAppts.length,
       isSourceEligible,
@@ -184,10 +185,7 @@ export class DrizzleRescheduleEligibilityEvaluator {
         targetValidation.projectedEndTime = targetEndTime;
 
         const targetRoomId =
-          query.targetRoomId ||
-          session.roomId ||
-          practitioner.defaultRoomId ||
-          null;
+          query.targetRoomId || effectiveRoomId || null;
         targetValidation.targetRoomId = targetRoomId;
 
         if (targetRoomId) {
@@ -217,85 +215,14 @@ export class DrizzleRescheduleEligibilityEvaluator {
             closedReason: 'LEAVE',
           };
         } else {
-          const targetStartSec =
-            query.targetStartTime.length === 5
-              ? `${query.targetStartTime}:00`
-              : query.targetStartTime;
-          const targetEndSec =
-            targetEndTime.length === 5 ? `${targetEndTime}:00` : targetEndTime;
-
-          const candidateSessions =
-            await this.db.query.practitionerScheduleSessions.findMany({
-              where: and(
-                eq(
-                  practitionerScheduleSessions.practitionerId,
-                  practitioner.id,
-                ),
-                eq(practitionerScheduleSessions.scheduleDate, query.targetDate),
-                eq(
-                  practitionerScheduleSessions.status,
-                  SchedulePersistenceStatus.OPEN,
-                ),
-              ),
-            });
-
-          const existingTargetSession = candidateSessions.find((s) => {
-            const sStart =
-              s.startTime.length === 5 ? `${s.startTime}:00` : s.startTime;
-            const sEnd = s.endTime.length === 5 ? `${s.endTime}:00` : s.endTime;
-            return sStart <= targetStartSec && sEnd >= targetEndSec;
-          });
-
-          if (existingTargetSession) {
-            if (targetRoomId) {
-              const otherDoctorInRoom =
-                await this.db.query.practitionerScheduleSessions.findFirst({
-                  where: and(
-                    eq(practitionerScheduleSessions.roomId, targetRoomId),
-                    eq(
-                      practitionerScheduleSessions.scheduleDate,
-                      query.targetDate,
-                    ),
-                    eq(
-                      practitionerScheduleSessions.status,
-                      SchedulePersistenceStatus.OPEN,
-                    ),
-                    not(
-                      eq(
-                        practitionerScheduleSessions.practitionerId,
-                        practitioner.id,
-                      ),
-                    ),
-                    lt(practitionerScheduleSessions.startTime, targetEndSec),
-                    gt(practitionerScheduleSessions.endTime, targetStartSec),
-                  ),
-                  with: {
-                    practitioner: { with: { staffProfile: true } },
-                    clinicRoom: true,
-                  },
-                });
-              if (otherDoctorInRoom) {
-                const roomName =
-                  otherDoctorInRoom.clinicRoom?.name || 'Ruangan';
-                const docName =
-                  otherDoctorInRoom.practitioner?.staffProfile?.fullName ||
-                  otherDoctorInRoom.practitioner?.displayName ||
-                  'Dokter lain';
-                targetValidation.isTargetEligible = false;
-                targetValidation.conflictCode = 'ROOM_ALREADY_OCCUPIED';
-                targetValidation.conflictMessage = `${roomName} sudah dijadwalkan untuk ${docName} pada jam ${query.targetStartTime} - ${targetEndTime}.`;
-              }
-            }
-          } else {
-            await this.conflictQuery.checkConflicts(
-              practitioner.id,
-              query.targetDate,
-              query.targetStartTime,
-              targetEndTime,
-              targetRoomId,
-              sessionId,
-            );
-          }
+          await this.conflictQuery.checkConflicts(
+            practitioner.id,
+            query.targetDate,
+            query.targetStartTime,
+            targetEndTime,
+            targetRoomId,
+            sessionId,
+          );
         }
       } catch (err: any) {
         targetValidation.isTargetEligible = false;
@@ -336,7 +263,7 @@ export class DrizzleRescheduleEligibilityEvaluator {
       'Dokter Amanah';
 
     return {
-      sessionId: session.id,
+      sessionId: effectiveSessionDef.id,
       practitionerId: practitioner.id,
       practitionerName,
       isEligible,

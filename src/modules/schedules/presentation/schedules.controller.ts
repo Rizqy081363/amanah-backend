@@ -434,9 +434,9 @@ export class SchedulesController {
   @Roles('STAF', 'ADMIN')
   @ApiOperation({
     summary:
-      'Melihat ringkasan okupansi jadwal per shift (Anti-Collision Grid)',
+      'Ringkasan Kapasitas Lane dan Beban Antrean Layanan per Shift',
     description:
-      'Menampilkan status ketersediaan di seluruh 4 shift (dini hari, pagi, siang, malam) untuk mencegah bentrok jadwal dokter atau ruangan sebelum submit.',
+      'Menampilkan kapasitas lane (min dokter bertugas dan ruangan aktif), kapasitas nominal, serta rasio beban antrean aktif untuk seluruh shift.',
   })
   @ApiOkResponse({
     description: 'Ringkasan okupansi berhasil diambil',

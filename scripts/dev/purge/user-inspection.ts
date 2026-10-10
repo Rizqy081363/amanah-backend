@@ -156,10 +156,8 @@ export async function inspectUserRecords(
 
   if (practitionerId) {
     await checkCount('practitioners', 'SELECT count(*) FROM practitioners WHERE id = $1', [practitionerId]);
-    await checkCount('practitioner_availability', 'SELECT count(*) FROM practitioner_availability WHERE practitioner_id = $1', [practitionerId]);
-    await checkCount('practitioner_schedule_sessions', 'SELECT count(*) FROM practitioner_schedule_sessions WHERE practitioner_id = $1', [practitionerId]);
-    await checkCount('practitioner_schedule_day_settings', 'SELECT count(*) FROM practitioner_schedule_day_settings WHERE practitioner_id = $1', [practitionerId]);
-    await checkCount('practitioner_leave_periods', 'SELECT count(*) FROM practitioner_leave_periods WHERE practitioner_id = $1', [practitionerId]);
+    await checkCount('doctor_assignment', 'SELECT count(*) FROM doctor_assignment WHERE doctor_id = $1', [practitionerId]);
+    await checkCount('shift_exception', 'SELECT count(*) FROM shift_exception WHERE doctor_id = $1', [practitionerId]);
     await checkCount('appointments (as doctor)', 'SELECT count(*) FROM appointments WHERE practitioner_id = $1', [practitionerId]);
     await checkCount('queue_tickets (as doctor)', 'SELECT count(*) FROM queue_tickets qt JOIN appointments a ON qt.appointment_id = a.id WHERE a.practitioner_id = $1', [practitionerId]);
   }

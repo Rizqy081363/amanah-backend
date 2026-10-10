@@ -40,7 +40,6 @@ import {
   practitionerLeavePeriods,
   practitionerScheduleClosures,
   practitionerScheduleDaySettings,
-  practitionerScheduleSessions,
   practitioners,
   publicTestimonials,
   queueTickets,
@@ -171,7 +170,6 @@ export const clinicRoomsRelations = relations(clinicRooms, ({ one, many }) => ({
     references: [clinicUnits.id],
   }),
   practitioners: many(practitioners),
-  practitionerScheduleSessions: many(practitionerScheduleSessions),
   appointments: many(appointments),
   queueTickets: many(queueTickets),
   attendanceQrSessions: many(attendanceQrSessions),
@@ -197,7 +195,6 @@ export const clinicServicesRelations = relations(
       references: [medicalSpecialties.id],
     }),
     clinicServiceComplaints: many(clinicServiceComplaints),
-    practitionerScheduleSessions: many(practitionerScheduleSessions),
     appointments: many(appointments),
     queueTickets: many(queueTickets),
     clinicalEncounters: many(clinicalEncounters),
@@ -351,7 +348,6 @@ export const practitionersRelations = relations(
         'staffLeaveRequests_substitutePractitionerId_practitioners_id',
     }),
     practitionerLeavePeriods: many(practitionerLeavePeriods),
-    practitionerScheduleSessions: many(practitionerScheduleSessions),
     appointments: many(appointments),
     clinicalEncounters: many(clinicalEncounters),
     conversations: many(conversations),
@@ -393,7 +389,6 @@ export const practitionerScheduleDaySettingsRelations = relations(
       fields: [practitionerScheduleDaySettings.practitionerId],
       references: [practitioners.id],
     }),
-    practitionerScheduleSessions: many(practitionerScheduleSessions),
   }),
 );
 
@@ -442,29 +437,6 @@ export const practitionerLeavePeriodsRelations = relations(
   }),
 );
 
-export const practitionerScheduleSessionsRelations = relations(
-  practitionerScheduleSessions,
-  ({ one, many }) => ({
-    practitionerScheduleDaySetting: one(practitionerScheduleDaySettings, {
-      fields: [practitionerScheduleSessions.daySettingId],
-      references: [practitionerScheduleDaySettings.id],
-    }),
-    practitioner: one(practitioners, {
-      fields: [practitionerScheduleSessions.practitionerId],
-      references: [practitioners.id],
-    }),
-    clinicRoom: one(clinicRooms, {
-      fields: [practitionerScheduleSessions.roomId],
-      references: [clinicRooms.id],
-    }),
-    clinicService: one(clinicServices, {
-      fields: [practitionerScheduleSessions.serviceId],
-      references: [clinicServices.id],
-    }),
-    appointments: many(appointments),
-  }),
-);
-
 export const appointmentsRelations = relations(
   appointments,
   ({ one, many }) => ({
@@ -484,10 +456,6 @@ export const appointmentsRelations = relations(
     clinicRoom: one(clinicRooms, {
       fields: [appointments.roomId],
       references: [clinicRooms.id],
-    }),
-    practitionerScheduleSession: one(practitionerScheduleSessions, {
-      fields: [appointments.scheduleSessionId],
-      references: [practitionerScheduleSessions.id],
     }),
     clinicService: one(clinicServices, {
       fields: [appointments.serviceId],
@@ -997,10 +965,6 @@ export const scheduleRescheduleEventsRelations = relations(
     practitioner: one(practitioners, {
       fields: [scheduleRescheduleEvents.practitionerId],
       references: [practitioners.id],
-    }),
-    scheduleSession: one(practitionerScheduleSessions, {
-      fields: [scheduleRescheduleEvents.scheduleSessionId],
-      references: [practitionerScheduleSessions.id],
     }),
   }),
 );

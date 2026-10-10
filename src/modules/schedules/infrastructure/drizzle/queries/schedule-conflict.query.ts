@@ -1,31 +1,11 @@
 import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
-import { practitionerScheduleSessions } from '@database/schema';
+import { clinicClosures, shiftExceptions } from '@database/schema';
 import { ConflictException, Inject, Injectable } from '@nestjs/common';
-import { SchedulePersistenceStatus } from '@modules/schedules/domain/schedule-status';
-import { and, eq, not } from 'drizzle-orm';
+import { and, eq, gt, isNull, lt } from 'drizzle-orm';
 
 const toClockSeconds = (time: string): string =>
   time.length === 5 ? `${time}:00` : time;
-
-const toClockMinutes = (time: string): string => time.slice(0, 5);
-
-const resolveOverlapWindow = (
-  requestedStart: string,
-  requestedEnd: string,
-  occupantStart: string,
-  occupantEnd: string,
-): { startTime: string; endTime: string; timeRange: string } | null => {
-  const overlapStart =
-    requestedStart > occupantStart ? requestedStart : occupantStart;
-  const overlapEnd = requestedEnd < occupantEnd ? requestedEnd : occupantEnd;
-  if (overlapStart >= overlapEnd) {
-    return null;
-  }
-  const startTime = toClockMinutes(overlapStart);
-  const endTime = toClockMinutes(overlapEnd);
-  return { startTime, endTime, timeRange: `${startTime} - ${endTime} WIB` };
-};
 
 @Injectable()
 export class ScheduleConflictQuery {
@@ -40,7 +20,7 @@ export class ScheduleConflictQuery {
     startTime: string,
     endTime: string,
     roomId?: string | null,
-    excludeSessionId?: string,
+    _excludeSessionId?: string,
   ): Promise<void> {
     const formattedStart = toClockSeconds(startTime);
     const formattedEnd = toClockSeconds(endTime);
@@ -52,107 +32,64 @@ export class ScheduleConflictQuery {
       });
     }
 
-    const doctorConditions = [
-      eq(practitionerScheduleSessions.practitionerId, practitionerId),
-      eq(practitionerScheduleSessions.scheduleDate, scheduleDate),
-      eq(practitionerScheduleSessions.status, SchedulePersistenceStatus.OPEN),
-    ];
-    if (excludeSessionId) {
-      doctorConditions.push(
-        not(eq(practitionerScheduleSessions.id, excludeSessionId)),
-      );
-    }
+    // 1. Check if practitioner has a recorded leave on target date
+    const activeLeave = await this.db.query.shiftExceptions.findFirst({
+      where: and(
+        eq(shiftExceptions.doctorId, practitionerId),
+        eq(shiftExceptions.serviceDate, scheduleDate),
+        eq(shiftExceptions.type, 'leave'),
+      ),
+    });
 
-    const doctorSessions =
-      await this.db.query.practitionerScheduleSessions.findMany({
-        where: and(...doctorConditions),
+    if (activeLeave) {
+      throw new ConflictException({
+        code: 'PRACTITIONER_ON_LEAVE',
+        message: `Dokter tercatat sedang cuti pada tanggal ${scheduleDate}.`,
+        metadata: {
+          scheduleDate,
+          reason: activeLeave.note || 'Cuti Dokter',
+        },
       });
-
-    for (const sess of doctorSessions) {
-      const overlap = resolveOverlapWindow(
-        formattedStart,
-        formattedEnd,
-        toClockSeconds(sess.startTime),
-        toClockSeconds(sess.endTime),
-      );
-
-      if (overlap) {
-        throw new ConflictException({
-          code: 'PRACTITIONER_ALREADY_SCHEDULED',
-          message: `Dokter sudah memiliki jadwal praktek lain pada jam ${overlap.timeRange}.`,
-          metadata: {
-            conflictingSessionId: sess.id,
-            scheduleDate: sess.scheduleDate,
-            startTime: overlap.startTime,
-            endTime: overlap.endTime,
-            timeRange: overlap.timeRange,
-            occupantSessionStart: toClockMinutes(sess.startTime),
-            occupantSessionEnd: toClockMinutes(sess.endTime),
-            roomId: sess.roomId,
-            sessionShift: sess.sessionShift,
-            sessionLabel: sess.sessionLabel,
-          },
-        });
-      }
     }
 
-    if (roomId) {
-      const roomConditions = [
-        eq(practitionerScheduleSessions.roomId, roomId),
-        eq(practitionerScheduleSessions.scheduleDate, scheduleDate),
-        eq(practitionerScheduleSessions.status, SchedulePersistenceStatus.OPEN),
-      ];
-      if (excludeSessionId) {
-        roomConditions.push(
-          not(eq(practitionerScheduleSessions.id, excludeSessionId)),
-        );
-      }
+    // 2. Check active clinic closures (clinic, doctor, or room level)
+    const requestedStartIso = `${scheduleDate}T${formattedStart}Z`;
+    const requestedEndIso = `${scheduleDate}T${formattedEnd}Z`;
 
-      const roomSessions =
-        await this.db.query.practitionerScheduleSessions.findMany({
-          where: and(...roomConditions),
-          with: {
-            practitioner: {
-              with: {
-                staffProfile: true,
-              },
-            },
-            clinicRoom: true,
+    const activeClosures = await this.db.query.clinicClosures.findMany({
+      where: and(
+        isNull(clinicClosures.cancelledAt),
+        lt(clinicClosures.startsAt, requestedEndIso),
+        gt(clinicClosures.endsAt, requestedStartIso),
+      ),
+    });
+
+    for (const closure of activeClosures) {
+      if (
+        closure.scope === 'clinic' ||
+        (closure.scope === 'doctor' && closure.doctorId === practitionerId)
+      ) {
+        throw new ConflictException({
+          code: 'CLINIC_OR_DOCTOR_CLOSED',
+          message: `Klinik atau dokter ditutup pada waktu yang dipilih (${closure.reason || 'Penutupan operasional'}).`,
+          metadata: {
+            closureId: closure.id,
+            scope: closure.scope,
+            reason: closure.reason,
           },
         });
+      }
 
-      for (const sess of roomSessions) {
-        const overlap = resolveOverlapWindow(
-          formattedStart,
-          formattedEnd,
-          toClockSeconds(sess.startTime),
-          toClockSeconds(sess.endTime),
-        );
-
-        if (overlap) {
-          const roomName = sess.clinicRoom?.name || 'Ruangan';
-          const doctorName =
-            sess.practitioner?.staffProfile?.fullName ||
-            sess.practitioner?.displayName ||
-            'Dokter lain';
-
-          throw new ConflictException({
-            code: 'ROOM_ALREADY_OCCUPIED',
-            message: `${roomName} sudah dijadwalkan untuk ${doctorName} pada jam ${overlap.timeRange}.`,
-            metadata: {
-              conflictingSessionId: sess.id,
-              scheduleDate: sess.scheduleDate,
-              startTime: overlap.startTime,
-              endTime: overlap.endTime,
-              timeRange: overlap.timeRange,
-              occupantSessionStart: toClockMinutes(sess.startTime),
-              occupantSessionEnd: toClockMinutes(sess.endTime),
-              roomId: sess.roomId,
-              roomName,
-              occupiedBy: doctorName,
-            },
-          });
-        }
+      if (roomId && closure.scope === 'room' && closure.roomId === roomId) {
+        throw new ConflictException({
+          code: 'ROOM_CLOSED',
+          message: `Ruangan ditutup pada waktu yang dipilih (${closure.reason || 'Penutupan ruangan'}).`,
+          metadata: {
+            closureId: closure.id,
+            roomId,
+            reason: closure.reason,
+          },
+        });
       }
     }
   }

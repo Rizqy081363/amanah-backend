@@ -2,7 +2,7 @@ import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
   appointments,
-  practitionerScheduleSessions,
+  doctorAssignments,
   practitioners,
   shiftExceptions,
 } from '@database/schema';
@@ -98,7 +98,7 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
 
     const [
       monthExceptions,
-      monthSessions,
+      assignments,
       monthAppointments,
       clinicPolicy,
     ] = await Promise.all([
@@ -107,19 +107,21 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
           eq(shiftExceptions.doctorId, prac.id),
           gte(shiftExceptions.serviceDate, startDate),
           lte(shiftExceptions.serviceDate, endDate),
-          eq(shiftExceptions.type, 'leave'),
         ),
       }),
-      this.db.query.practitionerScheduleSessions.findMany({
+      this.db.query.doctorAssignments.findMany({
         where: and(
-          eq(practitionerScheduleSessions.practitionerId, prac.id),
-          gte(practitionerScheduleSessions.scheduleDate, startDate),
-          lte(practitionerScheduleSessions.scheduleDate, endDate),
+          eq(doctorAssignments.doctorId, prac.id),
+          eq(doctorAssignments.isActive, true),
         ),
         with: {
-          clinicRoom: true,
+          sessionDef: {
+            with: {
+              schedules: true,
+            },
+          },
+          preferredRoom: true,
         },
-        orderBy: [asc(practitionerScheduleSessions.startTime)],
       }),
       this.db.query.appointments.findMany({
         where: and(
@@ -134,6 +136,49 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
       }),
       this.policyReader.getClinicSchedulePolicy(),
     ]);
+
+    const monthSessions: any[] = [];
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dayDate = `${targetYear}-${String(targetMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      const dayDow = new Date(dayDate).getDay();
+
+      const dayAssignments = assignments.filter(
+        (da) => da.dow === null || da.dow === dayDow,
+      );
+
+      for (const da of dayAssignments) {
+        if (!da.sessionDef || !da.sessionDef.isActive) continue;
+        const exception = monthExceptions.find(
+          (e) =>
+            e.serviceDate === dayDate &&
+            (!e.sessionId || e.sessionId === da.sessionId),
+        );
+        if (exception?.type === 'leave') continue;
+
+        const sched = da.sessionDef.schedules?.find(
+          (s) => s.dow === dayDow && s.isActive,
+        );
+        const startTime = (
+          sched?.startsAt || da.sessionDef.defaultStartsAt
+        ).slice(0, 5);
+        const endTime = (
+          sched?.endsAt || da.sessionDef.defaultEndsAt
+        ).slice(0, 5);
+
+        monthSessions.push({
+          id: `roster-${da.id}-${dayDate}`,
+          practitionerId: prac.id,
+          scheduleDate: dayDate,
+          startTime,
+          endTime,
+          sessionShift: da.sessionDef.code,
+          sessionLabel: da.sessionDef.labelKey,
+          status: 'open',
+          clinicRoom: da.preferredRoom || prac.clinicRoom,
+          notes: null,
+        });
+      }
+    }
 
     const effectiveConsultationDuration =
       prac.consultationDurationMinutes ||

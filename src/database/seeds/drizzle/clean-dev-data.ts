@@ -28,8 +28,6 @@ export async function cleanOperationalDevData(client: PoolClient): Promise<void>
   // foundational configuration (clinic_setting, session_def, session_schedule,
   // service_categories, roles, permissions, users, master catalogs).
   await client.query(`
-    UPDATE appointments SET schedule_session_id = NULL WHERE schedule_session_id IS NOT NULL;
-
     DELETE FROM appointment_call_attempts;
     DELETE FROM queue_tickets;
     DELETE FROM appointment_check_ins;
@@ -40,17 +38,12 @@ export async function cleanOperationalDevData(client: PoolClient): Promise<void>
     DELETE FROM appointments;
 
     DELETE FROM clinic_closure;
-    DELETE FROM practitioner_schedule_closures;
-    DELETE FROM schedule_reschedule_events;
     DELETE FROM shift_exception;
     DELETE FROM extra_opening;
     DELETE FROM queue_counter;
     DELETE FROM ticket_event;
     DELETE FROM queue_notification_outbox;
-
-    DELETE FROM practitioner_schedule_sessions;
-    DELETE FROM practitioner_schedule_day_settings;
-    DELETE FROM practitioner_leave_periods;
+    DELETE FROM doctor_assignment;
   `);
 }
 

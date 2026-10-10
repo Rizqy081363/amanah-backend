@@ -130,7 +130,7 @@ export class ScheduleOptionsReferenceEntity {
     id: string;
     label: string;
   }[];
-  timeSlotIntervals: number[];
+  durationIntervals?: number[];
   effectiveConsultationDurationMinutes?: number;
   durationSource?: string;
   durationScope?: string;
@@ -626,11 +626,35 @@ export class ScheduleShiftOccupancyEntity {
 
   @ApiProperty({ example: '06:00' })
   boundaryEndTime: string;
+
+  @ApiProperty({ example: 2, required: false })
+  laneCapacity?: number;
+
+  @ApiProperty({ example: 5, required: false })
+  activeTickets?: number;
+
+  @ApiProperty({ example: 12, required: false })
+  nominalCapacity?: number;
+
+  @ApiProperty({ example: 'NORMAL', required: false })
+  loadStatus?: string;
+
+  @ApiProperty({ example: 42, required: false })
+  occupancyRate?: number;
 }
 
 export class ScheduleOccupancySummaryEntity {
   @ApiProperty({ example: 4 })
   totalShifts: number;
+
+  @ApiProperty({ example: 5, required: false })
+  totalActiveTickets?: number;
+
+  @ApiProperty({ example: 48, required: false })
+  totalNominalCapacity?: number;
+
+  @ApiProperty({ example: 10, required: false })
+  overallOccupancyRate?: number;
 }
 
 export class ScheduleOccupancyOverviewData {

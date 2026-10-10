@@ -3,7 +3,6 @@ import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
   appointments,
   doctorAssignments,
-  practitionerScheduleSessions,
   practitioners,
   shiftExceptions,
 } from '@database/schema';
@@ -67,7 +66,6 @@ export class DrizzleAdminDoctorScheduleListQuery {
 
     const [
       pracs,
-      allSessions,
       allAppointments,
       clinicPolicy,
       allDoctorAssignments,
@@ -84,13 +82,6 @@ export class DrizzleAdminDoctorScheduleListQuery {
           clinicRoom: true,
         },
         orderBy: [asc(practitioners.displayName)],
-      }),
-      this.db.query.practitionerScheduleSessions.findMany({
-        where: eq(practitionerScheduleSessions.scheduleDate, targetDate),
-        with: {
-          clinicRoom: true,
-        },
-        orderBy: [asc(practitionerScheduleSessions.startTime)],
       }),
       this.db.query.appointments.findMany({
         where: and(
@@ -121,72 +112,64 @@ export class DrizzleAdminDoctorScheduleListQuery {
       const activeLeave = allShiftExceptions.find(
         (se) => se.doctorId === p.id && se.type === 'leave',
       );
-      let sessions = allSessions.filter(
-        (s) => s.practitionerId === p.id && s.scheduleDate === targetDate,
+      const assignments = allDoctorAssignments.filter(
+        (da) =>
+          da.doctorId === p.id &&
+          (da.dow === null || da.dow === targetDow),
       );
 
-      // Recurring Roster SSOT: when no explicit manual session exists for target date,
-      // dynamically resolve sessions from doctor_assignment + session_schedule
-      if (sessions.length === 0) {
-        const assignments = allDoctorAssignments.filter(
-          (da) =>
-            da.doctorId === p.id &&
-            (da.dow === null || da.dow === targetDow),
-        );
+      const sessions = assignments
+        .filter((da) => da.sessionDef && da.sessionDef.isActive)
+        .map((da) => {
+          const sched = da.sessionDef.schedules?.find(
+            (s) => s.dow === targetDow && s.isActive,
+          );
+          if (!sched) return null;
 
-        sessions = assignments
-          .filter((da) => da.sessionDef && da.sessionDef.isActive)
-          .map((da) => {
-            const sched = da.sessionDef.schedules?.find(
-              (s) => s.dow === targetDow && s.isActive,
-            );
-            if (!sched) return null;
+          const exception = allShiftExceptions.find(
+            (se) =>
+              se.doctorId === p.id &&
+              (!se.sessionId || se.sessionId === da.sessionId),
+          );
+          if (exception?.type === 'leave') return null;
 
-            const exception = allShiftExceptions.find(
-              (se) =>
-                se.doctorId === p.id &&
-                (!se.sessionId || se.sessionId === da.sessionId),
-            );
-            if (exception?.type === 'leave') return null;
+          const shiftCode = da.sessionDef.code as SessionShiftType;
+          const shiftDef =
+            SHIFT_DEFINITIONS.find((sd) => sd.shift === shiftCode) ||
+            SHIFT_DEFINITIONS[1];
+          const startTime = (
+            sched.startsAt || shiftDef.boundaryStartTime
+          ).slice(0, 5);
+          const endTime = (
+            sched.endsAt || shiftDef.boundaryEndTime
+          ).slice(0, 5);
 
-            const shiftCode = da.sessionDef.code as SessionShiftType;
-            const shiftDef =
-              SHIFT_DEFINITIONS.find((sd) => sd.shift === shiftCode) ||
-              SHIFT_DEFINITIONS[1];
-            const startTime = (
-              sched.startsAt || shiftDef.boundaryStartTime
-            ).slice(0, 5);
-            const endTime = (
-              sched.endsAt || shiftDef.boundaryEndTime
-            ).slice(0, 5);
+          let sessionLabel = shiftDef.label;
+          if (da.sessionDef.labelKey === 'session.morning') {
+            sessionLabel = 'Sesi Pagi';
+          } else if (da.sessionDef.labelKey === 'session.afternoon') {
+            sessionLabel = 'Sesi Siang';
+          } else if (da.sessionDef.labelKey === 'session.night') {
+            sessionLabel = 'Sesi Malam';
+          } else if (da.sessionDef.labelKey === 'session.early_morning') {
+            sessionLabel = 'Sesi Dini Hari';
+          }
 
-            let sessionLabel = shiftDef.label;
-            if (da.sessionDef.labelKey === 'session.morning') {
-              sessionLabel = 'Sesi Pagi';
-            } else if (da.sessionDef.labelKey === 'session.afternoon') {
-              sessionLabel = 'Sesi Siang';
-            } else if (da.sessionDef.labelKey === 'session.night') {
-              sessionLabel = 'Sesi Malam';
-            } else if (da.sessionDef.labelKey === 'session.early_morning') {
-              sessionLabel = 'Sesi Dini Hari';
-            }
-
-            return {
-              id: `recurring-${da.id}-${targetDate}`,
-              practitionerId: p.id,
-              scheduleDate: targetDate,
-              startTime,
-              endTime,
-              sessionShift: shiftCode,
-              sessionLabel,
-              status: 'open',
-              clinicRoom: da.preferredRoom || p.clinicRoom,
-              notes: null,
-            };
-          })
-          .filter((s): s is NonNullable<typeof s> => s !== null)
-          .sort((a, b) => a.startTime.localeCompare(b.startTime)) as any;
-      }
+          return {
+            id: `recurring-${da.id}-${targetDate}`,
+            practitionerId: p.id,
+            scheduleDate: targetDate,
+            startTime,
+            endTime,
+            sessionShift: shiftCode,
+            sessionLabel,
+            status: 'open',
+            clinicRoom: da.preferredRoom || p.clinicRoom,
+            notes: null,
+          };
+        })
+        .filter((s): s is NonNullable<typeof s> => s !== null)
+        .sort((a, b) => a.startTime.localeCompare(b.startTime)) as any;
 
       const isCuti = Boolean(activeLeave);
       const cutiReason = isCuti ? activeLeave?.note || 'Cuti Dokter' : null;
@@ -197,7 +180,7 @@ export class DrizzleAdminDoctorScheduleListQuery {
         ? `${p.clinicRoom.name}${p.clinicRoom.location ? `, ${p.clinicRoom.location}` : ''}`
         : 'Belum Ditentukan';
 
-      const sesiHarian: AdminDoctorDailySession[] = sessions.map((s) => {
+      const sesiHarian: AdminDoctorDailySession[] = sessions.map((s: any) => {
         const shiftDef = SHIFT_DEFINITIONS.find((d) => d.shift === s.sessionShift);
         const boundaryStart = shiftDef?.boundaryStartTime || SHIFT_DEFINITIONS[1].boundaryStartTime;
         const boundaryEnd = shiftDef?.boundaryEndTime || SHIFT_DEFINITIONS[1].boundaryEndTime;

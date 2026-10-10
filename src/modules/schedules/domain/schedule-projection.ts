@@ -54,7 +54,7 @@ const DISPLAY_LABEL_BY_STATUS: Record<
   CLOSED: 'Tutup',
 };
 
-export function projectScheduleIntervals(
+export function projectScheduleProjection(
   input: ScheduleProjectionInput,
 ): ScheduleProjectionResult {
   const startMinutes = parseClockTime(input.selectedStartTime);

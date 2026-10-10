@@ -4,8 +4,10 @@ import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
   appointments,
   clinicClosures,
-  practitionerScheduleSessions,
+  doctorAssignments,
   queueTickets,
+  sessionDefs,
+  shiftExceptions,
 } from '@database/schema';
 import { type NotificationPublisher } from '@modules/notifications/contracts/domain-event.interface';
 import { NOTIFICATION_PUBLISHER } from '@modules/notifications/notifications.constants';
@@ -16,10 +18,6 @@ import {
   formatClockTime,
   parseClockTime,
 } from '@modules/schedules/domain/schedule-projection';
-import {
-  isClosedScheduleStatus,
-  SchedulePersistenceStatus,
-} from '@modules/schedules/domain/schedule-status';
 import { ScheduleContextResolver } from '@modules/schedules/domain/services/schedule-context-resolver';
 import { ScheduleConflictQuery } from '@modules/schedules/infrastructure/drizzle/queries/schedule-conflict.query';
 import { DrizzleScheduleAvailabilityRepository } from '@modules/schedules/infrastructure/drizzle/repositories/occupancy/drizzle-schedule-availability.repository';
@@ -33,10 +31,9 @@ import {
   Logger,
   NotFoundException,
   Optional,
-  UnprocessableEntityException,
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
-import { and, asc, eq, gt, gte, inArray, lt, not, or } from 'drizzle-orm';
+import { and, asc, eq, gte, inArray, lt } from 'drizzle-orm';
 import { DrizzleRescheduleEligibilityEvaluator } from './drizzle-reschedule-eligibility.evaluator';
 import { publishRescheduleNotifications } from './reschedule-notification.helper';
 import {
@@ -101,30 +98,42 @@ export class DrizzleScheduleRescheduleRepository {
       throw new NotFoundException(`Dokter dengan ID ${id} tidak ditemukan`);
     }
 
-    const session = await this.db.query.practitionerScheduleSessions.findFirst({
-      where: and(
-        eq(practitionerScheduleSessions.id, sessionId),
-        eq(practitionerScheduleSessions.practitionerId, practitioner.id),
-      ),
+    const sessionDef = await this.db.query.sessionDefs.findFirst({
+      where: eq(sessionDefs.id, sessionId),
     });
 
-    if (!session) {
+    const assignment = sessionDef
+      ? null
+      : await this.db.query.doctorAssignments.findFirst({
+          where: and(
+            eq(doctorAssignments.id, sessionId),
+            eq(doctorAssignments.doctorId, practitioner.id),
+          ),
+          with: {
+            sessionDef: true,
+          },
+        });
+
+    const effectiveSessionDef = sessionDef ?? assignment?.sessionDef;
+    if (!effectiveSessionDef) {
       throw new NotFoundException(
         `Sesi jadwal dengan ID ${sessionId} tidak ditemukan untuk dokter ini`,
       );
     }
 
-    if (isClosedScheduleStatus(session.status)) {
-      throw new UnprocessableEntityException({
-        code: 'SESSION_NOT_ELIGIBLE_FOR_RESCHEDULE',
-        message:
-          'Sesi berstatus Tutup. Sesi yang sudah ditutup tidak dapat di-reschedule. Silakan gunakan menu Edit Jadwal untuk membuka sesi.',
-        metadata: {
-          sessionId: session.id,
-          status: session.status,
-        },
-      });
-    }
+    const session = {
+      id: effectiveSessionDef.id,
+      scheduleDate:
+        (body as any).sourceDate ||
+        body.targetDate ||
+        new Date().toISOString().split('T')[0],
+      startTime: effectiveSessionDef.defaultStartsAt.slice(0, 5),
+      endTime: effectiveSessionDef.defaultEndsAt.slice(0, 5),
+      sessionShift: effectiveSessionDef.code,
+      sessionLabel: effectiveSessionDef.labelKey,
+      roomId: assignment?.preferredRoomId || practitioner.defaultRoomId || null,
+      notes: null as string | null,
+    };
 
     let targetContextId = body.targetScheduleContextId;
     if (!targetContextId) {
@@ -143,12 +152,8 @@ export class DrizzleScheduleRescheduleRepository {
         ? practitioner.consultationDurationMinutes
         : 30;
 
-    const sessStart =
-      session.startTime.length === 5
-        ? `${session.startTime}:00`
-        : session.startTime;
-    const sessEnd =
-      session.endTime.length === 5 ? `${session.endTime}:00` : session.endTime;
+    const sessStart = `${session.startTime}:00`;
+    const sessEnd = `${session.endTime}:00`;
     const sessStartMin = parseClockTime(session.startTime);
     const sessEndMin = parseClockTime(session.endTime);
 
@@ -196,81 +201,14 @@ export class DrizzleScheduleRescheduleRepository {
       });
     }
 
-    const targetStartFormatted =
-      body.targetStartTime.length === 5
-        ? `${body.targetStartTime}:00`
-        : body.targetStartTime;
-    const targetEndFormatted =
-      targetEndTime.length === 5 ? `${targetEndTime}:00` : targetEndTime;
-
-    // Check if practitioner already has an open session on targetDate that covers targetStartTime..targetEndTime
-    const candidateTargetSessions =
-      await this.db.query.practitionerScheduleSessions.findMany({
-        where: and(
-          eq(practitionerScheduleSessions.practitionerId, practitioner.id),
-          eq(practitionerScheduleSessions.scheduleDate, body.targetDate),
-          eq(
-            practitionerScheduleSessions.status,
-            SchedulePersistenceStatus.OPEN,
-          ),
-        ),
-      });
-
-    const existingTargetSession = candidateTargetSessions.find((s) => {
-      const sStart =
-        s.startTime.length === 5 ? `${s.startTime}:00` : s.startTime;
-      const sEnd = s.endTime.length === 5 ? `${s.endTime}:00` : s.endTime;
-      return sStart <= targetStartFormatted && sEnd >= targetEndFormatted;
-    });
-
-    if (existingTargetSession) {
-      // Check room conflict with other doctors
-      if (targetRoomId) {
-        const otherDoctorInRoom =
-          await this.db.query.practitionerScheduleSessions.findFirst({
-            where: and(
-              eq(practitionerScheduleSessions.roomId, targetRoomId),
-              eq(practitionerScheduleSessions.scheduleDate, body.targetDate),
-              eq(
-                practitionerScheduleSessions.status,
-                SchedulePersistenceStatus.OPEN,
-              ),
-              not(
-                eq(
-                  practitionerScheduleSessions.practitionerId,
-                  practitioner.id,
-                ),
-              ),
-              lt(practitionerScheduleSessions.startTime, targetEndFormatted),
-              gt(practitionerScheduleSessions.endTime, targetStartFormatted),
-            ),
-            with: {
-              practitioner: { with: { staffProfile: true } },
-              clinicRoom: true,
-            },
-          });
-        if (otherDoctorInRoom) {
-          const roomName = otherDoctorInRoom.clinicRoom?.name || 'Ruangan';
-          const docName =
-            otherDoctorInRoom.practitioner?.staffProfile?.fullName ||
-            otherDoctorInRoom.practitioner?.displayName ||
-            'Dokter lain';
-          throw new ConflictException({
-            code: 'ROOM_ALREADY_OCCUPIED',
-            message: `${roomName} sudah dijadwalkan untuk ${docName} pada jam ${body.targetStartTime} - ${targetEndTime}.`,
-          });
-        }
-      }
-    } else {
-      await this.conflictQuery.checkConflicts(
-        practitioner.id,
-        body.targetDate,
-        body.targetStartTime,
-        preview.projectedEndTime,
-        targetRoomId,
-        sessionId,
-      );
-    }
+    await this.conflictQuery.checkConflicts(
+      practitioner.id,
+      body.targetDate,
+      body.targetStartTime,
+      preview.projectedEndTime,
+      targetRoomId,
+      sessionId,
+    );
 
     const activeAppointments = await this.db.query.appointments.findMany({
       where: and(
@@ -302,10 +240,6 @@ export class DrizzleScheduleRescheduleRepository {
         })
       : activeAppointments;
 
-    const remainingAppointments = activeAppointments.filter(
-      (a) => !appointmentsToMove.some((m) => m.id === a.id),
-    );
-
     const previousSchedule = {
       date: session.scheduleDate,
       startTime: formatClockTime(sourceRangeStartMin),
@@ -313,101 +247,12 @@ export class DrizzleScheduleRescheduleRepository {
       roomId: session.roomId,
     };
 
-    let effectiveTargetSessionId = existingTargetSession
-      ? existingTargetSession.id
-      : sessionId;
+    let effectiveTargetSessionId = sessionId;
+    if (isPartialShiftMode) {
+      effectiveTargetSessionId = randomUUID();
+    }
 
     const updatedSession = await this.db.transaction(async (tx) => {
-      if (existingTargetSession) {
-        if (
-          body.rescheduleActiveAppointments !== false &&
-          appointmentsToMove.length > 0
-        ) {
-          await tx
-            .update(appointments)
-            .set({
-              scheduledDate: body.targetDate,
-              scheduledStartTime: `${body.targetStartTime}:00`,
-              scheduledEndTime: `${targetEndTime}:00`,
-              roomId:
-                targetRoomId || existingTargetSession.roomId || null,
-              updatedAt: new Date().toISOString(),
-            })
-            .where(
-              inArray(
-                appointments.id,
-                appointmentsToMove.map((a) => a.id),
-              ),
-            );
-
-          await tx
-            .update(queueTickets)
-            .set({
-              queueDate: body.targetDate,
-              roomId: targetRoomId || existingTargetSession.roomId || undefined,
-              carriedOver: true,
-              updatedAt: new Date().toISOString(),
-            })
-            .where(
-              inArray(
-                queueTickets.appointmentId,
-                appointmentsToMove.map((a) => a.id),
-              ),
-            );
-        }
-
-        if (existingTargetSession.id === session.id) {
-          await tx
-            .update(practitionerScheduleSessions)
-            .set({
-              scheduleDate: body.targetDate,
-              startTime: `${body.targetStartTime}:00`,
-              endTime: `${targetEndTime}:00`,
-              roomId: targetRoomId || session.roomId,
-              updatedAt: new Date().toISOString(),
-            })
-            .where(eq(practitionerScheduleSessions.id, session.id));
-        }
-
-        await tx.insert(clinicClosures).values({
-          scope: 'doctor',
-          doctorId: practitioner.id,
-          startsAt: `${session.scheduleDate}T${formatClockTime(sourceRangeStartMin)}:00Z`,
-          endsAt: `${session.scheduleDate}T${formatClockTime(sourceRangeEndMin)}:00Z`,
-          inputKind: 'session',
-          reason:
-            body.notes || body.reason || 'Reschedule jadwal janji temu pasien',
-        });
-
-        const [refetchedTarget] = await tx
-          .select()
-          .from(practitionerScheduleSessions)
-          .where(eq(practitionerScheduleSessions.id, existingTargetSession.id));
-
-        return refetchedTarget || existingTargetSession;
-      }
-
-      if (
-        body.rescheduleActiveAppointments !== false &&
-        appointmentsToMove.length > 0
-      ) {
-        await tx
-          .update(appointments)
-          .set({
-            scheduledDate: '1970-01-01',
-          })
-          .where(
-            inArray(
-              appointments.id,
-              appointmentsToMove.map((a) => a.id),
-            ),
-          );
-      }
-
-      if (isPartialShiftMode) {
-        effectiveTargetSessionId = randomUUID();
-      }
-
       const targetSessionRecord = await mutateRescheduleSessionRecords({
         tx,
         isPartialShiftMode,
@@ -452,6 +297,7 @@ export class DrizzleScheduleRescheduleRepository {
           .set({
             queueDate: body.targetDate,
             roomId: targetRoomId || undefined,
+            carriedOver: true,
             updatedAt: new Date().toISOString(),
           })
           .where(
@@ -488,12 +334,6 @@ export class DrizzleScheduleRescheduleRepository {
       });
     }
 
-    const updatedProjection =
-      await this.availabilityRepo.buildProjectionForSession(
-        effectiveTargetSessionId,
-        true,
-      );
-
     return {
       success: true,
       message: 'Jadwal dokter berhasil dijadwalkan ulang (rescheduled)',
@@ -515,7 +355,7 @@ export class DrizzleScheduleRescheduleRepository {
           version: generateEntityVersion(updatedSession.updatedAt),
         },
         rescheduledAppointmentsCount: appointmentsToMove.length,
-        projection: updatedProjection,
+        projection: preview,
       },
     };
   }

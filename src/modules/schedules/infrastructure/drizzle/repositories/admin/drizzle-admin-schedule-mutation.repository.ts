@@ -3,17 +3,15 @@ import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
   appointments,
   clinicClosures,
-  practitionerScheduleSessions,
+  doctorAssignments,
   practitioners,
   queueTickets,
   shiftExceptions,
 } from '@database/schema';
 import {
   AdminScheduleStatusRequest,
-  SchedulePersistenceStatus,
   toAdminDayStatusResponseLabel,
   toAdminScheduleStatusRequest,
-  toDaySessionPersistenceStatus,
 } from '@modules/schedules/domain/schedule-status';
 import { ScheduleConflictQuery } from '@modules/schedules/infrastructure/drizzle/queries/schedule-conflict.query';
 import { PractitionerResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/practitioner.resolver';
@@ -27,7 +25,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, or, sql } from 'drizzle-orm';
 import { DrizzleAdminDoctorScheduleDetailQuery } from './drizzle-admin-doctor-schedule-detail.query';
 import { DrizzleAdminSessionMutationRepository } from './drizzle-admin-session-mutation.repository';
 
@@ -77,17 +75,12 @@ export class DrizzleAdminScheduleMutationRepository {
           .where(eq(practitioners.id, practitionerId));
 
         await this.db
-          .update(practitionerScheduleSessions)
+          .update(doctorAssignments)
           .set({
-            roomId: resolvedRoomId,
+            preferredRoomId: resolvedRoomId,
             updatedAt: new Date().toISOString(),
           })
-          .where(
-            and(
-              eq(practitionerScheduleSessions.practitionerId, practitionerId),
-              eq(practitionerScheduleSessions.scheduleDate, targetDate),
-            ),
-          );
+          .where(eq(doctorAssignments.doctorId, practitionerId));
       }
     }
 
@@ -129,24 +122,9 @@ export class DrizzleAdminScheduleMutationRepository {
             ),
           );
       }
-
-      await this.db
-        .update(practitionerScheduleSessions)
-        .set({
-          status: body.is_cuti
-            ? SchedulePersistenceStatus.CLOSED
-            : SchedulePersistenceStatus.OPEN,
-          updatedAt: new Date().toISOString(),
-        })
-        .where(
-          and(
-            eq(practitionerScheduleSessions.practitionerId, practitionerId),
-            eq(practitionerScheduleSessions.scheduleDate, targetDate),
-          ),
-        );
     }
 
-    // 2. Schedule status override
+    // 2. Schedule status override via shiftExceptions
     if (body.status_jadwal) {
       const requestedStatus = toAdminScheduleStatusRequest(body.status_jadwal);
       if (!requestedStatus) {
@@ -157,24 +135,33 @@ export class DrizzleAdminScheduleMutationRepository {
           metadata: { status_jadwal: body.status_jadwal },
         });
       }
-      const sessionStatus = toDaySessionPersistenceStatus(requestedStatus);
 
-      const updateValues: Record<string, any> = {
-        status: sessionStatus,
-        updatedAt: new Date().toISOString(),
-      };
-
-      await this.db
-        .update(practitionerScheduleSessions)
-        .set(updateValues)
-        .where(
-          and(
-            eq(practitionerScheduleSessions.practitionerId, practitionerId),
-            eq(practitionerScheduleSessions.scheduleDate, targetDate),
+      if (requestedStatus === AdminScheduleStatusRequest.CLOSED) {
+        const existingLeave = await this.db.query.shiftExceptions.findFirst({
+          where: and(
+            eq(shiftExceptions.doctorId, practitionerId),
+            eq(shiftExceptions.serviceDate, targetDate),
+            eq(shiftExceptions.type, 'leave'),
           ),
-        );
+        });
 
-      if (requestedStatus === AdminScheduleStatusRequest.OPEN) {
+        if (existingLeave) {
+          await this.db
+            .update(shiftExceptions)
+            .set({
+              note: 'Jadwal ditutup oleh admin klinik.',
+              updatedAt: new Date().toISOString(),
+            })
+            .where(eq(shiftExceptions.id, existingLeave.id));
+        } else {
+          await this.db.insert(shiftExceptions).values({
+            doctorId: practitionerId,
+            serviceDate: targetDate,
+            type: 'leave',
+            note: 'Jadwal ditutup oleh admin klinik.',
+          });
+        }
+      } else if (requestedStatus === AdminScheduleStatusRequest.OPEN) {
         await this.db
           .delete(shiftExceptions)
           .where(
@@ -251,22 +238,17 @@ export class DrizzleAdminScheduleMutationRepository {
         );
     }
 
-    const sessionStatus = toDaySessionPersistenceStatus(requestedStatus);
-    const updateValues: Record<string, any> = {
-      status: sessionStatus,
-      updatedAt: new Date().toISOString(),
-    };
-
-    const updatedSessions = await this.db
-      .update(practitionerScheduleSessions)
-      .set(updateValues)
-      .where(
-        and(
-          eq(practitionerScheduleSessions.practitionerId, practitionerId),
-          eq(practitionerScheduleSessions.scheduleDate, date),
+    const targetDow = new Date(date).getDay();
+    const affectedAssignments = await this.db.query.doctorAssignments.findMany({
+      where: and(
+        eq(doctorAssignments.doctorId, practitionerId),
+        eq(doctorAssignments.isActive, true),
+        or(
+          eq(doctorAssignments.dow, targetDow),
+          sql`${doctorAssignments.dow} IS NULL`,
         ),
-      )
-      .returning();
+      ),
+    });
 
     // 2. Soft-cancel unserved appointments and protect checked_in patients if day is closed
     let cancelledAppointmentsCount = 0;
@@ -341,7 +323,7 @@ export class DrizzleAdminScheduleMutationRepository {
         date,
         status: toAdminDayStatusResponseLabel(requestedStatus),
         notes: notes || null,
-        affectedSessionsCount: updatedSessions.length,
+        affectedSessionsCount: affectedAssignments.length,
         cancelledAppointmentsCount,
       },
     };

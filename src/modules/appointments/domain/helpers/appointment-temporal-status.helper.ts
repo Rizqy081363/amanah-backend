@@ -44,12 +44,11 @@ export class AppointmentTemporalStatusHelper {
 
   static resolveEntityStatus(
     status: string,
-    _isElapsed: boolean = false,
   ): AppointmentEntity['status'] {
     return toDomainStatus(status);
   }
 
-  static resolveDbStatus(status: string, _isElapsed: boolean = false): string {
+  static resolveDbStatus(status: string, _isElapsed?: boolean): string {
     if (
       status === DB_APPOINTMENT_STATUS.CANCELLED ||
       status === DB_APPOINTMENT_STATUS.NO_SHOW ||

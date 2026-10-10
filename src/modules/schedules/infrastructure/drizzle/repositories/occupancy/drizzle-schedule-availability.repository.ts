@@ -2,8 +2,9 @@ import { generateEntityVersion } from '@common/occ';
 import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
-  practitionerScheduleSessions,
+  doctorAssignments,
   practitioners,
+  sessionDefs,
 } from '@database/schema';
 import { ClinicTimeService } from '@common/time/clinic-time.service';
 import {
@@ -19,7 +20,7 @@ import {
 import { ScheduleSessionFactory } from '@modules/schedules/domain/factories/schedule-session.factory';
 import {
   parseClockTime,
-  projectScheduleIntervals,
+  projectScheduleProjection,
   type ScheduleClosedReason,
 } from '@modules/schedules/domain/schedule-projection';
 import {
@@ -206,14 +207,11 @@ export class DrizzleScheduleAvailabilityRepository {
     sessionId: string,
     durationEditableByCurrentUser: boolean,
   ): Promise<ScheduleProjectionEntity> {
-    const session = await this.db.query.practitionerScheduleSessions.findFirst({
-      where: eq(practitionerScheduleSessions.id, sessionId),
-      with: {
-        practitioner: true,
-      },
+    const sessionDef = await this.db.query.sessionDefs.findFirst({
+      where: eq(sessionDefs.id, sessionId),
     });
 
-    if (!session?.practitioner) {
+    if (!sessionDef) {
       throw new NotFoundException(
         `Sesi jadwal dengan ID ${sessionId} tidak ditemukan`,
       );
@@ -221,24 +219,20 @@ export class DrizzleScheduleAvailabilityRepository {
 
     const context =
       SCHEDULE_CONTEXT_DEFINITIONS.find(
-        (definition) => definition.sessionShift === session.sessionShift,
+        (definition) => definition.sessionShift === sessionDef.code,
       ) ?? SCHEDULE_CONTEXT_DEFINITIONS[1];
-    const policy = await this.policyReader.getPolicy(session.practitioner);
-    const closedReason = isClosedScheduleStatus(session.status)
-      ? ('SCHEDULE_CLOSED' as const)
-      : undefined;
+    const clinicPolicy = await this.policyReader.getClinicSchedulePolicy();
 
     return this.buildProjection({
-      practitionerId: session.practitionerId,
-      scheduleId: session.id,
-      date: session.scheduleDate,
+      practitionerId: sessionId,
+      scheduleId: sessionDef.id,
+      date: new Date().toISOString().split('T')[0],
       context,
-      selectedStartTime: session.startTime.slice(0, 5),
-      boundaryEndTime: session.endTime.slice(0, 5),
-      policy,
+      selectedStartTime: sessionDef.defaultStartsAt.slice(0, 5),
+      boundaryEndTime: sessionDef.defaultEndsAt.slice(0, 5),
+      policy: clinicPolicy,
       durationEditableByCurrentUser,
-      closedReason,
-      updatedAt: session.updatedAt,
+      updatedAt: sessionDef.updatedAt ?? null,
     });
   }
 
@@ -265,7 +259,7 @@ export class DrizzleScheduleAvailabilityRepository {
       date: params.date,
       sessionId: params.scheduleId,
     });
-    const projected = projectScheduleIntervals({
+    const projected = projectScheduleProjection({
       scheduleId: params.scheduleId,
       selectedStartTime: params.selectedStartTime,
       boundaryEndTime: params.boundaryEndTime,

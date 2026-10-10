@@ -2,8 +2,9 @@ import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
   appointments,
-  practitionerScheduleSessions,
+  doctorAssignments,
   practitioners,
+  sessionDefs,
 } from '@database/schema';
 import { AppointmentTemporalStatusHelper } from '@modules/appointments/domain/helpers/appointment-temporal-status.helper';
 import { APPOINTMENT_STATUS_BADGE_MAP } from '@modules/schedules/domain/constants/schedule.constants';
@@ -19,7 +20,7 @@ import { PractitionerResolver } from '@modules/schedules/infrastructure/drizzle/
 import type { GetAdminDoctorPatientsQueryDto } from '@modules/schedules/presentation/dto/get-admin-doctor-patients-query.dto';
 import type { GetSessionPatientsQueryDto } from '@modules/schedules/presentation/dto/get-session-patients-query.dto';
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { and, asc, eq, gte, inArray, lt, or } from 'drizzle-orm';
+import { and, asc, eq, gte, inArray, isNull, lt, or } from 'drizzle-orm';
 
 @Injectable()
 export class DrizzleSchedulePatientRepository {
@@ -37,23 +38,14 @@ export class DrizzleSchedulePatientRepository {
     const conditions: any[] = [];
 
     if (sessionId) {
-      const session =
-        await this.db.query.practitionerScheduleSessions.findFirst({
-          where: eq(practitionerScheduleSessions.id, sessionId),
-        });
+      const session = await this.db.query.sessionDefs.findFirst({
+        where: eq(sessionDefs.id, sessionId),
+      });
       if (session) {
-        const sessStart =
-          session.startTime.length === 5
-            ? `${session.startTime}:00`
-            : session.startTime;
-        const sessEnd =
-          session.endTime.length === 5
-            ? `${session.endTime}:00`
-            : session.endTime;
+        const sessStart = `${session.defaultStartsAt.slice(0, 5)}:00`;
+        const sessEnd = `${session.defaultEndsAt.slice(0, 5)}:00`;
         conditions.push(
           and(
-            eq(appointments.practitionerId, session.practitionerId),
-            eq(appointments.scheduledDate, session.scheduleDate),
             gte(appointments.scheduledStartTime, sessStart),
             lt(appointments.scheduledStartTime, sessEnd),
           ),
@@ -74,20 +66,24 @@ export class DrizzleSchedulePatientRepository {
 
     const appointmentRecords = await this.db.query.appointments.findMany({
       where: conditions.length > 0 ? and(...conditions) : undefined,
-      orderBy: [
-        asc(appointments.scheduledStartTime),
-        asc(appointments.createdAt),
-      ],
       with: {
         patientProfile: true,
-        queueTickets: true,
-        practitionerScheduleSession: {
+        practitioner: {
           with: {
-            clinicRoom: true,
+            staffProfile: true,
           },
         },
-        clinicRoom: true,
+        clinicRoom: {
+          with: {
+            clinicUnit: true,
+          },
+        },
+        queueTickets: true,
       },
+      orderBy: [
+        asc(appointments.scheduledDate),
+        asc(appointments.scheduledStartTime),
+      ],
     });
 
     return appointmentRecords.map((apt) => BookedPatientMapper.toEntity(apt));
@@ -106,30 +102,48 @@ export class DrizzleSchedulePatientRepository {
       );
     }
 
-    const session = await this.db.query.practitionerScheduleSessions.findFirst({
-      where: and(
-        eq(practitionerScheduleSessions.id, sessionId),
-        eq(practitionerScheduleSessions.practitionerId, practitioner.id),
-      ),
-      with: {
-        clinicRoom: {
-          with: {
-            clinicUnit: true,
-          },
-        },
-      },
+    const sessionDef = await this.db.query.sessionDefs.findFirst({
+      where: eq(sessionDefs.id, sessionId),
     });
 
-    if (!session) {
-      throw new NotFoundException(`Sesi jadwal praktik tidak ditemukan`);
-    }
+    const assignment = sessionDef
+      ? null
+      : await this.db.query.doctorAssignments.findFirst({
+          where: and(
+            eq(doctorAssignments.id, sessionId),
+            eq(doctorAssignments.doctorId, practitioner.id),
+          ),
+          with: {
+            sessionDef: true,
+            preferredRoom: {
+              with: {
+                clinicUnit: true,
+              },
+            },
+          },
+        });
 
-    const sessStart =
-      session.startTime.length === 5
-        ? `${session.startTime}:00`
-        : session.startTime;
-    const sessEnd =
-      session.endTime.length === 5 ? `${session.endTime}:00` : session.endTime;
+    const effectiveSessionDef = sessionDef ?? assignment?.sessionDef;
+    const effectiveRoom = assignment?.preferredRoom || null;
+
+    const sessDate =
+      (query as any).date || new Date().toISOString().slice(0, 10);
+    const sessStartTime =
+      effectiveSessionDef?.defaultStartsAt.slice(0, 5) || '08:00';
+    const sessEndTime =
+      effectiveSessionDef?.defaultEndsAt.slice(0, 5) || '12:00';
+    const sessStart = `${sessStartTime}:00`;
+    const sessEnd = `${sessEndTime}:00`;
+
+    const session = {
+      id: sessionId,
+      scheduleDate: sessDate,
+      startTime: sessStartTime,
+      endTime: sessEndTime,
+      sessionLabel: effectiveSessionDef?.labelKey || 'Sesi Praktik',
+      sessionShift: effectiveSessionDef?.code || 'morning',
+      clinicRoom: effectiveRoom,
+    };
 
     const sessionMatchCondition = and(
       eq(appointments.practitionerId, practitioner.id),
@@ -347,27 +361,37 @@ export class DrizzleSchedulePatientRepository {
     const doctorName =
       prac?.staffProfile?.fullName || prac?.displayName || 'Dokter Amanah';
 
-    const sessionConditions: any[] = [
-      eq(practitionerScheduleSessions.practitionerId, practitioner.id),
-      eq(practitionerScheduleSessions.scheduleDate, date),
-    ];
-
-    if (query.sessionShift) {
-      const resolved = resolveCanonicalShift({
-        sessionShift: query.sessionShift,
-      });
-      sessionConditions.push(
-        eq(practitionerScheduleSessions.sessionShift, resolved.shift as any),
-      );
-    }
-
-    const sessions = await this.db.query.practitionerScheduleSessions.findMany({
-      where: and(...sessionConditions),
-      orderBy: [asc(practitionerScheduleSessions.startTime)],
+    const targetDow = new Date(date).getDay();
+    const assignments = await this.db.query.doctorAssignments.findMany({
+      where: and(
+        eq(doctorAssignments.doctorId, practitioner.id),
+        eq(doctorAssignments.isActive, true),
+        or(eq(doctorAssignments.dow, targetDow), isNull(doctorAssignments.dow)),
+      ),
       with: {
-        clinicRoom: true,
+        sessionDef: true,
+        preferredRoom: true,
       },
     });
+
+    const sessions = assignments
+      .filter((da) => da.sessionDef && da.sessionDef.isActive)
+      .filter((da) => {
+        if (!query.sessionShift) return true;
+        const resolved = resolveCanonicalShift({
+          sessionShift: query.sessionShift,
+        });
+        return da.sessionDef.code === resolved.shift;
+      })
+      .map((da) => ({
+        id: da.sessionDef.id,
+        sessionShift: da.sessionDef.code,
+        sessionLabel: da.sessionDef.labelKey,
+        startTime: da.sessionDef.defaultStartsAt,
+        endTime: da.sessionDef.defaultEndsAt,
+        clinicRoom: da.preferredRoom || null,
+      }))
+      .sort((a, b) => a.startTime.localeCompare(b.startTime));
 
     const sessionItems: any[] = [];
     let accumulatedBookedCount = 0;

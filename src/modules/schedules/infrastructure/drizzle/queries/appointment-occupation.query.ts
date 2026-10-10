@@ -2,7 +2,7 @@ import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
   appointments,
-  practitionerScheduleSessions,
+  sessionDefs,
   shiftExceptions,
 } from '@database/schema';
 import { ACTIVE_APPOINTMENT_STATUSES } from '@modules/schedules/domain/constants/schedule.constants';
@@ -47,19 +47,12 @@ export class AppointmentOccupationQuery {
     ];
 
     if (params.sessionId) {
-      const session =
-        await this.db.query.practitionerScheduleSessions.findFirst({
-          where: eq(practitionerScheduleSessions.id, params.sessionId),
-        });
+      const session = await this.db.query.sessionDefs.findFirst({
+        where: eq(sessionDefs.id, params.sessionId),
+      });
       if (session) {
-        const sessStart =
-          session.startTime.length === 5
-            ? `${session.startTime}:00`
-            : session.startTime;
-        const sessEnd =
-          session.endTime.length === 5
-            ? `${session.endTime}:00`
-            : session.endTime;
+        const sessStart = `${session.defaultStartsAt.slice(0, 5)}:00`;
+        const sessEnd = `${session.defaultEndsAt.slice(0, 5)}:00`;
         conditions.push(
           gte(appointments.scheduledStartTime, sessStart),
           lt(appointments.scheduledStartTime, sessEnd),

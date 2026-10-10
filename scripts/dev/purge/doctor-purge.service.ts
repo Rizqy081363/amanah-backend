@@ -65,13 +65,13 @@ export async function fetchDoctorsList(pool: Pool, search?: string): Promise<Doc
       p.display_name AS doctor_name,
       COALESCE(u.email::text, sp.email::text, '-') AS email,
       COALESCE(ms.name, 'General') AS specialty,
-      COUNT(DISTINCT s.id) AS session_count,
+      COUNT(DISTINCT da.id) AS session_count,
       COUNT(DISTINCT a.id) AS appointment_count
     FROM practitioners p
     JOIN staff_profiles sp ON p.staff_profile_id = sp.id
     LEFT JOIN users u ON sp.user_id = u.id
     LEFT JOIN medical_specialties ms ON p.specialty_id = ms.id
-    LEFT JOIN practitioner_schedule_sessions s ON s.practitioner_id = p.id
+    LEFT JOIN doctor_assignment da ON da.doctor_id = p.id
     LEFT JOIN appointments a ON a.practitioner_id = p.id
     WHERE 1=1 ${whereClause}
     GROUP BY p.id, sp.id, sp.user_id, sp.staff_code, p.display_name, u.email, sp.email, ms.name
@@ -95,7 +95,7 @@ export async function fetchDoctorsList(pool: Pool, search?: string): Promise<Doc
 export async function inspectAllDoctors(pool: Pool): Promise<DoctorPurgeInspection> {
   const [pracs, sess, creds, att, leaves, appts, encs] = await Promise.all([
     pool.query('SELECT count(*) FROM practitioners'),
-    pool.query('SELECT count(*) FROM practitioner_schedule_sessions'),
+    pool.query('SELECT count(*) FROM doctor_assignment'),
     pool.query('SELECT count(*) FROM staff_credentials'),
     pool.query('SELECT count(*) FROM staff_attendance_records'),
     pool.query('SELECT count(*) FROM staff_leave_requests'),
@@ -151,7 +151,7 @@ export async function inspectDoctor(
   const email = String(row.email);
 
   const [sess, creds, att, leaves, appts, encs] = await Promise.all([
-    pool.query('SELECT count(*) FROM practitioner_schedule_sessions WHERE practitioner_id = $1', [practitionerId]),
+    pool.query('SELECT count(*) FROM doctor_assignment WHERE doctor_id = $1', [practitionerId]),
     pool.query('SELECT count(*) FROM staff_credentials WHERE staff_profile_id = $1', [staffProfileId]),
     pool.query('SELECT count(*) FROM staff_attendance_records WHERE staff_profile_id = $1', [staffProfileId]),
     pool.query('SELECT count(*) FROM staff_leave_requests WHERE staff_profile_id = $1', [staffProfileId]),
@@ -190,18 +190,15 @@ export async function executeDoctorPurge(
     let deletedPracs = 0;
 
     if (options.isAll) {
-      await client.query('DELETE FROM schedule_reschedule_events');
-      await client.query('DELETE FROM practitioner_schedule_closures');
-      await client.query('UPDATE appointments SET schedule_session_id = NULL, practitioner_id = NULL');
+      await client.query('DELETE FROM clinic_closure WHERE scope = \'doctor\'');
+      await client.query('UPDATE appointments SET practitioner_id = NULL');
       await client.query('UPDATE clinical_encounters SET practitioner_id = NULL');
       await client.query('UPDATE conversations SET assigned_practitioner_id = NULL, assigned_staff_id = NULL');
       await client.query('UPDATE support_tickets SET assigned_staff_id = NULL');
       await client.query('UPDATE staff_leave_requests SET substitute_practitioner_id = NULL, practitioner_id = NULL');
 
-      await client.query('DELETE FROM practitioner_schedule_sessions');
-      await client.query('DELETE FROM practitioner_schedule_day_settings');
-      await client.query('DELETE FROM practitioner_availability');
-      await client.query('DELETE FROM practitioner_leave_periods');
+      await client.query('DELETE FROM shift_exception');
+      await client.query('DELETE FROM doctor_assignment');
 
       const delPracs = await client.query('DELETE FROM practitioners');
       deletedPracs = delPracs.rowCount ?? 0;
@@ -215,17 +212,14 @@ export async function executeDoctorPurge(
       const pid = options.practitionerId;
       const spid = options.staffProfileId;
 
-      await client.query('DELETE FROM schedule_reschedule_events WHERE practitioner_id = $1', [pid]);
-      await client.query('DELETE FROM practitioner_schedule_closures WHERE practitioner_id = $1', [pid]);
-      await client.query('UPDATE appointments SET schedule_session_id = NULL, practitioner_id = NULL WHERE practitioner_id = $1', [pid]);
+      await client.query('DELETE FROM clinic_closure WHERE doctor_id = $1', [pid]);
+      await client.query('UPDATE appointments SET practitioner_id = NULL WHERE practitioner_id = $1', [pid]);
       await client.query('UPDATE clinical_encounters SET practitioner_id = NULL WHERE practitioner_id = $1', [pid]);
       await client.query('UPDATE conversations SET assigned_practitioner_id = NULL WHERE assigned_practitioner_id = $1', [pid]);
       await client.query('UPDATE staff_leave_requests SET substitute_practitioner_id = NULL, practitioner_id = NULL WHERE substitute_practitioner_id = $1 OR practitioner_id = $1', [pid]);
 
-      await client.query('DELETE FROM practitioner_schedule_sessions WHERE practitioner_id = $1', [pid]);
-      await client.query('DELETE FROM practitioner_schedule_day_settings WHERE practitioner_id = $1', [pid]);
-      await client.query('DELETE FROM practitioner_availability WHERE practitioner_id = $1', [pid]);
-      await client.query('DELETE FROM practitioner_leave_periods WHERE practitioner_id = $1', [pid]);
+      await client.query('DELETE FROM shift_exception WHERE doctor_id = $1', [pid]);
+      await client.query('DELETE FROM doctor_assignment WHERE doctor_id = $1', [pid]);
 
       const delPrac = await client.query('DELETE FROM practitioners WHERE id = $1', [pid]);
       deletedPracs = delPrac.rowCount ?? 0;

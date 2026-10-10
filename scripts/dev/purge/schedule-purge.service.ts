@@ -66,11 +66,10 @@ export async function fetchDoctorsWithSchedules(
     FROM practitioners p
     JOIN staff_profiles sp ON p.staff_profile_id = sp.id
     LEFT JOIN medical_specialties ms ON p.specialty_id = ms.id
-    LEFT JOIN practitioner_schedule_sessions s ON s.practitioner_id = p.id
-    LEFT JOIN practitioner_schedule_day_settings ds ON ds.practitioner_id = p.id
-    LEFT JOIN practitioner_availability pa ON pa.practitioner_id = p.id
-    LEFT JOIN practitioner_schedule_closures sc ON sc.practitioner_id = p.id
-    LEFT JOIN appointments a ON a.practitioner_id = p.id OR a.schedule_session_id = s.id
+    LEFT JOIN doctor_assignment s ON s.doctor_id = p.id
+    LEFT JOIN shift_exception ds ON ds.doctor_id = p.id
+    LEFT JOIN clinic_closure sc ON sc.doctor_id = p.id
+    LEFT JOIN appointments a ON a.practitioner_id = p.id
     WHERE 1=1 ${whereClause}
     GROUP BY p.id, p.display_name, ms.name
     ORDER BY session_count DESC, p.display_name ASC;
@@ -83,31 +82,28 @@ export async function fetchDoctorsWithSchedules(
     specialty: String(r.specialty),
     sessionCount: Number(r.session_count),
     daySettingCount: Number(r.day_setting_count),
-    availabilityCount: Number(r.availability_count),
+    availabilityCount: 0,
     closureCount: Number(r.closure_count),
     appointmentCount: Number(r.appointment_count),
   }));
 }
 
 export async function inspectAllSchedules(pool: Pool): Promise<SchedulePurgeInspection> {
-  const [sessions, days, avail, closures, resched, leaves, appts] = await Promise.all([
-    pool.query('SELECT count(*) FROM practitioner_schedule_sessions'),
-    pool.query('SELECT count(*) FROM practitioner_schedule_day_settings'),
-    pool.query('SELECT count(*) FROM practitioner_availability'),
-    pool.query('SELECT count(*) FROM practitioner_schedule_closures'),
-    pool.query('SELECT count(*) FROM schedule_reschedule_events'),
-    pool.query('SELECT count(*) FROM practitioner_leave_periods'),
-    pool.query('SELECT count(*) FROM appointments WHERE schedule_session_id IS NOT NULL'),
+  const [sessions, exceptions, closures, appts] = await Promise.all([
+    pool.query('SELECT count(*) FROM doctor_assignment'),
+    pool.query('SELECT count(*) FROM shift_exception'),
+    pool.query('SELECT count(*) FROM clinic_closure'),
+    pool.query('SELECT count(*) FROM appointments WHERE practitioner_id IS NOT NULL'),
   ]);
 
   return {
     mode: 'ALL',
     sessionCount: parseInt(sessions.rows[0]?.count ?? '0', 10),
-    daySettingCount: parseInt(days.rows[0]?.count ?? '0', 10),
-    availabilityCount: parseInt(avail.rows[0]?.count ?? '0', 10),
+    daySettingCount: parseInt(exceptions.rows[0]?.count ?? '0', 10),
+    availabilityCount: 0,
     closureCount: parseInt(closures.rows[0]?.count ?? '0', 10),
-    rescheduleCount: parseInt(resched.rows[0]?.count ?? '0', 10),
-    leavePeriodCount: parseInt(leaves.rows[0]?.count ?? '0', 10),
+    rescheduleCount: 0,
+    leavePeriodCount: 0,
     linkedAppointmentsCount: parseInt(appts.rows[0]?.count ?? '0', 10),
   };
 }
@@ -140,19 +136,11 @@ export async function inspectDoctorSchedules(
   const practitionerId = String(docRes.rows[0].id);
   const doctorName = String(docRes.rows[0].display_name);
 
-  const [sessions, days, avail, closures, resched, leaves, appts] = await Promise.all([
-    pool.query('SELECT count(*) FROM practitioner_schedule_sessions WHERE practitioner_id = $1', [practitionerId]),
-    pool.query('SELECT count(*) FROM practitioner_schedule_day_settings WHERE practitioner_id = $1', [practitionerId]),
-    pool.query('SELECT count(*) FROM practitioner_availability WHERE practitioner_id = $1', [practitionerId]),
-    pool.query('SELECT count(*) FROM practitioner_schedule_closures WHERE practitioner_id = $1', [practitionerId]),
-    pool.query('SELECT count(*) FROM schedule_reschedule_events WHERE practitioner_id = $1', [practitionerId]),
-    pool.query('SELECT count(*) FROM practitioner_leave_periods WHERE practitioner_id = $1', [practitionerId]),
-    pool.query(
-      `SELECT count(*) FROM appointments WHERE practitioner_id = $1 OR schedule_session_id IN (
-        SELECT id FROM practitioner_schedule_sessions WHERE practitioner_id = $1
-      )`,
-      [practitionerId],
-    ),
+  const [sessions, exceptions, closures, appts] = await Promise.all([
+    pool.query('SELECT count(*) FROM doctor_assignment WHERE doctor_id = $1', [practitionerId]),
+    pool.query('SELECT count(*) FROM shift_exception WHERE doctor_id = $1', [practitionerId]),
+    pool.query('SELECT count(*) FROM clinic_closure WHERE doctor_id = $1', [practitionerId]),
+    pool.query('SELECT count(*) FROM appointments WHERE practitioner_id = $1', [practitionerId]),
   ]);
 
   return {
@@ -160,11 +148,11 @@ export async function inspectDoctorSchedules(
     practitionerId,
     doctorName,
     sessionCount: parseInt(sessions.rows[0]?.count ?? '0', 10),
-    daySettingCount: parseInt(days.rows[0]?.count ?? '0', 10),
-    availabilityCount: parseInt(avail.rows[0]?.count ?? '0', 10),
+    daySettingCount: parseInt(exceptions.rows[0]?.count ?? '0', 10),
+    availabilityCount: 0,
     closureCount: parseInt(closures.rows[0]?.count ?? '0', 10),
-    rescheduleCount: parseInt(resched.rows[0]?.count ?? '0', 10),
-    leavePeriodCount: parseInt(leaves.rows[0]?.count ?? '0', 10),
+    rescheduleCount: 0,
+    leavePeriodCount: 0,
     linkedAppointmentsCount: parseInt(appts.rows[0]?.count ?? '0', 10),
   };
 }
@@ -182,8 +170,8 @@ export async function executeSchedulePurge(
     let deletedSessions = 0;
 
     if (options.isAll) {
-      await client.query('DELETE FROM schedule_reschedule_events');
-      await client.query('DELETE FROM practitioner_schedule_closures');
+      await client.query('DELETE FROM clinic_closure WHERE scope = \'doctor\'');
+      await client.query('DELETE FROM shift_exception');
 
       if (options.deleteAppointments) {
         await client.query('DELETE FROM appointment_call_attempts');
@@ -193,28 +181,18 @@ export async function executeSchedulePurge(
         await client.query('UPDATE clinical_encounters SET appointment_id = NULL WHERE appointment_id IS NOT NULL');
         await client.query('UPDATE patient_timeline_events SET appointment_id = NULL WHERE appointment_id IS NOT NULL');
         await client.query('DELETE FROM appointments');
-      } else {
-        await client.query('UPDATE appointments SET schedule_session_id = NULL WHERE schedule_session_id IS NOT NULL');
       }
 
-      const delSess = await client.query('DELETE FROM practitioner_schedule_sessions');
+      const delSess = await client.query('DELETE FROM doctor_assignment');
       deletedSessions = delSess.rowCount ?? 0;
-
-      await client.query('DELETE FROM practitioner_schedule_day_settings');
-      await client.query('DELETE FROM practitioner_availability');
-      await client.query('DELETE FROM practitioner_leave_periods');
     } else if (options.practitionerId) {
       const pid = options.practitionerId;
 
-      await client.query('DELETE FROM schedule_reschedule_events WHERE practitioner_id = $1', [pid]);
-      await client.query('DELETE FROM practitioner_schedule_closures WHERE practitioner_id = $1', [pid]);
+      await client.query('DELETE FROM clinic_closure WHERE doctor_id = $1', [pid]);
+      await client.query('DELETE FROM shift_exception WHERE doctor_id = $1', [pid]);
 
       if (options.deleteAppointments) {
-        const apptQuery = `
-          SELECT id FROM appointments 
-          WHERE practitioner_id = $1 
-             OR schedule_session_id IN (SELECT id FROM practitioner_schedule_sessions WHERE practitioner_id = $1)
-        `;
+        const apptQuery = `SELECT id FROM appointments WHERE practitioner_id = $1`;
         const apptRes = await client.query(apptQuery, [pid]);
         const apptIds = apptRes.rows.map((r) => String(r.id));
 
@@ -227,21 +205,10 @@ export async function executeSchedulePurge(
           await client.query('UPDATE patient_timeline_events SET appointment_id = NULL WHERE appointment_id = ANY($1::uuid[])', [apptIds]);
           await client.query('DELETE FROM appointments WHERE id = ANY($1::uuid[])', [apptIds]);
         }
-      } else {
-        await client.query(
-          `UPDATE appointments SET schedule_session_id = NULL WHERE schedule_session_id IN (
-            SELECT id FROM practitioner_schedule_sessions WHERE practitioner_id = $1
-          )`,
-          [pid],
-        );
       }
 
-      const delSess = await client.query('DELETE FROM practitioner_schedule_sessions WHERE practitioner_id = $1', [pid]);
+      const delSess = await client.query('DELETE FROM doctor_assignment WHERE doctor_id = $1', [pid]);
       deletedSessions = delSess.rowCount ?? 0;
-
-      await client.query('DELETE FROM practitioner_schedule_day_settings WHERE practitioner_id = $1', [pid]);
-      await client.query('DELETE FROM practitioner_availability WHERE practitioner_id = $1', [pid]);
-      await client.query('DELETE FROM practitioner_leave_periods WHERE practitioner_id = $1', [pid]);
     }
 
     await client.query('COMMIT');
@@ -321,7 +288,7 @@ export async function runSchedulePurgeInteractive(
   rl: readline.Interface,
 ): Promise<void> {
   while (true) {
-    const totalSess = await pool.query('SELECT count(*) FROM practitioner_schedule_sessions');
+    const totalSess = await pool.query('SELECT count(*) FROM doctor_assignment');
     const sessionCount = parseInt(totalSess.rows[0]?.count ?? '0', 10);
 
     printSection(`Doctor Schedule Purge Menu [Total Sessions in DB: ${sessionCount}]`);
@@ -347,7 +314,7 @@ export async function runSchedulePurgeInteractive(
       }
 
       console.log('\nAppointment handling options for schedule purge:');
-      console.log(' [1] Unlink appointments (Keep appointments, set schedule_session_id = NULL)');
+      console.log(' [1] Keep appointments (Preserve appointments)');
       console.log(' [2] Purge appointments booked on these schedules as well');
       console.log(' [c] Cancel');
 

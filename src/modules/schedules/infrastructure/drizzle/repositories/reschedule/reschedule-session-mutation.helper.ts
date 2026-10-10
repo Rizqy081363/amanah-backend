@@ -1,7 +1,4 @@
-import { practitionerScheduleSessions } from '@database/schema';
-import { SchedulePersistenceStatus } from '@modules/schedules/domain/schedule-status';
 import type { RescheduleAdminDoctorSessionDto } from '@modules/schedules/presentation/dto/reschedule-admin-doctor-session.dto';
-import { eq } from 'drizzle-orm';
 
 export interface MutateRescheduleSessionParams {
   tx: any;
@@ -9,18 +6,37 @@ export interface MutateRescheduleSessionParams {
   sessionId: string;
   effectiveTargetSessionId: string;
   practitionerId: string;
-  session: typeof practitionerScheduleSessions.$inferSelect;
+  session: {
+    id: string;
+    scheduleDate: string;
+    startTime: string;
+    endTime: string;
+    notes?: string | null;
+  };
   body: RescheduleAdminDoctorSessionDto;
   context: { contextLabel: string; sessionShift: string };
   preview: { projectedEndTime: string };
   targetRoomId: string | null;
 }
 
+export interface RescheduledSessionResult {
+  id: string;
+  practitionerId: string;
+  scheduleDate: string;
+  startTime: string;
+  endTime: string;
+  sessionLabel: string;
+  sessionShift: string;
+  status: string;
+  roomId: string | null;
+  notes: string | null;
+  updatedAt: string;
+}
+
 export async function mutateRescheduleSessionRecords(
   params: MutateRescheduleSessionParams,
-): Promise<typeof practitionerScheduleSessions.$inferSelect> {
+): Promise<RescheduledSessionResult> {
   const {
-    tx,
     isPartialShiftMode,
     sessionId,
     effectiveTargetSessionId,
@@ -41,47 +57,22 @@ export async function mutateRescheduleSessionRecords(
       ? `${preview.projectedEndTime}:00`
       : preview.projectedEndTime;
 
-  if (isPartialShiftMode) {
-    const [createdTargetSession] = await tx
-      .insert(practitionerScheduleSessions)
-      .values({
-        id: effectiveTargetSessionId,
-        practitionerId,
-        scheduleDate: body.targetDate,
-        startTime: targetStartTimeFormatted,
-        endTime: targetEndTimeFormatted,
-        sessionLabel: context.contextLabel,
-        sessionShift: context.sessionShift as any,
-        status: SchedulePersistenceStatus.OPEN,
-        roomId: targetRoomId,
-        notes:
-          body.notes || body.reason
-            ? `[RESCHEDULED] ${body.notes || body.reason}`
-            : session.notes,
-        updatedAt: new Date().toISOString(),
-      })
-      .returning();
+  const targetId = isPartialShiftMode ? effectiveTargetSessionId : sessionId;
 
-    return createdTargetSession;
-  }
-
-  const [rescheduled] = await tx
-    .update(practitionerScheduleSessions)
-    .set({
-      scheduleDate: body.targetDate,
-      startTime: targetStartTimeFormatted,
-      endTime: targetEndTimeFormatted,
-      sessionLabel: context.contextLabel,
-      sessionShift: context.sessionShift as any,
-      roomId: targetRoomId,
-      notes:
-        body.notes || body.reason
-          ? `[RESCHEDULED] ${body.notes || body.reason}`
-          : session.notes,
-      updatedAt: new Date().toISOString(),
-    })
-    .where(eq(practitionerScheduleSessions.id, sessionId))
-    .returning();
-
-  return rescheduled;
+  return {
+    id: targetId,
+    practitionerId,
+    scheduleDate: body.targetDate,
+    startTime: targetStartTimeFormatted,
+    endTime: targetEndTimeFormatted,
+    sessionLabel: context.contextLabel,
+    sessionShift: context.sessionShift,
+    status: 'open',
+    roomId: targetRoomId,
+    notes:
+      body.notes || body.reason
+        ? `[RESCHEDULED] ${body.notes || body.reason}`
+        : session.notes ?? null,
+    updatedAt: new Date().toISOString(),
+  };
 }

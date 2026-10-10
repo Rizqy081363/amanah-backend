@@ -21,14 +21,15 @@ async function main() {
     );
     console.log(prs.rows);
 
-    console.log('--- ALL SCHEDULE SESSIONS ---');
+    console.log('--- ALL DOCTOR ASSIGNMENTS ---');
     const sessions = await pool.query(
-      `SELECT s.id, s.practitioner_id, s.schedule_date, s.start_time, s.end_time, s.room_id, cr.name as room_name, s.status, s.notes, sp.full_name
-       FROM practitioner_schedule_sessions s
-       JOIN practitioners p ON s.practitioner_id = p.id
+      `SELECT da.id, da.doctor_id, da.dow, sd.code as session_code, sd.default_starts_at, sd.default_ends_at, da.preferred_room_id, cr.name as room_name, da.is_active, sp.full_name
+       FROM doctor_assignment da
+       JOIN session_def sd ON da.session_id = sd.id
+       JOIN practitioners p ON da.doctor_id = p.id
        JOIN staff_profiles sp ON p.staff_profile_id = sp.id
-       LEFT JOIN clinic_rooms cr ON s.room_id = cr.id
-       ORDER BY s.schedule_date, s.start_time`
+       LEFT JOIN clinic_rooms cr ON da.preferred_room_id = cr.id
+       ORDER BY da.dow, sd.sort_order`
     );
     console.log(sessions.rows);
 

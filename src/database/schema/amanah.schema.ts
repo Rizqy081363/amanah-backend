@@ -1446,79 +1446,6 @@ export const practitionerLeavePeriods = pgTable(
   ],
 );
 
-export const practitionerScheduleSessions = pgTable(
-  'practitioner_schedule_sessions',
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    practitionerId: uuid('practitioner_id').notNull(),
-    daySettingId: uuid('day_setting_id'),
-    serviceId: uuid('service_id'),
-    roomId: uuid('room_id'),
-    scheduleDate: date('schedule_date').notNull(),
-    sessionLabel: text('session_label').notNull(),
-    sessionShift: staffShift('session_shift'),
-    startTime: time('start_time').notNull(),
-    endTime: time('end_time').notNull(),
-    status: scheduleStatus().default('open').notNull(),
-    notes: text(),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
-      .defaultNow()
-      .notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
-      .defaultNow()
-      .notNull(),
-  },
-  (table) => [
-    index('practitioner_schedule_sessions_practitioner_date_idx').using(
-      'btree',
-      table.practitionerId.asc().nullsLast().op('enum_ops'),
-      table.scheduleDate.asc().nullsLast().op('uuid_ops'),
-      table.status.asc().nullsLast().op('enum_ops'),
-    ),
-    index('practitioner_schedule_sessions_date_room_idx').using(
-      'btree',
-      table.scheduleDate.asc().nullsLast(),
-      table.roomId.asc().nullsLast(),
-      table.status.asc().nullsLast(),
-    ),
-    index('practitioner_schedule_sessions_date_time_idx').using(
-      'btree',
-      table.scheduleDate.asc().nullsLast(),
-      table.startTime.asc().nullsLast(),
-      table.endTime.asc().nullsLast(),
-    ),
-    foreignKey({
-      columns: [table.daySettingId],
-      foreignColumns: [practitionerScheduleDaySettings.id],
-      name: 'practitioner_schedule_sessions_day_setting_id_fkey',
-    }).onDelete('set null'),
-    foreignKey({
-      columns: [table.practitionerId],
-      foreignColumns: [practitioners.id],
-      name: 'practitioner_schedule_sessions_practitioner_id_fkey',
-    }).onDelete('cascade'),
-    foreignKey({
-      columns: [table.roomId],
-      foreignColumns: [clinicRooms.id],
-      name: 'practitioner_schedule_sessions_room_id_fkey',
-    }).onDelete('set null'),
-    foreignKey({
-      columns: [table.serviceId],
-      foreignColumns: [clinicServices.id],
-      name: 'practitioner_schedule_sessions_service_id_fkey',
-    }).onDelete('set null'),
-    unique('practitioner_schedule_sessions_unique').on(
-      table.practitionerId,
-      table.scheduleDate,
-      table.startTime,
-    ),
-    check(
-      'practitioner_schedule_sessions_time_order',
-      sql`end_time > start_time`,
-    ),
-  ],
-);
-
 export const appointments = pgTable(
   'appointments',
   {
@@ -1526,7 +1453,6 @@ export const appointments = pgTable(
     bookingCode: text('booking_code').notNull(),
     patientId: uuid('patient_id').notNull(),
     practitionerId: uuid('practitioner_id'),
-    scheduleSessionId: uuid('schedule_session_id'),
     serviceId: uuid('service_id').notNull(),
     roomId: uuid('room_id'),
     visitType: visitType('visit_type').default('new_visit').notNull(),
@@ -1605,10 +1531,6 @@ export const appointments = pgTable(
       table.scheduledDate.asc().nullsLast().op('uuid_ops'),
       table.status.asc().nullsLast().op('enum_ops'),
     ),
-    index('appointments_schedule_session_idx').using(
-      'btree',
-      table.scheduleSessionId.asc().nullsLast().op('uuid_ops'),
-    ),
     index('appointments_service_date_status_idx').using(
       'btree',
       table.serviceId.asc().nullsLast().op('uuid_ops'),
@@ -1638,11 +1560,6 @@ export const appointments = pgTable(
       columns: [table.roomId],
       foreignColumns: [clinicRooms.id],
       name: 'appointments_room_id_fkey',
-    }).onDelete('set null'),
-    foreignKey({
-      columns: [table.scheduleSessionId],
-      foreignColumns: [practitionerScheduleSessions.id],
-      name: 'appointments_schedule_session_id_fkey',
     }).onDelete('set null'),
     foreignKey({
       columns: [table.serviceId],

@@ -7,14 +7,14 @@ const pool = new Pool({
 async function main() {
   try {
     const res = await pool.query(
-      `SELECT * FROM appointments WHERE schedule_session_id = '85cadfaa-89f1-4123-8dd3-51982d626661'`
+      `SELECT * FROM appointments LIMIT 10`
     );
-    console.log('Appointments on session 85cadfaa-89f1-4123-8dd3-51982d626661:', res.rows.length);
+    console.log('Sample appointments:', res.rows.length);
 
     const s = await pool.query(
-      `SELECT * FROM practitioner_schedule_sessions WHERE id = '85cadfaa-89f1-4123-8dd3-51982d626661'`
+      `SELECT * FROM session_def`
     );
-    console.log('Session details:', s.rows);
+    console.log('Session definitions:', s.rows);
   } catch (err) {
     console.error('Error:', err);
   } finally {

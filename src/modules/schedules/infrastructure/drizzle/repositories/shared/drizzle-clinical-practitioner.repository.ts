@@ -1,16 +1,15 @@
 import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
-  practitionerScheduleSessions,
+  doctorAssignments,
   practitioners,
   shiftExceptions,
 } from '@database/schema';
 import type { ClinicalPractitionerEntity } from '@modules/schedules/domain/entities/schedule.entity';
-import { SchedulePersistenceStatus } from '@modules/schedules/domain/schedule-status';
 import { ScheduleRecordMapper } from '@modules/schedules/infrastructure/drizzle/mappers/schedule-record.mapper';
 import type { ClinicalPractitionersQueryDto } from '@modules/schedules/presentation/dto/clinical-practitioners-query.dto';
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, eq, gte, lte } from 'drizzle-orm';
+import { and, asc, eq, isNull, or } from 'drizzle-orm';
 
 @Injectable()
 export class DrizzleClinicalPractitionerRepository {
@@ -23,6 +22,7 @@ export class DrizzleClinicalPractitionerRepository {
     query: ClinicalPractitionersQueryDto,
   ): Promise<ClinicalPractitionerEntity[]> {
     const targetDate = query.date || new Date().toISOString().slice(0, 10);
+    const targetDow = new Date(targetDate).getDay();
 
     const pracs = await this.db.query.practitioners.findMany({
       where: eq(practitioners.isAcceptingAppointments, true),
@@ -54,29 +54,32 @@ export class DrizzleClinicalPractitionerRepository {
         if (!matchService) continue;
       }
 
-      const activeLeave = await this.db.query.shiftExceptions.findFirst({
-        where: and(
-          eq(shiftExceptions.doctorId, p.id),
-          eq(shiftExceptions.serviceDate, targetDate),
-          eq(shiftExceptions.type, 'leave'),
-        ),
-      });
-
-      const isCuti = Boolean(activeLeave);
-
-      const openSessions =
-        await this.db.query.practitionerScheduleSessions.findMany({
+      const [activeLeave, assignedRoster, extraShift] = await Promise.all([
+        this.db.query.shiftExceptions.findFirst({
           where: and(
-            eq(practitionerScheduleSessions.practitionerId, p.id),
-            eq(practitionerScheduleSessions.scheduleDate, targetDate),
-            eq(
-              practitionerScheduleSessions.status,
-              SchedulePersistenceStatus.OPEN,
-            ),
+            eq(shiftExceptions.doctorId, p.id),
+            eq(shiftExceptions.serviceDate, targetDate),
+            eq(shiftExceptions.type, 'leave'),
           ),
-        });
+        }),
+        this.db.query.doctorAssignments.findFirst({
+          where: and(
+            eq(doctorAssignments.doctorId, p.id),
+            eq(doctorAssignments.isActive, true),
+            or(eq(doctorAssignments.dow, targetDow), isNull(doctorAssignments.dow)),
+          ),
+        }),
+        this.db.query.shiftExceptions.findFirst({
+          where: and(
+            eq(shiftExceptions.doctorId, p.id),
+            eq(shiftExceptions.serviceDate, targetDate),
+            eq(shiftExceptions.type, 'extra'),
+          ),
+        }),
+      ]);
 
-      const isAvailable = !isCuti && openSessions.length > 0;
+      const isOnLeave = Boolean(activeLeave);
+      const isAvailable = (!isOnLeave && Boolean(assignedRoster)) || Boolean(extraShift);
       const location = p.clinicRoom
         ? `${p.clinicRoom.name}${p.clinicRoom.location ? `, ${p.clinicRoom.location}` : ''}`
         : 'Poli Umum, Ruang 101';

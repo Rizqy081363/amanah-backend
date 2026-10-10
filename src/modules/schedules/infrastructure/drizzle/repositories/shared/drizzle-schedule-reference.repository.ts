@@ -81,7 +81,7 @@ export class DrizzleScheduleReferenceRepository {
         { id: 'OPEN', label: 'Buka' },
         { id: 'CLOSED', label: 'Tutup' },
       ],
-      timeSlotIntervals: [clinicPolicy.durationMinutes],
+      durationIntervals: [clinicPolicy.durationMinutes],
       effectiveConsultationDurationMinutes: clinicPolicy.durationMinutes,
       durationSource: 'CLINIC_CONFIG',
       durationScope: 'clinic-default',

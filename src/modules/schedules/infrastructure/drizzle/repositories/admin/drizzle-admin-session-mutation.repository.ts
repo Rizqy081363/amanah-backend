@@ -4,15 +4,15 @@ import {
   appointments,
   clinicRooms,
   clinicClosures,
-  practitionerScheduleSessions,
+  doctorAssignments,
   queueTickets,
+  sessionDefs,
+  shiftExceptions,
 } from '@database/schema';
 import { resolveCanonicalShift } from '@modules/schedules/domain/constants/schedule-shift.constants';
 import {
   AdminScheduleStatusRequest,
-  SchedulePersistenceStatus,
   toAdminScheduleStatusRequest,
-  toDaySessionPersistenceStatus,
 } from '@modules/schedules/domain/schedule-status';
 import { ScheduleConflictQuery } from '@modules/schedules/infrastructure/drizzle/queries/schedule-conflict.query';
 import { PractitionerResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/practitioner.resolver';
@@ -89,26 +89,44 @@ export class DrizzleAdminSessionMutationRepository {
         metadata: { status_sesi: body.status_sesi },
       });
     }
-    const status = toDaySessionPersistenceStatus(requestedStatus);
 
-    const [session] = await this.db
-      .insert(practitionerScheduleSessions)
+    const sessionDef =
+      (await this.db.query.sessionDefs.findFirst({
+        where: eq(sessionDefs.code, shift),
+      })) || (await this.db.query.sessionDefs.findFirst());
+
+    const exceptionType =
+      requestedStatus === AdminScheduleStatusRequest.CLOSED ? 'leave' : 'extra';
+
+    const [createdException] = await this.db
+      .insert(shiftExceptions)
       .values({
-        practitionerId,
-        scheduleDate: body.schedule_date,
-        sessionLabel: label,
-        sessionShift: shift,
-        startTime: startTimeFormatted,
-        endTime: endTimeFormatted,
-        roomId,
-        status,
+        doctorId: practitionerId,
+        serviceDate: body.schedule_date,
+        sessionId: sessionDef?.id || null,
+        type: exceptionType,
+        note: body.nama_sesi,
       })
       .returning();
+
+    const sessionData = {
+      id: createdException.id,
+      practitionerId,
+      scheduleDate: body.schedule_date,
+      sessionLabel: label,
+      sessionShift: shift,
+      startTime: startTimeFormatted,
+      endTime: endTimeFormatted,
+      roomId,
+      status: requestedStatus,
+      createdAt: createdException.createdAt,
+      updatedAt: createdException.updatedAt,
+    };
 
     return {
       success: true,
       message: 'Sesi jadwal berhasil ditambahkan',
-      data: session,
+      data: sessionData,
     };
   }
 
@@ -130,32 +148,86 @@ export class DrizzleAdminSessionMutationRepository {
       throw new NotFoundException(`Dokter dengan ID ${id} tidak ditemukan`);
     }
 
-    const existingSession =
-      await this.db.query.practitionerScheduleSessions.findFirst({
-        where: and(
-          eq(practitionerScheduleSessions.id, sessionId),
-          eq(practitionerScheduleSessions.practitionerId, practitioner.id),
-        ),
-      });
+    let targetDate = new Date().toISOString().slice(0, 10);
+    let targetSessionDefId: string | null = null;
+    let existingStartTime = '08:00:00';
+    let existingEndTime = '12:00:00';
+    let roomId: string | null = null;
 
-    if (!existingSession) {
-      throw new NotFoundException(
-        `Sesi jadwal dengan ID ${sessionId} tidak ditemukan untuk dokter ini`,
-      );
+    if (sessionId.startsWith('roster-')) {
+      const parts = sessionId.split('-');
+      const daId = parts[1];
+      targetDate = parts.slice(2).join('-');
+      const da = await this.db.query.doctorAssignments.findFirst({
+        where: and(
+          eq(doctorAssignments.id, daId),
+          eq(doctorAssignments.doctorId, practitioner.id),
+        ),
+        with: { sessionDef: true },
+      });
+      if (!da) {
+        throw new NotFoundException(
+          `Sesi jadwal dengan ID ${sessionId} tidak ditemukan untuk dokter ini`,
+        );
+      }
+      targetSessionDefId = da.sessionId;
+      existingStartTime = da.sessionDef?.defaultStartsAt || '08:00:00';
+      existingEndTime = da.sessionDef?.defaultEndsAt || '12:00:00';
+      roomId = da.preferredRoomId;
+    } else {
+      const ex = await this.db.query.shiftExceptions.findFirst({
+        where: and(
+          eq(shiftExceptions.id, sessionId),
+          eq(shiftExceptions.doctorId, practitioner.id),
+        ),
+        with: { sessionDef: true },
+      });
+      if (ex) {
+        targetDate = ex.serviceDate;
+        targetSessionDefId = ex.sessionId;
+        existingStartTime = ex.sessionDef?.defaultStartsAt || '08:00:00';
+        existingEndTime = ex.sessionDef?.defaultEndsAt || '12:00:00';
+      } else {
+        const da = await this.db.query.doctorAssignments.findFirst({
+          where: and(
+            eq(doctorAssignments.id, sessionId),
+            eq(doctorAssignments.doctorId, practitioner.id),
+          ),
+          with: { sessionDef: true },
+        });
+        if (da) {
+          targetSessionDefId = da.sessionId;
+          existingStartTime = da.sessionDef?.defaultStartsAt || '08:00:00';
+          existingEndTime = da.sessionDef?.defaultEndsAt || '12:00:00';
+          roomId = da.preferredRoomId;
+        } else {
+          const sDef = await this.db.query.sessionDefs.findFirst({
+            where: eq(sessionDefs.id, sessionId),
+          });
+          if (sDef) {
+            targetSessionDefId = sDef.id;
+            existingStartTime = sDef.defaultStartsAt || '08:00:00';
+            existingEndTime = sDef.defaultEndsAt || '12:00:00';
+          } else {
+            throw new NotFoundException(
+              `Sesi jadwal dengan ID ${sessionId} tidak ditemukan untuk dokter ini`,
+            );
+          }
+        }
+      }
     }
 
     const startTimeFormatted = body.jam_mulai
       ? body.jam_mulai.length === 5
         ? `${body.jam_mulai}:00`
         : body.jam_mulai
-      : existingSession.startTime;
+      : existingStartTime;
     const endTimeFormatted = body.jam_selesai
       ? body.jam_selesai.length === 5
         ? `${body.jam_selesai}:00`
         : body.jam_selesai
-      : existingSession.endTime;
+      : existingEndTime;
 
-    let roomId = existingSession.roomId;
     if (body.ruang) {
       roomId = await this.roomResolver.resolveByNameOrId(body.ruang);
     }
@@ -163,7 +235,7 @@ export class DrizzleAdminSessionMutationRepository {
     if (body.jam_mulai || body.jam_selesai || body.ruang) {
       await this.conflictQuery.checkConflicts(
         practitioner.id,
-        existingSession.scheduleDate,
+        targetDate,
         startTimeFormatted,
         endTimeFormatted,
         roomId,
@@ -171,20 +243,7 @@ export class DrizzleAdminSessionMutationRepository {
       );
     }
 
-    const updateValues: Record<string, any> = {
-      updatedAt: new Date().toISOString(),
-    };
-
-    if (body.nama_sesi) {
-      const { shift, label } = resolveCanonicalShift({ session: body.nama_sesi });
-      updateValues.sessionLabel = label;
-      updateValues.sessionShift = shift;
-    }
-
-    if (body.jam_mulai) updateValues.startTime = startTimeFormatted;
-    if (body.jam_selesai) updateValues.endTime = endTimeFormatted;
-    if (body.ruang) updateValues.roomId = roomId;
-
+    let resolvedStatus = AdminScheduleStatusRequest.OPEN;
     if (body.status_sesi) {
       const requestedStatus = toAdminScheduleStatusRequest(body.status_sesi);
       if (!requestedStatus) {
@@ -195,41 +254,64 @@ export class DrizzleAdminSessionMutationRepository {
           metadata: { status_sesi: body.status_sesi },
         });
       }
-      const status = toDaySessionPersistenceStatus(requestedStatus);
-      updateValues.status = status;
-      if (status === SchedulePersistenceStatus.CLOSED) {
+      resolvedStatus = requestedStatus;
+
+      if (requestedStatus === AdminScheduleStatusRequest.CLOSED) {
+        const existingLeave = await this.db.query.shiftExceptions.findFirst({
+          where: and(
+            eq(shiftExceptions.doctorId, practitioner.id),
+            eq(shiftExceptions.serviceDate, targetDate),
+            eq(shiftExceptions.type, 'leave'),
+            targetSessionDefId
+              ? eq(shiftExceptions.sessionId, targetSessionDefId)
+              : sql`TRUE`,
+          ),
+        });
+
+        if (!existingLeave) {
+          await this.db.insert(shiftExceptions).values({
+            doctorId: practitioner.id,
+            serviceDate: targetDate,
+            sessionId: targetSessionDefId,
+            type: 'leave',
+            note: 'Sesi jadwal ditutup oleh admin klinik.',
+          });
+        }
+
         const sTime =
-          existingSession.startTime.length === 5
-            ? `${existingSession.startTime}:00`
-            : existingSession.startTime;
+          startTimeFormatted.length === 5
+            ? `${startTimeFormatted}:00`
+            : startTimeFormatted;
         const eTime =
-          existingSession.endTime.length === 5
-            ? `${existingSession.endTime}:00`
-            : existingSession.endTime;
-        const sessionStart = new Date(`${existingSession.scheduleDate}T${sTime}Z`);
-        const sessionEnd = new Date(`${existingSession.scheduleDate}T${eTime}Z`);
+          endTimeFormatted.length === 5
+            ? `${endTimeFormatted}:00`
+            : endTimeFormatted;
+        const sessionStart = new Date(`${targetDate}T${sTime}Z`);
+        const sessionEnd = new Date(`${targetDate}T${eTime}Z`);
 
         await this.db.insert(clinicClosures).values({
           scope: 'doctor',
-          doctorId: existingSession.practitionerId,
+          doctorId: practitioner.id,
           startsAt: sessionStart.toISOString(),
           endsAt: sessionEnd.toISOString(),
           inputKind: 'session',
           reason: 'Sesi jadwal ditutup oleh admin klinik.',
         });
 
-        await this.db
-          .update(queueTickets)
-          .set({
-            carriedOver: true,
-            updatedAt: new Date().toISOString(),
-          })
-          .where(
-            and(
-              eq(queueTickets.sessionId, sessionId),
-              eq(queueTickets.queueDate, existingSession.scheduleDate),
-            ),
-          );
+        if (targetSessionDefId) {
+          await this.db
+            .update(queueTickets)
+            .set({
+              carriedOver: true,
+              updatedAt: new Date().toISOString(),
+            })
+            .where(
+              and(
+                eq(queueTickets.sessionId, targetSessionDefId),
+                eq(queueTickets.queueDate, targetDate),
+              ),
+            );
+        }
 
         await this.db
           .update(appointments)
@@ -242,24 +324,39 @@ export class DrizzleAdminSessionMutationRepository {
           })
           .where(
             and(
-              eq(appointments.practitionerId, existingSession.practitionerId),
-              eq(appointments.scheduledDate, existingSession.scheduleDate),
+              eq(appointments.practitionerId, practitioner.id),
+              eq(appointments.scheduledDate, targetDate),
               inArray(appointments.status, ['booked', 'waiting']),
+            ),
+          );
+      } else if (requestedStatus === AdminScheduleStatusRequest.OPEN) {
+        await this.db
+          .delete(shiftExceptions)
+          .where(
+            and(
+              eq(shiftExceptions.doctorId, practitioner.id),
+              eq(shiftExceptions.serviceDate, targetDate),
+              eq(shiftExceptions.type, 'leave'),
+              targetSessionDefId
+                ? eq(shiftExceptions.sessionId, targetSessionDefId)
+                : sql`TRUE`,
             ),
           );
       }
     }
 
-    const [updated] = await this.db
-      .update(practitionerScheduleSessions)
-      .set(updateValues)
-      .where(eq(practitionerScheduleSessions.id, sessionId))
-      .returning();
-
     return {
       success: true,
       message: 'Sesi jadwal berhasil diperbarui',
-      data: updated,
+      data: {
+        id: sessionId,
+        practitionerId: practitioner.id,
+        scheduleDate: targetDate,
+        startTime: startTimeFormatted,
+        endTime: endTimeFormatted,
+        roomId,
+        status: resolvedStatus,
+      },
     };
   }
 }
