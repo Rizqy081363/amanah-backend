@@ -31,7 +31,18 @@ export class BookedPatientMapper {
     const end = apt.scheduledEndTime
       ? apt.scheduledEndTime.slice(0, 5)
       : '09:30';
-    const timeSlot = `${start} - ${end} WIB`;
+
+    let etaRange: string | null = null;
+    if (apt.estimatedStartAt) {
+      const estStart = new Date(apt.estimatedStartAt);
+      const estEnd = apt.estimatedEndAt
+        ? new Date(apt.estimatedEndAt)
+        : new Date(estStart.getTime() + 20 * 60_000);
+      const pad = (n: number) => String(n).padStart(2, '0');
+      etaRange = `${pad(estStart.getUTCHours())}:${pad(estStart.getUTCMinutes())} - ${pad(estEnd.getUTCHours())}:${pad(estEnd.getUTCMinutes())} WIB`;
+    }
+
+    const timeSlot = etaRange || `${start} - ${end} WIB`;
 
     const sessionTitle = apt.session
       ? `Sesi ${apt.session}`
@@ -83,6 +94,9 @@ export class BookedPatientMapper {
         apt.patientProfile?.gender === 'female' ? 'Perempuan' : 'Laki-laki',
       queueNumber,
       timeSlot,
+      etaRange,
+      estimatedStartAt: apt.estimatedStartAt || null,
+      estimatedEndAt: apt.estimatedEndAt || null,
       sessionTitle,
       room,
       guardian: apt.guardianNameSnapshot || null,

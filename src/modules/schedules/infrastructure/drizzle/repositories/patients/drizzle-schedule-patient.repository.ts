@@ -278,13 +278,23 @@ export class DrizzleSchedulePatientRepository {
         apt.queueTickets?.[0]?.queueNumber ||
         `P-${apt.bookingCode ? apt.bookingCode.slice(-3) : '001'}`;
 
+      let etaRange: string | null = null;
+      if (apt.estimatedStartAt) {
+        const estStart = new Date(apt.estimatedStartAt);
+        const estEnd = apt.estimatedEndAt
+          ? new Date(apt.estimatedEndAt)
+          : new Date(estStart.getTime() + 20 * 60_000);
+        const pad = (n: number) => String(n).padStart(2, '0');
+        etaRange = `${pad(estStart.getUTCHours())}:${pad(estStart.getUTCMinutes())} - ${pad(estEnd.getUTCHours())}:${pad(estEnd.getUTCMinutes())} WIB`;
+      }
+
       const startTime = apt.scheduledStartTime
         ? apt.scheduledStartTime.slice(0, 5)
         : '08:00';
       const endTime = apt.scheduledEndTime
         ? apt.scheduledEndTime.slice(0, 5)
         : '08:30';
-      const timeSlot = `${startTime} - ${endTime} WIB`;
+      const timeSlot = etaRange || `${startTime} - ${endTime} WIB`;
 
       const isElapsed = AppointmentTemporalStatusHelper.isElapsed({
         scheduledDate: apt.scheduledDate,
@@ -337,6 +347,13 @@ export class DrizzleSchedulePatientRepository {
         queueTicketId: apt.queueTickets?.[0]?.id || null,
         queueNumber,
         timeSlot,
+        etaRange,
+        estimatedStartAt: apt.estimatedStartAt
+          ? new Date(apt.estimatedStartAt).toISOString()
+          : null,
+        estimatedEndAt: apt.estimatedEndAt
+          ? new Date(apt.estimatedEndAt).toISOString()
+          : null,
         status: effectiveStatus,
         statusBadge,
         chiefComplaint: apt.complaint || null,

@@ -86,6 +86,9 @@ export class BookedPatientEntity {
   gender: string;
   queueNumber: string;
   timeSlot: string;
+  etaRange?: string | null;
+  estimatedStartAt?: Date | string | null;
+  estimatedEndAt?: Date | string | null;
   sessionTitle: string;
   room: string;
   guardian: string | null;
@@ -917,6 +920,15 @@ export class AdminSessionPatientItem {
 
   @ApiProperty({ example: '08:00 - 08:30 WIB' })
   timeSlot: string;
+
+  @ApiProperty({ nullable: true, example: '08:20 - 08:40 WIB' })
+  etaRange?: string | null;
+
+  @ApiProperty({ nullable: true, example: '2026-10-12T01:20:00.000Z' })
+  estimatedStartAt?: string | null;
+
+  @ApiProperty({ nullable: true, example: '2026-10-12T01:40:00.000Z' })
+  estimatedEndAt?: string | null;
 
   @ApiProperty({
     enum: [

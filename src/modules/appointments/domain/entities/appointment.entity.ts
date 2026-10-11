@@ -35,6 +35,7 @@ export class AppointmentEntity {
   scheduledEndTime?: string | null;
   estimatedDurationMinutes?: number;
   session: CanonicalSessionName;
+  sessionName?: string | null;
   queueNumber: string;
   ticketStatus?: string;
   status: AppointmentStatus;

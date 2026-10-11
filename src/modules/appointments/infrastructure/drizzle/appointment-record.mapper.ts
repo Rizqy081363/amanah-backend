@@ -112,19 +112,21 @@ export class AppointmentRecordMapper {
     let etaRange: string | null = null;
     if (estimatedStartAt) {
       const pad = (n: number) => String(n).padStart(2, '0');
-      const startH = pad(estimatedStartAt.getHours());
-      const startM = pad(estimatedStartAt.getMinutes());
+      const startH = pad(estimatedStartAt.getUTCHours());
+      const startM = pad(estimatedStartAt.getUTCMinutes());
       if (estimatedEndAt) {
-        const endH = pad(estimatedEndAt.getHours());
-        const endM = pad(estimatedEndAt.getMinutes());
-        etaRange = `${startH}:${startM} - ${endH}:${endM}`;
+        const endH = pad(estimatedEndAt.getUTCHours());
+        const endM = pad(estimatedEndAt.getUTCMinutes());
+        etaRange = `${startH}:${startM} - ${endH}:${endM} WIB`;
       } else {
-        etaRange = `~${startH}:${startM}`;
+        etaRange = `~${startH}:${startM} WIB`;
       }
     } else if (apt.scheduledStartTime) {
       etaRange = apt.scheduledStartTime.slice(0, 5);
       if (apt.scheduledEndTime) {
-        etaRange += ` - ${apt.scheduledEndTime.slice(0, 5)}`;
+        etaRange += ` - ${apt.scheduledEndTime.slice(0, 5)} WIB`;
+      } else {
+        etaRange += ' WIB';
       }
     }
 
@@ -195,6 +197,7 @@ export class AppointmentRecordMapper {
       estimatedDurationMinutes:
         apt.practitioner?.consultationDurationMinutes ?? 30,
       session,
+      sessionName: `Sesi ${session}`,
       queueNumber:
         ticket?.queueNumber ||
         (apt.clinicRoom?.clinicUnit?.queuePrefix && apt.queueNumber
