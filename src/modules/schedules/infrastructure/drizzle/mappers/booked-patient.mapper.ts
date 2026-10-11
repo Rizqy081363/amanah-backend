@@ -1,3 +1,4 @@
+import { ClinicTimeService } from '@common/time/clinic-time.service';
 import { AppointmentTemporalStatusHelper } from '@modules/appointments/domain/helpers/appointment-temporal-status.helper';
 import { computeConsultationMetrics } from '@modules/appointments/domain/helpers/consultation-duration.helper';
 import { APPOINTMENT_STATUS_BADGE_MAP } from '@modules/schedules/domain/constants/schedule.constants';
@@ -16,7 +17,10 @@ export class BookedPatientMapper {
     return `${Math.max(0, years)} Thn`;
   }
 
-  static toEntity(apt: any): BookedPatientEntity {
+  static toEntity(
+    apt: any,
+    clinicTimeService?: ClinicTimeService,
+  ): BookedPatientEntity {
     const ageStr = BookedPatientMapper.calculateAgeString(
       apt.patientProfile?.birthDate,
     );
@@ -25,24 +29,22 @@ export class BookedPatientMapper {
       apt.queueTickets?.[0]?.queueNumber ||
       `#${apt.bookingCode ? apt.bookingCode.slice(-2) : '01'}`;
 
-    const start = apt.scheduledStartTime
-      ? apt.scheduledStartTime.slice(0, 5)
-      : '08:00';
-    const end = apt.scheduledEndTime
-      ? apt.scheduledEndTime.slice(0, 5)
-      : '09:30';
-
     let etaRange: string | null = null;
     if (apt.estimatedStartAt) {
       const estStart = new Date(apt.estimatedStartAt);
       const estEnd = apt.estimatedEndAt
         ? new Date(apt.estimatedEndAt)
         : new Date(estStart.getTime() + 20 * 60_000);
-      const pad = (n: number) => String(n).padStart(2, '0');
-      etaRange = `${pad(estStart.getUTCHours())}:${pad(estStart.getUTCMinutes())} - ${pad(estEnd.getUTCHours())}:${pad(estEnd.getUTCMinutes())} WIB`;
+      const startStr = clinicTimeService
+        ? clinicTimeService.formatTime(estStart).slice(0, 5)
+        : estStart.toISOString().slice(11, 16);
+      const endStr = clinicTimeService
+        ? clinicTimeService.formatTime(estEnd).slice(0, 5)
+        : estEnd.toISOString().slice(11, 16);
+      const tzAbbr =
+        clinicTimeService?.getTimezoneAbbreviation(estStart) || 'WIB';
+      etaRange = `${startStr} - ${endStr} ${tzAbbr}`;
     }
-
-    const timeSlot = etaRange || `${start} - ${end} WIB`;
 
     const sessionTitle = apt.session
       ? `Sesi ${apt.session}`
@@ -93,7 +95,6 @@ export class BookedPatientMapper {
       gender:
         apt.patientProfile?.gender === 'female' ? 'Perempuan' : 'Laki-laki',
       queueNumber,
-      timeSlot,
       etaRange,
       estimatedStartAt: apt.estimatedStartAt || null,
       estimatedEndAt: apt.estimatedEndAt || null,

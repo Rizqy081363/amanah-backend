@@ -22,6 +22,8 @@ export interface AppointmentCallDetails {
   ticketNumber: string | null;
   ticketStatus: string | null;
   poliklinikName: string | null;
+  roomName?: string | null;
+  doctorName?: string | null;
 }
 
 export abstract class AppointmentCallRepository {

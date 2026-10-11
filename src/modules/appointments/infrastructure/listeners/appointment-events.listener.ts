@@ -8,6 +8,10 @@ import { RedisService } from '../../../../common/redis/redis.service';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import { appointmentStatusEvents } from '../../../../database/schema';
+import {
+  DB_APPOINTMENT_STATUS,
+  type DbAppointmentStatusValue,
+} from '../../domain/constants/appointment-lifecycle.constants';
 import { SocketIoRealtimeGateway } from '../../../notifications/infrastructure/realtime/socket-io-realtime.gateway';
 import { REALTIME_GATEWAY_PORT } from '../../../notifications/notifications.constants';
 
@@ -43,7 +47,7 @@ export class AppointmentEventsListener {
       await this.db.insert(appointmentStatusEvents).values({
         appointmentId: aptId,
         previousStatus: null,
-        newStatus: 'booked',
+        newStatus: DB_APPOINTMENT_STATUS.BOOKED,
         changedBy:
           event.actor?.userId || (event as any)?.payload?.actor?.userId || null,
         reason: 'Pendaftaran Janji Temu Awal',
@@ -103,26 +107,29 @@ export class AppointmentEventsListener {
 
   private mapToDbStatus(
     status: string | null | undefined,
-  ): 'booked' | 'waiting' | 'in_service' | 'completed' | 'cancelled' {
-    if (!status) return 'booked';
+  ): DbAppointmentStatusValue {
+    if (!status) return DB_APPOINTMENT_STATUS.BOOKED;
     switch (status.toUpperCase()) {
       case 'SEDANG_DIPERIKSA':
       case 'IN_SERVICE':
-        return 'in_service';
+        return DB_APPOINTMENT_STATUS.IN_SERVICE;
       case 'SELESAI':
       case 'COMPLETED':
-        return 'completed';
+        return DB_APPOINTMENT_STATUS.COMPLETED;
       case 'BATAL':
       case 'CANCELLED':
-        return 'cancelled';
+        return DB_APPOINTMENT_STATUS.CANCELLED;
       case 'MENUNGGU':
       case 'WAITING':
       case 'CHECKED_IN':
-        return 'waiting';
+        return DB_APPOINTMENT_STATUS.WAITING;
+      case 'TIDAK_HADIR':
+      case 'NO_SHOW':
+        return DB_APPOINTMENT_STATUS.NO_SHOW;
       case 'SUDAH_BUAT_JANJI':
       case 'BOOKED':
       default:
-        return 'booked';
+        return DB_APPOINTMENT_STATUS.BOOKED;
     }
   }
 

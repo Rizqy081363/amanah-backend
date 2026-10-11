@@ -22,9 +22,16 @@ import { CurrentUser } from '../../../common/auth/current-user.decorator';
 import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
 import { Roles } from '../../../common/auth/roles.decorator';
 import { RolesGuard } from '../../../common/auth/roles.guard';
+import { Inject } from '@nestjs/common';
 import { AppointmentsService } from '../application/appointments.service';
-import { AppointmentCandidateResolver } from '../application/resolvers/appointment-candidate.resolver';
-import { AppointmentAssignmentService } from '../application/services/appointment-assignment.service';
+import {
+  CANDIDATE_RESOLVER_PORT,
+  type ICandidateResolverPort,
+} from '../candidate-assignment/contracts/candidate-resolver.contract';
+import {
+  CANDIDATE_ASSIGNMENT_PORT,
+  type ICandidateAssignmentPort,
+} from '../candidate-assignment/contracts/candidate-assignment.contract';
 import { AdminUpdateAppointmentStatusDto } from './dto/admin-update-appointment-status.dto';
 import { CancelAppointmentDto } from './dto/cancel-appointment.dto';
 import { ChangeAppointmentDoctorDto } from './dto/change-appointment-doctor.dto';
@@ -44,8 +51,10 @@ import { ChangeAppointmentRoomDto } from './dto/change-appointment-room.dto';
 export class AdminAppointmentsController {
   constructor(
     private readonly appointmentsService: AppointmentsService,
-    private readonly candidateResolver: AppointmentCandidateResolver,
-    private readonly assignmentService: AppointmentAssignmentService,
+    @Inject(CANDIDATE_RESOLVER_PORT)
+    private readonly candidateResolver: ICandidateResolverPort,
+    @Inject(CANDIDATE_ASSIGNMENT_PORT)
+    private readonly assignmentService: ICandidateAssignmentPort,
   ) {}
 
   @Patch(':appointmentId/cancel')

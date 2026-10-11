@@ -5,6 +5,7 @@ import {
   SHIFT_DEFINITIONS,
   type SessionShiftType,
 } from '../factories/schedule-session.factory';
+import { SHIFT_EXCEPTION_TYPE } from '@modules/appointments/domain/constants/appointment-lifecycle.constants';
 
 export interface DoctorSessionAssignmentContext {
   id: string;
@@ -64,14 +65,25 @@ export interface DoctorSessionOperabilityResult {
  * it takes precedence over and shadows the generic assignment (dow === null).
  */
 export function filterEffectiveDoctorAssignments<
-  T extends { sessionId: string; dow: number | null; sessionDef?: { isActive?: boolean } | null },
+  T extends {
+    sessionId: string;
+    dow: number | null;
+    doctorId?: string;
+    sessionDef?: { isActive?: boolean } | null;
+  },
 >(assignments: T[], targetDow: number): T[] {
   const explicit = assignments.filter((da) => da.dow === targetDow);
-  const explicitSessionIds = new Set(explicit.map((da) => da.sessionId));
-
-  const generic = assignments.filter(
-    (da) => da.dow === null && !explicitSessionIds.has(da.sessionId),
+  const explicitKeys = new Set(
+    explicit.map((da) =>
+      da.doctorId ? `${da.doctorId}:${da.sessionId}` : da.sessionId,
+    ),
   );
+
+  const generic = assignments.filter((da) => {
+    if (da.dow !== null) return false;
+    const key = da.doctorId ? `${da.doctorId}:${da.sessionId}` : da.sessionId;
+    return !explicitKeys.has(key);
+  });
 
   return [...explicit, ...generic];
 }
@@ -145,7 +157,7 @@ export function resolveDoctorSessionOperability(
       se.serviceDate === targetDate &&
       (!se.sessionId || se.sessionId === da.sessionId),
   );
-  const isLeave = exception?.type === 'leave';
+  const isLeave = exception?.type === SHIFT_EXCEPTION_TYPE.LEAVE;
 
   if (isLeave) {
     return {

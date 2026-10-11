@@ -1,7 +1,8 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { ClinicConfigModule } from '../../common/clinic-config/clinic-config.module';
 import { DrizzleModule } from '../../database/drizzle/drizzle.module';
 import { SchedulePolicyReader } from '../schedules/infrastructure/drizzle/queries/schedule-policy.reader';
+import { CandidateAssignmentModule } from './candidate-assignment/candidate-assignment.module';
 import { AppointmentCallLifecycleService } from './application/appointment-call-lifecycle.service';
 import { AppointmentNotificationPublisher } from './application/appointment-notification.publisher';
 import { AppointmentsService } from './application/appointments.service';
@@ -43,7 +44,11 @@ import { AppointmentDomainExceptionFilter } from './presentation/filters/appoint
 import { PatientAppointmentHistoryController } from './presentation/patient-appointment-history.controller';
 
 @Module({
-  imports: [DrizzleModule, ClinicConfigModule],
+  imports: [
+    DrizzleModule,
+    ClinicConfigModule,
+    forwardRef(() => CandidateAssignmentModule),
+  ],
   controllers: [
     AppointmentsController,
     AdminAppointmentsController,
@@ -133,6 +138,8 @@ import { PatientAppointmentHistoryController } from './presentation/patient-appo
     GetAppointmentListUseCase,
     GenerateCheckInQrUseCase,
     PerformCheckInUseCase,
+    'FIND_APPOINTMENT_BY_ID',
+    CandidateAssignmentModule,
   ],
 })
 export class AppointmentsModule {}

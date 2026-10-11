@@ -64,6 +64,15 @@ export class ClinicTimeService {
     return this.timezone;
   }
 
+  getTimezoneAbbreviation(date: Date | string = new Date()): string {
+    const d = typeof date === 'string' ? new Date(date) : date;
+    const parts = new Intl.DateTimeFormat('id-ID', {
+      timeZone: this.timezone,
+      timeZoneName: 'short',
+    }).formatToParts(d);
+    return parts.find((p) => p.type === 'timeZoneName')?.value || 'WIB';
+  }
+
   nowInstant(): Temporal.Instant {
     return this.clock.now();
   }

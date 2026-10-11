@@ -24,6 +24,18 @@ export const DB_APPOINTMENT_STATUS = {
 export type DbAppointmentStatusValue =
   (typeof DB_APPOINTMENT_STATUS)[keyof typeof DB_APPOINTMENT_STATUS];
 
+export const TERMINAL_APPOINTMENT_STATUSES = [
+  DB_APPOINTMENT_STATUS.COMPLETED,
+  DB_APPOINTMENT_STATUS.CANCELLED,
+] as const;
+
+export function isTerminalAppointmentStatus(status: string | null | undefined): boolean {
+  return (
+    status === DB_APPOINTMENT_STATUS.COMPLETED ||
+    status === DB_APPOINTMENT_STATUS.CANCELLED
+  );
+}
+
 export const QUEUE_TICKET_STATUS = {
   WAITING: 'waiting',
   CALLED: 'called',
@@ -75,3 +87,28 @@ export const CLINIC_ADMIN_STAFF_ROLE_CODES = [
   'staf',
   'staff',
 ] as const;
+
+export const DOCTOR_AVAILABILITY = {
+  AVAILABLE: 'AVAILABLE',
+  SCHEDULE_REQUIRED: 'SCHEDULE_REQUIRED',
+} as const;
+
+export type DoctorAvailability =
+  (typeof DOCTOR_AVAILABILITY)[keyof typeof DOCTOR_AVAILABILITY];
+
+export const SHIFT_EXCEPTION_TYPE = {
+  LEAVE: 'leave',
+  EXTRA: 'extra',
+} as const;
+
+export type ShiftExceptionType =
+  (typeof SHIFT_EXCEPTION_TYPE)[keyof typeof SHIFT_EXCEPTION_TYPE];
+
+export const STAFF_TYPE = {
+  DOCTOR: 'doctor',
+  MIDWIFE: 'midwife',
+  WORKER: 'worker',
+} as const;
+
+export type StaffType = (typeof STAFF_TYPE)[keyof typeof STAFF_TYPE];
+

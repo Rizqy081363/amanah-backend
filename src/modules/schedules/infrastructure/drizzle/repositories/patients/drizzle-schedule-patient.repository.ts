@@ -1,3 +1,4 @@
+import { ClinicTimeService } from '@common/time/clinic-time.service';
 import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
@@ -6,6 +7,10 @@ import {
   practitioners,
   sessionDefs,
 } from '@database/schema';
+import {
+  DB_APPOINTMENT_STATUS,
+  isTerminalAppointmentStatus,
+} from '@modules/appointments/domain/constants/appointment-lifecycle.constants';
 import { AppointmentTemporalStatusHelper } from '@modules/appointments/domain/helpers/appointment-temporal-status.helper';
 import { computeConsultationMetrics } from '@modules/appointments/domain/helpers/consultation-duration.helper';
 import { APPOINTMENT_STATUS_BADGE_MAP } from '@modules/schedules/domain/constants/schedule.constants';
@@ -20,7 +25,7 @@ import { BookedPatientMapper } from '@modules/schedules/infrastructure/drizzle/m
 import { PractitionerResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/practitioner.resolver';
 import type { GetAdminDoctorPatientsQueryDto } from '@modules/schedules/presentation/dto/get-admin-doctor-patients-query.dto';
 import type { GetSessionPatientsQueryDto } from '@modules/schedules/presentation/dto/get-session-patients-query.dto';
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { isUUID } from 'class-validator';
 import { and, asc, eq, gte, inArray, isNotNull, isNull, lt, or } from 'drizzle-orm';
 
@@ -30,6 +35,8 @@ export class DrizzleSchedulePatientRepository {
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,
     private readonly practitionerResolver: PractitionerResolver,
+    @Optional()
+    private readonly clinicTimeService?: ClinicTimeService,
   ) {}
 
   async getBookedPatients(
@@ -88,7 +95,9 @@ export class DrizzleSchedulePatientRepository {
       ],
     });
 
-    return appointmentRecords.map((apt) => BookedPatientMapper.toEntity(apt));
+    return appointmentRecords.map((apt) =>
+      BookedPatientMapper.toEntity(apt, this.clinicTimeService),
+    );
   }
 
   async getAdminSessionPatients(
@@ -132,7 +141,7 @@ export class DrizzleSchedulePatientRepository {
         effectiveSessionDef = assignment.sessionDef;
         effectiveRoom = assignment.preferredRoom || null;
       } else {
-        // 2. Fallback ke master sesi klinik (session_def)
+        // 2. Cek master sesi klinik (session_def)
         const sessionDef = await this.db.query.sessionDefs.findFirst({
           where: eq(sessionDefs.id, sessionId),
           with: { schedules: true },
@@ -157,6 +166,38 @@ export class DrizzleSchedulePatientRepository {
             },
           );
           effectiveRoom = docAssignment?.preferredRoom || null;
+        } else {
+          // 3. Fallback cerdas: Jika sessionId tidak ditemukan (misal UUID penugasan lama sebelum update roster),
+          // cari penugasan dokter yang aktif pada tanggal dan hari tersebut (targetDow).
+          const targetDow = new Date(sessDate).getDay();
+          const activeAssignments =
+            await this.db.query.doctorAssignments.findMany({
+              where: and(
+                eq(doctorAssignments.doctorId, practitioner.id),
+                eq(doctorAssignments.isActive, true),
+                or(
+                  eq(doctorAssignments.dow, targetDow),
+                  isNull(doctorAssignments.dow),
+                ),
+              ),
+              with: {
+                sessionDef: {
+                  with: { schedules: true },
+                },
+                preferredRoom: {
+                  with: {
+                    clinicUnit: true,
+                  },
+                },
+              },
+            });
+
+          if (activeAssignments.length > 0) {
+            // Ambil penugasan dokter pertama yang aktif untuk hari tersebut
+            const fallbackAssignment = activeAssignments[0];
+            effectiveSessionDef = fallbackAssignment.sessionDef;
+            effectiveRoom = fallbackAssignment.preferredRoom || null;
+          }
         }
       }
     }
@@ -254,17 +295,16 @@ export class DrizzleSchedulePatientRepository {
         const estEnd = apt.estimatedEndAt
           ? new Date(apt.estimatedEndAt)
           : new Date(estStart.getTime() + 20 * 60_000);
-        const pad = (n: number) => String(n).padStart(2, '0');
-        etaRange = `${pad(estStart.getUTCHours())}:${pad(estStart.getUTCMinutes())} - ${pad(estEnd.getUTCHours())}:${pad(estEnd.getUTCMinutes())} WIB`;
+        const startStr = this.clinicTimeService
+          ? this.clinicTimeService.formatTime(estStart).slice(0, 5)
+          : estStart.toISOString().slice(11, 16);
+        const endStr = this.clinicTimeService
+          ? this.clinicTimeService.formatTime(estEnd).slice(0, 5)
+          : estEnd.toISOString().slice(11, 16);
+        const tzAbbr =
+          this.clinicTimeService?.getTimezoneAbbreviation(estStart) || 'WIB';
+        etaRange = `${startStr} - ${endStr} ${tzAbbr}`;
       }
-
-      const startTime = apt.scheduledStartTime
-        ? apt.scheduledStartTime.slice(0, 5)
-        : '08:00';
-      const endTime = apt.scheduledEndTime
-        ? apt.scheduledEndTime.slice(0, 5)
-        : '08:30';
-      const timeSlot = etaRange || `${startTime} - ${endTime} WIB`;
 
       const isElapsed = AppointmentTemporalStatusHelper.isElapsed({
         scheduledDate: apt.scheduledDate,
@@ -282,9 +322,8 @@ export class DrizzleSchedulePatientRepository {
 
       const isCancellable =
         !isElapsed &&
-        effectiveStatus !== 'in_service' &&
-        effectiveStatus !== 'completed' &&
-        effectiveStatus !== 'cancelled';
+        !isTerminalAppointmentStatus(effectiveStatus) &&
+        effectiveStatus !== DB_APPOINTMENT_STATUS.IN_SERVICE;
 
       const clinicRoomName =
         apt.clinicRoom?.name || session.clinicRoom?.name || '';
@@ -344,7 +383,6 @@ export class DrizzleSchedulePatientRepository {
         appointmentDate: apt.scheduledDate,
         queueTicketId: apt.queueTickets?.[0]?.id || null,
         queueNumber,
-        timeSlot,
         etaRange,
         estimatedStartAt: apt.estimatedStartAt
           ? new Date(apt.estimatedStartAt).toISOString()
@@ -408,7 +446,7 @@ export class DrizzleSchedulePatientRepository {
     }
 
     const activeBookedCount = aptRecords.filter(
-      (a) => a.status !== 'cancelled',
+      (a) => a.status !== DB_APPOINTMENT_STATUS.CANCELLED,
     ).length;
 
     const resolvedShift = resolveCanonicalShift({
@@ -523,7 +561,9 @@ export class DrizzleSchedulePatientRepository {
 
     const allPatients = sessionItems
       .flatMap((s) => s.patients)
-      .sort((a, b) => a.timeSlot.localeCompare(b.timeSlot));
+      .sort((a, b) =>
+        (a.queueNumber || '').localeCompare(b.queueNumber || ''),
+      );
 
     return {
       success: true,

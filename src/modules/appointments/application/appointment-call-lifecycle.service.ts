@@ -20,6 +20,7 @@ import {
   DB_APPOINTMENT_STATUS,
   MAX_PATIENT_CALL_ATTEMPTS,
   QUEUE_TICKET_STATUS,
+  TERMINAL_APPOINTMENT_STATUSES,
 } from '../domain/constants/appointment-lifecycle.constants';
 import { AppointmentCallRepository } from '../domain/repositories/appointment-call.repository';
 import {
@@ -67,7 +68,10 @@ export class AppointmentCallLifecycleService {
       throw new NotFoundException('Janji temu tidak ditemukan.');
     }
 
-    const nonCallableStatuses = ['completed', 'cancelled', 'no_show'];
+    const nonCallableStatuses = [
+      ...TERMINAL_APPOINTMENT_STATUSES,
+      DB_APPOINTMENT_STATUS.NO_SHOW,
+    ] as readonly string[];
     if (nonCallableStatuses.includes(details.status)) {
       throw new BadRequestException(
         `Janji temu dengan status "${details.status}" tidak dapat dipanggil.`,
@@ -118,7 +122,9 @@ export class AppointmentCallLifecycleService {
         ticketNumber: details.ticketNumber,
         attemptNumber: nextAttemptNumber,
         maxAttempts: MAX_PATIENT_CALL_ATTEMPTS,
-        poliklinikName: details.poliklinikName || 'Poli Umum',
+        poliklinikName: details.poliklinikName || '',
+        roomName: details.roomName || null,
+        doctorName: details.doctorName || null,
         calledBy: calledByUserId,
         notes,
       },
@@ -131,11 +137,13 @@ export class AppointmentCallLifecycleService {
     await this.publisher.publish(event);
 
     if (this.pushNotification && details.patientUserId) {
+      const roomOrPoli = details.roomName || details.poliklinikName || 'Ruang Pemeriksaan';
+      const doctorText = details.doctorName ? ` (Dokter: ${details.doctorName})` : '';
       this.pushNotification
         .sendPush({
           userId: details.patientUserId,
           title: 'Giliran Konsultasi Anda',
-          body: `Nomor antrean ${details.ticketNumber} (${details.patientName || 'Pasien'}) sedang dipanggil ke ${details.poliklinikName || 'Poli Umum'}. Silakan segera menuju ruang pemeriksaan.`,
+          body: `Nomor antrean ${details.ticketNumber} (${details.patientName || 'Pasien'}) sedang dipanggil ke ${roomOrPoli}${doctorText}. Silakan segera menuju ruang pemeriksaan.`,
           data: {
             appointmentId,
             queueNumber: String(details.ticketNumber),
@@ -203,7 +211,7 @@ export class AppointmentCallLifecycleService {
         appointmentId,
         patientUserId: details.patientUserId,
         ticketNumber: details.ticketNumber,
-        poliklinikName: details.poliklinikName || 'Poli Umum',
+        poliklinikName: details.roomName || details.poliklinikName || 'Poliklinik',
       },
       actor: {
         userId: calledByUserId,
@@ -214,11 +222,12 @@ export class AppointmentCallLifecycleService {
     await this.publisher.publish(event);
 
     if (this.pushNotification && details.patientUserId) {
+      const roomOrPoli = details.roomName || details.poliklinikName || 'Ruang Pemeriksaan';
       this.pushNotification
         .sendPush({
           userId: details.patientUserId,
           title: 'Pemeriksaan Sedang Berlangsung',
-          body: `Pasien ${details.patientName || 'Pasien'} (Nomor antrean ${details.ticketNumber}) sedang dalam pemeriksaan di ${details.poliklinikName || 'Poli Umum'}.`,
+          body: `Pasien ${details.patientName || 'Pasien'} (Nomor antrean ${details.ticketNumber}) sedang dalam pemeriksaan di ${roomOrPoli}.`,
           data: {
             appointmentId,
             queueNumber: String(details.ticketNumber),
@@ -287,7 +296,7 @@ export class AppointmentCallLifecycleService {
           attemptNumber: latestAttempt.attemptNumber,
           remainingAttempts:
             MAX_PATIENT_CALL_ATTEMPTS - latestAttempt.attemptNumber,
-          poliklinikName: details.poliklinikName || 'Poli Umum',
+          poliklinikName: details.roomName || details.poliklinikName || 'Poliklinik',
           notes,
         },
         actor: {
@@ -348,7 +357,7 @@ export class AppointmentCallLifecycleService {
         patientName: details.patientName,
         ticketNumber: details.ticketNumber,
         totalAttempts: latestAttempt.attemptNumber,
-        poliklinikName: details.poliklinikName || 'Poli Umum',
+        poliklinikName: details.roomName || details.poliklinikName || 'Poliklinik',
         notes,
       },
       actor: {
@@ -360,11 +369,12 @@ export class AppointmentCallLifecycleService {
     await this.publisher.publish(event);
 
     if (this.pushNotification && details.patientUserId) {
+      const roomOrPoli = details.roomName || details.poliklinikName || 'Ruang Pemeriksaan';
       this.pushNotification
         .sendPush({
           userId: details.patientUserId,
           title: 'Panggilan Terlewati (No-Show)',
-          body: `Nomor antrean ${details.ticketNumber} (${details.patientName || 'Pasien'}) tidak hadir setelah 3 kali pemanggilan di ${details.poliklinikName || 'Poli Umum'}.`,
+          body: `Nomor antrean ${details.ticketNumber} (${details.patientName || 'Pasien'}) tidak hadir setelah 3 kali pemanggilan di ${roomOrPoli}.`,
           data: {
             appointmentId,
             queueNumber: String(details.ticketNumber),
@@ -381,7 +391,7 @@ export class AppointmentCallLifecycleService {
     return {
       noShow: true,
       attemptNumber: latestAttempt.attemptNumber,
-      status: 'no_show',
+      status: DB_APPOINTMENT_STATUS.NO_SHOW,
     };
   }
 }

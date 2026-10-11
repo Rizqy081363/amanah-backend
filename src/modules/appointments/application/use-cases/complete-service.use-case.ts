@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { RedisService } from '../../../../common/redis/redis.service';
+import { ClinicTimeService } from '../../../../common/time/clinic-time.service';
 import { DOMAIN_APPOINTMENT_STATUS } from '../../domain/constants/appointment-lifecycle.constants';
 import type { AppointmentRecord } from '../../domain/types/appointment.types';
 import {
@@ -29,6 +30,8 @@ export class CompleteServiceUseCase {
     private readonly pushNotification?: PushNotificationPort,
     @Optional()
     private readonly redisService?: RedisService,
+    @Optional()
+    private readonly clinicTimeService?: ClinicTimeService,
   ) {}
 
   async execute(appointmentId: string): Promise<AppointmentRecord> {
@@ -58,10 +61,12 @@ export class CompleteServiceUseCase {
     });
 
     if (this.pushNotification && updated.patientUserId) {
-      const timeStr = actualCompletedAt.toLocaleTimeString('id-ID', {
-        hour: '2-digit',
-        minute: '2-digit',
-      });
+      const timeStr = this.clinicTimeService
+        ? this.clinicTimeService.formatTime(actualCompletedAt).slice(0, 5)
+        : actualCompletedAt.toISOString().slice(11, 16);
+      const tzAbbr =
+        this.clinicTimeService?.getTimezoneAbbreviation(actualCompletedAt) ||
+        'WIB';
       const patientInfo = updated.patientName
         ? ` (${updated.patientName})`
         : '';
@@ -69,7 +74,7 @@ export class CompleteServiceUseCase {
         .sendPush({
           userId: updated.patientUserId,
           title: 'Pemeriksaan Selesai',
-          body: `Pemeriksaan medis untuk nomor antrean ${updated.queueNumber}${patientInfo} telah selesai pada pukul ${timeStr} WIB.`,
+          body: `Pemeriksaan medis untuk nomor antrean ${updated.queueNumber}${patientInfo} telah selesai pada pukul ${timeStr} ${tzAbbr}.`,
           data: {
             appointmentId: updated.id,
             queueNumber: String(updated.queueNumber),

@@ -85,7 +85,6 @@ export class BookedPatientEntity {
   age: string;
   gender: string;
   queueNumber: string;
-  timeSlot: string;
   etaRange?: string | null;
   estimatedStartAt?: Date | string | null;
   estimatedEndAt?: Date | string | null;
@@ -917,9 +916,6 @@ export class AdminSessionPatientItem {
 
   @ApiProperty({ example: 'P-001' })
   queueNumber: string;
-
-  @ApiProperty({ example: '08:00 - 08:30 WIB' })
-  timeSlot: string;
 
   @ApiProperty({ nullable: true, example: '08:20 - 08:40 WIB' })
   etaRange?: string | null;

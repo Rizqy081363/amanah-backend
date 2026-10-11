@@ -5,9 +5,11 @@ import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
   appointmentCallAttempts,
   appointments,
+  clinicRooms,
   clinicServices,
   patientAffiliations,
   patientProfiles,
+  practitioners,
   queueTickets,
 } from '../../../../database/schema';
 import {
@@ -141,6 +143,8 @@ export class AppointmentCallDrizzleRepository
         ticketNumber: queueTickets.queueNumber,
         ticketStatus: queueTickets.status,
         poliklinikName: clinicServices.name,
+        roomName: clinicRooms.name,
+        doctorName: practitioners.displayName,
       })
       .from(appointments)
       .leftJoin(patientProfiles, eq(patientProfiles.id, appointments.patientId))
@@ -150,6 +154,8 @@ export class AppointmentCallDrizzleRepository
       )
       .leftJoin(queueTickets, eq(queueTickets.appointmentId, appointments.id))
       .leftJoin(clinicServices, eq(clinicServices.id, appointments.serviceId))
+      .leftJoin(clinicRooms, eq(clinicRooms.id, appointments.roomId))
+      .leftJoin(practitioners, eq(practitioners.id, appointments.practitionerId))
       .where(eq(appointments.id, appointmentId));
 
     if (!result) return null;
