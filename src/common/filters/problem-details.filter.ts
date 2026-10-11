@@ -102,6 +102,12 @@ export class ProblemDetailsFilter implements ExceptionFilter {
         if (typeof resObj.retryAfter === 'number') {
           extraFields.retryAfter = resObj.retryAfter;
         }
+        if (resObj.activeTicket && typeof resObj.activeTicket === 'object') {
+          extraFields.activeTicket = resObj.activeTicket;
+        }
+        if (resObj.existingTicket && typeof resObj.existingTicket === 'object') {
+          extraFields.existingTicket = resObj.existingTicket;
+        }
       }
     } else if (exception instanceof Error) {
       this.logger.error(

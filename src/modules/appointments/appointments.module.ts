@@ -24,6 +24,7 @@ import { SweepLateAppointmentsUseCase } from './application/use-cases/sweep-late
 import { AppointmentsNotificationRules } from './appointments.notifications';
 import { APPOINTMENT_CALL_REPOSITORY } from './domain/constants/appointment-lifecycle.constants';
 import { APPOINTMENT_REPOSITORY } from './domain/repositories/appointment.repository';
+import { ActiveTicketPolicyService } from './domain/services/active-ticket-policy.service';
 import { AppointmentPolicyReader } from './domain/services/appointment-policy.reader';
 import { AppointmentPoliklinikResolver } from './domain/services/appointment-poliklinik.resolver';
 import { AppointmentPushAdapter } from './infrastructure/adapters/appointment-push.adapter';
@@ -108,11 +109,13 @@ import { PatientAppointmentHistoryController } from './presentation/patient-appo
     GenerateCheckInQrUseCase,
     PerformCheckInUseCase,
     AppointmentPoliklinikResolver,
+    ActiveTicketPolicyService,
   ],
   exports: [
     APPOINTMENT_REPOSITORY,
     APPOINTMENT_REPOSITORY_PORT,
     APPOINTMENT_CHECK_IN_REPOSITORY_PORT,
+    ActiveTicketPolicyService,
     AppointmentPolicyReader,
     AppointmentPoliklinikResolver,
     AppointmentsService,

@@ -221,6 +221,18 @@ export class AppointmentRescheduleHandler {
         .from(queueTickets)
         .where(eq(queueTickets.appointmentId, apt.id));
 
+      if (oldTickets.length > 0) {
+        for (const oldT of oldTickets) {
+          await tx
+            .update(queueTickets)
+            .set({
+              status: QUEUE_TICKET_STATUS.CANCELLED,
+              updatedAt: nowIso,
+            })
+            .where(eq(queueTickets.id, oldT.id));
+        }
+      }
+
       const [newTicket] = await tx
         .insert(queueTickets)
         .values({
@@ -248,7 +260,6 @@ export class AppointmentRescheduleHandler {
           await tx
             .update(queueTickets)
             .set({
-              status: QUEUE_TICKET_STATUS.CANCELLED,
               movedTo: newTicket.id,
               updatedAt: nowIso,
             })

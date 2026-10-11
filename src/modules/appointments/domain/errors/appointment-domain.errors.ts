@@ -72,3 +72,18 @@ export class DailyQuotaExceededError extends AppointmentDomainError {
     );
   }
 }
+
+export class PatientActiveTicketConflictError extends AppointmentDomainError {
+  constructor(
+    patientId: string,
+    categoryId: string,
+    queueDate: string,
+    existingTicket?: Record<string, unknown>,
+  ) {
+    super(
+      'ACTIVE_TICKET_CONFLICT',
+      `Pasien sudah memiliki tiket antrean aktif (${existingTicket?.queueNumber || 'aktif'}) untuk kategori layanan ini pada tanggal ${queueDate}. Silakan gunakan tiket yang sudah ada atau batalkan terlebih dahulu (Rule H2).`,
+      { patientId, categoryId, queueDate, existingTicket },
+    );
+  }
+}

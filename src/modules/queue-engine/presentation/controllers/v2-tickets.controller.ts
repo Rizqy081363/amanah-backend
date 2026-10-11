@@ -36,6 +36,7 @@ import { SimulatorService } from '../../domain/services/simulator.service';
 import { ClinicSettingService } from '../../infrastructure/config/clinic-setting.service';
 import { ClinicConfigService } from '@common/clinic-config';
 import { DrizzleQueueEngineRepository } from '../../infrastructure/drizzle/drizzle-queue-engine.repository';
+import { ActiveTicketPolicyService } from '../../../appointments/domain/services/active-ticket-policy.service';
 import {
   CreateQueueTicketDto,
   RescheduleQueueTicketDto,
@@ -75,6 +76,19 @@ export class V2TicketsController {
 
     if (!session) {
       throw new NotFoundException(`Session definition not found: ${dto.sessionId}`);
+    }
+
+    // Rule H2 & Blueprint Section 4.5: Satu tiket aktif per pasien per kategori per hari
+    if (dto.patientId && dto.categoryId && dto.serviceDate) {
+      await ActiveTicketPolicyService.assertNoActiveTicketConflict(
+        this.db,
+        {
+          patientId: dto.patientId,
+          categoryId: dto.categoryId,
+          queueDate: dto.serviceDate,
+        },
+        this.clinicConfig,
+      );
     }
 
     const codePrefix = category.codePrefix || 'Q';
@@ -161,23 +175,46 @@ export class V2TicketsController {
     const projectedEnd = newProjection?.projectedEnd || segEnd;
 
     // 4. Insert ticket
-    const [inserted] = await this.db
-      .insert(queueTickets)
-      .values({
-        serviceId: category.id,
-        categoryId: category.id,
-        sessionId: session.id,
-        patientId: dto.patientId,
-        queueDate: dto.serviceDate,
-        queueNumber: formatted,
-        status: QUEUE_TICKET_STATUS.WAITING,
-        priority: QUEUE_PRIORITY.REGULAR,
-        waitingPosition: seq,
-        projectedStart: projectedStart.toISOString(),
-        projectedEnd: projectedEnd.toISOString(),
-        source: QUEUE_TICKET_SOURCE.ONLINE,
-      })
-      .returning();
+    let inserted: any;
+    try {
+      const [row] = await this.db
+        .insert(queueTickets)
+        .values({
+          serviceId: category.id,
+          categoryId: category.id,
+          sessionId: session.id,
+          patientId: dto.patientId,
+          queueDate: dto.serviceDate,
+          queueNumber: formatted,
+          status: QUEUE_TICKET_STATUS.WAITING,
+          priority: QUEUE_PRIORITY.REGULAR,
+          waitingPosition: seq,
+          projectedStart: projectedStart.toISOString(),
+          projectedEnd: projectedEnd.toISOString(),
+          source: QUEUE_TICKET_SOURCE.ONLINE,
+        })
+        .returning();
+      inserted = row;
+    } catch (insertError: any) {
+      if (
+        insertError?.code === '23505' &&
+        (insertError?.constraint === 'queue_tickets_one_active_per_patient' ||
+          String(insertError?.message || '').includes('queue_tickets_one_active_per_patient'))
+      ) {
+        if (dto.patientId && dto.categoryId && dto.serviceDate) {
+          await ActiveTicketPolicyService.assertNoActiveTicketConflict(
+            this.db,
+            {
+              patientId: dto.patientId,
+              categoryId: dto.categoryId,
+              queueDate: dto.serviceDate,
+            },
+            this.clinicConfig,
+          );
+        }
+      }
+      throw insertError;
+    }
 
     const aheadCount = Math.max(0, activeTickets.length);
     const etaWindow = this.estimator.formatEtaWindow(

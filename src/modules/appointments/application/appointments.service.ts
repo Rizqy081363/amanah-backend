@@ -29,6 +29,7 @@ import {
   AppointmentFindAllResult,
   AppointmentRepository,
 } from '../domain/repositories/appointment.repository';
+import { ActiveTicketPolicyService } from '../domain/services/active-ticket-policy.service';
 import { toDomainStatus } from '../domain/types/appointment.types';
 import { QueueResponseEnvelope } from '../domain/types/queue-response.type';
 import { AdminUpdateAppointmentStatusDto } from '../presentation/dto/admin-update-appointment-status.dto';
@@ -67,6 +68,8 @@ export class AppointmentsService {
     private readonly pushNotification?: PushNotificationPort,
     @Optional()
     private readonly clinicTimeService?: ClinicTimeService,
+    @Optional()
+    private readonly activeTicketPolicy?: ActiveTicketPolicyService,
   ) {}
 
   async createAppointment(
@@ -264,6 +267,16 @@ export class AppointmentsService {
       generatedAt: this.getNowIso(),
       items: daily,
     };
+  }
+
+  async findActiveTicket(params: {
+    patientId: string;
+    categoryId?: string;
+    queueDate: string;
+  }): Promise<any | null> {
+    if (!this.activeTicketPolicy) return null;
+    const tickets = await this.activeTicketPolicy.findActiveTickets(params);
+    return tickets[0] || null;
   }
 
   async findDisplayQueue(

@@ -11,6 +11,7 @@ import {
   AppointmentNotFoundError,
   DailyQuotaExceededError,
   InvalidStatusTransitionError,
+  PatientActiveTicketConflictError,
   SchedulePolicyNotFoundError,
   StaleStatusError,
 } from '../../domain/errors/appointment-domain.errors';
@@ -24,7 +25,10 @@ export class AppointmentDomainExceptionFilter implements ExceptionFilter {
     let status = HttpStatus.BAD_REQUEST;
     let errorName = 'Bad Request';
 
-    if (exception instanceof StaleStatusError) {
+    if (
+      exception instanceof StaleStatusError ||
+      exception instanceof PatientActiveTicketConflictError
+    ) {
       status = HttpStatus.CONFLICT;
       errorName = 'Conflict';
     } else if (exception instanceof InvalidStatusTransitionError) {

@@ -13,6 +13,7 @@ import {
   Post,
   Query,
   Res,
+  UseFilters,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -50,8 +51,10 @@ import { PerformCheckInDto } from './dto/perform-check-in.dto';
 import { QueryAppointmentDto } from './dto/query-appointment.dto';
 import { RescheduleAppointmentDto } from './dto/reschedule-appointment.dto';
 import { UpdateAppointmentStatusDto } from './dto/update-appointment-status.dto';
+import { AppointmentDomainExceptionFilter } from './filters/appointment-domain-exception.filter';
 
 @ApiTags('Appointments (Kunjungan & Antrean Pasien)')
+@UseFilters(AppointmentDomainExceptionFilter)
 @Controller({ path: 'appointments', version: '1' })
 export class AppointmentsController {
   constructor(
@@ -176,6 +179,35 @@ export class AppointmentsController {
       this.clinicTimeService.today(),
       poliklinikId,
     );
+  }
+
+  @ApiBearerAuth('access-token')
+  @UseGuards(HybridAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'STAF', 'PATIENT')
+  @Get('active-ticket')
+  @ApiOperation({
+    summary: 'Mengecek apakah pasien memiliki tiket aktif pada tanggal dan kategori tertentu',
+    description: 'Digunakan oleh antarmuka pendaftaran untuk verifikasi dini tiket aktif pasien.',
+  })
+  async getActiveTicket(
+    @Query('patientId') patientId?: string,
+    @Query('categoryId') categoryId?: string,
+    @Query('date') date?: string,
+    @CurrentUser() user?: any,
+  ) {
+    const resolvedPatientId = patientId || user?.patient?.id;
+    if (!resolvedPatientId || !date) {
+      return { hasActiveTicket: false, activeTicket: null };
+    }
+    const ticket = await this.appointmentsService.findActiveTicket({
+      patientId: resolvedPatientId,
+      categoryId,
+      queueDate: date,
+    });
+    return {
+      hasActiveTicket: Boolean(ticket),
+      activeTicket: ticket,
+    };
   }
 
   @Public()

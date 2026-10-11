@@ -201,7 +201,7 @@ export class AppointmentRecordMapper {
           ? `${apt.clinicRoom.clinicUnit.queuePrefix}-${String(apt.queueNumber).padStart(3, '0')}`
           : apt.queueNumber
             ? String(apt.queueNumber)
-            : '1'),
+            : ''),
       ticketStatus: ticket?.status || QUEUE_TICKET_STATUS.WAITING,
       status: domainStatus,
       rawStatus,

@@ -24,6 +24,7 @@ import {
   QUEUE_TICKET_STATUS,
 } from '../../domain/constants/appointment-lifecycle.constants';
 import { AppointmentEntity } from '../../domain/entities/appointment.entity';
+import { ActiveTicketPolicyService } from '../../domain/services/active-ticket-policy.service';
 import { AppointmentRecordMapper } from './appointment-record.mapper';
 
 export class AppointmentCreationHandler {
@@ -196,6 +197,19 @@ export class AppointmentCreationHandler {
         : rerouteNotice;
     }
 
+    // Rule H2 & Blueprint Section 4.5: Satu tiket aktif per pasien per kategori per hari
+    if (data.patientId && categoryId && data.appointmentDate) {
+      await ActiveTicketPolicyService.assertNoActiveTicketConflict(
+        db,
+        {
+          patientId: data.patientId,
+          categoryId,
+          queueDate: data.appointmentDate,
+        },
+        clinicConfig,
+      );
+    }
+
     const effectiveMedicalFlow =
       (clinicServiceRecord?.medicalFlow as any) ||
       (data as any).medicalFlow ||
@@ -328,26 +342,55 @@ export class AppointmentCreationHandler {
       })
       .returning();
 
-    const [ticket] = await db
-      .insert(queueTickets)
-      .values({
-        appointmentId: apt.id,
-        serviceId: data.layananId,
-        categoryId: categoryId,
-        sessionId: sessionId,
-        patientId: data.patientId || null,
-        doctorId: practitionerId || null,
-        roomId: null,
-        queueDate: data.appointmentDate,
-        queueNumber: formattedTicketNumber,
-        status: QUEUE_TICKET_STATUS.WAITING,
-        priority: 'regular',
-        waitingPosition: numericQueueNumber,
-        projectedStart: estimatedStart.toISOString(),
-        projectedEnd: estimatedEnd.toISOString(),
-        source: 'online',
-      })
-      .returning();
+    let ticket: any;
+    try {
+      const [insertedTicket] = await db
+        .insert(queueTickets)
+        .values({
+          appointmentId: apt.id,
+          serviceId: data.layananId,
+          categoryId: categoryId,
+          sessionId: sessionId,
+          patientId: data.patientId || null,
+          doctorId: practitionerId || null,
+          roomId: null,
+          queueDate: data.appointmentDate,
+          queueNumber: formattedTicketNumber,
+          status: QUEUE_TICKET_STATUS.WAITING,
+          priority: 'regular',
+          waitingPosition: numericQueueNumber,
+          projectedStart: estimatedStart.toISOString(),
+          projectedEnd: estimatedEnd.toISOString(),
+          source: 'online',
+        })
+        .returning();
+      ticket = insertedTicket;
+    } catch (insertError: any) {
+      if (
+        insertError?.code === '23505' &&
+        (insertError?.constraint === 'queue_tickets_one_active_per_patient' ||
+          String(insertError?.message || '').includes('queue_tickets_one_active_per_patient'))
+      ) {
+        // Rollback created appointment to avoid orphan appointment record
+        await db
+          .delete(appointments)
+          .where(eq(appointments.id, apt.id))
+          .catch(() => {});
+
+        if (data.patientId && categoryId && data.appointmentDate) {
+          await ActiveTicketPolicyService.assertNoActiveTicketConflict(
+            db,
+            {
+              patientId: data.patientId,
+              categoryId,
+              queueDate: data.appointmentDate,
+            },
+            clinicConfig,
+          );
+        }
+      }
+      throw insertError;
+    }
 
     if (data.sourceIntakeId) {
       await db
