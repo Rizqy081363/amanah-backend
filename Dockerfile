@@ -3,6 +3,7 @@ FROM oven/bun:1.2.19-alpine AS builder
 RUN apk add --no-cache bash python3 make g++
 
 WORKDIR /usr/src/app
+ENV IS_DOCKER=true
 COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile
 

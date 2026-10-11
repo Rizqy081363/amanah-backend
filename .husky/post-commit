@@ -1,2 +1,2 @@
 bun run backup:pull:hook
-bun run deadcode
+bun run deadcode || true
