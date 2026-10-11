@@ -29,10 +29,11 @@ import { AdminScheduleConfigurationController } from '@modules/schedules/present
 import { ClinicalPractitionersController } from '@modules/schedules/presentation/clinical-practitioners.controller';
 import { SchedulesController } from '@modules/schedules/presentation/schedules.controller';
 import { DoctorRosterModule } from '@modules/schedules/doctor-roster/doctor-roster.module';
+import { OperatingDaysModule } from '@modules/schedules/operating-days/operating-days.module';
 import { Module } from '@nestjs/common';
 
 @Module({
-  imports: [RedisModule, ClinicConfigModule, DoctorRosterModule],
+  imports: [RedisModule, ClinicConfigModule, DoctorRosterModule, OperatingDaysModule],
   controllers: [
     SchedulesController,
     AdminDoctorSchedulesController,
@@ -88,6 +89,7 @@ import { Module } from '@nestjs/common';
     DrizzleScheduleConfigurationImpactEvaluator,
     DrizzleRescheduleEligibilityEvaluator,
     DoctorRosterModule,
+    OperatingDaysModule,
   ],
 })
 export class SchedulesModule {}

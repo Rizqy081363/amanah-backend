@@ -43,6 +43,7 @@ export interface ResolveDoctorSessionOperabilityParams {
   targetDate: string;
   doctorAssignment: DoctorSessionAssignmentContext;
   shiftExceptions?: DoctorSessionShiftExceptionContext[];
+  isDayActive?: boolean;
 }
 
 export interface DoctorSessionOperabilityResult {
@@ -80,12 +81,19 @@ export function filterEffectiveDoctorAssignments<
  * 1. Master Shift Definition (sessionDef.isActive)
  * 2. Doctor Leave Exception (shiftExceptions)
  * 3. Explicit Doctor Roster Override (da.dow === targetDow)
- * 4. Generic Weekly Operational Template (da.dow === null -> sessionSchedules)
+ * 4. Clinic Day Operating Status (isDayActive === true)
+ * 5. Generic Weekly Operational Template (da.dow === null -> sessionSchedules)
  */
 export function resolveDoctorSessionOperability(
   params: ResolveDoctorSessionOperabilityParams,
 ): DoctorSessionOperabilityResult {
-  const { targetDow, targetDate, doctorAssignment: da, shiftExceptions = [] } = params;
+  const {
+    targetDow,
+    targetDate,
+    doctorAssignment: da,
+    shiftExceptions = [],
+    isDayActive = true,
+  } = params;
 
   const sessionDef = da.sessionDef;
   const isMasterDefActive = Boolean(sessionDef && sessionDef.isActive);
@@ -153,15 +161,12 @@ export function resolveDoctorSessionOperability(
     };
   }
 
-  // 3. Priority Resolution:
+  // 3. Priority Resolution: Explicit Doctor Roster Override
   // If doctor has explicit assignment for this day of week (da.dow === targetDow),
-  // the roster assignment OVERRIDES weekly template!
-  // If doctor only has generic assignment (da.dow === null), fallback to weekly template.
-  const hasExplicitRosterOverride = da.dow !== null && da.dow === targetDow;
-  const isTemplateActive = Boolean(sched && sched.isActive);
+  // the roster assignment OVERRIDES global day deactivation and weekly template!
+  const hasExplicitRosterOverride = da.dow !== null && da.dow === targetDow && da.isActive === true;
 
   if (hasExplicitRosterOverride) {
-    // Explicit roster assignment active
     return {
       isOperable: true,
       isOpen: true,
@@ -175,7 +180,24 @@ export function resolveDoctorSessionOperability(
     };
   }
 
-  // Fallback to clinic weekly template for generic assignment (da.dow === null)
+  // 4. Clinic Day Operating Status:
+  // If clinic operating day is deactivated globally, doctors without explicit override cannot operate.
+  if (!isDayActive) {
+    return {
+      isOperable: false,
+      isOpen: false,
+      status: 'closed',
+      closureReason: ScheduleClosureReason.CLINIC_CLOSED,
+      notes: 'Hari Operasional Tutup',
+      startTime,
+      endTime,
+      sessionShift: shiftCode,
+      sessionLabel,
+    };
+  }
+
+  // 5. Fallback to clinic weekly template for generic assignment (da.dow === null)
+  const isTemplateActive = Boolean(sched && sched.isActive);
   if (isTemplateActive) {
     return {
       isOperable: true,

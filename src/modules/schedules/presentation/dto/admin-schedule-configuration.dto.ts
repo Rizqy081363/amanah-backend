@@ -85,7 +85,7 @@ export class UpdateWeeklyTemplateItemDto {
   })
   @IsNotEmpty()
   @IsString()
-  @Matches(/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/, {
+  @Matches(/^(([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?|24:00(:00)?)$/, {
     message: 'endsAt must be a valid time in HH:mm or HH:mm:ss format',
   })
   endsAt: string;
@@ -179,6 +179,13 @@ export class UpdateScheduleConfigurationBatchDto {
   @ValidateNested({ each: true })
   @Type(() => UpdateClinicSettingItemDto)
   clinicSettings?: UpdateClinicSettingItemDto[];
+
+  @ApiPropertyOptional({
+    description: 'Pembaruan status aktif/nonaktif hari operasional klinik (master_day)',
+  })
+  @IsOptional()
+  @IsArray()
+  operatingDays?: Array<{ dow: number; isActive: boolean }>;
 }
 
 export class EvaluateScheduleImpactDto extends UpdateScheduleConfigurationBatchDto {}

@@ -47,6 +47,7 @@ export const masterDays = pgTable('master_day', {
   shortNameEn: varchar('short_name_en', { length: 10 }).notNull(),
   sortOrder: integer('sort_order').notNull().unique(),
   isWeekend: boolean('is_weekend').default(false).notNull(),
+  isActive: boolean('is_active').default(true).notNull(),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
     .defaultNow()
     .notNull(),

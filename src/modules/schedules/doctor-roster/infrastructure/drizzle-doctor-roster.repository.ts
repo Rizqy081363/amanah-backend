@@ -101,14 +101,14 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
       prac.staffProfile?.clinicUnit?.name ||
       'Dokter Umum';
 
-    const operatingDows = new Set(
-      allSchedules.map((s) => s.dow),
-    );
-
     const roomMap = new Map(allRooms.map((r) => [r.id, r.name]));
 
+    const hasAnyCustomRoster = existingAssignments.some((da) => da.dow !== null);
+
     const days: DoctorRosterDayDto[] = allDays.map((d) => {
-      const isOperatingDay = operatingDows.has(d.dow);
+      const isOperatingDay = d.isActive;
+      const explicitForDay = existingAssignments.filter((da) => da.dow === d.dow);
+      const hasOverride = hasAnyCustomRoster;
 
       const daySessions: DoctorRosterSessionDto[] = allDefs.map((def) => {
         const sched = allSchedules.find(
@@ -133,13 +133,14 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
         let isActive = false;
         let assignment = explicitAssignment;
 
-        if (explicitAssignment) {
-          isActive = true;
+        if (hasAnyCustomRoster) {
+          isActive = Boolean(explicitAssignment && explicitAssignment.isActive);
+          assignment = explicitAssignment;
         } else if (genericAssignment) {
-          isActive = Boolean(sched);
-          assignment = sched ? genericAssignment : undefined;
+          isActive = d.isActive && Boolean(sched);
+          assignment = d.isActive && sched ? genericAssignment : undefined;
         } else if (existingAssignments.length === 0) {
-          isActive = Boolean(sched);
+          isActive = d.isActive && Boolean(sched);
         }
 
         const preferredRoomId = assignment?.preferredRoomId || null;
@@ -169,6 +170,8 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
         };
       });
 
+      const isDoctorActive = daySessions.some((s) => s.isActive);
+
       return {
         dow: d.dow,
         dayCode: d.code,
@@ -176,6 +179,8 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
         sortOrder: d.sortOrder,
         isWeekend: d.isWeekend,
         isOperatingDay,
+        isDoctorActive,
+        hasOverride,
         sessions: daySessions,
       };
     });

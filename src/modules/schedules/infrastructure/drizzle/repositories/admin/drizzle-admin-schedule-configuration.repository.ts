@@ -38,6 +38,7 @@ import { DrizzleScheduleConfigurationImpactEvaluator } from './drizzle-schedule-
 export interface CanonicalDayInfo {
   dow: number;
   label: string;
+  isActive: boolean;
 }
 
 export interface CanonicalSessionDefConfig {
@@ -154,6 +155,7 @@ export class DrizzleAdminScheduleConfigurationRepository {
         .select({
           dow: masterDays.dow,
           label: masterDays.nameId,
+          isActive: masterDays.isActive,
         })
         .from(masterDays)
         .orderBy(asc(masterDays.sortOrder)),
@@ -374,6 +376,18 @@ export class DrizzleAdminScheduleConfigurationRepository {
       }
       if (dto.clinicSettings && dto.clinicSettings.length > 0) {
         await this.updateClinicSettings(dto.clinicSettings, tx);
+      }
+      if (dto.operatingDays && dto.operatingDays.length > 0) {
+        const now = new Date().toISOString();
+        for (const item of dto.operatingDays) {
+          await tx
+            .update(masterDays)
+            .set({
+              isActive: item.isActive,
+              updatedAt: now,
+            })
+            .where(eq(masterDays.dow, item.dow));
+        }
       }
     });
     await this.invalidateCaches();

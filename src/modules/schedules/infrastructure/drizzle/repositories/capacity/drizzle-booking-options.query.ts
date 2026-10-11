@@ -262,9 +262,15 @@ export class DrizzleBookingOptionsQuery {
       let isDisabled = false;
       let disabledReason: string | null = null;
 
+      const hasExplicitOverride = sessionAssignments.some((da) => da.dow === targetDow);
+      const isClinicDayActive = dayRecord?.isActive ?? true;
+
       if (activeDayClosure) {
         isDisabled = true;
         disabledReason = activeDayClosure.reason || 'Klinik Tutup';
+      } else if (!isClinicDayActive && !hasExplicitOverride) {
+        isDisabled = true;
+        disabledReason = 'Hari Operasional Tutup';
       } else if (isPast) {
         isDisabled = true;
         disabledReason = 'Waktu Terlewati';

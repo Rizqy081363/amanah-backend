@@ -71,6 +71,14 @@ export class DoctorRosterDayDto {
   @IsBoolean()
   isOperatingDay: boolean;
 
+  @ApiProperty({ example: true, description: 'Apakah dokter beroperasi aktif pada hari ini' })
+  @IsBoolean()
+  isDoctorActive: boolean;
+
+  @ApiProperty({ example: false, description: 'Apakah jadwal dokter pada hari ini merupakan override manual' })
+  @IsBoolean()
+  hasOverride: boolean;
+
   @ApiProperty({ type: [DoctorRosterSessionDto] })
   @IsArray()
   @ValidateNested({ each: true })

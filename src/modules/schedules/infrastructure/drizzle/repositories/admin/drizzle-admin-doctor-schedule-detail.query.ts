@@ -3,6 +3,7 @@ import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
   appointments,
   doctorAssignments,
+  masterDays,
   practitioners,
   shiftExceptions,
 } from '@database/schema';
@@ -106,6 +107,7 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
       assignments,
       monthAppointments,
       clinicPolicy,
+      masterDaysList,
     ] = await Promise.all([
       this.db.query.shiftExceptions.findMany({
         where: and(
@@ -140,7 +142,10 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
         },
       }),
       this.policyReader.getClinicSchedulePolicy(),
+      this.db.query.masterDays.findMany(),
     ]);
+
+    const dayMap = new Map(masterDaysList.map((m) => [m.dow, m.isActive]));
 
     const monthSessions: any[] = [];
     for (let day = 1; day <= daysInMonth; day++) {
@@ -152,6 +157,8 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
         dayDow,
       );
 
+      const isDayActive = dayMap.get(dayDow) ?? true;
+
       for (const da of dayAssignments) {
         if (!da.sessionDef || !da.sessionDef.isActive) continue;
 
@@ -160,6 +167,7 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
           targetDate: dayDate,
           doctorAssignment: da,
           shiftExceptions: monthExceptions,
+          isDayActive,
         });
 
         monthSessions.push({
@@ -198,6 +206,7 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
       monthSessions,
       monthAppointments,
       consultationDurationMinutes: effectiveConsultationDuration,
+      masterDays: masterDaysList,
     });
 
     const todayStr = now.toISOString().slice(0, 10);

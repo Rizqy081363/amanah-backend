@@ -36,6 +36,7 @@ export interface MonthlyScheduleBuildContext {
   doctorAssignments?: any[];
   shiftExceptions?: any[];
   clinicPolicy?: any;
+  masterDays?: Array<{ dow: number; isActive: boolean }>;
 }
 
 export function buildMonthlySchedule(
@@ -76,6 +77,8 @@ export function buildMonthlySchedule(
         dayDow,
       );
 
+      const dayActive = ctx.masterDays?.find((md) => md.dow === dayDow)?.isActive ?? true;
+
       daySessions = assignments
         .filter((da) => da.sessionDef && da.sessionDef.isActive)
         .map((da) => {
@@ -84,6 +87,7 @@ export function buildMonthlySchedule(
             targetDate: dateStr,
             doctorAssignment: da,
             shiftExceptions: shiftExceptions || [],
+            isDayActive: dayActive,
           });
 
           return {

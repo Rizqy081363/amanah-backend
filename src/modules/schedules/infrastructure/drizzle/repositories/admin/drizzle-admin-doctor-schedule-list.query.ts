@@ -3,6 +3,7 @@ import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
   appointments,
   doctorAssignments,
+  masterDays,
   practitioners,
   shiftExceptions,
 } from '@database/schema';
@@ -77,6 +78,7 @@ export class DrizzleAdminDoctorScheduleListQuery {
       allDoctorAssignments,
       allShiftExceptions,
       dateFormatStyle,
+      dayRecord,
     ] = await Promise.all([
       this.db.query.practitioners.findMany({
         with: {
@@ -112,6 +114,9 @@ export class DrizzleAdminDoctorScheduleListQuery {
         where: eq(shiftExceptions.serviceDate, targetDate),
       }),
       this.policyReader.getDateFormatStyle().catch(() => 'human_full'),
+      this.db.query.masterDays.findFirst({
+        where: eq(masterDays.dow, targetDow),
+      }),
     ]);
 
     const cards: AdminDoctorScheduleCardEntity[] = [];
@@ -133,6 +138,7 @@ export class DrizzleAdminDoctorScheduleListQuery {
             targetDate,
             doctorAssignment: da,
             shiftExceptions: allShiftExceptions,
+            isDayActive: dayRecord?.isActive ?? true,
           });
 
           return {
