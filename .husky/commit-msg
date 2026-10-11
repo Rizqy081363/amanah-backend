@@ -1,1 +1,1 @@
-npx commitlint --edit
+bunx commitlint --edit

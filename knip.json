@@ -1,0 +1,14 @@
+{
+  "$schema": "https://unpkg.com/knip@latest/schema.json",
+  "entry": [
+    "src/main.ts",
+    "scripts/**/*.ts"
+  ],
+  "project": [
+    "src/**/*.ts",
+    "scripts/**/*.ts"
+  ],
+  "ignoreDependencies": [
+    "ts-loader"
+  ]
+}

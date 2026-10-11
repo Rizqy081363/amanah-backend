@@ -1,0 +1,4 @@
+post-commit:
+  commands:
+    deadcode:
+      run: bun run deadcode
