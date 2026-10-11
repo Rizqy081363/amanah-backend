@@ -12,6 +12,10 @@ import {
   ScheduleClosureReason,
   ScheduleOperationalStatus,
 } from '@modules/schedules/domain/entities/schedule.entity';
+import {
+  filterEffectiveDoctorAssignments,
+  resolveDoctorSessionOperability,
+} from '@modules/schedules/domain/services/doctor-session-operational.resolver';
 import { resolveAggregateOperationalStatus } from '@modules/schedules/domain/schedule-status';
 import { formatIndoMonthYear } from '@modules/schedules/domain/services/schedule-date.formatter';
 import { ScheduleRecordMapper } from '@modules/schedules/infrastructure/drizzle/mappers/schedule-record.mapper';
@@ -141,53 +145,35 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
     const monthSessions: any[] = [];
     for (let day = 1; day <= daysInMonth; day++) {
       const dayDate = `${targetYear}-${String(targetMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-      const dayDow = new Date(dayDate).getDay();
+      const dayDow = new Date(Date.UTC(targetYear, targetMonth - 1, day)).getUTCDay();
 
-      const dayAssignments = assignments.filter(
-        (da) => da.dow === null || da.dow === dayDow,
+      const dayAssignments = filterEffectiveDoctorAssignments(
+        assignments,
+        dayDow,
       );
 
       for (const da of dayAssignments) {
         if (!da.sessionDef || !da.sessionDef.isActive) continue;
-        const exception = monthExceptions.find(
-          (e) =>
-            e.serviceDate === dayDate &&
-            (!e.sessionId || e.sessionId === da.sessionId),
-        );
-        const isLeave = exception?.type === 'leave';
 
-        const sched = da.sessionDef.schedules?.find(
-          (s) => s.dow === dayDow,
-        );
-        const isMasterActive = Boolean(sched && sched.isActive);
-
-        const startTime = (
-          sched?.startsAt || da.sessionDef.defaultStartsAt
-        ).slice(0, 5);
-        const endTime = (
-          sched?.endsAt || da.sessionDef.defaultEndsAt
-        ).slice(0, 5);
-
-        const isClosed = !isMasterActive || isLeave;
-        let closureReason: ScheduleClosureReason | null = null;
-        if (isLeave) {
-          closureReason = ScheduleClosureReason.DOCTOR_LEAVE;
-        } else if (!isMasterActive) {
-          closureReason = ScheduleClosureReason.CLINIC_CLOSED;
-        }
+        const res = resolveDoctorSessionOperability({
+          targetDow: dayDow,
+          targetDate: dayDate,
+          doctorAssignment: da,
+          shiftExceptions: monthExceptions,
+        });
 
         monthSessions.push({
           id: da.id,
           practitionerId: prac.id,
           scheduleDate: dayDate,
-          startTime,
-          endTime,
-          sessionShift: da.sessionDef.code,
-          sessionLabel: da.sessionDef.labelKey,
-          status: isClosed ? 'closed' : 'open',
+          startTime: res.startTime,
+          endTime: res.endTime,
+          sessionShift: res.sessionShift,
+          sessionLabel: res.sessionLabel,
+          status: res.status,
           clinicRoom: da.preferredRoom || prac.clinicRoom,
-          notes: isLeave ? 'Dokter isOnLeave' : !isMasterActive ? 'Klinik Tutup' : null,
-          closureReason,
+          notes: res.notes,
+          closureReason: res.closureReason,
         });
       }
     }

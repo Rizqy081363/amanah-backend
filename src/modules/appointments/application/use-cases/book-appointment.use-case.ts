@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
@@ -48,16 +48,27 @@ export class BookAppointmentUseCase {
     const targetDate = new Date(`${input.scheduledDate}T00:00:00.000Z`);
     const dow = targetDate.getUTCDay();
 
-    const assignment = await this.db.query?.doctorAssignments?.findFirst?.({
-      where: and(
-        eq(doctorAssignments.doctorId, input.practitionerId),
-        eq(doctorAssignments.dow, dow),
-        eq(doctorAssignments.isActive, true),
-      ),
-      with: {
-        sessionDef: true,
-      },
-    });
+    const assignment =
+      (await this.db.query?.doctorAssignments?.findFirst?.({
+        where: and(
+          eq(doctorAssignments.doctorId, input.practitionerId),
+          eq(doctorAssignments.dow, dow),
+          eq(doctorAssignments.isActive, true),
+        ),
+        with: {
+          sessionDef: true,
+        },
+      })) ||
+      (await this.db.query?.doctorAssignments?.findFirst?.({
+        where: and(
+          eq(doctorAssignments.doctorId, input.practitionerId),
+          isNull(doctorAssignments.dow),
+          eq(doctorAssignments.isActive, true),
+        ),
+        with: {
+          sessionDef: true,
+        },
+      }));
 
     const morningSession = !assignment
       ? await this.db.query?.sessionDefs?.findFirst?.({

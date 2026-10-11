@@ -123,13 +123,25 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
           : def.defaultEndsAt.slice(0, 5);
         const timeRange = `${startTime} - ${endTime}`;
 
-        const assignment = existingAssignments.find(
-          (da) =>
-            da.sessionId === def.id &&
-            (da.dow === d.dow || da.dow === null),
+        const explicitAssignment = existingAssignments.find(
+          (da) => da.sessionId === def.id && da.dow === d.dow,
+        );
+        const genericAssignment = existingAssignments.find(
+          (da) => da.sessionId === def.id && da.dow === null,
         );
 
-        const isActive = Boolean(assignment);
+        let isActive = false;
+        let assignment = explicitAssignment;
+
+        if (explicitAssignment) {
+          isActive = true;
+        } else if (genericAssignment) {
+          isActive = Boolean(sched);
+          assignment = sched ? genericAssignment : undefined;
+        } else if (existingAssignments.length === 0) {
+          isActive = Boolean(sched);
+        }
+
         const preferredRoomId = assignment?.preferredRoomId || null;
         const preferredRoomName = preferredRoomId
           ? roomMap.get(preferredRoomId) || null
@@ -194,7 +206,14 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
         .delete(doctorAssignments)
         .where(eq(doctorAssignments.doctorId, doctorId));
 
-      const activeItems = dto.assignments.filter((a) => a.isActive);
+      const activeSessionDefs = await tx.query.sessionDefs.findMany({
+        where: eq(sessionDefs.isActive, true),
+      });
+      const activeSessionIds = new Set(activeSessionDefs.map((s: any) => s.id));
+
+      const activeItems = dto.assignments.filter(
+        (a) => a.isActive && activeSessionIds.has(a.sessionId),
+      );
 
       if (activeItems.length > 0) {
         await tx.insert(doctorAssignments).values(

@@ -23,6 +23,10 @@ import {
   type SessionShiftType,
 } from '@modules/schedules/domain/factories/schedule-session.factory';
 import {
+  filterEffectiveDoctorAssignments,
+  resolveDoctorSessionOperability,
+} from '@modules/schedules/domain/services/doctor-session-operational.resolver';
+import {
   resolveAggregateOperationalStatus,
   resolveSessionOperationalStatus,
 } from '@modules/schedules/domain/schedule-status';
@@ -113,69 +117,33 @@ export class DrizzleAdminDoctorScheduleListQuery {
       const activeLeave = allShiftExceptions.find(
         (se) => se.doctorId === p.id && se.type === 'leave',
       );
-      const assignments = allDoctorAssignments.filter(
-        (da) =>
-          da.doctorId === p.id &&
-          (da.dow === null || da.dow === targetDow),
+      const assignments = filterEffectiveDoctorAssignments(
+        allDoctorAssignments.filter((da) => da.doctorId === p.id),
+        targetDow,
       );
 
       const sessions = assignments
         .filter((da) => da.sessionDef && da.sessionDef.isActive)
         .map((da) => {
-          const sched = da.sessionDef.schedules?.find(
-            (s) => s.dow === targetDow,
-          );
-          const isMasterActive = Boolean(sched && sched.isActive);
-
-          const exception = allShiftExceptions.find(
-            (se) =>
-              se.doctorId === p.id &&
-              (!se.sessionId || se.sessionId === da.sessionId),
-          );
-          const isLeave = exception?.type === 'leave';
-
-          const shiftCode = da.sessionDef.code as SessionShiftType;
-          const shiftDef =
-            SHIFT_DEFINITIONS.find((sd) => sd.shift === shiftCode) ||
-            SHIFT_DEFINITIONS[1];
-          const startTime = (
-            sched?.startsAt || shiftDef.boundaryStartTime
-          ).slice(0, 5);
-          const endTime = (
-            sched?.endsAt || shiftDef.boundaryEndTime
-          ).slice(0, 5);
-
-          let sessionLabel = shiftDef.label;
-          if (da.sessionDef.labelKey === 'session.morning') {
-            sessionLabel = 'Sesi Pagi';
-          } else if (da.sessionDef.labelKey === 'session.afternoon') {
-            sessionLabel = 'Sesi Siang';
-          } else if (da.sessionDef.labelKey === 'session.night') {
-            sessionLabel = 'Sesi Malam';
-          } else if (da.sessionDef.labelKey === 'session.early_morning') {
-            sessionLabel = 'Sesi Dini Hari';
-          }
-
-          const isClosed = !isMasterActive || isLeave;
-          let closureReason: ScheduleClosureReason | null = null;
-          if (isLeave) {
-            closureReason = ScheduleClosureReason.DOCTOR_LEAVE;
-          } else if (!isMasterActive) {
-            closureReason = ScheduleClosureReason.CLINIC_CLOSED;
-          }
+          const res = resolveDoctorSessionOperability({
+            targetDow,
+            targetDate,
+            doctorAssignment: da,
+            shiftExceptions: allShiftExceptions,
+          });
 
           return {
             id: `recurring-${da.id}-${targetDate}`,
             practitionerId: p.id,
             scheduleDate: targetDate,
-            startTime,
-            endTime,
-            sessionShift: shiftCode,
-            sessionLabel,
-            status: isClosed ? 'closed' : 'open',
+            startTime: res.startTime,
+            endTime: res.endTime,
+            sessionShift: res.sessionShift,
+            sessionLabel: res.sessionLabel,
+            status: res.status,
             clinicRoom: da.preferredRoom || p.clinicRoom,
-            notes: isLeave ? 'Dokter Cuti' : !isMasterActive ? 'Klinik Tutup' : null,
-            closureReason,
+            notes: res.notes,
+            closureReason: res.closureReason,
           };
         })
         .sort((a, b) => a.startTime.localeCompare(b.startTime)) as any;

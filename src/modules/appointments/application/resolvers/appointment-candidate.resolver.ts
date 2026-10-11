@@ -8,7 +8,7 @@ import {
   shiftExceptions,
 } from '@database/schema';
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, inArray, not } from 'drizzle-orm';
+import { and, eq, inArray, isNull, not, or } from 'drizzle-orm';
 import { ACTIVE_APPOINTMENT_STATUSES } from '../../../schedules/domain/constants/schedule.constants';
 import {
   AppointmentNotFoundException,
@@ -130,7 +130,10 @@ export class AppointmentCandidateResolver {
     const dow = new Date(`${scheduledDate}T00:00:00.000Z`).getUTCDay();
     const rosterAssignments = await this.db.query.doctorAssignments.findMany({
       where: and(
-        eq(doctorAssignments.dow, dow),
+        or(
+          eq(doctorAssignments.dow, dow),
+          isNull(doctorAssignments.dow),
+        ),
         eq(doctorAssignments.isActive, true),
       ),
     });

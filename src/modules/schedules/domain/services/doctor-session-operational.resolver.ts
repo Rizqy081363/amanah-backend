@@ -1,0 +1,205 @@
+import {
+  ScheduleClosureReason,
+} from '../entities/schedule.entity';
+import {
+  SHIFT_DEFINITIONS,
+  type SessionShiftType,
+} from '../factories/schedule-session.factory';
+
+export interface DoctorSessionAssignmentContext {
+  id: string;
+  doctorId: string;
+  sessionId: string;
+  dow: number | null;
+  isActive: boolean;
+  preferredRoomId?: string | null;
+  preferredRoom?: any;
+  sessionDef?: {
+    id: string;
+    code: string;
+    labelKey?: string | null;
+    isActive: boolean;
+    defaultStartsAt?: string | null;
+    defaultEndsAt?: string | null;
+    schedules?: Array<{
+      dow: number;
+      isActive: boolean;
+      startsAt?: string | null;
+      endsAt?: string | null;
+    }>;
+  } | null;
+}
+
+export interface DoctorSessionShiftExceptionContext {
+  doctorId: string;
+  serviceDate: string;
+  sessionId?: string | null;
+  type: string;
+  note?: string | null;
+}
+
+export interface ResolveDoctorSessionOperabilityParams {
+  targetDow: number;
+  targetDate: string;
+  doctorAssignment: DoctorSessionAssignmentContext;
+  shiftExceptions?: DoctorSessionShiftExceptionContext[];
+}
+
+export interface DoctorSessionOperabilityResult {
+  isOperable: boolean;
+  isOpen: boolean;
+  status: 'open' | 'closed';
+  closureReason: ScheduleClosureReason | null;
+  notes: string | null;
+  startTime: string;
+  endTime: string;
+  sessionShift: SessionShiftType;
+  sessionLabel: string;
+}
+
+/**
+ * Filter doctor assignments for a given day-of-week.
+ * If an explicit assignment (dow === targetDow) exists for a session,
+ * it takes precedence over and shadows the generic assignment (dow === null).
+ */
+export function filterEffectiveDoctorAssignments<
+  T extends { sessionId: string; dow: number | null; sessionDef?: { isActive?: boolean } | null },
+>(assignments: T[], targetDow: number): T[] {
+  const explicit = assignments.filter((da) => da.dow === targetDow);
+  const explicitSessionIds = new Set(explicit.map((da) => da.sessionId));
+
+  const generic = assignments.filter(
+    (da) => da.dow === null && !explicitSessionIds.has(da.sessionId),
+  );
+
+  return [...explicit, ...generic];
+}
+
+/**
+ * Resolves doctor session operability based on the priority hierarchy:
+ * 1. Master Shift Definition (sessionDef.isActive)
+ * 2. Doctor Leave Exception (shiftExceptions)
+ * 3. Explicit Doctor Roster Override (da.dow === targetDow)
+ * 4. Generic Weekly Operational Template (da.dow === null -> sessionSchedules)
+ */
+export function resolveDoctorSessionOperability(
+  params: ResolveDoctorSessionOperabilityParams,
+): DoctorSessionOperabilityResult {
+  const { targetDow, targetDate, doctorAssignment: da, shiftExceptions = [] } = params;
+
+  const sessionDef = da.sessionDef;
+  const isMasterDefActive = Boolean(sessionDef && sessionDef.isActive);
+
+  const shiftCode = (sessionDef?.code || 'morning') as SessionShiftType;
+  const shiftDef =
+    SHIFT_DEFINITIONS.find((sd) => sd.shift === shiftCode) ||
+    SHIFT_DEFINITIONS[1];
+
+  const sched = sessionDef?.schedules?.find((s) => s.dow === targetDow);
+
+  // Time resolution: weekly template schedule -> def default time -> shift boundary
+  const rawStartTime = sched?.startsAt || sessionDef?.defaultStartsAt || shiftDef.boundaryStartTime;
+  const rawEndTime = sched?.endsAt || sessionDef?.defaultEndsAt || shiftDef.boundaryEndTime;
+  const startTime = rawStartTime.slice(0, 5);
+  const endTime = rawEndTime.slice(0, 5);
+
+  // Label resolution
+  let sessionLabel = shiftDef.label;
+  if (sessionDef?.labelKey === 'session.morning') {
+    sessionLabel = 'Sesi Pagi';
+  } else if (sessionDef?.labelKey === 'session.afternoon') {
+    sessionLabel = 'Sesi Siang';
+  } else if (sessionDef?.labelKey === 'session.night') {
+    sessionLabel = 'Sesi Malam';
+  } else if (sessionDef?.labelKey === 'session.early_morning') {
+    sessionLabel = 'Sesi Dini Hari';
+  }
+
+  // 1. Master definition inactive: Shift does not operate anywhere in the clinic
+  if (!isMasterDefActive) {
+    return {
+      isOperable: false,
+      isOpen: false,
+      status: 'closed',
+      closureReason: ScheduleClosureReason.CLINIC_CLOSED,
+      notes: 'Klinik Tutup',
+      startTime,
+      endTime,
+      sessionShift: shiftCode,
+      sessionLabel,
+    };
+  }
+
+  // 2. Doctor Leave exception
+  const exception = shiftExceptions.find(
+    (se) =>
+      se.doctorId === da.doctorId &&
+      se.serviceDate === targetDate &&
+      (!se.sessionId || se.sessionId === da.sessionId),
+  );
+  const isLeave = exception?.type === 'leave';
+
+  if (isLeave) {
+    return {
+      isOperable: true,
+      isOpen: false,
+      status: 'closed',
+      closureReason: ScheduleClosureReason.DOCTOR_LEAVE,
+      notes: exception?.note || 'Dokter Cuti',
+      startTime,
+      endTime,
+      sessionShift: shiftCode,
+      sessionLabel,
+    };
+  }
+
+  // 3. Priority Resolution:
+  // If doctor has explicit assignment for this day of week (da.dow === targetDow),
+  // the roster assignment OVERRIDES weekly template!
+  // If doctor only has generic assignment (da.dow === null), fallback to weekly template.
+  const hasExplicitRosterOverride = da.dow !== null && da.dow === targetDow;
+  const isTemplateActive = Boolean(sched && sched.isActive);
+
+  if (hasExplicitRosterOverride) {
+    // Explicit roster assignment active
+    return {
+      isOperable: true,
+      isOpen: true,
+      status: 'open',
+      closureReason: null,
+      notes: null,
+      startTime,
+      endTime,
+      sessionShift: shiftCode,
+      sessionLabel,
+    };
+  }
+
+  // Fallback to clinic weekly template for generic assignment (da.dow === null)
+  if (isTemplateActive) {
+    return {
+      isOperable: true,
+      isOpen: true,
+      status: 'open',
+      closureReason: null,
+      notes: null,
+      startTime,
+      endTime,
+      sessionShift: shiftCode,
+      sessionLabel,
+    };
+  }
+
+  // Template is inactive (clinic closed for this shift on this day)
+  return {
+    isOperable: true,
+    isOpen: false,
+    status: 'closed',
+    closureReason: ScheduleClosureReason.CLINIC_CLOSED,
+    notes: 'Klinik Tutup',
+    startTime,
+    endTime,
+    sessionShift: shiftCode,
+    sessionLabel,
+  };
+}
