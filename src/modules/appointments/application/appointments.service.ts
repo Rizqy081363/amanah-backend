@@ -22,7 +22,11 @@ import {
   BusinessDate,
   ClinicTimeService,
 } from '../../../common/time/clinic-time.service';
-import { APPOINTMENT_LIFECYCLE_EVENTS } from '../domain/constants/appointment-lifecycle.constants';
+import { QueueEventPublisher } from '../../queue-engine/application/services/queue-event-publisher.service';
+import {
+  APPOINTMENT_LIFECYCLE_EVENTS,
+  DB_APPOINTMENT_STATUS,
+} from '../domain/constants/appointment-lifecycle.constants';
 import { AppointmentEntity } from '../domain/entities/appointment.entity';
 import {
   APPOINTMENT_REPOSITORY,
@@ -70,6 +74,8 @@ export class AppointmentsService {
     private readonly clinicTimeService?: ClinicTimeService,
     @Optional()
     private readonly activeTicketPolicy?: ActiveTicketPolicyService,
+    @Optional()
+    private readonly queueEventPublisher?: QueueEventPublisher,
   ) {}
 
   async createAppointment(
@@ -493,6 +499,26 @@ export class AppointmentsService {
         result.data.newStatus,
         dto.reason,
       );
+
+      if (
+        this.queueEventPublisher &&
+        (result.data.newStatus === DB_APPOINTMENT_STATUS.COMPLETED ||
+          result.data.newStatus === DB_APPOINTMENT_STATUS.IN_SERVICE ||
+          result.data.newStatus === DB_APPOINTMENT_STATUS.CANCELLED ||
+          result.data.newStatus === DB_APPOINTMENT_STATUS.NO_SHOW)
+      ) {
+        const evType =
+          result.data.newStatus === DB_APPOINTMENT_STATUS.NO_SHOW
+            ? 'cancelled'
+            : (result.data.newStatus as any);
+        this.queueEventPublisher
+          .publishProgression({
+            eventType: evType,
+            serviceDate: apt.appointmentDate,
+            appointmentId: apt.id,
+          })
+          .catch(() => {});
+      }
     }
     return result;
   }

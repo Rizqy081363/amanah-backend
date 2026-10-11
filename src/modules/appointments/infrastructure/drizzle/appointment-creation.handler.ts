@@ -1,6 +1,8 @@
 import { UnprocessableEntityException } from '@nestjs/common';
+import { Temporal } from '@js-temporal/polyfill';
 import { and, asc, eq, ilike, inArray, isNull, not, or, sql } from 'drizzle-orm';
 import type { ClinicConfigService } from '../../../../common/clinic-config/clinic-config.service';
+import type { ClinicTimeService } from '../../../../common/time/clinic-time.service';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
   appointments,
@@ -33,6 +35,7 @@ export class AppointmentCreationHandler {
     data: Omit<AppointmentEntity, 'id' | 'createdAt' | 'updatedAt'>,
     findById: (id: string) => Promise<AppointmentEntity | null>,
     clinicConfig?: ClinicConfigService,
+    clinicTimeService?: ClinicTimeService,
   ): Promise<AppointmentEntity> {
     const bookingCode = `BOOK-${Date.now().toString(36).toUpperCase()}-${Math.floor(
       Math.random() * 1000,
@@ -299,12 +302,17 @@ export class AppointmentCreationHandler {
     const [startH, startM] = (startTime || '08:00')
       .split(':')
       .map((v) => parseInt(v, 10));
-    const baseStart = new Date(`${data.appointmentDate}T00:00:00.000Z`);
-    baseStart.setUTCHours(
-      Number.isNaN(startH) ? 8 : startH,
-      Number.isNaN(startM) ? 0 : startM,
-      0,
-      0,
+    const h = Number.isNaN(startH) ? 8 : startH;
+    const m = Number.isNaN(startM) ? 0 : startM;
+    const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
+    const tz =
+      clinicTimeService?.getTimezone() ||
+      (clinicConfig ? await clinicConfig.getTimezone() : 'Asia/Jakarta');
+
+    const baseStart = new Date(
+      Temporal.PlainDateTime.from(`${data.appointmentDate}T${timeStr}`)
+        .toZonedDateTime(tz)
+        .toInstant().epochMilliseconds,
     );
 
     const consultationMinutes =
@@ -431,7 +439,13 @@ export class AppointmentCreationHandler {
     const fullApt = await findById(apt.id);
     return (
       fullApt ||
-      AppointmentRecordMapper.toEntity(apt, ticket, data.poliklinikId)
+      AppointmentRecordMapper.toEntity(
+        apt,
+        ticket,
+        data.poliklinikId,
+        undefined,
+        clinicTimeService,
+      )
     );
   }
 }

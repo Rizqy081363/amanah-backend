@@ -10,3 +10,7 @@ export const NOTIFICATIONS_FAILED_QUEUE = 'notifications.failed.queue';
 
 export const ROUTING_KEY_PUSH_PATTERN = 'notifications.dispatch.*.push';
 export const ROUTING_KEY_IN_APP_PATTERN = 'notifications.dispatch.*.in_app';
+
+export const QUEUE_EVENTS_EXCHANGE = 'queue.events.exchange';
+export const QUEUE_RECALCULATION_QUEUE = 'queue.recalculation.queue';
+export const ROUTING_KEY_QUEUE_PROGRESSION = 'queue.progression.*';

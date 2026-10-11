@@ -13,6 +13,9 @@ import {
   NOTIFICATIONS_PUSH_QUEUE,
   ROUTING_KEY_IN_APP_PATTERN,
   ROUTING_KEY_PUSH_PATTERN,
+  QUEUE_EVENTS_EXCHANGE,
+  QUEUE_RECALCULATION_QUEUE,
+  ROUTING_KEY_QUEUE_PROGRESSION,
 } from './rabbitmq.constants';
 
 @Injectable()
@@ -74,6 +77,20 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
         ROUTING_KEY_IN_APP_PATTERN,
       );
 
+      await this.channel.assertExchange(QUEUE_EVENTS_EXCHANGE, 'topic', {
+        durable: true,
+      });
+      await this.channel.assertQueue(QUEUE_RECALCULATION_QUEUE, {
+        durable: true,
+        deadLetterExchange: NOTIFICATIONS_DLX_EXCHANGE,
+        deadLetterRoutingKey: 'notifications.failed',
+      });
+      await this.channel.bindQueue(
+        QUEUE_RECALCULATION_QUEUE,
+        QUEUE_EVENTS_EXCHANGE,
+        ROUTING_KEY_QUEUE_PROGRESSION,
+      );
+
       this.logger.log('Connected to RabbitMQ and declared exchanges and queues');
     } catch (err) {
       this.logger.warn(`Failed to connect to RabbitMQ: ${String(err)}`);
@@ -97,13 +114,17 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
     return this.channel;
   }
 
-  async publish(routingKey: string, message: unknown): Promise<boolean> {
+  async publish(
+    routingKey: string,
+    message: unknown,
+    exchange: string = NOTIFICATIONS_EXCHANGE,
+  ): Promise<boolean> {
     if (!this.channel) {
       this.logger.warn('RabbitMQ channel not ready, dropping message');
       return false;
     }
     const buffer = Buffer.from(JSON.stringify(message));
-    return this.channel.publish(NOTIFICATIONS_EXCHANGE, routingKey, buffer, {
+    return this.channel.publish(exchange, routingKey, buffer, {
       persistent: true,
       contentType: 'application/json',
       timestamp: Date.now(),

@@ -17,6 +17,7 @@ import {
   toDomainStatus,
 } from '../../domain/types/appointment.types';
 import { formatIndoDate } from '../../../schedules/domain/services/schedule-date.formatter';
+import { ClinicTimeService } from '../../../../common/time/clinic-time.service';
 
 export class AppointmentRecordMapper {
   static resolveSession(apt: any): CanonicalSessionName {
@@ -34,6 +35,7 @@ export class AppointmentRecordMapper {
       | { poliklinikId: string; poliklinikName: string }
       | null,
     windowHours?: number,
+    clinicTimeService?: ClinicTimeService,
   ): AppointmentEntity {
     let domainStatus = toDomainStatus(apt.status);
     let rawStatus = apt.status;
@@ -111,15 +113,31 @@ export class AppointmentRecordMapper {
 
     let etaRange: string | null = null;
     if (estimatedStartAt) {
-      const pad = (n: number) => String(n).padStart(2, '0');
-      const startH = pad(estimatedStartAt.getUTCHours());
-      const startM = pad(estimatedStartAt.getUTCMinutes());
+      const tz =
+        clinicTimeService?.getTimezone() ||
+        process.env.CLINIC_TIMEZONE ||
+        'Asia/Jakarta';
+      const tzAbbr =
+        clinicTimeService?.getTimezoneAbbreviation(estimatedStartAt) || 'WIB';
+
+      const formatTime = (d: Date): string => {
+        if (clinicTimeService) {
+          return clinicTimeService.formatTime(d).slice(0, 5);
+        }
+        return new Intl.DateTimeFormat('en-GB', {
+          timeZone: tz,
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        }).format(d);
+      };
+
+      const startStr = formatTime(estimatedStartAt);
       if (estimatedEndAt) {
-        const endH = pad(estimatedEndAt.getUTCHours());
-        const endM = pad(estimatedEndAt.getUTCMinutes());
-        etaRange = `${startH}:${startM} - ${endH}:${endM} WIB`;
+        const endStr = formatTime(estimatedEndAt);
+        etaRange = `${startStr} - ${endStr} ${tzAbbr}`;
       } else {
-        etaRange = `~${startH}:${startM} WIB`;
+        etaRange = `~${startStr} ${tzAbbr}`;
       }
     } else if (apt.scheduledStartTime) {
       etaRange = apt.scheduledStartTime.slice(0, 5);
@@ -130,11 +148,14 @@ export class AppointmentRecordMapper {
       }
     }
 
-    const numQueue = Number(apt.queueNumber) || 1;
+    const effectivePosition =
+      ticket?.waitingPosition !== undefined && ticket?.waitingPosition !== null
+        ? Number(ticket.waitingPosition)
+        : Number(apt.queueNumber) || 1;
     const aheadCount =
       domainStatus === DOMAIN_APPOINTMENT_STATUS.BOOKED ||
       domainStatus === DOMAIN_APPOINTMENT_STATUS.WAITING
-        ? Math.max(0, numQueue - 1)
+        ? Math.max(0, effectivePosition - 1)
         : 0;
 
     const overrideObj =

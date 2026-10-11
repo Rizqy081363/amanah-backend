@@ -66,6 +66,7 @@ export class EstimatorService {
     projectedStart: Date,
     durationMinutes: number,
     roundingMinutes = 5,
+    timezone = 'Asia/Jakarta',
   ): EtaWindow {
     const ms = projectedStart.getTime();
     const roundMs = roundingMinutes * 60_000;
@@ -74,9 +75,15 @@ export class EstimatorService {
     const start = new Date(roundedStartMs);
     const end = new Date(roundedStartMs + durationMinutes * 60_000);
 
-    const pad = (n: number) => String(n).padStart(2, '0');
-    const startFormatted = `${pad(start.getUTCHours())}:${pad(start.getUTCMinutes())}`;
-    const endFormatted = `${pad(end.getUTCHours())}:${pad(end.getUTCMinutes())}`;
+    const formatter = new Intl.DateTimeFormat('en-GB', {
+      timeZone: timezone,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+
+    const startFormatted = formatter.format(start);
+    const endFormatted = formatter.format(end);
 
     return {
       start,

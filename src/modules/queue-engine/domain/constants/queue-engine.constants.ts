@@ -71,4 +71,6 @@ export const PATIENT_QUEUE_STATUS_LABELS: Record<QueueTicketStatusType, string> 
   [QUEUE_TICKET_STATUS.EXPIRED]: 'Kedaluwarsa',
 };
 
+export const QUEUE_ENGINE_REPOSITORY = 'QUEUE_ENGINE_REPOSITORY';
+
 export { OutboxStatus };

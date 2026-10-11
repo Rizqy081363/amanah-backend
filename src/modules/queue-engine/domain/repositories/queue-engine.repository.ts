@@ -33,4 +33,13 @@ export interface IQueueEngineRepository {
     sessionId: string;
     categoryId?: string;
   }): Promise<DomainQueueTicket[]>;
+
+  batchUpdateProjections(
+    updates: Array<{
+      ticketId: string;
+      projectedStart: Date;
+      projectedEnd: Date;
+      waitingPosition: number;
+    }>,
+  ): Promise<void>;
 }

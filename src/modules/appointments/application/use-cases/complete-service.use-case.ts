@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { RedisService } from '../../../../common/redis/redis.service';
 import { ClinicTimeService } from '../../../../common/time/clinic-time.service';
+import { QueueEventPublisher } from '../../../queue-engine/application/services/queue-event-publisher.service';
 import { DOMAIN_APPOINTMENT_STATUS } from '../../domain/constants/appointment-lifecycle.constants';
 import type { AppointmentRecord } from '../../domain/types/appointment.types';
 import {
@@ -32,6 +33,8 @@ export class CompleteServiceUseCase {
     private readonly redisService?: RedisService,
     @Optional()
     private readonly clinicTimeService?: ClinicTimeService,
+    @Optional()
+    private readonly queueEventPublisher?: QueueEventPublisher,
   ) {}
 
   async execute(appointmentId: string): Promise<AppointmentRecord> {
@@ -85,6 +88,20 @@ export class CompleteServiceUseCase {
         .catch((error) => {
           this.logger.warn(
             `Push notification failed on completion for patient ${updated.patientUserId}: ${error.message}`,
+          );
+        });
+    }
+
+    if (this.queueEventPublisher) {
+      this.queueEventPublisher
+        .publishProgression({
+          eventType: 'completed',
+          serviceDate: updated.scheduledDate,
+          appointmentId: updated.id,
+        })
+        .catch((err) => {
+          this.logger.warn(
+            `Failed to publish progression on complete for appointment ${updated.id}: ${err.message}`,
           );
         });
     }

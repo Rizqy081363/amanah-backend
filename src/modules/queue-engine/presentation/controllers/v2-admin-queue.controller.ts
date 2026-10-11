@@ -6,6 +6,7 @@ import {
   Get,
   Inject,
   NotFoundException,
+  Optional,
   Param,
   Post,
   Query,
@@ -35,6 +36,7 @@ import { ClosureEngineService } from '../../domain/services/closure-engine.servi
 import { ClinicSettingService } from '../../infrastructure/config/clinic-setting.service';
 import { DrizzleQueueEngineRepository } from '../../infrastructure/drizzle/drizzle-queue-engine.repository';
 import { ClosureInterval, ScheduledShift } from '../../domain/types/calendar.types';
+import { QueueEventPublisher } from '../../application/services/queue-event-publisher.service';
 import { CallNextDto, CreateClosureDto } from '../dto/create-closure.dto';
 
 @ApiTags('v2 - Admin Queue')
@@ -46,6 +48,8 @@ export class V2AdminQueueController {
     private readonly calendar: CalendarService,
     private readonly closureEngine: ClosureEngineService,
     private readonly settingReader: ClinicSettingService,
+    @Optional()
+    private readonly queueEventPublisher?: QueueEventPublisher,
   ) {}
 
   @Post('rooms/:id/call-next')
@@ -155,6 +159,18 @@ export class V2AdminQueueController {
       status: OutboxStatus.PENDING,
     });
 
+    if (this.queueEventPublisher) {
+      this.queueEventPublisher
+        .publishProgression({
+          eventType: 'called',
+          serviceDate: todayStr,
+          sessionId: ticket.sessionId,
+          categoryId: ticket.categoryId,
+          ticketId: ticket.id,
+        })
+        .catch(() => {});
+    }
+
     return {
       success: true,
       message: `Berhasil memanggil nomor ${ticket.queueNumber}`,
@@ -195,6 +211,18 @@ export class V2AdminQueueController {
         requeuedAt: new Date().toISOString(),
       },
     });
+
+    if (this.queueEventPublisher) {
+      this.queueEventPublisher
+        .publishProgression({
+          eventType: 'requeued',
+          serviceDate: ticket.queueDate,
+          sessionId: ticket.sessionId,
+          categoryId: ticket.categoryId,
+          ticketId: ticket.id,
+        })
+        .catch(() => {});
+    }
 
     return {
       success: true,

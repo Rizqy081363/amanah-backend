@@ -4,6 +4,7 @@ import { and, count, desc, eq, inArray, lt, or } from 'drizzle-orm';
 import { decodeCursor, encodeCursor } from '../../../../common/pagination';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
+import { ClinicTimeService } from '../../../../common/time/clinic-time.service';
 import {
   appointments,
   patientAffiliations,
@@ -55,6 +56,8 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
     private readonly policyReader?: AppointmentPolicyReader,
     @Optional()
     private readonly poliklinikResolver?: AppointmentPoliklinikResolver,
+    @Optional()
+    private readonly clinicTimeService?: ClinicTimeService,
   ) {}
 
   private async getWindowHours(): Promise<number | undefined> {
@@ -102,6 +105,7 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
         apt.queueTickets?.[0],
         resolvedUnit || poliId,
         windowHours,
+        this.clinicTimeService,
       );
       if (
         entity.status === DOMAIN_APPOINTMENT_STATUS.LATE &&
@@ -125,6 +129,7 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
       data,
       (id) => this.findById(id),
       this.clinicConfig,
+      this.clinicTimeService,
     );
   }
 
@@ -404,6 +409,8 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
           apt,
           apt.queueTickets?.[0],
           resolvedUnit || poliklinikId,
+          undefined,
+          this.clinicTimeService,
         );
       });
   }

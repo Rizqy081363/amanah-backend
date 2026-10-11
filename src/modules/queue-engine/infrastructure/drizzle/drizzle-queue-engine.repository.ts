@@ -186,6 +186,45 @@ export class DrizzleQueueEngineRepository implements IQueueEngineRepository {
     return rows.map((r: any) => this.mapToDomainTicket(r));
   }
 
+  async batchUpdateProjections(
+    updates: Array<{
+      ticketId: string;
+      projectedStart: Date;
+      projectedEnd: Date;
+      waitingPosition: number;
+    }>,
+  ): Promise<void> {
+    if (!updates || updates.length === 0) return;
+
+    const nowIso = new Date().toISOString();
+
+    await this.db.transaction(async (tx: any) => {
+      for (const u of updates) {
+        const [updatedTicket] = await tx
+          .update(queueTickets)
+          .set({
+            projectedStart: u.projectedStart.toISOString(),
+            projectedEnd: u.projectedEnd.toISOString(),
+            waitingPosition: u.waitingPosition,
+            updatedAt: nowIso,
+          })
+          .where(eq(queueTickets.id, u.ticketId))
+          .returning({ appointmentId: queueTickets.appointmentId });
+
+        if (updatedTicket?.appointmentId) {
+          await tx
+            .update(appointments)
+            .set({
+              estimatedStartAt: u.projectedStart.toISOString(),
+              estimatedEndAt: u.projectedEnd.toISOString(),
+              updatedAt: nowIso,
+            })
+            .where(eq(appointments.id, updatedTicket.appointmentId));
+        }
+      }
+    });
+  }
+
   private mapToDomainTicket(row: any): DomainQueueTicket {
     return {
       id: row.id,

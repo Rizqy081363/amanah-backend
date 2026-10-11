@@ -3,6 +3,7 @@ import { ClinicConfigModule } from '../../common/clinic-config/clinic-config.mod
 import { DrizzleModule } from '../../database/drizzle/drizzle.module';
 import { SchedulePolicyReader } from '../schedules/infrastructure/drizzle/queries/schedule-policy.reader';
 import { CandidateAssignmentModule } from './candidate-assignment/candidate-assignment.module';
+import { QueueEngineModule } from '../queue-engine/queue-engine.module';
 import { AppointmentCallLifecycleService } from './application/appointment-call-lifecycle.service';
 import { AppointmentNotificationPublisher } from './application/appointment-notification.publisher';
 import { AppointmentsService } from './application/appointments.service';
@@ -48,6 +49,7 @@ import { PatientAppointmentHistoryController } from './presentation/patient-appo
     DrizzleModule,
     ClinicConfigModule,
     forwardRef(() => CandidateAssignmentModule),
+    forwardRef(() => QueueEngineModule),
   ],
   controllers: [
     AppointmentsController,
