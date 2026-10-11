@@ -42,6 +42,7 @@ import {
   DrizzleAdminDoctorScheduleDetailQuery,
   DrizzleAdminDoctorScheduleListQuery,
   DrizzleAdminScheduleMutationRepository,
+  DrizzleBookingOptionsQuery,
   DrizzleClinicalPractitionerRepository,
   DrizzleScheduleAvailabilityRepository,
   DrizzleScheduleCapacityRepository,
@@ -67,6 +68,7 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
   private readonly adminListQuery: DrizzleAdminDoctorScheduleListQuery;
   private readonly adminDetailQuery: DrizzleAdminDoctorScheduleDetailQuery;
   private readonly adminMutationRepo: DrizzleAdminScheduleMutationRepository;
+  private readonly bookingOptionsQuery: DrizzleBookingOptionsQuery;
 
   constructor(
     @Inject(DRIZZLE_SOURCE)
@@ -168,6 +170,10 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
         resolvedConflict,
         this.adminDetailQuery,
       );
+    this.bookingOptionsQuery = new DrizzleBookingOptionsQuery(
+      db,
+      resolvedConfig,
+    );
   }
 
   // Session CRUD
@@ -299,6 +305,14 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
     query: ScheduleCapacityQueryDto,
   ): Promise<ScheduleCapacityOverviewData> {
     return this.capacityRepo.getCapacityOverview(staffId, query);
+  }
+
+  getBookingOptions(
+    dateStr: string,
+    poliklinikId?: string,
+    staffId?: string,
+  ): Promise<any> {
+    return this.bookingOptionsQuery.execute(dateStr, poliklinikId, staffId);
   }
 
 

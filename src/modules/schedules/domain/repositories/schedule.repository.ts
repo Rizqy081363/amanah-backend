@@ -100,6 +100,11 @@ export interface ScheduleRepository {
     staffId: string,
     query: ScheduleCapacityQueryDto,
   ): Promise<ScheduleCapacityOverviewData>;
+  getBookingOptions(
+    dateStr: string,
+    poliklinikId?: string,
+    staffId?: string,
+  ): Promise<any>;
 
   // Admin & Patient Domain methods (BE-SCHED-001)
   findAdminDoctorSchedules(

@@ -662,6 +662,26 @@ export class SchedulesController {
     return this.scheduleRepo.getBookedPatients(id);
   }
 
+  @Public()
+  @Get('booking-options')
+  @ApiOperation({
+    summary:
+      'Mendapatkan opsi sesi booking jadwal per shift dengan ketersediaan dokter',
+    description:
+      'Menghasilkan 4 sesi (DINI_HARI, PAGI, SIANG, MALAM) lengkap dengan jam operasional, ketersediaan roster dokter, dan flag isDisabled. Front-end tidak perlu menghitung kalkulasi slot.',
+  })
+  @ApiQuery({ name: 'date', required: true, example: '2026-10-11' })
+  @ApiQuery({ name: 'poliklinikId', required: false })
+  @ApiQuery({ name: 'staffId', required: false })
+  @ApiOkResponse({ description: 'Opsi sesi booking berhasil dimuat' })
+  async getBookingOptions(
+    @Query('date') date: string,
+    @Query('poliklinikId') poliklinikId?: string,
+    @Query('staffId') staffId?: string,
+  ) {
+    return this.scheduleRepo.getBookingOptions(date, poliklinikId, staffId);
+  }
+
   @Get(':id')
   @Roles('ADMIN', 'STAF', 'PATIENT')
   @ApiOperation({

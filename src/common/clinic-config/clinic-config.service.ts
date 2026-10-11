@@ -1,10 +1,8 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { eq } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../database/drizzle/drizzle.provider';
 import {
   clinicProfiles,
-  clinicSchedulePolicies,
   clinicSettings,
 } from '../../database/schema';
 import {
@@ -81,11 +79,8 @@ export class ClinicConfigService {
     }
 
     try {
-      const [settingRows, policyRow, profileRow] = await Promise.all([
+      const [settingRows, profileRow] = await Promise.all([
         this.db.select().from(clinicSettings),
-        this.db.query?.clinicSchedulePolicies?.findFirst?.({
-          where: eq(clinicSchedulePolicies.code, 'default'),
-        }),
         this.db.query?.clinicProfiles?.findFirst?.(),
       ]);
 
@@ -102,27 +97,23 @@ export class ClinicConfigService {
       }
       this.settingsCache = newSettings;
 
-      if (policyRow) {
-        this.policyCache = {
-          id: policyRow.id,
-          code: policyRow.code,
-          defaultConsultationDurationMinutes:
-            policyRow.defaultConsultationDurationMinutes ?? 30,
-          defaultStartPrecisionMinutes:
-            policyRow.defaultStartPrecisionMinutes ?? 1,
-          earlyMorningStart: policyRow.earlyMorningStart ?? '00:00',
-          earlyMorningEnd: policyRow.earlyMorningEnd ?? '06:00',
-          morningStart: policyRow.morningStart ?? '06:00',
-          morningEnd: policyRow.morningEnd ?? '12:00',
-          afternoonStart: policyRow.afternoonStart ?? '12:00',
-          afternoonEnd: policyRow.afternoonEnd ?? '18:00',
-          nightStart: policyRow.nightStart ?? '18:00',
-          nightEnd: policyRow.nightEnd ?? '24:00',
-          checkInWindowHours: policyRow.checkInWindowHours ?? 24,
-        };
-      } else {
-        this.policyCache = DEFAULT_SCHEDULE_POLICY;
-      }
+      const checkInWindowHoursVal = newSettings.get('queue.check_in_window_hours')?.[0]?.value;
+      const checkInWindowHours =
+        checkInWindowHoursVal !== undefined
+          ? Number(checkInWindowHoursVal) || DEFAULT_SCHEDULE_POLICY.checkInWindowHours
+          : DEFAULT_SCHEDULE_POLICY.checkInWindowHours;
+
+      const durationVal = newSettings.get('duration.prior_minutes')?.[0]?.value;
+      const defaultConsultationDurationMinutes =
+        durationVal !== undefined
+          ? Number(durationVal) || DEFAULT_SCHEDULE_POLICY.defaultConsultationDurationMinutes
+          : DEFAULT_SCHEDULE_POLICY.defaultConsultationDurationMinutes;
+
+      this.policyCache = {
+        ...DEFAULT_SCHEDULE_POLICY,
+        checkInWindowHours,
+        defaultConsultationDurationMinutes,
+      };
 
       if (profileRow) {
         this.profileCache = {
