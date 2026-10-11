@@ -21,7 +21,7 @@ import type { GetAdminDoctorPatientsQueryDto } from '@modules/schedules/presenta
 import type { GetSessionPatientsQueryDto } from '@modules/schedules/presentation/dto/get-session-patients-query.dto';
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { isUUID } from 'class-validator';
-import { and, asc, eq, gte, inArray, isNull, lt, or } from 'drizzle-orm';
+import { and, asc, eq, gte, inArray, isNotNull, isNull, lt, or } from 'drizzle-orm';
 
 @Injectable()
 export class DrizzleSchedulePatientRepository {
@@ -229,6 +229,7 @@ export class DrizzleSchedulePatientRepository {
 
     const sessionMatchCondition = and(
       eq(appointments.practitionerId, practitioner.id),
+      isNotNull(appointments.roomId),
       eq(appointments.scheduledDate, session.scheduleDate),
       gte(appointments.scheduledStartTime, sessStart),
       lt(appointments.scheduledStartTime, sessEnd),
@@ -317,7 +318,7 @@ export class DrizzleSchedulePatientRepository {
         effectiveStatus !== 'cancelled';
 
       const clinicRoomName =
-        apt.clinicRoom?.name || session.clinicRoom?.name || 'Ruang Poli';
+        apt.clinicRoom?.name || session.clinicRoom?.name || '';
       const roomName = apt.clinicRoom?.name || session.clinicRoom?.name || null;
       const roomLocation =
         apt.clinicRoom?.location || session.clinicRoom?.location || null;
