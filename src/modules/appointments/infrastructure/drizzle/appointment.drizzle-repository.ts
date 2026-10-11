@@ -1,6 +1,6 @@
 import { ClinicConfigService } from '@common/clinic-config';
 import { Inject, Injectable, Optional } from '@nestjs/common';
-import { and, count, desc, eq, inArray, lt, or } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, lt, or } from 'drizzle-orm';
 import { decodeCursor, encodeCursor } from '../../../../common/pagination';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
@@ -191,11 +191,19 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
     }
 
     const fetchLimit = limit + 1;
+    const orderByClause = filters?.cursor
+      ? [desc(appointments.createdAt), desc(appointments.id)]
+      : [
+          asc(appointments.scheduledDate),
+          asc(appointments.queueNumber),
+          asc(appointments.createdAt),
+        ];
+
     const records = await this.db.query.appointments.findMany({
       where: conditions.length > 0 ? and(...conditions) : undefined,
       limit: fetchLimit,
       offset: filters?.cursor ? 0 : offset,
-      orderBy: [desc(appointments.createdAt), desc(appointments.id)],
+      orderBy: orderByClause,
       with: APPOINTMENT_RELATIONS,
     });
 
@@ -257,6 +265,30 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
           .toLowerCase()
           .includes(q),
       );
+    }
+    if (!filters?.cursor) {
+      const statusRank: Record<string, number> = {
+        [DOMAIN_APPOINTMENT_STATUS.IN_SERVICE]: 1,
+        [DOMAIN_APPOINTMENT_STATUS.WAITING]: 2,
+        [DOMAIN_APPOINTMENT_STATUS.BOOKED]: 3,
+        [DOMAIN_APPOINTMENT_STATUS.LATE]: 4,
+        [DOMAIN_APPOINTMENT_STATUS.COMPLETED]: 5,
+        [DOMAIN_APPOINTMENT_STATUS.CANCELLED]: 6,
+      };
+
+      results.sort((a, b) => {
+        const rankA = statusRank[a.status] ?? 99;
+        const rankB = statusRank[b.status] ?? 99;
+        if (rankA !== rankB) {
+          return rankA - rankB;
+        }
+        const numA = parseInt(String(a.queueNumber).replace(/\D/g, ''), 10) || 0;
+        const numB = parseInt(String(b.queueNumber).replace(/\D/g, ''), 10) || 0;
+        if (numA !== numB) {
+          return numA - numB;
+        }
+        return a.createdAt.getTime() - b.createdAt.getTime();
+      });
     }
 
     const hasNextPage = results.length > limit;

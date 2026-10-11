@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import {
   BadRequestException,
+  ConflictException,
   Inject,
   Injectable,
   Logger,
@@ -13,6 +14,7 @@ import {
   NotificationPublisher,
 } from '../../notifications/contracts/domain-event.interface';
 import { NOTIFICATION_PUBLISHER } from '../../notifications/notifications.constants';
+import { QueueEventPublisher } from '../../queue-engine/application/services/queue-event-publisher.service';
 import {
   APPOINTMENT_CALL_REPOSITORY,
   APPOINTMENT_CALL_STATUS,
@@ -27,6 +29,10 @@ import {
   PUSH_NOTIFICATION_PORT,
   type PushNotificationPort,
 } from './ports/push-notification.port';
+import {
+  REALTIME_EMITTER_PORT,
+  type RealtimeEmitterPort,
+} from './ports/realtime-emitter.port';
 
 @Injectable()
 export class AppointmentCallLifecycleService {
@@ -40,6 +46,11 @@ export class AppointmentCallLifecycleService {
     @Optional()
     @Inject(PUSH_NOTIFICATION_PORT)
     private readonly pushNotification?: PushNotificationPort,
+    @Optional()
+    @Inject(REALTIME_EMITTER_PORT)
+    private readonly realtimeEmitter?: RealtimeEmitterPort,
+    @Optional()
+    private readonly queueEventPublisher?: QueueEventPublisher,
     @Optional()
     private readonly redisService?: RedisService,
   ) {}
@@ -76,6 +87,16 @@ export class AppointmentCallLifecycleService {
       throw new BadRequestException(
         `Janji temu dengan status "${details.status}" tidak dapat dipanggil.`,
       );
+    }
+
+    // Strict queue ordering enforcement (SSOT)
+    if (details.ticketId) {
+      const earlier = await this.callRepo.findEarlierWaitingTicket(details.ticketId);
+      if (earlier) {
+        throw new ConflictException(
+          `Nomor antrean ${details.ticketNumber || 'ini'} tidak dapat dipanggil. Nomor antrean sebelumnya (${earlier.queueNumber}) masih menunggu dan harus dipanggil terlebih dahulu.`,
+        );
+      }
     }
 
     const latestAttempt = await this.callRepo.getLatestAttempt(appointmentId);
@@ -135,6 +156,33 @@ export class AppointmentCallLifecycleService {
     };
 
     await this.publisher.publish(event);
+
+    if (this.realtimeEmitter) {
+      await this.realtimeEmitter.emitPatientCalled({
+        appointmentId,
+        queueNumber:
+          parseInt(String(details.ticketNumber).replace(/\D/g, ''), 10) || 0,
+        practitionerId: details.practitionerId || '',
+        calledAt: new Date(),
+        patientName: details.patientName,
+      });
+    }
+
+    if (this.queueEventPublisher && details.scheduledDate) {
+      this.queueEventPublisher
+        .publishProgression({
+          eventType: 'called',
+          serviceDate: details.scheduledDate,
+          appointmentId,
+          categoryId: details.categoryId || undefined,
+          ticketId: details.ticketId || undefined,
+        })
+        .catch((err) => {
+          this.logger.warn(
+            `Failed to publish queue progression on call for ${appointmentId}: ${err.message}`,
+          );
+        });
+    }
 
     if (this.pushNotification && details.patientUserId) {
       const roomOrPoli = details.roomName || details.poliklinikName || 'Ruang Pemeriksaan';
@@ -220,6 +268,34 @@ export class AppointmentCallLifecycleService {
     };
 
     await this.publisher.publish(event);
+
+    if (this.realtimeEmitter) {
+      await this.realtimeEmitter.emitStatusChanged({
+        appointmentId,
+        status: 'IN_SERVICE',
+        previousStatus: 'WAITING',
+        queueNumber:
+          parseInt(String(details.ticketNumber).replace(/\D/g, ''), 10) || 0,
+        practitionerId: details.practitionerId || '',
+        actualStartedAt: now,
+      });
+    }
+
+    if (this.queueEventPublisher && details.scheduledDate) {
+      this.queueEventPublisher
+        .publishProgression({
+          eventType: 'in_service',
+          serviceDate: details.scheduledDate,
+          appointmentId,
+          categoryId: details.categoryId || undefined,
+          ticketId: details.ticketId || undefined,
+        })
+        .catch((err) => {
+          this.logger.warn(
+            `Failed to publish queue progression on responded for ${appointmentId}: ${err.message}`,
+          );
+        });
+    }
 
     if (this.pushNotification && details.patientUserId) {
       const roomOrPoli = details.roomName || details.poliklinikName || 'Ruang Pemeriksaan';
@@ -307,6 +383,22 @@ export class AppointmentCallLifecycleService {
 
       await this.publisher.publish(event);
 
+      if (this.queueEventPublisher && details.scheduledDate) {
+        this.queueEventPublisher
+          .publishProgression({
+            eventType: 'requeued',
+            serviceDate: details.scheduledDate,
+            appointmentId,
+            categoryId: details.categoryId || undefined,
+            ticketId: details.ticketId || undefined,
+          })
+          .catch((err) => {
+            this.logger.warn(
+              `Failed to publish queue progression on requeue for ${appointmentId}: ${err.message}`,
+            );
+          });
+      }
+
       if (this.pushNotification && details.patientUserId) {
         this.pushNotification
           .sendPush({
@@ -367,6 +459,33 @@ export class AppointmentCallLifecycleService {
     };
 
     await this.publisher.publish(event);
+
+    if (this.realtimeEmitter) {
+      await this.realtimeEmitter.emitStatusChanged({
+        appointmentId,
+        status: 'CANCELLED',
+        previousStatus: 'WAITING',
+        queueNumber:
+          parseInt(String(details.ticketNumber).replace(/\D/g, ''), 10) || 0,
+        practitionerId: details.practitionerId || '',
+      });
+    }
+
+    if (this.queueEventPublisher && details.scheduledDate) {
+      this.queueEventPublisher
+        .publishProgression({
+          eventType: 'cancelled',
+          serviceDate: details.scheduledDate,
+          appointmentId,
+          categoryId: details.categoryId || undefined,
+          ticketId: details.ticketId || undefined,
+        })
+        .catch((err) => {
+          this.logger.warn(
+            `Failed to publish queue progression on no-show for ${appointmentId}: ${err.message}`,
+          );
+        });
+    }
 
     if (this.pushNotification && details.patientUserId) {
       const roomOrPoli = details.roomName || details.poliklinikName || 'Ruang Pemeriksaan';

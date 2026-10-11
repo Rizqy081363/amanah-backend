@@ -29,6 +29,7 @@ import { APPOINTMENT_REPOSITORY } from './domain/repositories/appointment.reposi
 import { ActiveTicketPolicyService } from './domain/services/active-ticket-policy.service';
 import { AppointmentPolicyReader } from './domain/services/appointment-policy.reader';
 import { AppointmentPoliklinikResolver } from './domain/services/appointment-poliklinik.resolver';
+import { QueueEligibilityService } from './domain/services/queue-eligibility.service';
 import { AppointmentPushAdapter } from './infrastructure/adapters/appointment-push.adapter';
 import { AppointmentRealtimeAdapter } from './infrastructure/adapters/appointment-realtime.adapter';
 import { AppointmentDrizzleRepository } from './infrastructure/drizzle/appointment.drizzle-repository';
@@ -117,12 +118,14 @@ import { PatientAppointmentHistoryController } from './presentation/patient-appo
     PerformCheckInUseCase,
     AppointmentPoliklinikResolver,
     ActiveTicketPolicyService,
+    QueueEligibilityService,
   ],
   exports: [
     APPOINTMENT_REPOSITORY,
     APPOINTMENT_REPOSITORY_PORT,
     APPOINTMENT_CHECK_IN_REPOSITORY_PORT,
     ActiveTicketPolicyService,
+    QueueEligibilityService,
     AppointmentPolicyReader,
     AppointmentPoliklinikResolver,
     AppointmentsService,

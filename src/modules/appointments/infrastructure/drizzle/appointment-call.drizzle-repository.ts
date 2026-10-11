@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { desc, eq, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, sql } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
@@ -145,6 +145,9 @@ export class AppointmentCallDrizzleRepository
         poliklinikName: clinicServices.name,
         roomName: clinicRooms.name,
         doctorName: practitioners.displayName,
+        practitionerId: appointments.practitionerId,
+        categoryId: queueTickets.categoryId,
+        scheduledDate: appointments.scheduledDate,
       })
       .from(appointments)
       .leftJoin(patientProfiles, eq(patientProfiles.id, appointments.patientId))
@@ -161,6 +164,60 @@ export class AppointmentCallDrizzleRepository
     if (!result) return null;
 
     return result as AppointmentCallDetails;
+  }
+
+  async findEarlierWaitingTicket(
+    ticketId: string,
+  ): Promise<{ queueNumber: string; id: string } | null> {
+    const [ticket] = await this.db
+      .select({
+        id: queueTickets.id,
+        queueNumber: queueTickets.queueNumber,
+        queueDate: queueTickets.queueDate,
+        categoryId: queueTickets.categoryId,
+        serviceId: queueTickets.serviceId,
+      })
+      .from(queueTickets)
+      .where(eq(queueTickets.id, ticketId))
+      .limit(1);
+
+    if (!ticket) return null;
+
+    const numStr = ticket.queueNumber.replace(/\D/g, '');
+    const currentNum = parseInt(numStr, 10);
+
+    const conditions = [
+      eq(queueTickets.queueDate, ticket.queueDate),
+      eq(queueTickets.status, QUEUE_TICKET_STATUS.WAITING),
+      sql`${queueTickets.id} != ${ticket.id}`,
+    ];
+
+    if (ticket.categoryId) {
+      conditions.push(eq(queueTickets.categoryId, ticket.categoryId));
+    } else if (ticket.serviceId) {
+      conditions.push(eq(queueTickets.serviceId, ticket.serviceId));
+    }
+
+    if (!isNaN(currentNum)) {
+      conditions.push(
+        sql`CAST(NULLIF(regexp_replace(${queueTickets.queueNumber}, '\\D', '', 'g'), '') AS integer) < ${currentNum}`,
+      );
+    }
+
+    const [earlier] = await this.db
+      .select({
+        id: queueTickets.id,
+        queueNumber: queueTickets.queueNumber,
+      })
+      .from(queueTickets)
+      .where(and(...conditions))
+      .orderBy(
+        sql`CAST(NULLIF(regexp_replace(${queueTickets.queueNumber}, '\\D', '', 'g'), '') AS integer) ASC`,
+        asc(queueTickets.createdAt),
+      )
+      .limit(1);
+
+    return earlier ?? null;
   }
 
   async requeueTicket(ticketId: string, bumpPositions: number): Promise<void> {

@@ -310,11 +310,16 @@ export const CLINIC_SETTING_METADATA_REGISTRY: Record<
     controlType: 'number',
   },
   'eta.update_threshold_minutes': {
-    isAdminFacing: false,
+    isAdminFacing: true,
     category: 'notification',
-    label: 'ETA Update Threshold Minutes',
-    description: 'Hysteresis refresh threshold',
+    label: 'Ambang Perubahan Estimasi Notifikasi',
+    description:
+      'Batas minimal pergeseran waktu (menit) untuk menyiarkan pembaruan estimasi antrean ke pasien.',
     controlType: 'number',
+    unit: 'menit',
+    min: 1,
+    max: 60,
+    step: 1,
   },
   'feature.legacy_compat': {
     isAdminFacing: false,

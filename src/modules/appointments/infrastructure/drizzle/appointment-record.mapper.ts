@@ -229,7 +229,7 @@ export class AppointmentRecordMapper {
       ticketStatus: ticket?.status || QUEUE_TICKET_STATUS.WAITING,
       status: domainStatus,
       rawStatus,
-      allowedActions: resolveAllowedActions(domainStatus),
+      allowedActions: resolveAllowedActions(domainStatus, aheadCount),
       visitType:
         apt.visitType === 'follow_up' ? 'Kontrol Ulang' : 'Pemeriksaan Baru',
       complaint: apt.complaint || null,

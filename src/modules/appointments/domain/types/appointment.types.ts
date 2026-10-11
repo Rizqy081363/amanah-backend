@@ -80,12 +80,15 @@ export function toDbStatus(
 
 export function resolveAllowedActions(
   status: AppointmentStatus,
+  aheadCount: number = 0,
 ): AppointmentAction[] {
   switch (status) {
     case 'BOOKED':
       return ['CHECK_IN', 'CANCEL'];
     case 'WAITING':
-      return ['CALL', 'START_SERVICE', 'CANCEL'];
+      return aheadCount === 0
+        ? ['CALL', 'START_SERVICE', 'CANCEL']
+        : ['CANCEL'];
     case 'IN_SERVICE':
       return ['COMPLETE'];
     default:

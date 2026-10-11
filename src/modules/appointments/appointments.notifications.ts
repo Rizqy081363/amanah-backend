@@ -144,14 +144,19 @@ export class AppointmentsNotificationRules implements OnModuleInit {
       eventType: APPOINTMENT_EVENTS.PATIENT_CALLED,
       category: 'appointment',
       defaultChannels: ['in_app'],
-      resolveIntents: (payload: any) => {
-        if (!payload.patientUserId) return [];
+      resolveIntents: async (
+        payload: any,
+        actor?: any,
+      ): Promise<NotificationIntent[]> => {
+        const intents: NotificationIntent[] = [];
         const attemptInfo =
           payload.attemptNumber && payload.maxAttempts
             ? ` Panggilan ke-${payload.attemptNumber} dari ${payload.maxAttempts}.`
             : '';
-        return [
-          {
+
+        // Intent 1: Patient notification
+        if (payload.patientUserId) {
+          intents.push({
             recipientUserId: payload.patientUserId,
             audience: 'patient',
             title: 'Panggilan Antrean',
@@ -173,10 +178,47 @@ export class AppointmentsNotificationRules implements OnModuleInit {
               },
             ],
             presentation: { toast: true },
-          },
-        ];
+          });
+        }
+
+        // Intent 2: Clinic Staff Alert (Audience: 'clinic', Scoped: Admin + Frontdesk + Assigned Practitioner)
+        if (this.recipientResolver) {
+          const clinicUserIds =
+            await this.recipientResolver.resolveScopedClinicRecipients(
+              payload.staffId,
+            );
+
+          for (const staffUserId of clinicUserIds) {
+            const isActorStaff = actor?.userId === staffUserId;
+            intents.push({
+              recipientUserId: staffUserId,
+              audience: 'clinic',
+              title: 'Pasien Dipanggil',
+              body: `Nomor antrean ${payload.ticketNumber || '-'} (${payload.patientName || 'Pasien'}) sedang dipanggil ke ${payload.poliklinikName || 'Poli'}.${attemptInfo}`,
+              severity: 'info',
+              badgeIcon: 'bell',
+              isUrgent: false,
+              presentation: {
+                toast: !isActorStaff,
+              },
+            });
+          }
+        }
+
+        return intents;
       },
-      resolveRecipients: (payload: any) => payload.patientUserId,
+      resolveRecipients: async (payload: any) => {
+        const recipients: string[] = [];
+        if (payload.patientUserId) recipients.push(payload.patientUserId);
+        if (this.recipientResolver) {
+          const clinicUserIds =
+            await this.recipientResolver.resolveScopedClinicRecipients(
+              payload.staffId,
+            );
+          recipients.push(...clinicUserIds);
+        }
+        return recipients;
+      },
       titleTemplate: 'Panggilan Antrean',
       bodyTemplate: (payload: any) => {
         const attemptInfo =

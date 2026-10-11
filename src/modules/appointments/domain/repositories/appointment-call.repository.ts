@@ -24,6 +24,9 @@ export interface AppointmentCallDetails {
   poliklinikName: string | null;
   roomName?: string | null;
   doctorName?: string | null;
+  practitionerId?: string | null;
+  categoryId?: string | null;
+  scheduledDate?: string | null;
 }
 
 export abstract class AppointmentCallRepository {
@@ -53,6 +56,10 @@ export abstract class AppointmentCallRepository {
   abstract getAppointmentWithDetails(
     appointmentId: string,
   ): Promise<AppointmentCallDetails | null>;
+
+  abstract findEarlierWaitingTicket(
+    ticketId: string,
+  ): Promise<{ queueNumber: string; id: string } | null>;
 
   abstract requeueTicket(
     ticketId: string,
