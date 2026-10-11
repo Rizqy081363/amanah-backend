@@ -40,6 +40,7 @@ import {
 import { ScheduleRecordMapper } from '@modules/schedules/infrastructure/drizzle/mappers/schedule-record.mapper';
 import { SchedulePolicyReader } from '@modules/schedules/infrastructure/drizzle/queries/schedule-policy.reader';
 import type { AdminDoctorSchedulesQueryDto } from '@modules/schedules/presentation/dto/admin-doctor-schedules-query.dto';
+import { NameInitialsHelper } from '@common/utils/name-initials.helper';
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import { and, asc, eq, gte, inArray, lte, not } from 'drizzle-orm';
 
@@ -97,6 +98,13 @@ export class DrizzleAdminDoctorScheduleListQuery {
           eq(appointments.scheduledDate, targetDate),
           not(inArray(appointments.status, [...INACTIVE_APPOINTMENT_STATUSES])),
         ),
+        with: {
+          patientProfile: {
+            with: {
+              user: true,
+            },
+          },
+        },
       }),
       this.policyReader.getClinicSchedulePolicy(),
       this.db.query.doctorAssignments.findMany({
@@ -125,6 +133,27 @@ export class DrizzleAdminDoctorScheduleListQuery {
       const activeLeave = allShiftExceptions.find(
         (se) => se.doctorId === p.id && se.type === 'leave',
       );
+      const doctorAppointments = allAppointments.filter(
+        (a) => a.practitionerId === p.id,
+      );
+      const totalPasien = doctorAppointments.length;
+      const pasienPreview = doctorAppointments.slice(0, 4).map((a: any) => {
+        const rawName =
+          a.patientProfile?.user?.name ||
+          a.patientProfile?.fullName ||
+          'Pasien';
+        return {
+          id: a.id,
+          patientId: a.patientId,
+          name: rawName,
+          initials: NameInitialsHelper.getInitials(rawName),
+          avatarUrl:
+            a.patientProfile?.user?.image ||
+            a.patientProfile?.avatarUrl ||
+            null,
+        };
+      });
+
       const assignments = filterEffectiveDoctorAssignments(
         allDoctorAssignments.filter((da) => da.doctorId === p.id),
         targetDow,
@@ -349,6 +378,8 @@ export class DrizzleAdminDoctorScheduleListQuery {
         leave_start: leaveStart,
         leave_end: leaveEnd,
         sesi_harian: sesiHarian,
+        total_pasien: totalPasien,
+        pasien_preview: pasienPreview,
       });
     }
 

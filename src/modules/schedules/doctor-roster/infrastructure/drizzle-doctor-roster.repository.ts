@@ -159,12 +159,15 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
           sessionLabel = 'Sesi Malam';
         }
 
+        const isTemplateActive = d.isActive && Boolean(sched);
+
         return {
           sessionId: def.id,
           sessionCode: def.code,
           sessionLabel,
           timeRange,
           isActive,
+          isTemplateActive,
           preferredRoomId,
           preferredRoomName,
         };
@@ -189,6 +192,7 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
       doctorId: prac.id,
       doctorName,
       specialization,
+      hasAnyOverride: hasAnyCustomRoster,
       days,
     };
   }
@@ -240,6 +244,61 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
         metadata: {
           assignedSessionsCount: activeItems.length,
           assignedSessions: activeItems.map((a) => ({ dow: a.dow, sessionId: a.sessionId })),
+        },
+        changedBy: userId || null,
+      });
+    });
+
+    await this.invalidateScheduleCaches();
+
+    return this.getDoctorRoster(doctorId);
+  }
+
+  async resetDoctorRoster(
+    doctorId: string,
+    userId?: string,
+  ): Promise<DoctorRosterOverviewResponse> {
+    const prac = await this.db.query.practitioners.findFirst({
+      where: eq(practitioners.id, doctorId),
+    });
+
+    if (!prac) {
+      throw new NotFoundException(`Dokter dengan ID ${doctorId} tidak ditemukan`);
+    }
+
+    await this.db.transaction(async (tx) => {
+      // 1. Delete all explicit assignments (with dow) for this doctor
+      await tx
+        .delete(doctorAssignments)
+        .where(eq(doctorAssignments.doctorId, doctorId));
+
+      // 2. Query active session definitions
+      const activeSessionDefs = await tx.query.sessionDefs.findMany({
+        where: eq(sessionDefs.isActive, true),
+      });
+
+      // 3. Restore default generic assignments (dow = null) so doctor adheres to clinic weekly master template
+      if (activeSessionDefs.length > 0) {
+        await tx.insert(doctorAssignments).values(
+          activeSessionDefs.map((def: any) => ({
+            doctorId,
+            sessionId: def.id,
+            dow: null,
+            preferredRoomId: null,
+            isActive: true,
+          })),
+        );
+      }
+
+      // 4. Record audit history
+      await tx.insert(doctorScheduleStatusHistory).values({
+        doctorId,
+        action: 'remove_roster',
+        newStatus: 'OPEN',
+        reason: 'Roster direset ke template mingguan klinik',
+        metadata: {
+          action: 'reset_to_weekly_template',
+          restoredGenericSessionCount: activeSessionDefs.length,
         },
         changedBy: userId || null,
       });

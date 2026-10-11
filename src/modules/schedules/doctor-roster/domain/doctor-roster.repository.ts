@@ -32,6 +32,10 @@ export interface DoctorRosterRepository {
     dto: UpdateDoctorRosterDto,
     userId?: string,
   ): Promise<DoctorRosterOverviewResponse>;
+  resetDoctorRoster(
+    doctorId: string,
+    userId?: string,
+  ): Promise<DoctorRosterOverviewResponse>;
   getDoctorScheduleHistory(
     doctorId: string,
     limit?: number,

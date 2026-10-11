@@ -5,9 +5,11 @@ import { RolesGuard } from '@common/auth/roles.guard';
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Inject,
   Param,
+  Post,
   Put,
   Query,
   UseGuards,
@@ -67,6 +69,36 @@ export class AdminDoctorRosterController {
   ): Promise<DoctorRosterOverviewResponse> {
     const userId = user?.id || user?.sub;
     return this.rosterRepo.updateDoctorRoster(id, dto, userId);
+  }
+
+  @Delete(':id/assignments')
+  @Roles('ADMIN')
+  @ApiOperation({
+    summary: 'Mereset roster kerja dokter kembali ke template mingguan default klinik',
+  })
+  @ApiParam({ name: 'id', description: 'ID praktisi / dokter' })
+  @ApiOkResponse({ type: DoctorRosterOverviewResponse })
+  async resetDoctorAssignments(
+    @Param('id') id: string,
+    @CurrentUser() user?: any,
+  ): Promise<DoctorRosterOverviewResponse> {
+    const userId = user?.id || user?.sub;
+    return this.rosterRepo.resetDoctorRoster(id, userId);
+  }
+
+  @Post(':id/assignments/reset')
+  @Roles('ADMIN')
+  @ApiOperation({
+    summary: 'Mereset roster kerja dokter kembali ke template mingguan default klinik',
+  })
+  @ApiParam({ name: 'id', description: 'ID praktisi / dokter' })
+  @ApiOkResponse({ type: DoctorRosterOverviewResponse })
+  async resetDoctorAssignmentsPost(
+    @Param('id') id: string,
+    @CurrentUser() user?: any,
+  ): Promise<DoctorRosterOverviewResponse> {
+    const userId = user?.id || user?.sub;
+    return this.rosterRepo.resetDoctorRoster(id, userId);
   }
 
   @Get(':id/history')

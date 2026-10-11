@@ -33,6 +33,15 @@ export class DoctorRosterSessionDto {
   @IsBoolean()
   isActive: boolean;
 
+  @ApiProperty({
+    example: true,
+    description: 'Apakah sesi ini aktif pada template mingguan default klinik',
+    required: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  isTemplateActive?: boolean;
+
   @ApiProperty({ example: null, nullable: true })
   @IsOptional()
   @IsUUID()
@@ -95,6 +104,15 @@ export class DoctorRosterOverviewResponse {
 
   @ApiProperty({ example: 'Dokter Umum' })
   specialization: string;
+
+  @ApiProperty({
+    example: false,
+    description: 'Apakah dokter memiliki override roster khusus di luar template mingguan',
+    required: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  hasAnyOverride?: boolean;
 
   @ApiProperty({ type: [DoctorRosterDayDto] })
   days: DoctorRosterDayDto[];

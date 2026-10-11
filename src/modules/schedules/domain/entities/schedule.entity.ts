@@ -309,6 +309,28 @@ export class AdminDoctorDailySession {
   tanggal?: string;
 }
 
+export class AdminDoctorCardPatientPreviewItem {
+  @ApiProperty({ description: 'ID janji temu' })
+  id: string;
+
+  @ApiProperty({ description: 'ID profil pasien' })
+  patientId: string;
+
+  @ApiProperty({ description: 'Nama lengkap pasien' })
+  name: string;
+
+  @ApiProperty({ description: 'Inisial 2 huruf pasien (standar klinis)' })
+  initials: string;
+
+  @ApiProperty({
+    description: 'URL foto profil avatar pasien jika ada',
+    nullable: true,
+    type: String,
+    example: null,
+  })
+  avatarUrl: string | null;
+}
+
 export class AdminDoctorScheduleCardEntity {
   @ApiProperty({ description: 'ID praktisi medis / dokter' })
   id: string;
@@ -411,6 +433,15 @@ export class AdminDoctorScheduleCardEntity {
     type: () => [AdminDoctorDailySession],
   })
   sesi_harian: AdminDoctorDailySession[];
+
+  @ApiProperty({ description: 'Total pasien terdaftar pada tanggal aktif', example: 5 })
+  total_pasien: number;
+
+  @ApiProperty({
+    description: 'Daftar ringkas avatar pasien terdaftar untuk kartu dokter (maks 4)',
+    type: () => [AdminDoctorCardPatientPreviewItem],
+  })
+  pasien_preview: AdminDoctorCardPatientPreviewItem[];
 }
 
 export class AdminDoctorScheduleListMeta {
