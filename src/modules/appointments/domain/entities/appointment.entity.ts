@@ -30,6 +30,7 @@ export class AppointmentEntity {
   roomName?: string | null;
   roomLocation?: string | null;
   appointmentDate: string;
+  appointmentDateFormatted?: string | null;
   scheduledStartTime?: string | null;
   scheduledEndTime?: string | null;
   estimatedDurationMinutes?: number;

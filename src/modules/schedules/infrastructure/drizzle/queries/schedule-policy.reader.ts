@@ -65,4 +65,11 @@ export class SchedulePolicyReader {
         clinicPolicy.startPrecisionMinutes,
     };
   }
+
+  async getDateFormatStyle(): Promise<string> {
+    if (this.clinicConfig) {
+      return this.clinicConfig.getDateFormatStyle();
+    }
+    return 'human_full';
+  }
 }

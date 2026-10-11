@@ -64,6 +64,47 @@ export const CLINIC_SETTING_METADATA_REGISTRY: Record<
       { value: 'Asia/Jayapura', label: 'WIT - Waktu Indonesia Timur (UTC+9)' },
     ],
   },
+  'clinic.date_format_style': {
+    isAdminFacing: true,
+    category: 'general',
+    label: 'Gaya Format Tanggal Tampilan',
+    description:
+      'Standar pemformatan tanggal pada seluruh tampilan jadwal, janji temu, dan notifikasi.',
+    controlType: 'select',
+    options: [
+      {
+        value: 'human_full',
+        label: 'Hari & Tanggal Lengkap (contoh: Minggu, 11 Oktober 2026)',
+        description: 'Menampilkan nama hari lengkap, tanggal, bulan panjang, dan tahun.',
+      },
+      {
+        value: 'human_medium',
+        label: 'Tanggal Standar (contoh: 11 Oktober 2026)',
+        description: 'Menampilkan tanggal, bulan panjang, dan tahun tanpa nama hari.',
+      },
+      {
+        value: 'human_short',
+        label: 'Tanggal Ringkas (contoh: 11 Okt 2026)',
+        description: 'Menampilkan tanggal, singkatan bulan, dan tahun.',
+      },
+      {
+        value: 'iso',
+        label: 'Format Standar ISO (contoh: 2026-10-11)',
+        description: 'Format numerik standar YYYY-MM-DD.',
+      },
+    ],
+  },
+  'clinic.time_format_style': {
+    isAdminFacing: true,
+    category: 'general',
+    label: 'Format Penulisan Waktu Jam',
+    description: 'Format penulisan jam pelayanan klinik pada jadwal dan antrean.',
+    controlType: 'select',
+    options: [
+      { value: '24h', label: 'Format 24 Jam (contoh: 14:30 WIB)' },
+      { value: '12h', label: 'Format 12 Jam AM/PM (contoh: 02:30 PM)' },
+    ],
+  },
   'feature.queue_engine': {
     isAdminFacing: true,
     category: 'general',

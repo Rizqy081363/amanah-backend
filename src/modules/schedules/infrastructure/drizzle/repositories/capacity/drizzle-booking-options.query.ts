@@ -16,6 +16,10 @@ import {
   filterEffectiveDoctorAssignments,
 } from '@modules/schedules/domain/services/doctor-session-operational.resolver';
 import {
+  type DateDisplayFormatStyle,
+  formatIndoDate,
+} from '@modules/schedules/domain/services/schedule-date.formatter';
+import {
   BadRequestException,
   Inject,
   Injectable,
@@ -60,6 +64,7 @@ export interface BookingOptionsResponse {
   success: boolean;
   data: {
     date: string;
+    dateFormatted?: string;
     dayOfWeek: number;
     dayName: string;
     poliklinikId: string | null;
@@ -111,6 +116,7 @@ export class DrizzleBookingOptionsQuery {
       assignments,
       exceptions,
       closures,
+      dateFormatStyle,
     ] = await Promise.all([
       this.clinicConfig.getSchedulePolicy().catch(() => null),
       this.db.query.sessionDefs.findMany({
@@ -157,6 +163,7 @@ export class DrizzleBookingOptionsQuery {
       this.db.query.clinicClosures.findMany({
         where: isNull(clinicClosures.cancelledAt),
       }),
+      this.clinicConfig.getDateFormatStyle().catch(() => 'human_full'),
     ]);
 
     const estimatedDuration = policy?.defaultConsultationDurationMinutes ?? 30;
@@ -287,6 +294,10 @@ export class DrizzleBookingOptionsQuery {
       success: true,
       data: {
         date: dateStr,
+        dateFormatted: formatIndoDate(
+          dateStr,
+          dateFormatStyle as DateDisplayFormatStyle,
+        ),
         dayOfWeek: targetDow,
         dayName: dayRecord?.nameId || 'Hari',
         poliklinikId: poliklinikId || null,

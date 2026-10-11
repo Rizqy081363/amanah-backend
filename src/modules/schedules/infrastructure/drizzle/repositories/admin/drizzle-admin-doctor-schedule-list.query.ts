@@ -31,6 +31,7 @@ import {
   resolveSessionOperationalStatus,
 } from '@modules/schedules/domain/schedule-status';
 import {
+  type DateDisplayFormatStyle,
   formatIndoDate,
   formatIndoMonthYear,
   getClinicNow,
@@ -75,6 +76,7 @@ export class DrizzleAdminDoctorScheduleListQuery {
       clinicPolicy,
       allDoctorAssignments,
       allShiftExceptions,
+      dateFormatStyle,
     ] = await Promise.all([
       this.db.query.practitioners.findMany({
         with: {
@@ -109,6 +111,7 @@ export class DrizzleAdminDoctorScheduleListQuery {
       this.db.query.shiftExceptions.findMany({
         where: eq(shiftExceptions.serviceDate, targetDate),
       }),
+      this.policyReader.getDateFormatStyle().catch(() => 'human_full'),
     ]);
 
     const cards: AdminDoctorScheduleCardEntity[] = [];
@@ -326,7 +329,10 @@ export class DrizzleAdminDoctorScheduleListQuery {
         email: p.staffProfile?.email || null,
         nomor_telepon: p.staffProfile?.phone || null,
         ruang_praktik: ruangPraktik,
-        tanggal_praktik: formatIndoDate(targetDate),
+        tanggal_praktik: formatIndoDate(
+          targetDate,
+          dateFormatStyle as DateDisplayFormatStyle,
+        ),
         avatar: ScheduleRecordMapper.toAvatarUrl(p.staffProfile),
         jadwal_hari_ini: jadwalHariIni,
         jadwal_praktik_mendatang: jadwalPraktikMendatang,

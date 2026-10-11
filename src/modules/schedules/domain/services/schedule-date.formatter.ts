@@ -10,12 +10,41 @@ import {
 } from '../entities/schedule.entity';
 import { SHIFT_DISPLAY_LABELS } from '../constants/schedule-shift.constants';
 
-export function formatIndoDate(dateStr: string): string {
+export type DateDisplayFormatStyle = 'human_full' | 'human_medium' | 'human_short' | 'iso';
+
+export function formatIndoDate(
+  dateStr: string,
+  style: DateDisplayFormatStyle = 'human_full',
+): string {
+  if (!dateStr) return '';
+  if (style === 'iso') return dateStr;
   const [y, m, d] = dateStr.split('-').map(Number);
   const dt = new Date(Date.UTC(y, m - 1, d));
-  const dayName = INDO_DAYS[dt.getUTCDay()];
-  const monthName = INDO_MONTHS_SHORT[m - 1] || '';
-  return `${dayName}, ${d} ${monthName} ${y}`;
+  if (isNaN(dt.getTime())) return dateStr;
+
+  if (style === 'human_medium') {
+    return dt.toLocaleDateString('id-ID', {
+      timeZone: 'UTC',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+  }
+  if (style === 'human_short') {
+    return dt.toLocaleDateString('id-ID', {
+      timeZone: 'UTC',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+  }
+  return dt.toLocaleDateString('id-ID', {
+    timeZone: 'UTC',
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
 }
 
 export function formatIndoMonthYear(

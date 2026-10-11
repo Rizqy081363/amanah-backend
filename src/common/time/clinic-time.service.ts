@@ -101,4 +101,16 @@ export class ClinicTimeService {
       hour12: false,
     }).format(d);
   }
+
+  async getLocale(): Promise<string> {
+    return this.clinicConfig.getLocale();
+  }
+
+  async getDateFormatStyle(): Promise<string> {
+    return this.clinicConfig.getDateFormatStyle();
+  }
+
+  async getTimeFormatStyle(): Promise<string> {
+    return this.clinicConfig.getTimeFormatStyle();
+  }
 }

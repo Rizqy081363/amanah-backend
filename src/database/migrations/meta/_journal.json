@@ -239,6 +239,13 @@
       "when": 1791317000000,
       "tag": "0033_drop_legacy_practitioner_slot_architecture",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1791318000000,
+      "tag": "0034_add_clinic_date_formatting_settings",
+      "breakpoints": true
     }
   ]
 }

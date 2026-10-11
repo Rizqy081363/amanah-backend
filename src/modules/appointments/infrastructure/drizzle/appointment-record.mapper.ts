@@ -16,6 +16,7 @@ import {
   resolveAllowedActions,
   toDomainStatus,
 } from '../../domain/types/appointment.types';
+import { formatIndoDate } from '../../../schedules/domain/services/schedule-date.formatter';
 
 export class AppointmentRecordMapper {
   static resolveSession(apt: any): CanonicalSessionName {
@@ -188,6 +189,7 @@ export class AppointmentRecordMapper {
       roomName: apt.clinicRoom?.name || null,
       roomLocation: apt.clinicRoom?.location || null,
       appointmentDate: apt.scheduledDate,
+      appointmentDateFormatted: formatIndoDate(apt.scheduledDate),
       scheduledStartTime: apt.scheduledStartTime || null,
       scheduledEndTime: apt.scheduledEndTime || null,
       estimatedDurationMinutes:

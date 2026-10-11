@@ -289,4 +289,22 @@ export class ClinicConfigService {
     ]);
     return { okMax, busyMax };
   }
+
+  // --- Regional & Format Settings ---
+
+  async getDateFormatStyle(scope?: ScopeQuery): Promise<string> {
+    return this.getString('clinic.date_format_style', scope).catch(() => 'human_full');
+  }
+
+  async getTimeFormatStyle(scope?: ScopeQuery): Promise<string> {
+    return this.getString('clinic.time_format_style', scope).catch(() => '24h');
+  }
+
+  async getLocale(scope?: ScopeQuery): Promise<string> {
+    return this.getString('clinic.locale', scope).catch(() => 'id-ID');
+  }
+
+  async getTimezone(scope?: ScopeQuery): Promise<string> {
+    return this.getString('clinic.timezone', scope).catch(() => 'Asia/Jakarta');
+  }
 }
