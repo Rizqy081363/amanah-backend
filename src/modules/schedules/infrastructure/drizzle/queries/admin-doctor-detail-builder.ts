@@ -91,7 +91,7 @@ export function buildMonthlySchedule(
           });
 
           return {
-            id: `recurring-${da.id}-${dateStr}`,
+            id: da.id,
             practitionerId: da.doctorId,
             scheduleDate: dateStr,
             startTime: res.startTime,

@@ -41,6 +41,7 @@ import { ScheduleRecordMapper } from '@modules/schedules/infrastructure/drizzle/
 import { SchedulePolicyReader } from '@modules/schedules/infrastructure/drizzle/queries/schedule-policy.reader';
 import type { AdminDoctorSchedulesQueryDto } from '@modules/schedules/presentation/dto/admin-doctor-schedules-query.dto';
 import { NameInitialsHelper } from '@common/utils/name-initials.helper';
+import { SchedulePatientEligibilityHelper } from '@modules/schedules/domain/helpers/schedule-patient-eligibility.helper';
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import { and, asc, eq, gte, inArray, lte, not } from 'drizzle-orm';
 
@@ -133,8 +134,8 @@ export class DrizzleAdminDoctorScheduleListQuery {
       const activeLeave = allShiftExceptions.find(
         (se) => se.doctorId === p.id && se.type === 'leave',
       );
-      const doctorAppointments = allAppointments.filter(
-        (a) => a.practitionerId === p.id,
+      const doctorAppointments = allAppointments.filter((a) =>
+        SchedulePatientEligibilityHelper.isEligibleForDoctorCard(a, p.id),
       );
       const totalPasien = doctorAppointments.length;
       const pasienPreview = doctorAppointments.slice(0, 4).map((a: any) => {
@@ -171,7 +172,7 @@ export class DrizzleAdminDoctorScheduleListQuery {
           });
 
           return {
-            id: `recurring-${da.id}-${targetDate}`,
+            id: da.id,
             practitionerId: p.id,
             scheduleDate: targetDate,
             startTime: res.startTime,
@@ -213,14 +214,14 @@ export class DrizzleAdminDoctorScheduleListQuery {
             : s.endTime
           : `${boundaryEnd}:00`;
 
-        const matchingAppts = allAppointments.filter((a) => {
-          if (a.practitionerId !== s.practitionerId) return false;
-          const aStart =
-            a.scheduledStartTime?.length === 5
-              ? `${a.scheduledStartTime}:00`
-              : a.scheduledStartTime || `${boundaryStart}:00`;
-          return aStart >= sessStart && aStart < sessEnd;
-        });
+        const matchingAppts = allAppointments.filter((a) =>
+          SchedulePatientEligibilityHelper.isEligibleForDoctorSession(
+            a,
+            s.practitionerId,
+            sessStart,
+            sessEnd,
+          ),
+        );
 
         const durationMinutes =
           p.consultationDurationMinutes ||

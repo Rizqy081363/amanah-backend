@@ -7,6 +7,7 @@ import {
   sessionDefs,
 } from '@database/schema';
 import { AppointmentTemporalStatusHelper } from '@modules/appointments/domain/helpers/appointment-temporal-status.helper';
+import { computeConsultationMetrics } from '@modules/appointments/domain/helpers/consultation-duration.helper';
 import { APPOINTMENT_STATUS_BADGE_MAP } from '@modules/schedules/domain/constants/schedule.constants';
 import { resolveCanonicalShift } from '@modules/schedules/domain/constants/schedule-shift.constants';
 import type {
@@ -156,38 +157,6 @@ export class DrizzleSchedulePatientRepository {
             },
           );
           effectiveRoom = docAssignment?.preferredRoom || null;
-        }
-      }
-    } else if (sessionId.startsWith('roster-')) {
-      // 3. Fallback backward-compatibility untuk ID roster: roster-{daId}-{YYYY-MM-DD}
-      const rosterMatch = sessionId.match(
-        /^roster-([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})-(\d{4}-\d{2}-\d{2})$/i,
-      );
-      if (rosterMatch) {
-        const daId = rosterMatch[1];
-        const rosterDate = rosterMatch[2];
-        sessDate = query.date || rosterDate;
-
-        const assignment = await this.db.query.doctorAssignments.findFirst({
-          where: and(
-            eq(doctorAssignments.id, daId),
-            eq(doctorAssignments.doctorId, practitioner.id),
-          ),
-          with: {
-            sessionDef: {
-              with: { schedules: true },
-            },
-            preferredRoom: {
-              with: {
-                clinicUnit: true,
-              },
-            },
-          },
-        });
-
-        if (assignment) {
-          effectiveSessionDef = assignment.sessionDef;
-          effectiveRoom = assignment.preferredRoom || null;
         }
       }
     }
@@ -342,6 +311,34 @@ export class DrizzleSchedulePatientRepository {
           ? `${emergencyContact.name}${emergencyContact.relationship ? ` (${emergencyContact.relationship})` : ''}`
           : null);
 
+      const actualStartedAt = apt.actualStartedAt
+        ? new Date(apt.actualStartedAt)
+        : apt.startedAt
+          ? new Date(apt.startedAt)
+          : apt.queueTickets?.[0]?.startedAt
+            ? new Date(apt.queueTickets[0].startedAt)
+            : null;
+
+      const actualCompletedAt = apt.actualCompletedAt
+        ? new Date(apt.actualCompletedAt)
+        : apt.completedAt
+          ? new Date(apt.completedAt)
+          : apt.queueTickets?.[0]?.completedAt
+            ? new Date(apt.queueTickets[0].completedAt)
+            : null;
+
+      const { elapsedSeconds, formattedDuration } = computeConsultationMetrics(
+        actualStartedAt,
+        actualCompletedAt,
+        effectiveStatus as any,
+      );
+
+      const estimatedDurationMinutes =
+        practitioner.consultationDurationMinutes || 30;
+
+      const finalDurationFormatted =
+        formattedDuration || `${estimatedDurationMinutes} Menit`;
+
       return {
         appointmentId: apt.id,
         appointmentDate: apt.scheduledDate,
@@ -355,6 +352,10 @@ export class DrizzleSchedulePatientRepository {
         estimatedEndAt: apt.estimatedEndAt
           ? new Date(apt.estimatedEndAt).toISOString()
           : null,
+        sessionTitle: session.sessionLabel,
+        estimatedDurationMinutes,
+        consultationDurationFormatted: finalDurationFormatted,
+        consultationElapsedSeconds: elapsedSeconds,
         status: effectiveStatus,
         statusBadge,
         chiefComplaint: apt.complaint || null,

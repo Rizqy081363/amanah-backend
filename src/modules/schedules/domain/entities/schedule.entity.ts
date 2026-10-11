@@ -978,6 +978,18 @@ export class AdminSessionPatientItem {
 
   @ApiProperty({ type: () => AdminAppointmentBookingMetadata })
   bookingMetadata: AdminAppointmentBookingMetadata;
+
+  @ApiPropertyOptional({ nullable: true, example: 'Sesi Pagi' })
+  sessionTitle?: string | null;
+
+  @ApiPropertyOptional({ nullable: true, example: 30 })
+  estimatedDurationMinutes?: number | null;
+
+  @ApiPropertyOptional({ nullable: true, example: '30 Menit' })
+  consultationDurationFormatted?: string | null;
+
+  @ApiPropertyOptional({ nullable: true, example: 900 })
+  consultationElapsedSeconds?: number | null;
 }
 
 export class AdminSessionPatientsClinicRoom {
