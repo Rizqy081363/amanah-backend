@@ -91,7 +91,7 @@ export function buildMonthlySchedule(
           });
 
           return {
-            id: da.id,
+            id: da.sessionDef.id,
             practitionerId: da.doctorId,
             scheduleDate: dateStr,
             startTime: res.startTime,

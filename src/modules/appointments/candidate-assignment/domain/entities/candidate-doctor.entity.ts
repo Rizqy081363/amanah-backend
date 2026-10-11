@@ -18,6 +18,7 @@ export interface DoctorCandidateItem {
 export interface DoctorCandidateGroup {
   id: string;
   name: string;
+  code?: string | null;
   doctors: DoctorCandidateItem[];
 }
 

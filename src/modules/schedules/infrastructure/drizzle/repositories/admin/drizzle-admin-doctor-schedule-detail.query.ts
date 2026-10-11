@@ -171,7 +171,7 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
         });
 
         monthSessions.push({
-          id: da.id,
+          id: da.sessionDef.id,
           practitionerId: prac.id,
           scheduleDate: dayDate,
           startTime: res.startTime,

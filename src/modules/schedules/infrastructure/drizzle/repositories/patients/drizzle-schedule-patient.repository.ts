@@ -119,92 +119,39 @@ export class DrizzleSchedulePatientRepository {
       query.date || new Date().toISOString().slice(0, 10);
 
     if (isUUID(sessionId)) {
-      // 1. Prioritaskan penugasan dokter (doctor_assignment)
-      const assignment = await this.db.query.doctorAssignments.findFirst({
-        where: and(
-          eq(doctorAssignments.id, sessionId),
-          eq(doctorAssignments.doctorId, practitioner.id),
-        ),
-        with: {
-          sessionDef: {
-            with: { schedules: true },
-          },
-          preferredRoom: {
-            with: {
-              clinicUnit: true,
-            },
-          },
-        },
+      const sessionDef = await this.db.query.sessionDefs.findFirst({
+        where: eq(sessionDefs.id, sessionId),
+        with: { schedules: true },
       });
 
-      if (assignment) {
-        effectiveSessionDef = assignment.sessionDef;
-        effectiveRoom = assignment.preferredRoom || null;
-      } else {
-        // 2. Cek master sesi klinik (session_def)
-        const sessionDef = await this.db.query.sessionDefs.findFirst({
-          where: eq(sessionDefs.id, sessionId),
-          with: { schedules: true },
-        });
-
-        if (sessionDef) {
-          effectiveSessionDef = sessionDef;
-          // Cari preferred room dokter jika ada penugasan untuk sesi ini
-          const docAssignment = await this.db.query.doctorAssignments.findFirst(
-            {
-              where: and(
-                eq(doctorAssignments.sessionId, sessionDef.id),
-                eq(doctorAssignments.doctorId, practitioner.id),
-              ),
+      if (sessionDef) {
+        effectiveSessionDef = sessionDef;
+        const targetDow = new Date(sessDate).getDay();
+        const docAssignment = await this.db.query.doctorAssignments.findFirst({
+          where: and(
+            eq(doctorAssignments.sessionId, sessionDef.id),
+            eq(doctorAssignments.doctorId, practitioner.id),
+            eq(doctorAssignments.isActive, true),
+            or(
+              eq(doctorAssignments.dow, targetDow),
+              isNull(doctorAssignments.dow),
+            ),
+          ),
+          with: {
+            preferredRoom: {
               with: {
-                preferredRoom: {
-                  with: {
-                    clinicUnit: true,
-                  },
-                },
+                clinicUnit: true,
               },
             },
-          );
-          effectiveRoom = docAssignment?.preferredRoom || null;
-        } else {
-          // 3. Fallback cerdas: Jika sessionId tidak ditemukan (misal UUID penugasan lama sebelum update roster),
-          // cari penugasan dokter yang aktif pada tanggal dan hari tersebut (targetDow).
-          const targetDow = new Date(sessDate).getDay();
-          const activeAssignments =
-            await this.db.query.doctorAssignments.findMany({
-              where: and(
-                eq(doctorAssignments.doctorId, practitioner.id),
-                eq(doctorAssignments.isActive, true),
-                or(
-                  eq(doctorAssignments.dow, targetDow),
-                  isNull(doctorAssignments.dow),
-                ),
-              ),
-              with: {
-                sessionDef: {
-                  with: { schedules: true },
-                },
-                preferredRoom: {
-                  with: {
-                    clinicUnit: true,
-                  },
-                },
-              },
-            });
-
-          if (activeAssignments.length > 0) {
-            // Ambil penugasan dokter pertama yang aktif untuk hari tersebut
-            const fallbackAssignment = activeAssignments[0];
-            effectiveSessionDef = fallbackAssignment.sessionDef;
-            effectiveRoom = fallbackAssignment.preferredRoom || null;
-          }
-        }
+          },
+        });
+        effectiveRoom = docAssignment?.preferredRoom || null;
       }
     }
 
     if (!effectiveSessionDef) {
       throw new NotFoundException(
-        `Sesi jadwal dengan ID ${sessionId} tidak ditemukan untuk dokter ini`,
+        `Sesi jadwal dengan ID ${sessionId} tidak ditemukan`,
       );
     }
 

@@ -172,7 +172,7 @@ export class DrizzleAdminDoctorScheduleListQuery {
           });
 
           return {
-            id: da.id,
+            id: da.sessionDef.id,
             practitionerId: p.id,
             scheduleDate: targetDate,
             startTime: res.startTime,

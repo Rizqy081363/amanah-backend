@@ -112,6 +112,7 @@ export class CandidateResolverService implements ICandidateResolverPort {
       groupMap.set(spec.id, {
         id: spec.id,
         name: spec.name,
+        code: spec.code,
         doctors: [],
       });
     }
@@ -144,10 +145,16 @@ export class CandidateResolverService implements ICandidateResolverPort {
         p.staffProfile?.positionTitle ||
         p.displayName;
 
+      const groupCode =
+        matchedSpecialty?.code ||
+        p.staffProfile?.clinicUnit?.code ||
+        null;
+
       if (!groupMap.has(groupId)) {
         groupMap.set(groupId, {
           id: groupId,
           name: groupName,
+          code: groupCode,
           doctors: [],
         });
       }
