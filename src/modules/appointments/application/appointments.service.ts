@@ -41,8 +41,11 @@ import { AdminUpdateAppointmentStatusDto } from '../presentation/dto/admin-updat
 import { CancelAppointmentDto } from '../presentation/dto/cancel-appointment.dto';
 import { CreateAppointmentDto } from '../presentation/dto/create-appointment.dto';
 import { QueryAppointmentDto } from '../presentation/dto/query-appointment.dto';
+import { QueryQueueNavigationDto } from '../presentation/dto/query-queue-navigation.dto';
+import { QueueNavigationResponseDto } from '../presentation/dto/queue-navigation-response.dto';
 import { RescheduleAppointmentDto } from '../presentation/dto/reschedule-appointment.dto';
 import { UpdateAppointmentStatusDto } from '../presentation/dto/update-appointment-status.dto';
+import { AppointmentQueueNavigationService } from '../infrastructure/drizzle/appointment-queue-navigation.service';
 import { AppointmentNotificationPublisher } from './appointment-notification.publisher';
 import {
   PUSH_NOTIFICATION_PORT,
@@ -77,6 +80,8 @@ export class AppointmentsService {
     private readonly activeTicketPolicy?: ActiveTicketPolicyService,
     @Optional()
     private readonly queueEventPublisher?: QueueEventPublisher,
+    @Optional()
+    private readonly queueNavigationService?: AppointmentQueueNavigationService,
   ) {}
 
   async createAppointment(
@@ -177,6 +182,20 @@ export class AppointmentsService {
         page,
       },
     };
+  }
+
+  async getQueueNavigation(
+    query: QueryQueueNavigationDto,
+  ): Promise<QueueNavigationResponseDto> {
+    if (!this.queueNavigationService) {
+      throw new BadRequestException('Queue navigation service tidak tersedia');
+    }
+    const targetDate =
+      query.date ||
+      (this.clinicTimeService
+        ? this.clinicTimeService.today()
+        : new Date().toISOString().split('T')[0]);
+    return this.queueNavigationService.getNavigation(targetDate, query.session);
   }
 
   async findByPatientId(patientId: string): Promise<AppointmentEntity[]> {

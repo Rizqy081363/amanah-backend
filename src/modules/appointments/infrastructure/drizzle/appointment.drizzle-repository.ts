@@ -1,15 +1,18 @@
 import { ClinicConfigService } from '@common/clinic-config';
 import { Inject, Injectable, Optional } from '@nestjs/common';
-import { and, asc, count, desc, eq, inArray, lt, or, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm';
 import { decodeCursor, encodeCursor } from '../../../../common/pagination';
 import { ClinicTimeService } from '../../../../common/time/clinic-time.service';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
   appointments,
+  clinicServices,
+  clinicUnits,
   patientAffiliations,
   patientProfiles,
   queueTickets,
+  serviceCategories,
 } from '../../../../database/schema';
 import { QueuePositionRecalculationService } from '../../../queue-engine/application/services/queue-position-recalculation.service';
 import {
@@ -200,10 +203,23 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
       conditions.push(eq(appointments.patientId, filters.patientId));
     }
     if (filters?.doctorId) {
-      conditions.push(eq(appointments.practitionerId, filters.doctorId));
+      if (filters.doctorId === 'unassigned') {
+        conditions.push(isNull(appointments.practitionerId));
+      } else {
+        conditions.push(eq(appointments.practitionerId, filters.doctorId));
+      }
     }
     if (filters?.roomId) {
       conditions.push(eq(appointments.roomId, filters.roomId));
+    }
+    if (filters?.poliklinikId && this.poliklinikResolver) {
+      await this.poliklinikResolver.loadFromDatabase();
+      const serviceIds = this.poliklinikResolver.getServiceIdsForUnit(
+        filters.poliklinikId,
+      );
+      if (serviceIds.length > 0) {
+        conditions.push(inArray(appointments.serviceId, serviceIds));
+      }
     }
 
     if (filters?.cursor) {
@@ -257,10 +273,14 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
       );
     }
     if (filters?.doctorId) {
-      results = results.filter(
-        (a) =>
-          a.staffId === filters.doctorId || a.doctorId === filters.doctorId,
-      );
+      if (filters.doctorId === 'unassigned') {
+        results = results.filter((a) => !a.staffId && !a.doctorId);
+      } else {
+        results = results.filter(
+          (a) =>
+            a.staffId === filters.doctorId || a.doctorId === filters.doctorId,
+        );
+      }
     }
     if (filters?.doctorName) {
       const dn = filters.doctorName.toLowerCase().trim();
@@ -318,6 +338,15 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
       });
     }
 
+    let totalCount = results.length;
+    if (!filters?.cursor) {
+      const [countResult] = await this.db
+        .select({ total: count() })
+        .from(appointments)
+        .where(conditions.length > 0 ? and(...conditions) : undefined);
+      totalCount = Number(countResult?.total ?? results.length);
+    }
+
     const hasNextPage = results.length > limit;
     const pageData = hasNextPage ? results.slice(0, limit) : results;
     let nextCursor: string | null = null;
@@ -335,7 +364,7 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
         nextCursor,
         hasNextPage,
         limit,
-        total: results.length,
+        total: totalCount,
       },
     };
   }
@@ -580,10 +609,27 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
       (status === DOMAIN_APPOINTMENT_STATUS.CANCELLED ||
         status === DOMAIN_APPOINTMENT_STATUS.COMPLETED)
     ) {
+      let categoryId: string | null = null;
+      if (!aptBefore.practitionerId) {
+        const [aptFull] = await this.db
+          .select({ serviceId: appointments.serviceId })
+          .from(appointments)
+          .where(eq(appointments.id, id))
+          .limit(1);
+        if (aptFull?.serviceId) {
+          const [svc] = await this.db
+            .select({ categoryId: clinicServices.serviceCategoryId })
+            .from(clinicServices)
+            .where(eq(clinicServices.id, aptFull.serviceId))
+            .limit(1);
+          categoryId = svc?.categoryId || null;
+        }
+      }
       await this.queuePositionRecalculationService
         .recalculateDoctorQueue({
           serviceDate: aptBefore.scheduledDate,
           practitionerId: aptBefore.practitionerId,
+          categoryId,
         })
         .catch(() => {});
     }
@@ -592,14 +638,41 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
   }
 
   async getNextQueueIndex(
-    _poliklinikId: string,
+    poliklinikId: string,
     date: string,
     _session: string,
   ): Promise<number> {
+    if (!poliklinikId) {
+      const [result] = await this.db
+        .select({ val: count() })
+        .from(queueTickets)
+        .where(eq(queueTickets.queueDate, date));
+      return Number(result?.val || 0) + 1;
+    }
+
+    const unit = await this.db.query.clinicUnits.findFirst({
+      where: eq(clinicUnits.id, poliklinikId),
+    });
+
+    const isKia =
+      unit?.code === 'poli_kia' ||
+      unit?.name?.toLowerCase().includes('kia');
+    const catCode = isKia ? 'layanan_kebidanan' : 'layanan_umum';
+    const category = await this.db.query.serviceCategories.findFirst({
+      where: eq(serviceCategories.code, catCode),
+    });
+
+    const whereCondition = category
+      ? and(
+          eq(queueTickets.queueDate, date),
+          eq(queueTickets.categoryId, category.id),
+        )
+      : eq(queueTickets.queueDate, date);
+
     const [result] = await this.db
       .select({ val: count() })
       .from(queueTickets)
-      .where(eq(queueTickets.queueDate, date));
+      .where(whereCondition);
 
     return Number(result?.val || 0) + 1;
   }

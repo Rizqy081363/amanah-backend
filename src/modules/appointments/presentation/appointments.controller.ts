@@ -50,6 +50,8 @@ import { PerformCheckInUseCase } from '../application/use-cases/perform-check-in
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { PerformCheckInDto } from './dto/perform-check-in.dto';
 import { QueryAppointmentDto } from './dto/query-appointment.dto';
+import { QueryQueueNavigationDto } from './dto/query-queue-navigation.dto';
+import { QueueNavigationResponseDto } from './dto/queue-navigation-response.dto';
 import { RescheduleAppointmentDto } from './dto/reschedule-appointment.dto';
 import { UpdateAppointmentStatusDto } from './dto/update-appointment-status.dto';
 import { AppointmentDomainExceptionFilter } from './filters/appointment-domain-exception.filter';
@@ -110,6 +112,25 @@ export class AppointmentsController {
   @ApiForbiddenResponse({ description: 'Hanya Admin atau Staf yang diizinkan' })
   async getAppointments(@Query() query: QueryAppointmentDto) {
     return this.appointmentsService.findAll(query);
+  }
+
+  @ApiBearerAuth('access-token')
+  @UseGuards(HybridAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'STAF')
+  @Get('queue-navigation')
+  @ApiOperation({
+    summary: 'Mendapatkan navigasi kategori/unit klinik dan antrean dokter dinamis (SSOT)',
+    description:
+      'Menyediakan daftar unit klinik aktif beserta daftar dokter yang bertugas dan metrik antreannya untuk tampilan tabs hierarkis.',
+  })
+  @ApiOkResponse({
+    description: 'Data navigasi antrean berhasil diambil',
+    type: QueueNavigationResponseDto,
+  })
+  @ApiUnauthorizedResponse({ description: 'Sesi token tidak valid' })
+  @ApiForbiddenResponse({ description: 'Hanya Admin atau Staf yang diizinkan' })
+  async getQueueNavigation(@Query() query: QueryQueueNavigationDto) {
+    return this.appointmentsService.getQueueNavigation(query);
   }
 
   @ApiBearerAuth('access-token')

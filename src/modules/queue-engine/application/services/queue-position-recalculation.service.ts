@@ -1,9 +1,10 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
-import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import type { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
   appointments,
+  clinicServices,
   queueTickets,
 } from '../../../../database/schema';
 import {
@@ -48,23 +49,101 @@ export class QueuePositionRecalculationService {
   ) {}
 
   /**
-   * Recalculates and compacts the active queue positions for a specific doctor
-   * on a specific service date. Assigns clean sequential positions (1..N) to
-   * all active appointments (BOOKED, WAITING, IN_SERVICE) in deterministic FIFO order.
+   * Recalculates and compacts active queue positions.
+   * If doctor is assigned (practitionerId), compacts the doctor's queue (1..N).
+   * If unassigned (practitionerId is null), compacts by categoryId so separate categories start at 1 independently.
+   * If unassigned and categoryId is not provided, compacts all active unassigned categories independently.
    */
   async recalculateDoctorQueue(params: {
     serviceDate: string;
     practitionerId: string | null;
+    categoryId?: string | null;
   }): Promise<QueueRecalculationResult> {
-    const { serviceDate, practitionerId } = params;
+    const { serviceDate, practitionerId, categoryId } = params;
+
+    if (!practitionerId && !categoryId) {
+      const unassignedAppointments = await this.db
+        .select({
+          serviceCategoryId: clinicServices.serviceCategoryId,
+          ticketCategoryId: queueTickets.categoryId,
+        })
+        .from(appointments)
+        .leftJoin(clinicServices, eq(appointments.serviceId, clinicServices.id))
+        .leftJoin(
+          queueTickets,
+          and(
+            eq(queueTickets.appointmentId, appointments.id),
+            sql`${queueTickets.status} NOT IN (${QUEUE_TICKET_STATUS.CANCELLED}, ${QUEUE_TICKET_STATUS.COMPLETED})`,
+          ),
+        )
+        .where(
+          and(
+            eq(appointments.scheduledDate, serviceDate),
+            isNull(appointments.practitionerId),
+            inArray(appointments.status, [
+              DB_APPOINTMENT_STATUS.BOOKED,
+              DB_APPOINTMENT_STATUS.WAITING,
+              DB_APPOINTMENT_STATUS.IN_SERVICE,
+            ]),
+          ),
+        );
+
+      const catIds = Array.from(
+        new Set(
+          unassignedAppointments
+            .map((a) => a.ticketCategoryId || a.serviceCategoryId)
+            .filter((c): c is string => Boolean(c)),
+        ),
+      );
+
+      let combinedUpdated = 0;
+      let lastResult: QueueRecalculationResult | null = null;
+      for (const catId of catIds) {
+        const res = await this.recalculateSingleStream({
+          serviceDate,
+          practitionerId: null,
+          categoryId: catId,
+        });
+        combinedUpdated += res.updatedCount;
+        lastResult = res;
+      }
+
+      return (
+        lastResult || {
+          serviceDate,
+          practitionerId: null,
+          totalActive: 0,
+          updatedCount: combinedUpdated,
+          compactedQueue: [],
+        }
+      );
+    }
+
+    return this.recalculateSingleStream(params);
+  }
+
+  private async recalculateSingleStream(params: {
+    serviceDate: string;
+    practitionerId: string | null;
+    categoryId?: string | null;
+  }): Promise<QueueRecalculationResult> {
+    const { serviceDate, practitionerId, categoryId } = params;
 
     this.logger.log(
-      `Recalculating queue positions [date=${serviceDate}, doctor=${practitionerId || 'unassigned'}]`,
+      `Recalculating queue positions [date=${serviceDate}, doctor=${practitionerId || 'unassigned'}, category=${categoryId || 'any'}]`,
     );
 
-    const doctorCondition = practitionerId
+    const streamCondition = practitionerId
       ? eq(appointments.practitionerId, practitionerId)
-      : isNull(appointments.practitionerId);
+      : and(
+          isNull(appointments.practitionerId),
+          categoryId
+            ? or(
+                eq(queueTickets.categoryId, categoryId),
+                eq(clinicServices.serviceCategoryId, categoryId),
+              )
+            : sql`TRUE`,
+        );
 
     // 1. Fetch active appointments eligible for queue positioning
     const activeAppointments = await this.db
@@ -83,6 +162,7 @@ export class QueuePositionRecalculationService {
         ticketAssignedAt: queueTickets.assignedAt,
       })
       .from(appointments)
+      .leftJoin(clinicServices, eq(appointments.serviceId, clinicServices.id))
       .leftJoin(
         queueTickets,
         and(
@@ -93,7 +173,7 @@ export class QueuePositionRecalculationService {
       .where(
         and(
           eq(appointments.scheduledDate, serviceDate),
-          doctorCondition,
+          streamCondition,
           inArray(appointments.status, [
             DB_APPOINTMENT_STATUS.BOOKED,
             DB_APPOINTMENT_STATUS.WAITING,
@@ -164,17 +244,18 @@ export class QueuePositionRecalculationService {
       position++;
     }
 
-    // 3. Clear waiting_position for terminal/non-active tickets under this doctor partition
+    // 3. Clear waiting_position for terminal/non-active tickets under this partition
     const terminalTickets = await this.db
       .select({
         ticketId: queueTickets.id,
       })
       .from(queueTickets)
       .innerJoin(appointments, eq(appointments.id, queueTickets.appointmentId))
+      .leftJoin(clinicServices, eq(appointments.serviceId, clinicServices.id))
       .where(
         and(
           eq(appointments.scheduledDate, serviceDate),
-          doctorCondition,
+          streamCondition,
           sql`${appointments.status} NOT IN (${DB_APPOINTMENT_STATUS.BOOKED}, ${DB_APPOINTMENT_STATUS.WAITING}, ${DB_APPOINTMENT_STATUS.IN_SERVICE})`,
           sql`${queueTickets.waitingPosition} IS NOT NULL`,
         ),
@@ -313,6 +394,7 @@ export class QueuePositionRecalculationService {
       .select({
         scheduledDate: appointments.scheduledDate,
         practitionerId: appointments.practitionerId,
+        serviceId: appointments.serviceId,
       })
       .from(appointments)
       .where(eq(appointments.id, appointmentId))
@@ -322,9 +404,20 @@ export class QueuePositionRecalculationService {
       return [];
     }
 
+    let categoryId: string | null = null;
+    if (!apt.practitionerId && apt.serviceId) {
+      const [svc] = await this.db
+        .select({ categoryId: clinicServices.serviceCategoryId })
+        .from(clinicServices)
+        .where(eq(clinicServices.id, apt.serviceId))
+        .limit(1);
+      categoryId = svc?.categoryId || null;
+    }
+
     const result = await this.recalculateDoctorQueue({
       serviceDate: apt.scheduledDate,
       practitionerId: apt.practitionerId,
+      categoryId,
     });
 
     return [result];
@@ -334,13 +427,21 @@ export class QueuePositionRecalculationService {
    * Recalculates multiple unique partitions (e.g. for moves or mass operations).
    */
   async recalculatePartitions(
-    partitions: Array<{ serviceDate: string; practitionerId: string | null }>,
+    partitions: Array<{
+      serviceDate: string;
+      practitionerId: string | null;
+      categoryId?: string | null;
+    }>,
   ): Promise<QueueRecalculationResult[]> {
     const seen = new Set<string>();
-    const uniquePartitions: Array<{ serviceDate: string; practitionerId: string | null }> = [];
+    const uniquePartitions: Array<{
+      serviceDate: string;
+      practitionerId: string | null;
+      categoryId?: string | null;
+    }> = [];
 
     for (const p of partitions) {
-      const key = `${p.serviceDate}__${p.practitionerId || 'unassigned'}`;
+      const key = `${p.serviceDate}__${p.practitionerId || 'unassigned'}__${p.categoryId || 'all'}`;
       if (!seen.has(key)) {
         seen.add(key);
         uniquePartitions.push(p);

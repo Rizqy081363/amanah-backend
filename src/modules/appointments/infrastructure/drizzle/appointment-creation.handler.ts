@@ -257,34 +257,57 @@ export class AppointmentCreationHandler {
       : '';
 
     // Calculate queue sequence based on active appointments under the assigned doctor
-    const doctorCondition = practitionerId
-      ? eq(appointments.practitionerId, practitionerId)
-      : isNull(appointments.practitionerId);
-
-    const [activeCountRow] = await db
-      .select({
-        count: sql<number>`count(*)::int`,
-      })
-      .from(appointments)
-      .where(
-        and(
-          eq(appointments.scheduledDate, data.appointmentDate),
-          doctorCondition,
-          inArray(appointments.status, [
-            DB_APPOINTMENT_STATUS.BOOKED,
-            DB_APPOINTMENT_STATUS.WAITING,
-            DB_APPOINTMENT_STATUS.IN_SERVICE,
-          ]),
-        ),
-      );
+    // or partitioned by category for unassigned appointments
+    let activeCountRow: { count: number } | undefined;
+    if (practitionerId) {
+      [activeCountRow] = await db
+        .select({
+          count: sql<number>`count(*)::int`,
+        })
+        .from(appointments)
+        .where(
+          and(
+            eq(appointments.scheduledDate, data.appointmentDate),
+            eq(appointments.practitionerId, practitionerId),
+            inArray(appointments.status, [
+              DB_APPOINTMENT_STATUS.BOOKED,
+              DB_APPOINTMENT_STATUS.WAITING,
+              DB_APPOINTMENT_STATUS.IN_SERVICE,
+            ]),
+          ),
+        );
+    } else {
+      [activeCountRow] = await db
+        .select({
+          count: sql<number>`count(*)::int`,
+        })
+        .from(appointments)
+        .innerJoin(clinicServices, eq(appointments.serviceId, clinicServices.id))
+        .where(
+          and(
+            eq(appointments.scheduledDate, data.appointmentDate),
+            isNull(appointments.practitionerId),
+            categoryId
+              ? eq(clinicServices.serviceCategoryId, categoryId)
+              : eq(appointments.serviceId, data.layananId),
+            inArray(appointments.status, [
+              DB_APPOINTMENT_STATUS.BOOKED,
+              DB_APPOINTMENT_STATUS.WAITING,
+              DB_APPOINTMENT_STATUS.IN_SERVICE,
+            ]),
+          ),
+        );
+    }
     const numericQueueNumber = (activeCountRow?.count || 0) + 1;
 
-    // Resolve collision-free ticket number for target doctor stream or unassigned service pool among active tickets
+    // Resolve collision-free ticket number for target doctor stream or unassigned category pool among active tickets
     const ticketScopeCondition = practitionerId
       ? eq(queueTickets.doctorId, practitionerId)
       : and(
           isNull(queueTickets.doctorId),
-          eq(queueTickets.serviceId, data.layananId),
+          categoryId
+            ? eq(queueTickets.categoryId, categoryId)
+            : eq(queueTickets.serviceId, data.layananId),
         );
 
     const existingTickets = await db
@@ -452,6 +475,7 @@ export class AppointmentCreationHandler {
         .recalculateDoctorQueue({
           serviceDate: data.appointmentDate,
           practitionerId: practitionerId || null,
+          categoryId: practitionerId ? undefined : categoryId,
         })
         .catch(() => {});
     }

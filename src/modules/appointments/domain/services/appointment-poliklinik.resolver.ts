@@ -208,4 +208,14 @@ export class AppointmentPoliklinikResolver {
 
     return this.defaultUnit;
   }
+
+  getServiceIdsForUnit(unitId: string): string[] {
+    const matched: string[] = [];
+    for (const [serviceId, unit] of this.serviceUnitMap.entries()) {
+      if (unit.poliklinikId === unitId) {
+        matched.push(serviceId);
+      }
+    }
+    return matched;
+  }
 }

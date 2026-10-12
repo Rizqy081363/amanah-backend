@@ -168,6 +168,7 @@ export class AppointmentRescheduleHandler {
 
     let oldDate: string | null = null;
     let oldDoctorId: string | null = null;
+    let appointmentCategoryId: string | null = null;
 
     await db.transaction(async (tx) => {
       const [apt] = await tx
@@ -215,36 +216,60 @@ export class AppointmentRescheduleHandler {
       });
       const categoryPrefix = service?.codePrefix || 'U';
       const categoryId = service?.serviceCategoryId || null;
+      appointmentCategoryId = categoryId;
       const sessionPrefix = targetSessionDef?.codePrefix || '';
 
-      const doctorCondition = apt.practitionerId
-        ? eq(appointments.practitionerId, apt.practitionerId)
-        : isNull(appointments.practitionerId);
-
-      const [activeCountRow] = await tx
-        .select({
-          count: sql<number>`count(*)::int`,
-        })
-        .from(appointments)
-        .where(
-          and(
-            eq(appointments.scheduledDate, targetDate),
-            doctorCondition,
-            sql`${appointments.id} != ${apt.id}`,
-            inArray(appointments.status, [
-              DB_APPOINTMENT_STATUS.BOOKED,
-              DB_APPOINTMENT_STATUS.WAITING,
-              DB_APPOINTMENT_STATUS.IN_SERVICE,
-            ]),
-          ),
-        );
+      let activeCountRow: { count: number } | undefined;
+      if (apt.practitionerId) {
+        [activeCountRow] = await tx
+          .select({
+            count: sql<number>`count(*)::int`,
+          })
+          .from(appointments)
+          .where(
+            and(
+              eq(appointments.scheduledDate, targetDate),
+              eq(appointments.practitionerId, apt.practitionerId),
+              sql`${appointments.id} != ${apt.id}`,
+              inArray(appointments.status, [
+                DB_APPOINTMENT_STATUS.BOOKED,
+                DB_APPOINTMENT_STATUS.WAITING,
+                DB_APPOINTMENT_STATUS.IN_SERVICE,
+              ]),
+            ),
+          );
+      } else {
+        [activeCountRow] = await tx
+          .select({
+            count: sql<number>`count(*)::int`,
+          })
+          .from(appointments)
+          .innerJoin(clinicServices, eq(appointments.serviceId, clinicServices.id))
+          .where(
+            and(
+              eq(appointments.scheduledDate, targetDate),
+              isNull(appointments.practitionerId),
+              categoryId
+                ? eq(clinicServices.serviceCategoryId, categoryId)
+                : eq(appointments.serviceId, apt.serviceId),
+              sql`${appointments.id} != ${apt.id}`,
+              inArray(appointments.status, [
+                DB_APPOINTMENT_STATUS.BOOKED,
+                DB_APPOINTMENT_STATUS.WAITING,
+                DB_APPOINTMENT_STATUS.IN_SERVICE,
+              ]),
+            ),
+          );
+      }
       let numericQueueNumber = (activeCountRow?.count || 0) + 1;
 
       const ticketScopeCondition = apt.practitionerId
         ? eq(queueTickets.doctorId, apt.practitionerId)
         : and(
             isNull(queueTickets.doctorId),
-            eq(queueTickets.serviceId, apt.serviceId),
+            categoryId
+              ? eq(queueTickets.categoryId, categoryId)
+              : eq(queueTickets.serviceId, apt.serviceId),
           );
 
       const existingTickets = await tx
@@ -353,6 +378,7 @@ export class AppointmentRescheduleHandler {
         .recalculateDoctorQueue({
           serviceDate: oldDate,
           practitionerId: oldDoctorId,
+          categoryId: oldDoctorId ? undefined : appointmentCategoryId,
         })
         .catch(() => {});
 
@@ -361,6 +387,7 @@ export class AppointmentRescheduleHandler {
         .recalculateDoctorQueue({
           serviceDate: targetDate,
           practitionerId: oldDoctorId,
+          categoryId: oldDoctorId ? undefined : appointmentCategoryId,
         })
         .catch(() => {});
     }

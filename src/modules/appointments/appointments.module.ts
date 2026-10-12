@@ -33,6 +33,7 @@ import { QueueEligibilityService } from './domain/services/queue-eligibility.ser
 import { AppointmentPushAdapter } from './infrastructure/adapters/appointment-push.adapter';
 import { AppointmentRealtimeAdapter } from './infrastructure/adapters/appointment-realtime.adapter';
 import { AppointmentDrizzleRepository } from './infrastructure/drizzle/appointment.drizzle-repository';
+import { AppointmentQueueNavigationService } from './infrastructure/drizzle/appointment-queue-navigation.service';
 import { AppointmentCallDrizzleRepository } from './infrastructure/drizzle/appointment-call.drizzle-repository';
 import { AppointmentCheckInDrizzleRepository } from './infrastructure/drizzle/appointment-check-in.drizzle-repository';
 import { AppointmentHardenedDrizzleRepository } from './infrastructure/drizzle/appointment-hardened.drizzle-repository';
@@ -117,6 +118,7 @@ import { PatientAppointmentHistoryController } from './presentation/patient-appo
     GenerateCheckInQrUseCase,
     PerformCheckInUseCase,
     AppointmentPoliklinikResolver,
+    AppointmentQueueNavigationService,
     ActiveTicketPolicyService,
     QueueEligibilityService,
   ],
@@ -128,6 +130,7 @@ import { PatientAppointmentHistoryController } from './presentation/patient-appo
     QueueEligibilityService,
     AppointmentPolicyReader,
     AppointmentPoliklinikResolver,
+    AppointmentQueueNavigationService,
     AppointmentsService,
     AppointmentCandidateResolver,
     AppointmentAssignmentService,

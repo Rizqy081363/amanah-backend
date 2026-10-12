@@ -292,14 +292,12 @@ export class QueueRecalculationService {
         }
       }
 
-      const positionChanged = ticket.waitingPosition !== proj.position;
-
-      if (hasShifted || positionChanged) {
+      if (hasShifted) {
         batchUpdates.push({
           ticketId: ticket.id,
           projectedStart: newStart,
           projectedEnd: newEnd,
-          waitingPosition: proj.position,
+          waitingPosition: ticket.waitingPosition ?? proj.position,
         });
 
         if (shiftMinutes >= notifyDelayMinutes) {

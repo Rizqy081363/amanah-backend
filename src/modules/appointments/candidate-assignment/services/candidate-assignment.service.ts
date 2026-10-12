@@ -131,8 +131,19 @@ export class CandidateAssignmentService implements ICandidateAssignmentPort {
         practitionerId: targetDoctorId,
       });
 
-      // If appointment was previously assigned to another doctor, compact that doctor's queue
-      if (previousDoctorId && previousDoctorId !== targetDoctorId) {
+      // If appointment was previously unassigned, compact that category's unassigned pool
+      if (!previousDoctorId) {
+        const categoryId =
+          apt.clinicService?.serviceCategoryId ||
+          context.queueTicket?.categoryId ||
+          null;
+        await this.queueRecalculationService.recalculateDoctorQueue({
+          serviceDate: apt.scheduledDate,
+          practitionerId: null,
+          categoryId,
+        });
+      } else if (previousDoctorId !== targetDoctorId) {
+        // If appointment was previously assigned to another doctor, compact that doctor's queue
         await this.queueRecalculationService.recalculateDoctorQueue({
           serviceDate: apt.scheduledDate,
           practitionerId: previousDoctorId,
