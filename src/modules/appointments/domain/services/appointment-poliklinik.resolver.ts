@@ -1,12 +1,13 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
   clinicRooms,
   clinicServices,
   clinicUnits,
-  doctorAssignments,
+  practitioners,
+  staffProfiles,
 } from '../../../../database/schema';
 
 export interface ResolvedPoliklinik {
@@ -51,26 +52,38 @@ export class AppointmentPoliklinikResolver {
       };
     }
 
-    const assignments = await this.db
-      .select({
-        categoryId: doctorAssignments.categoryId,
+    const categoryUnits = await this.db
+      .selectDistinct({
+        categoryId: clinicServices.serviceCategoryId,
         unitId: clinicUnits.id,
         unitName: clinicUnits.name,
       })
-      .from(doctorAssignments)
+      .from(clinicServices)
       .innerJoin(
-        clinicRooms,
-        eq(doctorAssignments.preferredRoomId, clinicRooms.id),
+        practitioners,
+        eq(clinicServices.specialtyId, practitioners.specialtyId),
       )
-      .innerJoin(clinicUnits, eq(clinicRooms.unitId, clinicUnits.id))
-      .where(eq(doctorAssignments.isActive, true));
+      .innerJoin(
+        staffProfiles,
+        eq(practitioners.staffProfileId, staffProfiles.id),
+      )
+      .innerJoin(
+        clinicUnits,
+        eq(staffProfiles.primaryUnitId, clinicUnits.id),
+      )
+      .where(
+        and(
+          eq(clinicServices.isActive, true),
+          eq(clinicUnits.isActive, true),
+        ),
+      );
 
     this.categoryUnitMap.clear();
-    for (const a of assignments) {
-      if (a.categoryId && a.unitId && a.unitName) {
-        this.categoryUnitMap.set(a.categoryId, {
-          poliklinikId: a.unitId,
-          poliklinikName: a.unitName,
+    for (const cu of categoryUnits) {
+      if (cu.categoryId && cu.unitId && cu.unitName) {
+        this.categoryUnitMap.set(cu.categoryId, {
+          poliklinikId: cu.unitId,
+          poliklinikName: cu.unitName,
         });
       }
     }

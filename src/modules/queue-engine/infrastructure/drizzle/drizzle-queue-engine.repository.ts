@@ -128,6 +128,14 @@ export class DrizzleQueueEngineRepository implements IQueueEngineRepository {
     categoryId?: string;
   }): Promise<number> {
     const { serviceDate, sessionId, categoryId } = params;
+
+    // In outpatient clinic operations, unassigned category queue streams
+    // represent an isolated sequential pipeline (1 lane) to preserve 1..N FIFO queue slots
+    // without start-time collision across waiting patients before doctor assignment.
+    if (categoryId) {
+      return 1;
+    }
+
     const dow = new Date(`${serviceDate}T00:00:00.000Z`).getUTCDay();
 
     const rows = await this.db
@@ -138,7 +146,6 @@ export class DrizzleQueueEngineRepository implements IQueueEngineRepository {
           eq(doctorAssignments.sessionId, sessionId),
           eq(doctorAssignments.isActive, true),
           or(eq(doctorAssignments.dow, dow), isNull(doctorAssignments.dow)),
-          categoryId ? eq(doctorAssignments.categoryId, categoryId) : sql`TRUE`,
         ),
       );
 

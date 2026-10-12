@@ -274,6 +274,13 @@
       "when": 1791322000000,
       "tag": "0038_scope_active_queue_tickets_by_doctor",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1791323000000,
+      "tag": "0039_clear_legacy_doctor_assignment_category",
+      "breakpoints": true
     }
   ]
 }
