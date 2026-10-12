@@ -4,11 +4,7 @@ export type ClinicSettingCategory =
   | 'queue'
   | 'notification';
 
-export type ClinicSettingControlType =
-  | 'text'
-  | 'number'
-  | 'boolean'
-  | 'select';
+export type ClinicSettingControlType = 'text' | 'number' | 'boolean' | 'select';
 
 export interface ClinicSettingOptionDescriptor {
   value: string;
@@ -40,7 +36,8 @@ export const CLINIC_SETTING_METADATA_REGISTRY: Record<
     isAdminFacing: true,
     category: 'general',
     label: 'Negara & Format Bahasa',
-    description: 'Format regional untuk penanggalan, nomor telepon, dan bahasa komunikasi.',
+    description:
+      'Format regional untuk penanggalan, nomor telepon, dan bahasa komunikasi.',
     controlType: 'select',
     options: [
       {
@@ -56,11 +53,15 @@ export const CLINIC_SETTING_METADATA_REGISTRY: Record<
     isAdminFacing: true,
     category: 'general',
     label: 'Zona Waktu Operasional',
-    description: 'Zona waktu rujukan untuk perhitungan jam buka shift dan giliran antrean.',
+    description:
+      'Zona waktu rujukan untuk perhitungan jam buka shift dan giliran antrean.',
     controlType: 'select',
     options: [
       { value: 'Asia/Jakarta', label: 'WIB - Waktu Indonesia Barat (UTC+7)' },
-      { value: 'Asia/Makassar', label: 'WITA - Waktu Indonesia Tengah (UTC+8)' },
+      {
+        value: 'Asia/Makassar',
+        label: 'WITA - Waktu Indonesia Tengah (UTC+8)',
+      },
       { value: 'Asia/Jayapura', label: 'WIT - Waktu Indonesia Timur (UTC+9)' },
     ],
   },
@@ -75,12 +76,14 @@ export const CLINIC_SETTING_METADATA_REGISTRY: Record<
       {
         value: 'human_full',
         label: 'Hari & Tanggal Lengkap (contoh: Minggu, 11 Oktober 2026)',
-        description: 'Menampilkan nama hari lengkap, tanggal, bulan panjang, dan tahun.',
+        description:
+          'Menampilkan nama hari lengkap, tanggal, bulan panjang, dan tahun.',
       },
       {
         value: 'human_medium',
         label: 'Tanggal Standar (contoh: 11 Oktober 2026)',
-        description: 'Menampilkan tanggal, bulan panjang, dan tahun tanpa nama hari.',
+        description:
+          'Menampilkan tanggal, bulan panjang, dan tahun tanpa nama hari.',
       },
       {
         value: 'human_short',
@@ -98,7 +101,8 @@ export const CLINIC_SETTING_METADATA_REGISTRY: Record<
     isAdminFacing: true,
     category: 'general',
     label: 'Format Penulisan Waktu Jam',
-    description: 'Format penulisan jam pelayanan klinik pada jadwal dan antrean.',
+    description:
+      'Format penulisan jam pelayanan klinik pada jadwal dan antrean.',
     controlType: 'select',
     options: [
       { value: '24h', label: 'Format 24 Jam (contoh: 14:30 WIB)' },
@@ -121,7 +125,8 @@ export const CLINIC_SETTING_METADATA_REGISTRY: Record<
     isAdminFacing: true,
     category: 'notification',
     label: 'Kanal Utama Notifikasi',
-    description: 'Kanal pengiriman informasi status antrean dan jadwal konsultasi.',
+    description:
+      'Kanal pengiriman informasi status antrean dan jadwal konsultasi.',
     controlType: 'select',
     options: [
       { value: 'in_app', label: 'Aplikasi Klinik (In-App)' },
@@ -133,7 +138,8 @@ export const CLINIC_SETTING_METADATA_REGISTRY: Record<
     isAdminFacing: true,
     category: 'duration',
     label: 'Estimasi Durasi Konsultasi',
-    description: 'Durasi rata-rata per pasien untuk acuan jadwal dan estimasi pelayanan.',
+    description:
+      'Durasi rata-rata per pasien untuk acuan jadwal dan estimasi pelayanan.',
     controlType: 'number',
     unit: 'menit',
     min: 5,
@@ -144,7 +150,8 @@ export const CLINIC_SETTING_METADATA_REGISTRY: Record<
     isAdminFacing: true,
     category: 'duration',
     label: 'Batas Minimum Durasi Konsultasi',
-    description: 'Ambang batas waktu konsultasi tercepat yang diizinkan sistem.',
+    description:
+      'Ambang batas waktu konsultasi tercepat yang diizinkan sistem.',
     controlType: 'number',
     unit: 'menit',
     min: 1,
@@ -155,7 +162,8 @@ export const CLINIC_SETTING_METADATA_REGISTRY: Record<
     isAdminFacing: true,
     category: 'duration',
     label: 'Batas Maksimum Durasi Konsultasi',
-    description: 'Ambang batas waktu konsultasi maksimal sebelum evaluasi pelayanan.',
+    description:
+      'Ambang batas waktu konsultasi maksimal sebelum evaluasi pelayanan.',
     controlType: 'number',
     unit: 'menit',
     min: 30,
@@ -166,7 +174,8 @@ export const CLINIC_SETTING_METADATA_REGISTRY: Record<
     isAdminFacing: true,
     category: 'duration',
     label: 'Batas Sisa Waktu Akhir Shift',
-    description: 'Waktu minimal sebelum jam shift berakhir untuk menerima pasien baru.',
+    description:
+      'Waktu minimal sebelum jam shift berakhir untuk menerima pasien baru.',
     controlType: 'number',
     unit: 'menit',
     min: 0,
@@ -177,7 +186,8 @@ export const CLINIC_SETTING_METADATA_REGISTRY: Record<
     isAdminFacing: true,
     category: 'queue',
     label: 'Anjuran Waktu Tiba Pasien',
-    description: 'Waktu sebelum estimasi panggilan saat pasien dianjurkan tiba di klinik.',
+    description:
+      'Waktu sebelum estimasi panggilan saat pasien dianjurkan tiba di klinik.',
     controlType: 'number',
     unit: 'menit',
     min: 0,
@@ -188,7 +198,8 @@ export const CLINIC_SETTING_METADATA_REGISTRY: Record<
     isAdminFacing: true,
     category: 'queue',
     label: 'Toleransi Pelayanan Melewati Shift',
-    description: 'Batas kelonggaran waktu dokter melayani pasien setelah jam resmi shift selesai.',
+    description:
+      'Batas kelonggaran waktu dokter melayani pasien setelah jam resmi shift selesai.',
     controlType: 'number',
     unit: 'menit',
     min: 0,
@@ -199,7 +210,8 @@ export const CLINIC_SETTING_METADATA_REGISTRY: Record<
     isAdminFacing: true,
     category: 'queue',
     label: 'Tenggat Keterlambatan Pasien',
-    description: 'Waktu tunggu pemanggilan sebelum antrean dialihkan atau ditandai tidak hadir.',
+    description:
+      'Waktu tunggu pemanggilan sebelum antrean dialihkan atau ditandai tidak hadir.',
     controlType: 'number',
     unit: 'menit',
     min: 1,
@@ -210,7 +222,8 @@ export const CLINIC_SETTING_METADATA_REGISTRY: Record<
     isAdminFacing: true,
     category: 'queue',
     label: 'Batas Pengulangan Panggilan',
-    description: 'Jumlah pengulangan pemanggilan nomor antrean sebelum dialihkan.',
+    description:
+      'Jumlah pengulangan pemanggilan nomor antrean sebelum dialihkan.',
     controlType: 'number',
     unit: 'kali',
     min: 1,
@@ -221,18 +234,32 @@ export const CLINIC_SETTING_METADATA_REGISTRY: Record<
     isAdminFacing: true,
     category: 'queue',
     label: 'Batas Reservasi Jadwal ke Depan',
-    description: 'Jarak hari maksimal ke depan bagi pasien untuk membuat reservasi jadwal.',
+    description:
+      'Jarak hari maksimal ke depan bagi pasien untuk membuat reservasi jadwal.',
     controlType: 'number',
     unit: 'hari',
     min: 1,
     max: 90,
     step: 1,
   },
+  'queue.check_in_window_hours': {
+    isAdminFacing: true,
+    category: 'queue',
+    label: 'Masa Berlaku Check-In QR',
+    description:
+      'Batas durasi berlakunya QR code check-in sejak dibuat oleh petugas/admin hingga kedaluwarsa.',
+    controlType: 'number',
+    unit: 'jam',
+    min: 1,
+    max: 72,
+    step: 1,
+  },
   'ticket.max_active_per_patient_category_day': {
     isAdminFacing: true,
     category: 'queue',
     label: 'Batas Antrean Aktif Per Pasien',
-    description: 'Batas jumlah tiket antrean aktif per pasien pada poli yang sama per hari.',
+    description:
+      'Batas jumlah tiket antrean aktif per pasien pada poli yang sama per hari.',
     controlType: 'number',
     unit: 'tiket',
     min: 1,
@@ -243,7 +270,8 @@ export const CLINIC_SETTING_METADATA_REGISTRY: Record<
     isAdminFacing: true,
     category: 'queue',
     label: 'Peringatan Jadwal Ulang Berjarak Dekat',
-    description: 'Peringatan otomatis bila pasien di depan antrean tersisa sedikit.',
+    description:
+      'Peringatan otomatis bila pasien di depan antrean tersisa sedikit.',
     controlType: 'number',
     unit: 'antrean',
     min: 0,
@@ -254,14 +282,16 @@ export const CLINIC_SETTING_METADATA_REGISTRY: Record<
     isAdminFacing: true,
     category: 'queue',
     label: 'Tampilkan Nama Dokter di Layar Antrean',
-    description: 'Menampilkan nama praktisi yang memanggil pada layar display antrean.',
+    description:
+      'Menampilkan nama praktisi yang memanggil pada layar display antrean.',
     controlType: 'boolean',
   },
   'eta.display_round_minutes': {
     isAdminFacing: true,
     category: 'notification',
     label: 'Pembulatan Estimasi Waktu di Layar',
-    description: 'Faktor pembulatan menit pada estimasi kedatangan antrean di display.',
+    description:
+      'Faktor pembulatan menit pada estimasi kedatangan antrean di display.',
     controlType: 'number',
     unit: 'menit',
     min: 1,
@@ -372,7 +402,9 @@ export const CLINIC_SETTING_METADATA_REGISTRY: Record<
   },
 };
 
-export function getClinicSettingMetadata(key: string): ClinicSettingMetadataDescriptor {
+export function getClinicSettingMetadata(
+  key: string,
+): ClinicSettingMetadataDescriptor {
   return (
     CLINIC_SETTING_METADATA_REGISTRY[key] ?? {
       isAdminFacing: false,

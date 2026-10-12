@@ -118,6 +118,12 @@ export class PerformCheckInUseCase {
       );
     }
 
+    if (new Date() > checkInRecord.expiresAt) {
+      throw new BadRequestException(
+        'Kode atau QR token check-in telah kedaluwarsa.',
+      );
+    }
+
     if (!appointment.staffId && !appointment.doctorId) {
       throw new BadRequestException(
         'Dokter penanggung jawab belum ditugaskan untuk janji temu ini. Pasien tidak dapat check-in sebelum dokter ditugaskan.',

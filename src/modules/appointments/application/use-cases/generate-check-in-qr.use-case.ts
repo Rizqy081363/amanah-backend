@@ -97,19 +97,11 @@ export class GenerateCheckInQrUseCase {
       // PERSISTENT & IDEMPOTENT: Reuse existing active token and exact database expiration
       activeRecord = existing;
     } else {
-      // First generation: calculate deadline based on scheduled appointment time + windowMs
+      // First generation: calculate deadline dynamically from creation time (Option 2)
       await this.checkInRepo.invalidateExistingTokens(appointmentId);
 
       const windowMs = hoursToMilliseconds(windowHours);
-      const scheduledTimeMs = scheduledDateObj.getTime();
-      const endOfDayMs = new Date(
-        `${apt.appointmentDate}T23:59:59.999Z`,
-      ).getTime();
-      const eligibilityDeadlineMs = Math.max(
-        scheduledTimeMs + windowMs,
-        endOfDayMs,
-      );
-      const expiresAt = new Date(eligibilityDeadlineMs);
+      const expiresAt = new Date(Date.now() + windowMs);
 
       const token = randomUUID();
       const manualCode = this.generateManualCode(
