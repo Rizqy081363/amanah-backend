@@ -713,10 +713,27 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
     );
 
     if (this.queuePositionRecalculationService && aptBefore) {
+      let categoryId: string | null = null;
+      if (!aptBefore.practitionerId) {
+        const [aptFull] = await this.db
+          .select({ serviceId: appointments.serviceId })
+          .from(appointments)
+          .where(eq(appointments.id, appointmentId))
+          .limit(1);
+        if (aptFull?.serviceId) {
+          const [svc] = await this.db
+            .select({ categoryId: clinicServices.serviceCategoryId })
+            .from(clinicServices)
+            .where(eq(clinicServices.id, aptFull.serviceId))
+            .limit(1);
+          categoryId = svc?.categoryId || null;
+        }
+      }
       await this.queuePositionRecalculationService
         .recalculateDoctorQueue({
           serviceDate: aptBefore.scheduledDate,
           practitionerId: aptBefore.practitionerId,
+          categoryId: aptBefore.practitionerId ? undefined : categoryId,
         })
         .catch(() => {});
     }
