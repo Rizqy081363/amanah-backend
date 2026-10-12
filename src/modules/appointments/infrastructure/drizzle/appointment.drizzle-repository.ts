@@ -196,6 +196,7 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
       : [
           asc(appointments.scheduledDate),
           asc(appointments.queueNumber),
+          asc(appointments.scheduledStartTime),
           asc(appointments.createdAt),
         ];
 
@@ -267,25 +268,19 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
       );
     }
     if (!filters?.cursor) {
-      const statusRank: Record<string, number> = {
-        [DOMAIN_APPOINTMENT_STATUS.IN_SERVICE]: 1,
-        [DOMAIN_APPOINTMENT_STATUS.WAITING]: 2,
-        [DOMAIN_APPOINTMENT_STATUS.BOOKED]: 3,
-        [DOMAIN_APPOINTMENT_STATUS.LATE]: 4,
-        [DOMAIN_APPOINTMENT_STATUS.COMPLETED]: 5,
-        [DOMAIN_APPOINTMENT_STATUS.CANCELLED]: 6,
-      };
-
       results.sort((a, b) => {
-        const rankA = statusRank[a.status] ?? 99;
-        const rankB = statusRank[b.status] ?? 99;
-        if (rankA !== rankB) {
-          return rankA - rankB;
+        if (a.appointmentDate !== b.appointmentDate) {
+          return a.appointmentDate.localeCompare(b.appointmentDate);
         }
         const numA = parseInt(String(a.queueNumber).replace(/\D/g, ''), 10) || 0;
         const numB = parseInt(String(b.queueNumber).replace(/\D/g, ''), 10) || 0;
         if (numA !== numB) {
           return numA - numB;
+        }
+        const timeA = a.scheduledStartTime || '';
+        const timeB = b.scheduledStartTime || '';
+        if (timeA !== timeB) {
+          return timeA.localeCompare(timeB);
         }
         return a.createdAt.getTime() - b.createdAt.getTime();
       });
@@ -338,7 +333,12 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
   async findByPatientId(patientId: string): Promise<AppointmentEntity[]> {
     const records = await this.db.query.appointments.findMany({
       where: eq(appointments.patientId, patientId),
-      orderBy: [desc(appointments.scheduledDate)],
+      orderBy: [
+        desc(appointments.scheduledDate),
+        asc(appointments.queueNumber),
+        asc(appointments.scheduledStartTime),
+        asc(appointments.createdAt),
+      ],
       with: APPOINTMENT_RELATIONS,
     });
     const windowHours = await this.getWindowHours();
@@ -372,7 +372,12 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
 
     const records = await this.db.query.appointments.findMany({
       where: whereCondition,
-      orderBy: [desc(appointments.scheduledDate), desc(appointments.createdAt)],
+      orderBy: [
+        desc(appointments.scheduledDate),
+        asc(appointments.queueNumber),
+        asc(appointments.scheduledStartTime),
+        asc(appointments.createdAt),
+      ],
       with: APPOINTMENT_RELATIONS,
     });
 
@@ -383,11 +388,13 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
   async getRescheduleOptions(
     appointmentId: string,
     userId: string,
+    user?: any,
   ): Promise<any> {
     return AppointmentRescheduleHandler.getRescheduleOptions(
       this.db,
       appointmentId,
       userId,
+      user,
     );
   }
 
@@ -395,6 +402,7 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
     appointmentId: string,
     dto: RescheduleAppointmentDto,
     userId: string,
+    user?: any,
   ): Promise<AppointmentEntity> {
     return AppointmentRescheduleHandler.reschedule(
       this.db,
@@ -402,6 +410,7 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
       dto,
       userId,
       (id) => this.findById(id),
+      user,
     );
   }
 

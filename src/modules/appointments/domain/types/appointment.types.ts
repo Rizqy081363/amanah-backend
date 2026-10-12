@@ -22,7 +22,8 @@ export type AppointmentAction =
   | 'CALL'
   | 'START_SERVICE'
   | 'COMPLETE'
-  | 'CANCEL';
+  | 'CANCEL'
+  | 'RESCHEDULE';
 
 export const ALLOWED_TRANSITIONS: Record<
   AppointmentStatus,
@@ -84,13 +85,17 @@ export function resolveAllowedActions(
 ): AppointmentAction[] {
   switch (status) {
     case 'BOOKED':
-      return ['CHECK_IN', 'CANCEL'];
+      return ['CHECK_IN', 'CANCEL', 'RESCHEDULE'];
     case 'WAITING':
       return aheadCount === 0
-        ? ['CALL', 'START_SERVICE', 'CANCEL']
-        : ['CANCEL'];
+        ? ['CALL', 'START_SERVICE', 'CANCEL', 'RESCHEDULE']
+        : ['CANCEL', 'RESCHEDULE'];
+    case 'LATE':
+      return ['RESCHEDULE', 'CANCEL'];
     case 'IN_SERVICE':
       return ['COMPLETE'];
+    case 'COMPLETED':
+    case 'CANCELLED':
     default:
       return [];
   }

@@ -134,13 +134,21 @@ export class AppointmentAdminHandler {
         dto.status as typeof appointments.$inferSelect.status;
 
       if (
-        (targetStatus === DB_APPOINTMENT_STATUS.CANCELLED ||
-          targetStatus === DB_APPOINTMENT_STATUS.NO_SHOW) &&
-        (previousStatus === DB_APPOINTMENT_STATUS.IN_SERVICE ||
-          previousStatus === DB_APPOINTMENT_STATUS.COMPLETED)
+        previousStatus === DB_APPOINTMENT_STATUS.COMPLETED ||
+        previousStatus === DB_APPOINTMENT_STATUS.CANCELLED
       ) {
         throw new BadRequestException(
-          'Janji temu tidak dapat dibatalkan karena pasien sedang dalam pemeriksaan dokter atau telah selesai.',
+          `Janji temu sudah berstatus terminal '${previousStatus}' dan tidak dapat diubah lagi.`,
+        );
+      }
+
+      if (
+        (targetStatus === DB_APPOINTMENT_STATUS.CANCELLED ||
+          targetStatus === DB_APPOINTMENT_STATUS.NO_SHOW) &&
+        previousStatus === DB_APPOINTMENT_STATUS.IN_SERVICE
+      ) {
+        throw new BadRequestException(
+          'Janji temu tidak dapat dibatalkan karena pasien sedang dalam pemeriksaan dokter.',
         );
       }
 

@@ -49,11 +49,13 @@ export abstract class AppointmentRepository {
   abstract getRescheduleOptions(
     appointmentId: string,
     userId: string,
+    user?: any,
   ): Promise<any>;
   abstract reschedule(
     appointmentId: string,
     dto: RescheduleAppointmentDto,
     userId: string,
+    user?: any,
   ): Promise<AppointmentEntity>;
   abstract findDailyQueue(
     poliklinikId: string,

@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
   Headers,
   HttpCode,
   HttpStatus,
@@ -122,7 +123,8 @@ export class AppointmentsController {
   })
   @ApiOkResponse({ description: 'Riwayat janji temu pasien berhasil diambil' })
   @ApiUnauthorizedResponse({ description: 'Sesi token tidak valid' })
-  @HttpCache({ ttlSeconds: 20, isPrivate: true, tags: ['appointments:me'] })
+  @Header('Cache-Control', 'no-store, no-cache, must-revalidate')
+  @Header('Pragma', 'no-cache')
   async getMyAppointments(@CurrentUser() user: any) {
     const userId = user?.id || user?.sub;
     if (!userId) {
@@ -478,6 +480,7 @@ export class AppointmentsController {
     return this.appointmentsService.getRescheduleOptions(
       id,
       user?.id || user?.sub,
+      user,
     );
   }
 

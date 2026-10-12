@@ -189,8 +189,9 @@ export class AppointmentsService {
   async getRescheduleOptions(
     appointmentId: string,
     userId: string,
+    user?: any,
   ): Promise<any> {
-    return this.appointmentRepo.getRescheduleOptions(appointmentId, userId);
+    return this.appointmentRepo.getRescheduleOptions(appointmentId, userId, user);
   }
 
   async reschedule(
@@ -203,6 +204,7 @@ export class AppointmentsService {
       appointmentId,
       dto,
       userId,
+      user,
     );
     await this.eventEmitter.emitAsync(
       APPOINTMENT_LIFECYCLE_EVENTS.RESCHEDULED,

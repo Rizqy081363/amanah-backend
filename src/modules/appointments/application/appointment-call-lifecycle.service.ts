@@ -60,7 +60,13 @@ export class AppointmentCallLifecycleService {
     await Promise.allSettled([
       this.redisService.deleteByPrefix('queue:daily'),
       this.redisService.deleteByPrefix('queue:display'),
-      this.redisService.invalidateTags('queue', 'daily', 'display'),
+      this.redisService.invalidateTags(
+        'queue',
+        'daily',
+        'display',
+        'appointments',
+        'appointments:me',
+      ),
     ]);
   }
 

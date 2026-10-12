@@ -1,7 +1,12 @@
-import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Optional } from '@nestjs/common';
 import { RedisService } from '../../../../common/redis/redis.service';
 import { AppointmentNotificationPublisher } from '../../application/appointment-notification.publisher';
+import {
+  REALTIME_EMITTER_PORT,
+  type RealtimeEmitterPort,
+} from '../../application/ports/realtime-emitter.port';
 import { AppointmentEntity } from '../../domain/entities/appointment.entity';
+import { toDomainStatus } from '../../domain/types/appointment.types';
 import { isTerminalAppointmentStatus } from '../../domain/constants/appointment-lifecycle.constants';
 import {
   AppointmentNotFoundException,
@@ -24,6 +29,9 @@ export class CandidateAssignmentService implements ICandidateAssignmentPort {
     private readonly findAppointmentById: (
       id: string,
     ) => Promise<AppointmentEntity | null>,
+    @Optional()
+    @Inject(REALTIME_EMITTER_PORT)
+    private readonly realtimeEmitter?: RealtimeEmitterPort,
   ) {}
 
   async changeDoctor(
@@ -101,8 +109,21 @@ export class CandidateAssignmentService implements ICandidateAssignmentPort {
     });
 
     // Invalidate Redis caches
-    await this.redisService.deleteByPrefix('queue:');
-    await this.redisService.invalidateTags('schedule', 'appointment', 'queue');
+    await Promise.allSettled([
+      this.redisService.deleteByPrefix('queue:'),
+      this.redisService.deleteByPrefix('appointments:'),
+      this.redisService.invalidateTags(
+        'queue',
+        'daily',
+        'display',
+        'schedule',
+        'schedule:list',
+        'schedule:detail',
+        'schedule:patients',
+        'appointments',
+        'appointments:me',
+      ),
+    ]);
 
     const updated = await this.findAppointmentById(appointmentId);
     if (!updated) throw new AppointmentNotFoundException(appointmentId);
@@ -117,6 +138,16 @@ export class CandidateAssignmentService implements ICandidateAssignmentPort {
       },
       user,
     );
+
+    if (this.realtimeEmitter) {
+      await this.realtimeEmitter.emitStatusChanged({
+        appointmentId: updated.id,
+        status: updated.status,
+        previousStatus: toDomainStatus(apt.status),
+        queueNumber: Number(updated.queueNumber) || 1,
+        practitionerId: updated.staffId || '',
+      });
+    }
 
     return updated;
   }
@@ -163,8 +194,21 @@ export class CandidateAssignmentService implements ICandidateAssignmentPort {
     });
 
     // Invalidate Redis caches
-    await this.redisService.deleteByPrefix('queue:');
-    await this.redisService.invalidateTags('schedule', 'appointment', 'queue');
+    await Promise.allSettled([
+      this.redisService.deleteByPrefix('queue:'),
+      this.redisService.deleteByPrefix('appointments:'),
+      this.redisService.invalidateTags(
+        'queue',
+        'daily',
+        'display',
+        'schedule',
+        'schedule:list',
+        'schedule:detail',
+        'schedule:patients',
+        'appointments',
+        'appointments:me',
+      ),
+    ]);
 
     const updated = await this.findAppointmentById(appointmentId);
     if (!updated) throw new AppointmentNotFoundException(appointmentId);
@@ -179,6 +223,16 @@ export class CandidateAssignmentService implements ICandidateAssignmentPort {
       },
       user,
     );
+
+    if (this.realtimeEmitter) {
+      await this.realtimeEmitter.emitStatusChanged({
+        appointmentId: updated.id,
+        status: updated.status,
+        previousStatus: toDomainStatus(apt.status),
+        queueNumber: Number(updated.queueNumber) || 1,
+        practitionerId: updated.staffId || '',
+      });
+    }
 
     return updated;
   }

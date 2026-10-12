@@ -3,20 +3,28 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
-import { and, asc, eq, isNull, or, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
   appointmentStatusEvents,
   appointments,
   clinicClosures,
   clinicServices,
+  clinicSettings,
   patientAffiliations,
   patientProfiles,
   queueTickets,
+  roles,
   sessionDefs,
+  userRoles,
 } from '../../../../database/schema';
 import { resolveQueueLoadStatus } from '../../../queue-engine/domain/constants/queue-load.constants';
-import { QUEUE_TICKET_STATUS } from '../../domain/constants/appointment-lifecycle.constants';
+import {
+  CLINIC_ADMIN_STAFF_ROLE_CODES,
+  DB_APPOINTMENT_STATUS,
+  QUEUE_TICKET_STATUS,
+} from '../../domain/constants/appointment-lifecycle.constants';
+import { QUEUE_PRIORITY } from '../../../queue-engine/domain/constants/queue-engine.constants';
 import type { AppointmentEntity } from '../../domain/entities/appointment.entity';
 import { RescheduleAppointmentDto } from '../../presentation/dto/reschedule-appointment.dto';
 
@@ -25,6 +33,7 @@ export class AppointmentRescheduleHandler {
     db: DrizzleDatabase,
     appointmentId: string,
     userId: string,
+    user?: any,
   ): Promise<any> {
     const apt = await db.query.appointments.findFirst({
       where: eq(appointments.id, appointmentId),
@@ -40,8 +49,13 @@ export class AppointmentRescheduleHandler {
       throw new NotFoundException('Janji temu tidak ditemukan');
     }
 
-    await validateRescheduleAuthorization(db, apt, userId);
-    validateAppointmentStateForReschedule(apt);
+    const { isAdmin } = await validateRescheduleAuthorization(
+      db,
+      apt,
+      userId,
+      user,
+    );
+    await validateAppointmentStateForReschedule(db, apt, isAdmin);
 
     const today = new Date().toISOString().split('T')[0];
     const categoryId = apt.clinicService?.serviceCategoryId || null;
@@ -141,6 +155,7 @@ export class AppointmentRescheduleHandler {
     dto: RescheduleAppointmentDto,
     userId: string,
     findById: (id: string) => Promise<AppointmentEntity | null>,
+    user?: any,
   ): Promise<AppointmentEntity> {
     const targetSessionId = dto.target_session_id || dto.newSessionId;
     const targetDate = dto.target_date || dto.newDate;
@@ -160,8 +175,13 @@ export class AppointmentRescheduleHandler {
         throw new NotFoundException('Janji temu tidak ditemukan');
       }
 
-      await validateRescheduleAuthorization(tx, apt, userId);
-      validateAppointmentStateForReschedule(apt);
+      const { isAdmin } = await validateRescheduleAuthorization(
+        tx,
+        apt,
+        userId,
+        user,
+      );
+      await validateAppointmentStateForReschedule(tx, apt, isAdmin);
 
       let targetSessionDef: any = null;
       if (targetSessionId) {
@@ -246,7 +266,7 @@ export class AppointmentRescheduleHandler {
           queueDate: targetDate,
           queueNumber: formattedTicketNumber,
           status: QUEUE_TICKET_STATUS.WAITING,
-          priority: 'regular',
+          priority: QUEUE_PRIORITY.REGULAR,
           waitingPosition: numericQueueNumber,
           carriedOver: true,
           source: 'online',
@@ -270,6 +290,8 @@ export class AppointmentRescheduleHandler {
       await tx
         .update(appointments)
         .set({
+          status: DB_APPOINTMENT_STATUS.BOOKED,
+          checkedInAt: null,
           scheduledDate: targetDate,
           scheduledStartTime: sTime,
           scheduledEndTime: eTime,
@@ -283,7 +305,7 @@ export class AppointmentRescheduleHandler {
       await tx.insert(appointmentStatusEvents).values({
         appointmentId,
         previousStatus: apt.status,
-        newStatus: apt.status,
+        newStatus: DB_APPOINTMENT_STATUS.BOOKED,
         changedBy: userId,
         reason:
           dto.reason ||
@@ -305,9 +327,53 @@ async function validateRescheduleAuthorization(
   db: DrizzleDatabase,
   apt: typeof appointments.$inferSelect,
   userId: string,
-): Promise<void> {
+  user?: any,
+): Promise<{ isAdmin: boolean }> {
+  const rawRole =
+    typeof user?.role === 'object'
+      ? user?.role?.name || user?.role?.code
+      : user?.role || user?.systemRole;
+  const userRole = (rawRole || '').toString().toLowerCase();
+
+  const allowedRoles = [
+    ...CLINIC_ADMIN_STAFF_ROLE_CODES.map((c) => c.toLowerCase()),
+    'admin',
+    'staff',
+    'staf',
+    'superadmin',
+    'doctor',
+    'practitioner',
+  ];
+
+  if (allowedRoles.includes(userRole)) {
+    return { isAdmin: true };
+  }
+
+  const staffRole = await db
+    .select({ code: roles.code })
+    .from(userRoles)
+    .innerJoin(roles, eq(userRoles.roleId, roles.id))
+    .where(
+      and(
+        eq(userRoles.userId, userId),
+        inArray(sql`lower(${roles.code})`, [
+          'admin',
+          'staff',
+          'staf',
+          'superadmin',
+          'doctor',
+          'practitioner',
+        ]),
+      ),
+    )
+    .limit(1);
+
+  if (staffRole.length > 0) {
+    return { isAdmin: true };
+  }
+
   if (apt.createdBy === userId) {
-    return;
+    return { isAdmin: false };
   }
 
   const affiliation = await db.query.patientAffiliations.findFirst({
@@ -317,7 +383,7 @@ async function validateRescheduleAuthorization(
     ),
   });
   if (affiliation) {
-    return;
+    return { isAdmin: false };
   }
 
   const ownProfile = await db.query.patientProfiles.findFirst({
@@ -327,7 +393,7 @@ async function validateRescheduleAuthorization(
     ),
   });
   if (ownProfile) {
-    return;
+    return { isAdmin: false };
   }
 
   throw new ForbiddenException(
@@ -335,21 +401,60 @@ async function validateRescheduleAuthorization(
   );
 }
 
-function validateAppointmentStateForReschedule(
+async function validateAppointmentStateForReschedule(
+  db: DrizzleDatabase,
   apt: typeof appointments.$inferSelect,
-): void {
-  if (apt.checkedInAt) {
-    throw new BadRequestException(
-      'Pasien sudah melakukan check-in di klinik. Perubahan jadwal hanya dapat dilakukan oleh petugas klinik.',
-    );
-  }
+  isAdmin: boolean,
+): Promise<void> {
   if (
-    apt.status === 'in_service' ||
-    apt.status === 'completed' ||
-    apt.status === 'cancelled'
+    apt.status === DB_APPOINTMENT_STATUS.IN_SERVICE ||
+    apt.status === DB_APPOINTMENT_STATUS.COMPLETED ||
+    apt.status === DB_APPOINTMENT_STATUS.CANCELLED ||
+    apt.status === DB_APPOINTMENT_STATUS.NO_SHOW
   ) {
     throw new BadRequestException(
-      'Janji temu tidak dapat dijadwalkan ulang pada status ini',
+      `Janji temu tidak dapat dijadwalkan ulang pada status '${apt.status}'`,
     );
+  }
+
+  if (!isAdmin) {
+    if (apt.checkedInAt) {
+      throw new BadRequestException(
+        'Pasien sudah melakukan check-in di klinik. Perubahan jadwal hanya dapat dilakukan oleh petugas klinik.',
+      );
+    }
+
+    const [activeTicket] = await db
+      .select({ status: queueTickets.status })
+      .from(queueTickets)
+      .where(eq(queueTickets.appointmentId, apt.id))
+      .limit(1);
+
+    if (activeTicket && activeTicket.status === QUEUE_TICKET_STATUS.CALLED) {
+      throw new BadRequestException(
+        'Nomor antrean sedang dipanggil oleh petugas klinik. Silakan hubungi meja admisi klinik.',
+      );
+    }
+
+    const today = new Date().toISOString().split('T')[0];
+    if (apt.scheduledDate === today && apt.scheduledEndTime) {
+      const overflowSetting = await db.query.clinicSettings.findFirst({
+        where: eq(clinicSettings.key, 'queue.overflow_tolerance_minutes'),
+      });
+      const bufferMinutes =
+        typeof overflowSetting?.value === 'number'
+          ? overflowSetting.value
+          : 30;
+
+      const [endH, endM] = apt.scheduledEndTime.split(':').map(Number);
+      const sessionEnd = new Date();
+      sessionEnd.setHours(endH, endM + bufferMinutes, 0, 0);
+
+      if (new Date() > sessionEnd) {
+        throw new BadRequestException(
+          'Sesi praktik ini telah berakhir. Silakan hubungi petugas klinik untuk bantuan reschedule.',
+        );
+      }
+    }
   }
 }

@@ -128,6 +128,7 @@ export class PerformCheckInUseCase {
           'daily',
           'display',
           'appointments',
+          'appointments:me',
         ),
       ]);
     }
