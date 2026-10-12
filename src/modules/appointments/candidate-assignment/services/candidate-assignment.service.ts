@@ -18,6 +18,7 @@ import type {
   ICandidateAssignmentPort,
 } from '../contracts/candidate-assignment.contract';
 import { DrizzleCandidateAssignmentRepository } from '../infrastructure/drizzle-candidate-assignment.repository';
+import { QueuePositionRecalculationService } from '../../../queue-engine/application/services/queue-position-recalculation.service';
 
 @Injectable()
 export class CandidateAssignmentService implements ICandidateAssignmentPort {
@@ -32,6 +33,8 @@ export class CandidateAssignmentService implements ICandidateAssignmentPort {
     @Optional()
     @Inject(REALTIME_EMITTER_PORT)
     private readonly realtimeEmitter?: RealtimeEmitterPort,
+    @Optional()
+    private readonly queueRecalculationService?: QueuePositionRecalculationService,
   ) {}
 
   async changeDoctor(
@@ -98,6 +101,8 @@ export class CandidateAssignmentService implements ICandidateAssignmentPort {
 
     const currentUserId = user?.id || user?.sub || null;
 
+    const previousDoctorId = apt.practitionerId;
+
     // Transactional atomic assignment without fragile slot collision locks
     await this.repository.updateAppointmentDoctorTransactional({
       appointmentId,
@@ -107,6 +112,23 @@ export class CandidateAssignmentService implements ICandidateAssignmentPort {
       reason: finalReason,
       previousStatus: apt.status,
     });
+
+    // Recalculate doctor queues to ensure sequential 1..N FIFO compaction
+    if (this.queueRecalculationService) {
+      // Recalculate target doctor's queue
+      await this.queueRecalculationService.recalculateDoctorQueue({
+        serviceDate: apt.scheduledDate,
+        practitionerId: targetDoctorId,
+      });
+
+      // If appointment was previously assigned to another doctor, compact that doctor's queue
+      if (previousDoctorId && previousDoctorId !== targetDoctorId) {
+        await this.queueRecalculationService.recalculateDoctorQueue({
+          serviceDate: apt.scheduledDate,
+          practitionerId: previousDoctorId,
+        });
+      }
+    }
 
     // Invalidate Redis caches
     await Promise.allSettled([

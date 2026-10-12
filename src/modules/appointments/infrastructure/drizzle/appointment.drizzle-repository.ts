@@ -1,6 +1,6 @@
 import { ClinicConfigService } from '@common/clinic-config';
 import { Inject, Injectable, Optional } from '@nestjs/common';
-import { and, asc, count, desc, eq, inArray, lt, or } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, lt, or, sql } from 'drizzle-orm';
 import { decodeCursor, encodeCursor } from '../../../../common/pagination';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
@@ -32,6 +32,8 @@ import { AppointmentRecordMapper } from './appointment-record.mapper';
 import { AppointmentRescheduleHandler } from './appointment-reschedule.handler';
 import { AppointmentStatusHandler } from './appointment-status.handler';
 
+import { QueuePositionRecalculationService } from '../../../queue-engine/application/services/queue-position-recalculation.service';
+
 const APPOINTMENT_RELATIONS = {
   queueTickets: true,
   patientProfile: { with: { patientAffiliations: { with: { user: true } } } },
@@ -58,6 +60,8 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
     private readonly poliklinikResolver?: AppointmentPoliklinikResolver,
     @Optional()
     private readonly clinicTimeService?: ClinicTimeService,
+    @Optional()
+    private readonly queuePositionRecalculationService?: QueuePositionRecalculationService,
   ) {}
 
   private async getWindowHours(): Promise<number | undefined> {
@@ -77,13 +81,39 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
   private async persistLateness(ids: string[]): Promise<void> {
     if (ids.length === 0) return;
     try {
-      await this.db
+      const updated = await this.db
         .update(appointments)
         .set({
           status: DB_APPOINTMENT_STATUS.LATE,
           updatedAt: new Date().toISOString(),
         })
-        .where(inArray(appointments.id, ids));
+        .where(inArray(appointments.id, ids))
+        .returning({
+          id: appointments.id,
+          scheduledDate: appointments.scheduledDate,
+          practitionerId: appointments.practitionerId,
+        });
+
+      await this.db
+        .update(queueTickets)
+        .set({
+          status: QUEUE_TICKET_STATUS.CANCELLED,
+          waitingPosition: null,
+          updatedAt: sql`NOW()`,
+        })
+        .where(inArray(queueTickets.appointmentId, ids))
+        .catch(() => {});
+
+      if (this.queuePositionRecalculationService && updated.length > 0) {
+        await this.queuePositionRecalculationService
+          .recalculatePartitions(
+            updated.map((u) => ({
+              serviceDate: u.scheduledDate,
+              practitionerId: u.practitionerId,
+            })),
+          )
+          .catch(() => {});
+      }
     } catch (_) {}
   }
 
@@ -130,6 +160,7 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
       (id) => this.findById(id),
       this.clinicConfig,
       this.clinicTimeService,
+      this.queuePositionRecalculationService,
     );
   }
 
@@ -411,6 +442,7 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
       userId,
       (id) => this.findById(id),
       user,
+      this.queuePositionRecalculationService,
     );
   }
 

@@ -34,6 +34,7 @@ import {
   toDbStatus,
   toDomainStatus,
 } from '../../domain/types/appointment.types';
+import { QueuePositionRecalculationService } from '../../../queue-engine/application/services/queue-position-recalculation.service';
 
 @Injectable()
 export class AppointmentHardenedDrizzleRepository
@@ -47,6 +48,8 @@ export class AppointmentHardenedDrizzleRepository
     @Optional()
     private readonly clinicConfig?: ClinicConfigService,
     private readonly policyReader?: SchedulePolicyReader,
+    @Optional()
+    private readonly queuePositionRecalculationService?: QueuePositionRecalculationService,
   ) {}
 
   private async getPolicyDurationMinutes(): Promise<number> {
@@ -335,7 +338,35 @@ export class AppointmentHardenedDrizzleRepository
           ),
         ),
       )
-      .returning({ id: appointments.id });
+      .returning({
+        id: appointments.id,
+        scheduledDate: appointments.scheduledDate,
+        practitionerId: appointments.practitionerId,
+      });
+
+    if (updated.length > 0) {
+      const ids = updated.map((u) => u.id);
+      await this.db
+        .update(queueTickets)
+        .set({
+          status: QUEUE_TICKET_STATUS.CANCELLED,
+          waitingPosition: null,
+          updatedAt: sql`NOW()`,
+        })
+        .where(inArray(queueTickets.appointmentId, ids))
+        .catch(() => {});
+
+      if (this.queuePositionRecalculationService) {
+        await this.queuePositionRecalculationService
+          .recalculatePartitions(
+            updated.map((u) => ({
+              serviceDate: u.scheduledDate,
+              practitionerId: u.practitionerId,
+            })),
+          )
+          .catch(() => {});
+      }
+    }
 
     return updated.length;
   }

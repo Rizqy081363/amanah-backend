@@ -28,6 +28,7 @@ import {
 import { AppointmentEntity } from '../../domain/entities/appointment.entity';
 import { ActiveTicketPolicyService } from '../../domain/services/active-ticket-policy.service';
 import { AppointmentRecordMapper } from './appointment-record.mapper';
+import type { QueuePositionRecalculationService } from '../../../queue-engine/application/services/queue-position-recalculation.service';
 
 export class AppointmentCreationHandler {
   static async create(
@@ -36,6 +37,7 @@ export class AppointmentCreationHandler {
     findById: (id: string) => Promise<AppointmentEntity | null>,
     clinicConfig?: ClinicConfigService,
     clinicTimeService?: ClinicTimeService,
+    queuePositionRecalculationService?: QueuePositionRecalculationService,
   ): Promise<AppointmentEntity> {
     const bookingCode = `BOOK-${Date.now().toString(36).toUpperCase()}-${Math.floor(
       Math.random() * 1000,
@@ -234,26 +236,11 @@ export class AppointmentCreationHandler {
       }
     }
 
-    let numericQueueNumber = 1;
-    if (practitionerId && data.appointmentDate) {
-      const [maxQ] = await db
-        .select({
-          max: sql<number>`COALESCE(MAX(${appointments.queueNumber}), 0)`,
-        })
-        .from(appointments)
-        .where(
-          and(
-            eq(appointments.practitionerId, practitionerId),
-            eq(appointments.scheduledDate, data.appointmentDate),
-          ),
-        );
-      numericQueueNumber = Number(maxQ?.max || 0) + 1;
-    }
-
     const categoryPrefix =
       clinicServiceRecord?.codePrefix ||
       clinicServiceRecord?.serviceCategory?.codePrefix ||
-      unitPrefix;
+      unitPrefix ||
+      'A';
 
     const normalizedSession = (data.session || '').trim().toLowerCase();
     const sessionRecord = await db.query.sessionDefs.findFirst({
@@ -268,35 +255,46 @@ export class AppointmentCreationHandler {
     const sessionPrefix = sessionRecord?.codePrefix
       ? `${sessionRecord.codePrefix}`
       : '';
-    let formattedTicketNumber = `${categoryPrefix}-${sessionPrefix}${String(numericQueueNumber).padStart(3, '0')}`;
 
-    if (categoryId && sessionId) {
-      const counterRes = await db.execute(sql`
-        INSERT INTO queue_counter (service_date, category_id, session_id, last_no)
-        VALUES (${data.appointmentDate}, ${categoryId}::uuid, ${sessionId}::uuid, 1)
-        ON CONFLICT (service_date, category_id, session_id)
-        DO UPDATE SET last_no = queue_counter.last_no + 1
-        RETURNING last_no;
-      `);
-      numericQueueNumber = Number(counterRes.rows[0]?.last_no ?? 1);
-      formattedTicketNumber = `${categoryPrefix}-${sessionPrefix}${String(numericQueueNumber).padStart(3, '0')}`;
-    } else {
-      const existingTickets = await db
-        .select({ queueNumber: queueTickets.queueNumber })
-        .from(queueTickets)
-        .where(
-          and(
-            eq(queueTickets.serviceId, data.layananId),
-            eq(queueTickets.queueDate, data.appointmentDate),
-          ),
-        );
-      const usedNumbers = new Set(existingTickets.map((t) => t.queueNumber));
-      let ticketIndex = numericQueueNumber;
-      while (usedNumbers.has(formattedTicketNumber)) {
-        ticketIndex++;
-        formattedTicketNumber = `${categoryPrefix}-${String(ticketIndex).padStart(3, '0')}`;
-      }
-      numericQueueNumber = ticketIndex;
+    // Calculate queue sequence based on active appointments under the assigned doctor
+    const doctorCondition = practitionerId
+      ? eq(appointments.practitionerId, practitionerId)
+      : isNull(appointments.practitionerId);
+
+    const [activeCountRow] = await db
+      .select({
+        count: sql<number>`count(*)::int`,
+      })
+      .from(appointments)
+      .where(
+        and(
+          eq(appointments.scheduledDate, data.appointmentDate),
+          doctorCondition,
+          inArray(appointments.status, [
+            DB_APPOINTMENT_STATUS.BOOKED,
+            DB_APPOINTMENT_STATUS.WAITING,
+            DB_APPOINTMENT_STATUS.IN_SERVICE,
+          ]),
+        ),
+      );
+    const numericQueueNumber = (activeCountRow?.count || 0) + 1;
+
+    // Resolve collision-free ticket number for (serviceId, queueDate)
+    const existingTickets = await db
+      .select({ queueNumber: queueTickets.queueNumber })
+      .from(queueTickets)
+      .where(
+        and(
+          eq(queueTickets.serviceId, data.layananId),
+          eq(queueTickets.queueDate, data.appointmentDate),
+        ),
+      );
+    const usedNumbers = new Set(existingTickets.map((t) => t.queueNumber));
+    let ticketIndex = numericQueueNumber;
+    let formattedTicketNumber = `${categoryPrefix}-${sessionPrefix}${String(ticketIndex).padStart(3, '0')}`;
+    while (usedNumbers.has(formattedTicketNumber)) {
+      ticketIndex++;
+      formattedTicketNumber = `${categoryPrefix}-${sessionPrefix}${String(ticketIndex).padStart(3, '0')}`;
     }
 
     const [startH, startM] = (startTime || '08:00')
@@ -434,6 +432,15 @@ export class AppointmentCreationHandler {
         .update(medicalIntakeSubmissions)
         .set({ appointmentId: apt.id })
         .where(eq(medicalIntakeSubmissions.id, data.sourceIntakeId));
+    }
+
+    if (queuePositionRecalculationService) {
+      await queuePositionRecalculationService
+        .recalculateDoctorQueue({
+          serviceDate: data.appointmentDate,
+          practitionerId: practitionerId || null,
+        })
+        .catch(() => {});
     }
 
     const fullApt = await findById(apt.id);

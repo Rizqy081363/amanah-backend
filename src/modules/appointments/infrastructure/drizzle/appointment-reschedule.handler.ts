@@ -27,6 +27,7 @@ import {
 import { QUEUE_PRIORITY } from '../../../queue-engine/domain/constants/queue-engine.constants';
 import type { AppointmentEntity } from '../../domain/entities/appointment.entity';
 import { RescheduleAppointmentDto } from '../../presentation/dto/reschedule-appointment.dto';
+import type { QueuePositionRecalculationService } from '../../../queue-engine/application/services/queue-position-recalculation.service';
 
 export class AppointmentRescheduleHandler {
   static async getRescheduleOptions(
@@ -156,6 +157,7 @@ export class AppointmentRescheduleHandler {
     userId: string,
     findById: (id: string) => Promise<AppointmentEntity | null>,
     user?: any,
+    queuePositionRecalculationService?: QueuePositionRecalculationService,
   ): Promise<AppointmentEntity> {
     const targetSessionId = dto.target_session_id || dto.newSessionId;
     const targetDate = dto.target_date || dto.newDate;
@@ -163,6 +165,9 @@ export class AppointmentRescheduleHandler {
     if (!targetDate) {
       throw new BadRequestException('Target tanggal reschedule wajib diisi');
     }
+
+    let oldDate: string | null = null;
+    let oldDoctorId: string | null = null;
 
     await db.transaction(async (tx) => {
       const [apt] = await tx
@@ -174,6 +179,9 @@ export class AppointmentRescheduleHandler {
       if (!apt) {
         throw new NotFoundException('Janji temu tidak ditemukan');
       }
+
+      oldDate = apt.scheduledDate;
+      oldDoctorId = apt.practitionerId;
 
       const { isAdmin } = await validateRescheduleAuthorization(
         tx,
@@ -209,31 +217,44 @@ export class AppointmentRescheduleHandler {
       const categoryId = service?.serviceCategoryId || null;
       const sessionPrefix = targetSessionDef?.codePrefix || '';
 
-      let numericQueueNumber = 1;
-      let formattedTicketNumber = `${categoryPrefix}-${sessionPrefix}001`;
+      const doctorCondition = apt.practitionerId
+        ? eq(appointments.practitionerId, apt.practitionerId)
+        : isNull(appointments.practitionerId);
 
-      if (categoryId && targetSessionDef?.id) {
-        const counterRes = await tx.execute(sql`
-          INSERT INTO queue_counter (service_date, category_id, session_id, last_no)
-          VALUES (${targetDate}, ${categoryId}::uuid, ${targetSessionDef.id}::uuid, 1)
-          ON CONFLICT (service_date, category_id, session_id)
-          DO UPDATE SET last_no = queue_counter.last_no + 1
-          RETURNING last_no;
-        `);
-        numericQueueNumber = Number(counterRes.rows[0]?.last_no ?? 1);
-        formattedTicketNumber = `${categoryPrefix}-${sessionPrefix}${String(numericQueueNumber).padStart(3, '0')}`;
-      } else {
-        const existingTickets = await tx
-          .select({ queueNumber: queueTickets.queueNumber })
-          .from(queueTickets)
-          .where(
-            and(
-              eq(queueTickets.serviceId, apt.serviceId),
-              eq(queueTickets.queueDate, targetDate),
-            ),
-          );
-        numericQueueNumber = existingTickets.length + 1;
-        formattedTicketNumber = `${categoryPrefix}-${sessionPrefix}${String(numericQueueNumber).padStart(3, '0')}`;
+      const [activeCountRow] = await tx
+        .select({
+          count: sql<number>`count(*)::int`,
+        })
+        .from(appointments)
+        .where(
+          and(
+            eq(appointments.scheduledDate, targetDate),
+            doctorCondition,
+            sql`${appointments.id} != ${apt.id}`,
+            inArray(appointments.status, [
+              DB_APPOINTMENT_STATUS.BOOKED,
+              DB_APPOINTMENT_STATUS.WAITING,
+              DB_APPOINTMENT_STATUS.IN_SERVICE,
+            ]),
+          ),
+        );
+      let numericQueueNumber = (activeCountRow?.count || 0) + 1;
+
+      const existingTickets = await tx
+        .select({ queueNumber: queueTickets.queueNumber })
+        .from(queueTickets)
+        .where(
+          and(
+            eq(queueTickets.serviceId, apt.serviceId),
+            eq(queueTickets.queueDate, targetDate),
+          ),
+        );
+      const usedNumbers = new Set(existingTickets.map((t) => t.queueNumber));
+      let ticketIndex = numericQueueNumber;
+      let formattedTicketNumber = `${categoryPrefix}-${sessionPrefix}${String(ticketIndex).padStart(3, '0')}`;
+      while (usedNumbers.has(formattedTicketNumber)) {
+        ticketIndex++;
+        formattedTicketNumber = `${categoryPrefix}-${sessionPrefix}${String(ticketIndex).padStart(3, '0')}`;
       }
 
       const oldTickets = await tx
@@ -312,6 +333,24 @@ export class AppointmentRescheduleHandler {
           'Reschedule janji temu pasien (reissue tiket antrean atomik)',
       });
     });
+
+    if (queuePositionRecalculationService && oldDate) {
+      // Compact old date queue
+      await queuePositionRecalculationService
+        .recalculateDoctorQueue({
+          serviceDate: oldDate,
+          practitionerId: oldDoctorId,
+        })
+        .catch(() => {});
+
+      // Recalculate target date queue
+      await queuePositionRecalculationService
+        .recalculateDoctorQueue({
+          serviceDate: targetDate,
+          practitionerId: oldDoctorId,
+        })
+        .catch(() => {});
+    }
 
     const updated = await findById(appointmentId);
     if (!updated) {

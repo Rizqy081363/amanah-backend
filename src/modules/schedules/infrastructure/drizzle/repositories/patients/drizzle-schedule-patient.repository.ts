@@ -234,7 +234,11 @@ export class DrizzleSchedulePatientRepository {
 
       const queueNumber =
         apt.queueTickets?.[0]?.queueNumber ||
-        `P-${apt.bookingCode ? apt.bookingCode.slice(-3) : '001'}`;
+        (apt.clinicRoom?.clinicUnit?.queuePrefix && apt.queueNumber
+          ? `${apt.clinicRoom.clinicUnit.queuePrefix}-${String(apt.queueNumber).padStart(3, '0')}`
+          : apt.queueNumber
+            ? String(apt.queueNumber)
+            : `P-${apt.bookingCode ? apt.bookingCode.slice(-3) : '001'}`);
 
       let etaRange: string | null = null;
       if (apt.estimatedStartAt) {
@@ -508,9 +512,12 @@ export class DrizzleSchedulePatientRepository {
 
     const allPatients = sessionItems
       .flatMap((s) => s.patients)
-      .sort((a, b) =>
-        (a.queueNumber || '').localeCompare(b.queueNumber || ''),
-      );
+      .sort((a, b) => {
+        const numA = parseInt(String(a.queueNumber).replace(/\D/g, ''), 10) || 0;
+        const numB = parseInt(String(b.queueNumber).replace(/\D/g, ''), 10) || 0;
+        if (numA !== numB) return numA - numB;
+        return (a.queueNumber || '').localeCompare(b.queueNumber || '');
+      });
 
     return {
       success: true,

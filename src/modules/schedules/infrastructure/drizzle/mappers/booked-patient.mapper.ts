@@ -27,7 +27,11 @@ export class BookedPatientMapper {
 
     const queueNumber =
       apt.queueTickets?.[0]?.queueNumber ||
-      `#${apt.bookingCode ? apt.bookingCode.slice(-2) : '01'}`;
+      (apt.clinicRoom?.clinicUnit?.queuePrefix && apt.queueNumber
+        ? `${apt.clinicRoom.clinicUnit.queuePrefix}-${String(apt.queueNumber).padStart(3, '0')}`
+        : apt.queueNumber
+          ? String(apt.queueNumber)
+          : `#${apt.bookingCode ? apt.bookingCode.slice(-2) : '01'}`);
 
     let etaRange: string | null = null;
     if (apt.estimatedStartAt) {

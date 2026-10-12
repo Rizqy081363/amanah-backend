@@ -9,6 +9,7 @@ import { QueueEngineService } from './domain/services/queue-engine.service';
 import { SimulatorService } from './domain/services/simulator.service';
 import { DrizzleQueueEngineRepository } from './infrastructure/drizzle/drizzle-queue-engine.repository';
 import { QueueRecalculationService } from './application/services/queue-recalculation.service';
+import { QueuePositionRecalculationService } from './application/services/queue-position-recalculation.service';
 import { QueueEventPublisher } from './application/services/queue-event-publisher.service';
 import { QueueRecalculationWorker } from './application/workers/queue-recalculation.worker';
 
@@ -33,6 +34,7 @@ export { QUEUE_ENGINE_REPOSITORY };
     SimulatorService,
     QueueEngineService,
     QueueRecalculationService,
+    QueuePositionRecalculationService,
     QueueEventPublisher,
     QueueRecalculationWorker,
     {
@@ -54,6 +56,7 @@ export { QUEUE_ENGINE_REPOSITORY };
     SimulatorService,
     QueueEngineService,
     QueueRecalculationService,
+    QueuePositionRecalculationService,
     QueueEventPublisher,
     ClosureEngineService,
     ClinicSettingService,

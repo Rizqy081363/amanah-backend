@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { RedisService } from '../../../../common/redis/redis.service';
 import { ClinicTimeService } from '../../../../common/time/clinic-time.service';
 import { QueueEventPublisher } from '../../../queue-engine/application/services/queue-event-publisher.service';
+import { QueuePositionRecalculationService } from '../../../queue-engine/application/services/queue-position-recalculation.service';
 import { DOMAIN_APPOINTMENT_STATUS } from '../../domain/constants/appointment-lifecycle.constants';
 import type { AppointmentRecord } from '../../domain/types/appointment.types';
 import {
@@ -35,6 +36,8 @@ export class CompleteServiceUseCase {
     private readonly clinicTimeService?: ClinicTimeService,
     @Optional()
     private readonly queueEventPublisher?: QueueEventPublisher,
+    @Optional()
+    private readonly queuePositionRecalculationService?: QueuePositionRecalculationService,
   ) {}
 
   async execute(appointmentId: string): Promise<AppointmentRecord> {
@@ -45,6 +48,19 @@ export class CompleteServiceUseCase {
       targetStatus: DOMAIN_APPOINTMENT_STATUS.COMPLETED,
       actualCompletedAt,
     });
+
+    if (this.queuePositionRecalculationService) {
+      await this.queuePositionRecalculationService
+        .recalculateDoctorQueue({
+          serviceDate: updated.scheduledDate,
+          practitionerId: updated.practitionerId || null,
+        })
+        .catch((err) => {
+          this.logger.warn(
+            `Failed to recalculate queue positions on completion: ${err.message}`,
+          );
+        });
+    }
 
     if (this.redisService) {
       await Promise.allSettled([

@@ -149,9 +149,11 @@ export class AppointmentRecordMapper {
     }
 
     const effectivePosition =
-      ticket?.waitingPosition !== undefined && ticket?.waitingPosition !== null
-        ? Number(ticket.waitingPosition)
-        : Number(apt.queueNumber) || 1;
+      apt.queueNumber !== undefined && apt.queueNumber !== null
+        ? Number(apt.queueNumber)
+        : ticket?.waitingPosition !== undefined && ticket?.waitingPosition !== null
+          ? Number(ticket.waitingPosition)
+          : 1;
     const aheadCount =
       domainStatus === DOMAIN_APPOINTMENT_STATUS.BOOKED ||
       domainStatus === DOMAIN_APPOINTMENT_STATUS.WAITING

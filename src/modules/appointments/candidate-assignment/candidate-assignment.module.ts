@@ -3,6 +3,7 @@ import { DrizzleModule } from '@database/drizzle/drizzle.module';
 import { RedisModule } from '@common/redis/redis.module';
 import { forwardRef, Module } from '@nestjs/common';
 import { AppointmentsModule } from '../appointments.module';
+import { QueueEngineModule } from '../../queue-engine/queue-engine.module';
 import { CANDIDATE_ASSIGNMENT_PORT } from './contracts/candidate-assignment.contract';
 import { CANDIDATE_RESOLVER_PORT } from './contracts/candidate-resolver.contract';
 import { DrizzleCandidateAssignmentRepository } from './infrastructure/drizzle-candidate-assignment.repository';
@@ -15,6 +16,7 @@ import { CandidateResolverService } from './services/candidate-resolver.service'
     RedisModule,
     ClinicTimeModule,
     forwardRef(() => AppointmentsModule),
+    forwardRef(() => QueueEngineModule),
   ],
   providers: [
     DrizzleCandidateAssignmentRepository,

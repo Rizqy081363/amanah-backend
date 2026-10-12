@@ -176,6 +176,8 @@ export class AppointmentCallDrizzleRepository
         queueDate: queueTickets.queueDate,
         categoryId: queueTickets.categoryId,
         serviceId: queueTickets.serviceId,
+        doctorId: queueTickets.doctorId,
+        waitingPosition: queueTickets.waitingPosition,
       })
       .from(queueTickets)
       .where(eq(queueTickets.id, ticketId))
@@ -185,6 +187,7 @@ export class AppointmentCallDrizzleRepository
 
     const numStr = ticket.queueNumber.replace(/\D/g, '');
     const currentNum = parseInt(numStr, 10);
+    const effectivePos = ticket.waitingPosition ?? (isNaN(currentNum) ? 1 : currentNum);
 
     const conditions = [
       eq(queueTickets.queueDate, ticket.queueDate),
@@ -192,17 +195,17 @@ export class AppointmentCallDrizzleRepository
       sql`${queueTickets.id} != ${ticket.id}`,
     ];
 
-    if (ticket.categoryId) {
+    if (ticket.doctorId) {
+      conditions.push(eq(queueTickets.doctorId, ticket.doctorId));
+    } else if (ticket.categoryId) {
       conditions.push(eq(queueTickets.categoryId, ticket.categoryId));
     } else if (ticket.serviceId) {
       conditions.push(eq(queueTickets.serviceId, ticket.serviceId));
     }
 
-    if (!isNaN(currentNum)) {
-      conditions.push(
-        sql`CAST(NULLIF(regexp_replace(${queueTickets.queueNumber}, '\\D', '', 'g'), '') AS integer) < ${currentNum}`,
-      );
-    }
+    conditions.push(
+      sql`COALESCE(${queueTickets.waitingPosition}, CAST(NULLIF(regexp_replace(${queueTickets.queueNumber}, '\\D', '', 'g'), '') AS integer), 1) < ${effectivePos}`,
+    );
 
     const [earlier] = await this.db
       .select({
@@ -212,7 +215,7 @@ export class AppointmentCallDrizzleRepository
       .from(queueTickets)
       .where(and(...conditions))
       .orderBy(
-        sql`CAST(NULLIF(regexp_replace(${queueTickets.queueNumber}, '\\D', '', 'g'), '') AS integer) ASC`,
+        sql`COALESCE(${queueTickets.waitingPosition}, CAST(NULLIF(regexp_replace(${queueTickets.queueNumber}, '\\D', '', 'g'), '') AS integer), 1) ASC`,
         asc(queueTickets.createdAt),
       )
       .limit(1);

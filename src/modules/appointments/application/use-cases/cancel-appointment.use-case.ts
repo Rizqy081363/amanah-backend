@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { RedisService } from '../../../../common/redis/redis.service';
+import { QueuePositionRecalculationService } from '../../../queue-engine/application/services/queue-position-recalculation.service';
 import { DOMAIN_APPOINTMENT_STATUS } from '../../domain/constants/appointment-lifecycle.constants';
 import type { AppointmentRecord } from '../../domain/types/appointment.types';
 import {
@@ -29,6 +30,8 @@ export class CancelAppointmentUseCase {
     private readonly pushNotification?: PushNotificationPort,
     @Optional()
     private readonly redisService?: RedisService,
+    @Optional()
+    private readonly queuePositionRecalculationService?: QueuePositionRecalculationService,
   ) {}
 
   async execute(
@@ -43,6 +46,19 @@ export class CancelAppointmentUseCase {
       cancelledAt,
       cancellationReason: reason,
     });
+
+    if (this.queuePositionRecalculationService) {
+      await this.queuePositionRecalculationService
+        .recalculateDoctorQueue({
+          serviceDate: updated.scheduledDate,
+          practitionerId: updated.practitionerId || null,
+        })
+        .catch((err) => {
+          this.logger.warn(
+            `Failed to recalculate queue positions on cancellation: ${err.message}`,
+          );
+        });
+    }
 
     if (this.redisService) {
       await Promise.allSettled([
