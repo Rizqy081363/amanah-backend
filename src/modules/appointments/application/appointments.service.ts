@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Inject,
   Injectable,
@@ -191,7 +192,11 @@ export class AppointmentsService {
     userId: string,
     user?: any,
   ): Promise<any> {
-    return this.appointmentRepo.getRescheduleOptions(appointmentId, userId, user);
+    return this.appointmentRepo.getRescheduleOptions(
+      appointmentId,
+      userId,
+      user,
+    );
   }
 
   async reschedule(
@@ -324,6 +329,50 @@ export class AppointmentsService {
     user?: any,
     expectedVersion?: string,
   ): Promise<AppointmentEntity> {
+    const current = await this.appointmentRepo.findById(id);
+    if (!current) {
+      throw new NotFoundException(`Janji temu dengan ID ${id} tidak ditemukan`);
+    }
+
+    const userRole = (
+      user?.systemRole ||
+      (typeof user?.role === 'object' && user?.role !== null
+        ? user.role.code || user.role.name
+        : user?.role)
+    )
+      ?.toString()
+      .toUpperCase();
+
+    if (user && userRole === 'PATIENT') {
+      const callerUserId = user.id || user.sub;
+      const isOwner =
+        callerUserId === current.patientUserId ||
+        callerUserId === current.parentUserId ||
+        callerUserId === current.createdBy ||
+        user.patient?.id === current.patientId;
+      if (!isOwner) {
+        throw new ForbiddenException(
+          'Anda tidak memiliki izin untuk melakukan check-in janji temu ini.',
+        );
+      }
+    }
+
+    if (!current.staffId && !current.doctorId) {
+      throw new BadRequestException(
+        'Dokter penanggung jawab harus ditugaskan terlebih dahulu sebelum check-in.',
+      );
+    }
+    if (!current.roomId) {
+      throw new BadRequestException(
+        'Ruangan periksa harus ditugaskan terlebih dahulu sebelum check-in.',
+      );
+    }
+
+    // Idempotent retry: jika sudah WAITING, kembalikan data terkini tanpa melempar error
+    if (current.status === 'WAITING') {
+      return current;
+    }
+
     return this.transitionAppointmentStatus(
       id,
       'WAITING',
@@ -340,6 +389,30 @@ export class AppointmentsService {
     user?: any,
     expectedVersion?: string,
   ): Promise<AppointmentEntity> {
+    const current = await this.appointmentRepo.findById(id);
+    if (!current) {
+      throw new NotFoundException(`Janji temu dengan ID ${id} tidak ditemukan`);
+    }
+
+    if (current.status === 'BOOKED') {
+      throw new BadRequestException(
+        'Pasien belum melakukan check-in kedatangan di klinik.',
+      );
+    }
+
+    const effectiveDoctor =
+      practitionerId || current.staffId || current.doctorId;
+    if (!effectiveDoctor) {
+      throw new BadRequestException(
+        'Dokter penanggung jawab belum ditugaskan untuk janji temu ini.',
+      );
+    }
+    if (!current.roomId) {
+      throw new BadRequestException(
+        'Ruangan periksa belum ditugaskan untuk janji temu ini.',
+      );
+    }
+
     return this.transitionAppointmentStatus(
       id,
       'IN_SERVICE',

@@ -115,7 +115,12 @@ export class AppointmentCheckInDrizzleRepository
         usedByUserId: usedByUserId || null,
         updatedAt: new Date().toISOString(),
       })
-      .where(eq(appointmentCheckIns.id, id));
+      .where(
+        and(
+          eq(appointmentCheckIns.id, id),
+          eq(appointmentCheckIns.isUsed, false),
+        ),
+      );
   }
 
   async invalidateExistingTokens(appointmentId: string): Promise<void> {

@@ -23,7 +23,10 @@ import {
   QUEUE_TICKET_STATUS,
 } from '../../domain/constants/appointment-lifecycle.constants';
 import {
+  AppointmentMissingDoctorError,
+  AppointmentMissingRoomError,
   AppointmentNotCallableError,
+  AppointmentNotCheckedInError,
   AppointmentNotFoundError,
   StaleStatusError,
 } from '../../domain/errors/appointment-domain.errors';
@@ -221,18 +224,50 @@ export class AppointmentHardenedDrizzleRepository
   async transitionStatus(
     input: TransitionStatusInput,
   ): Promise<AppointmentRecord> {
-    const allowedStatuses =
-      input.expectedStatus === DOMAIN_APPOINTMENT_STATUS.WAITING
-        ? [
-            DB_APPOINTMENT_STATUS.WAITING,
-            DB_APPOINTMENT_STATUS.BOOKED,
-            DB_APPOINTMENT_STATUS.CHECKED_IN,
-          ]
-        : input.expectedStatus === DOMAIN_APPOINTMENT_STATUS.IN_SERVICE
-          ? [DB_APPOINTMENT_STATUS.IN_SERVICE]
-          : [];
-
     const targetDbStatus = toDbStatus(input.targetStatus);
+
+    if (targetDbStatus === DB_APPOINTMENT_STATUS.IN_SERVICE) {
+      const existingRecord = await this.db.query.appointments.findFirst({
+        where: eq(appointments.id, input.id),
+      });
+      if (!existingRecord) {
+        throw new AppointmentNotFoundError(input.id);
+      }
+      if (!existingRecord.practitionerId) {
+        throw new AppointmentMissingDoctorError(
+          input.id,
+          'memulai pemeriksaan pasien',
+        );
+      }
+      if (!existingRecord.roomId) {
+        throw new AppointmentMissingRoomError(
+          input.id,
+          'memulai pemeriksaan pasien',
+        );
+      }
+      if (
+        existingRecord.status === DB_APPOINTMENT_STATUS.BOOKED ||
+        !existingRecord.checkedInAt
+      ) {
+        throw new AppointmentNotCheckedInError(
+          input.id,
+          existingRecord.status,
+        );
+      }
+    }
+
+    const allowedStatuses =
+      input.targetStatus === DOMAIN_APPOINTMENT_STATUS.IN_SERVICE
+        ? [DB_APPOINTMENT_STATUS.WAITING, DB_APPOINTMENT_STATUS.CHECKED_IN]
+        : input.expectedStatus === DOMAIN_APPOINTMENT_STATUS.WAITING
+          ? [
+              DB_APPOINTMENT_STATUS.WAITING,
+              DB_APPOINTMENT_STATUS.BOOKED,
+              DB_APPOINTMENT_STATUS.CHECKED_IN,
+            ]
+          : input.expectedStatus === DOMAIN_APPOINTMENT_STATUS.IN_SERVICE
+            ? [DB_APPOINTMENT_STATUS.IN_SERVICE]
+            : [];
 
     const updatePayload: Record<string, any> = {
       status: targetDbStatus,
@@ -498,7 +533,10 @@ export class AppointmentHardenedDrizzleRepository
       scheduledDate: apt.scheduledDate,
       queueNumber,
       status,
-      allowedActions: resolveAllowedActions(status),
+      allowedActions: resolveAllowedActions(status, {
+        hasDoctor: Boolean(apt.practitionerId || apt.practitioner),
+        hasRoom: Boolean(apt.roomId || apt.clinicRoom),
+      }),
       estimatedStartAt,
       estimatedEndAt,
       actualStartedAt: apt.actualStartedAt

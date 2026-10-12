@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import { and, eq } from 'drizzle-orm';
 import {
   ConcurrentModificationConflictException,
@@ -64,13 +65,58 @@ export class AppointmentStatusHandler {
     };
 
     if (status === DOMAIN_APPOINTMENT_STATUS.WAITING) {
+      if (!existing.practitionerId) {
+        throw new BadRequestException(
+          'Dokter penanggung jawab harus ditugaskan terlebih dahulu sebelum check-in.',
+        );
+      }
+      if (!existing.roomId) {
+        throw new BadRequestException(
+          'Ruangan periksa harus ditugaskan terlebih dahulu sebelum check-in.',
+        );
+      }
+      if (
+        existing.status === DB_APPOINTMENT_STATUS.IN_SERVICE ||
+        existing.status === DB_APPOINTMENT_STATUS.COMPLETED
+      ) {
+        throw new BadRequestException(
+          `Janji temu yang sedang diperiksa atau telah selesai tidak dapat dikembalikan ke antrean menunggu.`,
+        );
+      }
       dbStatus = DB_APPOINTMENT_STATUS.WAITING;
       ticketStatus = QUEUE_TICKET_STATUS.WAITING;
       updateApt.status = dbStatus;
-      updateApt.checkedInAt = nowStr;
+      updateApt.checkedInAt = existing.checkedInAt || nowStr;
       updateTicket.status = ticketStatus;
-      updateTicket.checkedInAt = nowStr;
+      updateTicket.checkedInAt = existing.checkedInAt || nowStr;
     } else if (status === DOMAIN_APPOINTMENT_STATUS.IN_SERVICE) {
+      const effectivePractitionerId = staffId || existing.practitionerId;
+      if (!effectivePractitionerId) {
+        throw new BadRequestException(
+          'Dokter penanggung jawab belum ditugaskan untuk janji temu ini.',
+        );
+      }
+      if (!existing.roomId) {
+        throw new BadRequestException(
+          'Ruangan periksa belum ditugaskan untuk janji temu ini.',
+        );
+      }
+      if (
+        existing.status === DB_APPOINTMENT_STATUS.BOOKED ||
+        !existing.checkedInAt
+      ) {
+        throw new BadRequestException(
+          'Pasien belum melakukan check-in kedatangan di klinik.',
+        );
+      }
+      if (
+        existing.status !== DB_APPOINTMENT_STATUS.WAITING &&
+        existing.status !== DB_APPOINTMENT_STATUS.CHECKED_IN
+      ) {
+        throw new BadRequestException(
+          `Janji temu dengan status '${existing.status}' tidak dapat diubah menjadi sedang diperiksa (in_service).`,
+        );
+      }
       dbStatus = DB_APPOINTMENT_STATUS.IN_SERVICE;
       ticketStatus = QUEUE_TICKET_STATUS.IN_SERVICE;
       updateApt.status = dbStatus;
@@ -86,6 +132,11 @@ export class AppointmentStatusHandler {
       updateTicket.startedAt = nowStr;
       updateTicket.actualStart = nowStr;
     } else if (status === DOMAIN_APPOINTMENT_STATUS.COMPLETED) {
+      if (existing.status !== DB_APPOINTMENT_STATUS.IN_SERVICE) {
+        throw new BadRequestException(
+          'Janji temu hanya dapat diselesaikan jika pasien sedang dalam pemeriksaan dokter (in_service).',
+        );
+      }
       dbStatus = DB_APPOINTMENT_STATUS.COMPLETED;
       ticketStatus = QUEUE_TICKET_STATUS.COMPLETED;
       updateApt.status = dbStatus;
@@ -95,6 +146,11 @@ export class AppointmentStatusHandler {
       updateTicket.completedAt = nowStr;
       updateTicket.actualEnd = nowStr;
     } else if (status === DOMAIN_APPOINTMENT_STATUS.CANCELLED) {
+      if (existing.status === DB_APPOINTMENT_STATUS.IN_SERVICE) {
+        throw new BadRequestException(
+          'Janji temu tidak dapat dibatalkan karena pasien sedang dalam pemeriksaan dokter.',
+        );
+      }
       dbStatus = DB_APPOINTMENT_STATUS.CANCELLED;
       ticketStatus = QUEUE_TICKET_STATUS.CANCELLED;
       updateApt.status = dbStatus;

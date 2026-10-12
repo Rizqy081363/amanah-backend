@@ -2,15 +2,16 @@ import { ClinicConfigService } from '@common/clinic-config';
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import { and, asc, count, desc, eq, inArray, lt, or, sql } from 'drizzle-orm';
 import { decodeCursor, encodeCursor } from '../../../../common/pagination';
+import { ClinicTimeService } from '../../../../common/time/clinic-time.service';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
-import { ClinicTimeService } from '../../../../common/time/clinic-time.service';
 import {
   appointments,
   patientAffiliations,
   patientProfiles,
   queueTickets,
 } from '../../../../database/schema';
+import { QueuePositionRecalculationService } from '../../../queue-engine/application/services/queue-position-recalculation.service';
 import {
   DB_APPOINTMENT_STATUS,
   DOMAIN_APPOINTMENT_STATUS,
@@ -31,8 +32,6 @@ import { AppointmentCreationHandler } from './appointment-creation.handler';
 import { AppointmentRecordMapper } from './appointment-record.mapper';
 import { AppointmentRescheduleHandler } from './appointment-reschedule.handler';
 import { AppointmentStatusHandler } from './appointment-status.handler';
-
-import { QueuePositionRecalculationService } from '../../../queue-engine/application/services/queue-position-recalculation.service';
 
 const APPOINTMENT_RELATIONS = {
   queueTickets: true,
@@ -303,8 +302,10 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
         if (a.appointmentDate !== b.appointmentDate) {
           return a.appointmentDate.localeCompare(b.appointmentDate);
         }
-        const numA = parseInt(String(a.queueNumber).replace(/\D/g, ''), 10) || 0;
-        const numB = parseInt(String(b.queueNumber).replace(/\D/g, ''), 10) || 0;
+        const numA =
+          parseInt(String(a.queueNumber).replace(/\D/g, ''), 10) || 0;
+        const numB =
+          parseInt(String(b.queueNumber).replace(/\D/g, ''), 10) || 0;
         if (numA !== numB) {
           return numA - numB;
         }
@@ -596,12 +597,32 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
     message: string;
     data: any;
   }> {
-    return AppointmentAdminHandler.cancelAdminAppointment(
+    const [aptBefore] = await this.db
+      .select({
+        scheduledDate: appointments.scheduledDate,
+        practitionerId: appointments.practitionerId,
+      })
+      .from(appointments)
+      .where(eq(appointments.id, appointmentId))
+      .limit(1);
+
+    const result = await AppointmentAdminHandler.cancelAdminAppointment(
       this.db,
       appointmentId,
       dto,
       actorUserId,
     );
+
+    if (this.queuePositionRecalculationService && aptBefore) {
+      await this.queuePositionRecalculationService
+        .recalculateDoctorQueue({
+          serviceDate: aptBefore.scheduledDate,
+          practitionerId: aptBefore.practitionerId,
+        })
+        .catch(() => {});
+    }
+
+    return result;
   }
 
   async updateAdminAppointmentStatus(
@@ -613,11 +634,31 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
     message: string;
     data: any;
   }> {
-    return AppointmentAdminHandler.updateAdminAppointmentStatus(
+    const [aptBefore] = await this.db
+      .select({
+        scheduledDate: appointments.scheduledDate,
+        practitionerId: appointments.practitionerId,
+      })
+      .from(appointments)
+      .where(eq(appointments.id, appointmentId))
+      .limit(1);
+
+    const result = await AppointmentAdminHandler.updateAdminAppointmentStatus(
       this.db,
       appointmentId,
       dto,
       actorUserId,
     );
+
+    if (this.queuePositionRecalculationService && aptBefore) {
+      await this.queuePositionRecalculationService
+        .recalculateDoctorQueue({
+          serviceDate: aptBefore.scheduledDate,
+          practitionerId: aptBefore.practitionerId,
+        })
+        .catch(() => {});
+    }
+
+    return result;
   }
 }

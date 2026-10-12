@@ -1,5 +1,5 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
   appointmentStatusEvents,
@@ -79,6 +79,8 @@ export class AppointmentAdminHandler {
         .update(queueTickets)
         .set({
           status: QUEUE_TICKET_STATUS.CANCELLED,
+          waitingPosition: null,
+          updatedAt: nowIso,
         })
         .where(eq(queueTickets.appointmentId, appointmentId));
 
@@ -133,12 +135,33 @@ export class AppointmentAdminHandler {
       const targetStatus =
         dto.status as typeof appointments.$inferSelect.status;
 
+      if (previousStatus === targetStatus) {
+        return {
+          success: true,
+          message: `Status janji temu sudah berstatus '${targetStatus}'`,
+          data: {
+            appointmentId,
+            previousStatus,
+            newStatus: targetStatus,
+            updatedAt: apt.updatedAt,
+            reason: dto.reason || null,
+            scheduleSession: null,
+          },
+        };
+      }
+
       if (
         previousStatus === DB_APPOINTMENT_STATUS.COMPLETED ||
         previousStatus === DB_APPOINTMENT_STATUS.CANCELLED
       ) {
         throw new BadRequestException(
           `Janji temu sudah berstatus terminal '${previousStatus}' dan tidak dapat diubah lagi.`,
+        );
+      }
+
+      if (targetStatus === DB_APPOINTMENT_STATUS.BOOKED) {
+        throw new BadRequestException(
+          'Janji temu tidak dapat dikembalikan ke status awal (booked).',
         );
       }
 
@@ -150,6 +173,64 @@ export class AppointmentAdminHandler {
         throw new BadRequestException(
           'Janji temu tidak dapat dibatalkan karena pasien sedang dalam pemeriksaan dokter.',
         );
+      }
+
+      if (targetStatus === DB_APPOINTMENT_STATUS.IN_SERVICE) {
+        if (!apt.practitionerId) {
+          throw new BadRequestException(
+            'Dokter penanggung jawab belum ditugaskan untuk janji temu ini.',
+          );
+        }
+        if (!apt.roomId) {
+          throw new BadRequestException(
+            'Ruangan periksa belum ditugaskan untuk janji temu ini.',
+          );
+        }
+        if (
+          previousStatus === DB_APPOINTMENT_STATUS.BOOKED ||
+          !apt.checkedInAt
+        ) {
+          throw new BadRequestException(
+            'Pasien belum melakukan check-in kedatangan di klinik.',
+          );
+        }
+        if (
+          previousStatus !== DB_APPOINTMENT_STATUS.WAITING &&
+          previousStatus !== DB_APPOINTMENT_STATUS.CHECKED_IN
+        ) {
+          throw new BadRequestException(
+            `Janji temu dengan status '${previousStatus}' tidak dapat diubah menjadi sedang diperiksa (in_service).`,
+          );
+        }
+      }
+
+      if (targetStatus === DB_APPOINTMENT_STATUS.COMPLETED) {
+        if (previousStatus !== DB_APPOINTMENT_STATUS.IN_SERVICE) {
+          throw new BadRequestException(
+            'Janji temu hanya dapat diselesaikan jika pasien sedang dalam pemeriksaan dokter (in_service).',
+          );
+        }
+      }
+
+      if (
+        targetStatus === DB_APPOINTMENT_STATUS.CHECKED_IN ||
+        targetStatus === DB_APPOINTMENT_STATUS.WAITING
+      ) {
+        if (!apt.practitionerId) {
+          throw new BadRequestException(
+            'Dokter penanggung jawab harus ditugaskan terlebih dahulu sebelum check-in.',
+          );
+        }
+        if (!apt.roomId) {
+          throw new BadRequestException(
+            'Ruangan periksa harus ditugaskan terlebih dahulu sebelum check-in.',
+          );
+        }
+        if (previousStatus === DB_APPOINTMENT_STATUS.IN_SERVICE) {
+          throw new BadRequestException(
+            `Janji temu yang sedang diperiksa tidak dapat dikembalikan ke status antrean '${targetStatus}'.`,
+          );
+        }
       }
 
       const nowIso = new Date().toISOString();
@@ -198,6 +279,11 @@ export class AppointmentAdminHandler {
         .update(queueTickets)
         .set({
           status: ticketStatus,
+          ...(targetStatus === DB_APPOINTMENT_STATUS.COMPLETED ||
+          targetStatus === DB_APPOINTMENT_STATUS.CANCELLED ||
+          targetStatus === DB_APPOINTMENT_STATUS.NO_SHOW
+            ? { waitingPosition: null }
+            : {}),
           ...(targetStatus === DB_APPOINTMENT_STATUS.IN_SERVICE
             ? { startedAt: nowIso }
             : {}),

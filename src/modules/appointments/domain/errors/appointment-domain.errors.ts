@@ -87,3 +87,33 @@ export class PatientActiveTicketConflictError extends AppointmentDomainError {
     );
   }
 }
+
+export class AppointmentMissingDoctorError extends AppointmentDomainError {
+  constructor(appointmentId: string, actionName: string = 'operasi ini') {
+    super(
+      'MISSING_DOCTOR_ASSIGNMENT',
+      `Dokter penanggung jawab belum ditugaskan untuk janji temu "${appointmentId}". Dokter wajib ditugaskan sebelum ${actionName}.`,
+      { appointmentId, actionName },
+    );
+  }
+}
+
+export class AppointmentMissingRoomError extends AppointmentDomainError {
+  constructor(appointmentId: string, actionName: string = 'operasi ini') {
+    super(
+      'MISSING_ROOM_ASSIGNMENT',
+      `Ruangan periksa belum ditugaskan untuk janji temu "${appointmentId}". Ruangan wajib ditugaskan sebelum ${actionName}.`,
+      { appointmentId, actionName },
+    );
+  }
+}
+
+export class AppointmentNotCheckedInError extends AppointmentDomainError {
+  constructor(appointmentId: string, currentStatus: string) {
+    super(
+      'NOT_CHECKED_IN',
+      `Pasien belum melakukan check-in kedatangan di klinik untuk janji temu "${appointmentId}" (status saat ini: "${currentStatus}"). Pasien wajib check-in terlebih dahulu sebelum pemeriksaan dapat dimulai.`,
+      { appointmentId, currentStatus },
+    );
+  }
+}

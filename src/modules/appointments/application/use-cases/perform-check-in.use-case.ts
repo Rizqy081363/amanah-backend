@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Inject,
   Injectable,
   Logger,
@@ -13,7 +14,6 @@ import {
   APPOINTMENT_REPOSITORY,
   type AppointmentRepository,
 } from '../../domain/repositories/appointment.repository';
-import { AppointmentPolicyReader } from '../../domain/services/appointment-policy.reader';
 import {
   APPOINTMENT_CHECK_IN_REPOSITORY_PORT,
   type AppointmentCheckInRepositoryPort,
@@ -44,7 +44,6 @@ export class PerformCheckInUseCase {
     private readonly checkInRepo: AppointmentCheckInRepositoryPort,
     @Inject(REALTIME_EMITTER_PORT)
     private readonly realtimeEmitter: RealtimeEmitterPort,
-    private readonly policyReader: AppointmentPolicyReader,
     @Optional()
     @Inject(PUSH_NOTIFICATION_PORT)
     private readonly pushNotification?: PushNotificationPort,
@@ -80,17 +79,59 @@ export class PerformCheckInUseCase {
       );
     }
 
-    if (checkInRecord.isUsed) {
-      throw new BadRequestException(
-        'Kode atau QR token check-in ini sudah pernah digunakan.',
-      );
-    }
-
     const appointment = await this.appointmentRepo.findById(
       checkInRecord.appointmentId,
     );
     if (!appointment) {
       throw new NotFoundException('Janji temu tidak ditemukan.');
+    }
+
+    const userRole = (
+      actorUser?.systemRole ||
+      (typeof actorUser?.role === 'object' && actorUser?.role !== null
+        ? actorUser.role.code || actorUser.role.name
+        : actorUser?.role)
+    )
+      ?.toString()
+      .toUpperCase();
+
+    if (actorUser && userRole === 'PATIENT') {
+      const callerUserId = actorUser.id || actorUser.sub;
+      const isOwner =
+        callerUserId === appointment.patientUserId ||
+        callerUserId === appointment.parentUserId ||
+        callerUserId === appointment.createdBy ||
+        actorUser.patient?.id === appointment.patientId;
+      if (!isOwner) {
+        throw new ForbiddenException(
+          'Anda tidak memiliki izin untuk melakukan check-in janji temu ini.',
+        );
+      }
+    }
+
+    if (checkInRecord.isUsed) {
+      if (appointment.status === DOMAIN_APPOINTMENT_STATUS.WAITING) {
+        return appointment;
+      }
+      throw new BadRequestException(
+        'Kode atau QR token check-in ini sudah pernah digunakan.',
+      );
+    }
+
+    if (!appointment.staffId && !appointment.doctorId) {
+      throw new BadRequestException(
+        'Dokter penanggung jawab belum ditugaskan untuk janji temu ini. Pasien tidak dapat check-in sebelum dokter ditugaskan.',
+      );
+    }
+
+    if (!appointment.roomId) {
+      throw new BadRequestException(
+        'Ruangan periksa belum ditugaskan untuk janji temu ini. Pasien tidak dapat check-in sebelum ruangan ditugaskan.',
+      );
+    }
+
+    if (appointment.status === DOMAIN_APPOINTMENT_STATUS.WAITING) {
+      return appointment;
     }
 
     if (appointment.status !== DOMAIN_APPOINTMENT_STATUS.BOOKED) {

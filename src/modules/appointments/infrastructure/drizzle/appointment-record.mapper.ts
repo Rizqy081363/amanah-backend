@@ -185,6 +185,9 @@ export class AppointmentRecordMapper {
       apt.practitioner?.staffProfile?.clinicUnit?.name ||
       '';
 
+    const hasDoctor = Boolean(apt.practitionerId || apt.practitioner);
+    const hasRoom = Boolean(apt.roomId || apt.clinicRoom);
+
     return {
       id: apt.id,
       bookingCode: apt.bookingCode || null,
@@ -231,7 +234,11 @@ export class AppointmentRecordMapper {
       ticketStatus: ticket?.status || QUEUE_TICKET_STATUS.WAITING,
       status: domainStatus,
       rawStatus,
-      allowedActions: resolveAllowedActions(domainStatus, aheadCount),
+      allowedActions: resolveAllowedActions(domainStatus, {
+        hasDoctor,
+        hasRoom,
+        aheadCount,
+      }),
       visitType:
         apt.visitType === 'follow_up' ? 'Kontrol Ulang' : 'Pemeriksaan Baru',
       complaint: apt.complaint || null,

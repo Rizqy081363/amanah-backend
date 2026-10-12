@@ -23,7 +23,9 @@ export type AppointmentAction =
   | 'START_SERVICE'
   | 'COMPLETE'
   | 'CANCEL'
-  | 'RESCHEDULE';
+  | 'RESCHEDULE'
+  | 'ASSIGN_DOCTOR'
+  | 'ASSIGN_ROOM';
 
 export const ALLOWED_TRANSITIONS: Record<
   AppointmentStatus,
@@ -53,8 +55,6 @@ export function toDomainStatus(
     case 'late':
     case 'no_show':
       return 'LATE';
-    case 'waiting':
-    case 'checked_in':
     default:
       return 'WAITING';
   }
@@ -79,23 +79,47 @@ export function toDbStatus(
   }
 }
 
+export interface AllowedActionsContext {
+  hasDoctor?: boolean;
+  hasRoom?: boolean;
+  aheadCount?: number;
+}
+
 export function resolveAllowedActions(
   status: AppointmentStatus,
-  aheadCount: number = 0,
+  contextOrAheadCount: AllowedActionsContext | number = 0,
 ): AppointmentAction[] {
+  const context: AllowedActionsContext =
+    typeof contextOrAheadCount === 'number'
+      ? { aheadCount: contextOrAheadCount, hasDoctor: true, hasRoom: true }
+      : contextOrAheadCount;
+
+  const { hasDoctor = false, hasRoom = false, aheadCount = 0 } = context;
+  const isFullyAssigned = Boolean(hasDoctor && hasRoom);
+
   switch (status) {
-    case 'BOOKED':
-      return ['CHECK_IN', 'CANCEL', 'RESCHEDULE'];
+    case 'BOOKED': {
+      const actions: AppointmentAction[] = [];
+      if (!hasDoctor) {
+        actions.push('ASSIGN_DOCTOR');
+      }
+      if (!hasRoom) {
+        actions.push('ASSIGN_ROOM');
+      }
+      if (isFullyAssigned) {
+        actions.push('CHECK_IN');
+      }
+      actions.push('CANCEL', 'RESCHEDULE');
+      return actions;
+    }
     case 'WAITING':
-      return aheadCount === 0
+      return aheadCount === 0 && isFullyAssigned
         ? ['CALL', 'START_SERVICE', 'CANCEL', 'RESCHEDULE']
         : ['CANCEL', 'RESCHEDULE'];
     case 'LATE':
       return ['RESCHEDULE', 'CANCEL'];
     case 'IN_SERVICE':
       return ['COMPLETE'];
-    case 'COMPLETED':
-    case 'CANCELLED':
     default:
       return [];
   }

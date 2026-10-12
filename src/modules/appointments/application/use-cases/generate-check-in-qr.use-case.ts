@@ -11,11 +11,15 @@ import {
   TIME_CONSTANTS,
 } from '../../domain/constants/appointment-check-in.config';
 import { DOMAIN_APPOINTMENT_STATUS } from '../../domain/constants/appointment-lifecycle.constants';
-import type { CheckInQrData } from '../../domain/entities/appointment-check-in.entity';
+import type {
+  AppointmentCheckInEntity,
+  CheckInQrData,
+} from '../../domain/entities/appointment-check-in.entity';
 import {
   APPOINTMENT_REPOSITORY,
   type AppointmentRepository,
 } from '../../domain/repositories/appointment.repository';
+import { isAppointmentLate } from '../../domain/services/appointment-lateness.predicate';
 import { AppointmentPolicyReader } from '../../domain/services/appointment-policy.reader';
 import {
   APPOINTMENT_CHECK_IN_REPOSITORY_PORT,
@@ -60,48 +64,80 @@ export class GenerateCheckInQrUseCase {
       );
     }
 
+    if (!apt.staffId && !apt.doctorId) {
+      throw new BadRequestException(
+        'Dokter penanggung jawab belum ditugaskan. QR Check-in hanya dapat dibuat setelah dokter ditugaskan.',
+      );
+    }
+
+    if (!apt.roomId) {
+      throw new BadRequestException(
+        'Ruangan periksa belum ditugaskan. QR Check-in hanya dapat dibuat setelah ruangan ditugaskan.',
+      );
+    }
+
     const windowHours = await this.policyReader.getCheckInWindowHours();
     const scheduledDateObj = new Date(
       `${apt.appointmentDate}T${apt.scheduledStartTime || '00:00:00'}`,
     );
 
-    // In the queue ticketing model, patients are not rejected from generating QR/checking in on service day.
-    await this.checkInRepo.invalidateExistingTokens(appointmentId);
+    if (isAppointmentLate(scheduledDateObj, new Date(), windowHours)) {
+      throw new BadRequestException(
+        'Batas waktu check-in janji temu telah berakhir (janji temu berstatus Terlambat)',
+      );
+    }
 
-    const token = randomUUID();
-    const manualCode = this.generateManualCode(
-      DEFAULT_CHECK_IN_CONFIG.codeLength,
-    );
+    // Check if there is already an active, unused and unexpired token in database
+    const existing =
+      await this.checkInRepo.findActiveByAppointmentId(appointmentId);
 
-    const windowMs = hoursToMilliseconds(windowHours);
-    const endOfDay = new Date(`${apt.appointmentDate}T23:59:59.999Z`);
-    const eligibilityDeadlineMs = Math.max(
-      scheduledDateObj.getTime() + windowMs,
-      endOfDay.getTime(),
-      Date.now() + windowMs,
-    );
-    const appointmentEligibilityDeadline = new Date(eligibilityDeadlineMs);
+    let activeRecord: AppointmentCheckInEntity;
+
+    if (existing) {
+      // PERSISTENT & IDEMPOTENT: Reuse existing active token and exact database expiration
+      activeRecord = existing;
+    } else {
+      // First generation: calculate deadline based on scheduled appointment time + windowMs
+      await this.checkInRepo.invalidateExistingTokens(appointmentId);
+
+      const windowMs = hoursToMilliseconds(windowHours);
+      const scheduledTimeMs = scheduledDateObj.getTime();
+      const endOfDayMs = new Date(
+        `${apt.appointmentDate}T23:59:59.999Z`,
+      ).getTime();
+      const eligibilityDeadlineMs = Math.max(
+        scheduledTimeMs + windowMs,
+        endOfDayMs,
+      );
+      const expiresAt = new Date(eligibilityDeadlineMs);
+
+      const token = randomUUID();
+      const manualCode = this.generateManualCode(
+        DEFAULT_CHECK_IN_CONFIG.codeLength,
+      );
+
+      activeRecord = await this.checkInRepo.createCheckIn({
+        appointmentId,
+        token,
+        manualCode,
+        expiresAt,
+        createdBy: actorUserId,
+      });
+    }
+
     const remainingSeconds = Math.max(
       0,
       Math.floor(
-        (eligibilityDeadlineMs - Date.now()) /
+        (activeRecord.expiresAt.getTime() - Date.now()) /
           TIME_CONSTANTS.MILLISECONDS_PER_SECOND,
       ),
     );
 
-    await this.checkInRepo.createCheckIn({
-      appointmentId,
-      token,
-      manualCode,
-      expiresAt: appointmentEligibilityDeadline,
-      createdBy: actorUserId,
-    });
-
     const qrPayload = JSON.stringify({
       type: 'APPOINTMENT_CHECK_IN',
       appointmentId: apt.id,
-      token,
-      code: manualCode,
+      token: activeRecord.token,
+      code: activeRecord.manualCode,
       bookingCode: apt.bookingCode || '',
     });
 
@@ -112,12 +148,11 @@ export class GenerateCheckInQrUseCase {
       poliklinikName: apt.poliklinikName || 'Poliklinik',
       doctorName: apt.doctorName || 'Dokter',
       scheduledDate: apt.appointmentDate,
-      token,
-      manualCode,
+      token: activeRecord.token,
+      manualCode: activeRecord.manualCode,
       qrPayload,
-      appointmentEligibilityDeadline:
-        appointmentEligibilityDeadline.toISOString(),
-      expiresAt: appointmentEligibilityDeadline.toISOString(),
+      appointmentEligibilityDeadline: activeRecord.expiresAt.toISOString(),
+      expiresAt: activeRecord.expiresAt.toISOString(),
       remainingSeconds,
     };
   }

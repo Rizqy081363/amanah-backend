@@ -7,7 +7,10 @@ import {
 import type { Response } from 'express';
 import {
   AppointmentDomainError,
+  AppointmentMissingDoctorError,
+  AppointmentMissingRoomError,
   AppointmentNotCallableError,
+  AppointmentNotCheckedInError,
   AppointmentNotFoundError,
   DailyQuotaExceededError,
   InvalidStatusTransitionError,
@@ -38,6 +41,9 @@ export class AppointmentDomainExceptionFilter implements ExceptionFilter {
       status = HttpStatus.NOT_FOUND;
       errorName = 'Not Found';
     } else if (
+      exception instanceof AppointmentMissingDoctorError ||
+      exception instanceof AppointmentMissingRoomError ||
+      exception instanceof AppointmentNotCheckedInError ||
       exception instanceof AppointmentNotCallableError ||
       exception instanceof DailyQuotaExceededError ||
       exception instanceof SchedulePolicyNotFoundError

@@ -253,6 +253,13 @@
       "when": 1791319000000,
       "tag": "0035_add_master_day_is_active_and_sync_night_shift",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1791320000000,
+      "tag": "0036_add_queue_check_in_window_hours_setting",
+      "breakpoints": true
     }
   ]
 }

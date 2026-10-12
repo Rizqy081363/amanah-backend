@@ -1,6 +1,7 @@
+import { Temporal } from '@js-temporal/polyfill';
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { and, eq, inArray, sql } from 'drizzle-orm';
-import { Temporal } from '@js-temporal/polyfill';
+import { ClinicTimeService } from '../../../../common/time/clinic-time.service';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import type { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
@@ -10,19 +11,18 @@ import {
   sessionDefs,
   sessionSchedules,
 } from '../../../../database/schema';
+import { NotificationGatewayService } from '../../../notifications/application/services/notification-gateway.service';
+import type { SocketIoRealtimeGateway } from '../../../notifications/infrastructure/realtime/socket-io-realtime.gateway';
+import { REALTIME_GATEWAY_PORT } from '../../../notifications/notifications.constants';
 import { QUEUE_ENGINE_REPOSITORY } from '../../domain/constants/queue-engine.constants';
 import type { IQueueEngineRepository } from '../../domain/repositories/queue-engine.repository';
-import {
-  SimulatorService,
-  type SimulationTicketItem,
-} from '../../domain/services/simulator.service';
 import { EstimatorService } from '../../domain/services/estimator.service';
-import { ClinicSettingService } from '../../infrastructure/config/clinic-setting.service';
-import { ClinicTimeService } from '../../../../common/time/clinic-time.service';
-import { NotificationGatewayService } from '../../../notifications/application/services/notification-gateway.service';
-import { REALTIME_GATEWAY_PORT } from '../../../notifications/notifications.constants';
-import type { SocketIoRealtimeGateway } from '../../../notifications/infrastructure/realtime/socket-io-realtime.gateway';
+import {
+  type SimulationTicketItem,
+  SimulatorService,
+} from '../../domain/services/simulator.service';
 import type { TimeInterval } from '../../domain/types/calendar.types';
+import { ClinicSettingService } from '../../infrastructure/config/clinic-setting.service';
 
 export interface RecalculationParams {
   serviceDate: string;
@@ -64,14 +64,15 @@ export class QueueRecalculationService {
     sessionsHandled: number;
   }> {
     const { serviceDate, triggerEvent } = params;
-    let { sessionId, categoryId } = params;
+    const { sessionId, categoryId } = params;
 
     this.logger.log(
       `Queue recalculation triggered [date=${serviceDate}, session=${sessionId || 'all'}, category=${categoryId || 'all'}, event=${triggerEvent || 'progression'}]`,
     );
 
     // If sessionId or categoryId not explicitly supplied, discover them from ticket/appointment or active tickets on serviceDate
-    const sessionTargets: Array<{ sessionId: string; categoryId?: string }> = [];
+    const sessionTargets: Array<{ sessionId: string; categoryId?: string }> =
+      [];
 
     if (sessionId) {
       sessionTargets.push({ sessionId, categoryId });
@@ -204,11 +205,10 @@ export class QueueRecalculationService {
       'Asia/Jakarta';
 
     // 3. Compute estimated duration using empirical completed durations + Bayesian prior
-    const recentDurations =
-      await this.queueRepo.getRecentCompletedDurations({
-        categoryId,
-        limit: 20,
-      });
+    const recentDurations = await this.queueRepo.getRecentCompletedDurations({
+      categoryId,
+      limit: 20,
+    });
 
     const estimatedDurationMinutes = this.estimator.estimateDuration({
       durationsMinutes: recentDurations,
@@ -285,7 +285,8 @@ export class QueueRecalculationService {
       if (!oldStart) {
         hasShifted = true;
       } else {
-        shiftMinutes = Math.abs(newStart.getTime() - oldStart.getTime()) / 60_000;
+        shiftMinutes =
+          Math.abs(newStart.getTime() - oldStart.getTime()) / 60_000;
         if (shiftMinutes >= updateThresholdMinutes) {
           hasShifted = true;
         }
@@ -342,7 +343,9 @@ export class QueueRecalculationService {
             timestamp: now.toISOString(),
           });
         } catch (err) {
-          this.logger.warn(`Failed to broadcast queue:estimates:updated: ${err}`);
+          this.logger.warn(
+            `Failed to broadcast queue:estimates:updated: ${err}`,
+          );
         }
       }
     }
@@ -390,21 +393,29 @@ export class QueueRecalculationService {
       endTime = defRow?.endsAt || '12:00';
     }
 
-    // Parse start and end times in clinic timezone
-    const startIso = `${startTime.length === 5 ? startTime + ':00' : startTime}`;
-    const endIso = `${endTime.length === 5 ? endTime + ':00' : endTime}`;
+    const parseSessionBoundary = (
+      dateStr: string,
+      timeStr: string,
+      tz: string,
+    ): Date => {
+      const cleanTime = timeStr.length === 5 ? `${timeStr}:00` : timeStr;
+      if (cleanTime.startsWith('24:00')) {
+        return new Date(
+          Temporal.PlainDate.from(dateStr)
+            .add({ days: 1 })
+            .toZonedDateTime(tz)
+            .toInstant().epochMilliseconds,
+        );
+      }
+      return new Date(
+        Temporal.PlainDateTime.from(`${dateStr}T${cleanTime}`)
+          .toZonedDateTime(tz)
+          .toInstant().epochMilliseconds,
+      );
+    };
 
-    const startDate = new Date(
-      Temporal.PlainDateTime.from(`${serviceDate}T${startIso}`)
-        .toZonedDateTime(timezone)
-        .toInstant().epochMilliseconds,
-    );
-
-    const endDate = new Date(
-      Temporal.PlainDateTime.from(`${serviceDate}T${endIso}`)
-        .toZonedDateTime(timezone)
-        .toInstant().epochMilliseconds,
-    );
+    const startDate = parseSessionBoundary(serviceDate, startTime, timezone);
+    const endDate = parseSessionBoundary(serviceDate, endTime, timezone);
 
     return { start: startDate, end: endDate };
   }

@@ -1,4 +1,9 @@
-import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { and, asc, eq, lt, not } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import type { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
@@ -22,14 +27,22 @@ export class QueueEligibilityService {
 
   /**
    * Evaluasi eligibilitas check-in pasien.
-   * Check-in independen dari urutan nomor antrean pelayanan (pasien datang di klinik kapan saja).
+   * Check-in independen dari urutan nomor antrean pelayanan, namun wajib pada tanggal yang sama
+   * dan hanya jika dokter serta ruangan telah ditugaskan.
    */
   static isEligibleForCheckIn(
     appointmentStatus: string,
     scheduledDate: string,
     todayDateStr: string,
+    context?: {
+      hasDoctor?: boolean;
+      hasRoom?: boolean;
+    },
   ): boolean {
     if (scheduledDate !== todayDateStr) {
+      return false;
+    }
+    if (context && (!context.hasDoctor || !context.hasRoom)) {
       return false;
     }
     return (
@@ -44,13 +57,29 @@ export class QueueEligibilityService {
    */
   static resolveAllowedActions(
     status: AppointmentStatus,
-    aheadCount: number = 0,
+    contextOrAheadCount:
+      | { hasDoctor?: boolean; hasRoom?: boolean; aheadCount?: number }
+      | number = 0,
   ): AppointmentAction[] {
+    const context =
+      typeof contextOrAheadCount === 'number'
+        ? { aheadCount: contextOrAheadCount, hasDoctor: true, hasRoom: true }
+        : contextOrAheadCount;
+
+    const { hasDoctor = false, hasRoom = false, aheadCount = 0 } = context;
+    const isFullyAssigned = Boolean(hasDoctor && hasRoom);
+
     switch (status) {
-      case 'BOOKED':
-        return ['CHECK_IN', 'CANCEL'];
+      case 'BOOKED': {
+        const actions: AppointmentAction[] = [];
+        if (!hasDoctor) actions.push('ASSIGN_DOCTOR');
+        if (!hasRoom) actions.push('ASSIGN_ROOM');
+        if (isFullyAssigned) actions.push('CHECK_IN');
+        actions.push('CANCEL');
+        return actions;
+      }
       case 'WAITING':
-        return aheadCount === 0
+        return aheadCount === 0 && isFullyAssigned
           ? ['CALL', 'START_SERVICE', 'CANCEL']
           : ['CANCEL'];
       case 'IN_SERVICE':
@@ -95,7 +124,9 @@ export class QueueEligibilityService {
 
     const ticket = apt.queueTickets?.[0];
     if (!ticket) {
-      throw new NotFoundException('Tiket antrean tidak ditemukan untuk janji temu ini.');
+      throw new NotFoundException(
+        'Tiket antrean tidak ditemukan untuk janji temu ini.',
+      );
     }
 
     // Periksa apakah ada tiket sebelumnya yang masih berstatus 'waiting' pada kategori & tanggal yang sama
