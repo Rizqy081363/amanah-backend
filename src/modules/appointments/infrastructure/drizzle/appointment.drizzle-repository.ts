@@ -555,7 +555,16 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
     cancellationReason?: string,
     expectedVersion?: string,
   ): Promise<AppointmentEntity | null> {
-    return AppointmentStatusHandler.updateStatus(
+    const [aptBefore] = await this.db
+      .select({
+        scheduledDate: appointments.scheduledDate,
+        practitionerId: appointments.practitionerId,
+      })
+      .from(appointments)
+      .where(eq(appointments.id, id))
+      .limit(1);
+
+    const result = await AppointmentStatusHandler.updateStatus(
       this.db,
       id,
       status,
@@ -564,6 +573,22 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
       expectedVersion,
       (aptId) => this.findById(aptId),
     );
+
+    if (
+      this.queuePositionRecalculationService &&
+      aptBefore &&
+      (status === DOMAIN_APPOINTMENT_STATUS.CANCELLED ||
+        status === DOMAIN_APPOINTMENT_STATUS.COMPLETED)
+    ) {
+      await this.queuePositionRecalculationService
+        .recalculateDoctorQueue({
+          serviceDate: aptBefore.scheduledDate,
+          practitionerId: aptBefore.practitionerId,
+        })
+        .catch(() => {});
+    }
+
+    return result;
   }
 
   async getNextQueueIndex(

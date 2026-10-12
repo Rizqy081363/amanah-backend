@@ -267,6 +267,13 @@
       "when": 1791321000000,
       "tag": "0037_recycle_completed_queue_tickets",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1791322000000,
+      "tag": "0038_scope_active_queue_tickets_by_doctor",
+      "breakpoints": true
     }
   ]
 }

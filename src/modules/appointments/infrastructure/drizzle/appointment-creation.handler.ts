@@ -279,13 +279,20 @@ export class AppointmentCreationHandler {
       );
     const numericQueueNumber = (activeCountRow?.count || 0) + 1;
 
-    // Resolve collision-free ticket number for (serviceId, queueDate) among active tickets
+    // Resolve collision-free ticket number for target doctor stream or unassigned service pool among active tickets
+    const ticketScopeCondition = practitionerId
+      ? eq(queueTickets.doctorId, practitionerId)
+      : and(
+          isNull(queueTickets.doctorId),
+          eq(queueTickets.serviceId, data.layananId),
+        );
+
     const existingTickets = await db
       .select({ queueNumber: queueTickets.queueNumber })
       .from(queueTickets)
       .where(
         and(
-          eq(queueTickets.serviceId, data.layananId),
+          ticketScopeCondition,
           eq(queueTickets.queueDate, data.appointmentDate),
           inArray(queueTickets.status, [
             QUEUE_TICKET_STATUS.WAITING,
@@ -373,6 +380,7 @@ export class AppointmentCreationHandler {
           projectedStart: estimatedStart.toISOString(),
           projectedEnd: estimatedEnd.toISOString(),
           source: 'online',
+          assignedAt: new Date().toISOString(),
         })
         .returning();
       ticket = insertedTicket;

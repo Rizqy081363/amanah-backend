@@ -79,6 +79,8 @@ export class QueuePositionRecalculationService {
         ticketId: queueTickets.id,
         ticketWaitingPosition: queueTickets.waitingPosition,
         ticketStatus: queueTickets.status,
+        ticketQueueNumber: queueTickets.queueNumber,
+        ticketAssignedAt: queueTickets.assignedAt,
       })
       .from(appointments)
       .leftJoin(
@@ -101,20 +103,36 @@ export class QueuePositionRecalculationService {
       )
       .orderBy(
         sql`CASE WHEN ${appointments.status} = ${DB_APPOINTMENT_STATUS.IN_SERVICE} THEN 0 ELSE 1 END`,
-        asc(appointments.scheduledStartTime),
         asc(
-          sql`COALESCE(${queueTickets.createdAt}, ${appointments.createdAt})`,
+          sql`COALESCE(${queueTickets.assignedAt}, ${queueTickets.createdAt}, ${appointments.createdAt})`,
         ),
+        asc(appointments.scheduledStartTime),
         asc(appointments.createdAt),
+        asc(appointments.id),
       );
 
     // 2. Compute compacted 1..N assignments
     const compactedQueue: CompactedQueueItem[] = [];
     const appointmentUpdates: Array<{ id: string; queueNumber: number }> = [];
-    const ticketUpdates: Array<{ id: string; waitingPosition: number }> = [];
+    const ticketUpdates: Array<{
+      id: string;
+      waitingPosition: number;
+      queueNumber?: string;
+    }> = [];
 
     let position = 1;
     for (const apt of activeAppointments) {
+      let nextFormattedTicketNumber: string | undefined;
+
+      if (apt.ticketId && apt.ticketQueueNumber) {
+        const cleanNumber = apt.ticketQueueNumber
+          .replace(/^TMP_[^_]+_/, '')
+          .replace(/^TMP_/, '');
+        const match = cleanNumber.match(/^(.*?)([0-9]+)$/);
+        const prefix = match ? match[1] : 'Q-';
+        nextFormattedTicketNumber = `${prefix}${String(position).padStart(3, '0')}`;
+      }
+
       compactedQueue.push({
         appointmentId: apt.id,
         ticketId: apt.ticketId || null,
@@ -130,10 +148,16 @@ export class QueuePositionRecalculationService {
         });
       }
 
-      if (apt.ticketId && apt.ticketWaitingPosition !== position) {
+      if (
+        apt.ticketId &&
+        (apt.ticketWaitingPosition !== position ||
+          (nextFormattedTicketNumber &&
+            apt.ticketQueueNumber !== nextFormattedTicketNumber))
+      ) {
         ticketUpdates.push({
           id: apt.ticketId,
           waitingPosition: position,
+          queueNumber: nextFormattedTicketNumber,
         });
       }
 
@@ -170,11 +194,29 @@ export class QueuePositionRecalculationService {
           .where(eq(appointments.id, update.id));
       }
 
+      // Two-phase update to prevent transient unique constraint collisions on queue_number
+      const ticketsWithNumberChange = ticketUpdates.filter(
+        (u) => u.queueNumber !== undefined,
+      );
+
+      // Phase 1: Temporary prefix
+      for (const update of ticketsWithNumberChange) {
+        await tx
+          .update(queueTickets)
+          .set({
+            queueNumber: sql`'TMP_' || ${update.id}`,
+            updatedAt: sql`NOW()`,
+          })
+          .where(eq(queueTickets.id, update.id));
+      }
+
+      // Phase 2: Final ticket values
       for (const update of ticketUpdates) {
         await tx
           .update(queueTickets)
           .set({
             waitingPosition: update.waitingPosition,
+            ...(update.queueNumber ? { queueNumber: update.queueNumber } : {}),
             updatedAt: sql`NOW()`,
           })
           .where(eq(queueTickets.id, update.id));

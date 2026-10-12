@@ -1712,6 +1712,10 @@ export const queueTickets = pgTable(
     autoClosed: boolean('auto_closed').default(false).notNull(),
     legacyRef: text('legacy_ref'),
     source: varchar('source', { length: 16 }).default('online').notNull(),
+    assignedAt: timestamp('assigned_at', {
+      withTimezone: true,
+      mode: 'string',
+    }).defaultNow(),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
       .notNull(),
@@ -1747,9 +1751,16 @@ export const queueTickets = pgTable(
       foreignColumns: [clinicServices.id],
       name: 'queue_tickets_service_id_fkey',
     }).onDelete('restrict'),
-    uniqueIndex('queue_tickets_unique_active_number_idx')
+    uniqueIndex('queue_tickets_unique_active_doctor_number_idx')
+      .on(table.doctorId, table.queueDate, table.queueNumber)
+      .where(
+        sql`${table.doctorId} IS NOT NULL AND ${table.status} IN ('waiting', 'called', 'in_service')`,
+      ),
+    uniqueIndex('queue_tickets_unique_active_unassigned_number_idx')
       .on(table.serviceId, table.queueDate, table.queueNumber)
-      .where(sql`${table.status} IN ('waiting', 'called', 'in_service')`),
+      .where(
+        sql`${table.doctorId} IS NULL AND ${table.status} IN ('waiting', 'called', 'in_service')`,
+      ),
     check(
       'queue_tickets_number_not_blank',
       sql`length(TRIM(BOTH FROM queue_number)) > 0`,

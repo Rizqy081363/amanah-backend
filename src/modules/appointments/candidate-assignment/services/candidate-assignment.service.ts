@@ -7,7 +7,10 @@ import {
 } from '../../application/ports/realtime-emitter.port';
 import { AppointmentEntity } from '../../domain/entities/appointment.entity';
 import { toDomainStatus } from '../../domain/types/appointment.types';
-import { isTerminalAppointmentStatus } from '../../domain/constants/appointment-lifecycle.constants';
+import {
+  DB_APPOINTMENT_STATUS,
+  isTerminalAppointmentStatus,
+} from '../../domain/constants/appointment-lifecycle.constants';
 import {
   AppointmentNotFoundException,
   AppointmentTerminalStateException,
@@ -53,6 +56,12 @@ export class CandidateAssignmentService implements ICandidateAssignmentPort {
 
     if (isTerminalAppointmentStatus(apt.status)) {
       throw new AppointmentTerminalStateException(apt.status);
+    }
+
+    if (apt.status === DB_APPOINTMENT_STATUS.IN_SERVICE) {
+      throw new BadRequestException(
+        'Pasien sedang diperiksa oleh dokter (in_service) dan tidak dapat dialihkan',
+      );
     }
 
     if (apt.practitionerId === targetDoctorId) {
@@ -107,6 +116,7 @@ export class CandidateAssignmentService implements ICandidateAssignmentPort {
     await this.repository.updateAppointmentDoctorTransactional({
       appointmentId,
       targetDoctorId,
+      previousDoctorId,
       targetRoomId,
       updatedBy: currentUserId,
       reason: finalReason,

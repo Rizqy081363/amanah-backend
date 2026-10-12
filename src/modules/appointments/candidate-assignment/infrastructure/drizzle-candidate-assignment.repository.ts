@@ -234,12 +234,28 @@ export class DrizzleCandidateAssignmentRepository {
   async updateAppointmentDoctorTransactional(params: {
     appointmentId: string;
     targetDoctorId: string;
+    previousDoctorId?: string | null;
     targetRoomId?: string | null;
     updatedBy?: string | null;
     reason?: string;
     previousStatus: string;
   }) {
     return this.db.transaction(async (tx) => {
+      // Transaction-level advisory lock to serialize concurrent doctor reassignments
+      const lockKeyTarget = `doctor_queue_${params.targetDoctorId}`;
+      await tx.execute(
+        sql`SELECT pg_advisory_xact_lock(hashtext(${lockKeyTarget}))`,
+      );
+      if (
+        params.previousDoctorId &&
+        params.previousDoctorId !== params.targetDoctorId
+      ) {
+        const lockKeyPrev = `doctor_queue_${params.previousDoctorId}`;
+        await tx.execute(
+          sql`SELECT pg_advisory_xact_lock(hashtext(${lockKeyPrev}))`,
+        );
+      }
+
       await tx
         .update(appointments)
         .set({
@@ -256,9 +272,13 @@ export class DrizzleCandidateAssignmentRepository {
         .update(queueTickets)
         .set({
           doctorId: params.targetDoctorId,
+          queueNumber: sql`CASE WHEN ${queueTickets.doctorId} IS DISTINCT FROM ${params.targetDoctorId}::uuid THEN 'TMP_' || ${queueTickets.id} || '_' || ${queueTickets.queueNumber} ELSE ${queueTickets.queueNumber} END`,
+          assignedAt: sql`CASE WHEN ${queueTickets.doctorId} IS DISTINCT FROM ${params.targetDoctorId}::uuid THEN NOW() ELSE COALESCE(${queueTickets.assignedAt}, NOW()) END`,
           ...(params.targetRoomId !== undefined
             ? { roomId: params.targetRoomId }
             : {}),
+          status: sql`CASE WHEN ${queueTickets.status} = ${QUEUE_TICKET_STATUS.CALLED} THEN ${QUEUE_TICKET_STATUS.WAITING}::queue_status ELSE ${queueTickets.status} END`,
+          calledAt: sql`CASE WHEN ${queueTickets.status} = ${QUEUE_TICKET_STATUS.CALLED} THEN NULL ELSE ${queueTickets.calledAt} END`,
         })
         .where(eq(queueTickets.appointmentId, params.appointmentId));
 

@@ -240,12 +240,19 @@ export class AppointmentRescheduleHandler {
         );
       let numericQueueNumber = (activeCountRow?.count || 0) + 1;
 
+      const ticketScopeCondition = apt.practitionerId
+        ? eq(queueTickets.doctorId, apt.practitionerId)
+        : and(
+            isNull(queueTickets.doctorId),
+            eq(queueTickets.serviceId, apt.serviceId),
+          );
+
       const existingTickets = await tx
         .select({ queueNumber: queueTickets.queueNumber })
         .from(queueTickets)
         .where(
           and(
-            eq(queueTickets.serviceId, apt.serviceId),
+            ticketScopeCondition,
             eq(queueTickets.queueDate, targetDate),
             inArray(queueTickets.status, [
               QUEUE_TICKET_STATUS.WAITING,
@@ -296,6 +303,7 @@ export class AppointmentRescheduleHandler {
           waitingPosition: numericQueueNumber,
           carriedOver: true,
           source: 'online',
+          assignedAt: nowIso,
           createdAt: nowIso,
           updatedAt: nowIso,
         })
