@@ -349,6 +349,7 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
         eq(queueTickets.queueNumber, queueNumber),
         eq(queueTickets.queueDate, date),
       ),
+      orderBy: [desc(queueTickets.createdAt)],
       with: {
         appointment: {
           with: APPOINTMENT_RELATIONS,

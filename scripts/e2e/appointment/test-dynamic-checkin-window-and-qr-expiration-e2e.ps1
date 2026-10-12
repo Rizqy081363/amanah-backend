@@ -185,7 +185,7 @@ Assert-Test "QR 1 token generated" ($null -ne $qr1Res.token -and $qr1Res.token.L
 Assert-Test "QR 1 manualCode generated" ($null -ne $qr1Res.manualCode -and $qr1Res.manualCode.Length -ge 6)
 Assert-Test "QR 1 expiresAt returned" ($null -ne $qr1Res.expiresAt)
 
-$expiresAtUtc = [DateTime]::Parse($qr1Res.expiresAt).ToUniversalTime()
+$expiresAtUtc = [DateTime]::Parse($qr1Res.expiresAt, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::AssumeUniversal).ToUniversalTime()
 $expectedExpiresAtMin = $beforeGenTime.AddHours(24).AddSeconds(-10)
 $expectedExpiresAtMax = $afterGenTime.AddHours(24).AddSeconds(10)
 
@@ -252,7 +252,7 @@ $qr2Res = Get-ResponseData (Invoke-RestMethod -Uri "$apiUrl/appointments/$apt2Id
 $afterGenTime12 = [DateTime]::UtcNow
 
 Assert-Test "QR 2 token generated" ($null -ne $qr2Res.token)
-$expiresAt12Utc = [DateTime]::Parse($qr2Res.expiresAt).ToUniversalTime()
+$expiresAt12Utc = [DateTime]::Parse($qr2Res.expiresAt, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::AssumeUniversal).ToUniversalTime()
 $expectedExpiresAt12Min = $beforeGenTime12.AddHours(12).AddSeconds(-10)
 $expectedExpiresAt12Max = $afterGenTime12.AddHours(12).AddSeconds(10)
 

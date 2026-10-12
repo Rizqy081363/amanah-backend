@@ -1747,11 +1747,9 @@ export const queueTickets = pgTable(
       foreignColumns: [clinicServices.id],
       name: 'queue_tickets_service_id_fkey',
     }).onDelete('restrict'),
-    unique('queue_tickets_unique_number_per_service_date').on(
-      table.serviceId,
-      table.queueDate,
-      table.queueNumber,
-    ),
+    uniqueIndex('queue_tickets_unique_active_number_idx')
+      .on(table.serviceId, table.queueDate, table.queueNumber)
+      .where(sql`${table.status} IN ('waiting', 'called', 'in_service')`),
     check(
       'queue_tickets_number_not_blank',
       sql`length(TRIM(BOTH FROM queue_number)) > 0`,

@@ -247,6 +247,11 @@ export class AppointmentRescheduleHandler {
           and(
             eq(queueTickets.serviceId, apt.serviceId),
             eq(queueTickets.queueDate, targetDate),
+            inArray(queueTickets.status, [
+              QUEUE_TICKET_STATUS.WAITING,
+              QUEUE_TICKET_STATUS.CALLED,
+              QUEUE_TICKET_STATUS.IN_SERVICE,
+            ]),
           ),
         );
       const usedNumbers = new Set(existingTickets.map((t) => t.queueNumber));

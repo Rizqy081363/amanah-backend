@@ -279,7 +279,7 @@ export class AppointmentCreationHandler {
       );
     const numericQueueNumber = (activeCountRow?.count || 0) + 1;
 
-    // Resolve collision-free ticket number for (serviceId, queueDate)
+    // Resolve collision-free ticket number for (serviceId, queueDate) among active tickets
     const existingTickets = await db
       .select({ queueNumber: queueTickets.queueNumber })
       .from(queueTickets)
@@ -287,6 +287,11 @@ export class AppointmentCreationHandler {
         and(
           eq(queueTickets.serviceId, data.layananId),
           eq(queueTickets.queueDate, data.appointmentDate),
+          inArray(queueTickets.status, [
+            QUEUE_TICKET_STATUS.WAITING,
+            QUEUE_TICKET_STATUS.CALLED,
+            QUEUE_TICKET_STATUS.IN_SERVICE,
+          ]),
         ),
       );
     const usedNumbers = new Set(existingTickets.map((t) => t.queueNumber));
