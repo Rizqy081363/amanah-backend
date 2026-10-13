@@ -640,12 +640,18 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
               currentlyCalled.consultationElapsedSeconds,
             consultationDurationFormatted:
               currentlyCalled.consultationDurationFormatted,
+            etaRange: currentlyCalled.etaRange,
+            estimatedStartAt: currentlyCalled.estimatedStartAt,
+            estimatedEndAt: currentlyCalled.estimatedEndAt,
           }
         : null,
       nextTickets: waitingList.slice(0, 5).map((w) => ({
         queueNumber: w.queueNumber,
         patientName: w.patientName,
         poliklinikName: w.poliklinikName,
+        etaRange: w.etaRange,
+        estimatedStartAt: w.estimatedStartAt,
+        estimatedEndAt: w.estimatedEndAt,
       })),
       statistics: {
         totalQueue: dailyAppointments.length,
