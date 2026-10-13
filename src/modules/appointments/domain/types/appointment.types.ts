@@ -83,6 +83,7 @@ export interface AllowedActionsContext {
   hasDoctor?: boolean;
   hasRoom?: boolean;
   aheadCount?: number;
+  isDoctorServing?: boolean;
 }
 
 export function resolveAllowedActions(
@@ -94,7 +95,12 @@ export function resolveAllowedActions(
       ? { aheadCount: contextOrAheadCount, hasDoctor: true, hasRoom: true }
       : contextOrAheadCount;
 
-  const { hasDoctor = false, hasRoom = false, aheadCount = 0 } = context;
+  const {
+    hasDoctor = false,
+    hasRoom = false,
+    aheadCount = 0,
+    isDoctorServing = false,
+  } = context;
   const isFullyAssigned = Boolean(hasDoctor && hasRoom);
 
   switch (status) {
@@ -113,7 +119,7 @@ export function resolveAllowedActions(
       return actions;
     }
     case 'WAITING':
-      return aheadCount === 0 && isFullyAssigned
+      return aheadCount === 0 && isFullyAssigned && !isDoctorServing
         ? ['CALL', 'START_SERVICE', 'CANCEL', 'RESCHEDULE']
         : ['CANCEL', 'RESCHEDULE'];
     case 'LATE':

@@ -127,17 +127,34 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
     if (this.poliklinikResolver) {
       await this.poliklinikResolver.loadFromDatabase();
     }
+    const busyDoctorIds = new Set<string>();
+    for (const r of records) {
+      if (
+        r.practitionerId &&
+        (r.status === DB_APPOINTMENT_STATUS.IN_SERVICE ||
+          r.queueTickets?.[0]?.status === QUEUE_TICKET_STATUS.IN_SERVICE)
+      ) {
+        busyDoctorIds.add(r.practitionerId);
+      }
+    }
+
     const staleLateIds: string[] = [];
     const results = records.map((apt) => {
       const resolvedUnit = this.poliklinikResolver
         ? this.poliklinikResolver.resolveSync(apt, poliId)
         : undefined;
+      const isDoctorServing = Boolean(
+        apt.practitionerId &&
+          busyDoctorIds.has(apt.practitionerId) &&
+          apt.status !== DB_APPOINTMENT_STATUS.IN_SERVICE,
+      );
       const entity = AppointmentRecordMapper.toEntity(
         apt,
         apt.queueTickets?.[0],
         resolvedUnit || poliId,
         windowHours,
         this.clinicTimeService,
+        isDoctorServing,
       );
       if (
         entity.status === DOMAIN_APPOINTMENT_STATUS.LATE &&
@@ -490,6 +507,17 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
       with: APPOINTMENT_RELATIONS,
     });
 
+    const busyDoctorIds = new Set<string>();
+    for (const r of records) {
+      if (
+        r.practitionerId &&
+        (r.status === DB_APPOINTMENT_STATUS.IN_SERVICE ||
+          r.queueTickets?.[0]?.status === QUEUE_TICKET_STATUS.IN_SERVICE)
+      ) {
+        busyDoctorIds.add(r.practitionerId);
+      }
+    }
+
     return records
       .filter((apt) => {
         if (
@@ -509,12 +537,18 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
         const resolvedUnit = this.poliklinikResolver
           ? this.poliklinikResolver.resolveSync(apt, poliklinikId)
           : undefined;
+        const isDoctorServing = Boolean(
+          apt.practitionerId &&
+            busyDoctorIds.has(apt.practitionerId) &&
+            apt.status !== DB_APPOINTMENT_STATUS.IN_SERVICE,
+        );
         return AppointmentRecordMapper.toEntity(
           apt,
           apt.queueTickets?.[0],
           resolvedUnit || poliklinikId,
           undefined,
           this.clinicTimeService,
+          isDoctorServing,
         );
       });
   }

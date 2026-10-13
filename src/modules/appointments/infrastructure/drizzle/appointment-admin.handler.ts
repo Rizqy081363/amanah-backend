@@ -1,5 +1,5 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
-import { eq } from 'drizzle-orm';
+import { and, asc, eq, inArray, lt, ne } from 'drizzle-orm';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
   appointmentStatusEvents,
@@ -200,6 +200,52 @@ export class AppointmentAdminHandler {
         ) {
           throw new BadRequestException(
             `Janji temu dengan status '${previousStatus}' tidak dapat diubah menjadi sedang diperiksa (in_service).`,
+          );
+        }
+
+        // 1. Guard against doctor concurrent examination (a doctor can only examine 1 patient at a time)
+        const [activeServing] = await tx
+          .select({ id: appointments.id, queueNumber: appointments.queueNumber })
+          .from(appointments)
+          .where(
+            and(
+              eq(appointments.scheduledDate, apt.scheduledDate),
+              eq(appointments.practitionerId, apt.practitionerId),
+              eq(appointments.status, DB_APPOINTMENT_STATUS.IN_SERVICE),
+              ne(appointments.id, appointmentId),
+            ),
+          )
+          .limit(1);
+
+        if (activeServing) {
+          throw new BadRequestException(
+            `Dokter sedang memeriksa pasien lain (Nomor antrean ${activeServing.queueNumber ?? 1}). Selesaikan pemeriksaan pasien tersebut terlebih dahulu sebelum memulai pemeriksaan baru.`,
+          );
+        }
+
+        // 2. Guard against queue jumping (earlier queue position under this doctor must be served first)
+        const currentQueueNum = Number(apt.queueNumber ?? 1);
+        const [earlierWaiting] = await tx
+          .select({ id: appointments.id, queueNumber: appointments.queueNumber })
+          .from(appointments)
+          .where(
+            and(
+              eq(appointments.scheduledDate, apt.scheduledDate),
+              eq(appointments.practitionerId, apt.practitionerId),
+              inArray(appointments.status, [
+                DB_APPOINTMENT_STATUS.WAITING,
+                DB_APPOINTMENT_STATUS.CHECKED_IN,
+              ]),
+              lt(appointments.queueNumber, currentQueueNum),
+              ne(appointments.id, appointmentId),
+            ),
+          )
+          .orderBy(asc(appointments.queueNumber))
+          .limit(1);
+
+        if (earlierWaiting) {
+          throw new BadRequestException(
+            `Pasien belum giliran. Nomor antrean sebelumnya (${earlierWaiting.queueNumber ?? 1}) masih menunggu dan harus diperiksa terlebih dahulu.`,
           );
         }
       }

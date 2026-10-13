@@ -53,18 +53,19 @@ if ($activeData) {
 
 if (-not $targetApt) {
     Write-Host " No eligible active appointment found. Booking fresh appointment first..." -ForegroundColor DarkGray
-    $categories = Get-ResponseData (Invoke-RestMethod -Uri "$apiUrl/patients/reference/categories" -Method Get -Headers $patientAuth.headers)
-    $poliKIA = @($categories.polikliniks) | Where-Object { $_.name -like "*KIA*" } | Select-Object -First 1
-    $ancService = @($categories.services) | Where-Object { $_.name -like "*Kehamilan*" } | Select-Object -First 1
-    $doctor = @($categories.practitioners) | Where-Object { $_.name -like "*Siti*" } | Select-Object -First 1
-    $patientProfileId = $patientAuth.user.patientProfiles[0].id
+    $patientProfileId = (Run-DockerSql "SELECT id FROM patient_profiles WHERE user_id = '$($patientAuth.user.id)';").Trim()
+    $poliUmumId = (Run-DockerSql "SELECT id FROM clinic_units WHERE code = 'poli_umum';").Trim()
+    $serviceUmum = (Run-DockerSql "SELECT id FROM clinic_services WHERE code = 'usg_umum';").Trim()
+    $doctor = (Run-DockerSql "SELECT id FROM practitioners WHERE display_name = 'dr. Ahmad Santoso';").Trim()
+    $room1 = (Run-DockerSql "SELECT id FROM clinic_rooms WHERE unit_id = '$poliUmumId' ORDER BY name ASC LIMIT 1;").Trim()
     $today = (Get-Date).ToString("yyyy-MM-dd")
 
     $bookPayload = @{
         patientId = $patientProfileId
-        poliklinikId = $poliKIA.id
-        layananId = $ancService.id
-        staffId = $doctor.id
+        poliklinikId = $poliUmumId
+        layananId = $serviceUmum
+        staffId = $doctor
+        roomId = $room1
         appointmentDate = $today
         session = "PAGI"
         complaint = "E2E Call Lifecycle Validation"
@@ -73,6 +74,9 @@ if (-not $targetApt) {
 
     $bookedRes = Invoke-RestMethod -Uri "$apiUrl/appointments" -Method Post -Headers $patientAuth.headers -Body $bookPayload -ContentType "application/json"
     $targetApt = Get-ResponseData $bookedRes
+    if ($room1) {
+        $null = Invoke-RestMethod -Uri "$apiUrl/admin/appointments/$($targetApt.id)/room" -Method Patch -Body (@{ roomId = $room1 } | ConvertTo-Json) -Headers $adminAuth.headers -ContentType "application/json"
+    }
 }
 
 Assert-Test "Target appointment established" ($null -ne $targetApt -and $null -ne $targetApt.id)

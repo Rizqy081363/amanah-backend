@@ -1,5 +1,5 @@
 import { Inject, Injectable, Optional } from '@nestjs/common';
-import { and, asc, count, desc, eq, inArray, or, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, lt, ne, or, sql } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
@@ -28,6 +28,8 @@ import {
   AppointmentNotCallableError,
   AppointmentNotCheckedInError,
   AppointmentNotFoundError,
+  AppointmentQueueTurnNotReachedError,
+  DoctorAlreadyServingError,
   StaleStatusError,
 } from '../../domain/errors/appointment-domain.errors';
 import { computeConsultationMetrics } from '../../domain/helpers/consultation-duration.helper';
@@ -254,6 +256,55 @@ export class AppointmentHardenedDrizzleRepository
           existingRecord.status,
         );
       }
+
+      // 1. Guard against doctor concurrent examination (a doctor can only examine 1 patient at a time)
+      const [activeServing] = await this.db
+        .select({ id: appointments.id, queueNumber: appointments.queueNumber })
+        .from(appointments)
+        .where(
+          and(
+            eq(appointments.scheduledDate, existingRecord.scheduledDate),
+            eq(appointments.practitionerId, existingRecord.practitionerId),
+            eq(appointments.status, DB_APPOINTMENT_STATUS.IN_SERVICE),
+            ne(appointments.id, input.id),
+          ),
+        )
+        .limit(1);
+
+      if (activeServing) {
+        throw new DoctorAlreadyServingError(
+          existingRecord.practitionerId,
+          activeServing.queueNumber ?? 1,
+        );
+      }
+
+      // 2. Guard against queue jumping (earlier queue position under this doctor must be served first)
+      const currentQueueNum = Number(existingRecord.queueNumber ?? 1);
+      const [earlierWaiting] = await this.db
+        .select({ id: appointments.id, queueNumber: appointments.queueNumber })
+        .from(appointments)
+        .where(
+          and(
+            eq(appointments.scheduledDate, existingRecord.scheduledDate),
+            eq(appointments.practitionerId, existingRecord.practitionerId),
+            inArray(appointments.status, [
+              DB_APPOINTMENT_STATUS.WAITING,
+              DB_APPOINTMENT_STATUS.CHECKED_IN,
+            ]),
+            lt(appointments.queueNumber, currentQueueNum),
+            ne(appointments.id, input.id),
+          ),
+        )
+        .orderBy(asc(appointments.queueNumber))
+        .limit(1);
+
+      if (earlierWaiting) {
+        throw new AppointmentQueueTurnNotReachedError(
+          input.id,
+          existingRecord.queueNumber ?? 1,
+          earlierWaiting.queueNumber ?? 1,
+        );
+      }
     }
 
     const allowedStatuses =
@@ -348,6 +399,15 @@ export class AppointmentHardenedDrizzleRepository
         .set(updateTicketPayload)
         .where(eq(queueTickets.appointmentId, input.id));
     } catch (_) {}
+
+    if (this.queuePositionRecalculationService && updated) {
+      await this.queuePositionRecalculationService
+        .recalculateDoctorQueue({
+          serviceDate: updated.scheduledDate,
+          practitionerId: updated.practitionerId,
+        })
+        .catch(() => {});
+    }
 
     const full = await this.findById(input.id);
     return full!;

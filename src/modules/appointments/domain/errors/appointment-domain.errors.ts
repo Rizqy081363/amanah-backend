@@ -117,3 +117,28 @@ export class AppointmentNotCheckedInError extends AppointmentDomainError {
     );
   }
 }
+
+export class DoctorAlreadyServingError extends AppointmentDomainError {
+  constructor(practitionerId: string, servingQueueNumber: number | string) {
+    super(
+      'DOCTOR_ALREADY_SERVING',
+      `Dokter sedang memeriksa pasien lain (Nomor antrean ${servingQueueNumber}). Selesaikan pemeriksaan pasien tersebut terlebih dahulu sebelum memulai pemeriksaan baru.`,
+      { practitionerId, servingQueueNumber },
+    );
+  }
+}
+
+export class AppointmentQueueTurnNotReachedError extends AppointmentDomainError {
+  constructor(
+    appointmentId: string,
+    currentQueueNumber: number | string,
+    earlierQueueNumber: number | string,
+  ) {
+    super(
+      'QUEUE_TURN_NOT_REACHED',
+      `Pasien belum giliran. Nomor antrean sebelumnya (${earlierQueueNumber}) masih menunggu dan harus diperiksa terlebih dahulu.`,
+      { appointmentId, currentQueueNumber, earlierQueueNumber },
+    );
+  }
+}
+

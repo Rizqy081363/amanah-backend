@@ -36,6 +36,7 @@ export class AppointmentRecordMapper {
       | null,
     windowHours?: number,
     clinicTimeService?: ClinicTimeService,
+    isDoctorServing?: boolean,
   ): AppointmentEntity {
     let domainStatus = toDomainStatus(apt.status);
     let rawStatus = apt.status;
@@ -238,6 +239,7 @@ export class AppointmentRecordMapper {
         hasDoctor,
         hasRoom,
         aheadCount,
+        isDoctorServing,
       }),
       visitType:
         apt.visitType === 'follow_up' ? 'Kontrol Ulang' : 'Pemeriksaan Baru',

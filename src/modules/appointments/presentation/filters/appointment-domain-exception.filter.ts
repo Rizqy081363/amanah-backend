@@ -12,7 +12,9 @@ import {
   AppointmentNotCallableError,
   AppointmentNotCheckedInError,
   AppointmentNotFoundError,
+  AppointmentQueueTurnNotReachedError,
   DailyQuotaExceededError,
+  DoctorAlreadyServingError,
   InvalidStatusTransitionError,
   PatientActiveTicketConflictError,
   SchedulePolicyNotFoundError,
@@ -45,6 +47,8 @@ export class AppointmentDomainExceptionFilter implements ExceptionFilter {
       exception instanceof AppointmentMissingRoomError ||
       exception instanceof AppointmentNotCheckedInError ||
       exception instanceof AppointmentNotCallableError ||
+      exception instanceof DoctorAlreadyServingError ||
+      exception instanceof AppointmentQueueTurnNotReachedError ||
       exception instanceof DailyQuotaExceededError ||
       exception instanceof SchedulePolicyNotFoundError
     ) {
