@@ -3,7 +3,11 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
-import { and, asc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
+import { Temporal } from '@js-temporal/polyfill';
+import { isUUID } from 'class-validator';
+import { and, asc, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm';
+import type { ClinicConfigService } from '../../../../common/clinic-config/clinic-config.service';
+import type { ClinicTimeService } from '../../../../common/time/clinic-time.service';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
   appointmentStatusEvents,
@@ -11,6 +15,7 @@ import {
   clinicClosures,
   clinicServices,
   clinicSettings,
+  doctorAssignments,
   patientAffiliations,
   patientProfiles,
   queueTickets,
@@ -19,6 +24,7 @@ import {
   userRoles,
 } from '../../../../database/schema';
 import { resolveQueueLoadStatus } from '../../../queue-engine/domain/constants/queue-load.constants';
+import { ScheduleShiftRegistry } from '../../../schedules/domain/constants/schedule-shift.constants';
 import {
   CLINIC_ADMIN_STAFF_ROLE_CODES,
   DB_APPOINTMENT_STATUS,
@@ -26,6 +32,7 @@ import {
 } from '../../domain/constants/appointment-lifecycle.constants';
 import { QUEUE_PRIORITY } from '../../../queue-engine/domain/constants/queue-engine.constants';
 import type { AppointmentEntity } from '../../domain/entities/appointment.entity';
+import { ActiveTicketPolicyService } from '../../domain/services/active-ticket-policy.service';
 import { RescheduleAppointmentDto } from '../../presentation/dto/reschedule-appointment.dto';
 import type { QueuePositionRecalculationService } from '../../../queue-engine/application/services/queue-position-recalculation.service';
 
@@ -158,8 +165,14 @@ export class AppointmentRescheduleHandler {
     findById: (id: string) => Promise<AppointmentEntity | null>,
     user?: any,
     queuePositionRecalculationService?: QueuePositionRecalculationService,
+    clinicConfig?: ClinicConfigService,
+    clinicTimeService?: ClinicTimeService,
   ): Promise<AppointmentEntity> {
-    const targetSessionId = dto.target_session_id || dto.newSessionId;
+    const rawSession =
+      dto.session ||
+      dto.target_session ||
+      dto.target_session_id ||
+      dto.newSessionId;
     const targetDate = dto.target_date || dto.newDate;
 
     if (!targetDate) {
@@ -193,14 +206,51 @@ export class AppointmentRescheduleHandler {
       await validateAppointmentStateForReschedule(tx, apt, isAdmin);
 
       let targetSessionDef: any = null;
-      if (targetSessionId) {
-        targetSessionDef = await tx.query.sessionDefs.findFirst({
-          where: or(
-            eq(sessionDefs.id, targetSessionId),
-            eq(sessionDefs.code, targetSessionId),
-          ),
-        });
+      if (rawSession) {
+        const trimmed = rawSession.trim();
+
+        if (isUUID(trimmed)) {
+          targetSessionDef = await tx.query.sessionDefs.findFirst({
+            where: eq(sessionDefs.id, trimmed),
+          });
+          if (!targetSessionDef) {
+            const assignment = await tx.query.doctorAssignments.findFirst({
+              where: eq(doctorAssignments.id, trimmed),
+            });
+            if (assignment?.sessionId) {
+              targetSessionDef = await tx.query.sessionDefs.findFirst({
+                where: eq(sessionDefs.id, assignment.sessionId),
+              });
+            }
+          }
+        } else if (trimmed.startsWith('session-')) {
+          const parts = trimmed.split('-');
+          const possibleUuid = parts[1];
+          if (possibleUuid && isUUID(possibleUuid)) {
+            const assignment = await tx.query.doctorAssignments.findFirst({
+              where: eq(doctorAssignments.id, possibleUuid),
+            });
+            if (assignment?.sessionId) {
+              targetSessionDef = await tx.query.sessionDefs.findFirst({
+                where: eq(sessionDefs.id, assignment.sessionId),
+              });
+            }
+          }
+        }
+
+        if (!targetSessionDef) {
+          const targetShift = ScheduleShiftRegistry.resolve(trimmed).shift;
+          const normalizedSession = trimmed.toLowerCase();
+          targetSessionDef = await tx.query.sessionDefs.findFirst({
+            where: or(
+              eq(sessionDefs.code, targetShift),
+              ilike(sessionDefs.code, `%${normalizedSession}%`),
+              ilike(sessionDefs.labelKey, `%${normalizedSession}%`),
+            ),
+          });
+        }
       }
+
       if (!targetSessionDef) {
         targetSessionDef = await tx.query.sessionDefs.findFirst({
           where: eq(sessionDefs.code, 'morning'),
@@ -294,26 +344,75 @@ export class AppointmentRescheduleHandler {
         formattedTicketNumber = `${categoryPrefix}-${sessionPrefix}${String(ticketIndex).padStart(3, '0')}`;
       }
 
-      const oldTickets = await tx
+      const [existingTicket] = await tx
         .select()
         .from(queueTickets)
         .where(eq(queueTickets.appointmentId, apt.id));
 
-      if (oldTickets.length > 0) {
-        for (const oldT of oldTickets) {
-          await tx
-            .update(queueTickets)
-            .set({
-              status: QUEUE_TICKET_STATUS.CANCELLED,
-              updatedAt: nowIso,
-            })
-            .where(eq(queueTickets.id, oldT.id));
-        }
+      // Rule H2 & Blueprint Section 4.5: Satu tiket aktif per pasien per kategori per hari
+      if (apt.patientId && categoryId && targetDate) {
+        await ActiveTicketPolicyService.assertNoActiveTicketConflict(
+          tx,
+          {
+            patientId: apt.patientId,
+            categoryId,
+            queueDate: targetDate,
+            excludeTicketId: existingTicket?.id,
+          },
+          clinicConfig,
+        );
       }
 
-      const [newTicket] = await tx
-        .insert(queueTickets)
-        .values({
+      const policy = clinicConfig
+        ? await clinicConfig.getSchedulePolicy().catch(() => null)
+        : null;
+
+      const [startH, startM] = (sTime || '08:00')
+        .split(':')
+        .map((v: string) => parseInt(v, 10));
+      const h = Number.isNaN(startH) ? 8 : startH;
+      const m = Number.isNaN(startM) ? 0 : startM;
+      const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
+      const tz =
+        clinicTimeService?.getTimezone() ||
+        (clinicConfig ? await clinicConfig.getTimezone() : 'Asia/Jakarta');
+
+      const baseStart = new Date(
+        Temporal.PlainDateTime.from(`${targetDate}T${timeStr}`)
+          .toZonedDateTime(tz)
+          .toInstant().epochMilliseconds,
+      );
+
+      const consultationMinutes =
+        policy?.defaultConsultationDurationMinutes ?? 20;
+      const queueOffsetMinutes =
+        Math.max(0, numericQueueNumber - 1) * consultationMinutes;
+      const estimatedStart = new Date(
+        baseStart.getTime() + queueOffsetMinutes * 60_000,
+      );
+      const estimatedEnd = new Date(
+        estimatedStart.getTime() + consultationMinutes * 60_000,
+      );
+
+      if (existingTicket) {
+        await tx
+          .update(queueTickets)
+          .set({
+            queueDate: targetDate,
+            sessionId: targetSessionDef?.id || null,
+            queueNumber: formattedTicketNumber,
+            status: QUEUE_TICKET_STATUS.WAITING,
+            priority: QUEUE_PRIORITY.REGULAR,
+            waitingPosition: numericQueueNumber,
+            projectedStart: estimatedStart.toISOString(),
+            projectedEnd: estimatedEnd.toISOString(),
+            carriedOver: true,
+            assignedAt: nowIso,
+            updatedAt: nowIso,
+          })
+          .where(eq(queueTickets.id, existingTicket.id));
+      } else {
+        await tx.insert(queueTickets).values({
           appointmentId: apt.id,
           serviceId: apt.serviceId,
           categoryId,
@@ -326,24 +425,14 @@ export class AppointmentRescheduleHandler {
           status: QUEUE_TICKET_STATUS.WAITING,
           priority: QUEUE_PRIORITY.REGULAR,
           waitingPosition: numericQueueNumber,
+          projectedStart: estimatedStart.toISOString(),
+          projectedEnd: estimatedEnd.toISOString(),
           carriedOver: true,
           source: 'online',
           assignedAt: nowIso,
           createdAt: nowIso,
           updatedAt: nowIso,
-        })
-        .returning();
-
-      if (oldTickets.length > 0 && newTicket) {
-        for (const oldT of oldTickets) {
-          await tx
-            .update(queueTickets)
-            .set({
-              movedTo: newTicket.id,
-              updatedAt: nowIso,
-            })
-            .where(eq(queueTickets.id, oldT.id));
-        }
+        });
       }
 
       await tx
@@ -355,6 +444,8 @@ export class AppointmentRescheduleHandler {
           scheduledStartTime: sTime,
           scheduledEndTime: eTime,
           queueNumber: numericQueueNumber,
+          estimatedStartAt: estimatedStart.toISOString(),
+          estimatedEndAt: estimatedEnd.toISOString(),
           roomId: null,
           updatedBy: userId,
           updatedAt: nowIso,
@@ -382,14 +473,16 @@ export class AppointmentRescheduleHandler {
         })
         .catch(() => {});
 
-      // Recalculate target date queue
-      await queuePositionRecalculationService
-        .recalculateDoctorQueue({
-          serviceDate: targetDate,
-          practitionerId: oldDoctorId,
-          categoryId: oldDoctorId ? undefined : appointmentCategoryId,
-        })
-        .catch(() => {});
+      // Recalculate target date queue if different date
+      if (targetDate !== oldDate) {
+        await queuePositionRecalculationService
+          .recalculateDoctorQueue({
+            serviceDate: targetDate,
+            practitionerId: oldDoctorId,
+            categoryId: oldDoctorId ? undefined : appointmentCategoryId,
+          })
+          .catch(() => {});
+      }
     }
 
     const updated = await findById(appointmentId);

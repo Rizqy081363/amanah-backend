@@ -491,6 +491,8 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
       (id) => this.findById(id),
       user,
       this.queuePositionRecalculationService,
+      this.clinicConfig,
+      this.clinicTimeService,
     );
   }
 

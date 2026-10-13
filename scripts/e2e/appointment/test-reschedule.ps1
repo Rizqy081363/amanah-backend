@@ -65,6 +65,13 @@ Write-Host " Session ID  : $($targetShift.sessionId)" -ForegroundColor Cyan
 
 Assert-Test "Target session ID extracted from options" ($null -ne $targetShift.sessionId)
 
+# Ensure patient has no conflicting active ticket on target date (Rule H2)
+if ($targetDateOption.date -ne $optionsRes.currentDate) {
+    Run-DockerSql "DELETE FROM appointment_status_events WHERE appointment_id IN (SELECT id FROM appointments WHERE scheduled_date = '$($targetDateOption.date)' AND patient_id = (SELECT patient_id FROM appointments WHERE id = '$targetAptId'));"
+    Run-DockerSql "DELETE FROM queue_tickets WHERE queue_date = '$($targetDateOption.date)' AND patient_id = (SELECT patient_id FROM appointments WHERE id = '$targetAptId');"
+    Run-DockerSql "DELETE FROM appointments WHERE scheduled_date = '$($targetDateOption.date)' AND patient_id = (SELECT patient_id FROM appointments WHERE id = '$targetAptId') AND id != '$targetAptId';"
+}
+
 # 5. Execute Reschedule via API
 Write-Host "`n[STEP 5] Submitting Reschedule Mutation..." -ForegroundColor Yellow
 $reschedulePayload = @{

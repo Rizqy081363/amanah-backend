@@ -3,6 +3,22 @@ import { IsOptional, IsString } from 'class-validator';
 
 export class RescheduleAppointmentDto {
   @ApiPropertyOptional({
+    example: 'MALAM',
+    description: 'Nama sesi kunjungan baru (PAGI, SIANG, MALAM, DINI_HARI)',
+  })
+  @IsString()
+  @IsOptional()
+  session?: string;
+
+  @ApiPropertyOptional({
+    example: 'MALAM',
+    description: 'Nama sesi tujuan (snake_case alias)',
+  })
+  @IsString()
+  @IsOptional()
+  target_session?: string;
+
+  @ApiPropertyOptional({
     example: '550e8400-e29b-41d4-a716-446655440000',
     description: 'ID sesi jadwal dokter tujuan (snake_case)',
   })

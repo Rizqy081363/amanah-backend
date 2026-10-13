@@ -49,6 +49,12 @@ Assert-Test "Target Service extracted ($($targetService.namaLayanan))" ($null -n
 # 5. Discover Open Schedule Options for Target Date
 Write-Host "`n[STEP 5] Discovering Open Session Shifts..." -ForegroundColor Yellow
 $bookingDate = (Get-Date).AddDays(1).ToString("yyyy-MM-dd")
+
+# Purge any prior active tickets for target patient on this date to satisfy Rule H2
+Run-DockerSql "DELETE FROM appointment_status_events WHERE appointment_id IN (SELECT id FROM appointments WHERE scheduled_date = '$bookingDate' AND patient_id = '$targetPatientId');"
+Run-DockerSql "DELETE FROM queue_tickets WHERE queue_date = '$bookingDate' AND patient_id = '$targetPatientId';"
+Run-DockerSql "DELETE FROM appointments WHERE scheduled_date = '$bookingDate' AND patient_id = '$targetPatientId';"
+
 $bookingOptions = Get-ResponseData (Invoke-RestMethod -Uri "$apiUrl/schedules/booking-options?date=$bookingDate" -Method Get -Headers $patientAuth.headers)
 Assert-Test "Schedule booking options returned for target date" ($null -ne $bookingOptions.sessions)
 
