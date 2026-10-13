@@ -1,6 +1,6 @@
 import { ClinicConfigService } from '@common/clinic-config';
 import { Inject, Injectable, Optional } from '@nestjs/common';
-import { and, asc, count, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, isNotNull, isNull, lt, or, sql } from 'drizzle-orm';
 import { decodeCursor, encodeCursor } from '../../../../common/pagination';
 import { ClinicTimeService } from '../../../../common/time/clinic-time.service';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
@@ -504,8 +504,18 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
     if (this.poliklinikResolver) {
       await this.poliklinikResolver.loadFromDatabase();
     }
+    const windowHours = await this.getWindowHours();
     const records = await this.db.query.appointments.findMany({
-      where: eq(appointments.scheduledDate, date),
+      where: or(
+        eq(appointments.scheduledDate, date),
+        and(
+          inArray(appointments.status, [
+            DB_APPOINTMENT_STATUS.WAITING,
+            DB_APPOINTMENT_STATUS.IN_SERVICE,
+          ]),
+          isNotNull(appointments.checkedInAt),
+        ),
+      ),
       with: APPOINTMENT_RELATIONS,
     });
 
@@ -520,39 +530,68 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
       }
     }
 
-    return records
-      .filter((apt) => {
-        if (
-          poliklinikId &&
-          apt.clinicRoom?.unitId &&
-          apt.clinicRoom.unitId !== poliklinikId
-        ) {
+    const mappedEntities = records.map((apt) => {
+      const resolvedUnit = this.poliklinikResolver
+        ? this.poliklinikResolver.resolveSync(apt, poliklinikId)
+        : undefined;
+      const isDoctorServing = Boolean(
+        apt.practitionerId &&
+          busyDoctorIds.has(apt.practitionerId) &&
+          apt.status !== DB_APPOINTMENT_STATUS.IN_SERVICE,
+      );
+      return AppointmentRecordMapper.toEntity(
+        apt,
+        apt.queueTickets?.[0],
+        resolvedUnit || poliklinikId,
+        windowHours,
+        this.clinicTimeService,
+        isDoctorServing,
+      );
+    });
+
+    return mappedEntities.filter((entity) => {
+      // 1. Strictly exclude terminal, late, or un-checked-in booked appointments
+      if (
+        entity.status === DOMAIN_APPOINTMENT_STATUS.LATE ||
+        entity.rawStatus === DB_APPOINTMENT_STATUS.LATE ||
+        entity.status === DOMAIN_APPOINTMENT_STATUS.BOOKED ||
+        entity.rawStatus === DB_APPOINTMENT_STATUS.BOOKED ||
+        entity.status === DOMAIN_APPOINTMENT_STATUS.CANCELLED ||
+        entity.rawStatus === DB_APPOINTMENT_STATUS.CANCELLED ||
+        entity.status === DOMAIN_APPOINTMENT_STATUS.COMPLETED ||
+        entity.rawStatus === DB_APPOINTMENT_STATUS.COMPLETED
+      ) {
+        return false;
+      }
+
+      // 2. Only active queue states: WAITING, CALLED, IN_SERVICE
+      const isWaiting = entity.status === DOMAIN_APPOINTMENT_STATUS.WAITING;
+      const isCalledOrInService =
+        entity.status === DOMAIN_APPOINTMENT_STATUS.IN_SERVICE ||
+        entity.ticketStatus === QUEUE_TICKET_STATUS.CALLED ||
+        entity.ticketStatus === QUEUE_TICKET_STATUS.IN_SERVICE;
+
+      if (!isWaiting && !isCalledOrInService) {
+        return false;
+      }
+
+      // 3. Filter by session if provided
+      if (session && entity.session !== session) {
+        return false;
+      }
+
+      // 4. Filter by poliklinikId if provided
+      if (poliklinikId) {
+        const matchesId = entity.poliklinikId === poliklinikId;
+        const matchesName =
+          Boolean(entity.poliklinikName && entity.poliklinikName.toLowerCase() === poliklinikId.toLowerCase());
+        if (!matchesId && !matchesName) {
           return false;
         }
-        if (session) {
-          const aptSession = AppointmentRecordMapper.resolveSession(apt);
-          if (aptSession !== session) return false;
-        }
-        return true;
-      })
-      .map((apt) => {
-        const resolvedUnit = this.poliklinikResolver
-          ? this.poliklinikResolver.resolveSync(apt, poliklinikId)
-          : undefined;
-        const isDoctorServing = Boolean(
-          apt.practitionerId &&
-            busyDoctorIds.has(apt.practitionerId) &&
-            apt.status !== DB_APPOINTMENT_STATUS.IN_SERVICE,
-        );
-        return AppointmentRecordMapper.toEntity(
-          apt,
-          apt.queueTickets?.[0],
-          resolvedUnit || poliklinikId,
-          undefined,
-          this.clinicTimeService,
-          isDoctorServing,
-        );
-      });
+      }
+
+      return true;
+    });
   }
 
   async findDisplayQueue(date: string, poliklinikId?: string): Promise<any> {
@@ -571,7 +610,11 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
         (a) => a.ticketStatus === QUEUE_TICKET_STATUS.CALLED,
       );
     const waitingList = dailyAppointments.filter(
-      (a) => a.status === DOMAIN_APPOINTMENT_STATUS.WAITING,
+      (a) =>
+        a.id !== currentlyCalled?.id &&
+        a.status === DOMAIN_APPOINTMENT_STATUS.WAITING &&
+        a.ticketStatus !== QUEUE_TICKET_STATUS.CALLED &&
+        a.ticketStatus !== QUEUE_TICKET_STATUS.IN_SERVICE,
     );
     const completedList = dailyAppointments.filter(
       (a) => a.status === DOMAIN_APPOINTMENT_STATUS.COMPLETED,

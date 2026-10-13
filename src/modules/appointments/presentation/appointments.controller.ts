@@ -168,13 +168,14 @@ export class AppointmentsController {
   @ApiForbiddenResponse({ description: 'Hanya Admin atau Staf yang diizinkan' })
   @HttpCache({ ttlSeconds: 15, tags: ['queue', 'daily'], isPrivate: false })
   async getDailyQueue(
-    @Query('poliklinikId') poliklinikId: string,
-    @Query('date') date: string,
+    @Query('poliklinikId') poliklinikId?: string,
+    @Query('date') date?: string,
     @Query('session') session?: string,
   ) {
-    const businessDate = parseBusinessDate(date);
+    const targetDate = date || this.clinicTimeService.today();
+    const businessDate = parseBusinessDate(targetDate);
     return this.appointmentsService.findDailyQueue(
-      poliklinikId,
+      poliklinikId || '',
       businessDate,
       session,
     );

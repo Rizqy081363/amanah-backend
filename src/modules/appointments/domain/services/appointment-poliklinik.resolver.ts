@@ -148,9 +148,16 @@ export class AppointmentPoliklinikResolver {
       };
     }
 
-    if (poliklinikIdOverride && this.unitMap.has(poliklinikIdOverride)) {
-      const match = this.unitMap.get(poliklinikIdOverride);
-      if (match) return match;
+    if (poliklinikIdOverride) {
+      if (this.unitMap.has(poliklinikIdOverride)) {
+        const match = this.unitMap.get(poliklinikIdOverride);
+        if (match) return match;
+      }
+      for (const unit of this.unitMap.values()) {
+        if (unit.poliklinikName.toLowerCase() === poliklinikIdOverride.toLowerCase()) {
+          return unit;
+        }
+      }
     }
 
     const serviceId = apt.serviceId || apt.clinicService?.id;
@@ -201,9 +208,16 @@ export class AppointmentPoliklinikResolver {
       };
     }
 
-    if (poliklinikIdOverride && this.unitMap.has(poliklinikIdOverride)) {
-      const match = this.unitMap.get(poliklinikIdOverride);
-      if (match) return match;
+    if (poliklinikIdOverride) {
+      if (this.unitMap.has(poliklinikIdOverride)) {
+        const match = this.unitMap.get(poliklinikIdOverride);
+        if (match) return match;
+      }
+      for (const unit of this.unitMap.values()) {
+        if (unit.poliklinikName.toLowerCase() === poliklinikIdOverride.toLowerCase()) {
+          return unit;
+        }
+      }
     }
 
     const serviceId = apt.serviceId || apt.clinicService?.id;
