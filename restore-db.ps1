@@ -86,6 +86,13 @@ if (-not $BackupDir) {
 # 2. Cek ketersediaan container Docker
 $running = docker ps --filter "name=^/?${ContainerName}$" --filter "status=running" --format "{{.Names}}"
 if (-not $running) {
+    $fallbackContainer = docker ps --filter "name=postgres" --filter "status=running" --format "{{.Names}}" | Select-Object -First 1
+    if ($fallbackContainer) {
+        $ContainerName = $fallbackContainer
+        $running = $fallbackContainer
+    }
+}
+if (-not $running) {
     Write-Error "Container '$ContainerName' tidak ditemukan atau tidak sedang berjalan! Pastikan container aktif dengan 'docker compose up -d postgres'."
     exit 1
 }
