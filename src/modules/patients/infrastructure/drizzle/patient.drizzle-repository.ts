@@ -598,7 +598,41 @@ export class PatientDrizzleRepository implements PatientRepository {
     const limit = query.limit ?? 10;
     const offset = (page - 1) * limit;
 
+    const hasFilterOrSearch = Boolean(
+      query.search?.trim() ||
+      (query.gender && query.gender !== 'all') ||
+      (query.status && query.status !== 'active' && query.status !== 'all') ||
+      (query.bloodType && query.bloodType !== 'all') ||
+      (query.profileType && query.profileType !== 'all') ||
+      query.email?.trim() ||
+      query.birthDateFrom?.trim() ||
+      query.birthDateTo?.trim()
+    );
+
+    const isMasterCondition = sql`(
+      EXISTS (
+        SELECT 1 FROM patient_affiliations pa
+        WHERE pa.patient_id = ${patientProfiles.id}
+          AND (pa.relationship_type = 'self' OR pa.is_primary = true)
+      )
+      OR NOT EXISTS (
+        SELECT 1 FROM patient_affiliations pa
+        WHERE pa.patient_id = ${patientProfiles.id}
+      )
+    )`;
+
     const conditions = [];
+
+    if (!hasFilterOrSearch) {
+      // Mode Browsing Default: Tampilkan baris akun utama (master/mandiri) sebagai pohon hierarki
+      conditions.push(isMasterCondition);
+    } else if (query.profileType && query.profileType !== 'all') {
+      if (query.profileType === 'master') {
+        conditions.push(isMasterCondition);
+      } else if (query.profileType === 'affiliate') {
+        conditions.push(sql`NOT (${isMasterCondition})`);
+      }
+    }
 
     if (query.status && query.status !== 'all') {
       conditions.push(eq(patientProfiles.status, query.status as any));
@@ -609,7 +643,8 @@ export class PatientDrizzleRepository implements PatientRepository {
     }
 
     if (query.bloodType && query.bloodType !== 'all') {
-      conditions.push(eq(patientProfiles.bloodType, query.bloodType as any));
+      const normalizedBlood = normalizeBloodTypeToDb(query.bloodType);
+      conditions.push(eq(patientProfiles.bloodType, normalizedBlood));
     }
 
     if (query.email?.trim()) {
@@ -721,7 +756,7 @@ export class PatientDrizzleRepository implements PatientRepository {
         phone: patientProfiles.phone,
         status: patientProfiles.status,
         registeredAt: patientProfiles.registeredAt,
-        email: sql<string | null>`COALESCE(${patientProfiles.email}, (SELECT email FROM users WHERE users.id = ${patientProfiles.userId}))`,
+        email: sql<string | null>`COALESCE(${patientProfiles.email}, (SELECT email FROM users WHERE users.id = patient_profiles.user_id))`,
         fullAddress: sql<string | null>`(
           SELECT COALESCE(full_address, line1)
           FROM patient_addresses
@@ -754,6 +789,42 @@ export class PatientDrizzleRepository implements PatientRepository {
           FROM appointments
           WHERE appointments.patient_id = patient_profiles.id
         )`,
+        isAffiliateChild: sql<boolean>`EXISTS (
+          SELECT 1 FROM patient_affiliations pa
+          WHERE pa.patient_id = patient_profiles.id
+            AND pa.relationship_type != 'self'
+            AND pa.is_primary = false
+        )`,
+        relType: sql<string | null>`(
+          SELECT relationship_type::text FROM patient_affiliations pa
+          WHERE pa.patient_id = patient_profiles.id
+          ORDER BY is_primary DESC, created_at DESC
+          LIMIT 1
+        )`,
+        relLabel: sql<string | null>`(
+          SELECT relation_label FROM patient_affiliations pa
+          WHERE pa.patient_id = patient_profiles.id
+          ORDER BY is_primary DESC, created_at DESC
+          LIMIT 1
+        )`,
+        masterPatientId: sql<string | null>`(
+          SELECT mp.id FROM patient_affiliations pa
+          JOIN patient_affiliations mpa ON mpa.user_id = pa.user_id AND (mpa.relationship_type = 'self' OR mpa.is_primary = true)
+          JOIN patient_profiles mp ON mp.id = mpa.patient_id
+          WHERE pa.patient_id = patient_profiles.id AND pa.relationship_type != 'self'
+          LIMIT 1
+        )`,
+        masterPatientName: sql<string | null>`(
+          SELECT mp.full_name FROM patient_affiliations pa
+          JOIN patient_affiliations mpa ON mpa.user_id = pa.user_id AND (mpa.relationship_type = 'self' OR mpa.is_primary = true)
+          JOIN patient_profiles mp ON mp.id = mpa.patient_id
+          WHERE pa.patient_id = patient_profiles.id AND pa.relationship_type != 'self'
+          LIMIT 1
+        )`,
+        affCount: sql<number>`(
+          SELECT count(*)::int FROM patient_affiliations pa
+          WHERE pa.user_id = patient_profiles.user_id AND pa.patient_id != patient_profiles.id
+        )`,
       })
       .from(patientProfiles)
       .where(whereClause)
@@ -762,7 +833,14 @@ export class PatientDrizzleRepository implements PatientRepository {
       .offset(offset);
 
     const now = new Date();
-    const data: PatientDirectoryItemDto[] = rows.map((r) => {
+    const mapRowToItem = (
+      r: any,
+      isMaster: boolean,
+      masterPatientId?: string | null,
+      masterPatientName?: string | null,
+      relType?: string | null,
+      relLabel?: string | null,
+    ): PatientDirectoryItemDto => {
       const birth = new Date(r.birthDate);
       let age = now.getFullYear() - birth.getFullYear();
       const monthDiff = now.getMonth() - birth.getMonth();
@@ -798,13 +876,13 @@ export class PatientDrizzleRepository implements PatientRepository {
         phone: r.phone,
         fullAddress: r.fullAddress,
         status: r.status,
-        isMaster: true,
-        hasOwnAccount: Boolean(r.userId),
+        isMaster,
+        hasOwnAccount: Boolean(r.hasOwnAccount ?? r.userId),
         affiliateCount: 0,
-        relationshipType: null,
-        relationLabel: null,
-        masterPatientId: null,
-        masterPatientName: null,
+        relationshipType: relType || r.relationshipType || (isMaster ? 'self' : null),
+        relationLabel: relLabel || r.relationLabel || (isMaster ? 'Akun Utama' : null),
+        masterPatientId: masterPatientId || null,
+        masterPatientName: masterPatientName || null,
         totalAppointments: r.totalAppointments ?? 0,
         completedVisits: r.completedVisits ?? 0,
         missedAppointments: r.missedAppointments ?? 0,
@@ -813,7 +891,125 @@ export class PatientDrizzleRepository implements PatientRepository {
         registeredAt: r.registeredAt,
         affiliates: [],
       };
-    });
+    };
+
+    let data: PatientDirectoryItemDto[];
+
+    if (!hasFilterOrSearch) {
+      // MODE A: Browsing Default -> Hierarkis (Akun Utama dengan nested affiliates)
+      const userIds = rows
+        .map((r) => r.userId)
+        .filter((uid): uid is string => Boolean(uid));
+
+      const affiliatesMap = new Map<string, any[]>();
+      if (userIds.length > 0) {
+        const rawAffiliates = await this.db
+          .select({
+            id: patientProfiles.id,
+            masterUserId: patientAffiliations.userId,
+            medicalRecordNumber: patientProfiles.medicalRecordNumber,
+            fullName: patientProfiles.fullName,
+            nationalIdHash: patientProfiles.nationalIdHash,
+            nationalIdEncrypted: patientProfiles.nationalIdEncrypted,
+            gender: patientProfiles.gender,
+            birthDate: patientProfiles.birthDate,
+            birthPlace: patientProfiles.birthPlace,
+            motherName: patientProfiles.motherName,
+            occupation: patientProfiles.occupation,
+            bloodType: patientProfiles.bloodType,
+            phone: patientProfiles.phone,
+            status: patientProfiles.status,
+            registeredAt: patientProfiles.registeredAt,
+            email: sql<string | null>`COALESCE(${patientProfiles.email}, (SELECT email FROM users WHERE users.id = patient_profiles.user_id))`,
+            relationshipType: patientAffiliations.relationshipType,
+            relationLabel: patientAffiliations.relationLabel,
+            hasOwnAccount: sql<boolean>`${patientProfiles.userId} IS NOT NULL`,
+            fullAddress: sql<string | null>`(
+              SELECT COALESCE(full_address, line1)
+              FROM patient_addresses
+              WHERE patient_addresses.patient_id = patient_profiles.id
+              ORDER BY is_primary DESC, created_at DESC
+              LIMIT 1
+            )`,
+            totalAppointments: sql<number>`(
+              SELECT count(*)::int
+              FROM appointments
+              WHERE appointments.patient_id = patient_profiles.id
+            )`,
+            completedVisits: sql<number>`(
+              SELECT count(*)::int
+              FROM appointments
+              WHERE appointments.patient_id = patient_profiles.id AND appointments.status = 'completed'
+            )`,
+            missedAppointments: sql<number>`(
+              SELECT count(*)::int
+              FROM appointments
+              WHERE appointments.patient_id = patient_profiles.id AND appointments.status IN ('no_show', 'late')
+            )`,
+            cancelledAppointments: sql<number>`(
+              SELECT count(*)::int
+              FROM appointments
+              WHERE appointments.patient_id = patient_profiles.id AND appointments.status = 'cancelled'
+            )`,
+            lastVisitDate: sql<string | null>`(
+              SELECT max(scheduled_date)::text
+              FROM appointments
+              WHERE appointments.patient_id = patient_profiles.id
+            )`,
+          })
+          .from(patientAffiliations)
+          .innerJoin(
+            patientProfiles,
+            eq(patientProfiles.id, patientAffiliations.patientId),
+          )
+          .where(
+            and(
+              inArray(patientAffiliations.userId, userIds),
+              sql`${patientAffiliations.patientId} != (SELECT pa2.patient_id FROM patient_affiliations pa2 WHERE pa2.user_id = patient_affiliations.user_id AND (pa2.relationship_type = 'self' OR pa2.is_primary = true) LIMIT 1)`,
+            ),
+          )
+          .orderBy(patientAffiliations.createdAt);
+
+        for (const aff of rawAffiliates) {
+          const list = affiliatesMap.get(aff.masterUserId) || [];
+          list.push(aff);
+          affiliatesMap.set(aff.masterUserId, list);
+        }
+      }
+
+      data = rows.map((r) => {
+        const masterAffiliatesRaw = r.userId
+          ? affiliatesMap.get(r.userId) || []
+          : [];
+        const mappedAffiliates = masterAffiliatesRaw.map((aff) =>
+          mapRowToItem(aff, false, r.id, r.fullName, aff.relationshipType, aff.relationLabel),
+        );
+
+        const masterItem = mapRowToItem(r, true);
+        masterItem.affiliateCount = mappedAffiliates.length;
+        masterItem.affiliates = mappedAffiliates;
+        return masterItem;
+      });
+    } else {
+      // MODE B: Search / Filter Aktif -> 100% Flat Agnostic
+      data = rows.map((r) => {
+        const isChild = Boolean(r.isAffiliateChild);
+        if (isChild) {
+          return mapRowToItem(
+            r,
+            false,
+            r.masterPatientId,
+            r.masterPatientName,
+            r.relType,
+            r.relLabel,
+          );
+        }
+        const masterItem = mapRowToItem(r, true);
+        masterItem.affiliateCount = r.affCount ?? 0;
+        masterItem.affiliates = [];
+        return masterItem;
+      });
+    }
 
     return {
       data,

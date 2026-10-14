@@ -76,4 +76,12 @@ export class PatientDirectoryQueryDto {
   @IsString()
   @IsOptional()
   birthDateTo?: string;
+
+  @ApiPropertyOptional({
+    enum: ['master', 'affiliate', 'all'],
+    description: 'Filter tipe profil pasien',
+  })
+  @IsIn(['master', 'affiliate', 'all'])
+  @IsOptional()
+  profileType?: 'master' | 'affiliate' | 'all';
 }
