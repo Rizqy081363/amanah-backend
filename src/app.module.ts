@@ -33,6 +33,7 @@ import { SchedulesModule } from './modules/schedules/schedules.module';
 import { StaffsModule } from './modules/staffs/staffs.module';
 import { SupportTicketsModule } from './modules/support-tickets/support-tickets.module';
 import { QueueEngineModule } from './modules/queue-engine/queue-engine.module';
+import { SearchModule } from './modules/search/search.module';
 
 @Module({
   imports: [
@@ -78,6 +79,7 @@ import { QueueEngineModule } from './modules/queue-engine/queue-engine.module';
     LeavesModule,
     SupportTicketsModule,
     QueueEngineModule,
+    SearchModule,
   ],
 })
 export class AppModule implements NestModule {

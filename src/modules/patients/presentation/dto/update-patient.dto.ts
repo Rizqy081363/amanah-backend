@@ -6,6 +6,7 @@ import {
   IsString,
   Matches,
   MinLength,
+  ValidateIf,
 } from 'class-validator';
 import { VALID_BLOOD_TYPE_VALUES } from '../../domain/data/patient-reference.data';
 
@@ -34,6 +35,7 @@ export class UpdatePatientDto {
   })
   @IsString()
   @IsOptional()
+  @ValidateIf((o, v) => Boolean(v && typeof v === 'string' && v.trim() !== ''))
   @Matches(/^\d{16}$/, { message: 'NIK harus berupa 16 digit angka' })
   nik?: string;
 
@@ -75,6 +77,7 @@ export class UpdatePatientDto {
   })
   @IsString()
   @IsOptional()
+  @ValidateIf((o, v) => Boolean(v && typeof v === 'string' && v.trim() !== ''))
   @Matches(/^\d{4}-\d{2}-\d{2}$/, {
     message: 'Format tanggal lahir harus YYYY-MM-DD',
   })
@@ -86,21 +89,22 @@ export class UpdatePatientDto {
   })
   @IsString()
   @IsOptional()
+  @ValidateIf((o, v) => Boolean(v && typeof v === 'string' && v.trim() !== ''))
   @Matches(/^\d{4}-\d{2}-\d{2}$/, {
     message: 'Format tanggal lahir harus YYYY-MM-DD',
   })
   birth_date?: string;
 
   @ApiPropertyOptional({
-    example: 'Laki-laki',
-    enum: ['Laki-laki', 'Perempuan'],
-    description: 'Jenis kelamin',
+    example: 'male',
+    enum: ['male', 'female'],
+    description: 'Jenis kelamin (kanonikal: male / female)',
   })
   @IsOptional()
-  @IsIn(['Laki-laki', 'Perempuan'], {
-    message: 'Pilih jenis kelamin (Laki-laki atau Perempuan)',
+  @IsIn(['male', 'female'], {
+    message: 'Pilih jenis kelamin valid (male atau female)',
   })
-  gender?: 'Laki-laki' | 'Perempuan';
+  gender?: 'male' | 'female';
 
   @ApiPropertyOptional({
     example: 'O',

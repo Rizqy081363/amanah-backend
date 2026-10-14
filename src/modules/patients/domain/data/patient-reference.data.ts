@@ -5,8 +5,8 @@ export interface ReferenceOption {
 }
 
 export const BACKEND_GENDER_OPTIONS: ReferenceOption[] = [
-  { label: 'Laki-laki', value: 'Laki-laki' },
-  { label: 'Perempuan', value: 'Perempuan' },
+  { label: 'Laki-laki', value: 'male' },
+  { label: 'Perempuan', value: 'female' },
 ];
 
 /**
@@ -189,12 +189,12 @@ export const BACKEND_RELATIONSHIP_OPTIONS: ReferenceOption[] = [
 export const BACKEND_STATUS_OPTIONS: ReferenceOption[] = [
   {
     label: 'Aktif',
-    value: 'Aktif',
+    value: 'active',
     description: 'Pasien aktif menerima pelayanan kesehatan',
   },
   {
     label: 'Nonaktif',
-    value: 'Nonaktif',
+    value: 'inactive',
     description: 'Rekam medis pasien dinonaktifkan',
   },
 ];

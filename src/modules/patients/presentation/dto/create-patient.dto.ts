@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
-  IsEnum,
+  IsIn,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -22,10 +22,10 @@ export class CreatePatientDto {
   @IsNotEmpty()
   fullName: string;
 
-  @ApiProperty({ enum: ['Laki-laki', 'Perempuan'], example: 'Perempuan' })
-  @IsEnum(['Laki-laki', 'Perempuan'])
+  @ApiProperty({ enum: ['male', 'female'], example: 'female' })
+  @IsIn(['male', 'female'])
   @IsNotEmpty()
-  gender: 'Laki-laki' | 'Perempuan';
+  gender: 'male' | 'female';
 
   @ApiProperty({ example: '1995-05-12', description: 'Format YYYY-MM-DD' })
   @IsString()

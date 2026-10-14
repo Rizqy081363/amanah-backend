@@ -38,7 +38,7 @@ export class PatientRecordMapper {
       medicalRecordNumber: record.medicalRecordNumber,
       nik: record.nationalIdEncrypted || record.nationalIdHash || '',
       fullName: record.fullName,
-      gender: record.gender === 'female' ? 'Perempuan' : 'Laki-laki',
+      gender: (record.gender as 'male' | 'female') || 'male',
       birthPlace: record.birthPlace || '',
       birthDate:
         typeof record.birthDate === 'string'

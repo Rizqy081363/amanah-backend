@@ -1,5 +1,6 @@
 import { ConflictException, Inject, Injectable } from '@nestjs/common';
-import { and, desc, eq, ilike, inArray, ne, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, ilike, inArray, lte, ne, or, sql } from 'drizzle-orm';
+import { escapeLike } from '../../../search/engine';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
@@ -50,7 +51,7 @@ export class PatientDrizzleRepository implements PatientRepository {
         nationalIdEncrypted: data.nik,
         nationalIdHash: data.nik,
         fullName: data.fullName,
-        gender: data.gender === 'Perempuan' ? 'female' : 'male',
+        gender: data.gender,
         birthPlace: data.birthPlace,
         birthDate: data.birthDate,
         bloodType: 'unknown',
@@ -135,7 +136,7 @@ export class PatientDrizzleRepository implements PatientRepository {
     }
     const rmNumber = `${prefix}${String(nextSequence).padStart(4, '0')}`;
 
-    const dbGender = dto.gender === 'Perempuan' ? 'female' : 'male';
+    const dbGender = dto.gender;
     const dbBloodType = normalizeBloodTypeToDb(dto.blood_type);
 
     let phoneToUse = dto.phone?.trim() || '';
@@ -403,7 +404,7 @@ export class PatientDrizzleRepository implements PatientRepository {
     if (birthDate !== undefined) updateValues.birthDate = birthDate;
 
     if (d.gender !== undefined) {
-      updateValues.gender = d.gender === 'Perempuan' ? 'female' : 'male';
+      updateValues.gender = d.gender;
     }
 
     const bloodType = d.bloodType ?? d.blood_type;
@@ -607,30 +608,57 @@ export class PatientDrizzleRepository implements PatientRepository {
       )
     )`;
 
-    const hasAppointmentHistory = sql`(
-      EXISTS (SELECT 1 FROM appointments WHERE appointments.patient_id = ${patientProfiles.id})
-      OR (
-        ${patientProfiles.userId} IS NOT NULL
-        AND EXISTS (
-          SELECT 1 FROM appointments
-          JOIN patient_affiliations pa ON pa.patient_id = appointments.patient_id
-          WHERE pa.user_id = ${patientProfiles.userId}
-        )
-      )
-    )`;
-
-    const conditions = [isMasterCondition, hasAppointmentHistory];
+    const conditions = [isMasterCondition];
 
     if (query.status && query.status !== 'all') {
       conditions.push(eq(patientProfiles.status, query.status as any));
     }
 
     if (query.gender && query.gender !== 'all') {
-      conditions.push(eq(patientProfiles.gender, query.gender as any));
+      conditions.push(
+        or(
+          eq(patientProfiles.gender, query.gender),
+          sql`EXISTS (
+            SELECT 1 FROM patient_affiliations pa
+            JOIN patient_profiles aff ON aff.id = pa.patient_id
+            WHERE pa.user_id = ${patientProfiles.userId} AND aff.gender = ${query.gender}
+          )`
+        )!
+      );
+    }
+
+    if (query.bloodType && query.bloodType !== 'all') {
+      conditions.push(
+        or(
+          eq(patientProfiles.bloodType, query.bloodType as any),
+          sql`EXISTS (
+            SELECT 1 FROM patient_affiliations pa
+            JOIN patient_profiles aff ON aff.id = pa.patient_id
+            WHERE pa.user_id = ${patientProfiles.userId} AND aff.blood_type = ${query.bloodType}
+          )`
+        )!
+      );
+    }
+
+    if (query.email?.trim()) {
+      const emailTerm = `%${escapeLike(query.email.trim())}%`;
+      conditions.push(
+        or(
+          ilike(patientProfiles.email, emailTerm),
+          sql`EXISTS (SELECT 1 FROM users WHERE users.id = ${patientProfiles.userId} AND users.email ILIKE ${emailTerm})`,
+        )!,
+      );
+    }
+
+    if (query.birthDateFrom?.trim()) {
+      conditions.push(gte(patientProfiles.birthDate, query.birthDateFrom.trim()));
+    }
+    if (query.birthDateTo?.trim()) {
+      conditions.push(lte(patientProfiles.birthDate, query.birthDateTo.trim()));
     }
 
     if (query.search?.trim()) {
-      const term = `%${query.search.trim()}%`;
+      const term = `%${escapeLike(query.search.trim())}%`;
       conditions.push(
         or(
           ilike(patientProfiles.fullName, term),
@@ -670,7 +698,7 @@ export class PatientDrizzleRepository implements PatientRepository {
         totalMissedOrCancelled: sql<number>`count(CASE WHEN ${appointments.status} IN ('no_show', 'late', 'cancelled') THEN 1 END)::int`,
       })
       .from(patientProfiles)
-      .innerJoin(appointments, eq(appointments.patientId, patientProfiles.id))
+      .leftJoin(appointments, eq(appointments.patientId, patientProfiles.id))
       .where(eq(patientProfiles.status, 'active'));
 
     const summary = {
@@ -687,6 +715,33 @@ export class PatientDrizzleRepository implements PatientRepository {
         summary,
       };
     }
+
+    const sortWhitelist: Record<string, any> = {
+      name: patientProfiles.fullName,
+      medicalRecordNumber: patientProfiles.medicalRecordNumber,
+      birthDate: patientProfiles.birthDate,
+      registeredAt: patientProfiles.registeredAt,
+      status: patientProfiles.status,
+      createdAt: patientProfiles.createdAt,
+    };
+
+    let sortCol = patientProfiles.createdAt;
+    let sortDir: 'asc' | 'desc' = 'desc';
+
+    if (query.sort?.trim()) {
+      const [key, dir] = query.sort.trim().split(':');
+      if (sortWhitelist[key]) {
+        sortCol = sortWhitelist[key];
+        if (dir === 'asc' || dir === 'desc') {
+          sortDir = dir;
+        }
+      }
+    }
+
+    const orderClauses = [
+      sortDir === 'asc' ? asc(sortCol) : desc(sortCol),
+      asc(patientProfiles.id),
+    ];
 
     const rows = await this.db
       .select({
@@ -741,7 +796,7 @@ export class PatientDrizzleRepository implements PatientRepository {
       })
       .from(patientProfiles)
       .where(whereClause)
-      .orderBy(desc(patientProfiles.createdAt), desc(patientProfiles.id))
+      .orderBy(...orderClauses)
       .limit(limit)
       .offset(offset);
 

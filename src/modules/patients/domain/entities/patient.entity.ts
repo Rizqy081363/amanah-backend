@@ -28,7 +28,7 @@ export class PatientEntity {
   medicalRecordNumber: string;
   nik: string;
   fullName: string;
-  gender: 'Laki-laki' | 'Perempuan';
+  gender: 'male' | 'female';
   birthPlace: string;
   birthDate: string;
   bloodType: string;

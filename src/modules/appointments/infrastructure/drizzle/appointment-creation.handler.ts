@@ -1,4 +1,8 @@
-import { UnprocessableEntityException } from '@nestjs/common';
+import {
+  BadRequestException,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { Temporal } from '@js-temporal/polyfill';
 import { and, asc, eq, ilike, inArray, isNull, not, or, sql } from 'drizzle-orm';
 import type { ClinicConfigService } from '../../../../common/clinic-config/clinic-config.service';
@@ -13,6 +17,7 @@ import {
   clinicUnits,
   maternalHealthIntakes,
   medicalIntakeSubmissions,
+  patientProfiles,
   practitioners,
   queueTickets,
   sessionDefs,
@@ -39,6 +44,31 @@ export class AppointmentCreationHandler {
     clinicTimeService?: ClinicTimeService,
     queuePositionRecalculationService?: QueuePositionRecalculationService,
   ): Promise<AppointmentEntity> {
+    // Validate patient existence and active status
+    if (data.patientId) {
+      const patient = await db.query.patientProfiles.findFirst({
+        where: eq(patientProfiles.id, data.patientId),
+        columns: {
+          id: true,
+          status: true,
+          fullName: true,
+        },
+      });
+      if (!patient) {
+        throw new NotFoundException({
+          code: 'PATIENT_NOT_FOUND',
+          message: 'Data profil pasien tidak ditemukan.',
+        });
+      }
+      if (patient.status === 'inactive') {
+        throw new BadRequestException({
+          code: 'PATIENT_INACTIVE',
+          message:
+            'Pasien dalam status nonaktif tidak dapat membuat janji temu baru.',
+        });
+      }
+    }
+
     const bookingCode = `BOOK-${Date.now().toString(36).toUpperCase()}-${Math.floor(
       Math.random() * 1000,
     )}`;

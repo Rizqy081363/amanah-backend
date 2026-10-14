@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 import {
   DEFAULT_PAGE_SIZE,
@@ -56,4 +56,24 @@ export class PatientDirectoryQueryDto {
   @IsString()
   @IsOptional()
   sort?: string;
+
+  @ApiPropertyOptional({ description: 'Filter email pasien' })
+  @IsString()
+  @IsOptional()
+  email?: string;
+
+  @ApiPropertyOptional({ description: 'Filter golongan darah' })
+  @IsString()
+  @IsOptional()
+  bloodType?: string;
+
+  @ApiPropertyOptional({ description: 'Filter tanggal lahir awal (YYYY-MM-DD)' })
+  @IsString()
+  @IsOptional()
+  birthDateFrom?: string;
+
+  @ApiPropertyOptional({ description: 'Filter tanggal lahir akhir (YYYY-MM-DD)' })
+  @IsString()
+  @IsOptional()
+  birthDateTo?: string;
 }

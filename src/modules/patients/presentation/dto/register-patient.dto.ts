@@ -61,15 +61,15 @@ export class RegisterPatientDto {
   birth_date: string;
 
   @ApiProperty({
-    example: 'Laki-laki',
-    enum: ['Laki-laki', 'Perempuan'],
-    description: 'Jenis kelamin pasien',
+    example: 'male',
+    enum: ['male', 'female'],
+    description: 'Jenis kelamin pasien (kanonikal: male / female)',
   })
   @IsNotEmpty({ message: 'Pilih jenis kelamin' })
-  @IsIn(['Laki-laki', 'Perempuan'], {
-    message: 'Pilih jenis kelamin (Laki-laki atau Perempuan)',
+  @IsIn(['male', 'female'], {
+    message: 'Pilih jenis kelamin valid (male atau female)',
   })
-  gender: 'Laki-laki' | 'Perempuan';
+  gender: 'male' | 'female';
 
   @ApiProperty({
     example: 'O',
