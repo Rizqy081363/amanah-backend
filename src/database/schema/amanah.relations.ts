@@ -782,6 +782,10 @@ export const conversationsRelations = relations(
       fields: [conversations.patientId],
       references: [patientProfiles.id],
     }),
+    user: one(users, {
+      fields: [conversations.userId],
+      references: [users.id],
+    }),
     conversationParticipants: many(conversationParticipants),
     messages: many(messages),
     patientTimelineEvents: many(patientTimelineEvents),

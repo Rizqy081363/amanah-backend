@@ -281,6 +281,13 @@
       "when": 1791323000000,
       "tag": "0039_clear_legacy_doctor_assignment_category",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1791324000000,
+      "tag": "0040_chat_module_evolution",
+      "breakpoints": true
     }
   ]
 }

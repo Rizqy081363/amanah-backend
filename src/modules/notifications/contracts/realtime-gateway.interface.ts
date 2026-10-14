@@ -9,6 +9,12 @@ export abstract class RealtimeGatewayPort {
     event: string,
     payload: unknown,
   ): Promise<boolean>;
+  abstract emitToRoom?(
+    roomName: string,
+    event: string,
+    payload: unknown,
+  ): Promise<boolean>;
   abstract getConnectedUserCount(): number;
   abstract isUserOnline(userId: string): boolean;
+  abstract isRoleOnline?(roleName: string): boolean;
 }

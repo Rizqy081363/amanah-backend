@@ -94,10 +94,18 @@ export const clinicUnitType = pgEnum('clinic_unit_type', [
   'support',
   'other',
 ]);
+export const chatSenderRole = pgEnum('chat_sender_role', [
+  'customer',
+  'admin',
+]);
 export const conversationParticipantRole = pgEnum(
   'conversation_participant_role',
   ['patient', 'staff', 'system'],
 );
+export const conversationStatus = pgEnum('conversation_status', [
+  'open',
+  'closed',
+]);
 export const dataExportStatus = pgEnum('data_export_status', [
   'queued',
   'processing',
@@ -2284,30 +2292,69 @@ export const conversations = pgTable(
   'conversations',
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
-    patientId: uuid('patient_id').notNull(),
+    status: conversationStatus().default('open').notNull(),
+    userId: uuid('user_id'),
+    patientId: uuid('patient_id'),
+    guestId: uuid('guest_id'),
+    guestName: text('guest_name'),
+    guestEmail: citext('guest_email'),
     assignedPractitionerId: uuid('assigned_practitioner_id'),
     assignedStaffId: uuid('assigned_staff_id'),
     currentPatientStatus: appointmentStatus('current_patient_status'),
     lastMessageAt: timestamp('last_message_at', {
       withTimezone: true,
       mode: 'string',
+    })
+      .defaultNow()
+      .notNull(),
+    lastCustomerMessageAt: timestamp('last_customer_message_at', {
+      withTimezone: true,
+      mode: 'string',
     }),
+    lastAdminMessageAt: timestamp('last_admin_message_at', {
+      withTimezone: true,
+      mode: 'string',
+    }),
+    firstAdminReplyAt: timestamp('first_admin_reply_at', {
+      withTimezone: true,
+      mode: 'string',
+    }),
+    awaitingReply: boolean('awaiting_reply').generatedAlwaysAs(
+      sql`last_customer_message_at IS NOT NULL AND (last_admin_message_at IS NULL OR last_customer_message_at > last_admin_message_at)`,
+    ),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
       .notNull(),
+    closedAt: timestamp('closed_at', { withTimezone: true, mode: 'string' }),
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
       .notNull(),
   },
   (table) => [
-    index('conversations_last_message_idx').using(
+    uniqueIndex('conversations_one_open_per_user_uidx')
+      .on(table.userId)
+      .where(sql`status = 'open' AND user_id IS NOT NULL`),
+    uniqueIndex('conversations_one_open_per_guest_uidx')
+      .on(table.guestId)
+      .where(sql`status = 'open' AND guest_id IS NOT NULL`),
+    index('conversations_inbox_idx').using(
       'btree',
-      table.lastMessageAt.desc().nullsFirst().op('timestamptz_ops'),
+      table.status.asc().nullsLast().op('enum_ops'),
+      table.lastMessageAt.desc().nullsLast().op('timestamptz_ops'),
+      table.id.desc().nullsLast().op('uuid_ops'),
     ),
+    index('conversations_awaiting_reply_idx')
+      .on(table.lastCustomerMessageAt)
+      .where(sql`status = 'open' AND awaiting_reply = true`),
     index('conversations_patient_idx').using(
       'btree',
       table.patientId.asc().nullsLast().op('uuid_ops'),
     ),
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [users.id],
+      name: 'conversations_user_id_fkey',
+    }).onDelete('cascade'),
     foreignKey({
       columns: [table.assignedPractitionerId],
       foreignColumns: [practitioners.id],
@@ -2322,7 +2369,15 @@ export const conversations = pgTable(
       columns: [table.patientId],
       foreignColumns: [patientProfiles.id],
       name: 'conversations_patient_id_fkey',
-    }).onDelete('cascade'),
+    }).onDelete('set null'),
+    check(
+      'conversations_identity_chk',
+      sql`(user_id IS NOT NULL AND guest_id IS NULL AND guest_name IS NULL AND guest_email IS NULL) OR (user_id IS NULL AND guest_id IS NOT NULL AND guest_name IS NOT NULL AND guest_email IS NOT NULL)`,
+    ),
+    check(
+      'conversations_closed_at_chk',
+      sql`(status = 'closed') = (closed_at IS NOT NULL)`,
+    ),
   ],
 );
 
@@ -2378,11 +2433,13 @@ export const messages = pgTable(
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
     conversationId: uuid('conversation_id').notNull(),
+    senderRole: chatSenderRole('sender_role').default('customer').notNull(),
     senderUserId: uuid('sender_user_id'),
-    senderType: messageSenderType('sender_type').notNull(),
-    authorSnapshot: text('author_snapshot').notNull(),
+    senderType: messageSenderType('sender_type'),
+    clientMessageId: uuid('client_message_id').defaultRandom().notNull(),
+    authorSnapshot: text('author_snapshot').default(''),
     type: messageType().default('text').notNull(),
-    body: text(),
+    body: text('body').notNull(),
     audioDurationSeconds: integer('audio_duration_seconds'),
     statusUpdateText: text('status_update_text'),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
@@ -2395,9 +2452,9 @@ export const messages = pgTable(
     deletedAt: timestamp('deleted_at', { withTimezone: true, mode: 'string' }),
   },
   (table) => [
-    index('messages_body_trgm_idx').using(
-      'gin',
-      table.body.asc().nullsLast().op('gin_trgm_ops'),
+    uniqueIndex('messages_idempotency_uidx').on(
+      table.conversationId,
+      table.clientMessageId,
     ),
     index('messages_conversation_created_idx').using(
       'btree',
@@ -2415,12 +2472,12 @@ export const messages = pgTable(
       name: 'messages_sender_user_id_fkey',
     }).onDelete('set null'),
     check(
-      'messages_audio_duration_nonnegative',
-      sql`(audio_duration_seconds IS NULL) OR (audio_duration_seconds >= 0)`,
+      'messages_body_not_blank',
+      sql`length(TRIM(BOTH FROM body)) > 0 AND length(body) <= 4000`,
     ),
     check(
-      'messages_author_snapshot_not_blank',
-      sql`length(TRIM(BOTH FROM author_snapshot)) > 0`,
+      'messages_admin_sender_chk',
+      sql`sender_role <> 'admin' OR sender_user_id IS NOT NULL`,
     ),
   ],
 );
