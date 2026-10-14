@@ -9,13 +9,16 @@ import {
   serviceCategories,
   sessionDefs,
 } from '../../../../database/schema';
-import { IQueueEngineRepository } from '../../domain/repositories/queue-engine.repository';
-import { QueueEngineService } from '../../domain/services/queue-engine.service';
 import {
   QUEUE_TICKET_SOURCE,
   QUEUE_TICKET_STATUS,
 } from '../../domain/constants/queue-engine.constants';
-import { DomainQueueTicket, QueueTicketStatus } from '../../domain/types/queue.types';
+import { IQueueEngineRepository } from '../../domain/repositories/queue-engine.repository';
+import { QueueEngineService } from '../../domain/services/queue-engine.service';
+import {
+  DomainQueueTicket,
+  QueueTicketStatus,
+} from '../../domain/types/queue.types';
 
 @Injectable()
 export class DrizzleQueueEngineRepository implements IQueueEngineRepository {

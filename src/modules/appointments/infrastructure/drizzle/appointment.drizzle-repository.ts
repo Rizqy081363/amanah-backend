@@ -1,6 +1,18 @@
 import { ClinicConfigService } from '@common/clinic-config';
 import { Inject, Injectable, Optional } from '@nestjs/common';
-import { and, asc, count, desc, eq, inArray, isNotNull, isNull, lt, or, sql } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  or,
+  sql,
+} from 'drizzle-orm';
 import { decodeCursor, encodeCursor } from '../../../../common/pagination';
 import { ClinicTimeService } from '../../../../common/time/clinic-time.service';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
@@ -583,8 +595,10 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
       // 4. Filter by poliklinikId if provided
       if (poliklinikId) {
         const matchesId = entity.poliklinikId === poliklinikId;
-        const matchesName =
-          Boolean(entity.poliklinikName && entity.poliklinikName.toLowerCase() === poliklinikId.toLowerCase());
+        const matchesName = Boolean(
+          entity.poliklinikName &&
+            entity.poliklinikName.toLowerCase() === poliklinikId.toLowerCase(),
+        );
         if (!matchesId && !matchesName) {
           return false;
         }
@@ -740,8 +754,7 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
     });
 
     const isKia =
-      unit?.code === 'poli_kia' ||
-      unit?.name?.toLowerCase().includes('kia');
+      unit?.code === 'poli_kia' || unit?.name?.toLowerCase().includes('kia');
     const catCode = isKia ? 'layanan_kebidanan' : 'layanan_umum';
     const category = await this.db.query.serviceCategories.findFirst({
       where: eq(serviceCategories.code, catCode),

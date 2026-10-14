@@ -1,11 +1,11 @@
 import { Injectable, Optional } from '@nestjs/common';
+import { ClinicSettingService } from '../../infrastructure/config/clinic-setting.service';
 import {
   ClosureInterval,
   ExtraOpeningInterval,
   ScheduledShift,
   TimeInterval,
 } from '../types/calendar.types';
-import { ClinicSettingService } from '../../infrastructure/config/clinic-setting.service';
 
 @Injectable()
 export class CalendarService {
@@ -241,8 +241,7 @@ export class CalendarService {
     // 4. Add extra openings matching scope
     const matchingExtras = extras
       .filter(
-        (e) =>
-          !e.categoryId || (categoryId && e.categoryId === categoryId),
+        (e) => !e.categoryId || (categoryId && e.categoryId === categoryId),
       )
       .map((e) => ({ start: e.startsAt, end: e.endsAt }));
 

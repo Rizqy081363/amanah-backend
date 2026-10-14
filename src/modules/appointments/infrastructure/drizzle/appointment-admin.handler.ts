@@ -205,7 +205,10 @@ export class AppointmentAdminHandler {
 
         // 1. Guard against doctor concurrent examination (a doctor can only examine 1 patient at a time)
         const [activeServing] = await tx
-          .select({ id: appointments.id, queueNumber: appointments.queueNumber })
+          .select({
+            id: appointments.id,
+            queueNumber: appointments.queueNumber,
+          })
           .from(appointments)
           .where(
             and(
@@ -226,7 +229,10 @@ export class AppointmentAdminHandler {
         // 2. Guard against queue jumping (earlier queue position under this doctor must be served first)
         const currentQueueNum = Number(apt.queueNumber ?? 1);
         const [earlierWaiting] = await tx
-          .select({ id: appointments.id, queueNumber: appointments.queueNumber })
+          .select({
+            id: appointments.id,
+            queueNumber: appointments.queueNumber,
+          })
           .from(appointments)
           .where(
             and(

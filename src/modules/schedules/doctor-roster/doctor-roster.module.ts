@@ -1,5 +1,5 @@
-import { DrizzleModule } from '@database/drizzle/drizzle.module';
 import { RedisModule } from '@common/redis/redis.module';
+import { DrizzleModule } from '@database/drizzle/drizzle.module';
 import { Module } from '@nestjs/common';
 import { DOCTOR_ROSTER_REPOSITORY } from './domain/doctor-roster.repository';
 import { DrizzleDoctorRosterRepository } from './infrastructure/drizzle-doctor-roster.repository';

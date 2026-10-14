@@ -17,9 +17,7 @@ export type {
 
 @Injectable()
 export class AppointmentCandidateResolver implements ICandidateResolverPort {
-  constructor(
-    private readonly delegate: CandidateResolverService,
-  ) {}
+  constructor(private readonly delegate: CandidateResolverService) {}
 
   async resolveDoctorCandidates(
     appointmentId: string,

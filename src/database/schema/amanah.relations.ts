@@ -47,8 +47,10 @@ import {
   roles,
   scheduleRescheduleEvents,
   serviceCategories,
+  staffAddresses,
   staffAttendanceRecords,
   staffCredentials,
+  staffInvitations,
   staffLeaveRequests,
   staffProfiles,
   supportTicketAttachments,
@@ -65,7 +67,7 @@ import {
   maternalHealthConditionResponses,
   maternalHusbandProfiles,
 } from './maternal.schema';
-import { sessionDefs } from './queue-ticketing.schema';
+import { sessionDefs, staffRosters } from './queue-ticketing.schema';
 
 export const userDevicesRelations = relations(userDevices, ({ one, many }) => ({
   user: one(users, {
@@ -320,6 +322,28 @@ export const staffProfilesRelations = relations(
     staffAttendanceRecords: many(staffAttendanceRecords),
     conversations: many(conversations),
     supportTickets: many(supportTickets),
+    rosters: many(staffRosters),
+    addresses: many(staffAddresses),
+  }),
+);
+
+export const staffAddressesRelations = relations(
+  staffAddresses,
+  ({ one }) => ({
+    staffProfile: one(staffProfiles, {
+      fields: [staffAddresses.staffProfileId],
+      references: [staffProfiles.id],
+    }),
+  }),
+);
+
+export const staffInvitationsRelations = relations(
+  staffInvitations,
+  ({ one }) => ({
+    invitedByUser: one(users, {
+      fields: [staffInvitations.invitedBy],
+      references: [users.id],
+    }),
   }),
 );
 

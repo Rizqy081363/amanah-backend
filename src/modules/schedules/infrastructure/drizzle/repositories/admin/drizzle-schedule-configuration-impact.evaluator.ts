@@ -6,13 +6,13 @@ import {
   masterDays,
   sessionDefs,
 } from '@database/schema';
+import { ScheduleShiftRegistry } from '@modules/schedules/domain/constants/schedule-shift.constants';
 import {
   EvaluateScheduleImpactDto,
   ScheduleConfigurationImpactResultDto,
 } from '@modules/schedules/presentation/dto/admin-schedule-configuration.dto';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { and, eq, gte, inArray, lt, sql } from 'drizzle-orm';
-import { ScheduleShiftRegistry } from '@modules/schedules/domain/constants/schedule-shift.constants';
 
 @Injectable()
 export class DrizzleScheduleConfigurationImpactEvaluator {
@@ -20,9 +20,7 @@ export class DrizzleScheduleConfigurationImpactEvaluator {
     DrizzleScheduleConfigurationImpactEvaluator.name,
   );
 
-  constructor(
-    @Inject(DRIZZLE_SOURCE) private readonly db: DrizzleDatabase,
-  ) {}
+  constructor(@Inject(DRIZZLE_SOURCE) private readonly db: DrizzleDatabase) {}
 
   async evaluate(
     dto: EvaluateScheduleImpactDto,

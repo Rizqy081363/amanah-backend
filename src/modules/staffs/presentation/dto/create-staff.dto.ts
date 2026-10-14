@@ -40,6 +40,40 @@ export class CreateStaffDto {
   @IsOptional()
   userId?: string;
 
+  @ApiPropertyOptional({
+    description: 'Tipe peran staf operasional: doctor, midwife, atau worker',
+    enum: ['doctor', 'midwife', 'worker'],
+    example: 'doctor',
+  })
+  @IsString()
+  @IsOptional()
+  staffType?: 'doctor' | 'midwife' | 'worker';
+
+  @ApiPropertyOptional({ example: 'Jakarta' })
+  @IsString()
+  @IsOptional()
+  birthPlace?: string;
+
+  @ApiPropertyOptional({ example: '1985-05-20' })
+  @IsString()
+  @IsOptional()
+  birthDate?: string;
+
+  @ApiPropertyOptional({ enum: ['male', 'female'], example: 'male' })
+  @IsString()
+  @IsOptional()
+  gender?: 'male' | 'female';
+
+  @ApiPropertyOptional({ example: '3171234567890001' })
+  @IsString()
+  @IsOptional()
+  nationalId?: string;
+
+  @ApiPropertyOptional({ example: 'staff@example.com' })
+  @IsString()
+  @IsOptional()
+  email?: string;
+
   @ApiPropertyOptional({ default: true })
   @IsBoolean()
   @IsOptional()

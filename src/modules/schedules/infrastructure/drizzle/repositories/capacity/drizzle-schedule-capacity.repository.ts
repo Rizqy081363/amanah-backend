@@ -1,3 +1,4 @@
+import { ClinicConfigService } from '@common/clinic-config/clinic-config.service';
 import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
@@ -7,7 +8,6 @@ import {
   sessionDefs,
   shiftExceptions,
 } from '@database/schema';
-import { ClinicConfigService } from '@common/clinic-config/clinic-config.service';
 import { SimulatorService } from '@modules/queue-engine/domain/services/simulator.service';
 import { SCHEDULE_CONTEXT_DEFINITIONS } from '@modules/schedules/domain/constants/schedule-context.constants';
 import {
@@ -53,7 +53,8 @@ export class DrizzleScheduleCapacityRepository {
     const durationMinutes = policy.durationMinutes;
 
     // 0. Resolve load ratio thresholds dynamically from clinic_setting
-    const loadThresholds = await this.clinicConfigService.getLoadRatioThresholds();
+    const loadThresholds =
+      await this.clinicConfigService.getLoadRatioThresholds();
 
     // 1. Check if practitioner is on leave on target date via shiftExceptions
     const activeLeave = await this.db.query.shiftExceptions.findFirst({
@@ -65,7 +66,9 @@ export class DrizzleScheduleCapacityRepository {
     });
 
     const isOnLeave = Boolean(activeLeave);
-    const leaveReason = isOnLeave ? activeLeave?.note || 'Doctor on leave' : null;
+    const leaveReason = isOnLeave
+      ? activeLeave?.note || 'Doctor on leave'
+      : null;
 
     // 2. Resolve room name and count active clinic rooms
     const activeRooms = await this.db.query.clinicRooms.findMany({
@@ -80,36 +83,42 @@ export class DrizzleScheduleCapacityRepository {
     }
 
     // 3. Query session definitions, doctor assignments, and active tickets
-    const [allSessionDefs, allDoctorAssignments, dateLeaveExceptions, activeQueueTickets] =
-      await Promise.all([
-        this.db.query.sessionDefs.findMany({
-          where: eq(sessionDefs.isActive, true),
-          orderBy: [asc(sessionDefs.sortOrder)],
-        }),
-        this.db.query.doctorAssignments.findMany({
-          where: and(
-            eq(doctorAssignments.isActive, true),
-            or(
-              eq(doctorAssignments.dow, new Date(query.date).getDay()),
-              isNull(doctorAssignments.dow),
-            ),
+    const [
+      allSessionDefs,
+      allDoctorAssignments,
+      dateLeaveExceptions,
+      activeQueueTickets,
+    ] = await Promise.all([
+      this.db.query.sessionDefs.findMany({
+        where: eq(sessionDefs.isActive, true),
+        orderBy: [asc(sessionDefs.sortOrder)],
+      }),
+      this.db.query.doctorAssignments.findMany({
+        where: and(
+          eq(doctorAssignments.isActive, true),
+          or(
+            eq(doctorAssignments.dow, new Date(query.date).getDay()),
+            isNull(doctorAssignments.dow),
           ),
-        }),
-        this.db.query.shiftExceptions.findMany({
-          where: and(
-            eq(shiftExceptions.serviceDate, query.date),
-            eq(shiftExceptions.type, 'leave'),
-          ),
-        }),
-        this.db.query.queueTickets.findMany({
-          where: and(
-            eq(queueTickets.queueDate, query.date),
-            inArray(queueTickets.status, ['waiting', 'called', 'in_service']),
-          ),
-        }),
-      ]);
+        ),
+      }),
+      this.db.query.shiftExceptions.findMany({
+        where: and(
+          eq(shiftExceptions.serviceDate, query.date),
+          eq(shiftExceptions.type, 'leave'),
+        ),
+      }),
+      this.db.query.queueTickets.findMany({
+        where: and(
+          eq(queueTickets.queueDate, query.date),
+          inArray(queueTickets.status, ['waiting', 'called', 'in_service']),
+        ),
+      }),
+    ]);
 
-    const doctorsOnLeaveIds = new Set(dateLeaveExceptions.map((ex) => ex.doctorId));
+    const doctorsOnLeaveIds = new Set(
+      dateLeaveExceptions.map((ex) => ex.doctorId),
+    );
 
     // 4. Construct shifts with authoritative lane capacity & queue load
     const shifts: ScheduleShiftCapacityEntity[] = [];

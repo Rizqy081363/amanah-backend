@@ -1,10 +1,20 @@
+import { Temporal } from '@js-temporal/polyfill';
 import {
   BadRequestException,
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import { Temporal } from '@js-temporal/polyfill';
-import { and, asc, eq, ilike, inArray, isNull, not, or, sql } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  eq,
+  ilike,
+  inArray,
+  isNull,
+  not,
+  or,
+  sql,
+} from 'drizzle-orm';
 import type { ClinicConfigService } from '../../../../common/clinic-config/clinic-config.service';
 import type { ClinicTimeService } from '../../../../common/time/clinic-time.service';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
@@ -22,6 +32,7 @@ import {
   queueTickets,
   sessionDefs,
 } from '../../../../database/schema';
+import type { QueuePositionRecalculationService } from '../../../queue-engine/application/services/queue-position-recalculation.service';
 import {
   ScheduleShiftRegistry,
   SHIFT_TIMING_CONFIGS,
@@ -33,7 +44,6 @@ import {
 import { AppointmentEntity } from '../../domain/entities/appointment.entity';
 import { ActiveTicketPolicyService } from '../../domain/services/active-ticket-policy.service';
 import { AppointmentRecordMapper } from './appointment-record.mapper';
-import type { QueuePositionRecalculationService } from '../../../queue-engine/application/services/queue-position-recalculation.service';
 
 export class AppointmentCreationHandler {
   static async create(
@@ -190,7 +200,7 @@ export class AppointmentCreationHandler {
     });
 
     if (activeClosure) {
-      let candidateDate = new Date(`${data.appointmentDate}T00:00:00.000Z`);
+      const candidateDate = new Date(`${data.appointmentDate}T00:00:00.000Z`);
       let foundOpenDate: string | null = null;
       for (let i = 1; i <= 14; i++) {
         candidateDate.setUTCDate(candidateDate.getUTCDate() + 1);
@@ -312,7 +322,10 @@ export class AppointmentCreationHandler {
           count: sql<number>`count(*)::int`,
         })
         .from(appointments)
-        .innerJoin(clinicServices, eq(appointments.serviceId, clinicServices.id))
+        .innerJoin(
+          clinicServices,
+          eq(appointments.serviceId, clinicServices.id),
+        )
         .where(
           and(
             eq(appointments.scheduledDate, data.appointmentDate),
@@ -441,7 +454,9 @@ export class AppointmentCreationHandler {
       if (
         insertError?.code === '23505' &&
         (insertError?.constraint === 'queue_tickets_one_active_per_patient' ||
-          String(insertError?.message || '').includes('queue_tickets_one_active_per_patient'))
+          String(insertError?.message || '').includes(
+            'queue_tickets_one_active_per_patient',
+          ))
       ) {
         // Rollback created appointment to avoid orphan appointment record
         await db

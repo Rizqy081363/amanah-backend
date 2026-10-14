@@ -10,6 +10,7 @@ import {
   sessionDefs,
   sessionSchedules,
 } from '@database/schema';
+import { ScheduleShiftRegistry } from '@modules/schedules/domain/constants/schedule-shift.constants';
 import {
   EvaluateScheduleImpactDto,
   ScheduleConfigurationImpactResultDto,
@@ -32,7 +33,6 @@ import {
   ClinicSettingOptionDescriptor,
   getClinicSettingMetadata,
 } from './admin-clinic-setting-metadata';
-import { ScheduleShiftRegistry } from '@modules/schedules/domain/constants/schedule-shift.constants';
 import { DrizzleScheduleConfigurationImpactEvaluator } from './drizzle-schedule-configuration-impact.evaluator';
 
 export interface CanonicalDayInfo {
@@ -129,10 +129,7 @@ export class DrizzleAdminScheduleConfigurationRepository {
       rawClinicSettings,
       rawMasterDays,
     ] = await Promise.all([
-      this.db
-        .select()
-        .from(sessionDefs)
-        .orderBy(asc(sessionDefs.sortOrder)),
+      this.db.select().from(sessionDefs).orderBy(asc(sessionDefs.sortOrder)),
       this.db
         .select({
           id: sessionSchedules.id,
@@ -147,10 +144,7 @@ export class DrizzleAdminScheduleConfigurationRepository {
         .from(sessionSchedules)
         .innerJoin(sessionDefs, eq(sessionSchedules.sessionId, sessionDefs.id))
         .orderBy(asc(sessionSchedules.dow), asc(sessionDefs.sortOrder)),
-      this.db
-        .select()
-        .from(clinicSettings)
-        .orderBy(asc(clinicSettings.key)),
+      this.db.select().from(clinicSettings).orderBy(asc(clinicSettings.key)),
       this.db
         .select({
           dow: masterDays.dow,
@@ -177,7 +171,8 @@ export class DrizzleAdminScheduleConfigurationRepository {
           code: sd.code,
           labelKey: sd.labelKey,
           label: descriptor?.label ?? sd.code,
-          timeRange: startTimeStr && endTimeStr ? `${startTimeStr} - ${endTimeStr}` : '',
+          timeRange:
+            startTimeStr && endTimeStr ? `${startTimeStr} - ${endTimeStr}` : '',
           codePrefix: sd.codePrefix,
           sortOrder: sd.sortOrder,
           isActive: sd.isActive,
@@ -267,7 +262,9 @@ export class DrizzleAdminScheduleConfigurationRepository {
         .update(sessionDefs)
         .set({
           ...(typeof def.isActive === 'boolean' && { isActive: def.isActive }),
-          ...(typeof def.sortOrder === 'number' && { sortOrder: def.sortOrder }),
+          ...(typeof def.sortOrder === 'number' && {
+            sortOrder: def.sortOrder,
+          }),
           updatedAt: now,
         })
         .where(eq(sessionDefs.id, def.id));
@@ -285,11 +282,16 @@ export class DrizzleAdminScheduleConfigurationRepository {
     const now = new Date().toISOString();
 
     const allDefs = await executor
-      .select({ id: sessionDefs.id, code: sessionDefs.code, isActive: sessionDefs.isActive })
+      .select({
+        id: sessionDefs.id,
+        code: sessionDefs.code,
+        isActive: sessionDefs.isActive,
+      })
       .from(sessionDefs);
-    const defMap = new Map<string, { id: string; code: string; isActive: boolean }>(
-      allDefs.map((d: any) => [d.id, d]),
-    );
+    const defMap = new Map<
+      string,
+      { id: string; code: string; isActive: boolean }
+    >(allDefs.map((d: any) => [d.id, d]));
 
     for (const item of templates) {
       if (item.isActive) {
@@ -307,14 +309,23 @@ export class DrizzleAdminScheduleConfigurationRepository {
         );
       }
 
-      const existing = item.id && item.id.trim() !== ''
-        ? await executor.select().from(sessionSchedules).where(eq(sessionSchedules.id, item.id)).limit(1)
-        : await executor.select().from(sessionSchedules).where(
-            and(
-              eq(sessionSchedules.sessionId, item.sessionId),
-              eq(sessionSchedules.dow, item.dow),
-            ),
-          ).limit(1);
+      const existing =
+        item.id && item.id.trim() !== ''
+          ? await executor
+              .select()
+              .from(sessionSchedules)
+              .where(eq(sessionSchedules.id, item.id))
+              .limit(1)
+          : await executor
+              .select()
+              .from(sessionSchedules)
+              .where(
+                and(
+                  eq(sessionSchedules.sessionId, item.sessionId),
+                  eq(sessionSchedules.dow, item.dow),
+                ),
+              )
+              .limit(1);
 
       if (existing && existing.length > 0) {
         await executor

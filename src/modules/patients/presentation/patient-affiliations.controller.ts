@@ -22,7 +22,6 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { desc, eq, ilike } from 'drizzle-orm';
-import { normalizeBloodTypeToDb } from '../domain/data/patient-reference.data';
 import {
   CurrentUser,
   HybridAuthGuard,
@@ -38,6 +37,7 @@ import {
   patientAddresses,
   patientProfiles,
 } from '../../../database/schema';
+import { normalizeBloodTypeToDb } from '../domain/data/patient-reference.data';
 import {
   PATIENT_REPOSITORY,
   type PatientRepository,
@@ -315,8 +315,9 @@ export class PatientAffiliationsController {
     @Body() dto: CreatePatientAffiliationDto,
   ) {
     if (dto.relationship_type === 'self' || dto.is_primary) {
-      const existingUserAffiliations =
-        await this.affiliationRepo.findByUserId(user.id);
+      const existingUserAffiliations = await this.affiliationRepo.findByUserId(
+        user.id,
+      );
       const hasSelf = existingUserAffiliations.some(
         (aff) => aff.relationshipType === 'self' || aff.isPrimary,
       );

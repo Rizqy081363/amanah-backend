@@ -1,3 +1,4 @@
+import { NameInitialsHelper } from '@common/utils/name-initials.helper';
 import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
@@ -20,17 +21,18 @@ import {
 } from '@modules/schedules/domain/entities/schedule.entity';
 import {
   ScheduleSessionFactory,
-  SHIFT_DEFINITIONS,
   type SessionShiftType,
+  SHIFT_DEFINITIONS,
 } from '@modules/schedules/domain/factories/schedule-session.factory';
-import {
-  filterEffectiveDoctorAssignments,
-  resolveDoctorSessionOperability,
-} from '@modules/schedules/domain/services/doctor-session-operational.resolver';
+import { SchedulePatientEligibilityHelper } from '@modules/schedules/domain/helpers/schedule-patient-eligibility.helper';
 import {
   resolveAggregateOperationalStatus,
   resolveSessionOperationalStatus,
 } from '@modules/schedules/domain/schedule-status';
+import {
+  filterEffectiveDoctorAssignments,
+  resolveDoctorSessionOperability,
+} from '@modules/schedules/domain/services/doctor-session-operational.resolver';
 import {
   type DateDisplayFormatStyle,
   formatIndoDate,
@@ -40,8 +42,6 @@ import {
 import { ScheduleRecordMapper } from '@modules/schedules/infrastructure/drizzle/mappers/schedule-record.mapper';
 import { SchedulePolicyReader } from '@modules/schedules/infrastructure/drizzle/queries/schedule-policy.reader';
 import type { AdminDoctorSchedulesQueryDto } from '@modules/schedules/presentation/dto/admin-doctor-schedules-query.dto';
-import { NameInitialsHelper } from '@common/utils/name-initials.helper';
-import { SchedulePatientEligibilityHelper } from '@modules/schedules/domain/helpers/schedule-patient-eligibility.helper';
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import { and, asc, eq, gte, inArray, lte, not } from 'drizzle-orm';
 
@@ -197,9 +197,13 @@ export class DrizzleAdminDoctorScheduleListQuery {
         : 'Belum Ditentukan';
 
       const sesiHarian: AdminDoctorDailySession[] = sessions.map((s: any) => {
-        const shiftDef = SHIFT_DEFINITIONS.find((d) => d.shift === s.sessionShift);
-        const boundaryStart = shiftDef?.boundaryStartTime || SHIFT_DEFINITIONS[1].boundaryStartTime;
-        const boundaryEnd = shiftDef?.boundaryEndTime || SHIFT_DEFINITIONS[1].boundaryEndTime;
+        const shiftDef = SHIFT_DEFINITIONS.find(
+          (d) => d.shift === s.sessionShift,
+        );
+        const boundaryStart =
+          shiftDef?.boundaryStartTime || SHIFT_DEFINITIONS[1].boundaryStartTime;
+        const boundaryEnd =
+          shiftDef?.boundaryEndTime || SHIFT_DEFINITIONS[1].boundaryEndTime;
 
         const jamMulai = s.startTime ? s.startTime.slice(0, 5) : boundaryStart;
         const jamSelesai = s.endTime ? s.endTime.slice(0, 5) : boundaryEnd;
@@ -348,8 +352,7 @@ export class DrizzleAdminDoctorScheduleListQuery {
         if (invalidStatuses.length > 0) {
           throw new BadRequestException({
             code: 'INVALID_SCHEDULE_STATUS_FILTER',
-            message:
-              'Status filter must use canonical values: OPEN, CLOSED.',
+            message: 'Status filter must use canonical values: OPEN, CLOSED.',
             metadata: { invalidStatuses },
           });
         }

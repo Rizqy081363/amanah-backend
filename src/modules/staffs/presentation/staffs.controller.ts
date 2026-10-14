@@ -12,6 +12,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -43,8 +44,13 @@ import {
   STAFF_REPOSITORY,
   StaffRepository,
 } from '../domain/repositories/staff.repository';
+import {
+  STAFF_ROSTER_REPOSITORY,
+  StaffRosterRepository,
+} from '../domain/repositories/staff-roster.repository';
 import { CreateCredentialDto } from './dto/create-credential.dto';
 import { CreateStaffDto } from './dto/create-staff.dto';
+import { BulkReplaceRosterDto } from './dto/staff-roster.dto';
 import { UpdateCredentialDto } from './dto/update-credential.dto';
 import { UpdateStaffDto } from './dto/update-staff.dto';
 
@@ -62,6 +68,8 @@ export class StaffsController {
   constructor(
     @Inject(STAFF_REPOSITORY)
     private readonly staffRepo: StaffRepository,
+    @Inject(STAFF_ROSTER_REPOSITORY)
+    private readonly rosterRepo: StaffRosterRepository,
     private readonly avatarService: AvatarService,
   ) {}
 
@@ -149,7 +157,7 @@ export class StaffsController {
     @CurrentUser() user: any,
     @UploadedFile() file?: Express.Multer.File,
   ) {
-    if (!file || !file.buffer) {
+    if (!file?.buffer) {
       throw new BadRequestException('Berkas gambar (file) wajib disertakan');
     }
     return this.avatarService.uploadAvatar(user.id, file.buffer);
@@ -310,6 +318,12 @@ export class StaffsController {
       poliklinikId: body.poliklinikId || '',
       fullName: body.fullName,
       profession: body.profession,
+      staffType: body.staffType || 'worker',
+      birthPlace: body.birthPlace,
+      birthDate: body.birthDate,
+      gender: body.gender,
+      nationalId: body.nationalId,
+      email: body.email,
       idCardNumber: body.idCardNumber || '',
       photoUrl: body.photoUrl || null,
       phoneNumber: body.phoneNumber,
@@ -447,7 +461,7 @@ export class StaffsController {
     @Param('id') id: string,
     @UploadedFile() file?: Express.Multer.File,
   ) {
-    if (!file || !file.buffer) {
+    if (!file?.buffer) {
       throw new BadRequestException('Berkas gambar (file) wajib disertakan');
     }
     const staff = await this.staffRepo.findById(id);
@@ -647,5 +661,103 @@ export class StaffsController {
       );
     }
     await this.staffRepo.deleteCredential(credentialId);
+  }
+
+  @Get(':id/roster')
+  @Roles('ADMIN', 'STAF')
+  @ApiOperation({
+    summary: 'Mendapatkan jadwal shift roster staf operasional',
+    description:
+      'Mengambil daftar sesi operasional mingguan (Senin-Minggu) yang ditugaskan kepada staf.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID unik staf klinis / operasional',
+  })
+  @ApiOkResponse({
+    description: 'Daftar roster staf berhasil diambil',
+  })
+  async getStaffRoster(@Param('id') id: string) {
+    const staff = await this.staffRepo.findById(id);
+    if (!staff) {
+      throw new NotFoundException(`Staf dengan ID ${id} tidak ditemukan`);
+    }
+    return this.rosterRepo.findByStaffProfileId(id);
+  }
+
+  @Put(':id/roster')
+  @Roles('ADMIN')
+  @ApiOperation({
+    summary:
+      'Mengganti seluruh jadwal shift roster staf operasional (Bulk Replace)',
+    description:
+      'Menetapkan pola shift mingguan untuk staf operasional. Roster lama akan digantikan dengan daftar yang baru.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID unik staf klinis / operasional',
+  })
+  @ApiOkResponse({
+    description: 'Roster staf berhasil diperbarui',
+  })
+  async updateStaffRoster(
+    @Param('id') id: string,
+    @Body() body: BulkReplaceRosterDto,
+  ) {
+    const staff = await this.staffRepo.findById(id);
+    if (!staff) {
+      throw new NotFoundException(`Staf dengan ID ${id} tidak ditemukan`);
+    }
+    return this.rosterRepo.bulkReplace(id, body.rosters);
+  }
+
+  @Delete(':id/roster/:rosterId')
+  @Roles('ADMIN')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Menghapus satu item jadwal roster staf operasional',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID unik staf klinis / operasional',
+  })
+  @ApiParam({
+    name: 'rosterId',
+    description: 'ID unik penugasan roster',
+  })
+  @ApiNoContentResponse({ description: 'Item roster berhasil dihapus' })
+  async deleteStaffRosterItem(
+    @Param('id') id: string,
+    @Param('rosterId') rosterId: string,
+  ) {
+    const staff = await this.staffRepo.findById(id);
+    if (!staff) {
+      throw new NotFoundException(`Staf dengan ID ${id} tidak ditemukan`);
+    }
+    await this.rosterRepo.remove(rosterId);
+  }
+
+  @Delete(':id/roster')
+  @Roles('ADMIN')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Mereset roster staf ke template master jadwal mingguan klinik',
+    description:
+      'Menghapus seluruh override khusus dan mengembalikan jadwal staf sesuai template master operasional klinik.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID unik staf klinis / operasional',
+  })
+  @ApiOkResponse({
+    description: 'Roster staf berhasil direset ke template master jadwal',
+  })
+  async resetStaffRoster(@Param('id') id: string) {
+    const staff = await this.staffRepo.findById(id);
+    if (!staff) {
+      throw new NotFoundException(`Staf dengan ID ${id} tidak ditemukan`);
+    }
+    await this.rosterRepo.deleteByStaffProfileId(id);
+    return this.rosterRepo.findByStaffProfileId(id);
   }
 }

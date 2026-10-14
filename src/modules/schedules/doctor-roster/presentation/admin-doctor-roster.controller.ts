@@ -45,7 +45,8 @@ export class AdminDoctorRosterController {
 
   @Get(':id/assignments')
   @ApiOperation({
-    summary: 'Mendapatkan matriks hari dan shift kerja dokter (Roster Mingguan)',
+    summary:
+      'Mendapatkan matriks hari dan shift kerja dokter (Roster Mingguan)',
   })
   @ApiParam({ name: 'id', description: 'ID praktisi / dokter' })
   @ApiOkResponse({ type: DoctorRosterOverviewResponse })
@@ -58,7 +59,8 @@ export class AdminDoctorRosterController {
   @Put(':id/assignments')
   @Roles('ADMIN')
   @ApiOperation({
-    summary: 'Menyimpan konfigurasi hari dan shift kerja dokter (Roster Mingguan)',
+    summary:
+      'Menyimpan konfigurasi hari dan shift kerja dokter (Roster Mingguan)',
   })
   @ApiParam({ name: 'id', description: 'ID praktisi / dokter' })
   @ApiOkResponse({ type: DoctorRosterOverviewResponse })
@@ -74,7 +76,8 @@ export class AdminDoctorRosterController {
   @Delete(':id/assignments')
   @Roles('ADMIN')
   @ApiOperation({
-    summary: 'Mereset roster kerja dokter kembali ke template mingguan default klinik',
+    summary:
+      'Mereset roster kerja dokter kembali ke template mingguan default klinik',
   })
   @ApiParam({ name: 'id', description: 'ID praktisi / dokter' })
   @ApiOkResponse({ type: DoctorRosterOverviewResponse })
@@ -89,7 +92,8 @@ export class AdminDoctorRosterController {
   @Post(':id/assignments/reset')
   @Roles('ADMIN')
   @ApiOperation({
-    summary: 'Mereset roster kerja dokter kembali ke template mingguan default klinik',
+    summary:
+      'Mereset roster kerja dokter kembali ke template mingguan default klinik',
   })
   @ApiParam({ name: 'id', description: 'ID praktisi / dokter' })
   @ApiOkResponse({ type: DoctorRosterOverviewResponse })
@@ -103,7 +107,8 @@ export class AdminDoctorRosterController {
 
   @Get(':id/history')
   @ApiOperation({
-    summary: 'Mendapatkan riwayat audit perubahan status dan jadwal praktik dokter',
+    summary:
+      'Mendapatkan riwayat audit perubahan status dan jadwal praktik dokter',
   })
   @ApiParam({ name: 'id', description: 'ID praktisi / dokter' })
   @ApiQuery({ name: 'limit', required: false, type: Number })
@@ -116,6 +121,10 @@ export class AdminDoctorRosterController {
   ): Promise<DoctorScheduleHistoryResponse> {
     const parsedLimit = limit ? Number(limit) : 20;
     const parsedOffset = offset ? Number(offset) : 0;
-    return this.rosterRepo.getDoctorScheduleHistory(id, parsedLimit, parsedOffset);
+    return this.rosterRepo.getDoctorScheduleHistory(
+      id,
+      parsedLimit,
+      parsedOffset,
+    );
   }
 }

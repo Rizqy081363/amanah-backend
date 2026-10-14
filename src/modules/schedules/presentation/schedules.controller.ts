@@ -270,8 +270,6 @@ export class SchedulesController {
     return this.scheduleRepo.getCalendarSummary(staffId, query.month);
   }
 
-
-
   @Patch('days/:date')
   @Roles('STAF', 'ADMIN')
   @ApiOperation({
@@ -433,8 +431,7 @@ export class SchedulesController {
   @Get('capacity-overview')
   @Roles('STAF', 'ADMIN')
   @ApiOperation({
-    summary:
-      'Ringkasan Kapasitas Lane dan Beban Antrean Layanan per Shift',
+    summary: 'Ringkasan Kapasitas Lane dan Beban Antrean Layanan per Shift',
     description:
       'Menampilkan kapasitas lane (min dokter bertugas dan ruangan aktif), kapasitas nominal, serta rasio beban antrean aktif untuk seluruh shift.',
   })
@@ -453,8 +450,6 @@ export class SchedulesController {
       data,
     };
   }
-
-
 
   @Get('booked-patients')
   @Roles('STAF', 'ADMIN')

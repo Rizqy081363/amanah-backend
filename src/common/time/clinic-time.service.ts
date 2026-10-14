@@ -1,8 +1,8 @@
+import { Temporal } from '@js-temporal/polyfill';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Temporal } from '@js-temporal/polyfill';
-import { ClinicConfigService } from '../clinic-config/clinic-config.service';
 import { AllConfigType } from '../../config/config.type';
+import { ClinicConfigService } from '../clinic-config/clinic-config.service';
 import { Clock } from './clock';
 
 export type BusinessDate = string & { readonly __brand: 'BusinessDate' };

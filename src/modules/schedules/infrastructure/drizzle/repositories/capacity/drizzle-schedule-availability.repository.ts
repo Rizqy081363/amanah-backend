@@ -1,4 +1,5 @@
 import { generateEntityVersion } from '@common/occ';
+import { ClinicTimeService } from '@common/time/clinic-time.service';
 import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
@@ -6,7 +7,6 @@ import {
   practitioners,
   sessionDefs,
 } from '@database/schema';
-import { ClinicTimeService } from '@common/time/clinic-time.service';
 import {
   SCHEDULE_CONTEXT_DEFINITIONS,
   type ScheduleContextDefinition,
@@ -127,8 +127,7 @@ export class DrizzleScheduleAvailabilityRepository {
     if (remainingMinutes < policy.durationMinutes) {
       throw new UnprocessableEntityException({
         code: 'DURATION_EXCEEDS_BOUNDARY',
-        message:
-          'Jam mulai dan durasi konsultasi melebihi batas shift.',
+        message: 'Jam mulai dan durasi konsultasi melebihi batas shift.',
         metadata: {
           selectedStartTime,
           boundaryEndTime: context.boundaryEndTime,

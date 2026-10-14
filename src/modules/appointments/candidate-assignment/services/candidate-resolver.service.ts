@@ -1,7 +1,10 @@
-import { ClinicTimeService, parseBusinessDate } from '@common/time/clinic-time.service';
+import {
+  ClinicTimeService,
+  parseBusinessDate,
+} from '@common/time/clinic-time.service';
 import { Temporal } from '@js-temporal/polyfill';
-import { Injectable, Optional } from '@nestjs/common';
 import { filterEffectiveDoctorAssignments } from '@modules/schedules/domain/services/doctor-session-operational.resolver';
+import { Injectable, Optional } from '@nestjs/common';
 import {
   isTerminalAppointmentStatus,
   STAFF_TYPE,
@@ -80,10 +83,7 @@ export class CandidateResolverService implements ICandidateResolverPort {
       resolvedSessionId
         ? this.repository.findRosteredDoctors(resolvedSessionId, dow)
         : Promise.resolve([]),
-      this.repository.findActiveDoctorLeaves(
-        scheduledDate,
-        resolvedSessionId,
-      ),
+      this.repository.findActiveDoctorLeaves(scheduledDate, resolvedSessionId),
       this.repository.countActiveQueuePerDoctor(
         scheduledDate,
         resolvedSessionId,
@@ -146,9 +146,7 @@ export class CandidateResolverService implements ICandidateResolverPort {
         p.displayName;
 
       const groupCode =
-        matchedSpecialty?.code ||
-        p.staffProfile?.clinicUnit?.code ||
-        null;
+        matchedSpecialty?.code || p.staffProfile?.clinicUnit?.code || null;
 
       if (!groupMap.has(groupId)) {
         groupMap.set(groupId, {

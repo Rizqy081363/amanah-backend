@@ -1,5 +1,5 @@
-import type { PatientEntity } from '../../domain/entities/patient.entity';
 import { formatBloodTypeDisplay } from '../../domain/data/patient-reference.data';
+import type { PatientEntity } from '../../domain/entities/patient.entity';
 
 export class PatientRecordMapper {
   static toEntity(record: any): PatientEntity {

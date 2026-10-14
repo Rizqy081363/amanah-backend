@@ -67,15 +67,9 @@ export class AppointmentPoliklinikResolver {
         staffProfiles,
         eq(practitioners.staffProfileId, staffProfiles.id),
       )
-      .innerJoin(
-        clinicUnits,
-        eq(staffProfiles.primaryUnitId, clinicUnits.id),
-      )
+      .innerJoin(clinicUnits, eq(staffProfiles.primaryUnitId, clinicUnits.id))
       .where(
-        and(
-          eq(clinicServices.isActive, true),
-          eq(clinicUnits.isActive, true),
-        ),
+        and(eq(clinicServices.isActive, true), eq(clinicUnits.isActive, true)),
       );
 
     this.categoryUnitMap.clear();
@@ -154,7 +148,10 @@ export class AppointmentPoliklinikResolver {
         if (match) return match;
       }
       for (const unit of this.unitMap.values()) {
-        if (unit.poliklinikName.toLowerCase() === poliklinikIdOverride.toLowerCase()) {
+        if (
+          unit.poliklinikName.toLowerCase() ===
+          poliklinikIdOverride.toLowerCase()
+        ) {
           return unit;
         }
       }
@@ -214,7 +211,10 @@ export class AppointmentPoliklinikResolver {
         if (match) return match;
       }
       for (const unit of this.unitMap.values()) {
-        if (unit.poliklinikName.toLowerCase() === poliklinikIdOverride.toLowerCase()) {
+        if (
+          unit.poliklinikName.toLowerCase() ===
+          poliklinikIdOverride.toLowerCase()
+        ) {
           return unit;
         }
       }

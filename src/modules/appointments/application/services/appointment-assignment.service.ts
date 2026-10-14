@@ -1,18 +1,16 @@
 import { Injectable } from '@nestjs/common';
-import { AppointmentEntity } from '../../domain/entities/appointment.entity';
 import type {
   ChangeDoctorOptions,
   ICandidateAssignmentPort,
 } from '../../candidate-assignment/contracts/candidate-assignment.contract';
 import { CandidateAssignmentService } from '../../candidate-assignment/services/candidate-assignment.service';
+import { AppointmentEntity } from '../../domain/entities/appointment.entity';
 
 export type { ChangeDoctorOptions };
 
 @Injectable()
 export class AppointmentAssignmentService implements ICandidateAssignmentPort {
-  constructor(
-    private readonly delegate: CandidateAssignmentService,
-  ) {}
+  constructor(private readonly delegate: CandidateAssignmentService) {}
 
   async changeDoctor(
     appointmentId: string,

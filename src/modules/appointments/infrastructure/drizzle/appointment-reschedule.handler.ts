@@ -1,9 +1,9 @@
+import { Temporal } from '@js-temporal/polyfill';
 import {
   BadRequestException,
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
-import { Temporal } from '@js-temporal/polyfill';
 import { isUUID } from 'class-validator';
 import { and, asc, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm';
 import type { ClinicConfigService } from '../../../../common/clinic-config/clinic-config.service';
@@ -23,6 +23,8 @@ import {
   sessionDefs,
   userRoles,
 } from '../../../../database/schema';
+import type { QueuePositionRecalculationService } from '../../../queue-engine/application/services/queue-position-recalculation.service';
+import { QUEUE_PRIORITY } from '../../../queue-engine/domain/constants/queue-engine.constants';
 import { resolveQueueLoadStatus } from '../../../queue-engine/domain/constants/queue-load.constants';
 import { ScheduleShiftRegistry } from '../../../schedules/domain/constants/schedule-shift.constants';
 import {
@@ -30,11 +32,9 @@ import {
   DB_APPOINTMENT_STATUS,
   QUEUE_TICKET_STATUS,
 } from '../../domain/constants/appointment-lifecycle.constants';
-import { QUEUE_PRIORITY } from '../../../queue-engine/domain/constants/queue-engine.constants';
 import type { AppointmentEntity } from '../../domain/entities/appointment.entity';
 import { ActiveTicketPolicyService } from '../../domain/services/active-ticket-policy.service';
 import { RescheduleAppointmentDto } from '../../presentation/dto/reschedule-appointment.dto';
-import type { QueuePositionRecalculationService } from '../../../queue-engine/application/services/queue-position-recalculation.service';
 
 export class AppointmentRescheduleHandler {
   static async getRescheduleOptions(
@@ -294,7 +294,10 @@ export class AppointmentRescheduleHandler {
             count: sql<number>`count(*)::int`,
           })
           .from(appointments)
-          .innerJoin(clinicServices, eq(appointments.serviceId, clinicServices.id))
+          .innerJoin(
+            clinicServices,
+            eq(appointments.serviceId, clinicServices.id),
+          )
           .where(
             and(
               eq(appointments.scheduledDate, targetDate),
@@ -311,7 +314,7 @@ export class AppointmentRescheduleHandler {
             ),
           );
       }
-      let numericQueueNumber = (activeCountRow?.count || 0) + 1;
+      const numericQueueNumber = (activeCountRow?.count || 0) + 1;
 
       const ticketScopeCondition = apt.practitionerId
         ? eq(queueTickets.doctorId, apt.practitionerId)
@@ -614,9 +617,7 @@ async function validateAppointmentStateForReschedule(
         where: eq(clinicSettings.key, 'queue.overflow_tolerance_minutes'),
       });
       const bufferMinutes =
-        typeof overflowSetting?.value === 'number'
-          ? overflowSetting.value
-          : 30;
+        typeof overflowSetting?.value === 'number' ? overflowSetting.value : 30;
 
       const [endH, endM] = apt.scheduledEndTime.split(':').map(Number);
       const sessionEnd = new Date();

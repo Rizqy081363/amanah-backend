@@ -2,8 +2,8 @@ import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
   appointments,
-  clinicRooms,
   clinicClosures,
+  clinicRooms,
   doctorAssignments,
   queueTickets,
   sessionDefs,
@@ -228,9 +228,7 @@ export class DrizzleAdminSessionMutationRepository {
         }
       }
     } else {
-      throw new NotFoundException(
-        `Format ID sesi ${sessionId} tidak valid`,
-      );
+      throw new NotFoundException(`Format ID sesi ${sessionId} tidak valid`);
     }
 
     const startTimeFormatted = body.jam_mulai

@@ -61,7 +61,10 @@ export class CreateClosureDto {
   @IsString()
   reason?: string;
 
-  @ApiProperty({ required: false, description: 'Confirmation for closures > longConfirmDays' })
+  @ApiProperty({
+    required: false,
+    description: 'Confirmation for closures > longConfirmDays',
+  })
   @IsOptional()
   @IsBoolean()
   confirmedLongClosure?: boolean;

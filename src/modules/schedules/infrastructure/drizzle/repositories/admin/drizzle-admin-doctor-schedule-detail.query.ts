@@ -13,11 +13,11 @@ import {
   ScheduleClosureReason,
   ScheduleOperationalStatus,
 } from '@modules/schedules/domain/entities/schedule.entity';
+import { resolveAggregateOperationalStatus } from '@modules/schedules/domain/schedule-status';
 import {
   filterEffectiveDoctorAssignments,
   resolveDoctorSessionOperability,
 } from '@modules/schedules/domain/services/doctor-session-operational.resolver';
-import { resolveAggregateOperationalStatus } from '@modules/schedules/domain/schedule-status';
 import { formatIndoMonthYear } from '@modules/schedules/domain/services/schedule-date.formatter';
 import { ScheduleRecordMapper } from '@modules/schedules/infrastructure/drizzle/mappers/schedule-record.mapper';
 import {
@@ -150,7 +150,9 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
     const monthSessions: any[] = [];
     for (let day = 1; day <= daysInMonth; day++) {
       const dayDate = `${targetYear}-${String(targetMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-      const dayDow = new Date(Date.UTC(targetYear, targetMonth - 1, day)).getUTCDay();
+      const dayDow = new Date(
+        Date.UTC(targetYear, targetMonth - 1, day),
+      ).getUTCDay();
 
       const dayAssignments = filterEffectiveDoctorAssignments(
         assignments,
@@ -227,7 +229,8 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
     );
 
     const isEvalOnLeave = Boolean(evalLeave);
-    const evalLeaveReason = evalLeave?.note || (isEvalOnLeave ? 'Dokter Cuti' : null);
+    const evalLeaveReason =
+      evalLeave?.note || (isEvalOnLeave ? 'Dokter Cuti' : null);
     const evalLeaveStart = isEvalOnLeave ? evalDate : null;
     const evalLeaveEnd = isEvalOnLeave ? evalDate : null;
 

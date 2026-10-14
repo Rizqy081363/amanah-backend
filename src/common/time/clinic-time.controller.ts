@@ -10,7 +10,9 @@ export class ClinicTimeController {
 
   @Public()
   @Get('current')
-  @ApiOperation({ summary: 'Mendapatkan SSOT waktu dan tanggal operasional klinik' })
+  @ApiOperation({
+    summary: 'Mendapatkan SSOT waktu dan tanggal operasional klinik',
+  })
   @ApiOkResponse({ description: 'Waktu operasional klinik berhasil diambil' })
   async getCurrentTime() {
     const [operationalHours, clinicLocale, dateFormatStyle, timeFormatStyle] =

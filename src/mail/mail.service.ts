@@ -224,4 +224,31 @@ export class MailService {
       },
     });
   }
+
+  async sendStaffInvitation(
+    mailData: MailData<{
+      name?: string;
+      roleTitle: string;
+      temporaryPassword?: string;
+      loginUrl: string;
+      expiresAt: string;
+    }>,
+  ): Promise<void> {
+    const subject = `Invitation to join as ${mailData.data.roleTitle}`;
+    await this.send({
+      to: mailData.to,
+      subject,
+      template: 'invitation',
+      text: `You have been invited to join as ${mailData.data.roleTitle}. Log in at ${mailData.data.loginUrl} using temporary password: ${mailData.data.temporaryPassword ?? 'N/A'}`,
+      data: {
+        title: subject,
+        name: mailData.data.name,
+        roleTitle: mailData.data.roleTitle,
+        email: mailData.to,
+        temporaryPassword: mailData.data.temporaryPassword,
+        loginUrl: mailData.data.loginUrl,
+        expiresAt: mailData.data.expiresAt,
+      },
+    });
+  }
 }

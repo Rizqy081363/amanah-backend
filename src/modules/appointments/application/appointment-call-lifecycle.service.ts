@@ -97,7 +97,9 @@ export class AppointmentCallLifecycleService {
 
     // Strict queue ordering enforcement (SSOT)
     if (details.ticketId) {
-      const earlier = await this.callRepo.findEarlierWaitingTicket(details.ticketId);
+      const earlier = await this.callRepo.findEarlierWaitingTicket(
+        details.ticketId,
+      );
       if (earlier) {
         throw new ConflictException(
           `Nomor antrean ${details.ticketNumber || 'ini'} tidak dapat dipanggil. Nomor antrean sebelumnya (${earlier.queueNumber}) masih menunggu dan harus dipanggil terlebih dahulu.`,
@@ -191,8 +193,11 @@ export class AppointmentCallLifecycleService {
     }
 
     if (this.pushNotification && details.patientUserId) {
-      const roomOrPoli = details.roomName || details.poliklinikName || 'Ruang Pemeriksaan';
-      const doctorText = details.doctorName ? ` (Dokter: ${details.doctorName})` : '';
+      const roomOrPoli =
+        details.roomName || details.poliklinikName || 'Ruang Pemeriksaan';
+      const doctorText = details.doctorName
+        ? ` (Dokter: ${details.doctorName})`
+        : '';
       this.pushNotification
         .sendPush({
           userId: details.patientUserId,
@@ -265,7 +270,8 @@ export class AppointmentCallLifecycleService {
         appointmentId,
         patientUserId: details.patientUserId,
         ticketNumber: details.ticketNumber,
-        poliklinikName: details.roomName || details.poliklinikName || 'Poliklinik',
+        poliklinikName:
+          details.roomName || details.poliklinikName || 'Poliklinik',
       },
       actor: {
         userId: calledByUserId,
@@ -304,7 +310,8 @@ export class AppointmentCallLifecycleService {
     }
 
     if (this.pushNotification && details.patientUserId) {
-      const roomOrPoli = details.roomName || details.poliklinikName || 'Ruang Pemeriksaan';
+      const roomOrPoli =
+        details.roomName || details.poliklinikName || 'Ruang Pemeriksaan';
       this.pushNotification
         .sendPush({
           userId: details.patientUserId,
@@ -378,7 +385,8 @@ export class AppointmentCallLifecycleService {
           attemptNumber: latestAttempt.attemptNumber,
           remainingAttempts:
             MAX_PATIENT_CALL_ATTEMPTS - latestAttempt.attemptNumber,
-          poliklinikName: details.roomName || details.poliklinikName || 'Poliklinik',
+          poliklinikName:
+            details.roomName || details.poliklinikName || 'Poliklinik',
           notes,
         },
         actor: {
@@ -455,7 +463,8 @@ export class AppointmentCallLifecycleService {
         patientName: details.patientName,
         ticketNumber: details.ticketNumber,
         totalAttempts: latestAttempt.attemptNumber,
-        poliklinikName: details.roomName || details.poliklinikName || 'Poliklinik',
+        poliklinikName:
+          details.roomName || details.poliklinikName || 'Poliklinik',
         notes,
       },
       actor: {
@@ -494,7 +503,8 @@ export class AppointmentCallLifecycleService {
     }
 
     if (this.pushNotification && details.patientUserId) {
-      const roomOrPoli = details.roomName || details.poliklinikName || 'Ruang Pemeriksaan';
+      const roomOrPoli =
+        details.roomName || details.poliklinikName || 'Ruang Pemeriksaan';
       this.pushNotification
         .sendPush({
           userId: details.patientUserId,

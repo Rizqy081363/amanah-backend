@@ -2,6 +2,7 @@ import {
   DEFAULT_CONSULTATION_DURATION_MINUTES,
   INACTIVE_APPOINTMENT_STATUSES,
 } from '@modules/schedules/domain/constants/schedule.constants';
+import { ScheduleShiftRegistry } from '@modules/schedules/domain/constants/schedule-shift.constants';
 import {
   type AdminDoctorDailySession,
   type AdminDoctorMonthlyDayEntity,
@@ -12,7 +13,6 @@ import {
   ScheduleSessionFactory,
   SHIFT_DEFINITIONS,
 } from '@modules/schedules/domain/factories/schedule-session.factory';
-
 import { parseClockTime } from '@modules/schedules/domain/schedule-projection';
 import {
   resolveAggregateOperationalStatus,
@@ -22,7 +22,6 @@ import {
   filterEffectiveDoctorAssignments,
   resolveDoctorSessionOperability,
 } from '@modules/schedules/domain/services/doctor-session-operational.resolver';
-import { ScheduleShiftRegistry } from '@modules/schedules/domain/constants/schedule-shift.constants';
 
 export interface MonthlyScheduleBuildContext {
   targetYear: number;
@@ -71,13 +70,16 @@ export function buildMonthlySchedule(
       doctorAssignments &&
       doctorAssignments.length > 0
     ) {
-      const dayDow = new Date(Date.UTC(targetYear, targetMonth - 1, d)).getUTCDay();
+      const dayDow = new Date(
+        Date.UTC(targetYear, targetMonth - 1, d),
+      ).getUTCDay();
       const assignments = filterEffectiveDoctorAssignments(
         doctorAssignments,
         dayDow,
       );
 
-      const dayActive = ctx.masterDays?.find((md) => md.dow === dayDow)?.isActive ?? true;
+      const dayActive =
+        ctx.masterDays?.find((md) => md.dow === dayDow)?.isActive ?? true;
 
       daySessions = assignments
         .filter((da) => da.sessionDef && da.sessionDef.isActive)
@@ -114,8 +116,12 @@ export function buildMonthlySchedule(
     let dayNotes: string | null = null;
 
     const daySessionStatuses = daySessions.map((s) => {
-      const descriptor = ScheduleShiftRegistry.find(s.sessionShift || s.sessionLabel);
-      const defaultStart = descriptor ? `${descriptor.defaultStartTime}:00` : '';
+      const descriptor = ScheduleShiftRegistry.find(
+        s.sessionShift || s.sessionLabel,
+      );
+      const defaultStart = descriptor
+        ? `${descriptor.defaultStartTime}:00`
+        : '';
       const defaultEnd = descriptor ? `${descriptor.defaultEndTime}:00` : '';
       const sessStart = s.startTime
         ? s.startTime.length === 5
@@ -145,9 +151,13 @@ export function buildMonthlySchedule(
           ),
       );
 
-      const shiftDef = SHIFT_DEFINITIONS.find((d) => d.shift === s.sessionShift);
-      const boundaryStart = shiftDef?.boundaryStartTime || SHIFT_DEFINITIONS[1].boundaryStartTime;
-      const boundaryEnd = shiftDef?.boundaryEndTime || SHIFT_DEFINITIONS[1].boundaryEndTime;
+      const shiftDef = SHIFT_DEFINITIONS.find(
+        (d) => d.shift === s.sessionShift,
+      );
+      const boundaryStart =
+        shiftDef?.boundaryStartTime || SHIFT_DEFINITIONS[1].boundaryStartTime;
+      const boundaryEnd =
+        shiftDef?.boundaryEndTime || SHIFT_DEFINITIONS[1].boundaryEndTime;
 
       const metrics = ScheduleSessionFactory.calculateSessionMetrics({
         startTime: s.startTime ? s.startTime.slice(0, 5) : boundaryStart,
@@ -260,7 +270,9 @@ export function buildDailySessions(
     consultationDurationMinutes || DEFAULT_CONSULTATION_DURATION_MINUTES;
 
   return evalSessions.map((s) => {
-    const descriptor = ScheduleShiftRegistry.find(s.sessionShift || s.sessionLabel);
+    const descriptor = ScheduleShiftRegistry.find(
+      s.sessionShift || s.sessionLabel,
+    );
     const defaultStart = descriptor?.defaultStartTime ?? '';
     const defaultEnd = descriptor?.defaultEndTime ?? '';
     const jamMulai = s.startTime ? s.startTime.slice(0, 5) : defaultStart;
@@ -269,12 +281,16 @@ export function buildDailySessions(
       ? s.startTime.length === 5
         ? `${s.startTime}:00`
         : s.startTime
-      : (defaultStart ? `${defaultStart}:00` : '');
+      : defaultStart
+        ? `${defaultStart}:00`
+        : '';
     const sessEnd = s.endTime
       ? s.endTime.length === 5
         ? `${s.endTime}:00`
         : s.endTime
-      : (defaultEnd ? `${defaultEnd}:00` : '');
+      : defaultEnd
+        ? `${defaultEnd}:00`
+        : '';
 
     const matchingAppts = evalAppts.filter((a) => {
       if (a.practitionerId !== s.practitionerId) return false;
@@ -315,7 +331,8 @@ export function buildDailySessions(
       : sessionOpStatus === ScheduleOperationalStatus.CLOSED
         ? 'Sesi berstatus Tutup. Sesi yang sudah ditutup tidak dapat di-reschedule. Silakan gunakan menu Edit Jadwal untuk membuka sesi.'
         : null;
-    const sessionTitle = descriptor?.label || s.sessionLabel || metrics.sessionLabel;
+    const sessionTitle =
+      descriptor?.label || s.sessionLabel || metrics.sessionLabel;
 
     let closureReason: ScheduleClosureReason | null = null;
     if (sessionOpStatus === ScheduleOperationalStatus.CLOSED) {

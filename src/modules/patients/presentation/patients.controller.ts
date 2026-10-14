@@ -390,4 +390,3 @@ export class PatientsController {
     return this.patientRepo.bulkDelete(body.ids);
   }
 }
-

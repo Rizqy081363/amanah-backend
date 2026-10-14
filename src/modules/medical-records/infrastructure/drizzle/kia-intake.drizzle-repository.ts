@@ -9,10 +9,10 @@ import {
   medicalIntakeSubmissions,
   patientProfiles,
 } from '../../../../database/schema';
+import { formatBloodTypeDisplay } from '../../../patients/domain/data/patient-reference.data';
 import { CreateChildImmunizationIntakeDto } from '../../presentation/dto/create-child-immunization-intake.dto';
 import { CreateMaternityIntakeDto } from '../../presentation/dto/create-maternity-intake.dto';
 import { MaternalIntakeDrizzleRepository } from './maternal-intake.drizzle-repository';
-import { formatBloodTypeDisplay } from '../../../patients/domain/data/patient-reference.data';
 
 @Injectable()
 export class KiaIntakeDrizzleRepository {

@@ -28,5 +28,11 @@
     "types": ["bun-types", "jest"]
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "src/users/**/*", "**/*.spec.ts", "test/**/*"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/users/**/*",
+    "**/*.spec.ts",
+    "test/**/*"
+  ]
 }

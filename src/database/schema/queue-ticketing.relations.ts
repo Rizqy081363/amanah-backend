@@ -1,10 +1,10 @@
 import { relations } from 'drizzle-orm';
 import {
   clinicRooms,
-  patientProfiles,
   practitioners,
   queueTickets,
   serviceCategories,
+  staffProfiles,
   users,
 } from './amanah.schema';
 import {
@@ -18,64 +18,76 @@ import {
   sessionDefs,
   sessionSchedules,
   shiftExceptions,
+  staffRosters,
   ticketEvents,
 } from './queue-ticketing.schema';
 
 export const masterDaysRelations = relations(masterDays, ({ many }) => ({
   sessionSchedules: many(sessionSchedules),
   doctorAssignments: many(doctorAssignments),
+  staffRosters: many(staffRosters),
 }));
 
 export const sessionDefsRelations = relations(sessionDefs, ({ many }) => ({
   schedules: many(sessionSchedules),
   doctorAssignments: many(doctorAssignments),
   queueCounters: many(queueCounters),
+  staffRosters: many(staffRosters),
 }));
 
-export const sessionSchedulesRelations = relations(sessionSchedules, ({ one }) => ({
-  sessionDef: one(sessionDefs, {
-    fields: [sessionSchedules.sessionId],
-    references: [sessionDefs.id],
+export const sessionSchedulesRelations = relations(
+  sessionSchedules,
+  ({ one }) => ({
+    sessionDef: one(sessionDefs, {
+      fields: [sessionSchedules.sessionId],
+      references: [sessionDefs.id],
+    }),
+    masterDay: one(masterDays, {
+      fields: [sessionSchedules.dow],
+      references: [masterDays.dow],
+    }),
   }),
-  masterDay: one(masterDays, {
-    fields: [sessionSchedules.dow],
-    references: [masterDays.dow],
-  }),
-}));
+);
 
-export const doctorAssignmentsRelations = relations(doctorAssignments, ({ one }) => ({
-  practitioner: one(practitioners, {
-    fields: [doctorAssignments.doctorId],
-    references: [practitioners.id],
+export const doctorAssignmentsRelations = relations(
+  doctorAssignments,
+  ({ one }) => ({
+    practitioner: one(practitioners, {
+      fields: [doctorAssignments.doctorId],
+      references: [practitioners.id],
+    }),
+    category: one(serviceCategories, {
+      fields: [doctorAssignments.categoryId],
+      references: [serviceCategories.id],
+    }),
+    sessionDef: one(sessionDefs, {
+      fields: [doctorAssignments.sessionId],
+      references: [sessionDefs.id],
+    }),
+    masterDay: one(masterDays, {
+      fields: [doctorAssignments.dow],
+      references: [masterDays.dow],
+    }),
+    preferredRoom: one(clinicRooms, {
+      fields: [doctorAssignments.preferredRoomId],
+      references: [clinicRooms.id],
+    }),
   }),
-  category: one(serviceCategories, {
-    fields: [doctorAssignments.categoryId],
-    references: [serviceCategories.id],
-  }),
-  sessionDef: one(sessionDefs, {
-    fields: [doctorAssignments.sessionId],
-    references: [sessionDefs.id],
-  }),
-  masterDay: one(masterDays, {
-    fields: [doctorAssignments.dow],
-    references: [masterDays.dow],
-  }),
-  preferredRoom: one(clinicRooms, {
-    fields: [doctorAssignments.preferredRoomId],
-    references: [clinicRooms.id],
-  }),
-}));
+);
 
-export const shiftExceptionsRelations = relations(shiftExceptions, ({ one }) => ({
-  practitioner: one(practitioners, {
-    fields: [shiftExceptions.doctorId],
-    references: [practitioners.id],
+export const shiftExceptionsRelations = relations(
+  shiftExceptions,
+  ({ one }) => ({
+    practitioner: one(practitioners, {
+      fields: [shiftExceptions.doctorId],
+      references: [practitioners.id],
+    }),
+    sessionDef: one(sessionDefs, {
+      fields: [shiftExceptions.sessionId],
+      references: [sessionDefs.id],
+    }),
   }),
-  sessionDef: one(sessionDefs, {
-    fields: [shiftExceptions.sessionId],
-    references: [sessionDefs.id],
-  }),
-}));
+);
 
 export const extraOpeningsRelations = relations(extraOpenings, ({ one }) => ({
   category: one(serviceCategories, {
@@ -152,3 +164,18 @@ export const doctorScheduleStatusHistoryRelations = relations(
     }),
   }),
 );
+
+export const staffRostersRelations = relations(staffRosters, ({ one }) => ({
+  staffProfile: one(staffProfiles, {
+    fields: [staffRosters.staffProfileId],
+    references: [staffProfiles.id],
+  }),
+  sessionDef: one(sessionDefs, {
+    fields: [staffRosters.sessionId],
+    references: [sessionDefs.id],
+  }),
+  masterDay: one(masterDays, {
+    fields: [staffRosters.dow],
+    references: [masterDays.dow],
+  }),
+}));

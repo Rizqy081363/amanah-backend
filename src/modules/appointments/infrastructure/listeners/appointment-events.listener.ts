@@ -8,12 +8,12 @@ import { RedisService } from '../../../../common/redis/redis.service';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import { appointmentStatusEvents } from '../../../../database/schema';
+import { SocketIoRealtimeGateway } from '../../../notifications/infrastructure/realtime/socket-io-realtime.gateway';
+import { REALTIME_GATEWAY_PORT } from '../../../notifications/notifications.constants';
 import {
   DB_APPOINTMENT_STATUS,
   type DbAppointmentStatusValue,
 } from '../../domain/constants/appointment-lifecycle.constants';
-import { SocketIoRealtimeGateway } from '../../../notifications/infrastructure/realtime/socket-io-realtime.gateway';
-import { REALTIME_GATEWAY_PORT } from '../../../notifications/notifications.constants';
 
 const QUEUE_DISPLAY_CACHE_PREFIX = 'queue:display';
 const QUEUE_DAILY_CACHE_PREFIX = 'queue:daily';

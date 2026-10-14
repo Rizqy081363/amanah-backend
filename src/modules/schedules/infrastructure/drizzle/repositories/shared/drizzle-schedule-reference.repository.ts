@@ -1,10 +1,6 @@
 import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
-import {
-  clinicRooms,
-  clinicUnits,
-  medicalSpecialties,
-} from '@database/schema';
+import { clinicRooms, clinicUnits, medicalSpecialties } from '@database/schema';
 import { SCHEDULE_CONTEXT_DEFINITIONS } from '@modules/schedules/domain/constants/schedule-context.constants';
 import {
   type ClinicRoomReferenceEntity,

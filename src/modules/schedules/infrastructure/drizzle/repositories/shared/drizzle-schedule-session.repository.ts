@@ -25,17 +25,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { isUUID } from 'class-validator';
-import {
-  and,
-  asc,
-  desc,
-  eq,
-  gte,
-  inArray,
-  lte,
-  or,
-  sql,
-} from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, lte, or, sql } from 'drizzle-orm';
 
 @Injectable()
 export class DrizzleScheduleSessionRepository {
@@ -105,22 +95,24 @@ export class DrizzleScheduleSessionRepository {
       })
       .returning();
 
-    const entity = (await this.findById(exception.id)) || ({
-      id: exception.id,
-      staffId: practitioner.staffProfileId || practitioner.id,
-      scheduleDate: targetDate,
-      session: data.session || 'PAGI',
-      sessionShift: shift,
-      sessionLabel,
-      startTime: defaultStartTime.slice(0, 5),
-      endTime: defaultEndTime.slice(0, 5),
-      roomId,
-      poliklinikId: data.poliklinikId,
-      isAvailable,
-      notes: data.notes || null,
-      createdAt: exception.createdAt,
-      updatedAt: exception.updatedAt,
-    } as any);
+    const entity =
+      (await this.findById(exception.id)) ||
+      ({
+        id: exception.id,
+        staffId: practitioner.staffProfileId || practitioner.id,
+        scheduleDate: targetDate,
+        session: data.session || 'PAGI',
+        sessionShift: shift,
+        sessionLabel,
+        startTime: defaultStartTime.slice(0, 5),
+        endTime: defaultEndTime.slice(0, 5),
+        roomId,
+        poliklinikId: data.poliklinikId,
+        isAvailable,
+        notes: data.notes || null,
+        createdAt: exception.createdAt,
+        updatedAt: exception.updatedAt,
+      } as any);
 
     return entity;
   }
@@ -154,8 +146,13 @@ export class DrizzleScheduleSessionRepository {
       const sched = da.sessionDef.schedules?.find(
         (s) => s.dow === dayDow && s.isActive,
       );
-      const startTime = (sched?.startsAt || da.sessionDef.defaultStartsAt).slice(0, 5);
-      const endTime = (sched?.endsAt || da.sessionDef.defaultEndsAt).slice(0, 5);
+      const startTime = (
+        sched?.startsAt || da.sessionDef.defaultStartsAt
+      ).slice(0, 5);
+      const endTime = (sched?.endsAt || da.sessionDef.defaultEndsAt).slice(
+        0,
+        5,
+      );
 
       const exception = await this.db.query.shiftExceptions.findFirst({
         where: and(
@@ -177,7 +174,9 @@ export class DrizzleScheduleSessionRepository {
         endTime: `${endTime}:00`,
         roomId: da.preferredRoomId,
         serviceId: da.categoryId,
-        status: isLeave ? SchedulePersistenceStatus.CLOSED : SchedulePersistenceStatus.OPEN,
+        status: isLeave
+          ? SchedulePersistenceStatus.CLOSED
+          : SchedulePersistenceStatus.OPEN,
         notes: exception?.note || null,
         createdAt: da.createdAt,
         updatedAt: da.updatedAt,
@@ -222,7 +221,9 @@ export class DrizzleScheduleSessionRepository {
         endTime,
         roomId: exception.practitioner?.defaultRoomId || null,
         serviceId: null,
-        status: isLeave ? SchedulePersistenceStatus.CLOSED : SchedulePersistenceStatus.OPEN,
+        status: isLeave
+          ? SchedulePersistenceStatus.CLOSED
+          : SchedulePersistenceStatus.OPEN,
         notes: exception.note,
         createdAt: exception.createdAt,
         updatedAt: exception.updatedAt,
@@ -264,7 +265,9 @@ export class DrizzleScheduleSessionRepository {
         endTime,
         roomId: da.preferredRoomId,
         serviceId: da.categoryId,
-        status: da.isActive ? SchedulePersistenceStatus.OPEN : SchedulePersistenceStatus.CLOSED,
+        status: da.isActive
+          ? SchedulePersistenceStatus.OPEN
+          : SchedulePersistenceStatus.CLOSED,
         notes: null,
         createdAt: da.createdAt,
         updatedAt: da.updatedAt,
@@ -291,7 +294,9 @@ export class DrizzleScheduleSessionRepository {
 
     let practitionerId: string | undefined;
     if (filters?.staffId) {
-      const practitioner = await this.practitionerResolver.resolve(filters.staffId);
+      const practitioner = await this.practitionerResolver.resolve(
+        filters.staffId,
+      );
       if (practitioner) practitionerId = practitioner.id;
     }
 
@@ -299,8 +304,13 @@ export class DrizzleScheduleSessionRepository {
       this.db.query.doctorAssignments.findMany({
         where: and(
           eq(doctorAssignments.isActive, true),
-          practitionerId ? eq(doctorAssignments.doctorId, practitionerId) : sql`TRUE`,
-          or(eq(doctorAssignments.dow, targetDow), sql`${doctorAssignments.dow} IS NULL`),
+          practitionerId
+            ? eq(doctorAssignments.doctorId, practitionerId)
+            : sql`TRUE`,
+          or(
+            eq(doctorAssignments.dow, targetDow),
+            sql`${doctorAssignments.dow} IS NULL`,
+          ),
         ),
         with: {
           sessionDef: {
@@ -321,7 +331,9 @@ export class DrizzleScheduleSessionRepository {
       this.db.query.shiftExceptions.findMany({
         where: and(
           eq(shiftExceptions.serviceDate, targetDate),
-          practitionerId ? eq(shiftExceptions.doctorId, practitionerId) : sql`TRUE`,
+          practitionerId
+            ? eq(shiftExceptions.doctorId, practitionerId)
+            : sql`TRUE`,
         ),
       }),
     ]);
@@ -332,7 +344,9 @@ export class DrizzleScheduleSessionRepository {
       if (!da.sessionDef || !da.sessionDef.isActive) continue;
 
       const ex = exceptions.find(
-        (e) => e.doctorId === da.doctorId && (!e.sessionId || e.sessionId === da.sessionId),
+        (e) =>
+          e.doctorId === da.doctorId &&
+          (!e.sessionId || e.sessionId === da.sessionId),
       );
       const isLeave = ex?.type === 'leave';
 
@@ -352,7 +366,9 @@ export class DrizzleScheduleSessionRepository {
         endTime,
         roomId: da.preferredRoomId,
         serviceId: da.categoryId,
-        status: isLeave ? SchedulePersistenceStatus.CLOSED : SchedulePersistenceStatus.OPEN,
+        status: isLeave
+          ? SchedulePersistenceStatus.CLOSED
+          : SchedulePersistenceStatus.OPEN,
         notes: ex?.note || null,
         createdAt: da.createdAt,
         updatedAt: da.updatedAt,
@@ -361,7 +377,10 @@ export class DrizzleScheduleSessionRepository {
         clinicService: null,
       });
 
-      if (filters?.poliklinikId && entity.poliklinikId !== filters.poliklinikId) {
+      if (
+        filters?.poliklinikId &&
+        entity.poliklinikId !== filters.poliklinikId
+      ) {
         continue;
       }
       results.push(entity);
@@ -388,7 +407,10 @@ export class DrizzleScheduleSessionRepository {
     }
     const targetId = practitioner.id;
 
-    const startDate = filters?.date || filters?.startDate || new Date().toISOString().slice(0, 10);
+    const startDate =
+      filters?.date ||
+      filters?.startDate ||
+      new Date().toISOString().slice(0, 10);
     const endDate = filters?.date || filters?.endDate || startDate;
 
     const [assignments, exceptions] = await Promise.all([
@@ -498,7 +520,9 @@ export class DrizzleScheduleSessionRepository {
       targetDate = (data.scheduleDate || data.specificDate)!;
     }
 
-    const practitioner = await this.practitionerResolver.resolve(existing.staffId);
+    const practitioner = await this.practitionerResolver.resolve(
+      existing.staffId,
+    );
     const practitionerId = practitioner ? practitioner.id : existing.staffId;
 
     let targetSessionDefId: string | null = null;
@@ -573,7 +597,9 @@ export class DrizzleScheduleSessionRepository {
     const existing = await this.findById(id);
     if (!existing) return false;
 
-    const practitioner = await this.practitionerResolver.resolve(existing.staffId);
+    const practitioner = await this.practitionerResolver.resolve(
+      existing.staffId,
+    );
     const practitionerId = practitioner ? practitioner.id : existing.staffId;
     const targetDate = existing.scheduleDate || existing.specificDate!;
 
@@ -608,9 +634,7 @@ export class DrizzleScheduleSessionRepository {
       throw new NotFoundException(`Format ID sesi ${id} tidak valid`);
     }
 
-    await this.db
-      .delete(shiftExceptions)
-      .where(eq(shiftExceptions.id, id));
+    await this.db.delete(shiftExceptions).where(eq(shiftExceptions.id, id));
 
     return true;
   }

@@ -1,3 +1,4 @@
+import { ClinicTimeService } from '@common/time/clinic-time.service';
 import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
@@ -13,7 +14,6 @@ import {
 } from '@database/schema';
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm';
-import { ClinicTimeService } from '@common/time/clinic-time.service';
 import {
   QUEUE_TICKET_STATUS,
   SHIFT_EXCEPTION_TYPE,

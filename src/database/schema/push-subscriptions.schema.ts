@@ -28,7 +28,10 @@ export const pushSubscriptions = pgTable(
       .notNull(),
   },
   (table) => [
-    unique('push_subscriptions_user_endpoint_idx').on(table.userId, table.endpoint),
+    unique('push_subscriptions_user_endpoint_idx').on(
+      table.userId,
+      table.endpoint,
+    ),
     foreignKey({
       columns: [table.userId],
       foreignColumns: [users.id],

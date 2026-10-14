@@ -4,13 +4,17 @@ import {
   INDO_MONTHS,
   INDO_MONTHS_SHORT,
 } from '../constants/schedule.constants';
+import { SHIFT_DISPLAY_LABELS } from '../constants/schedule-shift.constants';
 import {
   type AdminDoctorDailySession,
   ScheduleOperationalStatus,
 } from '../entities/schedule.entity';
-import { SHIFT_DISPLAY_LABELS } from '../constants/schedule-shift.constants';
 
-export type DateDisplayFormatStyle = 'human_full' | 'human_medium' | 'human_short' | 'iso';
+export type DateDisplayFormatStyle =
+  | 'human_full'
+  | 'human_medium'
+  | 'human_short'
+  | 'iso';
 
 export function formatIndoDate(
   dateStr: string,

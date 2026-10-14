@@ -105,7 +105,10 @@ export class ProblemDetailsFilter implements ExceptionFilter {
         if (resObj.activeTicket && typeof resObj.activeTicket === 'object') {
           extraFields.activeTicket = resObj.activeTicket;
         }
-        if (resObj.existingTicket && typeof resObj.existingTicket === 'object') {
+        if (
+          resObj.existingTicket &&
+          typeof resObj.existingTicket === 'object'
+        ) {
           extraFields.existingTicket = resObj.existingTicket;
         }
       }

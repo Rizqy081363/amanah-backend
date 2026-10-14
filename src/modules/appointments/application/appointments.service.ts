@@ -37,6 +37,7 @@ import {
 import { ActiveTicketPolicyService } from '../domain/services/active-ticket-policy.service';
 import { toDomainStatus } from '../domain/types/appointment.types';
 import { QueueResponseEnvelope } from '../domain/types/queue-response.type';
+import { AppointmentQueueNavigationService } from '../infrastructure/drizzle/appointment-queue-navigation.service';
 import { AdminUpdateAppointmentStatusDto } from '../presentation/dto/admin-update-appointment-status.dto';
 import { CancelAppointmentDto } from '../presentation/dto/cancel-appointment.dto';
 import { CreateAppointmentDto } from '../presentation/dto/create-appointment.dto';
@@ -45,7 +46,6 @@ import { QueryQueueNavigationDto } from '../presentation/dto/query-queue-navigat
 import { QueueNavigationResponseDto } from '../presentation/dto/queue-navigation-response.dto';
 import { RescheduleAppointmentDto } from '../presentation/dto/reschedule-appointment.dto';
 import { UpdateAppointmentStatusDto } from '../presentation/dto/update-appointment-status.dto';
-import { AppointmentQueueNavigationService } from '../infrastructure/drizzle/appointment-queue-navigation.service';
 import { AppointmentNotificationPublisher } from './appointment-notification.publisher';
 import {
   PUSH_NOTIFICATION_PORT,

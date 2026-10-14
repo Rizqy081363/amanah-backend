@@ -1,5 +1,6 @@
 import { ClinicConfigModule } from '@common/clinic-config';
 import { RedisModule } from '@common/redis/redis.module';
+import { DoctorRosterModule } from '@modules/schedules/doctor-roster/doctor-roster.module';
 import { SCHEDULE_REPOSITORY } from '@modules/schedules/domain/repositories/schedule.repository';
 import { AppointmentOccupationQuery } from '@modules/schedules/infrastructure/drizzle/queries/appointment-occupation.query';
 import { ScheduleConflictQuery } from '@modules/schedules/infrastructure/drizzle/queries/schedule-conflict.query';
@@ -24,16 +25,20 @@ import {
 import { PractitionerResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/practitioner.resolver';
 import { RoomResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/room.resolver';
 import { ScheduleDrizzleRepository } from '@modules/schedules/infrastructure/drizzle/schedule.drizzle-repository';
+import { OperatingDaysModule } from '@modules/schedules/operating-days/operating-days.module';
 import { AdminDoctorSchedulesController } from '@modules/schedules/presentation/admin-doctor-schedules.controller';
 import { AdminScheduleConfigurationController } from '@modules/schedules/presentation/admin-schedule-configuration.controller';
 import { ClinicalPractitionersController } from '@modules/schedules/presentation/clinical-practitioners.controller';
 import { SchedulesController } from '@modules/schedules/presentation/schedules.controller';
-import { DoctorRosterModule } from '@modules/schedules/doctor-roster/doctor-roster.module';
-import { OperatingDaysModule } from '@modules/schedules/operating-days/operating-days.module';
 import { Module } from '@nestjs/common';
 
 @Module({
-  imports: [RedisModule, ClinicConfigModule, DoctorRosterModule, OperatingDaysModule],
+  imports: [
+    RedisModule,
+    ClinicConfigModule,
+    DoctorRosterModule,
+    OperatingDaysModule,
+  ],
   controllers: [
     SchedulesController,
     AdminDoctorSchedulesController,

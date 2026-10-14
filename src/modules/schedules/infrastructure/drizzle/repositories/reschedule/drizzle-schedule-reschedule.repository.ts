@@ -36,9 +36,7 @@ import { randomUUID } from 'crypto';
 import { and, asc, eq, gte, inArray, lt } from 'drizzle-orm';
 import { DrizzleRescheduleEligibilityEvaluator } from './drizzle-reschedule-eligibility.evaluator';
 import { publishRescheduleNotifications } from './reschedule-notification.helper';
-import {
-  mutateRescheduleSessionRecords,
-} from './reschedule-session-mutation.helper';
+import { mutateRescheduleSessionRecords } from './reschedule-session-mutation.helper';
 
 @Injectable()
 export class DrizzleScheduleRescheduleRepository {

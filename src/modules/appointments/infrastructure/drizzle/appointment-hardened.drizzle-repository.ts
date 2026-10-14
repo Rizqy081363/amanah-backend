@@ -1,13 +1,21 @@
+import { ClinicConfigService } from '@common/clinic-config';
 import { Inject, Injectable, Optional } from '@nestjs/common';
-import { and, asc, count, desc, eq, inArray, lt, ne, or, sql } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  inArray,
+  lt,
+  ne,
+  or,
+  sql,
+} from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
-import {
-  appointments,
-  queueTickets,
-} from '../../../../database/schema';
-import { ClinicConfigService } from '@common/clinic-config';
-import { TIME_CONSTANTS } from '../../domain/constants/appointment-check-in.config';
+import { appointments, queueTickets } from '../../../../database/schema';
+import { QueuePositionRecalculationService } from '../../../queue-engine/application/services/queue-position-recalculation.service';
 import { CLINIC_POLICY_FALLBACK_CONFIG } from '../../../schedules/domain/constants/schedule.constants';
 import { SchedulePolicyReader } from '../../../schedules/infrastructure/drizzle/queries/schedule-policy.reader';
 import type {
@@ -17,6 +25,7 @@ import type {
   CreateAppointmentInput,
   TransitionStatusInput,
 } from '../../application/ports/appointment-repository.port';
+import { TIME_CONSTANTS } from '../../domain/constants/appointment-check-in.config';
 import {
   DB_APPOINTMENT_STATUS,
   DOMAIN_APPOINTMENT_STATUS,
@@ -39,7 +48,6 @@ import {
   toDbStatus,
   toDomainStatus,
 } from '../../domain/types/appointment.types';
-import { QueuePositionRecalculationService } from '../../../queue-engine/application/services/queue-position-recalculation.service';
 
 @Injectable()
 export class AppointmentHardenedDrizzleRepository
@@ -251,10 +259,7 @@ export class AppointmentHardenedDrizzleRepository
         existingRecord.status === DB_APPOINTMENT_STATUS.BOOKED ||
         !existingRecord.checkedInAt
       ) {
-        throw new AppointmentNotCheckedInError(
-          input.id,
-          existingRecord.status,
-        );
+        throw new AppointmentNotCheckedInError(input.id, existingRecord.status);
       }
 
       // 1. Guard against doctor concurrent examination (a doctor can only examine 1 patient at a time)

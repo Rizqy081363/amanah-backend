@@ -102,8 +102,7 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
     const resolvedConflict = conflictQuery ?? new ScheduleConflictQuery(db);
     const resolvedOccupation =
       occupationQuery ?? new AppointmentOccupationQuery(db);
-    const resolvedConfig =
-      clinicConfigService ?? new ClinicConfigService(db);
+    const resolvedConfig = clinicConfigService ?? new ClinicConfigService(db);
 
     this.sessionRepo =
       sessionRepo ??
@@ -298,7 +297,6 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
     );
   }
 
-
   // Capacity & Load Overview
   getCapacityOverview(
     staffId: string,
@@ -314,7 +312,6 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
   ): Promise<any> {
     return this.bookingOptionsQuery.execute(dateStr, poliklinikId, staffId);
   }
-
 
   // Patients
   getBookedPatients(

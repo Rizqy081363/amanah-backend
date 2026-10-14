@@ -1,5 +1,6 @@
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
+import { ClinicTimeService } from '../../../../common/time/clinic-time.service';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
@@ -10,14 +11,13 @@ import {
   staffProfiles,
 } from '../../../../database/schema';
 import { AppointmentPoliklinikResolver } from '../../domain/services/appointment-poliklinik.resolver';
-import { AppointmentRecordMapper } from './appointment-record.mapper';
 import {
   QueueNavigationDoctorDto,
   QueueNavigationResponseDto,
   QueueNavigationUnitDto,
 } from '../../presentation/dto/queue-navigation-response.dto';
+import { AppointmentRecordMapper } from './appointment-record.mapper';
 import { APPOINTMENT_RELATIONS } from './appointment-relations.constant';
-import { ClinicTimeService } from '../../../../common/time/clinic-time.service';
 
 @Injectable()
 export class AppointmentQueueNavigationService {

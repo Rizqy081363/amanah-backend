@@ -281,6 +281,20 @@
       "when": 1791323000000,
       "tag": "0039_clear_legacy_doctor_assignment_category",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1791324000000,
+      "tag": "0040_staff_demographics_invitations_and_roster",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1791325000000,
+      "tag": "0041_staff_addresses",
+      "breakpoints": true
     }
   ]
 }

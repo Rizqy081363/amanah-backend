@@ -1037,6 +1037,11 @@ export const staffProfiles = pgTable(
     primaryUnitId: uuid('primary_unit_id'),
     staffCode: text('staff_code').notNull(),
     fullName: text('full_name').notNull(),
+    birthPlace: text('birth_place'),
+    birthDate: date('birth_date'),
+    gender: gender('gender'),
+    nationalIdHash: text('national_id_hash'),
+    nationalIdEncrypted: text('national_id_encrypted'),
     staffType: staffType('staff_type').notNull(),
     status: staffStatus().default('active').notNull(),
     positionTitle: text('position_title'),
@@ -1067,6 +1072,9 @@ export const staffProfiles = pgTable(
       'btree',
       table.primaryUnitId.asc().nullsLast().op('uuid_ops'),
     ),
+    index('staff_profiles_national_id_hash_idx')
+      .on(table.nationalIdHash)
+      .where(sql`national_id_hash IS NOT NULL`),
     foreignKey({
       columns: [table.primaryUnitId],
       foreignColumns: [clinicUnits.id],
@@ -1091,6 +1099,93 @@ export const staffProfiles = pgTable(
       'staff_profiles_name_not_blank',
       sql`length(TRIM(BOTH FROM full_name)) > 0`,
     ),
+  ],
+);
+
+export const staffInvitations = pgTable(
+  'staff_invitations',
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    email: citext('email').notNull(),
+    roleCode: text('role_code').notNull(),
+    staffType: staffType('staff_type').notNull(),
+    tokenHash: text('token_hash').notNull(),
+    temporaryPasswordHash: text('temporary_password_hash'),
+    invitedBy: uuid('invited_by'),
+    status: varchar('status', { length: 20 }).default('pending').notNull(),
+    expiresAt: timestamp('expires_at', {
+      withTimezone: true,
+      mode: 'string',
+    }).notNull(),
+    acceptedAt: timestamp('accepted_at', {
+      withTimezone: true,
+      mode: 'string',
+    }),
+    metadata: jsonb('metadata').default({}),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index('idx_staff_invitations_email').on(table.email),
+    index('idx_staff_invitations_status').on(table.status),
+    index('idx_staff_invitations_expires').on(table.expiresAt),
+    foreignKey({
+      columns: [table.invitedBy],
+      foreignColumns: [users.id],
+      name: 'staff_invitations_invited_by_fkey',
+    }).onDelete('set null'),
+    check(
+      'staff_invitations_status_check',
+      sql`status IN ('pending', 'accepted', 'expired', 'revoked')`,
+    ),
+  ],
+);
+
+export const staffAddresses = pgTable(
+  'staff_addresses',
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    staffProfileId: uuid('staff_profile_id').notNull(),
+    type: addressType().default('domicile').notNull(),
+    provinceCode: text('province_code'),
+    provinceName: text('province_name'),
+    regencyCode: text('regency_code'),
+    regencyName: text('regency_name'),
+    districtCode: text('district_code'),
+    districtName: text('district_name'),
+    villageCode: text('village_code'),
+    villageName: text('village_name'),
+    line1: text().notNull(),
+    fullAddress: text('full_address').notNull(),
+    isPrimary: boolean('is_primary').default(true).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex('staff_addresses_one_primary_per_type')
+      .using(
+        'btree',
+        table.staffProfileId.asc().nullsLast().op('uuid_ops'),
+        table.type.asc().nullsLast().op('uuid_ops'),
+      )
+      .where(sql`is_primary`),
+    index('idx_staff_addresses_profile').using(
+      'btree',
+      table.staffProfileId.asc().nullsLast().op('uuid_ops'),
+    ),
+    foreignKey({
+      columns: [table.staffProfileId],
+      foreignColumns: [staffProfiles.id],
+      name: 'staff_addresses_staff_profile_id_fkey',
+    }).onDelete('cascade'),
   ],
 );
 

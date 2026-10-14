@@ -42,9 +42,7 @@ export class AppointmentTemporalStatusHelper {
     return false;
   }
 
-  static resolveEntityStatus(
-    status: string,
-  ): AppointmentEntity['status'] {
+  static resolveEntityStatus(status: string): AppointmentEntity['status'] {
     return toDomainStatus(status);
   }
 

@@ -1,9 +1,9 @@
-import { TimeInterval } from '../types/calendar.types';
 import {
   LoadRatioThresholds,
   QueueLoadStatus,
   resolveQueueLoadStatus,
 } from '../constants/queue-load.constants';
+import { TimeInterval } from '../types/calendar.types';
 
 export type LoadStatus = QueueLoadStatus;
 
@@ -135,9 +135,7 @@ export class SimulatorService {
       const laneIdx = i % effectiveLanes;
 
       let finishMs: number;
-      const startMs = ticket.actualStart
-        ? ticket.actualStart.getTime()
-        : nowMs;
+      const startMs = ticket.actualStart ? ticket.actualStart.getTime() : nowMs;
 
       if (ticket.actualStart) {
         const elapsedMs = Math.max(0, nowMs - ticket.actualStart.getTime());

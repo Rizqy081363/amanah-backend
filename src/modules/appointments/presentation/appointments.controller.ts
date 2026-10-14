@@ -119,7 +119,8 @@ export class AppointmentsController {
   @Roles('ADMIN', 'STAF')
   @Get('queue-navigation')
   @ApiOperation({
-    summary: 'Mendapatkan navigasi kategori/unit klinik dan antrean dokter dinamis (SSOT)',
+    summary:
+      'Mendapatkan navigasi kategori/unit klinik dan antrean dokter dinamis (SSOT)',
     description:
       'Menyediakan daftar unit klinik aktif beserta daftar dokter yang bertugas dan metrik antreannya untuk tampilan tabs hierarkis.',
   })
@@ -210,8 +211,10 @@ export class AppointmentsController {
   @Roles('ADMIN', 'STAF', 'PATIENT')
   @Get('active-ticket')
   @ApiOperation({
-    summary: 'Mengecek apakah pasien memiliki tiket aktif pada tanggal dan kategori tertentu',
-    description: 'Digunakan oleh antarmuka pendaftaran untuk verifikasi dini tiket aktif pasien.',
+    summary:
+      'Mengecek apakah pasien memiliki tiket aktif pada tanggal dan kategori tertentu',
+    description:
+      'Digunakan oleh antarmuka pendaftaran untuk verifikasi dini tiket aktif pasien.',
   })
   async getActiveTicket(
     @Query('patientId') patientId?: string,

@@ -16,9 +16,9 @@ import { auth as betterAuth } from '../../../../auth/better-auth/auth';
 import { JwtPayloadType } from '../../../../auth/strategies/types/jwt-payload.type';
 import { REDIS_CLIENT } from '../../../../common/redis/redis.constants';
 import { AllConfigType } from '../../../../config/config.type';
+import { RealtimeTicketService } from '../../application/services/realtime-ticket.service';
 import { RealtimeGatewayPort } from '../../contracts/realtime-gateway.interface';
 import { REALTIME_ROOMS } from '../../notifications.constants';
-import { RealtimeTicketService } from '../../application/services/realtime-ticket.service';
 
 @Injectable()
 @WebSocketGateway({
@@ -110,7 +110,8 @@ export class SocketIoRealtimeGateway
             return next(new Error('TICKET_SERVICE_UNAVAILABLE'));
           }
 
-          const ticketData = await this.realtimeTicketService.consumeTicket(rawTicket);
+          const ticketData =
+            await this.realtimeTicketService.consumeTicket(rawTicket);
           if (ticketData?.userId) {
             socket.data.userId = ticketData.userId;
             socket.data.user = ticketData;
@@ -213,7 +214,8 @@ export class SocketIoRealtimeGateway
         return;
       }
 
-      const ticketData = await this.realtimeTicketService.consumeTicket(rawTicket);
+      const ticketData =
+        await this.realtimeTicketService.consumeTicket(rawTicket);
       if (ticketData?.userId) {
         client.data.userId = ticketData.userId;
         client.data.user = ticketData;

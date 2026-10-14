@@ -61,7 +61,10 @@ export const QUEUE_CONFIG_KEYS = {
   VALID_MAX_MINUTES: 'duration.valid_max_minutes',
 } as const;
 
-export const PATIENT_QUEUE_STATUS_LABELS: Record<QueueTicketStatusType, string> = {
+export const PATIENT_QUEUE_STATUS_LABELS: Record<
+  QueueTicketStatusType,
+  string
+> = {
   [QUEUE_TICKET_STATUS.WAITING]: 'Menunggu Antrean',
   [QUEUE_TICKET_STATUS.CALLED]: 'Dipanggil ke Ruangan',
   [QUEUE_TICKET_STATUS.IN_SERVICE]: 'Sedang Dilayani',

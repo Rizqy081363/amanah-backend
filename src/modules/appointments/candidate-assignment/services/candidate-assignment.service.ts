@@ -1,27 +1,32 @@
-import { BadRequestException, Inject, Injectable, Optional } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  Optional,
+} from '@nestjs/common';
 import { RedisService } from '../../../../common/redis/redis.service';
+import { QueuePositionRecalculationService } from '../../../queue-engine/application/services/queue-position-recalculation.service';
 import { AppointmentNotificationPublisher } from '../../application/appointment-notification.publisher';
 import {
   REALTIME_EMITTER_PORT,
   type RealtimeEmitterPort,
 } from '../../application/ports/realtime-emitter.port';
-import { AppointmentEntity } from '../../domain/entities/appointment.entity';
-import { toDomainStatus } from '../../domain/types/appointment.types';
 import {
   DB_APPOINTMENT_STATUS,
   isTerminalAppointmentStatus,
 } from '../../domain/constants/appointment-lifecycle.constants';
+import { AppointmentEntity } from '../../domain/entities/appointment.entity';
 import {
   AppointmentNotFoundException,
   AppointmentTerminalStateException,
   DoctorCollisionException,
 } from '../../domain/errors/appointment-assignment.errors';
+import { toDomainStatus } from '../../domain/types/appointment.types';
 import type {
   ChangeDoctorOptions,
   ICandidateAssignmentPort,
 } from '../contracts/candidate-assignment.contract';
 import { DrizzleCandidateAssignmentRepository } from '../infrastructure/drizzle-candidate-assignment.repository';
-import { QueuePositionRecalculationService } from '../../../queue-engine/application/services/queue-position-recalculation.service';
 
 @Injectable()
 export class CandidateAssignmentService implements ICandidateAssignmentPort {
@@ -71,8 +76,7 @@ export class CandidateAssignmentService implements ICandidateAssignmentPort {
     }
 
     // Validate target doctor exists and accepts appointments
-    const allPractitioners =
-      await this.repository.findAllActivePractitioners();
+    const allPractitioners = await this.repository.findAllActivePractitioners();
     const targetDoc = allPractitioners.find((p) => p.id === targetDoctorId);
 
     if (!targetDoc) {

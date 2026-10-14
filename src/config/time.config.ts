@@ -3,7 +3,7 @@ import { TimeConfig } from './time-config.type';
 
 export function assertIanaTimezone(name: string, label: string): string {
   const looksIana =
-    /^[A-Za-z]+(?:\/[A-Za-z0-9_+\-]+)+$/.test(name) || name === 'UTC';
+    /^[A-Za-z]+(?:\/[A-Za-z0-9_+-]+)+$/.test(name) || name === 'UTC';
   let resolvable = false;
   try {
     new Intl.DateTimeFormat('en-US', { timeZone: name });
@@ -28,7 +28,10 @@ export default registerAs<TimeConfig>('time', () => {
     return v;
   };
   return Object.freeze({
-    clinicTimezone: assertIanaTimezone(need('CLINIC_TIMEZONE'), 'CLINIC_TIMEZONE'),
+    clinicTimezone: assertIanaTimezone(
+      need('CLINIC_TIMEZONE'),
+      'CLINIC_TIMEZONE',
+    ),
     processTimezone: assertIanaTimezone(need('PROCESS_TZ'), 'PROCESS_TZ'),
     dbTimezone: assertIanaTimezone(need('DB_TIMEZONE'), 'DB_TIMEZONE'),
   });

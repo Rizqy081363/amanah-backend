@@ -1,12 +1,12 @@
 import {
+  PATIENT_QUEUE_STATUS_LABELS,
+  QUEUE_TICKET_STATUS,
+} from '../constants/queue-engine.constants';
+import {
   DomainQueueTicket,
   PatientTicketView,
   QueueTicketStatus,
 } from '../types/queue.types';
-import {
-  PATIENT_QUEUE_STATUS_LABELS,
-  QUEUE_TICKET_STATUS,
-} from '../constants/queue-engine.constants';
 
 export class QueueEngineService {
   /**
@@ -160,8 +160,8 @@ export class QueueEngineService {
       statusLabel: this.getPatientStatusLabel(ticket.status),
       aheadCount: Math.max(0, aheadCount),
       etaWindowDisplay: etaRange,
-      roomName: isCalledOrActive ? resolvedRoomName ?? null : null,
-      doctorName: isCalledOrActive ? resolvedDoctorName ?? null : null,
+      roomName: isCalledOrActive ? (resolvedRoomName ?? null) : null,
+      doctorName: isCalledOrActive ? (resolvedDoctorName ?? null) : null,
     };
   }
 }

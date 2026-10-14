@@ -7,11 +7,11 @@ import {
 } from '@nestjs/common';
 import { inArray, sql } from 'drizzle-orm';
 import * as webpush from 'web-push';
+import { NOTIFICATIONS_PUSH_QUEUE } from '../../../../common/rabbitmq/rabbitmq.constants';
+import { RabbitMQService } from '../../../../common/rabbitmq/rabbitmq.service';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import type { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import { roles, userRoles } from '../../../../database/schema';
-import { NOTIFICATIONS_PUSH_QUEUE } from '../../../../common/rabbitmq/rabbitmq.constants';
-import { RabbitMQService } from '../../../../common/rabbitmq/rabbitmq.service';
 import { NotificationDispatchCommand } from '../../contracts/notification-dispatch.contract';
 import {
   PUSH_SUBSCRIPTION_REPOSITORY,
@@ -85,9 +85,7 @@ export class PushNotificationQueueWorker
             await this.processPushCommand(content);
             channel.ack(msg);
           } catch (err) {
-            this.logger.error(
-              `Error processing push message: ${String(err)}`,
-            );
+            this.logger.error(`Error processing push message: ${String(err)}`);
             channel.nack(msg, false, false);
           }
         },
@@ -97,9 +95,7 @@ export class PushNotificationQueueWorker
       this.isConsuming = true;
       this.logger.log('Push notification queue consumer started');
     } catch (err) {
-      this.logger.error(
-        `Failed to start push queue consumer: ${String(err)}`,
-      );
+      this.logger.error(`Failed to start push queue consumer: ${String(err)}`);
     }
   }
 
@@ -122,9 +118,7 @@ export class PushNotificationQueueWorker
       body: command.content.body,
       actionUrl: command.content.actionUrl || '/dashboard',
       data: command.content.data || {},
-      vibrationPattern: command.vibrationPattern || [
-        300, 100, 300, 100, 300,
-      ],
+      vibrationPattern: command.vibrationPattern || [300, 100, 300, 100, 300],
       tag: command.commandId,
       badge: '/apple-touch-icon.png',
       icon: '/logo-symbol-only.png',

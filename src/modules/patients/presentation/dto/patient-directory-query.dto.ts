@@ -67,12 +67,16 @@ export class PatientDirectoryQueryDto {
   @IsOptional()
   bloodType?: string;
 
-  @ApiPropertyOptional({ description: 'Filter tanggal lahir awal (YYYY-MM-DD)' })
+  @ApiPropertyOptional({
+    description: 'Filter tanggal lahir awal (YYYY-MM-DD)',
+  })
   @IsString()
   @IsOptional()
   birthDateFrom?: string;
 
-  @ApiPropertyOptional({ description: 'Filter tanggal lahir akhir (YYYY-MM-DD)' })
+  @ApiPropertyOptional({
+    description: 'Filter tanggal lahir akhir (YYYY-MM-DD)',
+  })
   @IsString()
   @IsOptional()
   birthDateTo?: string;

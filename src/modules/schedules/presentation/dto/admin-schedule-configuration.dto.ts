@@ -51,7 +51,8 @@ export class UpdateWeeklyTemplateItemDto {
   id?: string;
 
   @ApiProperty({
-    description: 'Identifier referensi ke definisi shift operasional (session_def)',
+    description:
+      'Identifier referensi ke definisi shift operasional (session_def)',
     example: 'd0d12ed6-ecda-4ed8-b3d9-f3b95d8f701a',
   })
   @IsNotEmpty()
@@ -101,7 +102,8 @@ export class UpdateWeeklyTemplateItemDto {
 
 export class UpdateClinicSettingItemDto {
   @ApiProperty({
-    description: 'Kunci konfigurasi operasional klinik pada tabel clinic_setting',
+    description:
+      'Kunci konfigurasi operasional klinik pada tabel clinic_setting',
     example: 'duration.prior_minutes',
   })
   @IsNotEmpty()
@@ -109,7 +111,8 @@ export class UpdateClinicSettingItemDto {
   key: string;
 
   @ApiProperty({
-    description: 'Nilai konfigurasi (tipe number, boolean, string, atau object)',
+    description:
+      'Nilai konfigurasi (tipe number, boolean, string, atau object)',
     example: 30,
   })
   @IsNotEmpty()
@@ -181,7 +184,8 @@ export class UpdateScheduleConfigurationBatchDto {
   clinicSettings?: UpdateClinicSettingItemDto[];
 
   @ApiPropertyOptional({
-    description: 'Pembaruan status aktif/nonaktif hari operasional klinik (master_day)',
+    description:
+      'Pembaruan status aktif/nonaktif hari operasional klinik (master_day)',
   })
   @IsOptional()
   @IsArray()
@@ -211,9 +215,9 @@ export class ScheduleConfigurationImpactResultDto {
   affectedAppointmentsCount: number;
 
   @ApiProperty({
-    description: 'Daftar pesan peringatan atau analisis konsekuensi operasional',
+    description:
+      'Daftar pesan peringatan atau analisis konsekuensi operasional',
     type: [String],
   })
   warnings: string[];
 }
-

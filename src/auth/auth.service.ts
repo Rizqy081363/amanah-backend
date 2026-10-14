@@ -24,6 +24,8 @@ import {
   practitioners,
   roles,
   session,
+  staffAddresses,
+  staffInvitations,
   staffProfiles,
   user,
   userRoles,
@@ -107,6 +109,7 @@ export class AuthService {
         staffProfiles: {
           with: {
             practitioners: true,
+            addresses: true,
           },
         },
         patientProfiles: {
@@ -322,6 +325,9 @@ export class AuthService {
       directUrl: storedImageUrl || canonicalAvatarUrl,
     };
 
+    const primaryStaffAddress =
+      s?.addresses?.find((a: any) => a.isPrimary) || s?.addresses?.[0];
+
     const staff = s
       ? {
           id: s.id,
@@ -334,6 +340,16 @@ export class AuthService {
           photoUrl: avatar.url,
           phoneNumber: s.phone,
           isActive: s.status === 'active',
+          address: primaryStaffAddress?.fullAddress || '',
+          alamatDetail: primaryStaffAddress?.line1 || null,
+          provinsi: primaryStaffAddress?.provinceName || null,
+          provinsiId: primaryStaffAddress?.provinceCode || null,
+          kabupaten: primaryStaffAddress?.regencyName || null,
+          kabupatenId: primaryStaffAddress?.regencyCode || null,
+          kecamatan: primaryStaffAddress?.districtName || null,
+          kecamatanId: primaryStaffAddress?.districtCode || null,
+          kelurahan: primaryStaffAddress?.villageName || null,
+          kelurahanId: primaryStaffAddress?.villageCode || null,
         }
       : null;
 
@@ -367,6 +383,7 @@ export class AuthService {
         staffProfiles: {
           with: {
             practitioners: true,
+            addresses: true,
           },
         },
         patientProfiles: {
@@ -790,6 +807,7 @@ export class AuthService {
         staffProfiles: {
           with: {
             practitioners: true,
+            addresses: true,
           },
         },
         patientProfiles: {
@@ -1161,17 +1179,44 @@ export class AuthService {
       throw new UnauthorizedException('Pengguna tidak ditemukan di sistem.');
     }
 
+    // 1. Determine role from DB / Invitation (SSOT, prevents client-side role escalation)
+    const assignedUserRole = await this.db.query.userRoles.findFirst({
+      where: eq(userRoles.userId, userRecord.id),
+      with: {
+        role: true,
+      },
+    });
+
+    let effectiveRoleCode: string | undefined = assignedUserRole?.role?.code;
+
+    const pendingInvitation = await this.db.query.staffInvitations.findFirst({
+      where: and(
+        eq(staffInvitations.email, userRecord.email.toLowerCase()),
+        eq(staffInvitations.status, 'pending'),
+      ),
+    });
+
+    if (pendingInvitation) {
+      effectiveRoleCode = pendingInvitation.roleCode;
+    }
+
     let betterAuthRole: 'staffDoctor' | 'staffMidwife' | 'staffWorker' =
       'staffDoctor';
     let rolesCode: 'staff_doctor' | 'staff_midwife' | 'staff_worker' =
       'staff_doctor';
     let staffTypeVal: 'doctor' | 'midwife' | 'worker' = 'doctor';
 
-    if (dto.role === StaffOnboardingRole.DOCTOR) {
+    if (
+      effectiveRoleCode === 'staff_doctor' ||
+      (!effectiveRoleCode && dto.role === StaffOnboardingRole.DOCTOR)
+    ) {
       betterAuthRole = 'staffDoctor';
       rolesCode = 'staff_doctor';
       staffTypeVal = 'doctor';
-    } else if (dto.role === StaffOnboardingRole.MIDWIFE) {
+    } else if (
+      effectiveRoleCode === 'staff_midwife' ||
+      (!effectiveRoleCode && dto.role === StaffOnboardingRole.MIDWIFE)
+    ) {
       betterAuthRole = 'staffMidwife';
       rolesCode = 'staff_midwife';
       staffTypeVal = 'midwife';
@@ -1256,6 +1301,13 @@ export class AuthService {
             staffCode: finalStaffCode,
             staffType: staffTypeVal,
             positionTitle,
+            birthPlace: dto.birthPlace?.trim() || existingStaff.birthPlace,
+            birthDate: dto.birthDate || existingStaff.birthDate,
+            gender: dto.gender || existingStaff.gender,
+            nationalIdHash:
+              dto.nationalId?.trim() || existingStaff.nationalIdHash,
+            nationalIdEncrypted:
+              dto.nationalId?.trim() || existingStaff.nationalIdEncrypted,
             phone: dto.phoneNumber?.trim() || existingStaff.phone,
             primaryUnitId: resolvedPoliklinikId || existingStaff.primaryUnitId,
             avatarUrl: existingStaff.avatarUrl || userImageUrl,
@@ -1274,6 +1326,11 @@ export class AuthService {
             fullName: dto.fullName.trim(),
             staffType: staffTypeVal,
             positionTitle,
+            birthPlace: dto.birthPlace?.trim() || null,
+            birthDate: dto.birthDate || null,
+            gender: dto.gender || null,
+            nationalIdHash: dto.nationalId?.trim() || null,
+            nationalIdEncrypted: dto.nationalId?.trim() || null,
             phone: dto.phoneNumber?.trim(),
             email: userRecord.email,
             primaryUnitId: resolvedPoliklinikId,
@@ -1282,6 +1339,18 @@ export class AuthService {
           })
           .returning();
         existingStaff = created;
+      }
+
+      // 5. Mark pending invitation accepted if exists
+      if (pendingInvitation) {
+        await tx
+          .update(staffInvitations)
+          .set({
+            status: 'accepted',
+            acceptedAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          })
+          .where(eq(staffInvitations.id, pendingInvitation.id));
       }
 
       // 5. If doctor, create or update practitioner record
@@ -1307,6 +1376,77 @@ export class AuthService {
               updatedAt: new Date().toISOString(),
             })
             .where(eq(practitioners.id, existingPractitioner.id));
+        }
+      }
+
+      // 6. Regional Address persistence in staff_addresses (Flutter & onboarding SSOT)
+      if (existingStaff) {
+        const provName = dto.provinsi?.trim();
+        const provCode = dto.provinsi_id?.trim() || dto.provinsiId?.trim();
+        const regName = dto.kabupaten?.trim();
+        const regCode = dto.kabupaten_id?.trim() || dto.kabupatenId?.trim();
+        const distName = dto.kecamatan?.trim();
+        const distCode = dto.kecamatan_id?.trim() || dto.kecamatanId?.trim();
+        const villName = dto.kelurahan?.trim();
+        const villCode = dto.kelurahan_id?.trim() || dto.kelurahanId?.trim();
+        const streetLine1 =
+          dto.alamat_detail?.trim() ||
+          dto.alamatDetail?.trim() ||
+          dto.line1?.trim() ||
+          '';
+
+        if (streetLine1 || provName || regName) {
+          const fullAddress = [
+            streetLine1,
+            villName ? `Kel. ${villName}` : null,
+            distName ? `Kec. ${distName}` : null,
+            regName,
+            provName ? `Prov. ${provName}` : null,
+          ]
+            .filter(Boolean)
+            .join(', ');
+
+          const existingAddress = await tx.query.staffAddresses.findFirst({
+            where: and(
+              eq(staffAddresses.staffProfileId, existingStaff.id),
+              eq(staffAddresses.isPrimary, true),
+            ),
+          });
+
+          if (existingAddress) {
+            await tx
+              .update(staffAddresses)
+              .set({
+                provinceCode: provCode || existingAddress.provinceCode,
+                provinceName: provName || existingAddress.provinceName,
+                regencyCode: regCode || existingAddress.regencyCode,
+                regencyName: regName || existingAddress.regencyName,
+                districtCode: distCode || existingAddress.districtCode,
+                districtName: distName || existingAddress.districtName,
+                villageCode: villCode || existingAddress.villageCode,
+                villageName: villName || existingAddress.villageName,
+                line1: streetLine1 || existingAddress.line1,
+                fullAddress: fullAddress || existingAddress.fullAddress,
+                updatedAt: new Date().toISOString(),
+              })
+              .where(eq(staffAddresses.id, existingAddress.id));
+          } else {
+            await tx.insert(staffAddresses).values({
+              staffProfileId: existingStaff.id,
+              type: 'domicile',
+              provinceCode: provCode || null,
+              provinceName: provName || null,
+              regencyCode: regCode || null,
+              regencyName: regName || null,
+              districtCode: distCode || null,
+              districtName: distName || null,
+              villageCode: villCode || null,
+              villageName: villName || null,
+              line1: streetLine1 || '-',
+              fullAddress: fullAddress || streetLine1 || '-',
+              isPrimary: true,
+            });
+          }
         }
       }
     });

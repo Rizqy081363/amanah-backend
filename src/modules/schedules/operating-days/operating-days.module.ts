@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
-import { AdminOperatingDaysController } from './presentation/admin-operating-days.controller';
-import { DrizzleOperatingDaysRepository } from './infrastructure/drizzle-operating-days.repository';
 import { OPERATING_DAYS_REPOSITORY } from './domain/repositories/operating-days.repository';
+import { DrizzleOperatingDaysRepository } from './infrastructure/drizzle-operating-days.repository';
+import { AdminOperatingDaysController } from './presentation/admin-operating-days.controller';
 
 @Module({
   controllers: [AdminOperatingDaysController],

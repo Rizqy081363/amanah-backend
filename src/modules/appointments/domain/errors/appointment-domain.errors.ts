@@ -141,4 +141,3 @@ export class AppointmentQueueTurnNotReachedError extends AppointmentDomainError 
     );
   }
 }
-

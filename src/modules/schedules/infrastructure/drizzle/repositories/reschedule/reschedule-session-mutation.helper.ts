@@ -72,7 +72,7 @@ export async function mutateRescheduleSessionRecords(
     notes:
       body.notes || body.reason
         ? `[RESCHEDULED] ${body.notes || body.reason}`
-        : session.notes ?? null,
+        : (session.notes ?? null),
     updatedAt: new Date().toISOString(),
   };
 }

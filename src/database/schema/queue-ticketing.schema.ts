@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import {
   boolean,
   date,
@@ -16,9 +17,9 @@ import {
 } from 'drizzle-orm/pg-core';
 import {
   clinicRooms,
-  patientProfiles,
   practitioners,
   serviceCategories,
+  staffProfiles,
   users,
 } from './amanah.schema';
 
@@ -220,8 +221,14 @@ export const extraOpenings = pgTable('extra_opening', {
   categoryId: uuid('category_id').references(() => serviceCategories.id, {
     onDelete: 'cascade',
   }),
-  startsAt: timestamp('starts_at', { withTimezone: true, mode: 'string' }).notNull(),
-  endsAt: timestamp('ends_at', { withTimezone: true, mode: 'string' }).notNull(),
+  startsAt: timestamp('starts_at', {
+    withTimezone: true,
+    mode: 'string',
+  }).notNull(),
+  endsAt: timestamp('ends_at', {
+    withTimezone: true,
+    mode: 'string',
+  }).notNull(),
   note: text('note'),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
     .defaultNow()
@@ -242,8 +249,14 @@ export const clinicClosures = pgTable(
     roomId: uuid('room_id').references(() => clinicRooms.id, {
       onDelete: 'cascade',
     }),
-    startsAt: timestamp('starts_at', { withTimezone: true, mode: 'string' }).notNull(),
-    endsAt: timestamp('ends_at', { withTimezone: true, mode: 'string' }).notNull(),
+    startsAt: timestamp('starts_at', {
+      withTimezone: true,
+      mode: 'string',
+    }).notNull(),
+    endsAt: timestamp('ends_at', {
+      withTimezone: true,
+      mode: 'string',
+    }).notNull(),
     inputKind: varchar('input_kind', { length: 20 }).notNull(), // 'day' | 'session' | 'range'
     lastCallBufferMin: integer('last_call_buffer_min').default(0).notNull(),
     reason: text('reason'),
@@ -253,7 +266,10 @@ export const clinicClosures = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
       .notNull(),
-    cancelledAt: timestamp('cancelled_at', { withTimezone: true, mode: 'string' }),
+    cancelledAt: timestamp('cancelled_at', {
+      withTimezone: true,
+      mode: 'string',
+    }),
   },
   (table) => [
     index('idx_clinic_closure_period').on(table.startsAt, table.endsAt),
@@ -300,9 +316,7 @@ export const ticketEvents = pgTable(
       .notNull(),
     payload: jsonb('payload'),
   },
-  (table) => [
-    index('idx_ticket_event_ticket_at').on(table.ticketId, table.at),
-  ],
+  (table) => [index('idx_ticket_event_ticket_at').on(table.ticketId, table.at)],
 );
 
 export const queueNotificationOutbox = pgTable(
@@ -320,5 +334,38 @@ export const queueNotificationOutbox = pgTable(
   },
   (table) => [
     index('idx_queue_outbox_pending').on(table.status, table.createdAt),
+  ],
+);
+
+// ============================================================================
+// 7. STAFF ROSTER (Independent operational roster, decoupled from practitioners)
+// ============================================================================
+export const staffRosters = pgTable(
+  'staff_roster',
+  {
+    id: uuid('id').defaultRandom().primaryKey().notNull(),
+    staffProfileId: uuid('staff_profile_id')
+      .notNull()
+      .references(() => staffProfiles.id, { onDelete: 'cascade' }),
+    sessionId: uuid('session_id')
+      .notNull()
+      .references(() => sessionDefs.id, { onDelete: 'cascade' }),
+    dow: integer('dow')
+      .notNull()
+      .references(() => masterDays.dow, { onDelete: 'restrict' }),
+    isActive: boolean('is_active').default(true).notNull(),
+    notes: text('notes'),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex('idx_staff_roster_profile_session_dow_active')
+      .on(table.staffProfileId, table.sessionId, table.dow)
+      .where(sql`is_active = TRUE`),
+    index('idx_staff_roster_profile').on(table.staffProfileId),
   ],
 );

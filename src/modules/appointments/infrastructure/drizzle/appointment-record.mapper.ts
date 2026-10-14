@@ -1,9 +1,11 @@
 import { generateEntityVersion } from '../../../../common/occ';
+import { ClinicTimeService } from '../../../../common/time/clinic-time.service';
 import {
   type CanonicalSessionName,
   resolveCanonicalShift,
   resolveSessionFromTime,
 } from '../../../schedules/domain/constants/schedule-shift.constants';
+import { formatIndoDate } from '../../../schedules/domain/services/schedule-date.formatter';
 import {
   DB_APPOINTMENT_STATUS,
   DOMAIN_APPOINTMENT_STATUS,
@@ -16,8 +18,6 @@ import {
   resolveAllowedActions,
   toDomainStatus,
 } from '../../domain/types/appointment.types';
-import { formatIndoDate } from '../../../schedules/domain/services/schedule-date.formatter';
-import { ClinicTimeService } from '../../../../common/time/clinic-time.service';
 
 export class AppointmentRecordMapper {
   static resolveSession(apt: any): CanonicalSessionName {
@@ -152,7 +152,8 @@ export class AppointmentRecordMapper {
     const effectivePosition =
       apt.queueNumber !== undefined && apt.queueNumber !== null
         ? Number(apt.queueNumber)
-        : ticket?.waitingPosition !== undefined && ticket?.waitingPosition !== null
+        : ticket?.waitingPosition !== undefined &&
+            ticket?.waitingPosition !== null
           ? Number(ticket.waitingPosition)
           : 1;
     const aheadCount =

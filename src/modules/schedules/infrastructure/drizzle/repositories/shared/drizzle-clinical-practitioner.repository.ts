@@ -66,7 +66,10 @@ export class DrizzleClinicalPractitionerRepository {
           where: and(
             eq(doctorAssignments.doctorId, p.id),
             eq(doctorAssignments.isActive, true),
-            or(eq(doctorAssignments.dow, targetDow), isNull(doctorAssignments.dow)),
+            or(
+              eq(doctorAssignments.dow, targetDow),
+              isNull(doctorAssignments.dow),
+            ),
           ),
         }),
         this.db.query.shiftExceptions.findFirst({
@@ -79,7 +82,8 @@ export class DrizzleClinicalPractitionerRepository {
       ]);
 
       const isOnLeave = Boolean(activeLeave);
-      const isAvailable = (!isOnLeave && Boolean(assignedRoster)) || Boolean(extraShift);
+      const isAvailable =
+        (!isOnLeave && Boolean(assignedRoster)) || Boolean(extraShift);
       const location = p.clinicRoom
         ? `${p.clinicRoom.name}${p.clinicRoom.location ? `, ${p.clinicRoom.location}` : ''}`
         : 'Poli Umum, Ruang 101';

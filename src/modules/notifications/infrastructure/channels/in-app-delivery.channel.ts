@@ -85,4 +85,3 @@ export class InAppDeliveryChannel implements DeliveryChannelAdapter {
     }
   }
 }
-

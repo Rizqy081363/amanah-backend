@@ -124,7 +124,9 @@ export const VALID_BLOOD_TYPE_VALUES: readonly string[] = [
  * Normalizer otoritatif yang memetakan input simbolik (A+, O-, Belum Tahu)
  * maupun identifier enum PostgreSQL (a_positive, unknown) ke enum database murni.
  */
-export function normalizeBloodTypeToDb(input?: string | null): DatabaseBloodTypeEnum {
+export function normalizeBloodTypeToDb(
+  input?: string | null,
+): DatabaseBloodTypeEnum {
   if (!input) return 'unknown';
   const clean = input.trim().toLowerCase();
   switch (clean) {

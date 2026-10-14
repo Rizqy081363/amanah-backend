@@ -1,10 +1,6 @@
 import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
-import {
-  appointments,
-  sessionDefs,
-  shiftExceptions,
-} from '@database/schema';
+import { appointments, sessionDefs, shiftExceptions } from '@database/schema';
 import { ACTIVE_APPOINTMENT_STATUSES } from '@modules/schedules/domain/constants/schedule.constants';
 import type {
   AppointmentOccupation,

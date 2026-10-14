@@ -11,13 +11,19 @@ import {
 } from 'class-validator';
 
 export class UpdateOperatingDayItemDto {
-  @ApiProperty({ description: 'Day of week (0 = Sunday .. 6 = Saturday)', example: 1 })
+  @ApiProperty({
+    description: 'Day of week (0 = Sunday .. 6 = Saturday)',
+    example: 1,
+  })
   @IsInt()
   @Min(0)
   @Max(6)
   dow!: number;
 
-  @ApiProperty({ description: 'Status aktif hari operasional klinik', example: true })
+  @ApiProperty({
+    description: 'Status aktif hari operasional klinik',
+    example: true,
+  })
   @IsBoolean()
   isActive!: boolean;
 }

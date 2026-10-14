@@ -32,7 +32,9 @@ import {
   UpdateWeeklyTemplatesBatchDto,
 } from './dto/admin-schedule-configuration.dto';
 
-@ApiTags('Admin Schedule Configuration (Pengaturan Operasional Jadwal & Klinik)')
+@ApiTags(
+  'Admin Schedule Configuration (Pengaturan Operasional Jadwal & Klinik)',
+)
 @ApiBearerAuth('access-token')
 @UseGuards(HybridAuthGuard, RolesGuard)
 @Roles('ADMIN')
@@ -40,7 +42,8 @@ import {
   description: 'Sesi autentikasi tidak valid atau token tidak disertakan',
 })
 @ApiForbiddenResponse({
-  description: 'Akses ditolak: Hanya administrator yang berwenang mengubah konfigurasi',
+  description:
+    'Akses ditolak: Hanya administrator yang berwenang mengubah konfigurasi',
 })
 @Controller({ path: 'admin/schedule-configuration', version: '1' })
 export class AdminScheduleConfigurationController {
@@ -50,10 +53,12 @@ export class AdminScheduleConfigurationController {
 
   @Get()
   @ApiOperation({
-    summary: 'Ambil seluruh konfigurasi operasional jadwal dan parameter klinik',
+    summary:
+      'Ambil seluruh konfigurasi operasional jadwal dan parameter klinik',
   })
   @ApiOkResponse({
-    description: 'Data konfigurasi shift, template mingguan, dan parameter klinik berhasil diambil',
+    description:
+      'Data konfigurasi shift, template mingguan, dan parameter klinik berhasil diambil',
   })
   async getConfiguration(): Promise<ScheduleConfigurationData> {
     return this.configRepo.getConfiguration();
@@ -78,10 +83,12 @@ export class AdminScheduleConfigurationController {
   @Put('batch')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Perbarui konfigurasi jadwal operasional dan klinik secara atomik (batch)',
+    summary:
+      'Perbarui konfigurasi jadwal operasional dan klinik secara atomik (batch)',
   })
   @ApiOkResponse({
-    description: 'Konfigurasi berhasil disimpan dan cache operasional telah diperbarui',
+    description:
+      'Konfigurasi berhasil disimpan dan cache operasional telah diperbarui',
   })
   async batchUpdate(
     @Body() dto: UpdateScheduleConfigurationBatchDto,

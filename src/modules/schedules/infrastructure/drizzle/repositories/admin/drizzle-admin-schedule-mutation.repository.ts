@@ -264,7 +264,9 @@ export class DrizzleAdminScheduleMutationRepository {
         startsAt: startDate.toISOString(),
         endsAt: nextDayDate.toISOString(),
         inputKind: 'day',
-        reason: notes || 'Jadwal praktik dokter ditutup operasional oleh admin klinik.',
+        reason:
+          notes ||
+          'Jadwal praktik dokter ditutup operasional oleh admin klinik.',
       });
 
       // Update associated queue tickets to carried over

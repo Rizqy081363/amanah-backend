@@ -1,10 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { DRIZZLE_SOURCE } from '../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../database/drizzle/drizzle.provider';
-import {
-  clinicProfiles,
-  clinicSettings,
-} from '../../database/schema';
+import { clinicProfiles, clinicSettings } from '../../database/schema';
 import {
   ClinicProfileData,
   ClinicSchedulePolicyData,
@@ -97,16 +94,20 @@ export class ClinicConfigService {
       }
       this.settingsCache = newSettings;
 
-      const checkInWindowHoursVal = newSettings.get('queue.check_in_window_hours')?.[0]?.value;
+      const checkInWindowHoursVal = newSettings.get(
+        'queue.check_in_window_hours',
+      )?.[0]?.value;
       const checkInWindowHours =
         checkInWindowHoursVal !== undefined
-          ? Number(checkInWindowHoursVal) || DEFAULT_SCHEDULE_POLICY.checkInWindowHours
+          ? Number(checkInWindowHoursVal) ||
+            DEFAULT_SCHEDULE_POLICY.checkInWindowHours
           : DEFAULT_SCHEDULE_POLICY.checkInWindowHours;
 
       const durationVal = newSettings.get('duration.prior_minutes')?.[0]?.value;
       const defaultConsultationDurationMinutes =
         durationVal !== undefined
-          ? Number(durationVal) || DEFAULT_SCHEDULE_POLICY.defaultConsultationDurationMinutes
+          ? Number(durationVal) ||
+            DEFAULT_SCHEDULE_POLICY.defaultConsultationDurationMinutes
           : DEFAULT_SCHEDULE_POLICY.defaultConsultationDurationMinutes;
 
       this.policyCache = {
@@ -206,7 +207,9 @@ export class ClinicConfigService {
     const val = await this.get<any>(key, scope);
     const num = Number(val);
     if (Number.isNaN(num)) {
-      throw new Error(`Configuration key '${key}' expected number, got: ${val}`);
+      throw new Error(
+        `Configuration key '${key}' expected number, got: ${val}`,
+      );
     }
     return num;
   }
@@ -239,15 +242,24 @@ export class ClinicConfigService {
   }
 
   async getEtaConfig(scope?: ScopeQuery): Promise<EtaConfigData> {
-    const [displayRoundMinutes, notifyDelayMinutes, spreadZ, updateThresholdMinutes] =
-      await Promise.all([
-        this.getNumber('eta.display_round_minutes', scope).catch(() => 5),
-        this.getNumber('eta.notify_delay_minutes', scope).catch(() => 15),
-        this.getNumber('eta.spread_z', scope).catch(() => 0.84),
-        this.getNumber('eta.update_threshold_minutes', scope).catch(() => 10),
-      ]);
+    const [
+      displayRoundMinutes,
+      notifyDelayMinutes,
+      spreadZ,
+      updateThresholdMinutes,
+    ] = await Promise.all([
+      this.getNumber('eta.display_round_minutes', scope).catch(() => 5),
+      this.getNumber('eta.notify_delay_minutes', scope).catch(() => 15),
+      this.getNumber('eta.spread_z', scope).catch(() => 0.84),
+      this.getNumber('eta.update_threshold_minutes', scope).catch(() => 10),
+    ]);
 
-    return { displayRoundMinutes, notifyDelayMinutes, spreadZ, updateThresholdMinutes };
+    return {
+      displayRoundMinutes,
+      notifyDelayMinutes,
+      spreadZ,
+      updateThresholdMinutes,
+    };
   }
 
   async getQueueThresholds(scope?: ScopeQuery): Promise<QueueThresholdsData> {
@@ -264,9 +276,15 @@ export class ClinicConfigService {
       this.getNumber('queue.overflow_tolerance_minutes', scope).catch(() => 30),
       this.getNumber('queue.no_show_grace_minutes', scope).catch(() => 10),
       this.getNumber('queue.no_show_call_attempts', scope).catch(() => 2),
-      this.getNumber('ticket.max_active_per_patient_category_day', scope).catch(() => 1),
-      this.getNumber('ticket.reschedule_warn_when_ahead_lte', scope).catch(() => 2),
-      this.getBoolean('ticket.show_doctor_when_called', scope).catch(() => true),
+      this.getNumber('ticket.max_active_per_patient_category_day', scope).catch(
+        () => 1,
+      ),
+      this.getNumber('ticket.reschedule_warn_when_ahead_lte', scope).catch(
+        () => 2,
+      ),
+      this.getBoolean('ticket.show_doctor_when_called', scope).catch(
+        () => true,
+      ),
     ]);
 
     return {
@@ -293,7 +311,9 @@ export class ClinicConfigService {
   // --- Regional & Format Settings ---
 
   async getDateFormatStyle(scope?: ScopeQuery): Promise<string> {
-    return this.getString('clinic.date_format_style', scope).catch(() => 'human_full');
+    return this.getString('clinic.date_format_style', scope).catch(
+      () => 'human_full',
+    );
   }
 
   async getTimeFormatStyle(scope?: ScopeQuery): Promise<string> {

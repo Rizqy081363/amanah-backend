@@ -71,8 +71,7 @@ export class RealtimeTicketService {
     } else {
       this.memoryTickets.set(ticketHash, {
         data: payload,
-        expiresAt:
-          Date.now() + RealtimeTicketService.TICKET_TTL_SECONDS * 1000,
+        expiresAt: Date.now() + RealtimeTicketService.TICKET_TTL_SECONDS * 1000,
       });
     }
 

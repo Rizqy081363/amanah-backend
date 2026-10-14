@@ -54,7 +54,10 @@ export class DoctorRosterSessionDto {
 }
 
 export class DoctorRosterDayDto {
-  @ApiProperty({ example: 1, description: 'Day of week: 0=Minggu, 1=Senin..6=Sabtu' })
+  @ApiProperty({
+    example: 1,
+    description: 'Day of week: 0=Minggu, 1=Senin..6=Sabtu',
+  })
   @IsInt()
   @Min(0)
   @Max(6)
@@ -80,11 +83,17 @@ export class DoctorRosterDayDto {
   @IsBoolean()
   isOperatingDay: boolean;
 
-  @ApiProperty({ example: true, description: 'Apakah dokter beroperasi aktif pada hari ini' })
+  @ApiProperty({
+    example: true,
+    description: 'Apakah dokter beroperasi aktif pada hari ini',
+  })
   @IsBoolean()
   isDoctorActive: boolean;
 
-  @ApiProperty({ example: false, description: 'Apakah jadwal dokter pada hari ini merupakan override manual' })
+  @ApiProperty({
+    example: false,
+    description: 'Apakah jadwal dokter pada hari ini merupakan override manual',
+  })
   @IsBoolean()
   hasOverride: boolean;
 
@@ -107,7 +116,8 @@ export class DoctorRosterOverviewResponse {
 
   @ApiProperty({
     example: false,
-    description: 'Apakah dokter memiliki override roster khusus di luar template mingguan',
+    description:
+      'Apakah dokter memiliki override roster khusus di luar template mingguan',
     required: false,
   })
   @IsOptional()

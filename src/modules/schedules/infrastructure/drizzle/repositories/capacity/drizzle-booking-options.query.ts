@@ -12,9 +12,7 @@ import {
   sessionSchedules,
   shiftExceptions,
 } from '@database/schema';
-import {
-  filterEffectiveDoctorAssignments,
-} from '@modules/schedules/domain/services/doctor-session-operational.resolver';
+import { filterEffectiveDoctorAssignments } from '@modules/schedules/domain/services/doctor-session-operational.resolver';
 import {
   type DateDisplayFormatStyle,
   formatIndoDate,
@@ -27,7 +25,10 @@ import {
 } from '@nestjs/common';
 import { and, asc, eq, isNull, or, sql } from 'drizzle-orm';
 
-const CANONICAL_SESSION_NAME_MAP: Record<string, { session: string; label: string }> = {
+const CANONICAL_SESSION_NAME_MAP: Record<
+  string,
+  { session: string; label: string }
+> = {
   early_morning: { session: 'DINI_HARI', label: 'Shift Dini Hari' },
   morning: { session: 'PAGI', label: 'Shift Pagi' },
   afternoon: { session: 'SIANG', label: 'Shift Siang' },
@@ -140,7 +141,10 @@ export class DrizzleBookingOptionsQuery {
       this.db.query.doctorAssignments.findMany({
         where: and(
           eq(doctorAssignments.isActive, true),
-          or(eq(doctorAssignments.dow, targetDow), isNull(doctorAssignments.dow)),
+          or(
+            eq(doctorAssignments.dow, targetDow),
+            isNull(doctorAssignments.dow),
+          ),
         ),
         with: {
           sessionDef: true,
@@ -178,7 +182,9 @@ export class DrizzleBookingOptionsQuery {
       });
     }
     if (staffId) {
-      filteredAssignments = filteredAssignments.filter((da) => da.doctorId === staffId);
+      filteredAssignments = filteredAssignments.filter(
+        (da) => da.doctorId === staffId,
+      );
     }
 
     // Apply effective doctor assignment overrides (explicit dow shadows generic dow = null)
@@ -203,12 +209,23 @@ export class DrizzleBookingOptionsQuery {
     const dayEndIso = `${dateStr}T23:59:59Z`;
     const activeDayClosure = closures.find((c) => {
       if (c.cancelledAt) return false;
-      const starts = typeof c.startsAt === 'string' ? c.startsAt : new Date(c.startsAt).toISOString();
-      const ends = typeof c.endsAt === 'string' ? c.endsAt : new Date(c.endsAt).toISOString();
+      const starts =
+        typeof c.startsAt === 'string'
+          ? c.startsAt
+          : new Date(c.startsAt).toISOString();
+      const ends =
+        typeof c.endsAt === 'string'
+          ? c.endsAt
+          : new Date(c.endsAt).toISOString();
       const overlaps = starts <= dayEndIso && ends >= dayStartIso;
       if (!overlaps) return false;
       if (c.scope === 'clinic') return true;
-      if (c.scope === 'category' && poliklinikId && c.categoryId === poliklinikId) return true;
+      if (
+        c.scope === 'category' &&
+        poliklinikId &&
+        c.categoryId === poliklinikId
+      )
+        return true;
       return false;
     });
 
@@ -235,25 +252,31 @@ export class DrizzleBookingOptionsQuery {
       const endTime = endTimeRaw.slice(0, 5);
 
       // Practitioners assigned to this session
-      const sessionAssignments = availableAssignments.filter((da) => da.sessionId === def.id);
-      const practitioners: BookingPractitionerItem[] = sessionAssignments.map((da) => {
-        const staff = da.practitioner?.staffProfile;
-        const name = staff?.fullName || da.practitioner?.displayName || 'Dokter Amanah';
-        const specialty = da.practitioner?.medicalSpecialty?.name || 'Dokter Umum';
-        const roomName = da.preferredRoom?.name || 'Ruang Konsultasi';
+      const sessionAssignments = availableAssignments.filter(
+        (da) => da.sessionId === def.id,
+      );
+      const practitioners: BookingPractitionerItem[] = sessionAssignments.map(
+        (da) => {
+          const staff = da.practitioner?.staffProfile;
+          const name =
+            staff?.fullName || da.practitioner?.displayName || 'Dokter Amanah';
+          const specialty =
+            da.practitioner?.medicalSpecialty?.name || 'Dokter Umum';
+          const roomName = da.preferredRoom?.name || 'Ruang Konsultasi';
 
-        return {
-          id: da.doctorId,
-          staffProfileId: staff?.id,
-          sessionId: `session-${da.id}-${dateStr}`,
-          name,
-          avatarUrl: staff?.avatarUrl || null,
-          specialty,
-          roomName,
-          startTime,
-          endTime,
-        };
-      });
+          return {
+            id: da.doctorId,
+            staffProfileId: staff?.id,
+            sessionId: `session-${da.id}-${dateStr}`,
+            name,
+            avatarUrl: staff?.avatarUrl || null,
+            specialty,
+            roomName,
+            startTime,
+            endTime,
+          };
+        },
+      );
 
       // Temporal checks
       const isPast = isToday && currentClockTime >= endTime;
@@ -262,7 +285,9 @@ export class DrizzleBookingOptionsQuery {
       let isDisabled = false;
       let disabledReason: string | null = null;
 
-      const hasExplicitOverride = sessionAssignments.some((da) => da.dow === targetDow);
+      const hasExplicitOverride = sessionAssignments.some(
+        (da) => da.dow === targetDow,
+      );
       const isClinicDayActive = dayRecord?.isActive ?? true;
 
       if (activeDayClosure) {

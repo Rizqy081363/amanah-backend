@@ -4,12 +4,12 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
 import { AuthModule } from './auth/auth.module';
 import authConfig from './auth/config/auth.config';
 import cacheConfig from './cache/cache.config';
+import { ClinicConfigModule } from './common/clinic-config/clinic-config.module';
 import { LoggingModule } from './common/logging/logging.module';
 import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
 import { OutboxModule } from './common/outbox/outbox.module';
 import { RabbitMQModule } from './common/rabbitmq/rabbitmq.module';
 import { RedisModule } from './common/redis/redis.module';
-import { ClinicConfigModule } from './common/clinic-config/clinic-config.module';
 import { ClinicTimeModule } from './common/time/clinic-time.module';
 import appConfig from './config/app.config';
 import realtimeConfig from './config/realtime.config';
@@ -29,10 +29,10 @@ import { LeavesModule } from './modules/leaves/leaves.module';
 import { MedicalRecordsModule } from './modules/medical-records/medical-records.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { PatientsModule } from './modules/patients/patients.module';
+import { QueueEngineModule } from './modules/queue-engine/queue-engine.module';
 import { SchedulesModule } from './modules/schedules/schedules.module';
 import { StaffsModule } from './modules/staffs/staffs.module';
 import { SupportTicketsModule } from './modules/support-tickets/support-tickets.module';
-import { QueueEngineModule } from './modules/queue-engine/queue-engine.module';
 
 @Module({
   imports: [

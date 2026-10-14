@@ -18,9 +18,9 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import { OperatingDayEntity } from '../domain/entities/operating-day.entity';
 import { DrizzleOperatingDaysRepository } from '../infrastructure/drizzle-operating-days.repository';
 import { UpdateOperatingDaysBatchDto } from './dto/update-operating-days.dto';
-import { OperatingDayEntity } from '../domain/entities/operating-day.entity';
 
 @ApiTags('Admin Operating Days (Pengaturan Hari Operasional Klinik)')
 @ApiBearerAuth('access-token')
@@ -30,7 +30,8 @@ import { OperatingDayEntity } from '../domain/entities/operating-day.entity';
   description: 'Sesi autentikasi tidak valid atau token tidak disertakan',
 })
 @ApiForbiddenResponse({
-  description: 'Akses ditolak: Hanya administrator yang berwenang mengubah konfigurasi',
+  description:
+    'Akses ditolak: Hanya administrator yang berwenang mengubah konfigurasi',
 })
 @Controller({ path: 'admin/operating-days', version: '1' })
 export class AdminOperatingDaysController {
@@ -40,7 +41,8 @@ export class AdminOperatingDaysController {
 
   @Get()
   @ApiOperation({
-    summary: 'Ambil seluruh konfigurasi hari operasional klinik (Senin - Minggu)',
+    summary:
+      'Ambil seluruh konfigurasi hari operasional klinik (Senin - Minggu)',
   })
   @ApiOkResponse({
     description: 'Data status hari operasional klinik berhasil diambil',
@@ -52,7 +54,8 @@ export class AdminOperatingDaysController {
   @Put('batch')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Perbarui status aktif/nonaktif hari operasional klinik secara batch',
+    summary:
+      'Perbarui status aktif/nonaktif hari operasional klinik secara batch',
   })
   @ApiOkResponse({
     description: 'Status hari operasional berhasil diperbarui',

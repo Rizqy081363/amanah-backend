@@ -25,6 +25,7 @@ import {
   sessionSchedules,
   ticketEvents,
 } from '../../../../database/schema';
+import { QueueEventPublisher } from '../../application/services/queue-event-publisher.service';
 import {
   OutboxStatus,
   QUEUE_OUTBOX_KINDS,
@@ -33,10 +34,12 @@ import {
 } from '../../domain/constants/queue-engine.constants';
 import { CalendarService } from '../../domain/services/calendar.service';
 import { ClosureEngineService } from '../../domain/services/closure-engine.service';
+import {
+  ClosureInterval,
+  ScheduledShift,
+} from '../../domain/types/calendar.types';
 import { ClinicSettingService } from '../../infrastructure/config/clinic-setting.service';
 import { DrizzleQueueEngineRepository } from '../../infrastructure/drizzle/drizzle-queue-engine.repository';
-import { ClosureInterval, ScheduledShift } from '../../domain/types/calendar.types';
-import { QueueEventPublisher } from '../../application/services/queue-event-publisher.service';
 import { CallNextDto, CreateClosureDto } from '../dto/create-closure.dto';
 
 @ApiTags('v2 - Admin Queue')
@@ -57,10 +60,7 @@ export class V2AdminQueueController {
     summary:
       'Staff calls next waiting ticket for a room (FOR UPDATE SKIP LOCKED)',
   })
-  async callNextPatient(
-    @Param('id') roomId: string,
-    @Body() dto: CallNextDto,
-  ) {
+  async callNextPatient(@Param('id') roomId: string, @Body() dto: CallNextDto) {
     // 1. Verify room exists
     const [room] = await this.db
       .select()
@@ -72,8 +72,7 @@ export class V2AdminQueueController {
       throw new BadRequestException(`Room not found: ${roomId}`);
     }
 
-    const todayStr =
-      dto.serviceDate || new Date().toISOString().slice(0, 10);
+    const todayStr = dto.serviceDate || new Date().toISOString().slice(0, 10);
 
     // Rule R10: Do not allow new calls if clinic/category/room/doctor is closed
     const nowIso = new Date().toISOString();
@@ -264,10 +263,7 @@ export class V2AdminQueueController {
       .select()
       .from(sessionSchedules)
       .where(
-        and(
-          eq(sessionSchedules.dow, dow),
-          eq(sessionSchedules.isActive, true),
-        ),
+        and(eq(sessionSchedules.dow, dow), eq(sessionSchedules.isActive, true)),
       );
 
     const activeSchedules: ScheduledShift[] = activeSchedulesRaw.map(
@@ -741,10 +737,7 @@ export class V2AdminQueueController {
       .select()
       .from(sessionSchedules)
       .where(
-        and(
-          eq(sessionSchedules.dow, dow),
-          eq(sessionSchedules.isActive, true),
-        ),
+        and(eq(sessionSchedules.dow, dow), eq(sessionSchedules.isActive, true)),
       );
 
     const activeSchedules: ScheduledShift[] = activeSchedulesRaw.map(

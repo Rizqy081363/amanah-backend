@@ -25,9 +25,24 @@ import { BookedPatientMapper } from '@modules/schedules/infrastructure/drizzle/m
 import { PractitionerResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/practitioner.resolver';
 import type { GetAdminDoctorPatientsQueryDto } from '@modules/schedules/presentation/dto/get-admin-doctor-patients-query.dto';
 import type { GetSessionPatientsQueryDto } from '@modules/schedules/presentation/dto/get-session-patients-query.dto';
-import { Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  NotFoundException,
+  Optional,
+} from '@nestjs/common';
 import { isUUID } from 'class-validator';
-import { and, asc, eq, gte, inArray, isNotNull, isNull, lt, or } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  eq,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  or,
+} from 'drizzle-orm';
 
 @Injectable()
 export class DrizzleSchedulePatientRepository {
@@ -115,7 +130,7 @@ export class DrizzleSchedulePatientRepository {
 
     let effectiveSessionDef: any = null;
     let effectiveRoom: any = null;
-    let sessDate: string =
+    const sessDate: string =
       query.date || new Date().toISOString().slice(0, 10);
 
     if (isUUID(sessionId)) {
@@ -513,8 +528,10 @@ export class DrizzleSchedulePatientRepository {
     const allPatients = sessionItems
       .flatMap((s) => s.patients)
       .sort((a, b) => {
-        const numA = parseInt(String(a.queueNumber).replace(/\D/g, ''), 10) || 0;
-        const numB = parseInt(String(b.queueNumber).replace(/\D/g, ''), 10) || 0;
+        const numA =
+          parseInt(String(a.queueNumber).replace(/\D/g, ''), 10) || 0;
+        const numB =
+          parseInt(String(b.queueNumber).replace(/\D/g, ''), 10) || 0;
         if (numA !== numB) return numA - numB;
         return (a.queueNumber || '').localeCompare(b.queueNumber || '');
       });

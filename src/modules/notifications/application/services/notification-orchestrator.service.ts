@@ -98,7 +98,9 @@ export class NotificationOrchestratorService {
         title: intent.title,
         body: intent.body,
         senderName: intent.senderName || 'Klinik Amanah',
-        senderRole: intent.senderRole || (intent.audience === 'patient' ? 'Klinik' : 'Pendaftaran'),
+        senderRole:
+          intent.senderRole ||
+          (intent.audience === 'patient' ? 'Klinik' : 'Pendaftaran'),
         badgeIcon: intent.badgeIcon || rule.badgeIcon,
         metaIcon: intent.metaIcon || rule.metaIcon,
         visualKey: intent.visualKey ?? null,
@@ -143,18 +145,34 @@ export class NotificationOrchestratorService {
     }
   }
 
-  private async processLegacyRecipients(event: DomainEvent, rule: any): Promise<void> {
-    const rawRecipients = await Promise.resolve(rule.resolveRecipients(event.payload));
-    const recipients = Array.isArray(rawRecipients) ? rawRecipients : [rawRecipients];
+  private async processLegacyRecipients(
+    event: DomainEvent,
+    rule: any,
+  ): Promise<void> {
+    const rawRecipients = await Promise.resolve(
+      rule.resolveRecipients(event.payload),
+    );
+    const recipients = Array.isArray(rawRecipients)
+      ? rawRecipients
+      : [rawRecipients];
     const validRecipients = recipients.filter(
       (r): r is string => typeof r === 'string' && r.trim().length > 0,
     );
 
     if (validRecipients.length === 0) return;
 
-    const title = typeof rule.titleTemplate === 'function' ? rule.titleTemplate(event.payload) : rule.titleTemplate;
-    const body = typeof rule.bodyTemplate === 'function' ? rule.bodyTemplate(event.payload) : rule.bodyTemplate;
-    const isUrgent = typeof rule.isUrgent === 'function' ? rule.isUrgent(event.payload) : (rule.isUrgent ?? false);
+    const title =
+      typeof rule.titleTemplate === 'function'
+        ? rule.titleTemplate(event.payload)
+        : rule.titleTemplate;
+    const body =
+      typeof rule.bodyTemplate === 'function'
+        ? rule.bodyTemplate(event.payload)
+        : rule.bodyTemplate;
+    const isUrgent =
+      typeof rule.isUrgent === 'function'
+        ? rule.isUrgent(event.payload)
+        : (rule.isUrgent ?? false);
     const source = rule.resolveSource?.(event.payload);
     const actions = rule.resolveActions?.(event.payload);
 
@@ -167,11 +185,22 @@ export class NotificationOrchestratorService {
           audience: 'clinic',
           title,
           body,
-          senderName: rule.senderName ? (typeof rule.senderName === 'function' ? rule.senderName(event.payload) : rule.senderName) : 'Klinik Amanah',
-          senderRole: rule.senderRole ? (typeof rule.senderRole === 'function' ? rule.senderRole(event.payload) : rule.senderRole) : 'Pendaftaran',
+          senderName: rule.senderName
+            ? typeof rule.senderName === 'function'
+              ? rule.senderName(event.payload)
+              : rule.senderName
+            : 'Klinik Amanah',
+          senderRole: rule.senderRole
+            ? typeof rule.senderRole === 'function'
+              ? rule.senderRole(event.payload)
+              : rule.senderRole
+            : 'Pendaftaran',
           badgeIcon: rule.badgeIcon,
           metaIcon: rule.metaIcon,
-          visualKey: typeof rule.visualKey === 'function' ? rule.visualKey(event.payload) : (rule.visualKey ?? null),
+          visualKey:
+            typeof rule.visualKey === 'function'
+              ? rule.visualKey(event.payload)
+              : (rule.visualKey ?? null),
           isUrgent,
           sourceType: source?.sourceType ?? null,
           sourceId: source?.sourceId ?? null,
@@ -220,7 +249,13 @@ export class NotificationOrchestratorService {
     audience: 'patient' | 'clinic',
     roleCode: string | null,
   ): boolean {
-    const clinicRoles = ['admin', 'staff_doctor', 'staff_midwife', 'staff_worker', 'frontdesk'];
+    const clinicRoles = [
+      'admin',
+      'staff_doctor',
+      'staff_midwife',
+      'staff_worker',
+      'frontdesk',
+    ];
     if (audience === 'clinic') {
       return Boolean(roleCode && clinicRoles.includes(roleCode.toLowerCase()));
     }
@@ -230,4 +265,3 @@ export class NotificationOrchestratorService {
     return false;
   }
 }
-

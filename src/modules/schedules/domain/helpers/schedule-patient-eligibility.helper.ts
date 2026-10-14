@@ -22,7 +22,9 @@ export class SchedulePatientEligibilityHelper {
     appointment: CandidateAppointmentForEligibility,
     doctorId: string,
   ): boolean {
-    return Boolean(appointment.practitionerId && appointment.practitionerId === doctorId);
+    return Boolean(
+      appointment.practitionerId && appointment.practitionerId === doctorId,
+    );
   }
 
   /**

@@ -1,11 +1,9 @@
-import {
-  ScheduleClosureReason,
-} from '../entities/schedule.entity';
-import {
-  SHIFT_DEFINITIONS,
-  type SessionShiftType,
-} from '../factories/schedule-session.factory';
 import { SHIFT_EXCEPTION_TYPE } from '@modules/appointments/domain/constants/appointment-lifecycle.constants';
+import { ScheduleClosureReason } from '../entities/schedule.entity';
+import {
+  type SessionShiftType,
+  SHIFT_DEFINITIONS,
+} from '../factories/schedule-session.factory';
 
 export interface DoctorSessionAssignmentContext {
   id: string;
@@ -118,8 +116,12 @@ export function resolveDoctorSessionOperability(
   const sched = sessionDef?.schedules?.find((s) => s.dow === targetDow);
 
   // Time resolution: weekly template schedule -> def default time -> shift boundary
-  const rawStartTime = sched?.startsAt || sessionDef?.defaultStartsAt || shiftDef.boundaryStartTime;
-  const rawEndTime = sched?.endsAt || sessionDef?.defaultEndsAt || shiftDef.boundaryEndTime;
+  const rawStartTime =
+    sched?.startsAt ||
+    sessionDef?.defaultStartsAt ||
+    shiftDef.boundaryStartTime;
+  const rawEndTime =
+    sched?.endsAt || sessionDef?.defaultEndsAt || shiftDef.boundaryEndTime;
   const startTime = rawStartTime.slice(0, 5);
   const endTime = rawEndTime.slice(0, 5);
 
@@ -176,7 +178,8 @@ export function resolveDoctorSessionOperability(
   // 3. Priority Resolution: Explicit Doctor Roster Override
   // If doctor has explicit assignment for this day of week (da.dow === targetDow),
   // the roster assignment OVERRIDES global day deactivation and weekly template!
-  const hasExplicitRosterOverride = da.dow !== null && da.dow === targetDow && da.isActive === true;
+  const hasExplicitRosterOverride =
+    da.dow !== null && da.dow === targetDow && da.isActive === true;
 
   if (hasExplicitRosterOverride) {
     return {

@@ -4,6 +4,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Inject,
   Param,
   Patch,
   UseGuards,
@@ -22,16 +23,15 @@ import { CurrentUser } from '../../../common/auth/current-user.decorator';
 import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
 import { Roles } from '../../../common/auth/roles.decorator';
 import { RolesGuard } from '../../../common/auth/roles.guard';
-import { Inject } from '@nestjs/common';
 import { AppointmentsService } from '../application/appointments.service';
-import {
-  CANDIDATE_RESOLVER_PORT,
-  type ICandidateResolverPort,
-} from '../candidate-assignment/contracts/candidate-resolver.contract';
 import {
   CANDIDATE_ASSIGNMENT_PORT,
   type ICandidateAssignmentPort,
 } from '../candidate-assignment/contracts/candidate-assignment.contract';
+import {
+  CANDIDATE_RESOLVER_PORT,
+  type ICandidateResolverPort,
+} from '../candidate-assignment/contracts/candidate-resolver.contract';
 import { AdminUpdateAppointmentStatusDto } from './dto/admin-update-appointment-status.dto';
 import { CancelAppointmentDto } from './dto/cancel-appointment.dto';
 import { ChangeAppointmentDoctorDto } from './dto/change-appointment-doctor.dto';

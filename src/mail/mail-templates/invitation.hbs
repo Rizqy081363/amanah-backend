@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{title}}</title>
+</head>
+<body style="margin:0;font-family:arial,sans-serif;background-color:#f9f9f9;padding:20px;">
+    <table style="border:0;width:100%;max-width:600px;margin:0 auto;background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 4px rgba(0,0,0,0.1);">
+        <tr style="background:#00838f">
+            <td style="padding:24px;color:#ffffff;text-align:center;font-size:28px;font-weight:700">
+                {{app_name}}
+            </td>
+        </tr>
+        <tr>
+            <td style="padding:30px;color:#333333;font-size:16px;line-height:1.6">
+                <p style="margin-top:0">Hello{{#if name}} <strong>{{name}}</strong>{{/if}},</p>
+                <p>You have been invited to join <strong>{{app_name}}</strong> as a <strong>{{roleTitle}}</strong>.</p>
+                
+                {{#if temporaryPassword}}
+                <div style="background:#f4f6f8;border-left:4px solid #00838f;padding:16px;margin:20px 0;border-radius:4px;">
+                    <p style="margin:0 0 8px 0;font-size:14px;color:#666666;text-transform:uppercase;letter-spacing:0.5px;">Temporary Credentials</p>
+                    <p style="margin:0;font-size:16px;"><strong>Email:</strong> {{email}}</p>
+                    <p style="margin:4px 0 0 0;font-size:16px;"><strong>Temporary Password:</strong> <code style="background:#e0e0e0;padding:2px 6px;border-radius:3px;font-family:monospace;font-size:17px;font-weight:bold;color:#d32f2f;">{{temporaryPassword}}</code></p>
+                </div>
+                <p style="font-size:14px;color:#777777;"><em>For security purposes, you will be required to complete your profile upon signing in.</em></p>
+                {{/if}}
+
+                {{#if expiresAt}}
+                <p style="font-size:13px;color:#888888;">This invitation will expire on {{expiresAt}}.</p>
+                {{/if}}
+            </td>
+        </tr>
+        <tr>
+            <td style="text-align:center;padding:0 30px 30px 30px;">
+                <a href="{{loginUrl}}" style="display:inline-block;padding:14px 28px;background:#00838f;text-decoration:none;color:#ffffff;font-size:16px;font-weight:bold;border-radius:6px;">Accept Invitation & Sign In</a>
+            </td>
+        </tr>
+        <tr>
+            <td style="padding:20px;background:#eeeeee;text-align:center;color:#999999;font-size:12px;">
+                If you did not expect this invitation, you can safely ignore this email.
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

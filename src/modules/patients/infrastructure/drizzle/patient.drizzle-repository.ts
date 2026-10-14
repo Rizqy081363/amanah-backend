@@ -1,9 +1,22 @@
 import { ConflictException, Inject, Injectable } from '@nestjs/common';
-import { and, asc, desc, eq, gte, ilike, inArray, lte, ne, or, sql } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gte,
+  ilike,
+  inArray,
+  lte,
+  ne,
+  or,
+  sql,
+} from 'drizzle-orm';
 
 function escapeLike(s: string): string {
   return s.replace(/[%_\\]/g, '\\$&');
 }
+
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
@@ -14,6 +27,10 @@ import {
   patientProfiles,
   users,
 } from '../../../../database/schema';
+import {
+  formatBloodTypeDisplay,
+  normalizeBloodTypeToDb,
+} from '../../domain/data/patient-reference.data';
 import { PatientEntity } from '../../domain/entities/patient.entity';
 import { PatientRepository } from '../../domain/repositories/patient.repository';
 import { PatientDirectoryQueryDto } from '../../presentation/dto/patient-directory-query.dto';
@@ -23,10 +40,6 @@ import {
 } from '../../presentation/dto/patient-directory-response.dto';
 import { RegisterPatientDto } from '../../presentation/dto/register-patient.dto';
 import { PatientRecordMapper } from './patient-record.mapper';
-import {
-  normalizeBloodTypeToDb,
-  formatBloodTypeDisplay,
-} from '../../domain/data/patient-reference.data';
 
 @Injectable()
 export class PatientDrizzleRepository implements PatientRepository {
@@ -600,13 +613,13 @@ export class PatientDrizzleRepository implements PatientRepository {
 
     const hasFilterOrSearch = Boolean(
       query.search?.trim() ||
-      (query.gender && query.gender !== 'all') ||
-      (query.status && query.status !== 'active' && query.status !== 'all') ||
-      (query.bloodType && query.bloodType !== 'all') ||
-      (query.profileType && query.profileType !== 'all') ||
-      query.email?.trim() ||
-      query.birthDateFrom?.trim() ||
-      query.birthDateTo?.trim()
+        (query.gender && query.gender !== 'all') ||
+        (query.status && query.status !== 'active' && query.status !== 'all') ||
+        (query.bloodType && query.bloodType !== 'all') ||
+        (query.profileType && query.profileType !== 'all') ||
+        query.email?.trim() ||
+        query.birthDateFrom?.trim() ||
+        query.birthDateTo?.trim(),
     );
 
     const isMasterCondition = sql`(
@@ -658,7 +671,9 @@ export class PatientDrizzleRepository implements PatientRepository {
     }
 
     if (query.birthDateFrom?.trim()) {
-      conditions.push(gte(patientProfiles.birthDate, query.birthDateFrom.trim()));
+      conditions.push(
+        gte(patientProfiles.birthDate, query.birthDateFrom.trim()),
+      );
     }
     if (query.birthDateTo?.trim()) {
       conditions.push(lte(patientProfiles.birthDate, query.birthDateTo.trim()));
@@ -756,7 +771,9 @@ export class PatientDrizzleRepository implements PatientRepository {
         phone: patientProfiles.phone,
         status: patientProfiles.status,
         registeredAt: patientProfiles.registeredAt,
-        email: sql<string | null>`COALESCE(${patientProfiles.email}, (SELECT email FROM users WHERE users.id = patient_profiles.user_id))`,
+        email: sql<
+          string | null
+        >`COALESCE(${patientProfiles.email}, (SELECT email FROM users WHERE users.id = patient_profiles.user_id))`,
         fullAddress: sql<string | null>`(
           SELECT COALESCE(full_address, line1)
           FROM patient_addresses
@@ -879,8 +896,10 @@ export class PatientDrizzleRepository implements PatientRepository {
         isMaster,
         hasOwnAccount: Boolean(r.hasOwnAccount ?? r.userId),
         affiliateCount: 0,
-        relationshipType: relType || r.relationshipType || (isMaster ? 'self' : null),
-        relationLabel: relLabel || r.relationLabel || (isMaster ? 'Akun Utama' : null),
+        relationshipType:
+          relType || r.relationshipType || (isMaster ? 'self' : null),
+        relationLabel:
+          relLabel || r.relationLabel || (isMaster ? 'Akun Utama' : null),
         masterPatientId: masterPatientId || null,
         masterPatientName: masterPatientName || null,
         totalAppointments: r.totalAppointments ?? 0,
@@ -920,7 +939,9 @@ export class PatientDrizzleRepository implements PatientRepository {
             phone: patientProfiles.phone,
             status: patientProfiles.status,
             registeredAt: patientProfiles.registeredAt,
-            email: sql<string | null>`COALESCE(${patientProfiles.email}, (SELECT email FROM users WHERE users.id = patient_profiles.user_id))`,
+            email: sql<
+              string | null
+            >`COALESCE(${patientProfiles.email}, (SELECT email FROM users WHERE users.id = patient_profiles.user_id))`,
             relationshipType: patientAffiliations.relationshipType,
             relationLabel: patientAffiliations.relationLabel,
             hasOwnAccount: sql<boolean>`${patientProfiles.userId} IS NOT NULL`,
@@ -982,7 +1003,14 @@ export class PatientDrizzleRepository implements PatientRepository {
           ? affiliatesMap.get(r.userId) || []
           : [];
         const mappedAffiliates = masterAffiliatesRaw.map((aff) =>
-          mapRowToItem(aff, false, r.id, r.fullName, aff.relationshipType, aff.relationLabel),
+          mapRowToItem(
+            aff,
+            false,
+            r.id,
+            r.fullName,
+            aff.relationshipType,
+            aff.relationLabel,
+          ),
         );
 
         const masterItem = mapRowToItem(r, true);

@@ -436,11 +436,15 @@ export class AdminDoctorScheduleCardEntity {
   })
   sesi_harian: AdminDoctorDailySession[];
 
-  @ApiProperty({ description: 'Total pasien terdaftar pada tanggal aktif', example: 5 })
+  @ApiProperty({
+    description: 'Total pasien terdaftar pada tanggal aktif',
+    example: 5,
+  })
   total_pasien: number;
 
   @ApiProperty({
-    description: 'Daftar ringkas avatar pasien terdaftar untuk kartu dokter (maks 4)',
+    description:
+      'Daftar ringkas avatar pasien terdaftar untuk kartu dokter (maks 4)',
     type: () => [AdminDoctorCardPatientPreviewItem],
   })
   pasien_preview: AdminDoctorCardPatientPreviewItem[];
@@ -595,15 +599,13 @@ export class AdminDoctorScheduleDetailData {
   context_projections?: any[];
 
   @ApiProperty({
-    description:
-      'Whole-day aggregated projection metrics and dual indicators',
+    description: 'Whole-day aggregated projection metrics and dual indicators',
     required: false,
   })
   metrics?: any;
 
   @ApiProperty({
-    description:
-      'Whole-day aggregated projection metrics and dual indicators',
+    description: 'Whole-day aggregated projection metrics and dual indicators',
     required: false,
   })
   summary?: any;
@@ -636,7 +638,6 @@ export class ClinicalPractitionersResponse {
   @ApiProperty({ type: () => [ClinicalPractitionerEntity] })
   data: ClinicalPractitionerEntity[];
 }
-
 
 export class ScheduleShiftCapacityEntity {
   @ApiProperty({ example: 'early_morning' })

@@ -50,9 +50,7 @@ export class BookedPatientMapper {
       etaRange = `${startStr} - ${endStr} ${tzAbbr}`;
     }
 
-    const sessionTitle = apt.session
-      ? `Sesi ${apt.session}`
-      : 'Sesi Praktek';
+    const sessionTitle = apt.session ? `Sesi ${apt.session}` : 'Sesi Praktek';
 
     const room = apt.clinicRoom?.name || null;
 

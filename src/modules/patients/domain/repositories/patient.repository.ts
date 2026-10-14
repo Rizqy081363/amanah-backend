@@ -29,4 +29,3 @@ export interface PatientRepository {
   delete(id: string): Promise<boolean>;
   bulkDelete(ids: string[]): Promise<{ count: number }>;
 }
-

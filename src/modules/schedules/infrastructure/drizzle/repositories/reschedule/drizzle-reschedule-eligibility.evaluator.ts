@@ -184,8 +184,7 @@ export class DrizzleRescheduleEligibilityEvaluator {
         const targetEndTime = timing.endTime;
         targetValidation.projectedEndTime = targetEndTime;
 
-        const targetRoomId =
-          query.targetRoomId || effectiveRoomId || null;
+        const targetRoomId = query.targetRoomId || effectiveRoomId || null;
         targetValidation.targetRoomId = targetRoomId;
 
         if (targetRoomId) {

@@ -158,7 +158,10 @@ export class AppointmentCallDrizzleRepository
       .leftJoin(queueTickets, eq(queueTickets.appointmentId, appointments.id))
       .leftJoin(clinicServices, eq(clinicServices.id, appointments.serviceId))
       .leftJoin(clinicRooms, eq(clinicRooms.id, appointments.roomId))
-      .leftJoin(practitioners, eq(practitioners.id, appointments.practitionerId))
+      .leftJoin(
+        practitioners,
+        eq(practitioners.id, appointments.practitionerId),
+      )
       .where(eq(appointments.id, appointmentId));
 
     if (!result) return null;
@@ -187,7 +190,8 @@ export class AppointmentCallDrizzleRepository
 
     const numStr = ticket.queueNumber.replace(/\D/g, '');
     const currentNum = parseInt(numStr, 10);
-    const effectivePos = ticket.waitingPosition ?? (isNaN(currentNum) ? 1 : currentNum);
+    const effectivePos =
+      ticket.waitingPosition ?? (isNaN(currentNum) ? 1 : currentNum);
 
     const conditions = [
       eq(queueTickets.queueDate, ticket.queueDate),

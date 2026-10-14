@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { and, asc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
+import { RedisService } from '../../../../common/redis/redis.service';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import type { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
@@ -11,9 +12,8 @@ import {
   DB_APPOINTMENT_STATUS,
   QUEUE_TICKET_STATUS,
 } from '../../../appointments/domain/constants/appointment-lifecycle.constants';
-import { RedisService } from '../../../../common/redis/redis.service';
-import { REALTIME_GATEWAY_PORT } from '../../../notifications/notifications.constants';
 import type { SocketIoRealtimeGateway } from '../../../notifications/infrastructure/realtime/socket-io-realtime.gateway';
+import { REALTIME_GATEWAY_PORT } from '../../../notifications/notifications.constants';
 import { QueueRecalculationService } from './queue-recalculation.service';
 
 export interface CompactedQueueItem {
@@ -357,7 +357,9 @@ export class QueuePositionRecalculationService {
           });
         }
       } catch (err: any) {
-        this.logger.warn(`Failed to broadcast realtime queue updates: ${err.message}`);
+        this.logger.warn(
+          `Failed to broadcast realtime queue updates: ${err.message}`,
+        );
       }
     }
 

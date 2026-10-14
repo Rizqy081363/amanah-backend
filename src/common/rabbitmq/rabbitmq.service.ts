@@ -11,10 +11,10 @@ import {
   NOTIFICATIONS_FAILED_QUEUE,
   NOTIFICATIONS_IN_APP_QUEUE,
   NOTIFICATIONS_PUSH_QUEUE,
-  ROUTING_KEY_IN_APP_PATTERN,
-  ROUTING_KEY_PUSH_PATTERN,
   QUEUE_EVENTS_EXCHANGE,
   QUEUE_RECALCULATION_QUEUE,
+  ROUTING_KEY_IN_APP_PATTERN,
+  ROUTING_KEY_PUSH_PATTERN,
   ROUTING_KEY_QUEUE_PROGRESSION,
 } from './rabbitmq.constants';
 
@@ -91,7 +91,9 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
         ROUTING_KEY_QUEUE_PROGRESSION,
       );
 
-      this.logger.log('Connected to RabbitMQ and declared exchanges and queues');
+      this.logger.log(
+        'Connected to RabbitMQ and declared exchanges and queues',
+      );
     } catch (err) {
       this.logger.warn(`Failed to connect to RabbitMQ: ${String(err)}`);
     }

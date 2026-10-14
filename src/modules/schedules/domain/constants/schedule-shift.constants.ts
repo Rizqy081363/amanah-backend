@@ -35,7 +35,10 @@ export class ScheduleShiftDescriptor {
 
   matches(raw?: string | null): boolean {
     if (!raw) return false;
-    const normalized = raw.trim().toLowerCase().replace(/[\s-]+/g, '_');
+    const normalized = raw
+      .trim()
+      .toLowerCase()
+      .replace(/[\s-]+/g, '_');
     return (
       this.shift === normalized ||
       this.session.toLowerCase() === normalized ||
@@ -46,19 +49,42 @@ export class ScheduleShiftDescriptor {
 
 export class ScheduleShiftRegistry {
   private static readonly DESCRIPTORS: readonly ScheduleShiftDescriptor[] = [
-    new ScheduleShiftDescriptor('early_morning', 'DINI_HARI', 'Dini Hari', '00:00', '06:00'),
+    new ScheduleShiftDescriptor(
+      'early_morning',
+      'DINI_HARI',
+      'Dini Hari',
+      '00:00',
+      '06:00',
+    ),
     new ScheduleShiftDescriptor('morning', 'PAGI', 'Pagi', '06:00', '12:00'),
-    new ScheduleShiftDescriptor('afternoon', 'SIANG', 'Siang', '12:00', '18:00'),
+    new ScheduleShiftDescriptor(
+      'afternoon',
+      'SIANG',
+      'Siang',
+      '12:00',
+      '18:00',
+    ),
     new ScheduleShiftDescriptor('night', 'MALAM', 'Malam', '18:00', '24:00'),
   ];
 
   static find(raw?: string | null): ScheduleShiftDescriptor | null {
     if (!raw) return null;
-    const normalized = raw.trim().toLowerCase().replace(/[\s-]+/g, '_');
-    if (normalized.includes('dini') || normalized.includes('early')) return this.DESCRIPTORS[0];
-    if (normalized.includes('siang') || normalized.includes('sore') || normalized.includes('afternoon')) return this.DESCRIPTORS[2];
-    if (normalized.includes('malam') || normalized.includes('night')) return this.DESCRIPTORS[3];
-    if (normalized.includes('pagi') || normalized.includes('morning')) return this.DESCRIPTORS[1];
+    const normalized = raw
+      .trim()
+      .toLowerCase()
+      .replace(/[\s-]+/g, '_');
+    if (normalized.includes('dini') || normalized.includes('early'))
+      return this.DESCRIPTORS[0];
+    if (
+      normalized.includes('siang') ||
+      normalized.includes('sore') ||
+      normalized.includes('afternoon')
+    )
+      return this.DESCRIPTORS[2];
+    if (normalized.includes('malam') || normalized.includes('night'))
+      return this.DESCRIPTORS[3];
+    if (normalized.includes('pagi') || normalized.includes('morning'))
+      return this.DESCRIPTORS[1];
     return this.DESCRIPTORS.find((d) => d.matches(raw)) ?? null;
   }
 
@@ -71,7 +97,9 @@ export class ScheduleShiftRegistry {
   }
 
   static getByShift(shift: CanonicalStaffShift): ScheduleShiftDescriptor {
-    return this.DESCRIPTORS.find((d) => d.shift === shift) ?? this.DESCRIPTORS[1];
+    return (
+      this.DESCRIPTORS.find((d) => d.shift === shift) ?? this.DESCRIPTORS[1]
+    );
   }
 }
 
@@ -85,15 +113,16 @@ export const SHIFT_TO_SESSION_MAP: Record<
   night: 'MALAM',
 };
 
-export const SESSION_TO_SHIFT_MAP: Record<string, CanonicalStaffShift> = new Proxy(
-  {},
-  {
-    get(_target, prop: string | symbol) {
-      if (typeof prop !== 'string') return undefined;
-      return ScheduleShiftRegistry.resolve(prop).shift;
+export const SESSION_TO_SHIFT_MAP: Record<string, CanonicalStaffShift> =
+  new Proxy(
+    {},
+    {
+      get(_target, prop: string | symbol) {
+        if (typeof prop !== 'string') return undefined;
+        return ScheduleShiftRegistry.resolve(prop).shift;
+      },
     },
-  },
-);
+  );
 
 export const SHIFT_DISPLAY_LABELS: Record<CanonicalStaffShift, string> = {
   early_morning: 'Dini Hari',

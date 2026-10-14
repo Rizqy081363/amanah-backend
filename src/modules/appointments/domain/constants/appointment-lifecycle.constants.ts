@@ -29,7 +29,9 @@ export const TERMINAL_APPOINTMENT_STATUSES = [
   DB_APPOINTMENT_STATUS.CANCELLED,
 ] as const;
 
-export function isTerminalAppointmentStatus(status: string | null | undefined): boolean {
+export function isTerminalAppointmentStatus(
+  status: string | null | undefined,
+): boolean {
   return (
     status === DB_APPOINTMENT_STATUS.COMPLETED ||
     status === DB_APPOINTMENT_STATUS.CANCELLED
@@ -111,4 +113,3 @@ export const STAFF_TYPE = {
 } as const;
 
 export type StaffType = (typeof STAFF_TYPE)[keyof typeof STAFF_TYPE];
-

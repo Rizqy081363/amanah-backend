@@ -25,14 +25,13 @@ import { RealtimeTicketService } from '../application/services/realtime-ticket.s
 })
 @Controller({ path: 'realtime', version: '1' })
 export class RealtimeTicketController {
-  constructor(
-    private readonly realtimeTicketService: RealtimeTicketService,
-  ) {}
+  constructor(private readonly realtimeTicketService: RealtimeTicketService) {}
 
   @Post('ticket')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Menerbitkan tiket sekali-pakai (single-use) untuk koneksi WebSocket realtime',
+    summary:
+      'Menerbitkan tiket sekali-pakai (single-use) untuk koneksi WebSocket realtime',
     description:
       'Menghasilkan token tiket CSPRNG pendek (berlaku 60 detik) untuk handshake Socket.IO tanpa mengekspos cookie atau kredensial mentah.',
   })

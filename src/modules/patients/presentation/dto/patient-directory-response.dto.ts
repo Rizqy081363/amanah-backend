@@ -65,7 +65,9 @@ export class PatientDirectoryItemDto {
   @ApiProperty({ description: 'Apakah pasien ini adalah Akun Utama (Master)' })
   isMaster: boolean;
 
-  @ApiProperty({ description: 'Apakah pasien memiliki akun login pengguna sendiri' })
+  @ApiProperty({
+    description: 'Apakah pasien memiliki akun login pengguna sendiri',
+  })
   hasOwnAccount: boolean;
 
   @ApiProperty({ description: 'Jumlah pasien afiliasi di bawah akun ini' })

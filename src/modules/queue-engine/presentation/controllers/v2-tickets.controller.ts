@@ -1,3 +1,4 @@
+import { ClinicConfigService } from '@common/clinic-config';
 import {
   BadRequestException,
   Body,
@@ -21,6 +22,7 @@ import {
   sessionSchedules,
   ticketEvents,
 } from '../../../../database/schema';
+import { ActiveTicketPolicyService } from '../../../appointments/domain/services/active-ticket-policy.service';
 import {
   OutboxStatus,
   QUEUE_CONFIG_KEYS,
@@ -34,9 +36,7 @@ import { EstimatorService } from '../../domain/services/estimator.service';
 import { QueueEngineService } from '../../domain/services/queue-engine.service';
 import { SimulatorService } from '../../domain/services/simulator.service';
 import { ClinicSettingService } from '../../infrastructure/config/clinic-setting.service';
-import { ClinicConfigService } from '@common/clinic-config';
 import { DrizzleQueueEngineRepository } from '../../infrastructure/drizzle/drizzle-queue-engine.repository';
-import { ActiveTicketPolicyService } from '../../../appointments/domain/services/active-ticket-policy.service';
 import {
   CreateQueueTicketDto,
   RescheduleQueueTicketDto,
@@ -65,7 +65,9 @@ export class V2TicketsController {
       .limit(1);
 
     if (!category) {
-      throw new NotFoundException(`Service category not found: ${dto.categoryId}`);
+      throw new NotFoundException(
+        `Service category not found: ${dto.categoryId}`,
+      );
     }
 
     const [session] = await this.db
@@ -75,7 +77,9 @@ export class V2TicketsController {
       .limit(1);
 
     if (!session) {
-      throw new NotFoundException(`Session definition not found: ${dto.sessionId}`);
+      throw new NotFoundException(
+        `Session definition not found: ${dto.sessionId}`,
+      );
     }
 
     // Rule H2 & Blueprint Section 4.5: Satu tiket aktif per pasien per kategori per hari
@@ -102,10 +106,9 @@ export class V2TicketsController {
     });
 
     // 2. Compute Bayesian service duration
-    const recentDurations =
-      await this.queueRepo.getRecentCompletedDurations({
-        categoryId: dto.categoryId,
-      });
+    const recentDurations = await this.queueRepo.getRecentCompletedDurations({
+      categoryId: dto.categoryId,
+    });
 
     const priors = await this.clinicConfig.getDurationPriors({
       categoryId: dto.categoryId,
@@ -199,7 +202,9 @@ export class V2TicketsController {
       if (
         insertError?.code === '23505' &&
         (insertError?.constraint === 'queue_tickets_one_active_per_patient' ||
-          String(insertError?.message || '').includes('queue_tickets_one_active_per_patient'))
+          String(insertError?.message || '').includes(
+            'queue_tickets_one_active_per_patient',
+          ))
       ) {
         if (dto.patientId && dto.categoryId && dto.serviceDate) {
           await ActiveTicketPolicyService.assertNoActiveTicketConflict(
@@ -359,7 +364,9 @@ export class V2TicketsController {
         status: ticket.status as any,
         waitingPosition: ticket.waitingPosition,
         projectedStart,
-        projectedEnd: ticket.projectedEnd ? new Date(ticket.projectedEnd) : null,
+        projectedEnd: ticket.projectedEnd
+          ? new Date(ticket.projectedEnd)
+          : null,
         carriedOver: Boolean(ticket.carriedOver),
         source: ticket.source || 'online',
       },

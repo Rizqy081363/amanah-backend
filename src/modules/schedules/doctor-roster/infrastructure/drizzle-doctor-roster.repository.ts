@@ -1,3 +1,4 @@
+import { RedisService } from '@common/redis/redis.service';
 import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
@@ -10,7 +11,6 @@ import {
   sessionSchedules,
   users,
 } from '@database/schema';
-import { RedisService } from '@common/redis/redis.service';
 import {
   Inject,
   Injectable,
@@ -56,7 +56,9 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
     }
   }
 
-  async getDoctorRoster(doctorId: string): Promise<DoctorRosterOverviewResponse> {
+  async getDoctorRoster(
+    doctorId: string,
+  ): Promise<DoctorRosterOverviewResponse> {
     const prac = await this.db.query.practitioners.findFirst({
       where: eq(practitioners.id, doctorId),
       with: {
@@ -70,7 +72,9 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
     });
 
     if (!prac) {
-      throw new NotFoundException(`Dokter dengan ID ${doctorId} tidak ditemukan`);
+      throw new NotFoundException(
+        `Dokter dengan ID ${doctorId} tidak ditemukan`,
+      );
     }
 
     const [allDays, allDefs, allSchedules, existingAssignments, allRooms] =
@@ -103,11 +107,15 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
 
     const roomMap = new Map(allRooms.map((r) => [r.id, r.name]));
 
-    const hasAnyCustomRoster = existingAssignments.some((da) => da.dow !== null);
+    const hasAnyCustomRoster = existingAssignments.some(
+      (da) => da.dow !== null,
+    );
 
     const days: DoctorRosterDayDto[] = allDays.map((d) => {
       const isOperatingDay = d.isActive;
-      const explicitForDay = existingAssignments.filter((da) => da.dow === d.dow);
+      const explicitForDay = existingAssignments.filter(
+        (da) => da.dow === d.dow,
+      );
       const hasOverride = hasAnyCustomRoster;
 
       const daySessions: DoctorRosterSessionDto[] = allDefs.map((def) => {
@@ -207,7 +215,9 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
     });
 
     if (!prac) {
-      throw new NotFoundException(`Dokter dengan ID ${doctorId} tidak ditemukan`);
+      throw new NotFoundException(
+        `Dokter dengan ID ${doctorId} tidak ditemukan`,
+      );
     }
 
     await this.db.transaction(async (tx) => {
@@ -243,7 +253,10 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
         reason: dto.reason || 'Pembaruan roster operasional mingguan dokter',
         metadata: {
           assignedSessionsCount: activeItems.length,
-          assignedSessions: activeItems.map((a) => ({ dow: a.dow, sessionId: a.sessionId })),
+          assignedSessions: activeItems.map((a) => ({
+            dow: a.dow,
+            sessionId: a.sessionId,
+          })),
         },
         changedBy: userId || null,
       });
@@ -263,7 +276,9 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
     });
 
     if (!prac) {
-      throw new NotFoundException(`Dokter dengan ID ${doctorId} tidak ditemukan`);
+      throw new NotFoundException(
+        `Dokter dengan ID ${doctorId} tidak ditemukan`,
+      );
     }
 
     await this.db.transaction(async (tx) => {
@@ -371,7 +386,9 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
     };
   }
 
-  async recordScheduleHistory(params: RecordScheduleHistoryParams): Promise<void> {
+  async recordScheduleHistory(
+    params: RecordScheduleHistoryParams,
+  ): Promise<void> {
     await this.db.insert(doctorScheduleStatusHistory).values({
       doctorId: params.doctorId,
       scheduleDate: params.scheduleDate || null,

@@ -1,9 +1,9 @@
 import { Injectable, Optional } from '@nestjs/common';
+import { ClinicSettingService } from '../../infrastructure/config/clinic-setting.service';
+import { QUEUE_TICKET_STATUS } from '../constants/queue-engine.constants';
 import { TimeInterval } from '../types/calendar.types';
 import { DomainQueueTicket } from '../types/queue.types';
-import { QUEUE_TICKET_STATUS } from '../constants/queue-engine.constants';
 import { CalendarService } from './calendar.service';
-import { ClinicSettingService } from '../../infrastructure/config/clinic-setting.service';
 import { ScopeQuery } from './clinic-setting.reader';
 
 export interface TicketShiftPlan {
@@ -34,7 +34,10 @@ export class ClosureEngineService {
   async getDefaultDurationMinutes(scope?: ScopeQuery): Promise<number> {
     if (this.settingReader) {
       try {
-        return await this.settingReader.getNumber('duration.prior_minutes', scope);
+        return await this.settingReader.getNumber(
+          'duration.prior_minutes',
+          scope,
+        );
       } catch {
         // Fallback
       }
@@ -65,7 +68,10 @@ export class ClosureEngineService {
   async getSearchHorizonDays(scope?: ScopeQuery): Promise<number> {
     if (this.settingReader) {
       try {
-        return await this.settingReader.getNumber('queue.search_horizon_days', scope);
+        return await this.settingReader.getNumber(
+          'queue.search_horizon_days',
+          scope,
+        );
       } catch {
         // Fallback
       }
@@ -252,7 +258,9 @@ export class ClosureEngineService {
 
     if (!activeClosures.length) {
       return {
-        unaffected: tickets.filter((t) => t.status === QUEUE_TICKET_STATUS.WAITING),
+        unaffected: tickets.filter(
+          (t) => t.status === QUEUE_TICKET_STATUS.WAITING,
+        ),
         shifted: [],
         moved: [],
         needsDecision: [],

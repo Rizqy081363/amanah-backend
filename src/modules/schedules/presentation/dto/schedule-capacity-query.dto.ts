@@ -3,7 +3,8 @@ import { IsDateString, IsNotEmpty, IsOptional, IsUUID } from 'class-validator';
 
 export class ScheduleCapacityQueryDto {
   @ApiProperty({
-    description: 'Tanggal target inspeksi kapasitas dan beban layanan shift (YYYY-MM-DD)',
+    description:
+      'Tanggal target inspeksi kapasitas dan beban layanan shift (YYYY-MM-DD)',
     example: '2026-09-25',
   })
   @IsNotEmpty({ message: 'Parameter date wajib disertakan' })
@@ -31,4 +32,3 @@ export class ScheduleCapacityQueryDto {
   @IsUUID('4', { message: 'roomId harus berupa format UUID v4 yang valid' })
   roomId?: string;
 }
-

@@ -237,8 +237,6 @@ export class AdminDoctorSchedulesController {
     return result;
   }
 
-
-
   @Patch(':id/days/:date')
   @Roles('ADMIN', 'STAF')
   @ApiOperation({

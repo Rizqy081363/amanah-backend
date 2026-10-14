@@ -1,5 +1,5 @@
-import { Injectable } from '@nestjs/common';
 import { ClinicConfigService } from '@common/clinic-config';
+import { Injectable } from '@nestjs/common';
 import {
   IClinicSettingReader,
   ScopeQuery,
