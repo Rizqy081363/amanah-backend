@@ -50,11 +50,19 @@ export const RELIGION_OPTIONS: readonly ReferenceOptionItem[] = [
 ] as const;
 
 export const BLOOD_TYPE_OPTIONS: readonly ReferenceOptionItem[] = [
-  { code: 'A', label: 'A', displayOrder: 1 },
-  { code: 'B', label: 'B', displayOrder: 2 },
-  { code: 'AB', label: 'AB', displayOrder: 3 },
-  { code: 'O', label: 'O', displayOrder: 4 },
-  { code: 'Belum Tahu', label: 'Belum Tahu', displayOrder: 5 },
+  { code: 'a_positive', label: 'A+', displayOrder: 1 },
+  { code: 'a_negative', label: 'A-', displayOrder: 2 },
+  { code: 'b_positive', label: 'B+', displayOrder: 3 },
+  { code: 'b_negative', label: 'B-', displayOrder: 4 },
+  { code: 'ab_positive', label: 'AB+', displayOrder: 5 },
+  { code: 'ab_negative', label: 'AB-', displayOrder: 6 },
+  { code: 'o_positive', label: 'O+', displayOrder: 7 },
+  { code: 'o_negative', label: 'O-', displayOrder: 8 },
+  { code: 'a', label: 'A', displayOrder: 9 },
+  { code: 'b', label: 'B', displayOrder: 10 },
+  { code: 'ab', label: 'AB', displayOrder: 11 },
+  { code: 'o', label: 'O', displayOrder: 12 },
+  { code: 'unknown', label: 'Belum Tahu', displayOrder: 13 },
 ] as const;
 
 export const TETANUS_STATUS_OPTIONS: readonly ReferenceOptionItem[] = [

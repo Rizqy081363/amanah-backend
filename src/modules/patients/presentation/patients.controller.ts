@@ -43,7 +43,10 @@ import {
   PATIENT_AFFILIATION_REPOSITORY,
   type PatientAffiliationRepository,
 } from '../domain/repositories/patient-affiliation.repository';
+import { BulkDeletePatientsDto } from './dto/bulk-delete-patients.dto';
 import { CreatePatientDto } from './dto/create-patient.dto';
+import { PatientDirectoryQueryDto } from './dto/patient-directory-query.dto';
+import { PatientDirectoryResponseDto } from './dto/patient-directory-response.dto';
 import { QueryPatientDto } from './dto/query-patient.dto';
 import { RegisterPatientDto } from './dto/register-patient.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
@@ -233,6 +236,22 @@ export class PatientsController {
     return patient;
   }
 
+  @Get('directory')
+  @Roles('ADMIN', 'STAF')
+  @ApiOperation({
+    summary:
+      'Direktori pasien klinik dengan statistik agregat dan pagination (Admin)',
+    description:
+      'Mengambil direktori seluruh pasien yang pernah memiliki janji temu, dilengkapi statistik agregat (total janji temu, kunjungan selesai, terlewat/batal) dan NIK tersensor.',
+  })
+  @ApiOkResponse({
+    description: 'Direktori data pasien beragregat berhasil diambil',
+    type: PatientDirectoryResponseDto,
+  })
+  async getPatientDirectory(@Query() query: PatientDirectoryQueryDto) {
+    return this.patientRepo.findDirectory(query);
+  }
+
   @Get()
   @Roles('ADMIN', 'STAF')
   @ApiOperation({
@@ -357,4 +376,18 @@ export class PatientsController {
   async deletePatient(@Param('id') id: string) {
     await this.patientRepo.delete(id);
   }
+
+  @Post('bulk-delete')
+  @Roles('ADMIN')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Menonaktifkan data pasien secara massal (Bulk Soft Delete)',
+    description:
+      'Admin menonaktifkan beberapa rekam data pasien sekaligus dari operasional klinik.',
+  })
+  @ApiOkResponse({ description: 'Data pasien terpilih berhasil dinonaktifkan' })
+  async bulkDeletePatients(@Body() body: BulkDeletePatientsDto) {
+    return this.patientRepo.bulkDelete(body.ids);
+  }
 }
+

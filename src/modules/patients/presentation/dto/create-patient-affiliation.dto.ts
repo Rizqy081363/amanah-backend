@@ -7,6 +7,7 @@ import {
   IsString,
   Matches,
 } from 'class-validator';
+import { VALID_BLOOD_TYPE_VALUES } from '../../domain/data/patient-reference.data';
 
 export class CreatePatientAffiliationDto {
   @ApiPropertyOptional({
@@ -80,11 +81,13 @@ export class CreatePatientAffiliationDto {
 
   @ApiPropertyOptional({
     example: 'B',
-    enum: ['A', 'B', 'AB', 'O', 'Belum Tahu'],
+    description: 'Golongan darah afiliasi',
   })
   @IsOptional()
-  @IsIn(['A', 'B', 'AB', 'O', 'Belum Tahu'])
-  blood_type?: 'A' | 'B' | 'AB' | 'O' | 'Belum Tahu';
+  @IsIn([...VALID_BLOOD_TYPE_VALUES], {
+    message: 'Pilih golongan darah standar atau simbol rhesus yang valid',
+  })
+  blood_type?: string;
 
   @ApiPropertyOptional({ example: 'Siti Rohmah' })
   @IsString()

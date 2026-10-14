@@ -7,6 +7,7 @@ import {
   Matches,
   MinLength,
 } from 'class-validator';
+import { VALID_BLOOD_TYPE_VALUES } from '../../domain/data/patient-reference.data';
 
 export class UpdatePatientDto {
   @ApiPropertyOptional({
@@ -103,25 +104,23 @@ export class UpdatePatientDto {
 
   @ApiPropertyOptional({
     example: 'O',
-    enum: ['A', 'B', 'AB', 'O', 'Belum Tahu'],
     description: 'Golongan darah (camelCase)',
   })
   @IsOptional()
-  @IsIn(['A', 'B', 'AB', 'O', 'Belum Tahu'], {
-    message: 'Pilih golongan darah (A, B, AB, O, atau Belum Tahu)',
+  @IsIn([...VALID_BLOOD_TYPE_VALUES], {
+    message: 'Pilih golongan darah standar atau simbol rhesus yang valid',
   })
-  bloodType?: 'A' | 'B' | 'AB' | 'O' | 'Belum Tahu';
+  bloodType?: string;
 
   @ApiPropertyOptional({
     example: 'O',
-    enum: ['A', 'B', 'AB', 'O', 'Belum Tahu'],
     description: 'Golongan darah (alias snake_case)',
   })
   @IsOptional()
-  @IsIn(['A', 'B', 'AB', 'O', 'Belum Tahu'], {
-    message: 'Pilih golongan darah (A, B, AB, O, atau Belum Tahu)',
+  @IsIn([...VALID_BLOOD_TYPE_VALUES], {
+    message: 'Pilih golongan darah standar atau simbol rhesus yang valid',
   })
-  blood_type?: 'A' | 'B' | 'AB' | 'O' | 'Belum Tahu';
+  blood_type?: string;
 
   @ApiPropertyOptional({
     example: '081234567890',

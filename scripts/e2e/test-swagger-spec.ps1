@@ -153,7 +153,7 @@ $schedulesRes = Invoke-RestMethod -Uri "$baseUrl/api/v1/schedules" -Method Get -
 Assert-Test "Try-it-out [Schedules]: GET /api/v1/schedules -> returns doctor practice schedules" ($schedulesRes.data.Count -ge 0)
 
 # 3.9 Tag: Appointments
-$queueDisplay = Invoke-RestMethod -Uri "$baseUrl/api/v1/appointments/queue/display" -Method Get
+$queueDisplay = Invoke-RestMethod -Uri "$baseUrl/api/v1/appointments/queue/display" -Method Get -Headers $authHeaders
 Assert-Test "Try-it-out [Appointments]: GET /api/v1/appointments/queue/display -> returns live TV display monitor" ($null -ne $queueDisplay.statistics)
 $appointmentsRes = Invoke-RestMethod -Uri "$baseUrl/api/v1/appointments" -Method Get -Headers $authHeaders
 Assert-Test "Try-it-out [Appointments]: GET /api/v1/appointments -> returns appointments list" ($appointmentsRes.data.Count -ge 0)

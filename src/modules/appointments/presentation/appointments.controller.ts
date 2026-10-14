@@ -234,14 +234,18 @@ export class AppointmentsController {
     };
   }
 
-  @Public()
+  @ApiBearerAuth('access-token')
+  @UseGuards(HybridAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'STAF', 'PATIENT')
   @Get('queue/display')
   @ApiOperation({
     summary: 'Mendapatkan data display antrean TV ruang tunggu klinik',
     description:
-      'Endpoint publik real-time tanpa autentikasi untuk layar monitor TV ruang tunggu poliklinik.',
+      'Endpoint terproteksi real-time untuk memantau display antrean poliklinik.',
   })
   @ApiOkResponse({ description: 'Data antrean TV monitor berhasil diambil' })
+  @ApiUnauthorizedResponse({ description: 'Sesi token tidak valid' })
+  @ApiForbiddenResponse({ description: 'Akses ditolak' })
   @HttpCache({ ttlSeconds: 10, tags: ['queue', 'display'] })
   async getDisplayQueue(@Query('poliklinikId') poliklinikId?: string) {
     return this.appointmentsService.findDisplayQueue(

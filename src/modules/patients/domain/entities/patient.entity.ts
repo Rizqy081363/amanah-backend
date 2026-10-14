@@ -55,6 +55,24 @@ export class PatientEntity {
   medicalHistory?: string | null;
   avatarUrl?: string | null;
   status?: string;
+  // Account & login timestamps
+  registeredAt?: string | null;
+  firstLoginAt?: string | null;
+  lastLoginAt?: string | null;
+  // Authoritative appointment statistics
+  totalAppointments?: number;
+  completedVisits?: number;
+  missedAppointments?: number;
+  cancelledAppointments?: number;
+  lastVisitDate?: string | null;
+  // Affiliation paradigm metadata
+  isMaster?: boolean;
+  hasOwnAccount?: boolean;
+  affiliateCount?: number;
+  relationshipType?: string | null;
+  relationLabel?: string | null;
+  masterPatientId?: string | null;
+  masterPatientName?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }

@@ -12,6 +12,7 @@ import {
 import { CreateChildImmunizationIntakeDto } from '../../presentation/dto/create-child-immunization-intake.dto';
 import { CreateMaternityIntakeDto } from '../../presentation/dto/create-maternity-intake.dto';
 import { MaternalIntakeDrizzleRepository } from './maternal-intake.drizzle-repository';
+import { formatBloodTypeDisplay } from '../../../patients/domain/data/patient-reference.data';
 
 @Injectable()
 export class KiaIntakeDrizzleRepository {
@@ -306,9 +307,7 @@ export class KiaIntakeDrizzleRepository {
       birthPlace: profile.birthPlace,
       birthDate: profile.birthDate,
       gender: profile.gender,
-      bloodType: isUnknownBlood
-        ? 'Belum Tahu'
-        : profile.bloodType.toUpperCase(),
+      bloodType: formatBloodTypeDisplay(profile.bloodType),
       occupation: profile.occupation,
       phone: profile.phone,
       email: profile.email || aff?.user?.email || profile.user?.email || null,

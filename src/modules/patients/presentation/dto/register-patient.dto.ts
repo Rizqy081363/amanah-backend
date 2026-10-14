@@ -7,6 +7,7 @@ import {
   Matches,
   MinLength,
 } from 'class-validator';
+import { VALID_BLOOD_TYPE_VALUES } from '../../domain/data/patient-reference.data';
 
 export class RegisterPatientDto {
   @ApiProperty({
@@ -72,14 +73,13 @@ export class RegisterPatientDto {
 
   @ApiProperty({
     example: 'O',
-    enum: ['A', 'B', 'AB', 'O', 'Belum Tahu'],
     description: 'Golongan darah pasien',
   })
   @IsNotEmpty({ message: 'Pilih golongan darah' })
-  @IsIn(['A', 'B', 'AB', 'O', 'Belum Tahu'], {
-    message: 'Pilih golongan darah (A, B, AB, O, atau Belum Tahu)',
+  @IsIn([...VALID_BLOOD_TYPE_VALUES], {
+    message: 'Pilih golongan darah standar atau simbol rhesus yang valid',
   })
-  blood_type: 'A' | 'B' | 'AB' | 'O' | 'Belum Tahu';
+  blood_type: string;
 
   @ApiProperty({ example: 'Jawa Barat', description: 'Nama provinsi domisili' })
   @IsString()

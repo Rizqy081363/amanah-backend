@@ -8,6 +8,7 @@ import {
   BACKEND_BLOOD_TYPE_OPTIONS,
   BACKEND_GENDER_OPTIONS,
   BACKEND_RELATIONSHIP_OPTIONS,
+  BACKEND_STATUS_OPTIONS,
 } from '../domain/data/patient-reference.data';
 import { IndonesianRegionService } from '../infrastructure/services/indonesian-region.service';
 
@@ -39,6 +40,16 @@ export class PatientReferencesController {
     return {
       success: true,
       data: BACKEND_GENDER_OPTIONS,
+    };
+  }
+
+  @Get('statuses')
+  @ApiOperation({ summary: 'Mendapatkan referensi status akun pasien' })
+  @ApiResponse({ status: 200, description: 'Daftar status akun pasien' })
+  getStatuses() {
+    return {
+      success: true,
+      data: BACKEND_STATUS_OPTIONS,
     };
   }
 
@@ -154,6 +165,7 @@ export class PatientReferencesController {
       data: {
         bloodTypes: BACKEND_BLOOD_TYPE_OPTIONS,
         genders: BACKEND_GENDER_OPTIONS,
+        statuses: BACKEND_STATUS_OPTIONS,
         relationships: BACKEND_RELATIONSHIP_OPTIONS,
         provinces,
         occupations: occupationsList.map((occ) => ({

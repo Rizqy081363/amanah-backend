@@ -22,6 +22,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { desc, eq, ilike } from 'drizzle-orm';
+import { normalizeBloodTypeToDb } from '../domain/data/patient-reference.data';
 import {
   CurrentUser,
   HybridAuthGuard,
@@ -308,17 +309,7 @@ export class PatientAffiliationsController {
           dto.blood_type &&
           dto.blood_type !== 'Belum Tahu'
         ) {
-          const bloodTypeMap: Record<
-            string,
-            'a' | 'b' | 'ab' | 'o' | 'unknown'
-          > = {
-            A: 'a',
-            B: 'b',
-            AB: 'ab',
-            O: 'o',
-            'Belum Tahu': 'unknown',
-          };
-          updates.bloodType = bloodTypeMap[dto.blood_type] || 'unknown';
+          updates.bloodType = normalizeBloodTypeToDb(dto.blood_type);
         }
         if (!existingPatient.pekerjaan && dto.pekerjaan) {
           updates.occupation = dto.pekerjaan.trim();
@@ -373,16 +364,7 @@ export class PatientAffiliationsController {
 
         const dbGender =
           dto.gender === 'Perempuan' || dto.gender === 'P' ? 'female' : 'male';
-        const bloodTypeMap: Record<string, 'a' | 'b' | 'ab' | 'o' | 'unknown'> =
-          {
-            A: 'a',
-            B: 'b',
-            AB: 'ab',
-            O: 'o',
-            'Belum Tahu': 'unknown',
-          };
-        const dbBloodType =
-          (dto.blood_type && bloodTypeMap[dto.blood_type]) || 'unknown';
+        const dbBloodType = normalizeBloodTypeToDb(dto.blood_type);
 
         const [newProfile] = await this.db
           .insert(patientProfiles)

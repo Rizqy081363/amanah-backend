@@ -5,19 +5,18 @@ import { DrizzleDatabase } from '../../../database/drizzle/drizzle.provider';
 import {
   appointmentCallAttempts,
   appointments,
+  childImmunizationIntakes,
   clinicServices,
+  maternalHealthIntakes,
+  medicalIntakeSubmissions,
   practitioners,
 } from '../../../database/schema';
 import { PatientAppointmentHistoryQueryDto } from '../presentation/dto/patient-appointment-history-query.dto';
-import { DB_APPOINTMENT_STATUS } from '../domain/constants/appointment-lifecycle.constants';
 
 export interface HistoricalAppointmentItem {
   id: string;
   bookingCode: string;
-  status:
-    | typeof DB_APPOINTMENT_STATUS.COMPLETED
-    | typeof DB_APPOINTMENT_STATUS.CANCELLED
-    | typeof DB_APPOINTMENT_STATUS.NO_SHOW;
+  status: string;
   scheduledDate: string;
   scheduledStartTime: string;
   scheduledEndTime?: string | null;
@@ -30,6 +29,8 @@ export interface HistoricalAppointmentItem {
   cancelledAt?: string | null;
   cancelReason?: string | null;
   updatedAt?: string | null;
+  hasAssociatedForm: boolean;
+  associatedFormType?: 'maternal' | 'immunization' | 'general' | null;
 }
 
 export interface PatientAppointmentHistoryResult {
@@ -55,16 +56,11 @@ export class PatientAppointmentHistoryService {
     const limit = query.limit ?? 20;
     const offset = (page - 1) * limit;
 
-    const terminalStatuses = ['completed', 'cancelled', 'no_show'] as const;
-    const statusCondition = query.status
-      ? eq(appointments.status, query.status)
-      : inArray(appointments.status, terminalStatuses as any);
+    const conditions = [eq(appointments.patientId, patientProfileId)];
 
-    const conditions = [
-      eq(appointments.patientId, patientProfileId),
-      statusCondition,
-    ];
-
+    if (query.status) {
+      conditions.push(eq(appointments.status, query.status));
+    }
     if (query.startDate) {
       conditions.push(gte(appointments.scheduledDate, query.startDate));
     }
@@ -123,42 +119,88 @@ export class PatientAppointmentHistoryService {
       .limit(limit)
       .offset(offset);
 
-    // Fetch call attempt counts for the retrieved appointments
     const appointmentIds = rows.map((r) => r.id);
     const attemptCounts = new Map<string, number>();
+    const formInfoMap = new Map<
+      string,
+      { type: 'maternal' | 'immunization' | 'general' }
+    >();
 
     if (appointmentIds.length > 0) {
-      const counts = await this.db
-        .select({
-          appointmentId: appointmentCallAttempts.appointmentId,
-          count: sql<number>`count(*)::int`,
-        })
-        .from(appointmentCallAttempts)
-        .where(inArray(appointmentCallAttempts.appointmentId, appointmentIds))
-        .groupBy(appointmentCallAttempts.appointmentId);
+      const [counts, maternalList, immunizationList, generalList] =
+        await Promise.all([
+          this.db
+            .select({
+              appointmentId: appointmentCallAttempts.appointmentId,
+              count: sql<number>`count(*)::int`,
+            })
+            .from(appointmentCallAttempts)
+            .where(
+              inArray(appointmentCallAttempts.appointmentId, appointmentIds),
+            )
+            .groupBy(appointmentCallAttempts.appointmentId),
+          this.db
+            .select({ appointmentId: maternalHealthIntakes.appointmentId })
+            .from(maternalHealthIntakes)
+            .where(
+              inArray(maternalHealthIntakes.appointmentId, appointmentIds),
+            ),
+          this.db
+            .select({ appointmentId: childImmunizationIntakes.appointmentId })
+            .from(childImmunizationIntakes)
+            .where(
+              inArray(childImmunizationIntakes.appointmentId, appointmentIds),
+            ),
+          this.db
+            .select({ appointmentId: medicalIntakeSubmissions.appointmentId })
+            .from(medicalIntakeSubmissions)
+            .where(
+              inArray(medicalIntakeSubmissions.appointmentId, appointmentIds),
+            ),
+        ]);
 
       for (const row of counts) {
         attemptCounts.set(row.appointmentId, row.count);
       }
+      for (const m of maternalList) {
+        if (m.appointmentId) {
+          formInfoMap.set(m.appointmentId, { type: 'maternal' });
+        }
+      }
+      for (const im of immunizationList) {
+        if (im.appointmentId) {
+          formInfoMap.set(im.appointmentId, { type: 'immunization' });
+        }
+      }
+      for (const g of generalList) {
+        if (g.appointmentId && !formInfoMap.has(g.appointmentId)) {
+          formInfoMap.set(g.appointmentId, { type: 'general' });
+        }
+      }
     }
 
-    const data: HistoricalAppointmentItem[] = rows.map((r) => ({
-      id: r.id,
-      bookingCode: r.bookingCode,
-      status: r.status as 'completed' | 'cancelled' | 'no_show',
-      scheduledDate: r.scheduledDate,
-      scheduledStartTime: r.scheduledStartTime,
-      scheduledEndTime: r.scheduledEndTime,
-      estimatedDurationMinutes: r.estimatedDurationMinutes ?? 30,
-      poliklinikName: r.poliklinikName,
-      doctorName: r.doctorName,
-      complaint: r.complaint,
-      callAttemptsCount: attemptCounts.get(r.id) ?? 0,
-      completedAt: r.completedAt,
-      cancelledAt: r.cancelledAt,
-      cancelReason: r.cancelReason,
-      updatedAt: r.updatedAt,
-    }));
+    const data: HistoricalAppointmentItem[] = rows.map((r) => {
+      const formInfo = formInfoMap.get(r.id);
+      return {
+        id: r.id,
+        bookingCode: r.bookingCode,
+        status: r.status,
+        scheduledDate: r.scheduledDate,
+        scheduledStartTime: r.scheduledStartTime,
+        scheduledEndTime: r.scheduledEndTime,
+        estimatedDurationMinutes: r.estimatedDurationMinutes ?? 30,
+        poliklinikName: r.poliklinikName,
+        doctorName: r.doctorName,
+        complaint: r.complaint,
+        callAttemptsCount: attemptCounts.get(r.id) ?? 0,
+        completedAt: r.completedAt,
+        cancelledAt: r.cancelledAt,
+        cancelReason: r.cancelReason,
+        updatedAt: r.updatedAt,
+        hasAssociatedForm: Boolean(formInfo),
+        associatedFormType: formInfo?.type ?? null,
+      };
+    });
 
     return {
       data,
