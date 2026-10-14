@@ -1,6 +1,9 @@
 import { ConflictException, Inject, Injectable } from '@nestjs/common';
 import { and, asc, desc, eq, gte, ilike, inArray, lte, ne, or, sql } from 'drizzle-orm';
-import { escapeLike } from '../../../search/engine';
+
+function escapeLike(s: string): string {
+  return s.replace(/[%_\\]/g, '\\$&');
+}
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
@@ -595,49 +598,18 @@ export class PatientDrizzleRepository implements PatientRepository {
     const limit = query.limit ?? 10;
     const offset = (page - 1) * limit;
 
-    const isMasterCondition = sql`(
-      ${patientProfiles.userId} IS NOT NULL
-      OR EXISTS (
-        SELECT 1 FROM patient_affiliations pa
-        WHERE pa.patient_id = ${patientProfiles.id}
-          AND (pa.relationship_type = 'self' OR pa.is_primary = true)
-      )
-      OR NOT EXISTS (
-        SELECT 1 FROM patient_affiliations pa
-        WHERE pa.patient_id = ${patientProfiles.id}
-      )
-    )`;
-
-    const conditions = [isMasterCondition];
+    const conditions = [];
 
     if (query.status && query.status !== 'all') {
       conditions.push(eq(patientProfiles.status, query.status as any));
     }
 
     if (query.gender && query.gender !== 'all') {
-      conditions.push(
-        or(
-          eq(patientProfiles.gender, query.gender),
-          sql`EXISTS (
-            SELECT 1 FROM patient_affiliations pa
-            JOIN patient_profiles aff ON aff.id = pa.patient_id
-            WHERE pa.user_id = ${patientProfiles.userId} AND aff.gender = ${query.gender}
-          )`
-        )!
-      );
+      conditions.push(eq(patientProfiles.gender, query.gender));
     }
 
     if (query.bloodType && query.bloodType !== 'all') {
-      conditions.push(
-        or(
-          eq(patientProfiles.bloodType, query.bloodType as any),
-          sql`EXISTS (
-            SELECT 1 FROM patient_affiliations pa
-            JOIN patient_profiles aff ON aff.id = pa.patient_id
-            WHERE pa.user_id = ${patientProfiles.userId} AND aff.blood_type = ${query.bloodType}
-          )`
-        )!
-      );
+      conditions.push(eq(patientProfiles.bloodType, query.bloodType as any));
     }
 
     if (query.email?.trim()) {
@@ -665,22 +637,11 @@ export class PatientDrizzleRepository implements PatientRepository {
           ilike(patientProfiles.medicalRecordNumber, term),
           ilike(patientProfiles.phone, term),
           ilike(patientProfiles.nationalIdHash, term),
-          sql`EXISTS (
-            SELECT 1 FROM patient_affiliations pa
-            JOIN patient_profiles aff ON aff.id = pa.patient_id
-            WHERE pa.user_id = ${patientProfiles.userId}
-              AND (
-                aff.full_name ILIKE ${term}
-                OR aff.medical_record_number ILIKE ${term}
-                OR aff.phone ILIKE ${term}
-                OR aff.national_id_hash ILIKE ${term}
-              )
-          )`,
         )!,
       );
     }
 
-    const whereClause = and(...conditions);
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
     const [countRow] = await this.db
       .select({ count: sql<number>`count(*)::int` })
@@ -800,93 +761,8 @@ export class PatientDrizzleRepository implements PatientRepository {
       .limit(limit)
       .offset(offset);
 
-    const userIds = rows
-      .map((r) => r.userId)
-      .filter((uid): uid is string => Boolean(uid));
-
-    const affiliatesMap = new Map<string, any[]>();
-    if (userIds.length > 0) {
-      const rawAffiliates = await this.db
-        .select({
-          id: patientProfiles.id,
-          masterUserId: patientAffiliations.userId,
-          medicalRecordNumber: patientProfiles.medicalRecordNumber,
-          fullName: patientProfiles.fullName,
-          nationalIdHash: patientProfiles.nationalIdHash,
-          nationalIdEncrypted: patientProfiles.nationalIdEncrypted,
-          gender: patientProfiles.gender,
-          birthDate: patientProfiles.birthDate,
-          birthPlace: patientProfiles.birthPlace,
-          motherName: patientProfiles.motherName,
-          occupation: patientProfiles.occupation,
-          bloodType: patientProfiles.bloodType,
-          phone: patientProfiles.phone,
-          status: patientProfiles.status,
-          registeredAt: patientProfiles.registeredAt,
-          email: sql<string | null>`COALESCE(${patientProfiles.email}, (SELECT email FROM users WHERE users.id = ${patientProfiles.userId}))`,
-          relationshipType: patientAffiliations.relationshipType,
-          relationLabel: patientAffiliations.relationLabel,
-          hasOwnAccount: sql<boolean>`${patientProfiles.userId} IS NOT NULL`,
-          fullAddress: sql<string | null>`(
-            SELECT COALESCE(full_address, line1)
-            FROM patient_addresses
-            WHERE patient_addresses.patient_id = patient_profiles.id
-            ORDER BY is_primary DESC, created_at DESC
-            LIMIT 1
-          )`,
-          totalAppointments: sql<number>`(
-            SELECT count(*)::int
-            FROM appointments
-            WHERE appointments.patient_id = patient_profiles.id
-          )`,
-          completedVisits: sql<number>`(
-            SELECT count(*)::int
-            FROM appointments
-            WHERE appointments.patient_id = patient_profiles.id AND appointments.status = 'completed'
-          )`,
-          missedAppointments: sql<number>`(
-            SELECT count(*)::int
-            FROM appointments
-            WHERE appointments.patient_id = patient_profiles.id AND appointments.status IN ('no_show', 'late')
-          )`,
-          cancelledAppointments: sql<number>`(
-            SELECT count(*)::int
-            FROM appointments
-            WHERE appointments.patient_id = patient_profiles.id AND appointments.status = 'cancelled'
-          )`,
-          lastVisitDate: sql<string | null>`(
-            SELECT max(scheduled_date)::text
-            FROM appointments
-            WHERE appointments.patient_id = patient_profiles.id
-          )`,
-        })
-        .from(patientAffiliations)
-        .innerJoin(
-          patientProfiles,
-          eq(patientProfiles.id, patientAffiliations.patientId),
-        )
-        .where(
-          and(
-            inArray(patientAffiliations.userId, userIds),
-            sql`${patientAffiliations.patientId} != (SELECT pa2.patient_id FROM patient_affiliations pa2 WHERE pa2.user_id = ${patientAffiliations.userId} AND (pa2.relationship_type = 'self' OR pa2.is_primary = true) LIMIT 1)`,
-          ),
-        )
-        .orderBy(patientAffiliations.createdAt);
-
-      for (const aff of rawAffiliates) {
-        const list = affiliatesMap.get(aff.masterUserId) || [];
-        list.push(aff);
-        affiliatesMap.set(aff.masterUserId, list);
-      }
-    }
-
     const now = new Date();
-    const mapRowToItem = (
-      r: any,
-      isMaster: boolean,
-      masterPatientId?: string | null,
-      masterPatientName?: string | null,
-    ): PatientDirectoryItemDto => {
+    const data: PatientDirectoryItemDto[] = rows.map((r) => {
       const birth = new Date(r.birthDate);
       let age = now.getFullYear() - birth.getFullYear();
       const monthDiff = now.getMonth() - birth.getMonth();
@@ -922,13 +798,13 @@ export class PatientDrizzleRepository implements PatientRepository {
         phone: r.phone,
         fullAddress: r.fullAddress,
         status: r.status,
-        isMaster,
-        hasOwnAccount: Boolean(r.hasOwnAccount ?? r.userId),
+        isMaster: true,
+        hasOwnAccount: Boolean(r.userId),
         affiliateCount: 0,
-        relationshipType: r.relationshipType || (isMaster ? 'self' : null),
-        relationLabel: r.relationLabel || (isMaster ? 'Akun Utama' : null),
-        masterPatientId: masterPatientId || null,
-        masterPatientName: masterPatientName || null,
+        relationshipType: null,
+        relationLabel: null,
+        masterPatientId: null,
+        masterPatientName: null,
         totalAppointments: r.totalAppointments ?? 0,
         completedVisits: r.completedVisits ?? 0,
         missedAppointments: r.missedAppointments ?? 0,
@@ -937,20 +813,6 @@ export class PatientDrizzleRepository implements PatientRepository {
         registeredAt: r.registeredAt,
         affiliates: [],
       };
-    };
-
-    const data: PatientDirectoryItemDto[] = rows.map((r) => {
-      const masterAffiliatesRaw = r.userId
-        ? affiliatesMap.get(r.userId) || []
-        : [];
-      const mappedAffiliates = masterAffiliatesRaw.map((aff) =>
-        mapRowToItem(aff, false, r.id, r.fullName),
-      );
-
-      const masterItem = mapRowToItem(r, true);
-      masterItem.affiliateCount = mappedAffiliates.length;
-      masterItem.affiliates = mappedAffiliates;
-      return masterItem;
     });
 
     return {

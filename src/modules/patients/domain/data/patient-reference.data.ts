@@ -1,3 +1,5 @@
+import { bloodType } from '../../../../database/schema';
+
 export interface ReferenceOption {
   label: string;
   value: string;
@@ -10,39 +12,84 @@ export const BACKEND_GENDER_OPTIONS: ReferenceOption[] = [
 ];
 
 /**
- * 13 Pilihan Golongan Darah Sesuai Realita Enum Database PostgreSQL ('blood_type')
- * Mencakup varian rhesus lengkap, ABO netral, dan status belum diperiksa.
+ * Pemformat simbolis klinis dari nilai enum PostgreSQL ke representasi yang ramah pengguna.
  */
-export const BACKEND_BLOOD_TYPE_OPTIONS: ReferenceOption[] = [
-  { label: 'A+', value: 'a_positive', description: 'Golongan A Rhesus Positif (+)' },
-  { label: 'A-', value: 'a_negative', description: 'Golongan A Rhesus Negatif (-)' },
-  { label: 'B+', value: 'b_positive', description: 'Golongan B Rhesus Positif (+)' },
-  { label: 'B-', value: 'b_negative', description: 'Golongan B Rhesus Negatif (-)' },
-  { label: 'AB+', value: 'ab_positive', description: 'Golongan AB Rhesus Positif (+)' },
-  { label: 'AB-', value: 'ab_negative', description: 'Golongan AB Rhesus Negatif (-)' },
-  { label: 'O+', value: 'o_positive', description: 'Golongan O Rhesus Positif (+)' },
-  { label: 'O-', value: 'o_negative', description: 'Golongan O Rhesus Negatif (-)' },
-  { label: 'A', value: 'a', description: 'Golongan A (Rhesus belum ditentukan)' },
-  { label: 'B', value: 'b', description: 'Golongan B (Rhesus belum ditentukan)' },
-  { label: 'AB', value: 'ab', description: 'Golongan AB (Rhesus belum ditentukan)' },
-  { label: 'O', value: 'o', description: 'Golongan O (Rhesus belum ditentukan)' },
-  { label: 'Belum Tahu', value: 'unknown', description: 'Belum diperiksa / Tidak tahu' },
-];
+export function formatBloodTypeDisplay(raw?: string | null): string {
+  if (!raw || raw === 'unknown') return 'Belum Tahu';
+  switch (raw.toLowerCase()) {
+    case 'a_positive':
+      return 'A+';
+    case 'a_negative':
+      return 'A-';
+    case 'b_positive':
+      return 'B+';
+    case 'b_negative':
+      return 'B-';
+    case 'ab_positive':
+      return 'AB+';
+    case 'ab_negative':
+      return 'AB-';
+    case 'o_positive':
+      return 'O+';
+    case 'o_negative':
+      return 'O-';
+    case 'a':
+      return 'A';
+    case 'b':
+      return 'B';
+    case 'ab':
+      return 'AB';
+    case 'o':
+      return 'O';
+    default:
+      return raw.toUpperCase();
+  }
+}
 
-export type DatabaseBloodTypeEnum =
-  | 'a_positive'
-  | 'a_negative'
-  | 'b_positive'
-  | 'b_negative'
-  | 'ab_positive'
-  | 'ab_negative'
-  | 'o_positive'
-  | 'o_negative'
-  | 'a'
-  | 'b'
-  | 'ab'
-  | 'o'
-  | 'unknown';
+export function getBloodTypeDescription(val: string): string {
+  switch (val) {
+    case 'a_positive':
+      return 'Golongan A Rhesus Positif (+)';
+    case 'a_negative':
+      return 'Golongan A Rhesus Negatif (-)';
+    case 'b_positive':
+      return 'Golongan B Rhesus Positif (+)';
+    case 'b_negative':
+      return 'Golongan B Rhesus Negatif (-)';
+    case 'ab_positive':
+      return 'Golongan AB Rhesus Positif (+)';
+    case 'ab_negative':
+      return 'Golongan AB Rhesus Negatif (-)';
+    case 'o_positive':
+      return 'Golongan O Rhesus Positif (+)';
+    case 'o_negative':
+      return 'Golongan O Rhesus Negatif (-)';
+    case 'a':
+      return 'Golongan A (Rhesus belum ditentukan)';
+    case 'b':
+      return 'Golongan B (Rhesus belum ditentukan)';
+    case 'ab':
+      return 'Golongan AB (Rhesus belum ditentukan)';
+    case 'o':
+      return 'Golongan O (Rhesus belum ditentukan)';
+    case 'unknown':
+      return 'Belum diperiksa / Tidak tahu';
+    default:
+      return formatBloodTypeDisplay(val);
+  }
+}
+
+/**
+ * 13 Pilihan Golongan Darah yang diturunkan secara dinamis dari Enum Database PostgreSQL ('blood_type')
+ */
+export const BACKEND_BLOOD_TYPE_OPTIONS: ReferenceOption[] =
+  bloodType.enumValues.map((val) => ({
+    label: formatBloodTypeDisplay(val),
+    value: val,
+    description: getBloodTypeDescription(val),
+  }));
+
+export type DatabaseBloodTypeEnum = (typeof bloodType.enumValues)[number];
 
 export const VALID_BLOOD_TYPE_VALUES: readonly string[] = [
   'a_positive',
@@ -118,41 +165,6 @@ export function normalizeBloodTypeToDb(input?: string | null): DatabaseBloodType
       return 'unknown';
     default:
       return 'unknown';
-  }
-}
-
-/**
- * Pemformat simbolis klinis dari nilai enum PostgreSQL ke representasi yang ramah pengguna.
- */
-export function formatBloodTypeDisplay(raw?: string | null): string {
-  if (!raw || raw === 'unknown') return 'Belum Tahu';
-  switch (raw.toLowerCase()) {
-    case 'a_positive':
-      return 'A+';
-    case 'a_negative':
-      return 'A-';
-    case 'b_positive':
-      return 'B+';
-    case 'b_negative':
-      return 'B-';
-    case 'ab_positive':
-      return 'AB+';
-    case 'ab_negative':
-      return 'AB-';
-    case 'o_positive':
-      return 'O+';
-    case 'o_negative':
-      return 'O-';
-    case 'a':
-      return 'A';
-    case 'b':
-      return 'B';
-    case 'ab':
-      return 'AB';
-    case 'o':
-      return 'O';
-    default:
-      return raw.toUpperCase();
   }
 }
 
