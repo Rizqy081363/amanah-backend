@@ -24,6 +24,7 @@ import { AppointmentsModule } from './modules/appointments/appointments.module';
 import { AttendanceModule } from './modules/attendance/attendance.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { AvatarModule } from './modules/avatar/avatar.module';
+import { ChatModule } from './modules/chat/chat.module';
 import { ClinicsModule } from './modules/clinics/clinics.module';
 import { LeavesModule } from './modules/leaves/leaves.module';
 import { MedicalRecordsModule } from './modules/medical-records/medical-records.module';
@@ -78,6 +79,7 @@ import { SupportTicketsModule } from './modules/support-tickets/support-tickets.
     LeavesModule,
     SupportTicketsModule,
     QueueEngineModule,
+    ChatModule,
   ],
 })
 export class AppModule implements NestModule {

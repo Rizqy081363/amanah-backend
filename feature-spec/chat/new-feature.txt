@@ -1,0 +1,828 @@
+# New Chat Module — Architecture, Database Schema, and Implementation Plan
+
+## 1. Objective and Scope
+
+Act as a senior full-stack engineer responsible for designing and implementing a new patient-to-admin chat module for the existing clinic application.
+
+This is a genuinely new feature and a new backend module. The existing application does not yet have a proper backend implementation for chat, which is why the current chat interface contains mock data, placeholder interactions, and unnecessary UI components.
+
+The objective is to replace that mock implementation with a minimal, production-ready chat feature backed by the existing database, APIs, authentication system, and real-time infrastructure.
+
+**Keep the implementation deliberately simple. Do not overengineer it.** Build only what is essential for the initial release. Additional capabilities can be introduced later when there is a concrete requirement.
+
+Before writing any code, inspect the existing repository, understand its architecture, and present a comprehensive implementation plan, including the proposed database schema and migration strategy. Do not start implementation until the plan has been reviewed and approved.
+
+## 2. Non-Negotiable Engineering Principles
+
+### 2.1. English as the Canonical Internal Language
+
+All internal code and backend contracts must use consistent English naming conventions.
+
+This applies to:
+
+- Database table and column names.
+- Entity, model, DTO, schema, and migration names.
+- API endpoints, request fields, and response fields.
+- Enum keys, status codes, and event names.
+- Variables, functions, classes, modules, utilities, and configuration keys.
+- Internal error codes and machine-readable messages.
+
+Indonesian should be used for the user-facing interface where appropriate.
+
+If an English enum or status must be displayed in Indonesian, perform that mapping in the frontend presentation layer. For example, the frontend may map a canonical backend status to its corresponding Indonesian label without changing the underlying value.
+
+The backend and database remain the source of truth. Do not store translated display labels as canonical domain values, duplicate status definitions across layers, or implement business rules in the frontend merely to compensate for backend limitations.
+
+### 2.2. Respect the Existing Architecture
+
+The application already has infrastructure that may be reused, including:
+
+- The existing database and migration system.
+- Backend modules and established API patterns.
+- WebSocket connectivity.
+- RabbitMQ.
+- Notification infrastructure.
+- Existing authentication and authorization mechanisms.
+- Existing patient records, email addresses, phone numbers, and profile endpoints.
+- Shared configuration, logging, timing, and utility mechanisms.
+
+Inspect the actual implementation before deciding how to use these components.
+
+Reuse existing infrastructure whenever it satisfies the requirements. Extend an existing abstraction when necessary. Introduce a new component only when there is a clearly demonstrated need.
+
+Do not create duplicate messaging infrastructure, notification gateways, WebSocket implementations, identity systems, or configuration mechanisms.
+
+### 2.3. Backend-Driven Data and Behavior
+
+The GUI must never be treated as the source of truth.
+
+Remove mock data, fabricated conversations, hardcoded patients, simulated online indicators, fake timestamps, placeholder search results, and other dummy behavior.
+
+All persisted chat data and meaningful application states must originate from the backend.
+
+Frontend state should reflect API responses and real-time events. The frontend must not independently invent message delivery states, user identities, chat statuses, or business rules.
+
+Do not introduce unnecessary fallbacks, silent error recovery, duplicated calculations, or fabricated default values that conceal backend failures.
+
+## 3. Phase One: Clean Up the Existing Chat Interface
+
+Begin by inspecting the current chat implementation and removing the dummy data and unnecessary UI components.
+
+Preserve the existing design system and reusable components where they are appropriate. Do not rebuild unrelated application layouts.
+
+### Remove These Unnecessary Components
+
+The current interface contains several sections that were added before a proper backend was available. They are not part of the initial chat scope and should be removed:
+
+- Patient timeline.
+- Profile-completion interface.
+- Medical-information panel.
+- Appointment-information panel.
+- Suggested replies.
+- Message templates.
+- Voice notes.
+- Image uploads.
+- File attachments.
+- Any other mock functionality that is unrelated to the core text-chat workflow.
+
+The admin-side conversation view should retain only the essential patient information needed to identify the person, such as their name and existing contact details.
+
+Do not duplicate existing patient data or build additional profile-management functionality inside the chat module.
+
+The patient-facing chat interface, including the landing-page chat widget, should remain focused exclusively on the conversation. It does not need a patient-information sidebar or a right-hand details panel.
+
+**The initial release supports text messages only.** Do not implement media messaging, automated suggestions, advanced chat features, or additional functionality without an explicit requirement.
+
+## 4. Phase Two: Finalize the Database Schema and Migrations
+
+Once the existing implementation has been inspected, determine the minimum database schema required to support the feature.
+
+This is a new backend module, so database migrations are required if the existing schema does not already provide the necessary structures.
+
+Do not start frontend integration before the schema and migrations have been finalized and successfully applied.
+
+### 4.1. Proposed Schema Deliverables
+
+Present a concrete schema proposal before implementation. At minimum, evaluate whether the following structures are sufficient.
+
+**A. Chat conversation**
+
+Determine how the system will represent a conversation between a patient and the clinic's admin team.
+
+Explain the necessary fields, relationships, conversation lifecycle, and any constraints needed to prevent duplicate or invalid records.
+
+**B. Chat message**
+
+Determine how individual text messages will be persisted and associated with their conversation and sender.
+
+Explain the fields required to identify the sender, store the message content, establish chronological order, and record when the message was created.
+
+**C. Patient identity and guest conversations**
+
+Determine how authenticated patients and unauthenticated visitors will be represented and linked to conversations.
+
+Reuse the existing user and patient models wherever appropriate. Add an additional identity structure only if the existing data model cannot safely support the required workflow.
+
+**D. Chat-specific enums and constants**
+
+Identify the finite states that genuinely need to exist for chat.
+
+Use the existing enum and constant conventions. If a new chat-specific status is necessary, define it canonically in English and identify its source of truth.
+
+Do not introduce redundant status fields or reproduce existing clinic and appointment statuses within the chat module.
+
+### 4.2. Schema Design Requirements
+
+For every proposed table or schema change, document:
+
+- Table and column names.
+- Data types and nullability.
+- Primary keys and foreign keys.
+- Relationships and cardinality.
+- Required and optional fields.
+- Unique constraints and duplicate-prevention rules.
+- Indexes required for message retrieval and search.
+- Deletion behavior and referential integrity.
+- Enum definitions and allowed values.
+- Migration dependencies and execution order.
+- Rollback or recovery considerations according to the existing migration conventions.
+
+Explain why each table and field is necessary. Keep the schema normalized without introducing unnecessary abstraction.
+
+Do not create separate copies of existing patient names, email addresses, phone numbers, or other canonical identity fields unless there is a specific, documented reason.
+
+For timestamps, use the existing backend and database conventions. Store canonical timestamps consistently and derive their date and time presentation from those timestamps rather than maintaining redundant date and time fields.
+
+The schema must also accommodate authenticated conversations and guest conversations without creating duplicate patient identities.
+
+### 4.3. Migration Execution
+
+After the schema is approved:
+
+1. Implement the database migrations using the project's established conventions.
+2. Apply the migrations in the correct order.
+3. Verify that they complete successfully against the intended database environment.
+4. Verify the resulting tables, columns, constraints, indexes, and enum definitions.
+5. Check compatibility with existing patient and authentication records.
+6. Verify rollback or recovery behavior where supported.
+7. Document the outcome before proceeding to dependent backend and frontend work.
+
+Do not claim that a migration is successful merely because the migration file exists or a test has been written.
+
+## 5. Patient Identity: Authenticated and Unauthenticated Users
+
+The chat feature must accommodate both existing patients and new visitors.
+
+### 5.1. Authenticated Patients
+
+Patients who are already authenticated should be able to open chat and send messages directly.
+
+Do not require them to enter their name or email again. Retrieve their identity from the existing authenticated context and canonical patient records.
+
+Reuse existing authentication and authorization mechanisms instead of introducing a second identity system.
+
+### 5.2. Unauthenticated Visitors
+
+A visitor coming from the public landing page may not have an account and may never have logged in or completed registration.
+
+The visitor must still be able to initiate a chat without being forced through the full registration or login workflow.
+
+For this initial experience, collect only:
+
+- Patient name.
+- Email address.
+
+No phone number, password, medical information, or additional registration fields should be required to start a conversation.
+
+The backend must persist the minimum identity information necessary to establish a conversation and identify the visitor in subsequent messages.
+
+Determine the correct implementation based on the existing user, patient, and authentication models. If the application supports creating a minimal patient record without creating an authenticated account, evaluate that approach. If it requires a different guest-contact representation, explain why.
+
+Do not silently create credentials, bypass authentication, or grant account privileges simply because a visitor starts a chat.
+
+The plan must explicitly explain:
+
+- How a guest is represented in the database.
+- How the guest's conversation is associated with that identity.
+- How the existing email and patient records are reused.
+- How duplicate identities are prevented.
+- How a guest can subsequently be linked to an existing account if they authenticate or register.
+- What prevents one guest from accessing another patient's conversations.
+
+Authenticated users should experience no unnecessary identity-entry barrier. Guest identity collection should happen only when needed.
+
+## 6. Real-Time Messaging and Admin Presence
+
+The intended interaction should feel as immediate and straightforward as a normal messaging application.
+
+The public landing page has a floating action button that opens the chat widget. The patient-facing application also has an existing sidebar entry through which chat should be accessible.
+
+The admin can access the same core chat capability through the existing admin navigation.
+
+Do not build a separate inbox dashboard, chat queue, analytics panel, or another layer of navigation unless the current architecture demonstrates that one is essential. Keep the initial experience centered on direct patient-to-admin communication.
+
+### 6.1. Admin Online Status
+
+The chat interface must display whether an admin is available or offline based on real backend connection state.
+
+This must not be a hardcoded indicator or a value inferred only from the frontend.
+
+Inspect the existing WebSocket and messaging infrastructure and determine the simplest reliable way to:
+
+- Detect an admin connection.
+- Publish an online presence event when an admin becomes available.
+- Notify connected patient chat clients of the current presence.
+- Update the state when the admin disconnects.
+- Handle reconnects and stale connections.
+- Support multiple admin connections or application instances if the existing architecture requires it.
+
+Use existing presence, connection-management, Redis, RabbitMQ, or WebSocket mechanisms where appropriate. Do not introduce another presence system if an existing abstraction can fulfill the requirement.
+
+Presence broadcasts can be lightweight and asynchronous where appropriate. However, message persistence must not rely on a fire-and-forget event: persist a message successfully before publishing the corresponding real-time event.
+
+### 6.2. Message Delivery
+
+Design the communication flow so that:
+
+1. The patient submits a text message.
+2. The backend validates the sender and conversation.
+3. The backend persists the message.
+4. The backend returns the canonical message result.
+5. The existing real-time infrastructure publishes the new message to the appropriate connected clients.
+6. The clients update their interfaces without a page refresh.
+
+The implementation must also support retrieving persisted message history when a user reconnects or reloads the chat.
+
+Real-time events must not become the only source of truth. A disconnected client should be able to recover the conversation from persisted backend data.
+
+Use the existing WebSocket and messaging conventions rather than implementing parallel delivery mechanisms.
+
+## 7. Chat Entry Points and User Interface
+
+### Patient-Facing Interface
+
+Provide access through:
+
+- The floating chat action button on the public landing page.
+- The existing application sidebar entry, where applicable.
+
+The landing-page widget should open a direct conversation with the clinic's admin team.
+
+For authenticated patients, identify the patient using the existing authenticated context.
+
+For guests, request the name and email required by the guest identity workflow before creating the conversation.
+
+The patient-side interface should contain only the essential chat experience: conversation messages, message timestamps, a text composer, and the admin presence indicator.
+
+Do not render an unnecessary right-hand patient-details panel.
+
+### Admin-Facing Interface
+
+Expose the chat through the existing admin navigation and reuse appropriate shared chat components.
+
+The admin must be able to view and respond to patient messages. Retain only the minimum patient identity information necessary for the conversation.
+
+Remove the timeline, profile-completion, medical-information, and appointment sections from the existing chat layout.
+
+Avoid introducing a separate inbox product or duplicating patient-management functionality.
+
+Do not compromise authorization or conversation isolation in order to simplify the interface.
+
+## 8. Existing Clinic Data and Statuses
+
+The application already has established backend data for clinic workflows, including patient information, email addresses, phone numbers, appointment information, and operational statuses such as waiting, in-service, and appointment-created states.
+
+Some existing endpoints also support patient timelines and profile information.
+
+Do not recreate these entities, values, or endpoints inside the chat module.
+
+For the initial chat implementation:
+
+- Remove the unused timeline, profile-completion, medical, and appointment UI sections.
+- Retain only the minimum patient identity details needed by the admin chat view.
+- Reuse existing patient records and endpoints when the required data is already available.
+- Reuse existing enums and constants when their semantics match the requirement.
+- Add chat-specific definitions only when there is a genuine domain requirement.
+- Keep unrelated clinic and appointment workflows unchanged.
+
+A chat-specific conversation lifecycle, if required, must remain distinct from clinical workflow statuses. Do not introduce duplicate concepts simply because they are visible in the existing GUI.
+
+## 9. Timestamps and Localization
+
+All message timestamps must originate from canonical backend data.
+
+The interface should display dates and times according to the clinic's configured timezone and Indonesian locale conventions.
+
+Use a 24-hour clock. Remove AM/PM formatting from the Indonesian-facing chat interface.
+
+Do not store manually formatted timestamps, duplicated date/time values, or localized strings in the database.
+
+Use the established date-time utilities and configuration already available in the application. Do not introduce competing timezone rules or duplicate formatting implementations.
+
+## 10. Search and Message Retrieval
+
+Inspect the existing search implementation and determine the appropriate search strategy for the actual data and UI requirements.
+
+Do not automatically move every search operation to the backend or assume that frontend filtering is always sufficient.
+
+Evaluate:
+
+- The type of records being searched.
+- Whether search spans the current conversation, multiple conversations, or historical messages.
+- Expected data volume and pagination behavior.
+- The existing API contracts and available indexes.
+- Whether the current frontend already has a bounded, paginated dataset.
+- The cost of transferring and rendering unnecessary data.
+
+Use frontend filtering only when the relevant dataset is already loaded, bounded, and small enough to justify it.
+
+For searches across persisted conversations or historical messages, prefer an appropriately designed backend query, using existing API conventions and suitable database indexes.
+
+Do not fetch the entire message history simply to perform client-side filtering. Avoid adding advanced search infrastructure, full-text search engines, or extra caching layers unless a concrete requirement justifies them.
+
+The plan must explain the chosen approach and why it is appropriate for the current application.
+
+## 11. Backend API and Module Design
+
+Before implementing the backend, determine the smallest set of endpoints and real-time events required to support the chat lifecycle.
+
+Evaluate the need for operations such as:
+
+- Creating or resolving a conversation.
+- Sending a text message.
+- Retrieving message history.
+- Retrieving or subscribing to admin presence.
+- Searching persisted conversations or messages, if required.
+- Reconciling guest identity with authenticated patient identity, if supported by the existing identity model.
+
+These are candidate capabilities, not a requirement to create a separate endpoint for every item. Reuse existing functionality whenever possible.
+
+For each proposed endpoint or event, document:
+
+- Purpose and responsibility.
+- Authentication and authorization requirements.
+- Request schema.
+- Response schema.
+- Validation and error handling.
+- Relevant persistence behavior.
+- Real-time event behavior.
+- Ownership and access-control rules.
+
+Keep the API contract aligned with the actual database schema and existing backend conventions.
+
+Publish or update the relevant API contract documentation before frontend integration so that the frontend consumes a stable, explicit contract.
+
+Do not duplicate backend domain rules in the frontend or create unnecessary service, controller, utility, or abstraction layers.
+
+## 12. Testing and Verification
+
+Testing must establish that the feature works correctly across the actual data flow, not merely that components render or mocked functions execute.
+
+The implementation plan must cover the following areas.
+
+**Database and migration verification**
+
+Confirm that migrations apply successfully, constraints behave correctly, relationships are valid, and existing records remain compatible.
+
+**Guest identity**
+
+Verify that a guest can start a chat with only a name and email, that identity is persisted correctly, and that duplicate identities are not created through repeated requests.
+
+**Authenticated identity**
+
+Verify that an authenticated patient can start chatting without re-entering personal information and can access only their authorized conversations.
+
+**Message persistence**
+
+Verify that a submitted message is validated, stored, associated with the correct sender and conversation, and returned accurately.
+
+**Real-time synchronization**
+
+Verify that a message appears for the other connected participant without a page refresh. Confirm that persisted history can be recovered after disconnection or reload.
+
+**Admin presence**
+
+Verify online and offline transitions, reconnect behavior, and the accuracy of the presence indicator.
+
+**Search**
+
+Verify the selected search strategy against the actual query path and persisted data, including pagination where applicable.
+
+**Frontend integration**
+
+Verify the landing-page floating action button, sidebar entry, guest identity flow, authenticated flow, admin chat interface, timestamp formatting, loading states, and error handling.
+
+Prefer meaningful service, integration, API-contract, migration, and real data-flow tests over cosmetic UI tests that provide little confidence in the actual implementation.
+
+Run the relevant tests after making changes. Do not treat previously passing tests as proof that subsequent changes are correct.
+
+## 13. Implementation Plan and Required Deliverables
+
+Before modifying the codebase, inspect the existing backend and frontend repositories, database models, migration history, API endpoints, authentication flow, WebSocket implementation, RabbitMQ integration, notification module, shared configuration, and current chat UI.
+
+Do not assume that a capability exists merely because its name appears in the codebase. Verify the actual implementation and how it is used.
+
+Prepare a structured implementation proposal containing the following deliverables.
+
+### Deliverable A — Existing Architecture Assessment
+
+Document the relevant modules, components, endpoints, events, database tables, and infrastructure that already exist.
+
+Identify which components should be reused, extended, or removed.
+
+Clearly distinguish verified existing capabilities from proposed additions.
+
+### Deliverable B — Proposed Database Schema
+
+Provide the proposed tables, fields, data types, relationships, constraints, indexes, and enum definitions.
+
+Explain how authenticated patients, guests, conversations, and messages fit together.
+
+Identify any unresolved schema decisions and their implications. Avoid introducing tables that do not serve a concrete requirement.
+
+### Deliverable C — Migration Strategy
+
+Specify the migration sequence, dependencies, compatibility considerations, verification steps, and rollback or recovery approach.
+
+Explain what must be successfully migrated before backend and frontend integration can proceed.
+
+### Deliverable D — API and Real-Time Contracts
+
+List the proposed endpoints, request and response DTOs, authorization rules, WebSocket events, presence events, and persistence sequence.
+
+Explain how these contracts fit into the existing infrastructure.
+
+### Deliverable E — Frontend Cleanup and Integration
+
+Identify the dummy data, obsolete UI sections, duplicated logic, and unnecessary components that must be removed.
+
+Specify the simplified patient-facing and admin-facing chat layouts, entry points, identity flow, and timestamp presentation.
+
+### Deliverable F — Search and Query Strategy
+
+Explain which searches should be handled by the backend and which, if any, should remain in the frontend.
+
+Justify the decision based on the actual data retrieval model, expected volume, pagination, and indexing.
+
+### Deliverable G — Ordered Implementation and Verification Plan
+
+Provide an actionable sequence of work with dependencies, affected modules, expected changes, and measurable acceptance criteria.
+
+The intended execution order is:
+
+1. Inspect the repository and identify existing architecture and dummy functionality.
+2. Clean up the obsolete mock UI and remove unrelated chat features.
+3. Finalize and implement the database schema and migrations.
+4. Apply and verify the migrations.
+5. Implement the backend module, API contracts, identity handling, and access control.
+6. Integrate real-time messaging and admin presence with the existing infrastructure.
+7. Integrate the frontend against the real backend.
+8. Run the relevant migration, integration, authorization, synchronization, and functional tests.
+9. Document the resulting architecture, API contracts, migrations, and verification results.
+
+Adjust the sequence only when a verified dependency requires it, and explain the reason.
+
+### Deliverable H — Acceptance Criteria
+
+Define objective criteria for determining when the initial chat module is complete, including persistence, identity handling, real-time synchronization, presence, authorization, UI scope, search behavior, and successful migration execution.
+
+## 14. Final Constraints
+
+Keep the initial implementation focused on one capability: **reliable, real-time, text-based communication between clinic patients and the admin team.**
+
+Do not add voice messages, attachments, suggested replies, message templates, advanced patient profiles, appointment-management interfaces, timeline widgets, medical-history panels, or additional infrastructure.
+
+Do not duplicate existing patient fields, endpoints, status definitions, or real-time mechanisms.
+
+Do not treat the GUI as authoritative. Do not conceal missing backend functionality with dummy data or fallback values.
+
+Do not introduce abstractions merely for hypothetical future requirements. Keep the architecture modular and extensible without making the initial implementation unnecessarily complicated.
+
+**Your immediate task is to inspect the existing codebase and deliver the complete implementation proposal, especially the database schema, migration strategy, and integration architecture. Do not begin implementation until that proposal has been reviewed and approved.**
+
+The goal is not to build the largest chat system possible. The goal is to build the smallest reliable chat module that respects the existing architecture, persists its data correctly, and can be extended later without requiring unnecessary rework.
+
+ini adalah apa yang dibilang mentor saya, cuman dia belum melihat keadaan dari pada db schema di database kita sendiri wajar saja dia bilang begini, intinya seperti email itu dia harus nya gimana? table pasient atau user kita sudah ada di db jadi jangan redundance juga, jadi di sini kalau anda mau meng adopsi apa kata mentor saya sesimple tinggal di adopsi tapi harus faham dulu keadaan dari table kita sekarang agar tidak redundance # Live Chat — Database Schema (SQL), initial
+
+> **Companion to:** `01-chat-blueprint.md`. **Target:** PostgreSQL 13+. **Language:** English only (identifiers, enum values, comments).
+> **Status:** the DDL below was executed and tested on PostgreSQL 16 (constraints, trigger, idempotency, closed-conversation rule, partial-unique races, and `EXPLAIN` of every access-pattern query).
+
+## 1. How to apply
+
+**Plain SQL (psql), single transaction, stop on first error:**
+
+```bash
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -1 -f chat_schema.sql
+```
+
+**As an Ecto migration (the service uses Ecto):** copy the DDL into `priv/repo/migrations/<timestamp>_create_chat_schema.exs`.
+
+> **Gotcha:** `execute/1` runs one statement per call (prepared statement). Do **not** paste the whole file into a single `execute`. Split it into one `execute` per statement (`CREATE SCHEMA`, each `CREATE TYPE`, each `CREATE TABLE`, each `CREATE INDEX`, the `CREATE FUNCTION … $$ … $$` block as one statement, `CREATE TRIGGER`, each `COMMENT`). The migration runner already wraps everything in a transaction.
+
+Down migration: see §4.
+
+## 2. Design notes (what and why)
+
+| Object | Decision | Why |
+|---|---|---|
+| Schema `chat` | everything namespaced | existing database content is unknown; zero collision risk |
+| `conversations.id` | `uuid` | exposed to clients; not guessable |
+| `messages.id` | `bigint` identity | monotonic ⇒ `ORDER BY id` is chronological; cheap keyset cursor |
+| `customer_user_id` | `text`, nullable, **no FK** | works with uuid/cuid/int ids from any auth library; users table is outside this service |
+| `guest_id` | `uuid`, nullable | anonymous visitor id from the Next.js cookie; never derived from email |
+| identity `CHECK` | exactly one of the two is set | a conversation always belongs to exactly one kind of customer |
+| `customer_email` | lowercase `text` + `CHECK` | contact info only; normalized, no `citext` extension needed |
+| `status` | enum `open` / `closed` + `closed_at` consistency `CHECK` | two states are enough for v0 |
+| Timeline columns | `last_message_at`, `last_customer_message_at`, `last_admin_message_at`, `first_admin_reply_at` | answers "when chatted / when answered" without scanning messages |
+| `awaiting_reply` | `GENERATED … STORED` | derived from the timeline columns, can never drift |
+| Trigger | updates the timeline on every message insert and **rejects messages on non-open conversations** | invariants live in the DB; Elixir code stays simple |
+| `messages` PK | `(conversation_id, id)` | one index serves thread history; avoids the planner choosing a "scan newest ids and filter" plan for long, old threads (observed with a standalone `id` PK on skewed data) |
+| `client_message_id` | `uuid`, unique per conversation | idempotent retries after reconnects |
+
+**Indexes and the query each one serves**
+
+| Index | Serves |
+|---|---|
+| `conversations_one_open_per_user_uidx` (partial unique) | find the user's open conversation; guarantees at most one |
+| `conversations_one_open_per_guest_uidx` (partial unique) | same for guests |
+| `conversations_inbox_idx (status, last_message_at DESC, id DESC)` | admin inbox with keyset pagination (index-only for the page) |
+| `conversations_awaiting_reply_idx` (partial) | admin "awaiting reply" tab, longest-waiting first |
+| `conversations_customer_email_idx` | admin looks up a customer by exact email |
+| `messages_pkey (conversation_id, id)` | thread history, newest first, keyset on `id` |
+| `messages_idempotency_uidx (conversation_id, client_message_id)` | `ON CONFLICT DO NOTHING` retries |
+
+Only two indexes on `messages` keeps writes cheap, which matters most for a chat workload.
+
+## 3. DDL
+
+```sql
+-- =====================================================================
+-- Live Chat: initial schema
+-- Target: PostgreSQL 13+ (uses gen_random_uuid(), identity columns,
+--         stored generated columns, partial indexes)
+-- Everything lives in its own schema `chat`, so it cannot collide with
+-- existing tables.
+-- =====================================================================
+
+CREATE SCHEMA IF NOT EXISTS chat;
+
+-- ---------------------------------------------------------------------
+-- Enums (English codes; localization is the frontend's job)
+-- ---------------------------------------------------------------------
+CREATE TYPE chat.conversation_status AS ENUM ('open', 'closed');
+CREATE TYPE chat.sender_role         AS ENUM ('customer', 'admin');
+
+-- ---------------------------------------------------------------------
+-- conversations: one thread between one customer and the clinic admins
+-- ---------------------------------------------------------------------
+CREATE TABLE chat.conversations (
+    id                        uuid                     PRIMARY KEY DEFAULT gen_random_uuid(),
+    status                    chat.conversation_status NOT NULL DEFAULT 'open',
+
+    -- Customer identity. Exactly one of the two is set:
+    --   customer_user_id : authenticated user (id from the Next.js auth system, kept as
+    --                      text on purpose: works for uuid / cuid / int ids; no FK because
+    --                      the users table is outside this service's boundary)
+    --   guest_id         : anonymous visitor (random uuid issued by Next.js, stored in a cookie)
+    customer_user_id          text,
+    guest_id                  uuid,
+    customer_email            text                     NOT NULL,  -- contact info only, never a lookup key
+
+    created_at                timestamptz              NOT NULL DEFAULT now(),
+    closed_at                 timestamptz,
+
+    -- Denormalized timeline, maintained by trigger chat.apply_message_to_conversation()
+    last_message_at           timestamptz              NOT NULL DEFAULT now(),
+    last_customer_message_at  timestamptz,
+    last_admin_message_at     timestamptz,
+    first_admin_reply_at      timestamptz,  -- "when was it first answered"
+
+    -- True while the customer spoke last and no admin has answered since.
+    awaiting_reply            boolean GENERATED ALWAYS AS (
+        last_customer_message_at IS NOT NULL
+        AND (last_admin_message_at IS NULL OR last_customer_message_at > last_admin_message_at)
+    ) STORED,
+
+    CONSTRAINT conversations_identity_chk
+        CHECK ((customer_user_id IS NOT NULL) <> (guest_id IS NOT NULL)),
+    CONSTRAINT conversations_user_id_not_empty_chk
+        CHECK (customer_user_id IS NULL OR char_length(customer_user_id) > 0),
+    CONSTRAINT conversations_email_chk
+        CHECK (customer_email = lower(customer_email)
+               AND char_length(customer_email) BETWEEN 3 AND 254
+               AND position('@' IN customer_email) > 1),
+    CONSTRAINT conversations_closed_at_chk
+        CHECK ((status = 'closed') = (closed_at IS NOT NULL))
+);
+
+-- At most one OPEN conversation per customer identity.
+-- Also serves as the lookup index "find this customer's open conversation".
+CREATE UNIQUE INDEX conversations_one_open_per_user_uidx
+    ON chat.conversations (customer_user_id)
+    WHERE status = 'open' AND customer_user_id IS NOT NULL;
+
+CREATE UNIQUE INDEX conversations_one_open_per_guest_uidx
+    ON chat.conversations (guest_id)
+    WHERE status = 'open' AND guest_id IS NOT NULL;
+
+-- Admin inbox, keyset pagination: WHERE status = $1 ORDER BY last_message_at DESC, id DESC
+CREATE INDEX conversations_inbox_idx
+    ON chat.conversations (status, last_message_at DESC, id DESC);
+
+-- Admin "needs reply" tab, longest-waiting first. Tiny partial index.
+CREATE INDEX conversations_awaiting_reply_idx
+    ON chat.conversations (last_customer_message_at)
+    WHERE status = 'open' AND awaiting_reply;
+
+-- Admin looks up a customer by exact email.
+CREATE INDEX conversations_customer_email_idx
+    ON chat.conversations (customer_email);
+
+-- ---------------------------------------------------------------------
+-- messages
+-- ---------------------------------------------------------------------
+CREATE TABLE chat.messages (
+    -- bigint identity: monotonic, so ORDER BY id == chronological order,
+    -- and it is a cheap keyset cursor for history pagination.
+    id                 bigint            GENERATED ALWAYS AS IDENTITY,
+    conversation_id    uuid              NOT NULL
+                           REFERENCES chat.conversations (id) ON DELETE CASCADE,
+    sender_role        chat.sender_role  NOT NULL,
+    sender_user_id     text,             -- admin id (required for admins); user id for logged-in customers; NULL for guests
+    client_message_id  uuid              NOT NULL,  -- generated by the client; makes retries idempotent
+    body               text              NOT NULL,
+    created_at         timestamptz       NOT NULL DEFAULT now(),
+
+    -- Composite PK doubles as the thread-history index (conversation_id, id).
+    -- Deliberately NOT a standalone PK on id: a lone id index tempts the planner into
+    -- "scan newest ids backwards and filter by conversation" for long, old threads.
+    CONSTRAINT messages_pkey PRIMARY KEY (conversation_id, id),
+    CONSTRAINT messages_body_chk
+        CHECK (char_length(btrim(body)) > 0 AND char_length(body) <= 4000),
+    CONSTRAINT messages_admin_sender_chk
+        CHECK (sender_role <> 'admin' OR sender_user_id IS NOT NULL)
+);
+
+-- Idempotent send: INSERT ... ON CONFLICT (conversation_id, client_message_id) DO NOTHING
+CREATE UNIQUE INDEX messages_idempotency_uidx
+    ON chat.messages (conversation_id, client_message_id);
+
+-- ---------------------------------------------------------------------
+-- Trigger: keep conversation timeline in sync, and refuse messages on
+-- closed conversations (safety net; the app should check first).
+-- ---------------------------------------------------------------------
+CREATE FUNCTION chat.apply_message_to_conversation() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+    UPDATE chat.conversations AS c
+       SET last_message_at          = NEW.created_at,
+           last_customer_message_at = CASE WHEN NEW.sender_role = 'customer'
+                                           THEN NEW.created_at
+                                           ELSE c.last_customer_message_at END,
+           last_admin_message_at    = CASE WHEN NEW.sender_role = 'admin'
+                                           THEN NEW.created_at
+                                           ELSE c.last_admin_message_at END,
+           first_admin_reply_at     = CASE WHEN NEW.sender_role = 'admin'
+                                           THEN COALESCE(c.first_admin_reply_at, NEW.created_at)
+                                           ELSE c.first_admin_reply_at END
+     WHERE c.id = NEW.conversation_id
+       AND c.status = 'open';
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'chat.conversation_not_open: %', NEW.conversation_id;
+    END IF;
+
+    RETURN NULL;  -- AFTER trigger, return value ignored
+END;
+$$;
+
+CREATE TRIGGER messages_apply_to_conversation
+    AFTER INSERT ON chat.messages
+    FOR EACH ROW EXECUTE FUNCTION chat.apply_message_to_conversation();
+
+-- ---------------------------------------------------------------------
+-- Documentation inside the database
+-- ---------------------------------------------------------------------
+COMMENT ON SCHEMA chat IS 'Live chat between customers and clinic admins. Owned by the Elixir chat service.';
+COMMENT ON COLUMN chat.conversations.customer_user_id IS 'Id from the Next.js auth system. Text, no FK (outside this service boundary).';
+COMMENT ON COLUMN chat.conversations.guest_id IS 'Anonymous visitor id issued by Next.js (cookie). Never derived from email.';
+COMMENT ON COLUMN chat.conversations.customer_email IS 'Contact info, lowercase. Not an identity key.';
+COMMENT ON COLUMN chat.conversations.awaiting_reply IS 'Generated: customer spoke last and no admin reply since.';
+COMMENT ON COLUMN chat.conversations.first_admin_reply_at IS 'Timestamp of the first admin message; response time = first_admin_reply_at - created_at.';
+COMMENT ON COLUMN chat.messages.client_message_id IS 'Client-generated uuid; unique per conversation; makes retries idempotent.';
+```
+
+## 4. Rollback (down)
+
+```sql
+-- Destroys all chat data. Only the `chat` schema is touched.
+DROP SCHEMA chat CASCADE;
+```
+
+## 5. Access patterns (tested)
+
+`$n` are bind parameters. In Ecto, prefer `Repo.insert_all`/`update_all`/fragments as needed; these are the reference semantics.
+
+```sql
+-- 5.1 Customer: find the open conversation (user)
+SELECT * FROM chat.conversations WHERE customer_user_id = $1 AND status = 'open';
+-- guest
+SELECT * FROM chat.conversations WHERE guest_id = $1 AND status = 'open';
+
+-- 5.2 Customer: create the open conversation if missing (race-safe).
+--     0 rows returned => someone else created it first; re-run 5.1.
+INSERT INTO chat.conversations (customer_user_id, customer_email)
+VALUES ($1, $2)
+ON CONFLICT (customer_user_id) WHERE status = 'open' AND customer_user_id IS NOT NULL DO NOTHING
+RETURNING *;
+-- guest variant
+INSERT INTO chat.conversations (guest_id, customer_email)
+VALUES ($1, $2)
+ON CONFLICT (guest_id) WHERE status = 'open' AND guest_id IS NOT NULL DO NOTHING
+RETURNING *;
+
+-- 5.3 Send a message (idempotent). 0 rows returned => retry of an already-stored message:
+--     load it by (conversation_id, client_message_id) and DO NOT broadcast again.
+--     The trigger updates the conversation timeline and rejects closed conversations.
+INSERT INTO chat.messages (conversation_id, sender_role, sender_user_id, client_message_id, body)
+VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (conversation_id, client_message_id) DO NOTHING
+RETURNING *;
+
+-- 5.4 Thread history, first page (newest first; reverse in the app for display)
+SELECT * FROM chat.messages
+WHERE conversation_id = $1
+ORDER BY id DESC
+LIMIT 51;                               -- fetch limit + 1 to compute has_more
+
+-- 5.5 Thread history, older page (keyset)
+SELECT * FROM chat.messages
+WHERE conversation_id = $1 AND id < $2
+ORDER BY id DESC
+LIMIT 51;
+
+-- 5.6 Admin inbox page with last-message preview (keyset on (last_message_at, id))
+SELECT c.id, c.status, c.customer_email, c.awaiting_reply,
+       c.created_at, c.closed_at, c.last_message_at, c.first_admin_reply_at,
+       m.sender_role AS last_message_sender_role, m.body AS last_message_body
+FROM chat.conversations c
+LEFT JOIN LATERAL (
+    SELECT sender_role, body
+    FROM chat.messages
+    WHERE conversation_id = c.id
+    ORDER BY id DESC
+    LIMIT 1
+) m ON true
+WHERE c.status = $1
+  AND (c.last_message_at, c.id) < ($2, $3)   -- omit this line for the first page
+ORDER BY c.last_message_at DESC, c.id DESC
+LIMIT 31;
+
+-- 5.7 Admin "awaiting reply" tab, longest-waiting first
+SELECT id, customer_email, last_customer_message_at
+FROM chat.conversations
+WHERE status = 'open' AND awaiting_reply
+ORDER BY last_customer_message_at
+LIMIT 30;
+
+-- 5.8 Close a conversation (idempotent: 0 rows => already closed or not found)
+UPDATE chat.conversations
+   SET status = 'closed', closed_at = now()
+ WHERE id = $1 AND status = 'open'
+RETURNING *;
+
+-- 5.9 Admin: find conversations by exact customer email
+SELECT * FROM chat.conversations
+WHERE customer_email = lower($1)
+ORDER BY last_message_at DESC;
+
+-- 5.10 Response-time metric (last 30 days, answered conversations)
+SELECT count(*) AS answered,
+       avg(first_admin_reply_at - created_at) AS avg_first_response
+FROM chat.conversations
+WHERE first_admin_reply_at IS NOT NULL
+  AND created_at >= now() - interval '30 days';
+```
+
+Verified plans: 5.1 and 5.2 use the partial unique indexes; 5.4/5.5 use `messages_pkey` as a backward index scan with no filter and no sort; 5.6 uses `conversations_inbox_idx` plus one `messages_pkey` probe per row; 5.7 uses `conversations_awaiting_reply_idx`.
+
+## 6. Optional: least-privilege runtime role
+
+The service should not be able to touch the Next.js tables. Run migrations with an owner/admin role, and run the app with a role that only sees `chat`. (Tested on PostgreSQL 16.)
+
+```sql
+CREATE ROLE chat_app LOGIN PASSWORD '<strong-secret>';
+GRANT USAGE ON SCHEMA chat TO chat_app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA chat TO chat_app;
+GRANT USAGE ON ALL SEQUENCES IN SCHEMA chat TO chat_app;
+```
+
+Point the service's `DATABASE_URL` at `chat_app` and keep a separate `MIGRATION_DATABASE_URL` for the release `migrate` step if you adopt this.
+
+## 7. Known limits of v0 (deliberate)
+
+- `customer_user_id` has no foreign key. Add one once the users table shape is known.
+- No `updated_at`: every state change is already captured by `created_at`, `closed_at` and the `last_*` columns.
+- No retention/archival. Add a scheduled cleanup or partitioning only when volume justifies it.
+- `customer_email` search is exact-match only; add a trigram or `text_pattern_ops` index when prefix/fuzzy search is needed.
+- `messages.id` is unique only together with `conversation_id` (composite PK). Add `UNIQUE (id)` if another table ever needs to reference a message by id alone.

@@ -148,6 +148,7 @@ import { PatientAppointmentHistoryController } from './presentation/patient-appo
     PerformCheckInUseCase,
     'FIND_APPOINTMENT_BY_ID',
     CandidateAssignmentModule,
+    AppointmentRecipientResolver,
   ],
 })
 export class AppointmentsModule {}

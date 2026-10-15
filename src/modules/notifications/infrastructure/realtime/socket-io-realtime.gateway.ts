@@ -2,9 +2,12 @@ import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import {
+  ConnectedSocket,
+  MessageBody,
   OnGatewayConnection,
   OnGatewayDisconnect,
   OnGatewayInit,
+  SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
@@ -16,9 +19,9 @@ import { auth as betterAuth } from '../../../../auth/better-auth/auth';
 import { JwtPayloadType } from '../../../../auth/strategies/types/jwt-payload.type';
 import { REDIS_CLIENT } from '../../../../common/redis/redis.constants';
 import { AllConfigType } from '../../../../config/config.type';
-import { RealtimeTicketService } from '../../application/services/realtime-ticket.service';
 import { RealtimeGatewayPort } from '../../contracts/realtime-gateway.interface';
 import { REALTIME_ROOMS } from '../../notifications.constants';
+import { RealtimeTicketService } from '../../application/services/realtime-ticket.service';
 
 @Injectable()
 @WebSocketGateway({
@@ -110,8 +113,7 @@ export class SocketIoRealtimeGateway
             return next(new Error('TICKET_SERVICE_UNAVAILABLE'));
           }
 
-          const ticketData =
-            await this.realtimeTicketService.consumeTicket(rawTicket);
+          const ticketData = await this.realtimeTicketService.consumeTicket(rawTicket);
           if (ticketData?.userId) {
             socket.data.userId = ticketData.userId;
             socket.data.user = ticketData;
@@ -179,149 +181,28 @@ export class SocketIoRealtimeGateway
 
   async handleConnection(client: Socket): Promise<void> {
     const transport = client.conn?.transport?.name || 'unknown';
+    const userId = client.data.userId;
 
-    // If middleware already admitted and authenticated the client
-    if (client.data.userId) {
-      const userId = client.data.userId;
-      const roleCode = client.data.role || 'patient';
-      await client.join(REALTIME_ROOMS.user(userId));
-      await client.join(REALTIME_ROOMS.role(roleCode));
-      this.trackSocket(userId, client.id);
-
-      this.logger.log(
-        `realtime.connect userId=${userId} role=${roleCode} transport=${transport} [id=${client.id}]`,
-      );
-      return;
-    }
-
-    // 1. Primary: Opaque single-use ticket handshake
-    const rawTicket =
-      client.handshake.auth?.ticket ||
-      (typeof client.handshake.query?.ticket === 'string'
-        ? client.handshake.query.ticket
-        : undefined);
-
-    if (rawTicket) {
-      if (!this.realtimeTicketService) {
-        this.logger.warn(
-          `realtime.reject reason=TICKET_SERVICE_UNAVAILABLE [id=${client.id}]`,
-        );
-        client.emit('connect_error', {
-          message: 'TICKET_SERVICE_UNAVAILABLE',
-          code: 'TICKET_SERVICE_UNAVAILABLE',
-        });
-        client.disconnect(true);
-        return;
-      }
-
-      const ticketData =
-        await this.realtimeTicketService.consumeTicket(rawTicket);
-      if (ticketData?.userId) {
-        client.data.userId = ticketData.userId;
-        client.data.user = ticketData;
-
-        await client.join(REALTIME_ROOMS.user(ticketData.userId));
-        const roleCode = ticketData.role || 'patient';
-        await client.join(REALTIME_ROOMS.role(roleCode));
-        this.trackSocket(ticketData.userId, client.id);
-
-        this.logger.log(
-          `realtime.connect userId=${ticketData.userId} role=${roleCode} transport=${transport} [id=${client.id}]`,
-        );
-        return;
-      }
-
+    if (!userId) {
       this.logger.warn(
-        `realtime.reject reason=AUTH_TICKET_INVALID_OR_EXPIRED [id=${client.id}]`,
+        `realtime.reject reason=AUTH_TICKET_MISSING [id=${client.id}]`,
       );
       client.emit?.('connect_error', {
-        message: 'AUTH_TICKET_INVALID',
-        code: 'AUTH_TICKET_INVALID',
+        message: 'AUTH_TICKET_MISSING',
+        code: 'AUTH_TICKET_MISSING',
       });
       client.disconnect(true);
       return;
     }
 
-    // 2. Migration Fallback: JWT header or cookie
-    const token = this.extractToken(client);
+    const roleCode = client.data.role || 'patient';
+    await client.join(REALTIME_ROOMS.user(userId));
+    await client.join(REALTIME_ROOMS.role(roleCode));
+    this.trackSocket(userId, client.id);
 
-    if (token) {
-      try {
-        const secret = this.configService.getOrThrow('auth.secret', {
-          infer: true,
-        });
-        const payload = await this.jwtService.verifyAsync<JwtPayloadType>(
-          token,
-          { secret },
-        );
-
-        if (payload?.id) {
-          client.data.userId = payload.id;
-          client.data.user = payload;
-
-          await client.join(REALTIME_ROOMS.user(payload.id));
-          const roleCode =
-            payload.systemRole ||
-            payload.role?.name ||
-            (typeof payload.role === 'string' ? payload.role : null);
-          if (roleCode && typeof roleCode === 'string') {
-            await client.join(REALTIME_ROOMS.role(roleCode));
-          }
-          this.trackSocket(payload.id, client.id);
-
-          this.logger.log(
-            `realtime.connect userId=${payload.id} (legacy jwt) transport=${transport} [id=${client.id}]`,
-          );
-          return;
-        }
-      } catch (jwtError) {
-        this.logger.debug(
-          `JWT verification failed for socket [id=${client.id}], checking Better Auth: ${jwtError}`,
-        );
-      }
-    }
-
-    // 3. Migration Fallback: Better Auth session from handshake headers
-    if (client.handshake.headers) {
-      try {
-        const session = await betterAuth.api.getSession({
-          headers: fromNodeHeaders(
-            client.handshake.headers as Record<string, string | string[]>,
-          ),
-        });
-
-        if (session?.user?.id) {
-          const userId = session.user.id;
-          client.data.userId = userId;
-          client.data.user = session.user;
-
-          await client.join(REALTIME_ROOMS.user(userId));
-          const roleCode = (session.user as any).role || 'patient';
-          if (roleCode && typeof roleCode === 'string') {
-            await client.join(REALTIME_ROOMS.role(roleCode));
-          }
-          this.trackSocket(userId, client.id);
-
-          this.logger.log(
-            `realtime.connect userId=${userId} (legacy better-auth) transport=${transport} [id=${client.id}]`,
-          );
-          return;
-        }
-      } catch (betterAuthErr) {
-        this.logger.debug(
-          `Better Auth session verification failed for socket [id=${client.id}]: ${betterAuthErr}`,
-        );
-      }
-    }
-
-    this.logger.warn(
-      `realtime.reject reason=AUTH_TICKET_MISSING [id=${client.id}]`,
+    this.logger.log(
+      `realtime.connect userId=${userId} role=${roleCode} transport=${transport} [id=${client.id}]`,
     );
-    client.emit?.('connect_error', {
-      message: 'AUTH_TICKET_MISSING',
-      code: 'AUTH_TICKET_MISSING',
-    });
-    client.disconnect(true);
   }
 
   handleDisconnect(client: Socket): void {
@@ -368,8 +249,89 @@ export class SocketIoRealtimeGateway
     return true;
   }
 
+  async emitToRoom(
+    roomName: string,
+    event: string,
+    payload: unknown,
+  ): Promise<boolean> {
+    if (!this.server) {
+      this.logger.warn(
+        `Cannot emit event "${event}" to room ${roomName}: server not ready`,
+      );
+      return false;
+    }
+    this.server.to(roomName).emit(event, payload);
+    return true;
+  }
+
+  @SubscribeMessage('chat:join')
+  async handleChatJoin(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { conversationId: string },
+  ): Promise<void> {
+    if (data?.conversationId) {
+      const room = `chat:${data.conversationId}`;
+      await client.join(room);
+      this.logger.debug(
+        `Socket [${client.id}] joined conversation room [${room}]`,
+      );
+    }
+  }
+
+  @SubscribeMessage('chat:leave')
+  async handleChatLeave(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { conversationId: string },
+  ): Promise<void> {
+    if (data?.conversationId) {
+      const room = `chat:${data.conversationId}`;
+      await client.leave(room);
+      this.logger.debug(
+        `Socket [${client.id}] left conversation room [${room}]`,
+      );
+    }
+  }
+
+  @SubscribeMessage('chat:typing')
+  handleChatTyping(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { conversationId: string; isTyping: boolean },
+  ): void {
+    if (!data?.conversationId) return;
+    const room = `chat:${data.conversationId}`;
+    const senderId = client.data?.userId;
+    const senderRole = client.data?.role || 'customer';
+
+    // Broadcast to other sockets in the conversation room
+    client.to(room).emit('chat:typing', {
+      conversationId: data.conversationId,
+      senderId,
+      senderRole,
+      isTyping: Boolean(data.isTyping),
+    });
+
+    // Also broadcast to role:admin room if sender is customer/guest
+    if (senderRole === 'customer' || senderRole === 'guest') {
+      this.server.to('role:admin').emit('chat:typing', {
+        conversationId: data.conversationId,
+        senderId,
+        senderRole: 'customer',
+        isTyping: Boolean(data.isTyping),
+      });
+    }
+  }
+
   isUserOnline(userId: string): boolean {
     return (this.userSockets.get(userId)?.size ?? 0) > 0;
+  }
+
+  isRoleOnline(roleName: string): boolean {
+    if (!this.server) {
+      return false;
+    }
+    const room = REALTIME_ROOMS.role(roleName);
+    const roomSockets = this.server.sockets?.adapter?.rooms?.get(room);
+    return (roomSockets?.size ?? 0) > 0;
   }
 
   getConnectedUserCount(): number {
