@@ -344,6 +344,10 @@ export const staffInvitationsRelations = relations(
       fields: [staffInvitations.invitedBy],
       references: [users.id],
     }),
+    acceptedUser: one(users, {
+      fields: [staffInvitations.acceptedUserId],
+      references: [users.id],
+    }),
   }),
 );
 

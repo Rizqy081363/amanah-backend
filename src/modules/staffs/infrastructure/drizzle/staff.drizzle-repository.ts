@@ -3,6 +3,7 @@ import { and, eq, ilike } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
+  practitioners,
   staffAddresses,
   staffCredentials,
   staffProfiles,
@@ -19,7 +20,11 @@ export class StaffDrizzleRepository implements StaffRepository {
     private readonly db: DrizzleDatabase,
   ) {}
 
-  private mapRecordToEntity(r: any, addressRecord?: any): StaffEntity {
+  private mapRecordToEntity(
+    r: any,
+    addressRecord?: any,
+    practitionerRecord?: any,
+  ): StaffEntity {
     return {
       id: r.id,
       userId: r.userId || '',
@@ -28,6 +33,11 @@ export class StaffDrizzleRepository implements StaffRepository {
       profession: r.positionTitle || 'Staf Operasional',
       staffType: r.staffType || 'worker',
       idCardNumber: r.staffCode,
+      licenseNumber:
+        practitionerRecord?.licenseNumber ??
+        r.practitioner?.licenseNumber ??
+        r.licenseNumber ??
+        null,
       birthPlace: r.birthPlace || null,
       birthDate: r.birthDate ? String(r.birthDate) : null,
       gender: r.gender || null,
@@ -94,19 +104,38 @@ export class StaffDrizzleRepository implements StaffRepository {
   }
 
   async findById(id: string): Promise<StaffEntity | null> {
-    const record = await this.db.query.staffProfiles.findFirst({
+    let targetProfileId = id;
+    let record = await this.db.query.staffProfiles.findFirst({
       where: eq(staffProfiles.id, id),
     });
+
+    let practitionerRecord: any = null;
+    if (!record) {
+      practitionerRecord = await this.db.query.practitioners.findFirst({
+        where: eq(practitioners.id, id),
+      });
+      if (practitionerRecord) {
+        targetProfileId = practitionerRecord.staffProfileId;
+        record = await this.db.query.staffProfiles.findFirst({
+          where: eq(staffProfiles.id, targetProfileId),
+        });
+      }
+    } else {
+      practitionerRecord = await this.db.query.practitioners.findFirst({
+        where: eq(practitioners.staffProfileId, targetProfileId),
+      });
+    }
+
     if (!record) return null;
 
     const primaryAddr = await this.db.query.staffAddresses.findFirst({
       where: and(
-        eq(staffAddresses.staffProfileId, id),
+        eq(staffAddresses.staffProfileId, targetProfileId),
         eq(staffAddresses.isPrimary, true),
       ),
     });
 
-    return this.mapRecordToEntity(record, primaryAddr);
+    return this.mapRecordToEntity(record, primaryAddr, practitionerRecord);
   }
 
   async findByUserId(userId: string): Promise<StaffEntity | null> {
@@ -122,7 +151,11 @@ export class StaffDrizzleRepository implements StaffRepository {
       ),
     });
 
-    return this.mapRecordToEntity(record, primaryAddr);
+    const practitionerRecord = await this.db.query.practitioners.findFirst({
+      where: eq(practitioners.staffProfileId, record.id),
+    });
+
+    return this.mapRecordToEntity(record, primaryAddr, practitionerRecord);
   }
 
   async findByCardNumber(cardNum: string): Promise<StaffEntity | null> {
@@ -148,25 +181,49 @@ export class StaffDrizzleRepository implements StaffRepository {
 
   async findAll(): Promise<StaffEntity[]> {
     const records = await this.db.query.staffProfiles.findMany({
-      where: and(
-        eq(staffProfiles.status, 'active'),
-        eq(staffProfiles.staffType, 'worker'),
-      ),
+      where: eq(staffProfiles.status, 'active'),
       with: {
         addresses: true,
       },
     });
-    return records.map((r: any) => {
-      const primaryAddr =
-        r.addresses?.find((a: any) => a.isPrimary) || r.addresses?.[0];
-      return this.mapRecordToEntity(r, primaryAddr);
-    });
+    return Promise.all(
+      records.map(async (r: any) => {
+        const primaryAddr =
+          r.addresses?.find((a: any) => a.isPrimary) || r.addresses?.[0];
+        let practitionerRecord: any = null;
+        if (r.staffType === 'doctor' || r.staffType === 'midwife') {
+          practitionerRecord = await this.db.query.practitioners.findFirst({
+            where: eq(practitioners.staffProfileId, r.id),
+          });
+        }
+        return this.mapRecordToEntity(r, primaryAddr, practitionerRecord);
+      }),
+    );
   }
 
   async update(
     id: string,
     data: Partial<StaffEntity>,
   ): Promise<StaffEntity | null> {
+    let targetProfileId = id;
+    let existingProfile = await this.db.query.staffProfiles.findFirst({
+      where: eq(staffProfiles.id, id),
+    });
+
+    if (!existingProfile) {
+      const prac = await this.db.query.practitioners.findFirst({
+        where: eq(practitioners.id, id),
+      });
+      if (prac) {
+        targetProfileId = prac.staffProfileId;
+        existingProfile = await this.db.query.staffProfiles.findFirst({
+          where: eq(staffProfiles.id, targetProfileId),
+        });
+      }
+    }
+
+    if (!existingProfile) return null;
+
     const updateValues: Record<string, any> = {
       updatedAt: new Date().toISOString(),
     };
@@ -193,7 +250,7 @@ export class StaffDrizzleRepository implements StaffRepository {
     const [updated] = await this.db
       .update(staffProfiles)
       .set(updateValues)
-      .where(eq(staffProfiles.id, id))
+      .where(eq(staffProfiles.id, targetProfileId))
       .returning();
 
     if (!updated) return null;
@@ -202,7 +259,7 @@ export class StaffDrizzleRepository implements StaffRepository {
     if (data.address) {
       const existingAddr = await this.db.query.staffAddresses.findFirst({
         where: and(
-          eq(staffAddresses.staffProfileId, id),
+          eq(staffAddresses.staffProfileId, targetProfileId),
           eq(staffAddresses.isPrimary, true),
         ),
       });
@@ -239,7 +296,7 @@ export class StaffDrizzleRepository implements StaffRepository {
           .where(eq(staffAddresses.id, existingAddr.id));
       } else {
         await this.db.insert(staffAddresses).values({
-          staffProfileId: id,
+          staffProfileId: targetProfileId,
           type: 'domicile',
           provinceCode: data.address.provinceCode || null,
           provinceName: data.address.provinceName || null,
@@ -273,7 +330,30 @@ export class StaffDrizzleRepository implements StaffRepository {
       }
     }
 
-    return this.findById(id);
+    // Synchronize updates to practitioners table for clinical staff (doctor / midwife)
+    const existingPractitioner = await this.db.query.practitioners.findFirst({
+      where: eq(practitioners.staffProfileId, targetProfileId),
+    });
+    if (existingPractitioner) {
+      const practitionerUpdates: Record<string, any> = {
+        updatedAt: new Date().toISOString(),
+      };
+      if (data.fullName !== undefined) {
+        practitionerUpdates.displayName = data.fullName;
+      }
+      if (data.licenseNumber !== undefined) {
+        practitionerUpdates.licenseNumber = data.licenseNumber || null;
+      }
+      if (data.isActive !== undefined) {
+        practitionerUpdates.isAcceptingAppointments = data.isActive;
+      }
+      await this.db
+        .update(practitioners)
+        .set(practitionerUpdates)
+        .where(eq(practitioners.id, existingPractitioner.id));
+    }
+
+    return this.findById(targetProfileId);
   }
 
   async delete(id: string): Promise<boolean> {

@@ -19,6 +19,7 @@ export class StaffEntity {
   profession: string;
   staffType: 'doctor' | 'midwife' | 'worker';
   idCardNumber: string;
+  licenseNumber?: string | null;
   birthPlace?: string | null;
   birthDate?: string | null;
   gender?: 'male' | 'female' | null;

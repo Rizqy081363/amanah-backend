@@ -11,4 +11,5 @@ export type AuthConfig = {
   confirmEmailExpires?: ms.StringValue;
   resetPasswordPath: string;
   uniformErrors: boolean;
+  googleClientId?: string;
 };

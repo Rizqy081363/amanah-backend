@@ -94,8 +94,7 @@ export class BookedPatientMapper {
       medicalRecordNumber:
         apt.patientProfile?.medicalRecordNumber || 'RM-UNKNOWN',
       age: ageStr,
-      gender:
-        apt.patientProfile?.gender === 'female' ? 'Perempuan' : 'Laki-laki',
+      gender: apt.patientProfile?.gender || null,
       queueNumber,
       etaRange,
       estimatedStartAt: apt.estimatedStartAt || null,

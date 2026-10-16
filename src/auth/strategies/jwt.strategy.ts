@@ -7,6 +7,8 @@ import { AllConfigType } from '../../config/config.type';
 import { DRIZZLE_SOURCE } from '../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../database/drizzle/drizzle.provider';
 import { users } from '../../database/schema';
+import { STAFF_ROLE_CODES } from '../../modules/staffs/domain/constants/staff-invitation.constants';
+import { SYSTEM_ROLES, type SystemRole } from '../constants/auth.constants';
 import { JwtPayloadType } from './types/jwt-payload.type';
 
 @Injectable()
@@ -50,16 +52,16 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     }
 
     const primaryRole = user.userRoles_userId?.[0]?.role;
-    let systemRole: 'ADMIN' | 'STAF' | 'PATIENT' = 'PATIENT';
+    let systemRole: SystemRole = SYSTEM_ROLES.PATIENT;
     if (primaryRole?.code === 'admin') {
-      systemRole = 'ADMIN';
+      systemRole = SYSTEM_ROLES.ADMIN;
     } else if (
-      primaryRole?.code === 'staff_doctor' ||
-      primaryRole?.code === 'staff_midwife' ||
-      primaryRole?.code === 'staff_worker' ||
+      primaryRole?.code === STAFF_ROLE_CODES.DOCTOR ||
+      primaryRole?.code === STAFF_ROLE_CODES.MIDWIFE ||
+      primaryRole?.code === STAFF_ROLE_CODES.WORKER ||
       (user.staffProfiles && user.staffProfiles.length > 0)
     ) {
-      systemRole = 'STAF';
+      systemRole = SYSTEM_ROLES.STAF;
     }
 
     const staffProfile = user.staffProfiles?.[0];
@@ -82,7 +84,8 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
             poliklinikId: staffProfile.primaryUnitId,
             fullName: staffProfile.fullName,
             profession: staffProfile.positionTitle,
-            idCardNumber: staffProfile.staffCode,
+            staffCode: staffProfile.staffCode,
+            idCardNumber: staffProfile.nationalIdEncrypted || null,
             photoUrl: staffProfile.avatarUrl,
             phoneNumber: staffProfile.phone,
             isActive: staffProfile.status === 'active',
@@ -98,8 +101,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
               patientProfile.nationalIdHash ||
               '',
             fullName: patientProfile.fullName,
-            gender:
-              patientProfile.gender === 'female' ? 'Perempuan' : 'Laki-laki',
+            gender: patientProfile.gender || null,
             birthPlace: patientProfile.birthPlace,
             birthDate: patientProfile.birthDate,
             bloodType: patientProfile.bloodType,

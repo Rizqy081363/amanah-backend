@@ -3,6 +3,7 @@ import { and, desc, eq } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import { staffInvitations } from '../../../../database/schema';
+import type { StaffInvitationStatus } from '../../domain/constants/staff-invitation.constants';
 import { StaffInvitationEntity } from '../../domain/entities/staff-invitation.entity';
 import { StaffInvitationRepository } from '../../domain/repositories/staff-invitation.repository';
 
@@ -24,6 +25,7 @@ export class StaffInvitationDrizzleRepository
       tokenHash: r.tokenHash,
       temporaryPasswordHash: r.temporaryPasswordHash || null,
       invitedBy: r.invitedBy || null,
+      acceptedUserId: r.acceptedUserId || null,
       status: r.status,
       expiresAt: new Date(r.expiresAt),
       acceptedAt: r.acceptedAt ? new Date(r.acceptedAt) : null,
@@ -107,7 +109,8 @@ export class StaffInvitationDrizzleRepository
 
   async updateStatus(
     id: string,
-    status: 'pending' | 'accepted' | 'expired' | 'revoked',
+    status: StaffInvitationStatus,
+    acceptedUserId?: string | null,
   ): Promise<StaffInvitationEntity | null> {
     const updateValues: Record<string, any> = {
       status,
@@ -115,6 +118,9 @@ export class StaffInvitationDrizzleRepository
     };
     if (status === 'accepted') {
       updateValues.acceptedAt = new Date().toISOString();
+      if (acceptedUserId) {
+        updateValues.acceptedUserId = acceptedUserId;
+      }
     }
 
     const [updated] = await this.db

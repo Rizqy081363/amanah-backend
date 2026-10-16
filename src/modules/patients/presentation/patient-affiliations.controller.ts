@@ -160,7 +160,7 @@ export class PatientAffiliationsController {
             affiliationId: aff.id,
             fullName: aff.patient?.fullName || '',
             nik: aff.patient?.nik || '',
-            gender: aff.patient?.gender || 'Perempuan',
+            gender: aff.patient?.gender || null,
             bloodType: aff.patient?.bloodType || null,
             relationship: aff.relationshipType,
             relationshipLabel:
@@ -210,7 +210,7 @@ export class PatientAffiliationsController {
             affiliationId: aff.id,
             fullName: aff.patient?.fullName || '',
             nik: aff.patient?.nik || '',
-            gender: aff.patient?.gender || 'Laki-laki',
+            gender: aff.patient?.gender || null,
             bloodType: aff.patient?.bloodType || null,
             relationship: aff.relationshipType,
             relationshipLabel:
@@ -250,7 +250,7 @@ export class PatientAffiliationsController {
           affiliationId: aff.id,
           fullName: aff.patient?.fullName || '',
           nik: aff.patient?.nik || '',
-          gender: aff.patient?.gender || 'Laki-laki',
+          gender: aff.patient?.gender || null,
           bloodType: aff.patient?.bloodType || null,
           relationship: aff.relationshipType,
           relationshipLabel:

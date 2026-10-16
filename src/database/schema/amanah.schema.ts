@@ -1120,6 +1120,7 @@ export const staffInvitations = pgTable(
     tokenHash: text('token_hash').notNull(),
     temporaryPasswordHash: text('temporary_password_hash'),
     invitedBy: uuid('invited_by'),
+    acceptedUserId: uuid('accepted_user_id'),
     status: varchar('status', { length: 20 }).default('pending').notNull(),
     expiresAt: timestamp('expires_at', {
       withTimezone: true,
@@ -1141,10 +1142,18 @@ export const staffInvitations = pgTable(
     index('idx_staff_invitations_email').on(table.email),
     index('idx_staff_invitations_status').on(table.status),
     index('idx_staff_invitations_expires').on(table.expiresAt),
+    uniqueIndex('uq_staff_invitations_pending')
+      .on(table.email, table.roleCode)
+      .where(sql`status = 'pending'`),
     foreignKey({
       columns: [table.invitedBy],
       foreignColumns: [users.id],
       name: 'staff_invitations_invited_by_fkey',
+    }).onDelete('set null'),
+    foreignKey({
+      columns: [table.acceptedUserId],
+      foreignColumns: [users.id],
+      name: 'staff_invitations_accepted_user_id_fkey',
     }).onDelete('set null'),
     check(
       'staff_invitations_status_check',

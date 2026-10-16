@@ -6,7 +6,9 @@ import {
   doctorAssignments,
   masterDays,
   practitioners,
+  sessionDefs,
   shiftExceptions,
+  staffInvitations,
 } from '@database/schema';
 import {
   DEFAULT_CONSULTATION_DURATION_MINUTES,
@@ -21,7 +23,6 @@ import {
 } from '@modules/schedules/domain/entities/schedule.entity';
 import {
   ScheduleSessionFactory,
-  type SessionShiftType,
   SHIFT_DEFINITIONS,
 } from '@modules/schedules/domain/factories/schedule-session.factory';
 import { SchedulePatientEligibilityHelper } from '@modules/schedules/domain/helpers/schedule-patient-eligibility.helper';
@@ -43,7 +44,7 @@ import { ScheduleRecordMapper } from '@modules/schedules/infrastructure/drizzle/
 import { SchedulePolicyReader } from '@modules/schedules/infrastructure/drizzle/queries/schedule-policy.reader';
 import type { AdminDoctorSchedulesQueryDto } from '@modules/schedules/presentation/dto/admin-doctor-schedules-query.dto';
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
-import { and, asc, eq, gte, inArray, lte, not } from 'drizzle-orm';
+import { and, asc, eq, inArray, not } from 'drizzle-orm';
 
 @Injectable()
 export class DrizzleAdminDoctorScheduleListQuery {
@@ -81,6 +82,8 @@ export class DrizzleAdminDoctorScheduleListQuery {
       allShiftExceptions,
       dateFormatStyle,
       dayRecord,
+      activeSessionDefs,
+      pendingInvitations,
     ] = await Promise.all([
       this.db.query.practitioners.findMany({
         with: {
@@ -126,7 +129,22 @@ export class DrizzleAdminDoctorScheduleListQuery {
       this.db.query.masterDays.findFirst({
         where: eq(masterDays.dow, targetDow),
       }),
+      this.db.query.sessionDefs.findMany({
+        where: eq(sessionDefs.isActive, true),
+        with: {
+          schedules: true,
+        },
+      }),
+      this.db.query.staffInvitations.findMany({
+        where: eq(staffInvitations.status, 'pending'),
+      }),
     ]);
+
+    const pendingInvitationEmails = new Set(
+      pendingInvitations
+        .map((inv) => inv.email?.toLowerCase().trim())
+        .filter(Boolean),
+    );
 
     const cards: AdminDoctorScheduleCardEntity[] = [];
 
@@ -155,14 +173,41 @@ export class DrizzleAdminDoctorScheduleListQuery {
         };
       });
 
-      const assignments = filterEffectiveDoctorAssignments(
-        allDoctorAssignments.filter((da) => da.doctorId === p.id),
+      const doctorEmail = (p.staffProfile?.email || '').toLowerCase().trim();
+      const hasPendingInvitation = Boolean(
+        doctorEmail && pendingInvitationEmails.has(doctorEmail),
+      );
+      const isPending =
+        !p.isAcceptingAppointments ||
+        p.staffProfile?.status === 'inactive' ||
+        hasPendingInvitation;
+
+      const doctorAssignmentsForP = allDoctorAssignments.filter(
+        (da) => da.doctorId === p.id,
+      );
+
+      const effectiveAssignmentsPool =
+        doctorAssignmentsForP.length > 0
+          ? doctorAssignmentsForP
+          : activeSessionDefs.map((def: any) => ({
+              id: `default-${p.id}-${def.id}`,
+              doctorId: p.id,
+              sessionId: def.id,
+              dow: null,
+              isActive: true,
+              preferredRoomId: p.defaultRoomId || null,
+              preferredRoom: p.clinicRoom,
+              sessionDef: def,
+            }));
+
+      const assignments: any[] = filterEffectiveDoctorAssignments<any>(
+        effectiveAssignmentsPool as any,
         targetDow,
       );
 
       const sessions = assignments
-        .filter((da) => da.sessionDef && da.sessionDef.isActive)
-        .map((da) => {
+        .filter((da) => da.sessionDef?.isActive)
+        .map((da: any) => {
           const res = resolveDoctorSessionOperability({
             targetDow,
             targetDate,
@@ -292,12 +337,17 @@ export class DrizzleAdminDoctorScheduleListQuery {
       });
 
       const isClosed = aggregateOpStatus === ScheduleOperationalStatus.CLOSED;
-      const scheduleStatus = aggregateOpStatus;
+      const scheduleStatus = isPending
+        ? ScheduleOperationalStatus.PENDING
+        : aggregateOpStatus;
 
       let jadwalHariIni = '-';
       let jadwalPraktikMendatang = 'Tidak Ada Jadwal';
 
-      if (isOnLeave) {
+      if (isPending) {
+        jadwalHariIni = '-';
+        jadwalPraktikMendatang = 'Menunggu Verifikasi';
+      } else if (isOnLeave) {
         jadwalPraktikMendatang = 'Dokter Cuti';
       } else if (isClosed) {
         jadwalPraktikMendatang =
@@ -313,12 +363,15 @@ export class DrizzleAdminDoctorScheduleListQuery {
 
       const ruangPraktik =
         sesiHarian.length > 0 ? sesiHarian[0].ruang : defaultRoomName;
+      const isMidwifeStaff = p.staffProfile?.staffType === 'midwife';
       const spesialisasi =
         p.medicalSpecialty?.name ||
         p.staffProfile?.clinicUnit?.name ||
-        'Dokter Umum';
+        (isMidwifeStaff ? 'Kesehatan Ibu dan Anak' : 'Dokter Umum');
       const namaDokter =
-        p.staffProfile?.fullName || p.displayName || 'Dokter Amanah';
+        p.staffProfile?.fullName ||
+        p.displayName ||
+        (isMidwifeStaff ? 'Bidan Amanah' : 'Dokter Amanah');
       if (query.search) {
         const q = query.search.toLowerCase();
         const matchSearch =
@@ -352,7 +405,8 @@ export class DrizzleAdminDoctorScheduleListQuery {
         if (invalidStatuses.length > 0) {
           throw new BadRequestException({
             code: 'INVALID_SCHEDULE_STATUS_FILTER',
-            message: 'Status filter must use canonical values: OPEN, CLOSED.',
+            message:
+              'Status filter must use canonical values: OPEN, CLOSED, PENDING.',
             metadata: { invalidStatuses },
           });
         }
@@ -362,6 +416,8 @@ export class DrizzleAdminDoctorScheduleListQuery {
       cards.push({
         id: p.id,
         practitioner_id: p.id,
+        staff_profile_id: p.staffProfileId,
+        staff_id: p.staffProfileId,
         nama_dokter: namaDokter,
         spesialisasi,
         status_dokter: scheduleStatus,
@@ -381,9 +437,10 @@ export class DrizzleAdminDoctorScheduleListQuery {
         leave_reason: leaveReason,
         leave_start: leaveStart,
         leave_end: leaveEnd,
-        sesi_harian: sesiHarian,
-        total_pasien: totalPasien,
-        pasien_preview: pasienPreview,
+        sesi_harian: isPending ? [] : sesiHarian,
+        total_pasien: isPending ? 0 : totalPasien,
+        pasien_preview: isPending ? [] : pasienPreview,
+        is_accepting_appointments: p.isAcceptingAppointments,
       });
     }
 

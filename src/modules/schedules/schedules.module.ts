@@ -30,6 +30,7 @@ import { AdminDoctorSchedulesController } from '@modules/schedules/presentation/
 import { AdminScheduleConfigurationController } from '@modules/schedules/presentation/admin-schedule-configuration.controller';
 import { ClinicalPractitionersController } from '@modules/schedules/presentation/clinical-practitioners.controller';
 import { SchedulesController } from '@modules/schedules/presentation/schedules.controller';
+import { StaffsModule } from '../staffs/staffs.module';
 import { Module } from '@nestjs/common';
 
 @Module({
@@ -38,6 +39,7 @@ import { Module } from '@nestjs/common';
     ClinicConfigModule,
     DoctorRosterModule,
     OperatingDaysModule,
+    StaffsModule,
   ],
   controllers: [
     SchedulesController,

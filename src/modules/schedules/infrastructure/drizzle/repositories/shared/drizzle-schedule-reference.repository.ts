@@ -115,6 +115,10 @@ export class DrizzleScheduleReferenceRepository {
         statuses: [
           { id: ScheduleOperationalStatus.OPEN, label: 'Buka' },
           { id: ScheduleOperationalStatus.CLOSED, label: 'Tutup' },
+          {
+            id: ScheduleOperationalStatus.PENDING,
+            label: 'Menunggu Verifikasi',
+          },
         ],
       },
     };

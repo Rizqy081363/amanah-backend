@@ -62,6 +62,10 @@ class EnvironmentVariablesValidator {
   @IsString()
   @IsOptional()
   AUTH_RESET_PASSWORD_PATH?: string;
+
+  @IsString()
+  @IsOptional()
+  GOOGLE_CLIENT_ID?: string;
 }
 
 export default registerAs<AuthConfig>('auth', () => {
@@ -81,5 +85,6 @@ export default registerAs<AuthConfig>('auth', () => {
     resetPasswordPath:
       process.env.AUTH_RESET_PASSWORD_PATH || '/auth/sign-in/reset-password',
     uniformErrors: process.env.AUTH_UNIFORM_ERRORS === 'true',
+    googleClientId: process.env.GOOGLE_CLIENT_ID,
   };
 });

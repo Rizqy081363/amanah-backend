@@ -12,9 +12,11 @@ import { fromNodeHeaders } from 'better-auth/node';
 import { eq } from 'drizzle-orm';
 import type { Request } from 'express';
 import { auth as betterAuth } from '../../auth/better-auth/auth';
+import { SYSTEM_ROLES, type SystemRole } from '../../auth/constants/auth.constants';
 import { DRIZZLE_SOURCE } from '../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../database/drizzle/drizzle.provider';
 import { users } from '../../database/schema';
+import { STAFF_ROLE_CODES } from '../../modules/staffs/domain/constants/staff-invitation.constants';
 import { RedisService } from '../redis/redis.service';
 import { IS_PUBLIC_KEY } from './public.decorator';
 
@@ -101,16 +103,16 @@ export class HybridAuthGuard extends AuthGuard('jwt') implements CanActivate {
       }
 
       const primaryRole = userRecord.userRoles_userId?.[0]?.role;
-      let systemRole: 'ADMIN' | 'STAF' | 'PATIENT' = 'PATIENT';
+      let systemRole: SystemRole = SYSTEM_ROLES.PATIENT;
       if (primaryRole?.code === 'admin') {
-        systemRole = 'ADMIN';
+        systemRole = SYSTEM_ROLES.ADMIN;
       } else if (
-        primaryRole?.code === 'staff_doctor' ||
-        primaryRole?.code === 'staff_midwife' ||
-        primaryRole?.code === 'staff_worker' ||
+        primaryRole?.code === STAFF_ROLE_CODES.DOCTOR ||
+        primaryRole?.code === STAFF_ROLE_CODES.MIDWIFE ||
+        primaryRole?.code === STAFF_ROLE_CODES.WORKER ||
         (userRecord.staffProfiles && userRecord.staffProfiles.length > 0)
       ) {
-        systemRole = 'STAF';
+        systemRole = SYSTEM_ROLES.STAF;
       }
 
       const staffProfile = userRecord.staffProfiles?.[0];
@@ -133,7 +135,9 @@ export class HybridAuthGuard extends AuthGuard('jwt') implements CanActivate {
               poliklinikId: staffProfile.primaryUnitId,
               fullName: staffProfile.fullName,
               profession: staffProfile.positionTitle,
-              idCardNumber: staffProfile.staffCode,
+              staffCode: staffProfile.staffCode,
+              idCardNumber: staffProfile.nationalIdEncrypted || null,
+              gender: staffProfile.gender || null,
               photoUrl: staffProfile.avatarUrl,
               phoneNumber: staffProfile.phone,
               isActive: staffProfile.status === 'active',
@@ -149,8 +153,7 @@ export class HybridAuthGuard extends AuthGuard('jwt') implements CanActivate {
                 patientProfile.nationalIdHash ||
                 '',
               fullName: patientProfile.fullName,
-              gender:
-                patientProfile.gender === 'female' ? 'Perempuan' : 'Laki-laki',
+              gender: patientProfile.gender || null,
               birthPlace: patientProfile.birthPlace,
               birthDate:
                 typeof patientProfile.birthDate === 'string'

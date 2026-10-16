@@ -11,6 +11,7 @@ import {
   BetterAuthGuard,
   BetterAuthRbacGuard,
 } from './better-auth';
+import { GoogleTokenVerifierService } from './services/google-token-verifier.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy';
 
@@ -19,12 +20,19 @@ import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy';
   controllers: [AuthController, BetterAuthController],
   providers: [
     AuthService,
+    GoogleTokenVerifierService,
     JwtStrategy,
     JwtRefreshStrategy,
     BetterAuthGuard,
     BetterAuthRbacGuard,
     HybridAuthGuard,
   ],
-  exports: [AuthService, BetterAuthGuard, BetterAuthRbacGuard, HybridAuthGuard],
+  exports: [
+    AuthService,
+    GoogleTokenVerifierService,
+    BetterAuthGuard,
+    BetterAuthRbacGuard,
+    HybridAuthGuard,
+  ],
 })
 export class AuthModule {}

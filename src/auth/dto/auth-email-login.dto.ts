@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsEmail, IsNotEmpty } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { lowerCaseTransformer } from '../../utils/transformers/lower-case.transformer';
 
 export class AuthEmailLoginDto {
@@ -13,4 +13,13 @@ export class AuthEmailLoginDto {
   @ApiProperty()
   @IsNotEmpty()
   password: string;
+
+  @ApiProperty({
+    required: false,
+    example: 'mobile-internal',
+    description: 'Identitas permukaan klien (misal: mobile-internal)',
+  })
+  @IsOptional()
+  @IsString()
+  clientId?: string;
 }

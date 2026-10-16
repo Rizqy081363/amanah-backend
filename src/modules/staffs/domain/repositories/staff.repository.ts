@@ -2,21 +2,27 @@ import { StaffEntity } from '../entities/staff.entity';
 
 export const STAFF_REPOSITORY = 'STAFF_REPOSITORY';
 
-export interface StaffRepository {
-  create(
+export abstract class StaffRepository {
+  abstract create(
     data: Omit<StaffEntity, 'id' | 'createdAt' | 'updatedAt'>,
   ): Promise<StaffEntity>;
-  findById(id: string): Promise<StaffEntity | null>;
-  findByUserId(userId: string): Promise<StaffEntity | null>;
-  findByCardNumber(cardNum: string): Promise<StaffEntity | null>;
-  findByProfession(profession: string): Promise<StaffEntity[]>;
-  findByPoliklinik(poliId: string): Promise<StaffEntity[]>;
-  findAll(): Promise<StaffEntity[]>;
-  update(id: string, data: Partial<StaffEntity>): Promise<StaffEntity | null>;
-  delete(id: string): Promise<boolean>;
-  findCredentials(staffId: string): Promise<any[]>;
-  findCredentialById(credentialId: string): Promise<any | null>;
-  addCredential(staffId: string, credential: any): Promise<any>;
-  updateCredential(credentialId: string, credential: any): Promise<any | null>;
-  deleteCredential(credentialId: string): Promise<boolean>;
+  abstract findById(id: string): Promise<StaffEntity | null>;
+  abstract findByUserId(userId: string): Promise<StaffEntity | null>;
+  abstract findByCardNumber(cardNum: string): Promise<StaffEntity | null>;
+  abstract findByProfession(profession: string): Promise<StaffEntity[]>;
+  abstract findByPoliklinik(poliId: string): Promise<StaffEntity[]>;
+  abstract findAll(): Promise<StaffEntity[]>;
+  abstract update(
+    id: string,
+    data: Partial<StaffEntity>,
+  ): Promise<StaffEntity | null>;
+  abstract delete(id: string): Promise<boolean>;
+  abstract findCredentials(staffId: string): Promise<any[]>;
+  abstract findCredentialById(credentialId: string): Promise<any | null>;
+  abstract addCredential(staffId: string, credential: any): Promise<any>;
+  abstract updateCredential(
+    credentialId: string,
+    credential: any,
+  ): Promise<any | null>;
+  abstract deleteCredential(credentialId: string): Promise<boolean>;
 }

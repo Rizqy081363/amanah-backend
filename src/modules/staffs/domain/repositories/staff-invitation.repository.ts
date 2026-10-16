@@ -1,18 +1,26 @@
+import type { StaffInvitationStatus } from '../constants/staff-invitation.constants';
 import { StaffInvitationEntity } from '../entities/staff-invitation.entity';
 
 export const STAFF_INVITATION_REPOSITORY = 'STAFF_INVITATION_REPOSITORY';
 
-export interface StaffInvitationRepository {
-  create(
+export abstract class StaffInvitationRepository {
+  abstract create(
     data: Omit<StaffInvitationEntity, 'id' | 'createdAt' | 'updatedAt'>,
   ): Promise<StaffInvitationEntity>;
-  findById(id: string): Promise<StaffInvitationEntity | null>;
-  findByEmail(email: string): Promise<StaffInvitationEntity[]>;
-  findByTokenHash(tokenHash: string): Promise<StaffInvitationEntity | null>;
-  findPendingByEmail(email: string): Promise<StaffInvitationEntity | null>;
-  findAll(options?: { status?: string }): Promise<StaffInvitationEntity[]>;
-  updateStatus(
+  abstract findById(id: string): Promise<StaffInvitationEntity | null>;
+  abstract findByEmail(email: string): Promise<StaffInvitationEntity[]>;
+  abstract findByTokenHash(
+    tokenHash: string,
+  ): Promise<StaffInvitationEntity | null>;
+  abstract findPendingByEmail(
+    email: string,
+  ): Promise<StaffInvitationEntity | null>;
+  abstract findAll(options?: {
+    status?: string;
+  }): Promise<StaffInvitationEntity[]>;
+  abstract updateStatus(
     id: string,
-    status: 'pending' | 'accepted' | 'expired' | 'revoked',
+    status: StaffInvitationStatus,
+    acceptedUserId?: string | null,
   ): Promise<StaffInvitationEntity | null>;
 }

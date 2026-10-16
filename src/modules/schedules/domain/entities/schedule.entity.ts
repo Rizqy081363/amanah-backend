@@ -3,6 +3,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 export enum ScheduleOperationalStatus {
   OPEN = 'OPEN',
   CLOSED = 'CLOSED',
+  PENDING = 'PENDING',
 }
 
 export enum ScheduleClosureReason {
@@ -340,6 +341,12 @@ export class AdminDoctorScheduleCardEntity {
   @ApiProperty({ description: 'ID praktisi' })
   practitioner_id: string;
 
+  @ApiPropertyOptional({ description: 'ID profil staf dokter / bidan' })
+  staff_profile_id?: string | null;
+
+  @ApiPropertyOptional({ description: 'ID staf' })
+  staff_id?: string | null;
+
   @ApiProperty({ description: 'Nama lengkap dokter beserta gelar' })
   nama_dokter: string;
 
@@ -448,6 +455,14 @@ export class AdminDoctorScheduleCardEntity {
     type: () => [AdminDoctorCardPatientPreviewItem],
   })
   pasien_preview: AdminDoctorCardPatientPreviewItem[];
+
+  @ApiPropertyOptional({
+    description:
+      'Menandakan apakah dokter sudah diverifikasi dan menerima janji temu (false saat masih menunggu verifikasi undangan)',
+    type: Boolean,
+    example: true,
+  })
+  is_accepting_appointments?: boolean;
 }
 
 export class AdminDoctorScheduleListMeta {
@@ -539,6 +554,13 @@ export class AdminDoctorScheduleDetailData {
     example: 'OPEN',
   })
   status_dokter: ScheduleOperationalStatus;
+
+  @ApiProperty({
+    description: 'Whether doctor is accepting appointments/verified',
+    required: false,
+    example: true,
+  })
+  is_accepting_appointments?: boolean;
 
   @ApiProperty({ nullable: true, type: String, example: null })
   email: string | null;

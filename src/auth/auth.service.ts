@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   HttpException,
   HttpStatus,
   Inject,
@@ -21,9 +22,12 @@ import {
   account,
   authAccounts,
   clinicUnits,
+  doctorAssignments,
+  medicalSpecialties,
   practitioners,
   roles,
   session,
+  sessionDefs,
   staffAddresses,
   staffInvitations,
   staffProfiles,
@@ -32,8 +36,26 @@ import {
   users,
 } from '../database/schema';
 import { MailService } from '../mail/mail.service';
+import {
+  BETTER_AUTH_STAFF_ROLES,
+  type BetterAuthStaffRole,
+  STAFF_INVITATION_STATUS,
+  STAFF_ROLE_CODES,
+  STAFF_STATUS,
+  STAFF_TYPES,
+  type StaffRoleCode,
+  type StaffType,
+} from '../modules/staffs/domain/constants/staff-invitation.constants';
 import { auth } from './better-auth/auth';
+import {
+  AUTH_ERROR_CODES,
+  AUTH_SURFACES,
+  SYSTEM_ROLES,
+  type SystemRole,
+  USER_STATUS,
+} from './constants/auth.constants';
 import { AuthEmailLoginDto } from './dto/auth-email-login.dto';
+import { AuthGoogleLoginDto } from './dto/auth-google-login.dto';
 import { AuthRegisterLoginDto } from './dto/auth-register-login.dto';
 import {
   AuthResendOtpDto,
@@ -48,6 +70,7 @@ import { AuthUpdateDto } from './dto/auth-update.dto';
 import { AuthVerifyOtpDto } from './dto/auth-verify-otp.dto';
 import { DeleteAccountResponseDto } from './dto/delete-account-response.dto';
 import { LoginResponseDto } from './dto/login-response.dto';
+import { GoogleTokenVerifierService } from './services/google-token-verifier.service';
 import type { JwtPayloadType } from './strategies/types/jwt-payload.type';
 
 @Injectable()
@@ -59,6 +82,7 @@ export class AuthService {
     private readonly redisService: RedisService,
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,
+    private readonly googleVerifier: GoogleTokenVerifierService,
   ) {}
 
   private async resolveOnboardingPoliklinikId(
@@ -130,6 +154,13 @@ export class AuthService {
       });
     }
 
+    if (user.status === USER_STATUS.INACTIVE) {
+      throw new ForbiddenException({
+        code: AUTH_ERROR_CODES.ACCOUNT_INACTIVE,
+        message: 'Akun telah dinonaktifkan atau undangan telah dibatalkan.',
+      });
+    }
+
     const credentialAccount = user.authAccounts?.find(
       (acc) => acc.providerId === 'credential',
     );
@@ -157,6 +188,29 @@ export class AuthService {
       });
     }
 
+    const primaryRole = user.userRoles_userId?.[0]?.role;
+    let systemRole: SystemRole = SYSTEM_ROLES.PATIENT;
+    if (primaryRole?.code === 'admin') {
+      systemRole = SYSTEM_ROLES.ADMIN;
+    } else if (
+      primaryRole?.code === STAFF_ROLE_CODES.DOCTOR ||
+      primaryRole?.code === STAFF_ROLE_CODES.MIDWIFE ||
+      primaryRole?.code === STAFF_ROLE_CODES.WORKER ||
+      (user.staffProfiles && user.staffProfiles.length > 0)
+    ) {
+      systemRole = SYSTEM_ROLES.STAF;
+    }
+
+    if (loginDto.clientId === AUTH_SURFACES.MOBILE_INTERNAL) {
+      if (systemRole === SYSTEM_ROLES.PATIENT) {
+        throw new ForbiddenException({
+          code: AUTH_ERROR_CODES.CLIENT_NOT_ALLOWED,
+          message:
+            'Akun pasien tidak memiliki izin akses ke aplikasi internal staf/dokter.',
+        });
+      }
+    }
+
     await this.db
       .update(users)
       .set({
@@ -164,19 +218,6 @@ export class AuthService {
         updatedAt: new Date().toISOString(),
       })
       .where(eq(users.id, user.id));
-
-    const primaryRole = user.userRoles_userId?.[0]?.role;
-    let systemRole: 'ADMIN' | 'STAF' | 'PATIENT' = 'PATIENT';
-    if (primaryRole?.code === 'admin') {
-      systemRole = 'ADMIN';
-    } else if (
-      primaryRole?.code === 'staff_doctor' ||
-      primaryRole?.code === 'staff_midwife' ||
-      primaryRole?.code === 'staff_worker' ||
-      (user.staffProfiles && user.staffProfiles.length > 0)
-    ) {
-      systemRole = 'STAF';
-    }
 
     const tokenExpiresIn =
       this.configService.get('auth.expires', { infer: true }) || '1d';
@@ -222,24 +263,261 @@ export class AuthService {
       token,
       refreshToken,
       tokenExpires: Date.now() + 86400000,
-      user: this.formatUser(user) as any,
+      user: (await this.formatUser(user)) as any,
     };
   }
 
-  private formatUser(userRecord: any) {
+  async validateGoogleLogin(
+    dto: AuthGoogleLoginDto,
+  ): Promise<LoginResponseDto> {
+    const verifiedGoogle = await this.googleVerifier.verify(dto.idToken);
+    const email = verifiedGoogle.email.toLowerCase().trim();
+
+    // 1. Surface Gate for Mobile Internal (Strict Default-Deny):
+    if (dto.clientId === AUTH_SURFACES.MOBILE_INTERNAL) {
+      const existingUser = await this.db.query.users.findFirst({
+        where: eq(users.email, email),
+        with: {
+          userRoles_userId: {
+            with: {
+              role: true,
+            },
+          },
+          staffProfiles: true,
+        },
+      });
+
+      const primaryRoleCode = existingUser?.userRoles_userId?.[0]?.role?.code;
+      const isExistingStaff =
+        primaryRoleCode === STAFF_ROLE_CODES.DOCTOR ||
+        primaryRoleCode === STAFF_ROLE_CODES.MIDWIFE ||
+        primaryRoleCode === STAFF_ROLE_CODES.WORKER ||
+        Boolean(
+          existingUser?.staffProfiles && existingUser.staffProfiles.length > 0,
+        );
+
+      const pendingInvitation = await this.db.query.staffInvitations.findFirst({
+        where: and(
+          eq(staffInvitations.email, email),
+          eq(staffInvitations.status, STAFF_INVITATION_STATUS.PENDING),
+        ),
+      });
+
+      // Default-Deny: If not active staff AND not in pending invitations -> 403 NOT_AUTHORIZED with ZERO DB writes
+      if (!isExistingStaff && !pendingInvitation) {
+        throw new ForbiddenException({
+          code: AUTH_ERROR_CODES.NOT_AUTHORIZED,
+          message:
+            'Akun Google ini belum terdaftar atau belum diundang sebagai staf/dokter klinik.',
+        });
+      }
+
+      if (existingUser && existingUser.status === USER_STATUS.INACTIVE) {
+        throw new ForbiddenException({
+          code: AUTH_ERROR_CODES.ACCOUNT_INACTIVE,
+          message: 'Akun telah dinonaktifkan atau undangan telah dibatalkan.',
+        });
+      }
+    }
+
+    // 2. Lookup existing user record
+    const userRecord = await this.db.query.users.findFirst({
+      where: eq(users.email, email),
+      with: {
+        authAccounts: true,
+        userRoles_userId: {
+          with: {
+            role: true,
+          },
+        },
+        staffProfiles: true,
+      },
+    });
+
+    const pendingInvitation = await this.db.query.staffInvitations.findFirst({
+      where: and(
+        eq(staffInvitations.email, email),
+        eq(staffInvitations.status, STAFF_INVITATION_STATUS.PENDING),
+      ),
+    });
+
+    let userId: string;
+
+    if (!userRecord) {
+      // Must be an invited user since uninvited was rejected above
+      const displayName = verifiedGoogle.name || email.split('@')[0];
+      const [newUser] = await this.db
+        .insert(users)
+        .values({
+          name: displayName,
+          email,
+          emailVerified: true,
+          imageUrl: verifiedGoogle.picture || null,
+          status: 'active',
+          preferredLocale: 'id-ID',
+        })
+        .returning();
+
+      userId = newUser.id;
+
+      // Create google auth account
+      await this.db.insert(authAccounts).values({
+        userId,
+        providerId: 'google',
+        accountId: verifiedGoogle.sub,
+      });
+
+      // Assign role based on invitation
+      const roleCode = pendingInvitation?.roleCode || STAFF_ROLE_CODES.WORKER;
+      const targetRole = await this.db.query.roles.findFirst({
+        where: eq(roles.code, roleCode),
+      });
+      if (targetRole) {
+        await this.db.insert(userRoles).values({
+          userId,
+          roleId: targetRole.id,
+        });
+      }
+    } else {
+      userId = userRecord.id;
+
+      // Link Google authAccount if not already linked
+      const hasGoogleAccount = userRecord.authAccounts?.some(
+        (acc) => acc.providerId === 'google',
+      );
+      if (!hasGoogleAccount) {
+        await this.db.insert(authAccounts).values({
+          userId,
+          providerId: 'google',
+          accountId: verifiedGoogle.sub,
+        });
+      }
+
+      if (verifiedGoogle.picture && !userRecord.imageUrl) {
+        await this.db
+          .update(users)
+          .set({
+            imageUrl: verifiedGoogle.picture,
+            emailVerified: true,
+            updatedAt: new Date().toISOString(),
+          })
+          .where(eq(users.id, userId));
+      }
+    }
+
+    await this.db
+      .update(users)
+      .set({
+        lastLoginAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(users.id, userId));
+
+    // Re-fetch complete user record for token signing and formatting
+    const completeUser = await this.db.query.users.findFirst({
+      where: eq(users.id, userId),
+      with: {
+        authAccounts: true,
+        userRoles_userId: {
+          with: {
+            role: true,
+          },
+        },
+        staffProfiles: {
+          with: {
+            practitioners: true,
+            addresses: true,
+          },
+        },
+        patientProfiles: {
+          with: {
+            patientAddresses: true,
+            patientEmergencyContacts: true,
+          },
+        },
+      },
+    });
+
+    if (!completeUser) {
+      throw new UnauthorizedException({
+        code: AUTH_ERROR_CODES.NOT_AUTHORIZED,
+        message: 'Pengguna tidak ditemukan di sistem.',
+      });
+    }
+
+    const primaryRole = completeUser.userRoles_userId?.[0]?.role;
+    let systemRole: SystemRole = SYSTEM_ROLES.PATIENT;
+    if (primaryRole?.code === 'admin') {
+      systemRole = SYSTEM_ROLES.ADMIN;
+    } else if (
+      primaryRole?.code === STAFF_ROLE_CODES.DOCTOR ||
+      primaryRole?.code === STAFF_ROLE_CODES.MIDWIFE ||
+      primaryRole?.code === STAFF_ROLE_CODES.WORKER ||
+      (completeUser.staffProfiles && completeUser.staffProfiles.length > 0)
+    ) {
+      systemRole = SYSTEM_ROLES.STAF;
+    }
+
+    const tokenExpiresIn =
+      this.configService.get('auth.expires', { infer: true }) || '1d';
+    const token = await this.jwtService.signAsync(
+      {
+        id: completeUser.id,
+        email: completeUser.email,
+        systemRole,
+        role: {
+          id: primaryRole?.id,
+          name: systemRole,
+        },
+      },
+      {
+        secret: this.configService.getOrThrow('auth.secret', { infer: true }),
+        expiresIn: tokenExpiresIn,
+      },
+    );
+
+    const refreshTokenExpiresIn =
+      this.configService.get('auth.refreshExpires', { infer: true }) || '7d';
+    const refreshToken = await this.jwtService.signAsync(
+      {
+        sessionId: completeUser.id,
+        hash: 'session_hash',
+        id: completeUser.id,
+        role: {
+          id: primaryRole?.id,
+          name: systemRole,
+        },
+      },
+      {
+        secret: this.configService.getOrThrow('auth.refreshSecret', {
+          infer: true,
+        }),
+        expiresIn: refreshTokenExpiresIn,
+      },
+    );
+
+    return {
+      token,
+      refreshToken,
+      tokenExpires: Date.now() + 86400000,
+      user: (await this.formatUser(completeUser)) as any,
+    };
+  }
+
+  private async formatUser(userRecord: any) {
     const { authAccounts: _authAccounts, ...sanitizedUser } = userRecord;
 
     const primaryRole = sanitizedUser.userRoles_userId?.[0]?.role;
-    let systemRole: 'ADMIN' | 'STAF' | 'PATIENT' = 'PATIENT';
+    let systemRole: SystemRole = SYSTEM_ROLES.PATIENT;
     if (primaryRole?.code === 'admin') {
-      systemRole = 'ADMIN';
+      systemRole = SYSTEM_ROLES.ADMIN;
     } else if (
-      primaryRole?.code === 'staff_doctor' ||
-      primaryRole?.code === 'staff_midwife' ||
-      primaryRole?.code === 'staff_worker' ||
+      primaryRole?.code === STAFF_ROLE_CODES.DOCTOR ||
+      primaryRole?.code === STAFF_ROLE_CODES.MIDWIFE ||
+      primaryRole?.code === STAFF_ROLE_CODES.WORKER ||
       (sanitizedUser.staffProfiles && sanitizedUser.staffProfiles.length > 0)
     ) {
-      systemRole = 'STAF';
+      systemRole = SYSTEM_ROLES.STAF;
     }
 
     const p = sanitizedUser.patientProfiles?.[0];
@@ -255,7 +533,7 @@ export class AuthService {
           medicalRecordNumber: p.medicalRecordNumber,
           nik: p.nationalIdEncrypted || p.nationalIdHash || '',
           fullName: p.fullName,
-          gender: p.gender === 'female' ? 'Perempuan' : 'Laki-laki',
+          gender: p.gender || null,
           birthPlace: p.birthPlace,
           birthDate:
             typeof p.birthDate === 'string'
@@ -336,7 +614,8 @@ export class AuthService {
           poliklinikId: s.primaryUnitId || s.poliklinikId || null,
           fullName: s.fullName,
           profession: s.positionTitle || s.profession || null,
-          idCardNumber: s.staffCode || s.idCardNumber || null,
+          staffCode: s.staffCode || null,
+          idCardNumber: s.nationalIdEncrypted || null,
           photoUrl: avatar.url,
           phoneNumber: s.phone,
           isActive: s.status === 'active',
@@ -353,7 +632,36 @@ export class AuthService {
         }
       : null;
 
-    const needsOnboarding = systemRole !== 'ADMIN' && !staff;
+    let needsOnboarding = false;
+    if (systemRole === SYSTEM_ROLES.ADMIN) {
+      needsOnboarding = false;
+    } else if (systemRole === SYSTEM_ROLES.STAF) {
+      const emailLower = (sanitizedUser.email || '').toLowerCase().trim();
+      const pendingInvitation = emailLower
+        ? await this.db.query.staffInvitations.findFirst({
+            where: and(
+              eq(staffInvitations.email, emailLower),
+              eq(staffInvitations.status, STAFF_INVITATION_STATUS.PENDING),
+            ),
+          })
+        : null;
+
+      if (pendingInvitation) {
+        needsOnboarding = true;
+      } else if (!s || s.status === STAFF_STATUS.INACTIVE) {
+        needsOnboarding = true;
+      } else {
+        const hasAddress = Boolean(
+          primaryStaffAddress?.provinceName ||
+            primaryStaffAddress?.provinceCode ||
+            primaryStaffAddress?.line1,
+        );
+        const hasDemographics = Boolean(s.birthDate && s.gender);
+        needsOnboarding = !hasAddress || !hasDemographics;
+      }
+    } else {
+      needsOnboarding = !patient;
+    }
 
     return {
       ...sanitizedUser,
@@ -394,7 +702,7 @@ export class AuthService {
         },
       },
     });
-    return user ? this.formatUser(user) : null;
+    return user ? await this.formatUser(user) : null;
   }
 
   async register(dto: AuthRegisterLoginDto): Promise<void> {
@@ -824,16 +1132,16 @@ export class AuthService {
     }
 
     const primaryRole = user.userRoles_userId?.[0]?.role;
-    let systemRole: 'ADMIN' | 'STAF' | 'PATIENT' = 'PATIENT';
+    let systemRole: SystemRole = SYSTEM_ROLES.PATIENT;
     if (primaryRole?.code === 'admin') {
-      systemRole = 'ADMIN';
+      systemRole = SYSTEM_ROLES.ADMIN;
     } else if (
-      primaryRole?.code === 'staff_doctor' ||
-      primaryRole?.code === 'staff_midwife' ||
-      primaryRole?.code === 'staff_worker' ||
+      primaryRole?.code === STAFF_ROLE_CODES.DOCTOR ||
+      primaryRole?.code === STAFF_ROLE_CODES.MIDWIFE ||
+      primaryRole?.code === STAFF_ROLE_CODES.WORKER ||
       (user.staffProfiles && user.staffProfiles.length > 0)
     ) {
-      systemRole = 'STAF';
+      systemRole = SYSTEM_ROLES.STAF;
     }
 
     const tokenExpiresIn =
@@ -885,7 +1193,7 @@ export class AuthService {
     await this.db
       .update(users)
       .set({
-        status: 'inactive',
+        status: USER_STATUS.INACTIVE,
         updatedAt: new Date().toISOString(),
       })
       .where(eq(users.id, userJwtPayload.id));
@@ -1192,7 +1500,7 @@ export class AuthService {
     const pendingInvitation = await this.db.query.staffInvitations.findFirst({
       where: and(
         eq(staffInvitations.email, userRecord.email.toLowerCase()),
-        eq(staffInvitations.status, 'pending'),
+        eq(staffInvitations.status, STAFF_INVITATION_STATUS.PENDING),
       ),
     });
 
@@ -1200,36 +1508,34 @@ export class AuthService {
       effectiveRoleCode = pendingInvitation.roleCode;
     }
 
-    let betterAuthRole: 'staffDoctor' | 'staffMidwife' | 'staffWorker' =
-      'staffDoctor';
-    let rolesCode: 'staff_doctor' | 'staff_midwife' | 'staff_worker' =
-      'staff_doctor';
-    let staffTypeVal: 'doctor' | 'midwife' | 'worker' = 'doctor';
+    let betterAuthRole: BetterAuthStaffRole = BETTER_AUTH_STAFF_ROLES.DOCTOR;
+    let rolesCode: StaffRoleCode = STAFF_ROLE_CODES.DOCTOR;
+    let staffTypeVal: StaffType = STAFF_TYPES.DOCTOR;
 
     if (
-      effectiveRoleCode === 'staff_doctor' ||
+      effectiveRoleCode === STAFF_ROLE_CODES.DOCTOR ||
       (!effectiveRoleCode && dto.role === StaffOnboardingRole.DOCTOR)
     ) {
-      betterAuthRole = 'staffDoctor';
-      rolesCode = 'staff_doctor';
-      staffTypeVal = 'doctor';
+      betterAuthRole = BETTER_AUTH_STAFF_ROLES.DOCTOR;
+      rolesCode = STAFF_ROLE_CODES.DOCTOR;
+      staffTypeVal = STAFF_TYPES.DOCTOR;
     } else if (
-      effectiveRoleCode === 'staff_midwife' ||
+      effectiveRoleCode === STAFF_ROLE_CODES.MIDWIFE ||
       (!effectiveRoleCode && dto.role === StaffOnboardingRole.MIDWIFE)
     ) {
-      betterAuthRole = 'staffMidwife';
-      rolesCode = 'staff_midwife';
-      staffTypeVal = 'midwife';
+      betterAuthRole = BETTER_AUTH_STAFF_ROLES.MIDWIFE;
+      rolesCode = STAFF_ROLE_CODES.MIDWIFE;
+      staffTypeVal = STAFF_TYPES.MIDWIFE;
     } else {
-      betterAuthRole = 'staffWorker';
-      rolesCode = 'staff_worker';
-      staffTypeVal = 'worker';
+      betterAuthRole = BETTER_AUTH_STAFF_ROLES.WORKER;
+      rolesCode = STAFF_ROLE_CODES.WORKER;
+      staffTypeVal = STAFF_TYPES.WORKER;
     }
 
     const defaultPrefix =
-      staffTypeVal === 'doctor'
+      staffTypeVal === STAFF_TYPES.DOCTOR
         ? 'STF-DOK'
-        : staffTypeVal === 'midwife'
+        : staffTypeVal === STAFF_TYPES.MIDWIFE
           ? 'STF-BDN'
           : 'STF-ADM';
     const finalStaffCode =
@@ -1238,9 +1544,9 @@ export class AuthService {
 
     const positionTitle =
       dto.profession?.trim() ||
-      (staffTypeVal === 'doctor'
+      (staffTypeVal === STAFF_TYPES.DOCTOR
         ? 'Dokter'
-        : staffTypeVal === 'midwife'
+        : staffTypeVal === STAFF_TYPES.MIDWIFE
           ? 'Bidan'
           : 'Staf Administrasi');
     const resolvedPoliklinikId = await this.resolveOnboardingPoliklinikId(
@@ -1269,7 +1575,7 @@ export class AuthService {
         .set({
           name: dto.fullName.trim(),
           phone: dto.phoneNumber?.trim() || userRecord.phone,
-          status: 'active',
+          status: USER_STATUS.ACTIVE,
           updatedAt: new Date().toISOString(),
         })
         .where(eq(users.id, userRecord.id));
@@ -1293,6 +1599,10 @@ export class AuthService {
         where: eq(staffProfiles.userId, userRecord.id),
       });
 
+      const resolvedGender = dto.gender
+        ? (dto.gender.toLowerCase() as 'male' | 'female')
+        : existingStaff?.gender || null;
+
       if (existingStaff) {
         const [updated] = await tx
           .update(staffProfiles)
@@ -1303,7 +1613,7 @@ export class AuthService {
             positionTitle,
             birthPlace: dto.birthPlace?.trim() || existingStaff.birthPlace,
             birthDate: dto.birthDate || existingStaff.birthDate,
-            gender: dto.gender || existingStaff.gender,
+            gender: resolvedGender || existingStaff.gender,
             nationalIdHash:
               dto.nationalId?.trim() || existingStaff.nationalIdHash,
             nationalIdEncrypted:
@@ -1311,7 +1621,7 @@ export class AuthService {
             phone: dto.phoneNumber?.trim() || existingStaff.phone,
             primaryUnitId: resolvedPoliklinikId || existingStaff.primaryUnitId,
             avatarUrl: existingStaff.avatarUrl || userImageUrl,
-            status: 'active',
+            status: STAFF_STATUS.ACTIVE,
             updatedAt: new Date().toISOString(),
           })
           .where(eq(staffProfiles.id, existingStaff.id))
@@ -1328,14 +1638,14 @@ export class AuthService {
             positionTitle,
             birthPlace: dto.birthPlace?.trim() || null,
             birthDate: dto.birthDate || null,
-            gender: dto.gender || null,
+            gender: resolvedGender,
             nationalIdHash: dto.nationalId?.trim() || null,
             nationalIdEncrypted: dto.nationalId?.trim() || null,
             phone: dto.phoneNumber?.trim(),
             email: userRecord.email,
             primaryUnitId: resolvedPoliklinikId,
             avatarUrl: userImageUrl,
-            status: 'active',
+            status: STAFF_STATUS.ACTIVE,
           })
           .returning();
         existingStaff = created;
@@ -1346,36 +1656,82 @@ export class AuthService {
         await tx
           .update(staffInvitations)
           .set({
-            status: 'accepted',
+            status: STAFF_INVITATION_STATUS.ACCEPTED,
             acceptedAt: new Date().toISOString(),
+            acceptedUserId: userRecord.id,
             updatedAt: new Date().toISOString(),
           })
           .where(eq(staffInvitations.id, pendingInvitation.id));
       }
 
-      // 5. If doctor, create or update practitioner record
-      if (staffTypeVal === 'doctor' && existingStaff) {
+      // 5. If clinical practitioner (doctor or midwife), create or update practitioner record
+      const isClinicalPractitioner =
+        (staffTypeVal === STAFF_TYPES.DOCTOR ||
+          staffTypeVal === STAFF_TYPES.MIDWIFE) &&
+        existingStaff;
+
+      if (isClinicalPractitioner) {
+        let practitionerId: string;
         const existingPractitioner = await tx.query.practitioners.findFirst({
           where: eq(practitioners.staffProfileId, existingStaff.id),
         });
 
+        const targetSpecialtyCode =
+          staffTypeVal === STAFF_TYPES.MIDWIFE
+            ? 'maternal_child_health'
+            : 'general_practitioner';
+        const matchedSpecialty = await tx.query.medicalSpecialties.findFirst({
+          where: eq(medicalSpecialties.code, targetSpecialtyCode),
+        });
+
         if (!existingPractitioner) {
-          await tx.insert(practitioners).values({
-            staffProfileId: existingStaff.id,
-            displayName: dto.fullName.trim(),
-            licenseNumber: dto.licenseNumber?.trim() || null,
-            isAcceptingAppointments: true,
-          });
-        } else if (dto.licenseNumber || dto.fullName) {
+          const [newPractitioner] = await tx
+            .insert(practitioners)
+            .values({
+              staffProfileId: existingStaff.id,
+              displayName: dto.fullName.trim(),
+              licenseNumber: dto.licenseNumber?.trim() || null,
+              specialtyId: matchedSpecialty?.id || null,
+              isAcceptingAppointments: true,
+            })
+            .returning();
+          practitionerId = newPractitioner.id;
+        } else {
+          practitionerId = existingPractitioner.id;
           await tx
             .update(practitioners)
             .set({
               displayName: dto.fullName.trim(),
               licenseNumber:
                 dto.licenseNumber?.trim() || existingPractitioner.licenseNumber,
+              specialtyId:
+                existingPractitioner.specialtyId || matchedSpecialty?.id || null,
+              isAcceptingAppointments: true,
               updatedAt: new Date().toISOString(),
             })
             .where(eq(practitioners.id, existingPractitioner.id));
+        }
+
+        // Seed default generic doctor assignments (dow: null) if doctor/midwife has no assignments yet
+        const existingAssignments = await tx.query.doctorAssignments.findMany({
+          where: eq(doctorAssignments.doctorId, practitionerId),
+        });
+
+        if (existingAssignments.length === 0) {
+          const activeSessionDefs = await tx.query.sessionDefs.findMany({
+            where: eq(sessionDefs.isActive, true),
+          });
+
+          if (activeSessionDefs.length > 0) {
+            await tx.insert(doctorAssignments).values(
+              activeSessionDefs.map((def: any) => ({
+                doctorId: practitionerId,
+                sessionId: def.id,
+                dow: null,
+                isActive: true,
+              })),
+            );
+          }
         }
       }
 
@@ -1450,6 +1806,16 @@ export class AuthService {
         }
       }
     });
+
+    try {
+      await this.redisService.invalidateTags(
+        'schedule',
+        'schedule:list',
+        'schedule:detail',
+      );
+    } catch {
+      // safe fallback
+    }
 
     return this.me(userJwtPayload);
   }

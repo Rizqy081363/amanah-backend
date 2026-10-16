@@ -380,8 +380,7 @@ export class DrizzleSchedulePatientRepository {
             apt.patientProfile?.nationalIdEncrypted ||
             apt.patientProfile?.nationalIdHash ||
             '',
-          gender:
-            apt.patientProfile?.gender === 'female' ? 'Perempuan' : 'Laki-laki',
+          gender: apt.patientProfile?.gender || null,
           birthDate: apt.patientProfile?.birthDate || '',
           age: ageStr,
           phoneNumber: apt.patientProfile?.phone || null,

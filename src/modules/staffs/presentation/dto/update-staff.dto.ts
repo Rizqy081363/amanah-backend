@@ -70,6 +70,14 @@ export class UpdateStaffDto {
   @IsOptional()
   poliklinikId?: string;
 
+  @ApiPropertyOptional({
+    description: 'Nomor Izin Praktik (SIP / STR) untuk dokter atau bidan',
+    example: 'SIP.446/123/DISKES/2026',
+  })
+  @IsString()
+  @IsOptional()
+  licenseNumber?: string;
+
   @ApiPropertyOptional({ example: '081299887711' })
   @IsString()
   @IsOptional()

@@ -83,6 +83,19 @@ export class AdminInvitationsController {
     return this.staffInvitationService.inviteStaff(dto, user.id);
   }
 
+  @Get('options')
+  @ApiOperation({
+    summary: 'Mendapatkan opsi dinamis form undangan (Peran Praktisi & Poliklinik)',
+    description:
+      'Mengambil daftar peran klinis praktisi medis dan poliklinik aktif langsung dari database.',
+  })
+  @ApiOkResponse({
+    description: 'Opsi form undangan berhasil diambil',
+  })
+  async getInvitationOptions() {
+    return this.staffInvitationService.getInvitationOptions();
+  }
+
   @Get()
   @ApiOperation({
     summary: 'Mendapatkan daftar seluruh undangan staf/dokter',

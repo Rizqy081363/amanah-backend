@@ -20,6 +20,7 @@ import {
   ApiBearerAuth,
   ApiBody,
   ApiConsumes,
+  ApiForbiddenResponse,
   ApiNoContentResponse,
   ApiOkResponse,
   ApiOperation,
@@ -37,6 +38,7 @@ import { AuthService } from './auth.service';
 import { AuthConfirmEmailDto } from './dto/auth-confirm-email.dto';
 import { AuthEmailLoginDto } from './dto/auth-email-login.dto';
 import { AuthForgotPasswordDto } from './dto/auth-forgot-password.dto';
+import { AuthGoogleLoginDto } from './dto/auth-google-login.dto';
 import { AuthRegisterLoginDto } from './dto/auth-register-login.dto';
 import {
   AuthResendOtpDto,
@@ -85,6 +87,31 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   public login(@Body() loginDto: AuthEmailLoginDto): Promise<LoginResponseDto> {
     return this.service.validateLogin(loginDto);
+  }
+
+  @SerializeOptions({
+    groups: ['me'],
+  })
+  @Post('google')
+  @RateLimit({ limit: 10, windowSeconds: 60 })
+  @ApiOperation({
+    summary: 'Autentikasi menggunakan Google ID Token (Mobile / Web)',
+    description:
+      'Memverifikasi Google ID Token server-side via JWKS Google. Untuk klien mobile-internal, menegakkan kebijakan default-deny bagi akun yang belum diundang.',
+  })
+  @ApiOkResponse({
+    type: LoginResponseDto,
+    description: 'Autentikasi Google berhasil',
+  })
+  @ApiForbiddenResponse({
+    description:
+      'Akun Google belum diundang atau tidak diizinkan untuk klien internal ini',
+  })
+  @HttpCode(HttpStatus.OK)
+  public googleLogin(
+    @Body() dto: AuthGoogleLoginDto,
+  ): Promise<LoginResponseDto> {
+    return this.service.validateGoogleLogin(dto);
   }
 
   @Post('email/register')

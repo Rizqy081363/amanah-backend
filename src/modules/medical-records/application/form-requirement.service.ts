@@ -106,10 +106,7 @@ export class FormRequirementService {
     const addressText =
       primaryAddress?.fullAddress || primaryAddress?.line1 || '';
 
-    const normalizedGender =
-      patient.gender === 'female' || (patient.gender as string) === 'Perempuan'
-        ? 'Perempuan'
-        : 'Laki-laki';
+    const normalizedGender = patient.gender || null;
 
     const rawBlood = patient.bloodType as string | null | undefined;
     const normalizedBlood =

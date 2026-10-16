@@ -30,13 +30,13 @@ export class InviteStaffDto {
     example: 'staff_worker',
     description:
       'Peran sistem operasional: default staff_worker',
-    enum: ['staff_worker', 'staff_midwife'],
+    enum: ['staff_worker'],
     default: 'staff_worker',
   })
-  @IsIn(['staff_worker', 'staff_midwife'], {
-    message: 'Peran staf harus staff_worker atau staff_midwife',
+  @IsIn(['staff_worker'], {
+    message: 'Peran staf harus staff_worker',
   })
   @IsOptional()
-  roleCode?: 'staff_worker' | 'staff_midwife' = 'staff_worker';
+  roleCode?: 'staff_worker' = 'staff_worker';
 }
 

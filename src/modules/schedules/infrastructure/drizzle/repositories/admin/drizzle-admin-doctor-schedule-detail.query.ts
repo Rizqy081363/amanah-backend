@@ -3,14 +3,13 @@ import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
   appointments,
   doctorAssignments,
-  masterDays,
   practitioners,
+  sessionDefs,
   shiftExceptions,
 } from '@database/schema';
 import { DEFAULT_CONSULTATION_DURATION_MINUTES } from '@modules/schedules/domain/constants/schedule.constants';
 import {
   type AdminDoctorScheduleDetailResponse,
-  ScheduleClosureReason,
   ScheduleOperationalStatus,
 } from '@modules/schedules/domain/entities/schedule.entity';
 import { resolveAggregateOperationalStatus } from '@modules/schedules/domain/schedule-status';
@@ -29,7 +28,7 @@ import { SchedulePolicyReader } from '@modules/schedules/infrastructure/drizzle/
 import { PractitionerResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/practitioner.resolver';
 import type { AdminDoctorScheduleDetailQueryDto } from '@modules/schedules/presentation/dto/admin-doctor-schedule-detail-query.dto';
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { and, asc, eq, gte, lte } from 'drizzle-orm';
+import { and, eq, gte, lte } from 'drizzle-orm';
 
 @Injectable()
 export class DrizzleAdminDoctorScheduleDetailQuery {
@@ -108,6 +107,7 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
       monthAppointments,
       clinicPolicy,
       masterDaysList,
+      activeSessionDefs,
     ] = await Promise.all([
       this.db.query.shiftExceptions.findMany({
         where: and(
@@ -143,9 +143,29 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
       }),
       this.policyReader.getClinicSchedulePolicy(),
       this.db.query.masterDays.findMany(),
+      this.db.query.sessionDefs.findMany({
+        where: eq(sessionDefs.isActive, true),
+        with: {
+          schedules: true,
+        },
+      }),
     ]);
 
     const dayMap = new Map(masterDaysList.map((m) => [m.dow, m.isActive]));
+
+    const effectiveAssignments =
+      assignments.length > 0
+        ? assignments
+        : activeSessionDefs.map((def: any) => ({
+            id: `default-${prac.id}-${def.id}`,
+            doctorId: prac.id,
+            sessionId: def.id,
+            dow: null,
+            isActive: true,
+            preferredRoomId: prac.defaultRoomId || null,
+            preferredRoom: prac.clinicRoom,
+            sessionDef: def,
+          }));
 
     const monthSessions: any[] = [];
     for (let day = 1; day <= daysInMonth; day++) {
@@ -154,15 +174,15 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
         Date.UTC(targetYear, targetMonth - 1, day),
       ).getUTCDay();
 
-      const dayAssignments = filterEffectiveDoctorAssignments(
-        assignments,
+      const dayAssignments: any[] = filterEffectiveDoctorAssignments<any>(
+        effectiveAssignments as any,
         dayDow,
       );
 
       const isDayActive = dayMap.get(dayDow) ?? true;
 
-      for (const da of dayAssignments) {
-        if (!da.sessionDef || !da.sessionDef.isActive) continue;
+      for (const da of dayAssignments as any[]) {
+        if (!da.sessionDef?.isActive) continue;
 
         const res = resolveDoctorSessionOperability({
           targetDow: dayDow,
@@ -254,7 +274,11 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
       sessionStatuses: evalSessionOpStatuses,
     });
 
-    const statusDokter = evalAggregateOpStatus;
+    const isPending =
+      !prac.isAcceptingAppointments || prac.staffProfile?.status === 'inactive';
+    const statusDokter = isPending
+      ? ScheduleOperationalStatus.PENDING
+      : evalAggregateOpStatus;
 
     const { timelineIntervals, dayMetrics } = buildTimelineAndMetrics(
       [],
@@ -274,6 +298,7 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
           prac.staffProfile?.clinicUnit?.name ||
           'Dokter Umum',
         status_dokter: statusDokter,
+        is_accepting_appointments: prac.isAcceptingAppointments,
         email: prac.staffProfile?.email || null,
         nomor_telepon: prac.staffProfile?.phone || null,
         ruang_praktik:

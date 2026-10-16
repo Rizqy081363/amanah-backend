@@ -1,12 +1,18 @@
+import type {
+  StaffInvitationStatus,
+  StaffType,
+} from '../constants/staff-invitation.constants';
+
 export class StaffInvitationEntity {
   id: string;
   email: string;
   roleCode: string;
-  staffType: 'doctor' | 'midwife' | 'worker';
+  staffType: StaffType;
   tokenHash: string;
   temporaryPasswordHash?: string | null;
   invitedBy?: string | null;
-  status: 'pending' | 'accepted' | 'expired' | 'revoked';
+  acceptedUserId?: string | null;
+  status: StaffInvitationStatus;
   expiresAt: Date;
   acceptedAt?: Date | null;
   metadata?: Record<string, any>;

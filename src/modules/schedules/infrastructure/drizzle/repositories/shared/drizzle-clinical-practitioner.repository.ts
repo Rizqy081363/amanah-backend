@@ -41,10 +41,11 @@ export class DrizzleClinicalPractitionerRepository {
     const results: ClinicalPractitionerEntity[] = [];
 
     for (const p of pracs) {
+      const isMidwife = p.staffProfile?.staffType === 'midwife';
       const spec =
         p.medicalSpecialty?.name ||
         p.staffProfile?.clinicUnit?.name ||
-        'Dokter Umum';
+        (isMidwife ? 'Kesehatan Ibu dan Anak' : 'Dokter Umum');
 
       if (query.service) {
         const q = query.service.toLowerCase();
@@ -86,11 +87,14 @@ export class DrizzleClinicalPractitionerRepository {
         (!isOnLeave && Boolean(assignedRoster)) || Boolean(extraShift);
       const location = p.clinicRoom
         ? `${p.clinicRoom.name}${p.clinicRoom.location ? `, ${p.clinicRoom.location}` : ''}`
-        : 'Poli Umum, Ruang 101';
+        : p.staffProfile?.clinicUnit?.name || 'Poli Umum, Ruang 101';
 
       results.push({
         id: p.id,
-        name: p.staffProfile?.fullName || p.displayName || 'Dokter Amanah',
+        name:
+          p.staffProfile?.fullName ||
+          p.displayName ||
+          (isMidwife ? 'Bidan Amanah' : 'Dokter Amanah'),
         spec,
         avatar: ScheduleRecordMapper.toAvatarUrl(p.staffProfile),
         location,

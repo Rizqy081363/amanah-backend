@@ -302,6 +302,13 @@
       "when": 1791326000000,
       "tag": "0042_chat_module_evolution",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1791327000000,
+      "tag": "0043_staff_invitations_accepted_user",
+      "breakpoints": true
     }
   ]
 }

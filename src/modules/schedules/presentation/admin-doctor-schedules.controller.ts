@@ -13,6 +13,7 @@ import {
   HttpCode,
   HttpStatus,
   Inject,
+  NotFoundException,
   Optional,
   Param,
   Patch,
@@ -33,6 +34,11 @@ import {
   ApiUnauthorizedResponse,
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
+import {
+  STAFF_REPOSITORY,
+  StaffRepository,
+} from '../../staffs/domain/repositories/staff.repository';
+import { UpdateStaffDto } from '../../staffs/presentation/dto/update-staff.dto';
 import {
   AdminDoctorAccumulatedPatientsResponse,
   AdminDoctorScheduleDetailResponse,
@@ -71,6 +77,8 @@ export class AdminDoctorSchedulesController {
   constructor(
     @Inject(SCHEDULE_REPOSITORY)
     private readonly scheduleRepo: ScheduleRepository,
+    @Inject(STAFF_REPOSITORY)
+    private readonly staffRepo: StaffRepository,
     @Optional()
     @Inject(RedisService)
     private readonly redisService?: RedisService,
@@ -172,6 +180,66 @@ export class AdminDoctorSchedulesController {
   ) {
     this.assertDoctorAccess(id, user);
     return this.scheduleRepo.findAdminDoctorScheduleDetail(id, query);
+  }
+
+  @Get(':id/profile')
+  @ApiOperation({
+    summary: 'Mendapatkan data profil onboarding lengkap dokter / bidan (Admin)',
+    description:
+      'Mengambil informasi profil, identitas KTP, kelahiran, domisili, poliklinik, dan kredensial SIP/STR dokter atau bidan.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID praktisi atau ID profil staf dokter/bidan',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
+  @ApiOkResponse({
+    description: 'Data profil dokter berhasil ditemukan',
+  })
+  @ApiNotFoundResponse({
+    description: 'Dokter tidak ditemukan',
+  })
+  async getDoctorProfile(
+    @Param('id') id: string,
+    @CurrentUser() user?: any,
+  ) {
+    this.assertDoctorAccess(id, user);
+    const profile = await this.staffRepo.findById(id);
+    if (!profile) {
+      throw new NotFoundException(`Profil dokter dengan ID ${id} tidak ditemukan`);
+    }
+    return profile;
+  }
+
+  @Patch(':id/profile')
+  @ApiOperation({
+    summary: 'Memperbarui data profil dan status operasional dokter / bidan (Admin)',
+    description:
+      'Memperbarui data identitas, domisili, kredensial klinis, dan status aktif/non-aktif dokter atau bidan.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID praktisi atau ID profil staf dokter/bidan',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+  })
+  @ApiOkResponse({
+    description: 'Profil dokter berhasil diperbarui',
+  })
+  @ApiNotFoundResponse({
+    description: 'Dokter tidak ditemukan',
+  })
+  async updateDoctorProfile(
+    @Param('id') id: string,
+    @Body() body: UpdateStaffDto,
+    @CurrentUser() user?: any,
+  ) {
+    this.assertDoctorAccess(id, user);
+    const updated = await this.staffRepo.update(id, body);
+    if (!updated) {
+      throw new NotFoundException(`Gagal memperbarui profil dokter dengan ID ${id}`);
+    }
+    await this.invalidateScheduleCaches();
+    return updated;
   }
 
   @Patch(':id')
