@@ -130,7 +130,7 @@ export function mapScheduleRecordToEntity(
     poliklinikName:
       record.clinicRoom?.clinicUnit?.name ||
       record.practitioner?.staffProfile?.clinicUnit?.name ||
-      'Poliklinik',
+      null,
     serviceId: record.serviceId || null,
     serviceName: record.clinicService?.name || null,
     dayOfWeek: null,
@@ -141,8 +141,7 @@ export function mapScheduleRecordToEntity(
     endTime: endTimeFormatted,
     timeRange,
     roomId: record.roomId || null,
-    roomName:
-      record.clinicRoom?.name || (record.roomId ? 'Ruang Praktek' : null),
+    roomName: record.clinicRoom?.name || null,
     status: operationalStatus,
     rawStatus: record.status,
     isAvailable,

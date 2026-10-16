@@ -6,6 +6,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   Inject,
   Param,
@@ -43,6 +44,21 @@ export class AdminDoctorRosterController {
     private readonly rosterRepo: DoctorRosterRepository,
   ) {}
 
+  private assertDoctorAccess(id: string, user?: any) {
+    if (!user || user.systemRole === 'ADMIN') return;
+    const userStaffId = user.staff?.practitionerId || user.staff?.id;
+    if (
+      !userStaffId ||
+      (userStaffId !== id &&
+        user.staff?.id !== id &&
+        user.staff?.practitionerId !== id)
+    ) {
+      throw new ForbiddenException(
+        'Akses ditolak: Anda hanya berwenang mengakses data jadwal dokter Anda sendiri',
+      );
+    }
+  }
+
   @Get(':id/assignments')
   @ApiOperation({
     summary:
@@ -52,12 +68,14 @@ export class AdminDoctorRosterController {
   @ApiOkResponse({ type: DoctorRosterOverviewResponse })
   async getDoctorAssignments(
     @Param('id') id: string,
+    @CurrentUser() user?: any,
   ): Promise<DoctorRosterOverviewResponse> {
+    this.assertDoctorAccess(id, user);
     return this.rosterRepo.getDoctorRoster(id);
   }
 
   @Put(':id/assignments')
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'STAF')
   @ApiOperation({
     summary:
       'Menyimpan konfigurasi hari dan shift kerja dokter (Roster Mingguan)',
@@ -69,12 +87,13 @@ export class AdminDoctorRosterController {
     @Body() dto: UpdateDoctorRosterDto,
     @CurrentUser() user?: any,
   ): Promise<DoctorRosterOverviewResponse> {
+    this.assertDoctorAccess(id, user);
     const userId = user?.id || user?.sub;
     return this.rosterRepo.updateDoctorRoster(id, dto, userId);
   }
 
   @Delete(':id/assignments')
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'STAF')
   @ApiOperation({
     summary:
       'Mereset roster kerja dokter kembali ke template mingguan default klinik',
@@ -85,12 +104,13 @@ export class AdminDoctorRosterController {
     @Param('id') id: string,
     @CurrentUser() user?: any,
   ): Promise<DoctorRosterOverviewResponse> {
+    this.assertDoctorAccess(id, user);
     const userId = user?.id || user?.sub;
     return this.rosterRepo.resetDoctorRoster(id, userId);
   }
 
   @Post(':id/assignments/reset')
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'STAF')
   @ApiOperation({
     summary:
       'Mereset roster kerja dokter kembali ke template mingguan default klinik',
@@ -101,6 +121,7 @@ export class AdminDoctorRosterController {
     @Param('id') id: string,
     @CurrentUser() user?: any,
   ): Promise<DoctorRosterOverviewResponse> {
+    this.assertDoctorAccess(id, user);
     const userId = user?.id || user?.sub;
     return this.rosterRepo.resetDoctorRoster(id, userId);
   }
@@ -118,7 +139,9 @@ export class AdminDoctorRosterController {
     @Param('id') id: string,
     @Query('limit') limit?: number,
     @Query('offset') offset?: number,
+    @CurrentUser() user?: any,
   ): Promise<DoctorScheduleHistoryResponse> {
+    this.assertDoctorAccess(id, user);
     const parsedLimit = limit ? Number(limit) : 20;
     const parsedOffset = offset ? Number(offset) : 0;
     return this.rosterRepo.getDoctorScheduleHistory(

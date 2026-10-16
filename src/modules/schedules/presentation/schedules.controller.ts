@@ -35,6 +35,14 @@ import {
   ApiUnauthorizedResponse,
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
+import {
+  DoctorRosterOverviewResponse,
+  UpdateDoctorRosterDto,
+} from '../doctor-roster/domain/doctor-roster.entity';
+import {
+  DOCTOR_ROSTER_REPOSITORY,
+  DoctorRosterRepository,
+} from '../doctor-roster/domain/doctor-roster.repository';
 import { resolveCanonicalShift } from '../domain/constants/schedule-shift.constants';
 import {
   AdminSessionPatientsResponse,
@@ -73,6 +81,8 @@ export class SchedulesController {
   constructor(
     @Inject(SCHEDULE_REPOSITORY)
     private readonly scheduleRepo: ScheduleRepository,
+    @Inject(DOCTOR_ROSTER_REPOSITORY)
+    private readonly rosterRepo: DoctorRosterRepository,
   ) {}
 
   private assertScheduleOwnership(schedule: any, user: any) {
@@ -247,6 +257,70 @@ export class SchedulesController {
       startDate,
       endDate,
     });
+  }
+
+  @Get('my-roster')
+  @Roles('STAF', 'ADMIN')
+  @ApiOperation({
+    summary:
+      'Melihat matriks roster mingguan dokter yang sedang login (Mobile App / Web)',
+    description:
+      'Menampilkan 7 hari kerja beserta 4 sesi shift (Dini Hari, Pagi, Siang, Malam) dengan status aktif template dan override.',
+  })
+  @ApiOkResponse({
+    type: DoctorRosterOverviewResponse,
+    description: 'Matriks roster mingguan dokter berhasil diambil',
+  })
+  async getMyRoster(
+    @CurrentUser() user: any,
+    @Query('staffId') staffIdQuery?: string,
+  ): Promise<DoctorRosterOverviewResponse> {
+    const staffId = this.resolveTargetStaffId(user, staffIdQuery);
+    return this.rosterRepo.getDoctorRoster(staffId);
+  }
+
+  @Put('my-roster')
+  @Roles('STAF', 'ADMIN')
+  @ApiOperation({
+    summary:
+      'Memperbarui matriks roster mingguan dokter yang sedang login (Mobile App / Web)',
+    description:
+      'Menyimpan override sesi aktif/non-aktif dokter per hari dan shift untuk template mingguan.',
+  })
+  @ApiOkResponse({
+    type: DoctorRosterOverviewResponse,
+    description: 'Roster mingguan dokter berhasil diperbarui',
+  })
+  async updateMyRoster(
+    @Body() dto: UpdateDoctorRosterDto,
+    @CurrentUser() user: any,
+    @Query('staffId') staffIdQuery?: string,
+  ): Promise<DoctorRosterOverviewResponse> {
+    const staffId = this.resolveTargetStaffId(user, staffIdQuery);
+    const userId = user?.id || user?.sub;
+    return this.rosterRepo.updateDoctorRoster(staffId, dto, userId);
+  }
+
+  @Delete('my-roster')
+  @Roles('STAF', 'ADMIN')
+  @ApiOperation({
+    summary:
+      'Mereset roster mingguan dokter kembali ke template klinik (Mobile App / Web)',
+    description:
+      'Menghapus seluruh override khusus dokter dan mengembalikan jadwal ke default template mingguan klinik.',
+  })
+  @ApiOkResponse({
+    type: DoctorRosterOverviewResponse,
+    description:
+      'Roster dokter berhasil dikembalikan ke template mingguan klinik',
+  })
+  async resetMyRoster(
+    @CurrentUser() user: any,
+    @Query('staffId') staffIdQuery?: string,
+  ): Promise<DoctorRosterOverviewResponse> {
+    const staffId = this.resolveTargetStaffId(user, staffIdQuery);
+    const userId = user?.id || user?.sub;
+    return this.rosterRepo.resetDoctorRoster(staffId, userId);
   }
 
   @Get('calendar-summary')

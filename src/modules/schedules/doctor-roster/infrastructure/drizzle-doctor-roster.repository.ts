@@ -17,7 +17,7 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
-import { and, asc, count, desc, eq, inArray } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, or } from 'drizzle-orm';
 import {
   DoctorRosterDayDto,
   DoctorRosterOverviewResponse,
@@ -60,7 +60,10 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
     doctorId: string,
   ): Promise<DoctorRosterOverviewResponse> {
     const prac = await this.db.query.practitioners.findFirst({
-      where: eq(practitioners.id, doctorId),
+      where: or(
+        eq(practitioners.id, doctorId),
+        eq(practitioners.staffProfileId, doctorId),
+      ),
       with: {
         staffProfile: {
           with: {
@@ -90,10 +93,7 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
           where: eq(sessionSchedules.isActive, true),
         }),
         this.db.query.doctorAssignments.findMany({
-          where: and(
-            eq(doctorAssignments.doctorId, doctorId),
-            eq(doctorAssignments.isActive, true),
-          ),
+          where: eq(doctorAssignments.doctorId, prac.id),
         }),
         this.db.query.clinicRooms.findMany(),
       ]);
@@ -211,7 +211,10 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
     userId?: string,
   ): Promise<DoctorRosterOverviewResponse> {
     const prac = await this.db.query.practitioners.findFirst({
-      where: eq(practitioners.id, doctorId),
+      where: or(
+        eq(practitioners.id, doctorId),
+        eq(practitioners.staffProfileId, doctorId),
+      ),
     });
 
     if (!prac) {
@@ -223,40 +226,45 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
     await this.db.transaction(async (tx) => {
       await tx
         .delete(doctorAssignments)
-        .where(eq(doctorAssignments.doctorId, doctorId));
+        .where(eq(doctorAssignments.doctorId, prac.id));
 
       const activeSessionDefs = await tx.query.sessionDefs.findMany({
         where: eq(sessionDefs.isActive, true),
       });
       const activeSessionIds = new Set(activeSessionDefs.map((s: any) => s.id));
 
-      const activeItems = dto.assignments.filter(
-        (a) => a.isActive && activeSessionIds.has(a.sessionId),
+      const validItems = dto.assignments.filter((a) =>
+        activeSessionIds.has(a.sessionId),
       );
 
-      if (activeItems.length > 0) {
+      if (validItems.length > 0) {
         await tx.insert(doctorAssignments).values(
-          activeItems.map((item) => ({
-            doctorId,
+          validItems.map((item) => ({
+            doctorId: prac.id,
             sessionId: item.sessionId,
             dow: item.dow,
             preferredRoomId: item.preferredRoomId || null,
-            isActive: true,
+            isActive: Boolean(item.isActive),
           })),
         );
       }
 
+      const activeCount = validItems.filter((a) => a.isActive).length;
+
       await tx.insert(doctorScheduleStatusHistory).values({
-        doctorId,
+        doctorId: prac.id,
         action: 'assign_roster',
         newStatus: 'OPEN',
         reason: dto.reason || 'Pembaruan roster operasional mingguan dokter',
         metadata: {
-          assignedSessionsCount: activeItems.length,
-          assignedSessions: activeItems.map((a) => ({
-            dow: a.dow,
-            sessionId: a.sessionId,
-          })),
+          totalSlots: validItems.length,
+          activeSessionsCount: activeCount,
+          assignedSessions: validItems
+            .filter((a) => a.isActive)
+            .map((a) => ({
+              dow: a.dow,
+              sessionId: a.sessionId,
+            })),
         },
         changedBy: userId || null,
       });
@@ -264,7 +272,7 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
 
     await this.invalidateScheduleCaches();
 
-    return this.getDoctorRoster(doctorId);
+    return this.getDoctorRoster(prac.id);
   }
 
   async resetDoctorRoster(
@@ -272,7 +280,10 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
     userId?: string,
   ): Promise<DoctorRosterOverviewResponse> {
     const prac = await this.db.query.practitioners.findFirst({
-      where: eq(practitioners.id, doctorId),
+      where: or(
+        eq(practitioners.id, doctorId),
+        eq(practitioners.staffProfileId, doctorId),
+      ),
     });
 
     if (!prac) {
@@ -285,7 +296,7 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
       // 1. Delete all explicit assignments (with dow) for this doctor
       await tx
         .delete(doctorAssignments)
-        .where(eq(doctorAssignments.doctorId, doctorId));
+        .where(eq(doctorAssignments.doctorId, prac.id));
 
       // 2. Query active session definitions
       const activeSessionDefs = await tx.query.sessionDefs.findMany({
@@ -296,7 +307,7 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
       if (activeSessionDefs.length > 0) {
         await tx.insert(doctorAssignments).values(
           activeSessionDefs.map((def: any) => ({
-            doctorId,
+            doctorId: prac.id,
             sessionId: def.id,
             dow: null,
             preferredRoomId: null,
@@ -307,7 +318,7 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
 
       // 4. Record audit history
       await tx.insert(doctorScheduleStatusHistory).values({
-        doctorId,
+        doctorId: prac.id,
         action: 'remove_roster',
         newStatus: 'OPEN',
         reason: 'Roster direset ke template mingguan klinik',
@@ -321,7 +332,7 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
 
     await this.invalidateScheduleCaches();
 
-    return this.getDoctorRoster(doctorId);
+    return this.getDoctorRoster(prac.id);
   }
 
   async getDoctorScheduleHistory(
