@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { desc, eq, or } from 'drizzle-orm';
+import { and, count, desc, eq, gte, ilike, inArray, lte, or } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
@@ -455,4 +455,98 @@ export class MaternalIntakeDrizzleRepository {
       automatic: record.intakeSubmission?.automatic,
     };
   }
+
+  async findMaternalHistory(
+    patientIds: string[],
+    query: {
+      page?: number;
+      limit?: number;
+      search?: string;
+      startDate?: string;
+      endDate?: string;
+    },
+  ): Promise<{
+    data: any[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }> {
+    const page = Math.max(1, query.page || 1);
+    const limit = Math.min(100, Math.max(1, query.limit || 10));
+    const offset = (page - 1) * limit;
+
+    const conditions: any[] = [];
+    if (patientIds && patientIds.length > 0) {
+      conditions.push(inArray(maternalHealthIntakes.patientId, patientIds));
+    }
+
+    if (query.search?.trim()) {
+      const term = `%${query.search.trim()}%`;
+      conditions.push(
+        or(
+          ilike(maternalHealthIntakes.motherName, term),
+          ilike(maternalHealthIntakes.motherNik, term),
+        )!,
+      );
+    }
+
+    if (query.startDate) {
+      conditions.push(
+        gte(maternalHealthIntakes.createdAt, `${query.startDate}T00:00:00Z`),
+      );
+    }
+
+    if (query.endDate) {
+      conditions.push(
+        lte(maternalHealthIntakes.createdAt, `${query.endDate}T23:59:59Z`),
+      );
+    }
+
+    const whereClause = and(...conditions);
+
+    const [totalRes] = await this.db
+      .select({ count: count() })
+      .from(maternalHealthIntakes)
+      .where(whereClause);
+
+    const total = Number(totalRes?.count || 0);
+
+    const records = await this.db.query.maternalHealthIntakes.findMany({
+      where: whereClause,
+      limit,
+      offset,
+      orderBy: [desc(maternalHealthIntakes.createdAt)],
+    });
+
+    const data = records.map((r) => ({
+      id: r.id,
+      intakeSubmissionId: r.intakeSubmissionId,
+      patientId: r.patientId,
+      appointmentId: r.appointmentId,
+      motherName: r.motherName,
+      motherNik: r.motherNik,
+      motherBirthDate: r.motherBirthDate,
+      motherAge: r.motherAge,
+      gestationalAgeWeeks: r.gestationalAgeWeeks,
+      gestationalAgeFormatted: r.gestationalAgeFormatted,
+      hpht: r.hpht,
+      estimatedDueDate: r.estimatedDueDate,
+      partnerName: r.partnerName,
+      gravidaCount: r.gravidaCount,
+      parityCount: r.parityCount,
+      abortionCount: r.abortionCount,
+      livingChildrenCount: r.livingChildrenCount,
+      createdAt: r.createdAt,
+    }));
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit) || 0,
+    };
+  }
 }
+

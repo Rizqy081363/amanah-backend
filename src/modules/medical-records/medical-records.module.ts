@@ -11,8 +11,10 @@ import { ImmunizationCatalogController } from './presentation/immunization-catal
 import { MaternalCatalogController } from './presentation/maternal-catalog.controller';
 import { MedicalIntakesController } from './presentation/medical-intakes.controller';
 import { MedicalRecordsController } from './presentation/medical-records.controller';
+import { PatientsModule } from '../patients/patients.module';
 
 @Module({
+  imports: [PatientsModule],
   controllers: [
     MedicalRecordsController,
     MedicalIntakesController,

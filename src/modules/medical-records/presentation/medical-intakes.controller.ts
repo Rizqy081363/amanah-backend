@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  ForbiddenException,
   Get,
   HttpCode,
   HttpStatus,
@@ -29,6 +30,14 @@ import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
 import { Public } from '../../../common/auth/public.decorator';
 import { Roles } from '../../../common/auth/roles.decorator';
 import { RolesGuard } from '../../../common/auth/roles.guard';
+import {
+  PATIENT_AFFILIATION_REPOSITORY,
+  type PatientAffiliationRepository,
+} from '../../patients/domain/repositories/patient-affiliation.repository';
+import {
+  PATIENT_REPOSITORY,
+  type PatientRepository,
+} from '../../patients/domain/repositories/patient.repository';
 import { FormRequirementService } from '../application/form-requirement.service';
 import {
   MEDICAL_RECORD_REPOSITORY,
@@ -37,6 +46,8 @@ import {
 import { CreateChildImmunizationIntakeDto } from './dto/create-child-immunization-intake.dto';
 import { CreateMaternityIntakeDto } from './dto/create-maternity-intake.dto';
 import { CreateMedicalIntakeDto } from './dto/create-medical-intake.dto';
+import { GetImmunizationHistoryQueryDto } from './dto/get-immunization-history-query.dto';
+import { GetMaternalHistoryQueryDto } from './dto/get-maternal-history-query.dto';
 
 @ApiTags('Medical Intakes (Formulir Skrining, Imunisasi & Kehamilan)')
 @ApiBearerAuth('access-token')
@@ -54,6 +65,10 @@ export class MedicalIntakesController {
     @Inject(MEDICAL_RECORD_REPOSITORY)
     private readonly medicalRecordRepo: MedicalRecordRepository,
     private readonly formRequirementService: FormRequirementService,
+    @Inject(PATIENT_AFFILIATION_REPOSITORY)
+    private readonly affiliationRepo: PatientAffiliationRepository,
+    @Inject(PATIENT_REPOSITORY)
+    private readonly patientRepo: PatientRepository,
   ) {}
 
   @Get('form-requirement')
@@ -190,16 +205,132 @@ export class MedicalIntakesController {
     return intake;
   }
 
+  @Get('maternity/history')
+  @Roles('PATIENT', 'STAF', 'ADMIN')
+  @ApiOperation({
+    summary: 'Mendapatkan riwayat formulir kehamilan & persalinan dengan paginasi',
+  })
+  async getMaternalHistory(
+    @Query() query: GetMaternalHistoryQueryDto,
+    @CurrentUser() user: any,
+  ) {
+    let targetPatientIds: string[] | undefined = undefined;
+
+    if (user.systemRole === 'PATIENT') {
+      const userAffiliations = await this.affiliationRepo.findByUserId(user.id);
+      const allowedIds = userAffiliations.map((a) => a.patientId);
+
+      const ownPatient = await this.patientRepo.findByUserId(user.id);
+      if (ownPatient && !allowedIds.includes(ownPatient.id)) {
+        allowedIds.push(ownPatient.id);
+      }
+
+      if (query.patientId) {
+        if (!allowedIds.includes(query.patientId)) {
+          throw new ForbiddenException(
+            'Anda tidak memiliki wewenang untuk mengakses riwayat pasien ini.',
+          );
+        }
+        targetPatientIds = [query.patientId];
+      } else {
+        if (allowedIds.length === 0) {
+          return {
+            data: [],
+            total: 0,
+            page: query.page || 1,
+            limit: query.limit || 10,
+            totalPages: 0,
+          };
+        }
+        targetPatientIds = allowedIds;
+      }
+    } else if (query.patientId) {
+      targetPatientIds = [query.patientId];
+    }
+
+    return this.medicalRecordRepo.findMaternalHistory(
+      targetPatientIds || [],
+      query,
+    );
+  }
+
+  @Get('immunization/history')
+  @Roles('PATIENT', 'STAF', 'ADMIN')
+  @ApiOperation({
+    summary: 'Mendapatkan riwayat formulir imunisasi anak dengan paginasi',
+  })
+  async getImmunizationHistory(
+    @Query() query: GetImmunizationHistoryQueryDto,
+    @CurrentUser() user: any,
+  ) {
+    let targetPatientIds: string[] | undefined = undefined;
+
+    if (user.systemRole === 'PATIENT') {
+      const userAffiliations = await this.affiliationRepo.findByUserId(user.id);
+      const allowedIds = userAffiliations.map((a) => a.patientId);
+
+      const ownPatient = await this.patientRepo.findByUserId(user.id);
+      if (ownPatient && !allowedIds.includes(ownPatient.id)) {
+        allowedIds.push(ownPatient.id);
+      }
+
+      if (query.patientId) {
+        if (!allowedIds.includes(query.patientId)) {
+          throw new ForbiddenException(
+            'Anda tidak memiliki wewenang untuk mengakses riwayat pasien ini.',
+          );
+        }
+        targetPatientIds = [query.patientId];
+      } else {
+        if (allowedIds.length === 0) {
+          return {
+            data: [],
+            total: 0,
+            page: query.page || 1,
+            limit: query.limit || 10,
+            totalPages: 0,
+          };
+        }
+        targetPatientIds = allowedIds;
+      }
+    } else if (query.patientId) {
+      targetPatientIds = [query.patientId];
+    }
+
+    return this.medicalRecordRepo.findImmunizationHistory(
+      targetPatientIds || [],
+      query,
+    );
+  }
+
   @Get('maternity/:id')
   @Roles('STAF', 'ADMIN', 'PATIENT')
   @ApiOperation({
     summary: 'Mendapatkan detail formulir intake maternal kehamilan by ID',
   })
-  async getMaternalIntakeById(@Param('id') id: string) {
+  async getMaternalIntakeById(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+  ) {
     const intake = await this.medicalRecordRepo.findMaternalIntakeById(id);
     if (!intake) {
       throw new NotFoundException('Data intake maternal tidak ditemukan');
     }
+
+    if (user.systemRole === 'PATIENT' && intake.patientId) {
+      const isAffiliated = await this.affiliationRepo.findByUserAndPatient(
+        user.id,
+        intake.patientId,
+      );
+      const ownPatient = await this.patientRepo.findByUserId(user.id);
+      const isOwn = ownPatient && ownPatient.id === intake.patientId;
+      if (!isAffiliated && !isOwn) {
+        throw new ForbiddenException(
+          'Anda tidak memiliki wewenang untuk mengakses data rekam medis ini.',
+        );
+      }
+    }
+
     return intake;
   }
 
@@ -208,11 +339,29 @@ export class MedicalIntakesController {
   @ApiOperation({
     summary: 'Mendapatkan detail formulir intake imunisasi anak by ID',
   })
-  async getImmunizationIntakeById(@Param('id') id: string) {
+  async getImmunizationIntakeById(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+  ) {
     const intake = await this.medicalRecordRepo.findImmunizationIntakeById(id);
     if (!intake) {
       throw new NotFoundException('Data intake imunisasi tidak ditemukan');
     }
+
+    if (user.systemRole === 'PATIENT' && intake.patientId) {
+      const isAffiliated = await this.affiliationRepo.findByUserAndPatient(
+        user.id,
+        intake.patientId,
+      );
+      const ownPatient = await this.patientRepo.findByUserId(user.id);
+      const isOwn = ownPatient && ownPatient.id === intake.patientId;
+      if (!isAffiliated && !isOwn) {
+        throw new ForbiddenException(
+          'Anda tidak memiliki wewenang untuk mengakses data rekam medis ini.',
+        );
+      }
+    }
+
     return intake;
   }
 

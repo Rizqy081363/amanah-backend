@@ -786,4 +786,12 @@ export class MedicalRecordDrizzleRepository implements MedicalRecordRepository {
   async findLatestIntakeByPatientId(patientId: string, flow?: string) {
     return this.kiaIntakeRepo.findLatestIntakeByPatientId(patientId, flow);
   }
+
+  async findMaternalHistory(patientIds: string[], query: any) {
+    return this.kiaIntakeRepo.findMaternalHistory(patientIds, query);
+  }
+
+  async findImmunizationHistory(patientIds: string[], query: any) {
+    return this.kiaIntakeRepo.findImmunizationHistory(patientIds, query);
+  }
 }

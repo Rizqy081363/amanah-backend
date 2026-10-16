@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { desc, eq, or } from 'drizzle-orm';
+import { and, count, desc, eq, gte, ilike, inArray, lte, or } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
@@ -37,6 +37,10 @@ export class KiaIntakeDrizzleRepository {
     appointmentId: string,
   ): Promise<any | null> {
     return this.maternalRepo.findByAppointmentId(appointmentId);
+  }
+
+  async findMaternalHistory(patientIds: string[], query: any): Promise<any> {
+    return this.maternalRepo.findMaternalHistory(patientIds, query);
   }
 
   async createImmunizationIntake(
@@ -492,4 +496,99 @@ export class KiaIntakeDrizzleRepository {
 
     return null;
   }
+
+  async findImmunizationHistory(
+    patientIds: string[],
+    query: {
+      page?: number;
+      limit?: number;
+      search?: string;
+      startDate?: string;
+      endDate?: string;
+    },
+  ): Promise<{
+    data: any[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }> {
+    const page = Math.max(1, query.page || 1);
+    const limit = Math.min(100, Math.max(1, query.limit || 10));
+    const offset = (page - 1) * limit;
+
+    const conditions: any[] = [];
+    if (patientIds && patientIds.length > 0) {
+      conditions.push(inArray(childImmunizationIntakes.patientId, patientIds));
+    }
+
+    if (query.search?.trim()) {
+      const term = `%${query.search.trim()}%`;
+      conditions.push(
+        or(
+          ilike(childImmunizationIntakes.childName, term),
+          ilike(childImmunizationIntakes.childNik, term),
+        )!,
+      );
+    }
+
+    if (query.startDate) {
+      conditions.push(
+        gte(childImmunizationIntakes.createdAt, `${query.startDate}T00:00:00Z`),
+      );
+    }
+
+    if (query.endDate) {
+      conditions.push(
+        lte(childImmunizationIntakes.createdAt, `${query.endDate}T23:59:59Z`),
+      );
+    }
+
+    const whereClause = and(...conditions);
+
+    const [totalRes] = await this.db
+      .select({ count: count() })
+      .from(childImmunizationIntakes)
+      .where(whereClause);
+
+    const total = Number(totalRes?.count || 0);
+
+    const records = await this.db.query.childImmunizationIntakes.findMany({
+      where: whereClause,
+      with: {
+        entries: true,
+      },
+      limit,
+      offset,
+      orderBy: [desc(childImmunizationIntakes.createdAt)],
+    });
+
+    const data = records.map((r) => ({
+      id: r.id,
+      intakeSubmissionId: r.intakeSubmissionId,
+      patientId: r.patientId,
+      appointmentId: r.appointmentId,
+      childName: r.childName,
+      childNik: r.childNik,
+      childBirthDate: r.childBirthDate,
+      childSex: r.childSex,
+      childAgeFormatted: r.childAgeFormatted,
+      parentPhone: r.parentPhone,
+      fatherName: r.fatherName,
+      motherName: r.motherName,
+      previousVaccineHistory: r.previousVaccineHistory,
+      childAllergyHistory: r.childAllergyHistory,
+      scheduledVaccinesCount: r.entries?.length || 0,
+      createdAt: r.createdAt,
+    }));
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit) || 0,
+    };
+  }
 }
+

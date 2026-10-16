@@ -111,4 +111,38 @@ export interface MedicalRecordRepository {
     patientId: string,
     flow?: string,
   ): Promise<any | null>;
+
+  findMaternalHistory(
+    patientIds: string[],
+    query: {
+      page?: number;
+      limit?: number;
+      search?: string;
+      startDate?: string;
+      endDate?: string;
+    },
+  ): Promise<{
+    data: any[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }>;
+
+  findImmunizationHistory(
+    patientIds: string[],
+    query: {
+      page?: number;
+      limit?: number;
+      search?: string;
+      startDate?: string;
+      endDate?: string;
+    },
+  ): Promise<{
+    data: any[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }>;
 }

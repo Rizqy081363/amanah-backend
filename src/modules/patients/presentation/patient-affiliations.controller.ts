@@ -48,6 +48,56 @@ import {
 } from '../domain/repositories/patient-affiliation.repository';
 import { CreatePatientAffiliationDto } from './dto/create-patient-affiliation.dto';
 
+function mapEnrichedPatient(
+  aff: any,
+  latestIntake?: { id: string; createdAt: any } | null,
+  forceIntakeTrue = false,
+) {
+  const p = aff.patient;
+  const pStatus = p?.status || 'active';
+  return {
+    id: aff.patientId,
+    affiliationId: aff.id,
+    fullName: p?.fullName || '',
+    nik: p?.nik || '',
+    gender: p?.gender || null,
+    bloodType: p?.bloodType || null,
+    birthPlace: p?.birthPlace || null,
+    birthDate: p?.birthDate || null,
+    motherName: p?.namaIbuKandung || null,
+    address: p?.address || p?.alamatDetail || null,
+    alamatDetail: p?.alamatDetail || null,
+    provinsi: p?.provinsi || null,
+    provinsiId: p?.provinsiId || null,
+    kabupaten: p?.kabupaten || null,
+    kabupatenId: p?.kabupatenId || null,
+    kecamatan: p?.kecamatan || null,
+    kecamatanId: p?.kecamatanId || null,
+    kelurahan: p?.kelurahan || null,
+    kelurahanId: p?.kelurahanId || null,
+    phoneNumber: p?.phoneNumber || null,
+    email: p?.email || null,
+    relationship: aff.relationshipType,
+    relationshipLabel:
+      aff.relationLabel ||
+      (aff.relationshipType === 'self'
+        ? 'Diri Sendiri'
+        : aff.relationshipType === 'spouse'
+          ? 'Pasangan'
+          : aff.relationshipType === 'child'
+            ? 'Anak Kandung'
+            : aff.relationshipType === 'parent'
+              ? 'Orang Tua'
+              : aff.relationshipType),
+    occupationName: p?.pekerjaan || null,
+    status: pStatus,
+    isActive: pStatus === 'active',
+    hasExistingIntake: forceIntakeTrue ? true : Boolean(latestIntake),
+    latestIntakeId: latestIntake?.id || null,
+    latestIntakeDate: latestIntake?.createdAt || null,
+  };
+}
+
 @ApiTags('Patient Affiliations (Keluarga & Relasi Pasien)')
 @ApiBearerAuth('access-token')
 @UseGuards(HybridAuthGuard, RolesGuard)
@@ -126,11 +176,8 @@ export class PatientAffiliationsController {
         { value: 'sibling', label: 'Saudara Perempuan' },
         { value: 'relative', label: 'Kerabat' },
       ];
-
       if (hasExistingSelf) {
-        allowedRelationships = allowedRelationships.filter(
-          (r) => r.value !== 'self',
-        );
+        allowedRelationships = allowedRelationships.filter((r) => r.value !== 'self');
       }
 
       const validAffiliations = rawAffiliations.filter((aff) => {
@@ -153,30 +200,7 @@ export class PatientAffiliationsController {
             .orderBy(desc(maternalHealthIntakes.createdAt))
             .limit(1);
 
-          const pStatus = aff.patient?.status || 'active';
-
-          return {
-            id: aff.patientId,
-            affiliationId: aff.id,
-            fullName: aff.patient?.fullName || '',
-            nik: aff.patient?.nik || '',
-            gender: aff.patient?.gender || null,
-            bloodType: aff.patient?.bloodType || null,
-            relationship: aff.relationshipType,
-            relationshipLabel:
-              aff.relationLabel ||
-              (aff.relationshipType === 'self'
-                ? 'Diri Sendiri'
-                : aff.relationshipType === 'spouse'
-                  ? 'Pasangan'
-                  : aff.relationshipType),
-            occupationName: aff.patient?.pekerjaan || null,
-            status: pStatus,
-            isActive: pStatus === 'active',
-            hasExistingIntake: Boolean(latestIntake),
-            latestIntakeId: latestIntake?.id || null,
-            latestIntakeDate: latestIntake?.createdAt || null,
-          };
+          return mapEnrichedPatient(aff, latestIntake);
         }),
       );
     } else if (flow === 'immunization') {
@@ -203,28 +227,7 @@ export class PatientAffiliationsController {
             .orderBy(desc(childImmunizationIntakes.createdAt))
             .limit(1);
 
-          const pStatus = aff.patient?.status || 'active';
-
-          return {
-            id: aff.patientId,
-            affiliationId: aff.id,
-            fullName: aff.patient?.fullName || '',
-            nik: aff.patient?.nik || '',
-            gender: aff.patient?.gender || null,
-            bloodType: aff.patient?.bloodType || null,
-            relationship: aff.relationshipType,
-            relationshipLabel:
-              aff.relationLabel ||
-              (aff.relationshipType === 'child'
-                ? 'Anak Kandung'
-                : aff.relationshipType),
-            occupationName: aff.patient?.pekerjaan || null,
-            status: pStatus,
-            isActive: pStatus === 'active',
-            hasExistingIntake: Boolean(latestIntake),
-            latestIntakeId: latestIntake?.id || null,
-            latestIntakeDate: latestIntake?.createdAt || null,
-          };
+          return mapEnrichedPatient(aff, latestIntake);
         }),
       );
     } else {
@@ -238,36 +241,12 @@ export class PatientAffiliationsController {
       ];
 
       if (hasExistingSelf) {
-        allowedRelationships = allowedRelationships.filter(
-          (r) => r.value !== 'self',
-        );
+        allowedRelationships = allowedRelationships.filter((r) => r.value !== 'self');
       }
 
-      enrichedPatients = rawAffiliations.map((aff) => {
-        const pStatus = aff.patient?.status || 'active';
-        return {
-          id: aff.patientId,
-          affiliationId: aff.id,
-          fullName: aff.patient?.fullName || '',
-          nik: aff.patient?.nik || '',
-          gender: aff.patient?.gender || null,
-          bloodType: aff.patient?.bloodType || null,
-          relationship: aff.relationshipType,
-          relationshipLabel:
-            aff.relationLabel ||
-            (aff.relationshipType === 'self'
-              ? 'Diri Sendiri'
-              : aff.relationshipType === 'spouse'
-                ? 'Pasangan'
-                : aff.relationshipType),
-          occupationName: aff.patient?.pekerjaan || null,
-          status: pStatus,
-          isActive: pStatus === 'active',
-          hasExistingIntake: true,
-          latestIntakeId: null,
-          latestIntakeDate: null,
-        };
-      });
+      enrichedPatients = rawAffiliations.map((aff) =>
+        mapEnrichedPatient(aff, null, true),
+      );
     }
 
     return {
@@ -315,9 +294,7 @@ export class PatientAffiliationsController {
     @Body() dto: CreatePatientAffiliationDto,
   ) {
     if (dto.relationship_type === 'self' || dto.is_primary) {
-      const existingUserAffiliations = await this.affiliationRepo.findByUserId(
-        user.id,
-      );
+      const existingUserAffiliations = await this.affiliationRepo.findByUserId(user.id);
       const hasSelf = existingUserAffiliations.some(
         (aff) => aff.relationshipType === 'self' || aff.isPrimary,
       );
