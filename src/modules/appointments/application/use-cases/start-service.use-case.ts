@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { RedisService } from '../../../../common/redis/redis.service';
 import type { AppointmentRecord } from '../../domain/types/appointment.types';
+import { AppointmentNotificationPublisher } from '../appointment-notification.publisher';
 import {
   APPOINTMENT_REPOSITORY_PORT,
   type AppointmentRepositoryPort,
@@ -28,9 +29,11 @@ export class StartServiceUseCase {
     private readonly pushNotification?: PushNotificationPort,
     @Optional()
     private readonly redisService?: RedisService,
+    @Optional()
+    private readonly notificationPublisher?: AppointmentNotificationPublisher,
   ) {}
 
-  async execute(appointmentId: string): Promise<AppointmentRecord> {
+  async execute(appointmentId: string, user?: any): Promise<AppointmentRecord> {
     const actualStartedAt = new Date();
     const updated = await this.appointmentRepo.transitionStatus({
       id: appointmentId,
@@ -78,6 +81,28 @@ export class StartServiceUseCase {
         .catch((error) => {
           this.logger.warn(
             `Push notification failed on start service for patient ${updated.patientUserId}: ${error.message}`,
+          );
+        });
+    }
+
+    if (this.notificationPublisher) {
+      await this.notificationPublisher
+        .publishStarted(
+          {
+            id: updated.id,
+            patientUserId: updated.patientUserId,
+            patientName: updated.patientName,
+            staffId: updated.practitionerId,
+            doctorName: user?.staff?.fullName || user?.name || null,
+            poliklinikName: updated.poliklinikName,
+            queueNumber: updated.queueNumber,
+            scheduledDate: updated.scheduledDate,
+          },
+          user,
+        )
+        .catch((error) => {
+          this.logger.warn(
+            `Failed to publish started notification event: ${error.message}`,
           );
         });
     }

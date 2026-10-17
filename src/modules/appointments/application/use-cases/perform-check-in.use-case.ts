@@ -14,6 +14,7 @@ import {
   APPOINTMENT_REPOSITORY,
   type AppointmentRepository,
 } from '../../domain/repositories/appointment.repository';
+import { AppointmentNotificationPublisher } from '../appointment-notification.publisher';
 import {
   APPOINTMENT_CHECK_IN_REPOSITORY_PORT,
   type AppointmentCheckInRepositoryPort,
@@ -49,6 +50,8 @@ export class PerformCheckInUseCase {
     private readonly pushNotification?: PushNotificationPort,
     @Optional()
     private readonly redisService?: RedisService,
+    @Optional()
+    private readonly notificationPublisher?: AppointmentNotificationPublisher,
   ) {}
 
   async execute(
@@ -187,6 +190,10 @@ export class PerformCheckInUseCase {
       queueNumber: Number(updated.queueNumber) || 1,
       practitionerId: updated.staffId || '',
     });
+
+    if (this.notificationPublisher) {
+      await this.notificationPublisher.publishCheckedIn(updated, actorUser);
+    }
 
     const targetUserId =
       updated.parentUserId || updated.patientUserId || updated.createdBy;

@@ -143,7 +143,7 @@ export class AppointmentsNotificationRules implements OnModuleInit {
     this.registry.registerRule({
       eventType: APPOINTMENT_EVENTS.PATIENT_CALLED,
       category: 'appointment',
-      defaultChannels: ['in_app'],
+      defaultChannels: ['in_app', 'push'],
       resolveIntents: async (
         payload: any,
         actor?: any,
@@ -246,15 +246,20 @@ export class AppointmentsNotificationRules implements OnModuleInit {
     this.registry.registerRule({
       eventType: APPOINTMENT_EVENTS.PATIENT_RESPONDED,
       category: 'appointment',
-      defaultChannels: ['in_app'],
-      resolveIntents: (payload: any) => {
-        if (!payload.patientUserId) return [];
-        return [
-          {
+      defaultChannels: ['in_app', 'push'],
+      resolveIntents: async (
+        payload: any,
+        actor?: any,
+      ): Promise<NotificationIntent[]> => {
+        const intents: NotificationIntent[] = [];
+
+        // Intent 1: Patient notification
+        if (payload.patientUserId) {
+          intents.push({
             recipientUserId: payload.patientUserId,
             audience: 'patient',
             title: 'Pemeriksaan Dimulai',
-            body: `Pemeriksaan untuk antrean ${payload.ticketNumber || '-'} di ${payload.poliklinikName || 'Poli'} sedang berlangsung.`,
+            body: `Pemeriksaan untuk antrean ${payload.ticketNumber || payload.queueNumber || '-'} di ${payload.poliklinikName || 'Poli'} sedang berlangsung.`,
             severity: 'info',
             badgeIcon: 'stethoscope',
             isUrgent: false,
@@ -272,10 +277,52 @@ export class AppointmentsNotificationRules implements OnModuleInit {
               },
             ],
             presentation: { toast: true },
-          },
-        ];
+          });
+        }
+
+        // Intent 2: Clinic Staff & Admin Notification
+        if (this.recipientResolver) {
+          const clinicUserIds =
+            await this.recipientResolver.resolveScopedClinicRecipients(
+              payload.staffId,
+            );
+
+          for (const staffUserId of clinicUserIds) {
+            const isActorStaff = actor?.userId === staffUserId;
+            intents.push({
+              recipientUserId: staffUserId,
+              audience: 'clinic',
+              title: 'Pemeriksaan Dimulai',
+              body: payload.doctorName
+                ? `${payload.doctorName} telah memulai pemeriksaan pasien ${payload.patientName || 'Pasien'} (${payload.ticketNumber || payload.queueNumber || '-'}).`
+                : `Pemeriksaan antrean ${payload.ticketNumber || payload.queueNumber || '-'} (${payload.patientName || 'Pasien'}) sedang berlangsung.`,
+              severity: 'info',
+              badgeIcon: 'stethoscope',
+              isUrgent: false,
+              action: {
+                type: 'view_patient',
+                params: { appointmentId: payload.appointmentId || '' },
+                label: 'Lihat Detail',
+              },
+              presentation: { toast: !isActorStaff },
+            });
+          }
+        }
+
+        return intents;
       },
-      resolveRecipients: (payload: any) => payload.patientUserId,
+      resolveRecipients: async (payload: any) => {
+        const recipients: string[] = [];
+        if (payload.patientUserId) recipients.push(payload.patientUserId);
+        if (this.recipientResolver) {
+          const clinicUserIds =
+            await this.recipientResolver.resolveScopedClinicRecipients(
+              payload.staffId,
+            );
+          recipients.push(...clinicUserIds);
+        }
+        return recipients;
+      },
       titleTemplate: 'Pemeriksaan Dimulai',
       bodyTemplate: (payload: any) =>
         `Pemeriksaan untuk antrean ${payload.ticketNumber || '-'} di ${payload.poliklinikName || 'Poli'} sedang berlangsung.`,
@@ -336,26 +383,66 @@ export class AppointmentsNotificationRules implements OnModuleInit {
     this.registry.registerRule({
       eventType: APPOINTMENT_EVENTS.NO_SHOW,
       category: 'appointment',
-      defaultChannels: ['in_app'],
-      resolveIntents: (payload: any) => {
-        if (!payload.patientUserId) return [];
-        return [
-          {
+      defaultChannels: ['in_app', 'push'],
+      resolveIntents: async (
+        payload: any,
+        actor?: any,
+      ): Promise<NotificationIntent[]> => {
+        const intents: NotificationIntent[] = [];
+
+        // Intent 1: Patient notification
+        if (payload.patientUserId) {
+          intents.push({
             recipientUserId: payload.patientUserId,
             audience: 'patient',
-            title: 'Janji Temu Dibatalkan',
-            body: `Pasien tidak hadir setelah ${payload.totalAttempts} kali pemanggilan di ${payload.poliklinikName || 'Poli'}. Status: No-Show.`,
+            title: 'Panggilan Terlewati (No-Show)',
+            body: `Pasien tidak hadir setelah ${payload.totalAttempts || 3} kali pemanggilan di ${payload.poliklinikName || 'Poli'}. Status: No-Show.`,
             severity: 'error',
             badgeIcon: 'alert-circle',
             isUrgent: true,
             presentation: { toast: true },
-          },
-        ];
+          });
+        }
+
+        // Intent 2: Clinic Staff & Doctor Alert
+        if (this.recipientResolver && payload.staffId) {
+          const clinicUserIds =
+            await this.recipientResolver.resolveScopedClinicRecipients(
+              payload.staffId,
+            );
+
+          for (const staffUserId of clinicUserIds) {
+            const isActorStaff = actor?.userId === staffUserId;
+            intents.push({
+              recipientUserId: staffUserId,
+              audience: 'clinic',
+              title: 'Pasien Tidak Hadir (No-Show)',
+              body: `Pasien ${payload.patientName || 'Pasien'} (${payload.ticketNumber || payload.queueNumber || '-'}) ditandai tidak hadir (No-Show) setelah ${payload.totalAttempts || 3} kali pemanggilan.`,
+              severity: 'warning',
+              badgeIcon: 'alert-circle',
+              isUrgent: true,
+              presentation: { toast: !isActorStaff },
+            });
+          }
+        }
+
+        return intents;
       },
-      resolveRecipients: (payload: any) => payload.patientUserId,
-      titleTemplate: 'Janji Temu Dibatalkan',
+      resolveRecipients: async (payload: any) => {
+        const recipients: string[] = [];
+        if (payload.patientUserId) recipients.push(payload.patientUserId);
+        if (this.recipientResolver && payload.staffId) {
+          const clinicUserIds =
+            await this.recipientResolver.resolveScopedClinicRecipients(
+              payload.staffId,
+            );
+          recipients.push(...clinicUserIds);
+        }
+        return recipients;
+      },
+      titleTemplate: 'Pasien Tidak Hadir (No-Show)',
       bodyTemplate: (payload: any) =>
-        `Pasien tidak hadir setelah ${payload.totalAttempts} kali pemanggilan di ${payload.poliklinikName || 'Poli'}. Status: No-Show.`,
+        `Pasien ${payload.patientName || 'Pasien'} (${payload.ticketNumber || payload.queueNumber || '-'}) ditandai tidak hadir (No-Show).`,
       isUrgent: true,
       badgeIcon: 'alert-circle',
       resolveSource: (payload: any) => ({
@@ -368,11 +455,16 @@ export class AppointmentsNotificationRules implements OnModuleInit {
     this.registry.registerRule({
       eventType: APPOINTMENT_EVENTS.COMPLETED,
       category: 'clinical',
-      defaultChannels: ['in_app'],
-      resolveIntents: (payload: any) => {
-        if (!payload.patientUserId) return [];
-        return [
-          {
+      defaultChannels: ['in_app', 'push'],
+      resolveIntents: async (
+        payload: any,
+        actor?: any,
+      ): Promise<NotificationIntent[]> => {
+        const intents: NotificationIntent[] = [];
+
+        // Intent 1: Patient notification
+        if (payload.patientUserId) {
+          intents.push({
             recipientUserId: payload.patientUserId,
             audience: 'patient',
             title: 'Pemeriksaan Selesai',
@@ -381,10 +473,52 @@ export class AppointmentsNotificationRules implements OnModuleInit {
             badgeIcon: 'check-circle',
             isUrgent: false,
             presentation: { toast: true },
-          },
-        ];
+          });
+        }
+
+        // Intent 2: Clinic Staff & Admin Notification
+        if (this.recipientResolver) {
+          const clinicUserIds =
+            await this.recipientResolver.resolveScopedClinicRecipients(
+              payload.staffId,
+            );
+
+          for (const staffUserId of clinicUserIds) {
+            const isActorStaff = actor?.userId === staffUserId;
+            intents.push({
+              recipientUserId: staffUserId,
+              audience: 'clinic',
+              title: 'Pemeriksaan Selesai',
+              body: payload.doctorName
+                ? `${payload.doctorName} telah menyelesaikan pemeriksaan pasien ${payload.patientName || 'Pasien'} (${payload.ticketNumber || payload.queueNumber || '-'}).`
+                : `Pemeriksaan antrean ${payload.ticketNumber || payload.queueNumber || '-'} (${payload.patientName || 'Pasien'}) telah selesai.`,
+              severity: 'success',
+              badgeIcon: 'check-circle',
+              isUrgent: false,
+              action: {
+                type: 'view_patient',
+                params: { appointmentId: payload.appointmentId || '' },
+                label: 'Lihat Detail',
+              },
+              presentation: { toast: !isActorStaff },
+            });
+          }
+        }
+
+        return intents;
       },
-      resolveRecipients: (payload: any) => payload.patientUserId,
+      resolveRecipients: async (payload: any) => {
+        const recipients: string[] = [];
+        if (payload.patientUserId) recipients.push(payload.patientUserId);
+        if (this.recipientResolver) {
+          const clinicUserIds =
+            await this.recipientResolver.resolveScopedClinicRecipients(
+              payload.staffId,
+            );
+          recipients.push(...clinicUserIds);
+        }
+        return recipients;
+      },
       titleTemplate: 'Pemeriksaan Selesai',
       bodyTemplate: (payload: any) =>
         `Konsultasi dan pemeriksaan medis di ${payload.poliklinikName || 'Poli'} telah selesai.`,
@@ -400,7 +534,7 @@ export class AppointmentsNotificationRules implements OnModuleInit {
     this.registry.registerRule({
       eventType: APPOINTMENT_EVENTS.RESCHEDULED,
       category: 'appointment',
-      defaultChannels: ['in_app'],
+      defaultChannels: ['in_app', 'push'],
       resolveIntents: async (
         payload: any,
         actor?: any,
@@ -558,7 +692,7 @@ export class AppointmentsNotificationRules implements OnModuleInit {
     this.registry.registerRule({
       eventType: APPOINTMENT_EVENTS.CANCELLED,
       category: 'appointment',
-      defaultChannels: ['in_app'],
+      defaultChannels: ['in_app', 'push'],
       resolveIntents: async (
         payload: any,
         actor?: any,
@@ -703,7 +837,7 @@ export class AppointmentsNotificationRules implements OnModuleInit {
     this.registry.registerRule({
       eventType: APPOINTMENT_EVENTS.ASSIGNMENT_UPDATED,
       category: 'appointment',
-      defaultChannels: ['in_app'],
+      defaultChannels: ['in_app', 'push'],
       resolveIntents: async (payload: any): Promise<NotificationIntent[]> => {
         const intents: NotificationIntent[] = [];
         const changeTitle =
@@ -738,18 +872,27 @@ export class AppointmentsNotificationRules implements OnModuleInit {
           });
         }
 
-        // 2. Notify newly assigned staff
+        // 2. Notify newly assigned staff / doctor
         if (this.recipientResolver && payload.staffId) {
           const clinicUserIds =
             await this.recipientResolver.resolveScopedClinicRecipients(
               payload.staffId,
             );
+          const staffTitle =
+            payload.changeType === 'doctor'
+              ? 'Penugasan Pasien Baru'
+              : changeTitle;
+          const staffBody =
+            payload.changeType === 'doctor'
+              ? `Anda telah ditugaskan untuk menangani pasien ${payload.patientName || 'Pasien'}.`
+              : changeBody;
+
           for (const staffUserId of clinicUserIds) {
             intents.push({
               recipientUserId: staffUserId,
               audience: 'clinic',
-              title: changeTitle,
-              body: changeBody,
+              title: staffTitle,
+              body: staffBody,
               severity: 'info',
               badgeIcon: 'stethoscope',
               visualKey: payload.doctorAvatarUrl || null,
@@ -810,6 +953,86 @@ export class AppointmentsNotificationRules implements OnModuleInit {
           url: `/dashboard/jadwal-dokter?selectedDoctorId=${payload.staffId || ''}&dialog=detail&date=${payload.scheduledDate}&openPatients=true`,
         },
       ],
+    });
+
+    // 8. Appointment Checked-In Rule (Patient check-in -> Alert assigned doctor & clinic frontdesk)
+    this.registry.registerRule({
+      eventType: APPOINTMENT_EVENTS.CHECKED_IN,
+      category: 'appointment',
+      defaultChannels: ['in_app', 'push'],
+      resolveIntents: async (
+        payload: any,
+        actor?: any,
+      ): Promise<NotificationIntent[]> => {
+        const intents: NotificationIntent[] = [];
+
+        // 1. Notify Patient (confirmation)
+        if (payload.patientUserId) {
+          intents.push({
+            recipientUserId: payload.patientUserId,
+            audience: 'patient',
+            title: 'Check-In Berhasil',
+            body: `Nomor antrean Anda ${payload.queueNumber || '-'}. Silakan menunggu panggilan di ${payload.roomName || 'ruang tunggu'}.`,
+            severity: 'success',
+            badgeIcon: 'check-circle',
+            action: {
+              type: 'view_queue',
+              params: { appointmentId: payload.appointmentId || '' },
+              label: 'Lihat Antrean',
+            },
+            presentation: { toast: true },
+          });
+        }
+
+        // 2. Notify Assigned Doctor & Clinic Staff
+        if (this.recipientResolver && payload.staffId) {
+          const clinicUserIds =
+            await this.recipientResolver.resolveScopedClinicRecipients(
+              payload.staffId,
+            );
+
+          for (const staffUserId of clinicUserIds) {
+            const isActorStaff = actor?.userId === staffUserId;
+            intents.push({
+              recipientUserId: staffUserId,
+              audience: 'clinic',
+              title: 'Pasien Telah Check-In',
+              body: `Pasien ${payload.patientName || 'Pasien'} (Nomor antrean ${payload.queueNumber || '-'}) telah hadir di klinik dan menunggu di ruang tunggu.`,
+              severity: 'info',
+              badgeIcon: 'user-check',
+              action: {
+                type: 'view_patient',
+                params: { appointmentId: payload.appointmentId || '' },
+                label: 'Lihat Antrean',
+              },
+              presentation: { toast: !isActorStaff },
+            });
+          }
+        }
+
+        return intents;
+      },
+      resolveRecipients: async (payload: any) => {
+        const recipients: string[] = [];
+        if (payload.patientUserId) recipients.push(payload.patientUserId);
+        if (this.recipientResolver && payload.staffId) {
+          const clinicUserIds =
+            await this.recipientResolver.resolveScopedClinicRecipients(
+              payload.staffId,
+            );
+          recipients.push(...clinicUserIds);
+        }
+        return recipients;
+      },
+      titleTemplate: 'Pasien Telah Check-In',
+      bodyTemplate: (payload: any) =>
+        `Pasien ${payload.patientName || 'Pasien'} (${payload.queueNumber || '-'}) telah hadir di klinik dan menunggu di ruang tunggu.`,
+      isUrgent: false,
+      badgeIcon: 'user-check',
+      resolveSource: (payload: any) => ({
+        sourceType: 'appointment',
+        sourceId: payload.appointmentId,
+      }),
     });
   }
 }

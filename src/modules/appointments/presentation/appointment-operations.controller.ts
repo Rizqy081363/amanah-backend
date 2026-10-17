@@ -18,6 +18,7 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import { CurrentUser } from '../../../common/auth/current-user.decorator';
 import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
 import { Roles } from '../../../common/auth/roles.decorator';
 import { RolesGuard } from '../../../common/auth/roles.guard';
@@ -51,8 +52,8 @@ export class AppointmentOperationsController {
   @ApiNotFoundResponse({ description: 'Janji temu tidak ditemukan' })
   @ApiUnauthorizedResponse({ description: 'Token tidak valid' })
   @ApiForbiddenResponse({ description: 'Akses ditolak' })
-  async startService(@Param('id') id: string) {
-    return this.startServiceUseCase.execute(id);
+  async startService(@Param('id') id: string, @CurrentUser() user?: any) {
+    return this.startServiceUseCase.execute(id, user);
   }
 
   @ApiBearerAuth('access-token')
@@ -69,8 +70,8 @@ export class AppointmentOperationsController {
   @ApiNotFoundResponse({ description: 'Janji temu tidak ditemukan' })
   @ApiUnauthorizedResponse({ description: 'Token tidak valid' })
   @ApiForbiddenResponse({ description: 'Akses ditolak' })
-  async completeService(@Param('id') id: string) {
-    return this.completeServiceUseCase.execute(id);
+  async completeService(@Param('id') id: string, @CurrentUser() user?: any) {
+    return this.completeServiceUseCase.execute(id, user);
   }
 
   @ApiBearerAuth('access-token')
@@ -89,8 +90,9 @@ export class AppointmentOperationsController {
   async cancelAppointment(
     @Param('id') id: string,
     @Body('reason') reason?: string,
+    @CurrentUser() user?: any,
   ) {
-    return this.cancelAppointmentUseCase.execute(id, reason);
+    return this.cancelAppointmentUseCase.execute(id, reason, user);
   }
 
   @ApiBearerAuth('access-token')

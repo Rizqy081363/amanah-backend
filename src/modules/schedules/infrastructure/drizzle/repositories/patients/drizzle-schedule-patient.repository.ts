@@ -13,6 +13,10 @@ import {
 } from '@modules/appointments/domain/constants/appointment-lifecycle.constants';
 import { AppointmentTemporalStatusHelper } from '@modules/appointments/domain/helpers/appointment-temporal-status.helper';
 import { computeConsultationMetrics } from '@modules/appointments/domain/helpers/consultation-duration.helper';
+import {
+  resolveAllowedActions,
+  toDomainStatus,
+} from '@modules/appointments/domain/types/appointment.types';
 import { APPOINTMENT_STATUS_BADGE_MAP } from '@modules/schedules/domain/constants/schedule.constants';
 import { resolveCanonicalShift } from '@modules/schedules/domain/constants/schedule-shift.constants';
 import type {
@@ -161,6 +165,22 @@ export class DrizzleSchedulePatientRepository {
           },
         });
         effectiveRoom = docAssignment?.preferredRoom || null;
+      } else {
+        const docAssignment = await this.db.query.doctorAssignments.findFirst({
+          where: eq(doctorAssignments.id, sessionId),
+          with: {
+            sessionDef: { with: { schedules: true } },
+            preferredRoom: {
+              with: {
+                clinicUnit: true,
+              },
+            },
+          },
+        });
+        if (docAssignment && docAssignment.sessionDef) {
+          effectiveSessionDef = docAssignment.sessionDef;
+          effectiveRoom = docAssignment.preferredRoom || null;
+        }
       }
     }
 
@@ -212,7 +232,12 @@ export class DrizzleSchedulePatientRepository {
     if (query.status && query.status !== 'all') {
       if (query.status === 'waiting') {
         conditions.push(
-          inArray(appointments.status, ['waiting', 'checked_in', 'booked']),
+          inArray(appointments.status, [
+            'waiting',
+            'checked_in',
+            'booked',
+            'in_service',
+          ]),
         );
       } else {
         conditions.push(eq(appointments.status, query.status as any));
@@ -242,7 +267,11 @@ export class DrizzleSchedulePatientRepository {
       },
     });
 
-    let mappedPatients: AdminSessionPatientItem[] = aptRecords.map((apt) => {
+    const isDoctorServing = aptRecords.some(
+      (a) => a.status === DB_APPOINTMENT_STATUS.IN_SERVICE,
+    );
+
+    let mappedPatients: AdminSessionPatientItem[] = aptRecords.map((apt, idx) => {
       const ageStr = BookedPatientMapper.calculateAgeString(
         apt.patientProfile?.birthDate,
       );
@@ -301,6 +330,17 @@ export class DrizzleSchedulePatientRepository {
         session.clinicRoom?.clinicUnit?.name ||
         null;
 
+      const hasDoctor = Boolean(apt.practitionerId || practitioner.id);
+      const hasRoom = Boolean(apt.roomId || session.clinicRoom?.id);
+
+      const domainStatus = toDomainStatus(effectiveStatus);
+      const allowedActions = resolveAllowedActions(domainStatus, {
+        hasDoctor,
+        hasRoom,
+        aheadCount: idx,
+        isDoctorServing,
+      });
+
       const primaryAddress =
         apt.patientProfile?.patientAddresses?.find((a: any) => a.isPrimary) ||
         apt.patientProfile?.patientAddresses?.[0];
@@ -345,6 +385,7 @@ export class DrizzleSchedulePatientRepository {
         formattedDuration || `${estimatedDurationMinutes} Menit`;
 
       return {
+        id: apt.id,
         appointmentId: apt.id,
         appointmentDate: apt.scheduledDate,
         queueTicketId: apt.queueTickets?.[0]?.id || null,
@@ -371,6 +412,7 @@ export class DrizzleSchedulePatientRepository {
           apt.visitType === 'follow_up' ? 'Kontrol Ulang' : 'Pemeriksaan Baru',
         serviceName: apt.clinicService?.name || null,
         isCancellable,
+        allowedActions,
         patient: {
           id: apt.patientProfile?.id || apt.patientId,
           fullName: apt.patientProfile?.fullName || 'Pasien',

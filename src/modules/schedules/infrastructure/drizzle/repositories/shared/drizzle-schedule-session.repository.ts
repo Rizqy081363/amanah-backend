@@ -277,6 +277,49 @@ export class DrizzleScheduleSessionRepository {
       });
     }
 
+    const sDef = await this.db.query.sessionDefs.findFirst({
+      where: eq(sessionDefs.id, id),
+      with: { schedules: true },
+    });
+
+    if (sDef) {
+      const da = await this.db.query.doctorAssignments.findFirst({
+        where: and(
+          eq(doctorAssignments.sessionId, sDef.id),
+          eq(doctorAssignments.isActive, true),
+        ),
+        with: {
+          preferredRoom: { with: { clinicUnit: true } },
+          practitioner: {
+            with: {
+              staffProfile: { with: { clinicUnit: true } },
+            },
+          },
+        },
+      });
+
+      const today = new Date().toISOString().slice(0, 10);
+      return ScheduleRecordMapper.toEntity({
+        id: da?.id || sDef.id,
+        sessionId: sDef.id,
+        practitionerId: da?.doctorId || '',
+        scheduleDate: today,
+        sessionLabel: sDef.labelKey,
+        sessionShift: sDef.code as any,
+        startTime: sDef.defaultStartsAt || '08:00:00',
+        endTime: sDef.defaultEndsAt || '12:00:00',
+        roomId: da?.preferredRoomId || null,
+        serviceId: da?.categoryId || null,
+        status: SchedulePersistenceStatus.OPEN,
+        notes: null,
+        createdAt: sDef.createdAt,
+        updatedAt: sDef.updatedAt,
+        practitioner: da?.practitioner || null,
+        clinicRoom: da?.preferredRoom || null,
+        clinicService: null,
+      });
+    }
+
     return null;
   }
 
@@ -357,7 +400,8 @@ export class DrizzleScheduleSessionRepository {
       const endTime = sched?.endsAt || da.sessionDef.defaultEndsAt;
 
       const entity = ScheduleRecordMapper.toEntity({
-        id: `roster-${da.id}-${targetDate}`,
+        id: da.id,
+        sessionId: da.sessionId,
         practitionerId: da.doctorId,
         scheduleDate: targetDate,
         sessionLabel: da.sessionDef.labelKey,
@@ -474,7 +518,8 @@ export class DrizzleScheduleSessionRepository {
 
         results.push(
           ScheduleRecordMapper.toEntity({
-            id: `roster-${da.id}-${curDateStr}`,
+            id: da.id,
+            sessionId: da.sessionId,
             practitionerId: da.doctorId,
             scheduleDate: curDateStr,
             sessionLabel: da.sessionDef.labelKey,

@@ -278,9 +278,18 @@ export class StaffInvitationService {
 
     // 4. Create or update practitioners record (Clinical Practitioner)
     if (staff) {
-      const targetSpecialtyCode = isMidwife
-        ? 'maternal_child_health'
-        : 'general_practitioner';
+      const assignedUnit = dto.poliklinikId
+        ? await this.db.query.clinicUnits.findFirst({
+            where: eq(clinicUnits.id, dto.poliklinikId),
+          })
+        : null;
+
+      const isKiaPolyclinic = assignedUnit?.code === 'poli_kia';
+      const targetSpecialtyCode =
+        isMidwife || isKiaPolyclinic
+          ? 'maternal_child_health'
+          : 'general_practitioner';
+
       const matchedSpecialty = await this.db.query.medicalSpecialties.findFirst({
         where: eq(medicalSpecialties.code, targetSpecialtyCode),
       });

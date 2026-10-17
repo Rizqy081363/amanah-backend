@@ -688,6 +688,15 @@ export class SchedulesController {
     @Query() query: GetSessionPatientsQueryDto,
     @CurrentUser() user?: any,
   ) {
+    const userStaffId = user?.staff?.practitionerId || user?.staff?.id;
+    if (userStaffId) {
+      return this.scheduleRepo.getAdminSessionPatients(
+        userStaffId,
+        sessionId,
+        query,
+      );
+    }
+
     const session = await this.scheduleRepo.findById(sessionId);
     if (!session) {
       throw new NotFoundException(

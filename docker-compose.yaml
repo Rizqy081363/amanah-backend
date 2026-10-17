@@ -113,6 +113,7 @@ services:
       DB_TIMEZONE: ${DB_TIMEZONE:?set DB_TIMEZONE in .env}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-/usr/src/app/config/firebase-adminsdk.json}
     depends_on:
       postgres:
         condition: service_healthy
@@ -126,6 +127,7 @@ services:
       - "127.0.0.1:${API_HOST_PORT:-3001}:${APP_PORT:-3001}"
     volumes:
       - ./data/uploads:/usr/src/app/data/uploads
+      - ./config:/usr/src/app/config:ro
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:$${APP_PORT:-3001}/health/ready >/dev/null"]
       interval: 10s

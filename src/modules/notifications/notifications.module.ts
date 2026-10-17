@@ -10,11 +10,14 @@ import { NotificationStreamWorker } from './application/workers/notification-str
 import { PushNotificationQueueWorker } from './application/workers/push-notification-queue.worker';
 import { PUSH_SUBSCRIPTION_REPOSITORY } from './domain/repositories/push-subscription.repository';
 import { InAppDeliveryChannel } from './infrastructure/channels/in-app-delivery.channel';
+import { PushDeliveryChannel } from './infrastructure/channels/push-delivery.channel';
+import { DeviceSubscriptionDrizzleRepository } from './infrastructure/drizzle/device-subscription.drizzle-repository';
 import { NotificationDrizzleRepository } from './infrastructure/drizzle/notification.drizzle-repository';
 import { PushSubscriptionDrizzleRepository } from './infrastructure/drizzle/push-subscription.drizzle-repository';
 import { SocketIoRealtimeGateway } from './infrastructure/realtime/socket-io-realtime.gateway';
 import {
   DELIVERY_CHANNEL_ADAPTERS,
+  DEVICE_SUBSCRIPTION_REPOSITORY,
   NOTIFICATION_PUBLISHER,
   NOTIFICATION_REPOSITORY,
   NOTIFICATION_RULES_REGISTRY,
@@ -43,16 +46,24 @@ import { NotificationRulesRegistry } from './registry/notification-rules-registr
       provide: PUSH_SUBSCRIPTION_REPOSITORY,
       useClass: PushSubscriptionDrizzleRepository,
     },
+    {
+      provide: DEVICE_SUBSCRIPTION_REPOSITORY,
+      useClass: DeviceSubscriptionDrizzleRepository,
+    },
     SocketIoRealtimeGateway,
     {
       provide: REALTIME_GATEWAY_PORT,
       useExisting: SocketIoRealtimeGateway,
     },
     InAppDeliveryChannel,
+    PushDeliveryChannel,
     {
       provide: DELIVERY_CHANNEL_ADAPTERS,
-      useFactory: (inApp: InAppDeliveryChannel) => [inApp],
-      inject: [InAppDeliveryChannel],
+      useFactory: (
+        inApp: InAppDeliveryChannel,
+        push: PushDeliveryChannel,
+      ) => [inApp, push],
+      inject: [InAppDeliveryChannel, PushDeliveryChannel],
     },
     NotificationRulesRegistry,
     {
@@ -72,6 +83,7 @@ import { NotificationRulesRegistry } from './registry/notification-rules-registr
   exports: [
     NOTIFICATION_REPOSITORY,
     PUSH_SUBSCRIPTION_REPOSITORY,
+    DEVICE_SUBSCRIPTION_REPOSITORY,
     NOTIFICATION_PUBLISHER,
     RedisStreamsPublisher,
     REALTIME_GATEWAY_PORT,

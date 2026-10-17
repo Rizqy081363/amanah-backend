@@ -154,6 +154,7 @@ export class AppointmentCallLifecycleService {
         poliklinikName: details.poliklinikName || '',
         roomName: details.roomName || null,
         doctorName: details.doctorName || null,
+        staffId: details.practitionerId || null,
         calledBy: calledByUserId,
         notes,
       },
@@ -269,6 +270,9 @@ export class AppointmentCallLifecycleService {
       payload: {
         appointmentId,
         patientUserId: details.patientUserId,
+        patientName: details.patientName || 'Pasien',
+        staffId: details.practitionerId || null,
+        doctorName: details.doctorName || null,
         ticketNumber: details.ticketNumber,
         poliklinikName:
           details.roomName || details.poliklinikName || 'Poliklinik',
@@ -462,6 +466,8 @@ export class AppointmentCallLifecycleService {
         patientUserId: details.patientUserId,
         patientName: details.patientName,
         ticketNumber: details.ticketNumber,
+        staffId: details.practitionerId || null,
+        doctorName: details.doctorName || null,
         totalAttempts: latestAttempt.attemptNumber,
         poliklinikName:
           details.roomName || details.poliklinikName || 'Poliklinik',

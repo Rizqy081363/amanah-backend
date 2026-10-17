@@ -64,6 +64,7 @@ export type DomainAppointmentStatusValue =
 
 export const APPOINTMENT_EVENTS = {
   CREATED: 'appointment.created.v1',
+  CHECKED_IN: 'appointment.checked_in.v1',
   NEW_BOOKING_ALERT: 'appointment.new_booking_alert.v1',
   PATIENT_CALLED: 'appointment.patient_called.v1',
   PATIENT_REQUEUED: 'appointment.patient_requeued.v1',

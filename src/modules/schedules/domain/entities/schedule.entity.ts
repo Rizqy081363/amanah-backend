@@ -49,6 +49,7 @@ export class ScheduleEntity {
   is_reschedule_eligible?: boolean;
   rescheduleIneligibilityReason?: string | null;
   reschedule_ineligibility_reason?: string | null;
+  sessionId?: string | null;
   version?: string;
 }
 
@@ -81,6 +82,7 @@ export class CalendarSummaryResponse {
 export class BookedPatientEntity {
   id: string;
   appointmentId: string;
+  patientId?: string;
   fullName: string;
   medicalRecordNumber: string;
   age: string;
@@ -1009,6 +1011,13 @@ export class AdminSessionPatientItem {
 
   @ApiPropertyOptional({ nullable: true, example: 900 })
   consultationElapsedSeconds?: number | null;
+
+  @ApiPropertyOptional({
+    type: [String],
+    example: ['CALL', 'START_SERVICE', 'CANCEL', 'RESCHEDULE'],
+    description: 'Aksi yang diizinkan sesuai status janji temu dan konteks dokter',
+  })
+  allowedActions?: string[];
 }
 
 export class AdminSessionPatientsClinicRoom {

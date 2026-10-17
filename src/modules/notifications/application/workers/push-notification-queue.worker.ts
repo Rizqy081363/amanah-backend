@@ -1,3 +1,5 @@
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import {
   Inject,
   Injectable,
@@ -6,6 +8,8 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { inArray, sql } from 'drizzle-orm';
+import { cert, getApps, initializeApp } from 'firebase-admin/app';
+import { getMessaging } from 'firebase-admin/messaging';
 import * as webpush from 'web-push';
 import { NOTIFICATIONS_PUSH_QUEUE } from '../../../../common/rabbitmq/rabbitmq.constants';
 import { RabbitMQService } from '../../../../common/rabbitmq/rabbitmq.service';
@@ -13,6 +17,10 @@ import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import type { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import { roles, userRoles } from '../../../../database/schema';
 import { NotificationDispatchCommand } from '../../contracts/notification-dispatch.contract';
+import {
+  DEVICE_SUBSCRIPTION_REPOSITORY,
+  type DeviceSubscriptionRepository,
+} from '../../domain/repositories/device-subscription.repository';
 import {
   PUSH_SUBSCRIPTION_REPOSITORY,
   type PushSubscriptionRepository,
@@ -25,22 +33,72 @@ export class PushNotificationQueueWorker
   private readonly logger = new Logger(PushNotificationQueueWorker.name);
   private isConsuming = false;
   private vapidConfigured = false;
+  private firebaseConfigured = false;
 
   constructor(
     private readonly rabbitmqService: RabbitMQService,
     @Inject(PUSH_SUBSCRIPTION_REPOSITORY)
     private readonly pushSubscriptionRepo: PushSubscriptionRepository,
+    @Inject(DEVICE_SUBSCRIPTION_REPOSITORY)
+    private readonly deviceSubscriptionRepo: DeviceSubscriptionRepository,
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,
   ) {}
 
   async onModuleInit(): Promise<void> {
     this.configureVapid();
+    this.configureFirebase();
     await this.startConsumer();
   }
 
   async onModuleDestroy(): Promise<void> {
     this.isConsuming = false;
+  }
+
+  private configureFirebase(): void {
+    if (getApps().length > 0) {
+      this.firebaseConfigured = true;
+      return;
+    }
+
+    try {
+      const configuredPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+      const candidatePaths = [
+        configuredPath,
+        configuredPath ? path.resolve(process.cwd(), configuredPath) : null,
+        path.resolve(process.cwd(), 'config', 'firebase-adminsdk.json'),
+        path.resolve(__dirname, '../../../../../config/firebase-adminsdk.json'),
+      ].filter((p): p is string => Boolean(p));
+
+      let resolvedPath: string | null = null;
+      for (const p of candidatePaths) {
+        if (fs.existsSync(p)) {
+          resolvedPath = p;
+          break;
+        }
+      }
+
+      if (resolvedPath) {
+        const serviceAccount = JSON.parse(
+          fs.readFileSync(resolvedPath, 'utf8'),
+        );
+        initializeApp({
+          credential: cert(serviceAccount),
+        });
+        this.firebaseConfigured = true;
+        this.logger.log(
+          `Firebase Admin SDK initialized successfully with credentials from ${resolvedPath}`,
+        );
+      } else {
+        this.logger.warn(
+          'Firebase Admin SDK credentials not found; mobile push disabled',
+        );
+      }
+    } catch (err) {
+      this.logger.warn(
+        `Failed to initialize Firebase Admin SDK: ${String(err)}`,
+      );
+    }
   }
 
   private configureVapid(): void {
@@ -107,11 +165,22 @@ export class PushNotificationQueueWorker
       return;
     }
 
+    // 1. Deliver to Web Push Subscriptions
+    await this.deliverWebPush(targetUserIds, command);
+
+    // 2. Deliver to Mobile Devices via FCM
+    await this.deliverMobileFcm(targetUserIds, command);
+  }
+
+  private async deliverWebPush(
+    targetUserIds: string[],
+    command: NotificationDispatchCommand,
+  ): Promise<void> {
+    if (!this.vapidConfigured) return;
+
     const subscriptions =
       await this.pushSubscriptionRepo.findByUserIds(targetUserIds);
-    if (subscriptions.length === 0) {
-      return;
-    }
+    if (subscriptions.length === 0) return;
 
     const payload = JSON.stringify({
       title: command.content.title,
@@ -125,8 +194,6 @@ export class PushNotificationQueueWorker
     });
 
     for (const sub of subscriptions) {
-      if (!this.vapidConfigured) continue;
-
       const pushSubscription = {
         endpoint: sub.endpoint,
         keys: {
@@ -147,6 +214,81 @@ export class PushNotificationQueueWorker
         } else {
           this.logger.warn(
             `Failed push delivery to endpoint ${sub.endpoint.slice(0, 30)}...: ${String(err)}`,
+          );
+        }
+      }
+    }
+  }
+
+  private async deliverMobileFcm(
+    targetUserIds: string[],
+    command: NotificationDispatchCommand,
+  ): Promise<void> {
+    if (!this.firebaseConfigured) return;
+
+    const devices =
+      await this.deviceSubscriptionRepo.findActiveTokensByUserIds(
+        targetUserIds,
+      );
+    if (devices.length === 0) return;
+
+    const messaging = getMessaging();
+    const dataPayload: Record<string, string> = {
+      commandId: command.commandId || '',
+      actionUrl: command.content.actionUrl || '',
+    };
+    if (command.content.data) {
+      for (const [key, value] of Object.entries(command.content.data)) {
+        if (value !== undefined && value !== null) {
+          dataPayload[key] =
+            typeof value === 'object'
+              ? JSON.stringify(value)
+              : String(value);
+        }
+      }
+    }
+
+    for (const device of devices) {
+      try {
+        await messaging.send({
+          token: device.pushToken,
+          notification: {
+            title: command.content.title,
+            body: command.content.body,
+          },
+          data: dataPayload,
+          android: {
+            priority: command.priority === 'high' ? 'high' : 'normal',
+            notification: {
+              channelId: 'high_importance_channel',
+              sound: 'default',
+              clickAction: 'FLUTTER_NOTIFICATION_CLICK',
+            },
+          },
+          apns: {
+            payload: {
+              aps: {
+                sound: 'default',
+                badge: 1,
+              },
+            },
+          },
+        });
+        this.logger.log(
+          `Delivered FCM push to user ${device.userId} (device: ${device.id})`,
+        );
+      } catch (err: any) {
+        const code = err?.code || err?.errorInfo?.code;
+        if (
+          code === 'messaging/registration-token-not-registered' ||
+          code === 'messaging/invalid-registration-token' ||
+          code === 'messaging/invalid-argument'
+        ) {
+          this.logger.warn(`Revoking invalid device token: ${device.id}`);
+          await this.deviceSubscriptionRepo.markTokenInvalid(device.id);
+        } else {
+          this.logger.warn(
+            `FCM send failure for device ${device.id}: ${String(err)}`,
           );
         }
       }

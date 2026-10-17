@@ -5,6 +5,7 @@ import { QueueEventPublisher } from '../../../queue-engine/application/services/
 import { QueuePositionRecalculationService } from '../../../queue-engine/application/services/queue-position-recalculation.service';
 import { DOMAIN_APPOINTMENT_STATUS } from '../../domain/constants/appointment-lifecycle.constants';
 import type { AppointmentRecord } from '../../domain/types/appointment.types';
+import { AppointmentNotificationPublisher } from '../appointment-notification.publisher';
 import {
   APPOINTMENT_REPOSITORY_PORT,
   type AppointmentRepositoryPort,
@@ -38,9 +39,11 @@ export class CompleteServiceUseCase {
     private readonly queueEventPublisher?: QueueEventPublisher,
     @Optional()
     private readonly queuePositionRecalculationService?: QueuePositionRecalculationService,
+    @Optional()
+    private readonly notificationPublisher?: AppointmentNotificationPublisher,
   ) {}
 
-  async execute(appointmentId: string): Promise<AppointmentRecord> {
+  async execute(appointmentId: string, user?: any): Promise<AppointmentRecord> {
     const actualCompletedAt = new Date();
     const updated = await this.appointmentRepo.transitionStatus({
       id: appointmentId,
@@ -124,6 +127,28 @@ export class CompleteServiceUseCase {
         .catch((err) => {
           this.logger.warn(
             `Failed to publish progression on complete for appointment ${updated.id}: ${err.message}`,
+          );
+        });
+    }
+
+    if (this.notificationPublisher) {
+      await this.notificationPublisher
+        .publishCompleted(
+          {
+            id: updated.id,
+            patientUserId: updated.patientUserId,
+            patientName: updated.patientName,
+            staffId: updated.practitionerId,
+            doctorName: user?.staff?.fullName || user?.name || null,
+            poliklinikName: updated.poliklinikName,
+            queueNumber: updated.queueNumber,
+            scheduledDate: updated.scheduledDate,
+          },
+          user,
+        )
+        .catch((error) => {
+          this.logger.warn(
+            `Failed to publish completed notification event: ${error.message}`,
           );
         });
     }

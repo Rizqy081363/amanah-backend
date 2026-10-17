@@ -88,8 +88,9 @@ export class BookedPatientMapper {
     );
 
     return {
-      id: apt.patientProfile?.id || apt.patientId,
+      id: apt.id,
       appointmentId: apt.id,
+      patientId: apt.patientProfile?.id || apt.patientId,
       fullName: apt.patientProfile?.fullName || 'Pasien',
       medicalRecordNumber:
         apt.patientProfile?.medicalRecordNumber || 'RM-UNKNOWN',

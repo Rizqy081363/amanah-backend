@@ -25,7 +25,8 @@ export type AppointmentAction =
   | 'CANCEL'
   | 'RESCHEDULE'
   | 'ASSIGN_DOCTOR'
-  | 'ASSIGN_ROOM';
+  | 'ASSIGN_ROOM'
+  | 'NO_SHOW';
 
 export const ALLOWED_TRANSITIONS: Record<
   AppointmentStatus,
@@ -119,13 +120,11 @@ export function resolveAllowedActions(
       return actions;
     }
     case 'WAITING':
-      return aheadCount === 0 && isFullyAssigned && !isDoctorServing
-        ? ['CALL', 'START_SERVICE', 'CANCEL', 'RESCHEDULE']
-        : ['CANCEL', 'RESCHEDULE'];
+      return ['CALL', 'START_SERVICE', 'NO_SHOW', 'CANCEL', 'RESCHEDULE'];
     case 'LATE':
       return ['RESCHEDULE', 'CANCEL'];
     case 'IN_SERVICE':
-      return ['COMPLETE'];
+      return ['COMPLETE', 'CANCEL'];
     default:
       return [];
   }

@@ -3,6 +3,7 @@ import { RedisService } from '../../../../common/redis/redis.service';
 import { QueuePositionRecalculationService } from '../../../queue-engine/application/services/queue-position-recalculation.service';
 import { DOMAIN_APPOINTMENT_STATUS } from '../../domain/constants/appointment-lifecycle.constants';
 import type { AppointmentRecord } from '../../domain/types/appointment.types';
+import { AppointmentNotificationPublisher } from '../appointment-notification.publisher';
 import {
   APPOINTMENT_REPOSITORY_PORT,
   type AppointmentRepositoryPort,
@@ -32,11 +33,14 @@ export class CancelAppointmentUseCase {
     private readonly redisService?: RedisService,
     @Optional()
     private readonly queuePositionRecalculationService?: QueuePositionRecalculationService,
+    @Optional()
+    private readonly notificationPublisher?: AppointmentNotificationPublisher,
   ) {}
 
   async execute(
     appointmentId: string,
     reason?: string,
+    user?: any,
   ): Promise<AppointmentRecord> {
     const cancelledAt = new Date();
     const updated = await this.appointmentRepo.transitionStatus({
@@ -98,6 +102,37 @@ export class CancelAppointmentUseCase {
         .catch((error) => {
           this.logger.warn(
             `Push notification failed on cancel for patient ${updated.patientUserId}: ${error.message}`,
+          );
+        });
+    }
+
+    if (this.notificationPublisher) {
+      await this.notificationPublisher
+        .publishCancelled(
+          {
+            id: updated.id,
+            patientId: updated.patientId,
+            patientUserId: updated.patientUserId,
+            patientName: updated.patientName,
+            patientAvatarUrl: null,
+            doctorName: updated.doctorName,
+            doctorAvatarUrl: null,
+            staffId: updated.practitionerId,
+            poliklinikId: updated.poliklinikId,
+            poliklinikName: updated.poliklinikName,
+            layananId: updated.serviceId,
+            layananName: updated.serviceName,
+            roomName: updated.roomName,
+            appointmentDate: updated.scheduledDate,
+            queueNumber: updated.queueNumber,
+            status: 'BATAL',
+          } as any,
+          reason || 'Dibatalkan',
+          user,
+        )
+        .catch((error) => {
+          this.logger.warn(
+            `Failed to publish cancelled notification event: ${error.message}`,
           );
         });
     }

@@ -128,36 +128,34 @@ export class CandidateResolverService implements ICandidateResolverPort {
       const isRostered = onRosterDoctorIds.has(p.id);
       const queueCount = queueCounts.get(p.id) || 0;
 
-      const matchedSpecialty =
+      // Resolve specialty strictly against dynamic medical specialties (SSOT)
+      let matchedSpecialty =
         (p.specialtyId ? specialtyMap.get(p.specialtyId) : null) ||
         p.medicalSpecialty ||
         null;
 
-      const groupId =
-        matchedSpecialty?.id ||
-        p.staffProfile?.primaryUnitId ||
-        p.specialtyId ||
-        p.id;
-
-      const groupName =
-        matchedSpecialty?.name ||
-        p.staffProfile?.clinicUnit?.name ||
-        p.staffProfile?.positionTitle ||
-        p.displayName;
-
-      const groupCode =
-        matchedSpecialty?.code || p.staffProfile?.clinicUnit?.code || null;
-
-      if (!groupMap.has(groupId)) {
-        groupMap.set(groupId, {
-          id: groupId,
-          name: groupName,
-          code: groupCode,
-          doctors: [],
-        });
+      // Deterministic domain fallback if specialtyId is missing (e.g., legacy or migration records)
+      if (!matchedSpecialty) {
+        const unitCode = p.staffProfile?.clinicUnit?.code;
+        const staffType = p.staffProfile?.staffType;
+        if (unitCode === 'poli_kia' || staffType === 'midwife') {
+          matchedSpecialty =
+            allSpecialties.find((s) => s.code === 'maternal_child_health') || null;
+        } else {
+          matchedSpecialty =
+            allSpecialties.find((s) => s.code === 'general_practitioner') || null;
+        }
       }
 
-      const currentGroup = groupMap.get(groupId)!;
+      // If still not matched, fallback to first available medical specialty
+      if (!matchedSpecialty && allSpecialties.length > 0) {
+        matchedSpecialty = allSpecialties[0];
+      }
+
+      if (!matchedSpecialty) continue;
+
+      const currentGroup = groupMap.get(matchedSpecialty.id);
+      if (!currentGroup) continue;
 
       currentGroup.doctors.push({
         id: p.id,

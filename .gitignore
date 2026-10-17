@@ -51,3 +51,7 @@ lerna-debug.log*
 
 # ERD visualizer output
 /.erd-dist
+
+# Firebase credentials
+/config/*.json
+!/config/.gitkeep

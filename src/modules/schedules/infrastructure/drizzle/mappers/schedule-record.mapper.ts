@@ -43,6 +43,7 @@ type ClinicServiceRecord = {
 
 export type ScheduleRecordMapperInput = {
   id: string;
+  sessionId?: string | null;
   practitionerId: string;
   scheduleDate: string;
   sessionLabel?: string | null;
@@ -114,6 +115,7 @@ export function mapScheduleRecordToEntity(
 
   return {
     id: record.id,
+    sessionId: record.sessionId || null,
     staffId: record.practitioner?.staffProfileId || record.practitionerId,
     staffName:
       record.practitioner?.staffProfile?.fullName ||

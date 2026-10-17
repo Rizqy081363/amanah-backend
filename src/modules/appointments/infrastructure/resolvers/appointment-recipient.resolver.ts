@@ -1,8 +1,13 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
-import { eq, inArray, sql } from 'drizzle-orm';
+import { eq, inArray, or, sql } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import type { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
-import { roles, staffProfiles, userRoles } from '../../../../database/schema';
+import {
+  practitioners,
+  roles,
+  staffProfiles,
+  userRoles,
+} from '../../../../database/schema';
 import { CLINIC_ADMIN_STAFF_ROLE_CODES } from '../../domain/constants/appointment-lifecycle.constants';
 
 @Injectable()
@@ -52,7 +57,16 @@ export class AppointmentRecipientResolver {
         const [staff] = await this.db
           .select({ userId: staffProfiles.userId })
           .from(staffProfiles)
-          .where(eq(staffProfiles.id, assignedStaffId))
+          .leftJoin(
+            practitioners,
+            eq(practitioners.staffProfileId, staffProfiles.id),
+          )
+          .where(
+            or(
+              eq(staffProfiles.id, assignedStaffId),
+              eq(practitioners.id, assignedStaffId),
+            ),
+          )
           .limit(1);
 
         if (staff?.userId) {
