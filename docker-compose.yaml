@@ -135,4 +135,8 @@ services:
 
 volumes:
   amanah-postgres-data:
+    name: amanah-backend_amanah-postgres-data
+    external: true
   amanah-rabbitmq-data:
+    name: amanah-backend_amanah-rabbitmq-data
+    external: true
