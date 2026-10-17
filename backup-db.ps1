@@ -73,6 +73,13 @@ if (-not (Test-Path -Path $OutputDir)) {
 # 2. Cek apakah docker container sedang aktif
 $running = docker ps --filter "name=^/?${ContainerName}$" --filter "status=running" --format "{{.Names}}"
 if (-not $running) {
+    $fallbackContainer = docker ps --filter "name=postgres" --filter "status=running" --format "{{.Names}}" | Select-Object -First 1
+    if ($fallbackContainer) {
+        $ContainerName = $fallbackContainer
+        $running = $fallbackContainer
+    }
+}
+if (-not $running) {
     if ($FromGitHook) {
         Write-Host "[GIT HOOK] Container '$ContainerName' tidak sedang berjalan. Backup database otomatis dilewati." -ForegroundColor Yellow
         exit 0
