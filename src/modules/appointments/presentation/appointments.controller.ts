@@ -259,6 +259,34 @@ export class AppointmentsController {
 
   @ApiBearerAuth('access-token')
   @UseGuards(HybridAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'STAF')
+  @Get('doctor/processed')
+  @ApiOperation({
+    summary: 'Mendapatkan daftar antrean yang sedang dan telah diproses dokter',
+    description:
+      'Mengambil daftar antrean berstatus IN_SERVICE dan COMPLETED untuk dokter terkait.',
+  })
+  @ApiOkResponse({
+    description: 'Daftar riwayat antrean dokter berhasil diambil',
+  })
+  async getDoctorProcessedAppointments(
+    @Query('date') date?: string,
+    @Query('doctorId') queryDoctorId?: string,
+    @CurrentUser() user?: any,
+  ) {
+    const practitionerId =
+      queryDoctorId ||
+      user?.staff?.practitionerId ||
+      user?.staff?.id ||
+      user?.id;
+    return this.appointmentsService.findDoctorProcessedAppointments(
+      practitionerId,
+      date,
+    );
+  }
+
+  @ApiBearerAuth('access-token')
+  @UseGuards(HybridAuthGuard, RolesGuard)
   @Roles('ADMIN', 'STAF', 'PATIENT')
   @Get(':id')
   @ApiOperation({

@@ -752,4 +752,29 @@ export class AppointmentsService {
       this.logger.warn(`Failed to invalidate queue caches: ${String(err)}`);
     }
   }
+
+  async findDoctorProcessedAppointments(
+    practitionerId: string,
+    date?: string,
+  ): Promise<AppointmentEntity[]> {
+    const targetDate =
+      date ||
+      (this.clinicTimeService
+        ? this.clinicTimeService.today()
+        : new Date().toISOString().split('T')[0]);
+
+    const result = await this.appointmentRepo.findAll(100, 0, {
+      doctorId: practitionerId,
+      date: targetDate,
+    });
+
+    return result.data.filter(
+      (apt) =>
+        apt.status === 'IN_SERVICE' ||
+        apt.status === 'COMPLETED' ||
+        (apt as any).rawStatus === DB_APPOINTMENT_STATUS.IN_SERVICE ||
+        (apt as any).rawStatus === DB_APPOINTMENT_STATUS.COMPLETED,
+    );
+  }
 }
+

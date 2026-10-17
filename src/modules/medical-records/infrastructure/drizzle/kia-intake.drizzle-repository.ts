@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, Optional } from '@nestjs/common';
 import { and, count, desc, eq, gte, ilike, inArray, lte, or } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
@@ -9,6 +9,7 @@ import {
   medicalIntakeSubmissions,
   patientProfiles,
 } from '../../../../database/schema';
+import { AppointmentsService } from '../../../appointments/application/appointments.service';
 import { formatBloodTypeDisplay } from '../../../patients/domain/data/patient-reference.data';
 import { CreateChildImmunizationIntakeDto } from '../../presentation/dto/create-child-immunization-intake.dto';
 import { CreateMaternityIntakeDto } from '../../presentation/dto/create-maternity-intake.dto';
@@ -20,6 +21,9 @@ export class KiaIntakeDrizzleRepository {
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,
     private readonly maternalRepo: MaternalIntakeDrizzleRepository,
+    @Optional()
+    @Inject(forwardRef(() => AppointmentsService))
+    private readonly appointmentsService?: AppointmentsService,
   ) {}
 
   async createMaternalIntake(
@@ -294,13 +298,52 @@ export class KiaIntakeDrizzleRepository {
     return this.mapImmunizationRecord(record);
   }
 
-  private mapPatientProfile(profile: any) {
+  private mapPatientProfile(profile: any, apptMetadata?: any) {
     if (!profile) return null;
     const addr = profile.patientAddresses?.[0];
     const aff = profile.patientAffiliations?.[0];
     const ec = profile.patientEmergencyContacts?.[0];
-    const isUnknownBlood =
-      !profile.bloodType || profile.bloodType === 'unknown';
+
+    const accountHolderName =
+      apptMetadata?.parentUserName ||
+      aff?.user?.name ||
+      profile.user?.name ||
+      null;
+
+    const rawRelType =
+      apptMetadata?.affiliationRelationship ||
+      aff?.relationshipType ||
+      '';
+    const relType = rawRelType.toLowerCase();
+
+    let relationshipContext: string | null = null;
+    if (relType) {
+      if (relType === 'self') {
+        relationshipContext = 'Akun Utama (Diri Sendiri)';
+      } else if (accountHolderName) {
+        if (relType === 'child') {
+          relationshipContext = `Anak dari ${accountHolderName}`;
+        } else if (relType === 'spouse') {
+          relationshipContext = `Pasangan dari ${accountHolderName}`;
+        } else if (relType === 'parent') {
+          relationshipContext = `Orang tua dari ${accountHolderName}`;
+        } else if (relType === 'relative') {
+          relationshipContext = `Kerabat dari ${accountHolderName}`;
+        } else {
+          relationshipContext = aff?.relationLabel
+            ? `${aff.relationLabel} dari ${accountHolderName}`
+            : `Keluarga dari ${accountHolderName}`;
+        }
+      } else {
+        if (relType === 'child') relationshipContext = 'Anak';
+        else if (relType === 'spouse') relationshipContext = 'Pasangan';
+        else if (relType === 'parent') relationshipContext = 'Orang Tua';
+        else if (relType === 'relative') relationshipContext = 'Kerabat';
+        else relationshipContext = aff?.relationLabel || 'Afiliasi Keluarga';
+      }
+    } else if (profile.user?.id) {
+      relationshipContext = 'Akun Utama (Diri Sendiri)';
+    }
 
     return {
       id: profile.id,
@@ -320,8 +363,10 @@ export class KiaIntakeDrizzleRepository {
       districtName: addr?.districtName || null,
       regencyName: addr?.regencyName || null,
       provinceName: addr?.provinceName || null,
-      relationshipType: aff?.relationshipType || null,
+      relationshipType: relType || null,
       relationLabel: aff?.relationLabel || null,
+      accountHolderName,
+      relationshipContext,
       emergencyContactName: ec?.name || null,
       emergencyContactPhone: ec?.phone || null,
       emergencyContactRelationship: ec?.relationship || null,
@@ -337,13 +382,26 @@ export class KiaIntakeDrizzleRepository {
       );
     if (!isUuid) return null;
 
+    let fullAppt: any = null;
+    if (this.appointmentsService) {
+      try {
+        fullAppt = await this.appointmentsService.findById(appointmentId);
+      } catch {
+        fullAppt = null;
+      }
+    }
+
     const maternal =
       await this.findMaternalIntakeByAppointmentId(appointmentId);
     if (maternal) {
       return {
         flow: 'pregnancy',
         type: 'maternal',
-        data: maternal,
+        data: {
+          ...(fullAppt || {}),
+          ...maternal,
+          appointmentId,
+        },
       };
     }
 
@@ -362,13 +420,23 @@ export class KiaIntakeDrizzleRepository {
         flow: 'immunization',
         type: 'immunization',
         data: {
+          ...(fullAppt || {}),
           ...immunization,
           appointmentId,
-          bookingCode: appt?.bookingCode,
-          scheduledDate: appt?.scheduledDate,
-          scheduledStartTime: appt?.scheduledStartTime,
-          complaint: appt?.complaint,
-          serviceName: appt?.clinicService?.name,
+          bookingCode: fullAppt?.bookingCode || appt?.bookingCode,
+          queueNumber: fullAppt?.queueNumber || appt?.queueNumber,
+          scheduledDate: fullAppt?.appointmentDate || appt?.scheduledDate,
+          scheduledStartTime:
+            fullAppt?.scheduledStartTime || appt?.scheduledStartTime,
+          scheduledEndTime:
+            fullAppt?.scheduledEndTime || appt?.scheduledEndTime,
+          etaRange: fullAppt?.etaRange,
+          sessionName: fullAppt?.sessionName,
+          doctorName: fullAppt?.doctorName,
+          roomName: fullAppt?.roomName,
+          poliklinikName: fullAppt?.poliklinikName,
+          complaint: fullAppt?.complaint || appt?.complaint,
+          serviceName: fullAppt?.layananName || appt?.clinicService?.name,
         },
       };
     }
@@ -404,9 +472,11 @@ export class KiaIntakeDrizzleRepository {
         flow: genericIntake.flow,
         type: 'generic',
         data: {
+          ...(fullAppt || {}),
           ...genericIntake,
-          serviceName: genericIntake.appointment?.clinicService?.name,
-          patient: this.mapPatientProfile(genericIntake.patientProfile),
+          serviceName:
+            fullAppt?.layananName || genericIntake.appointment?.clinicService?.name,
+          patient: this.mapPatientProfile(genericIntake.patientProfile, fullAppt),
         },
       };
     }
@@ -436,13 +506,27 @@ export class KiaIntakeDrizzleRepository {
         flow: appt.medicalFlow || 'regular',
         type: 'regular',
         data: {
+          ...(fullAppt || {}),
           appointmentId: appt.id,
-          bookingCode: appt.bookingCode,
-          scheduledDate: appt.scheduledDate,
-          scheduledStartTime: appt.scheduledStartTime,
-          complaint: appt.complaint,
-          serviceName: appt.clinicService?.name,
-          patient: this.mapPatientProfile(appt.patientProfile),
+          bookingCode: fullAppt?.bookingCode || appt.bookingCode,
+          queueNumber: fullAppt?.queueNumber || appt.queueNumber,
+          scheduledDate: fullAppt?.appointmentDate || appt.scheduledDate,
+          scheduledStartTime:
+            fullAppt?.scheduledStartTime || appt.scheduledStartTime,
+          scheduledEndTime: fullAppt?.scheduledEndTime || appt.scheduledEndTime,
+          etaRange: fullAppt?.etaRange,
+          sessionName: fullAppt?.sessionName,
+          doctorName: fullAppt?.doctorName,
+          roomName: fullAppt?.roomName,
+          poliklinikName: fullAppt?.poliklinikName,
+          serviceName: fullAppt?.layananName || appt.clinicService?.name,
+          actualStartedAt: fullAppt?.actualStartedAt,
+          actualCompletedAt: fullAppt?.actualCompletedAt,
+          consultationDurationFormatted:
+            fullAppt?.consultationDurationFormatted,
+          status: fullAppt?.status || appt.status,
+          complaint: fullAppt?.complaint || appt.complaint,
+          patient: this.mapPatientProfile(appt.patientProfile, fullAppt),
         },
       };
     }

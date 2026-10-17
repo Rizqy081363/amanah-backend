@@ -110,6 +110,7 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
         db,
         resolvedPractitioner,
         resolvedConflict,
+        resolvedConfig,
       );
     this.dayRepo =
       dayRepo ?? new DrizzleScheduleDayRepository(db, resolvedPractitioner);

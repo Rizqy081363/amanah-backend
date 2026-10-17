@@ -326,7 +326,12 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
       results = results.filter((a) => a.session === filters.session);
     }
     if (filters?.status) {
-      results = results.filter((a) => a.status === filters.status);
+      const statusUpper = filters.status.toUpperCase();
+      results = results.filter(
+        (a) =>
+          a.status?.toUpperCase() === statusUpper ||
+          (a as any).rawStatus?.toUpperCase() === statusUpper,
+      );
     }
     if (filters?.search) {
       const q = filters.search.toLowerCase().trim();

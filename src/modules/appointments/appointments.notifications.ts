@@ -548,75 +548,64 @@ export class AppointmentsNotificationRules implements OnModuleInit {
           ? ` (${payload.targetStartTime.slice(0, 5)})`
           : '';
 
-        if (isClinicActor) {
-          // Admin changed schedule -> notify Patient
-          if (payload.patientUserId) {
+        // 1. Patient Notification
+        if (payload.patientUserId) {
+          intents.push({
+            recipientUserId: payload.patientUserId,
+            audience: 'patient',
+            title: 'Jadwal Diperbarui',
+            body: isClinicActor
+              ? `Jadwal konsultasi Anda${timeInfo} dipindahkan ke tanggal ${payload.targetDate}.`
+              : `Jadwal Anda berhasil dipindahkan ke tanggal ${payload.targetDate}.`,
+            severity: isClinicActor ? 'info' : 'success',
+            badgeIcon: 'calendar',
+            visualKey: payload.doctorAvatarUrl || null,
+            senderName: 'Klinik Amanah',
+            senderRole: 'Admin',
+            action: {
+              type: 'view_queue',
+              params: { appointmentId: payload.appointmentId || '' },
+              label: 'Lihat Antrean',
+            },
+            presentation: { toast: isClinicActor },
+          });
+        }
+
+        // 2. Clinic Staff & Doctor Notification
+        if (this.recipientResolver) {
+          const clinicUserIds =
+            await this.recipientResolver.resolveScopedClinicRecipients(
+              payload.practitionerId || payload.staffId,
+            );
+          for (const staffUserId of clinicUserIds) {
+            const isActorStaff = actor?.userId === staffUserId;
             intents.push({
-              recipientUserId: payload.patientUserId,
-              audience: 'patient',
-              title: 'Jadwal Diperbarui',
-              body: `Jadwal konsultasi Anda${timeInfo} dipindahkan ke tanggal ${payload.targetDate}.`,
+              recipientUserId: staffUserId,
+              audience: 'clinic',
+              title: 'Jadwal Dijadwalkan Ulang',
+              body: `Jadwal pasien ${payload.patientName || 'Pasien'} (${payload.queueNumber || '-'}) dipindahkan ke tanggal ${payload.targetDate}${timeInfo}. Alasan: ${payload.reason || '-'}.`,
               severity: 'info',
               badgeIcon: 'calendar',
-              visualKey: payload.doctorAvatarUrl || null,
-              senderName: 'Klinik Amanah',
-              senderRole: 'Admin',
+              visualKey: payload.patientAvatarUrl || null,
+              senderName: isClinicActor ? 'Klinik Amanah' : (payload.patientName || 'Pasien'),
+              senderRole: isClinicActor ? 'Staf' : 'Pasien',
               action: {
-                type: 'view_queue',
-                params: { appointmentId: payload.appointmentId || '' },
-                label: 'Lihat Antrean',
-              },
-              presentation: { toast: true },
-            });
-          }
-        } else {
-          // Patient changed schedule -> notify Clinic staff, and notify patient without duplicate toast
-          if (this.recipientResolver) {
-            const clinicUserIds =
-              await this.recipientResolver.resolveScopedClinicRecipients(
-                payload.practitionerId || payload.staffId,
-              );
-            for (const staffUserId of clinicUserIds) {
-              intents.push({
-                recipientUserId: staffUserId,
-                audience: 'clinic',
-                title: 'Jadwal Diperbarui',
-                body: `Jadwal ${payload.doctorName || 'Dokter'}${timeInfo} dipindahkan ke tanggal ${payload.targetDate}.`,
-                severity: 'info',
-                badgeIcon: 'calendar',
-                visualKey: payload.patientAvatarUrl || null,
-                senderName: payload.patientName || 'Pasien',
-                senderRole: 'Pasien',
-                action: {
-                  type: 'view_schedule_detail',
-                  params: {
-                    doctorId: payload.practitionerId || payload.staffId || '',
-                    date: payload.targetDate || '',
-                  },
-                  label: 'Lihat Jadwal',
+                type: 'view_schedule_detail',
+                params: {
+                  doctorId: payload.practitionerId || payload.staffId || '',
+                  date: payload.targetDate || '',
                 },
-                actions: [
-                  {
-                    label: 'Lihat Jadwal',
-                    actionKey: 'view_schedule',
-                    actionType: 'primary',
-                    url: `/dashboard/jadwal-dokter?selectedDoctorId=${payload.practitionerId || payload.staffId || ''}&dialog=detail&date=${payload.targetDate}&openPatients=true`,
-                  },
-                ],
-                presentation: { toast: true },
-              });
-            }
-          }
-
-          if (payload.patientUserId) {
-            intents.push({
-              recipientUserId: payload.patientUserId,
-              audience: 'patient',
-              title: 'Jadwal Diperbarui',
-              body: `Jadwal Anda berhasil dipindahkan ke tanggal ${payload.targetDate}.`,
-              severity: 'success',
-              badgeIcon: 'calendar',
-              presentation: { toast: false }, // Patient was the actor
+                label: 'Lihat Jadwal',
+              },
+              actions: [
+                {
+                  label: 'Lihat Jadwal',
+                  actionKey: 'view_schedule',
+                  actionType: 'primary',
+                  url: `/dashboard/jadwal-dokter?selectedDoctorId=${payload.practitionerId || payload.staffId || ''}&dialog=detail&date=${payload.targetDate}&openPatients=true`,
+                },
+              ],
+              presentation: { toast: !isActorStaff },
             });
           }
         }
@@ -702,72 +691,63 @@ export class AppointmentsNotificationRules implements OnModuleInit {
           payload.cancelledByRole === 'admin' ||
           payload.cancelledByRole === 'staff';
 
-        if (isClinicActor) {
-          // Admin cancelled -> notify Patient
-          if (payload.patientUserId) {
-            intents.push({
-              recipientUserId: payload.patientUserId,
-              audience: 'patient',
-              title: 'Janji Temu Dibatalkan',
-              body: `Janji temu Anda (${payload.queueNumber || '-'}) dengan ${payload.doctorName || 'Dokter'} dibatalkan oleh klinik. Alasan: ${payload.reason || '-'}.`,
-              severity: 'error',
-              badgeIcon: 'alert-circle',
-              visualKey: payload.doctorAvatarUrl || null,
-              senderName: 'Klinik Amanah',
-              senderRole: 'Admin',
-              isUrgent: true,
-              presentation: { toast: true },
-            });
-          }
-        } else {
-          // Patient cancelled -> notify Clinic staff, and notify patient with toast: false
-          if (this.recipientResolver) {
-            const clinicUserIds =
-              await this.recipientResolver.resolveScopedClinicRecipients(
-                payload.staffId,
-              );
-            for (const staffUserId of clinicUserIds) {
-              intents.push({
-                recipientUserId: staffUserId,
-                audience: 'clinic',
-                title: 'Janji Temu Dibatalkan',
-                body: `Pasien ${payload.patientName || 'Pasien'} membatalkan janji temu (${payload.queueNumber || '-'}). Alasan: ${payload.reason || '-'}.`,
-                severity: 'warning',
-                badgeIcon: 'alert-circle',
-                visualKey: payload.patientAvatarUrl || null,
-                senderName: payload.patientName || 'Pasien',
-                senderRole: 'Pasien',
-                action: {
-                  type: 'view_schedule',
-                  params: {
-                    doctorId: payload.staffId || '',
-                    date: payload.appointmentDate || '',
-                  },
-                  label: 'Lihat Jadwal',
-                },
-                actions: [
-                  {
-                    label: 'Lihat Jadwal',
-                    actionKey: 'view_schedule',
-                    actionType: 'primary',
-                    url: `/dashboard/jadwal-dokter`,
-                  },
-                ],
-                isUrgent: true,
-                presentation: { toast: true },
-              });
-            }
-          }
+        // 1. Patient Notification
+        if (payload.patientUserId) {
+          intents.push({
+            recipientUserId: payload.patientUserId,
+            audience: 'patient',
+            title: 'Janji Temu Dibatalkan',
+            body: isClinicActor
+              ? `Janji temu Anda (${payload.queueNumber || '-'}) dengan ${payload.doctorName || 'Dokter'} dibatalkan oleh klinik. Alasan: ${payload.reason || '-'}.`
+              : `Janji temu Anda dengan ${payload.doctorName || 'Dokter'} telah berhasil dibatalkan.`,
+            severity: isClinicActor ? 'error' : 'info',
+            badgeIcon: 'alert-circle',
+            visualKey: payload.doctorAvatarUrl || null,
+            senderName: 'Klinik Amanah',
+            senderRole: 'Admin',
+            isUrgent: isClinicActor,
+            presentation: { toast: isClinicActor },
+          });
+        }
 
-          if (payload.patientUserId) {
+        // 2. Clinic Staff & Doctor Notification
+        if (this.recipientResolver) {
+          const clinicUserIds =
+            await this.recipientResolver.resolveScopedClinicRecipients(
+              payload.staffId || payload.practitionerId,
+            );
+          for (const staffUserId of clinicUserIds) {
+            const isActorStaff = actor?.userId === staffUserId;
             intents.push({
-              recipientUserId: payload.patientUserId,
-              audience: 'patient',
+              recipientUserId: staffUserId,
+              audience: 'clinic',
               title: 'Janji Temu Dibatalkan',
-              body: `Janji temu Anda dengan ${payload.doctorName || 'Dokter'} telah berhasil dibatalkan.`,
-              severity: 'info',
+              body: isClinicActor
+                ? `Janji temu pasien ${payload.patientName || 'Pasien'} (${payload.queueNumber || '-'}) dibatalkan oleh klinik. Alasan: ${payload.reason || '-'}.`
+                : `Pasien ${payload.patientName || 'Pasien'} membatalkan janji temu (${payload.queueNumber || '-'}). Alasan: ${payload.reason || '-'}.`,
+              severity: 'warning',
               badgeIcon: 'alert-circle',
-              presentation: { toast: false }, // Patient was the actor
+              visualKey: payload.patientAvatarUrl || null,
+              senderName: isClinicActor ? 'Klinik Amanah' : (payload.patientName || 'Pasien'),
+              senderRole: isClinicActor ? 'Klinik' : 'Pasien',
+              action: {
+                type: 'view_schedule',
+                params: {
+                  doctorId: payload.staffId || payload.practitionerId || '',
+                  date: payload.appointmentDate || '',
+                },
+                label: 'Lihat Jadwal',
+              },
+              actions: [
+                {
+                  label: 'Lihat Jadwal',
+                  actionKey: 'view_schedule',
+                  actionType: 'primary',
+                  url: `/dashboard/jadwal-dokter`,
+                },
+              ],
+              isUrgent: true,
+              presentation: { toast: !isActorStaff },
             });
           }
         }

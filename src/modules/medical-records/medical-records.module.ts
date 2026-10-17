@@ -1,4 +1,5 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
+import { AppointmentsModule } from '../appointments/appointments.module';
 import { FormRequirementService } from './application/form-requirement.service';
 import { ImmunizationCatalogService } from './application/services/immunization-catalog.service';
 import { MaternalCatalogService } from './application/services/maternal-catalog.service';
@@ -14,7 +15,7 @@ import { MedicalRecordsController } from './presentation/medical-records.control
 import { PatientsModule } from '../patients/patients.module';
 
 @Module({
-  imports: [PatientsModule],
+  imports: [PatientsModule, forwardRef(() => AppointmentsModule)],
   controllers: [
     MedicalRecordsController,
     MedicalIntakesController,

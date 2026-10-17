@@ -23,7 +23,9 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
+import { ClinicConfigService } from '@common/clinic-config/clinic-config.service';
 import { isUUID } from 'class-validator';
 import { and, asc, desc, eq, gte, inArray, lte, or, sql } from 'drizzle-orm';
 
@@ -34,6 +36,8 @@ export class DrizzleScheduleSessionRepository {
     private readonly db: DrizzleDatabase,
     private readonly practitionerResolver: PractitionerResolver,
     private readonly conflictQuery: ScheduleConflictQuery,
+    @Optional()
+    private readonly clinicConfig?: ClinicConfigService,
   ) {}
 
   async create(
@@ -540,6 +544,73 @@ export class DrizzleScheduleSessionRepository {
           }),
         );
       }
+    }
+
+    if (results.length > 1) {
+      const tz = this.clinicConfig
+        ? await this.clinicConfig.getTimezone()
+        : 'Asia/Jakarta';
+
+      const now = new Date();
+      const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: tz,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hourCycle: 'h23',
+      });
+      const parts = formatter.formatToParts(now);
+      const partMap: Record<string, string> = {};
+      for (const p of parts) {
+        partMap[p.type] = p.value;
+      }
+      const curHour = parseInt(partMap.hour, 10) || 0;
+      const curMin = parseInt(partMap.minute, 10) || 0;
+      const currentMinutes = curHour * 60 + curMin;
+      const currentDateStr = `${partMap.year}-${partMap.month}-${partMap.day}`;
+
+      const parseTimeToMinutes = (timeStr?: string | null): number => {
+        if (!timeStr) return 0;
+        const clean = timeStr.trim();
+        const p = clean.split(':');
+        const h = parseInt(p[0], 10) || 0;
+        const m = parseInt(p[1], 10) || 0;
+        return h * 60 + m;
+      };
+
+      const calculateScore = (s: ScheduleEntity): number => {
+        const schedDate = s.scheduleDate || s.specificDate || '';
+        const startMin = parseTimeToMinutes(s.startTime);
+        let endMin = parseTimeToMinutes(s.endTime);
+        if (endMin <= startMin) endMin = 1440;
+
+        if (schedDate === currentDateStr) {
+          // Priority 0: Active session right now
+          if (startMin <= currentMinutes && currentMinutes < endMin) {
+            return 0;
+          }
+          // Priority 1: Upcoming session today (soonest start first)
+          if (currentMinutes < startMin) {
+            return 10000 + (startMin - currentMinutes);
+          }
+          // Priority 2: Past session today (most recently ended first)
+          return 20000 + (currentMinutes - endMin);
+        }
+
+        // Priority 3: Future or past dates
+        const dateDiff = Math.abs(
+          new Date(schedDate).getTime() - new Date(currentDateStr).getTime(),
+        );
+        const days = Math.round(dateDiff / (1000 * 60 * 60 * 24));
+        if (schedDate > currentDateStr) {
+          return 30000 + days * 1440 + startMin;
+        }
+        return 40000 + days * 1440;
+      };
+
+      results.sort((a, b) => calculateScore(a) - calculateScore(b));
     }
 
     return results;
