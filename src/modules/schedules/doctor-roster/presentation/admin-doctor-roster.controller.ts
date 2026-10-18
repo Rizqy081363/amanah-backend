@@ -75,7 +75,7 @@ export class AdminDoctorRosterController {
   }
 
   @Put(':id/assignments')
-  @Roles('ADMIN', 'STAF')
+  @Roles('ADMIN')
   @ApiOperation({
     summary:
       'Menyimpan konfigurasi hari dan shift kerja dokter (Roster Mingguan)',
@@ -93,7 +93,7 @@ export class AdminDoctorRosterController {
   }
 
   @Delete(':id/assignments')
-  @Roles('ADMIN', 'STAF')
+  @Roles('ADMIN')
   @ApiOperation({
     summary:
       'Mereset roster kerja dokter kembali ke template mingguan default klinik',
@@ -110,7 +110,7 @@ export class AdminDoctorRosterController {
   }
 
   @Post(':id/assignments/reset')
-  @Roles('ADMIN', 'STAF')
+  @Roles('ADMIN')
   @ApiOperation({
     summary:
       'Mereset roster kerja dokter kembali ke template mingguan default klinik',

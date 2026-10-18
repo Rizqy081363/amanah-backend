@@ -280,7 +280,7 @@ export class SchedulesController {
   }
 
   @Put('my-roster')
-  @Roles('STAF', 'ADMIN')
+  @Roles('ADMIN')
   @ApiOperation({
     summary:
       'Memperbarui matriks roster mingguan dokter yang sedang login (Mobile App / Web)',
@@ -302,7 +302,7 @@ export class SchedulesController {
   }
 
   @Delete('my-roster')
-  @Roles('STAF', 'ADMIN')
+  @Roles('ADMIN')
   @ApiOperation({
     summary:
       'Mereset roster mingguan dokter kembali ke template klinik (Mobile App / Web)',
