@@ -6,6 +6,7 @@ import { RedisStreamsPublisher } from './application/publishers/redis-streams.pu
 import { NotificationGatewayService } from './application/services/notification-gateway.service';
 import { NotificationOrchestratorService } from './application/services/notification-orchestrator.service';
 import { RealtimeTicketService } from './application/services/realtime-ticket.service';
+import { InAppNotificationQueueWorker } from './application/workers/in-app-notification-queue.worker';
 import { NotificationStreamWorker } from './application/workers/notification-stream.worker';
 import { PushNotificationQueueWorker } from './application/workers/push-notification-queue.worker';
 import { PUSH_SUBSCRIPTION_REPOSITORY } from './domain/repositories/push-subscription.repository';
@@ -78,6 +79,7 @@ import { NotificationRulesRegistry } from './registry/notification-rules-registr
     NotificationOrchestratorService,
     NotificationStreamWorker,
     PushNotificationQueueWorker,
+    InAppNotificationQueueWorker,
     NotificationGatewayService,
   ],
   exports: [

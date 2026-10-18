@@ -42,6 +42,34 @@ export class ClinicTimeService {
     return this.businessDateOf(this.clock.now());
   }
 
+  normalizeDate(rawDate?: string | null): BusinessDate {
+    if (!rawDate || !rawDate.trim()) {
+      return this.today();
+    }
+    const trimmed = rawDate.trim();
+    const dmyMatch = trimmed.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    if (dmyMatch) {
+      const day = dmyMatch[1].padStart(2, '0');
+      const month = dmyMatch[2].padStart(2, '0');
+      const year = dmyMatch[3];
+      return parseBusinessDate(`${year}-${month}-${day}`);
+    }
+    if (BUSINESS_DATE_REGEX.test(trimmed)) {
+      return parseBusinessDate(trimmed);
+    }
+    try {
+      const parsed = new Date(trimmed);
+      if (!Number.isNaN(parsed.getTime())) {
+        return this.formatDate(parsed) as BusinessDate;
+      }
+    } catch {
+      // Fall through to error
+    }
+    throw new BadRequestException(
+      `Format tanggal tidak valid: '${rawDate}'. Gunakan YYYY-MM-DD atau DD/MM/YYYY.`,
+    );
+  }
+
   businessDateOf(instant: Temporal.Instant): BusinessDate {
     return instant
       .toZonedDateTimeISO(this.timezone)

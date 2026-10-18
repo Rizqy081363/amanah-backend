@@ -4,6 +4,7 @@ export enum ScheduleOperationalStatus {
   OPEN = 'OPEN',
   CLOSED = 'CLOSED',
   PENDING = 'PENDING',
+  ON_LEAVE = 'ON_LEAVE',
 }
 
 export enum ScheduleClosureReason {
@@ -439,6 +440,30 @@ export class AdminDoctorScheduleCardEntity {
   })
   leave_end: string | null;
 
+  @ApiPropertyOptional({
+    description: 'Jenis cuti dokter',
+    nullable: true,
+    type: String,
+    example: 'annual_leave',
+  })
+  leave_type?: string | null;
+
+  @ApiPropertyOptional({
+    description: 'Nama dokter pengganti jika jadwal cuti telah digantikan',
+    nullable: true,
+    type: String,
+    example: 'dr. Budi Santoso',
+  })
+  substitute_doctor_name?: string | null;
+
+  @ApiPropertyOptional({
+    description: 'Status peluang pengganti (open, claimed, completed)',
+    nullable: true,
+    type: String,
+    example: 'claimed',
+  })
+  replacement_status?: string | null;
+
   @ApiProperty({
     description: 'Daftar sesi shift praktik hari ini',
     type: () => [AdminDoctorDailySession],
@@ -596,6 +621,30 @@ export class AdminDoctorScheduleDetailData {
   @ApiProperty({ nullable: true, type: String, example: null })
   leave_end: string | null;
 
+  @ApiPropertyOptional({
+    description: 'Jenis cuti dokter',
+    nullable: true,
+    type: String,
+    example: 'annual_leave',
+  })
+  leave_type?: string | null;
+
+  @ApiPropertyOptional({
+    description: 'Nama dokter pengganti jika jadwal cuti telah digantikan',
+    nullable: true,
+    type: String,
+    example: 'dr. Budi Santoso',
+  })
+  substitute_doctor_name?: string | null;
+
+  @ApiPropertyOptional({
+    description: 'Status peluang pengganti (open, claimed, completed)',
+    nullable: true,
+    type: String,
+    example: 'claimed',
+  })
+  replacement_status?: string | null;
+
   @ApiProperty({ type: () => [AdminDoctorMonthlyDayEntity] })
   monthly_schedule: AdminDoctorMonthlyDayEntity[];
 
@@ -653,6 +702,13 @@ export class ClinicalPractitionerEntity {
   tags: string[];
   schedule: string;
   is_available: boolean;
+  is_on_leave?: boolean;
+  leave_reason?: string | null;
+  is_replacement?: boolean;
+  replacing_practitioner_name?: string | null;
+  attendance_status?: 'checked_in' | 'not_checked_in' | 'late' | 'on_leave' | 'absent';
+  check_in_at?: string | null;
+  attendance_warning?: string | null;
 }
 
 export class ClinicalPractitionersResponse {

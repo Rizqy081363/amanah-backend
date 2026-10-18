@@ -9,11 +9,15 @@ import {
   medicalSpecialties,
   practitioners,
   queueTickets,
+  replacementOpportunities,
   sessionDefs,
   shiftExceptions,
+  staffAttendanceRecords,
+  staffLeaveRequests,
+  staffProfiles,
 } from '@database/schema';
 import { Inject, Injectable, Optional } from '@nestjs/common';
-import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, eq, gte, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 import {
   QUEUE_TICKET_STATUS,
   SHIFT_EXCEPTION_TYPE,
@@ -92,6 +96,49 @@ export class DrizzleCandidateAssignmentRepository {
 
     return this.db.query.shiftExceptions.findMany({
       where: and(...conditions),
+    });
+  }
+
+  async findActiveStaffLeaves(serviceDate: string) {
+    return this.db.query.staffLeaveRequests.findMany({
+      where: and(
+        eq(staffLeaveRequests.status, 'approved'),
+        lte(staffLeaveRequests.startDate, serviceDate),
+        gte(staffLeaveRequests.endDate, serviceDate),
+      ),
+      with: {
+        staffProfile: true,
+      },
+    });
+  }
+
+  async findClaimedReplacements(
+    serviceDate: string,
+    sessionId?: string | null,
+  ) {
+    const conditions = [
+      eq(replacementOpportunities.workDate, serviceDate),
+      eq(replacementOpportunities.status, 'claimed'),
+    ];
+    if (sessionId) {
+      conditions.push(eq(replacementOpportunities.sessionId, sessionId));
+    }
+    return this.db.query.replacementOpportunities.findMany({
+      where: and(...conditions),
+      with: {
+        claimedByPractitioner: {
+          with: { staffProfile: true },
+        },
+        originalPractitioner: {
+          with: { staffProfile: true },
+        },
+      },
+    });
+  }
+
+  async findAttendanceRecordsForDate(serviceDate: string) {
+    return this.db.query.staffAttendanceRecords.findMany({
+      where: eq(staffAttendanceRecords.attendanceDate, serviceDate),
     });
   }
 

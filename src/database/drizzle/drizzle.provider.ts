@@ -12,6 +12,8 @@ import * as maternalTables from '../schema/maternal.schema';
 import * as outboxTables from '../schema/outbox.schema';
 import * as queueTicketingRelations from '../schema/queue-ticketing.relations';
 import * as queueTicketingTables from '../schema/queue-ticketing.schema';
+import * as leavePayrollTables from '../schema/leave-payroll.schema';
+import * as leavePayrollRelations from '../schema/leave-payroll.relations';
 import { DRIZZLE_SOURCE, POSTGRES_POOL } from './drizzle.constants';
 
 const schema = {
@@ -24,6 +26,8 @@ const schema = {
   ...outboxTables,
   ...queueTicketingTables,
   ...queueTicketingRelations,
+  ...leavePayrollTables,
+  ...leavePayrollRelations,
 };
 
 export type DrizzleDatabase = NodePgDatabase<typeof schema>;

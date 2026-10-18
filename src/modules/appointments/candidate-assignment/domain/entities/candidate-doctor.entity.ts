@@ -13,6 +13,17 @@ export interface DoctorCandidateItem {
   availability: DoctorAvailability;
   existingSessionId: string | null;
   currentQueueCount?: number;
+  isOnLeave?: boolean;
+  leaveReason?: string | null;
+  isReplacement?: boolean;
+  replacingDoctorName?: string | null;
+  attendanceStatus?:
+    | 'checked_in'
+    | 'not_checked_in'
+    | 'late'
+    | 'on_leave'
+    | 'absent';
+  attendanceWarning?: string | null;
 }
 
 export interface DoctorCandidateGroup {

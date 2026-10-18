@@ -9,7 +9,9 @@ import {
   sessionDefs,
   shiftExceptions,
   staffInvitations,
+  staffLeaveRequests,
 } from '@database/schema';
+import { replacementOpportunities } from '@database/schema/leave-payroll.schema';
 import {
   DEFAULT_CONSULTATION_DURATION_MINUTES,
   INACTIVE_APPOINTMENT_STATUSES,
@@ -44,7 +46,7 @@ import { ScheduleRecordMapper } from '@modules/schedules/infrastructure/drizzle/
 import { SchedulePolicyReader } from '@modules/schedules/infrastructure/drizzle/queries/schedule-policy.reader';
 import type { AdminDoctorSchedulesQueryDto } from '@modules/schedules/presentation/dto/admin-doctor-schedules-query.dto';
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
-import { and, asc, eq, inArray, not } from 'drizzle-orm';
+import { and, asc, eq, gte, inArray, lte, not } from 'drizzle-orm';
 
 @Injectable()
 export class DrizzleAdminDoctorScheduleListQuery {
@@ -84,6 +86,8 @@ export class DrizzleAdminDoctorScheduleListQuery {
       dayRecord,
       activeSessionDefs,
       pendingInvitations,
+      allApprovedLeaves,
+      allReplacementOpportunities,
     ] = await Promise.all([
       this.db.query.practitioners.findMany({
         with: {
@@ -137,6 +141,19 @@ export class DrizzleAdminDoctorScheduleListQuery {
       }),
       this.db.query.staffInvitations.findMany({
         where: eq(staffInvitations.status, 'pending'),
+      }),
+      this.db.query.staffLeaveRequests.findMany({
+        where: and(
+          eq(staffLeaveRequests.status, 'approved'),
+          lte(staffLeaveRequests.startDate, targetDate),
+          gte(staffLeaveRequests.endDate, targetDate),
+        ),
+      }),
+      this.db.query.replacementOpportunities.findMany({
+        where: eq(replacementOpportunities.workDate, targetDate),
+        with: {
+          claimedByStaffProfile: true,
+        },
       }),
     ]);
 
@@ -232,10 +249,29 @@ export class DrizzleAdminDoctorScheduleListQuery {
         })
         .sort((a, b) => a.startTime.localeCompare(b.startTime)) as any;
 
-      const isOnLeave = Boolean(activeLeave);
-      const leaveReason = isOnLeave ? activeLeave?.note || 'Dokter Cuti' : null;
-      const leaveStart = isOnLeave ? targetDate : null;
-      const leaveEnd = isOnLeave ? targetDate : null;
+      const approvedLeave = allApprovedLeaves.find(
+        (l) => l.practitionerId === p.id || l.staffProfileId === p.staffProfileId,
+      );
+      const isOnLeave = Boolean(approvedLeave || activeLeave);
+      const leaveReason =
+        approvedLeave?.reason ||
+        activeLeave?.note ||
+        (isOnLeave ? 'Dokter Cuti' : null);
+      const leaveStart =
+        approvedLeave?.startDate || (isOnLeave ? targetDate : null);
+      const leaveEnd = approvedLeave?.endDate || (isOnLeave ? targetDate : null);
+      const leaveType = approvedLeave?.requestType || null;
+
+      const repOpp = allReplacementOpportunities.find(
+        (ro) =>
+          ro.originalPractitionerId === p.id ||
+          ro.originalStaffProfileId === p.staffProfileId,
+      );
+      const replacementStatus = repOpp?.status || null;
+      const substituteDoctorName =
+        repOpp?.claimedByStaffProfile?.fullName ||
+        approvedLeave?.substituteNameSnapshot ||
+        null;
 
       const defaultRoomName = p.clinicRoom
         ? `${p.clinicRoom.name}${p.clinicRoom.location ? `, ${p.clinicRoom.location}` : ''}`
@@ -406,7 +442,7 @@ export class DrizzleAdminDoctorScheduleListQuery {
           throw new BadRequestException({
             code: 'INVALID_SCHEDULE_STATUS_FILTER',
             message:
-              'Status filter must use canonical values: OPEN, CLOSED, PENDING.',
+              'Status filter must use canonical values: OPEN, CLOSED, PENDING, ON_LEAVE.',
             metadata: { invalidStatuses },
           });
         }
@@ -437,6 +473,9 @@ export class DrizzleAdminDoctorScheduleListQuery {
         leave_reason: leaveReason,
         leave_start: leaveStart,
         leave_end: leaveEnd,
+        leave_type: leaveType,
+        substitute_doctor_name: substituteDoctorName,
+        replacement_status: replacementStatus,
         sesi_harian: isPending ? [] : sesiHarian,
         total_pasien: isPending ? 0 : totalPasien,
         pasien_preview: isPending ? [] : pasienPreview,

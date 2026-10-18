@@ -27,6 +27,9 @@ import { AvatarModule } from './modules/avatar/avatar.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { ClinicsModule } from './modules/clinics/clinics.module';
 import { LeavesModule } from './modules/leaves/leaves.module';
+import { PayrollModule } from './modules/payroll/payroll.module';
+import { ReplacementsModule } from './modules/replacements/replacements.module';
+import { WorkPoliciesModule } from './modules/work-policies/work-policies.module';
 import { MedicalRecordsModule } from './modules/medical-records/medical-records.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { PatientsModule } from './modules/patients/patients.module';
@@ -77,6 +80,9 @@ import { SupportTicketsModule } from './modules/support-tickets/support-tickets.
     MedicalRecordsModule,
     AttendanceModule,
     LeavesModule,
+    WorkPoliciesModule,
+    ReplacementsModule,
+    PayrollModule,
     SupportTicketsModule,
     QueueEngineModule,
     ChatModule,

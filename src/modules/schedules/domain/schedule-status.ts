@@ -101,7 +101,11 @@ export function resolveAggregateOperationalStatus(params: {
   isClosedForLeave: boolean;
   sessionStatuses: ScheduleOperationalStatus[];
 }): ScheduleOperationalStatus {
-  if (params.isClosedForLeave || params.sessionStatuses.length === 0) {
+  if (params.isClosedForLeave) {
+    return ScheduleOperationalStatus.ON_LEAVE;
+  }
+
+  if (params.sessionStatuses.length === 0) {
     return ScheduleOperationalStatus.CLOSED;
   }
 

@@ -6,7 +6,9 @@ import {
   practitioners,
   sessionDefs,
   shiftExceptions,
+  staffLeaveRequests,
 } from '@database/schema';
+import { replacementOpportunities } from '@database/schema/leave-payroll.schema';
 import { DEFAULT_CONSULTATION_DURATION_MINUTES } from '@modules/schedules/domain/constants/schedule.constants';
 import {
   type AdminDoctorScheduleDetailResponse,
@@ -28,7 +30,7 @@ import { SchedulePolicyReader } from '@modules/schedules/infrastructure/drizzle/
 import { PractitionerResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/practitioner.resolver';
 import type { AdminDoctorScheduleDetailQueryDto } from '@modules/schedules/presentation/dto/admin-doctor-schedule-detail-query.dto';
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { and, eq, gte, lte } from 'drizzle-orm';
+import { and, eq, gte, lte, or } from 'drizzle-orm';
 
 @Injectable()
 export class DrizzleAdminDoctorScheduleDetailQuery {
@@ -108,6 +110,8 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
       clinicPolicy,
       masterDaysList,
       activeSessionDefs,
+      monthApprovedLeaves,
+      monthReplacementOpportunities,
     ] = await Promise.all([
       this.db.query.shiftExceptions.findMany({
         where: and(
@@ -147,6 +151,33 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
         where: eq(sessionDefs.isActive, true),
         with: {
           schedules: true,
+        },
+      }),
+      this.db.query.staffLeaveRequests.findMany({
+        where: and(
+          or(
+            eq(staffLeaveRequests.practitionerId, prac.id),
+            eq(staffLeaveRequests.staffProfileId, prac.staffProfileId),
+          ),
+          eq(staffLeaveRequests.status, 'approved'),
+          lte(staffLeaveRequests.startDate, endDate),
+          gte(staffLeaveRequests.endDate, startDate),
+        ),
+      }),
+      this.db.query.replacementOpportunities.findMany({
+        where: and(
+          or(
+            eq(replacementOpportunities.originalPractitionerId, prac.id),
+            eq(
+              replacementOpportunities.originalStaffProfileId,
+              prac.staffProfileId,
+            ),
+          ),
+          gte(replacementOpportunities.workDate, startDate),
+          lte(replacementOpportunities.workDate, endDate),
+        ),
+        with: {
+          claimedByStaffProfile: true,
         },
       }),
     ]);
@@ -213,11 +244,18 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
       clinicPolicy.durationMinutes ||
       DEFAULT_CONSULTATION_DURATION_MINUTES;
 
-    const monthLeaves = monthExceptions.map((e) => ({
-      startDate: e.serviceDate,
-      endDate: e.serviceDate,
-      reason: e.note,
-    }));
+    const monthLeaves = [
+      ...monthExceptions.map((e) => ({
+        startDate: e.serviceDate,
+        endDate: e.serviceDate,
+        reason: e.note,
+      })),
+      ...monthApprovedLeaves.map((l) => ({
+        startDate: l.startDate,
+        endDate: l.endDate,
+        reason: l.reason,
+      })),
+    ];
 
     const monthlySchedule = buildMonthlySchedule({
       targetYear,
@@ -241,6 +279,9 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
         : startDate);
 
     const evalLeave = monthExceptions.find((e) => e.serviceDate === evalDate);
+    const evalApprovedLeave = monthApprovedLeaves.find(
+      (l) => l.startDate <= evalDate && l.endDate >= evalDate,
+    );
     const evalSessions = monthSessions.filter(
       (s) => s.scheduleDate === evalDate,
     );
@@ -248,11 +289,25 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
       (a) => a.scheduledDate === evalDate,
     );
 
-    const isEvalOnLeave = Boolean(evalLeave);
+    const isEvalOnLeave = Boolean(evalLeave || evalApprovedLeave);
     const evalLeaveReason =
-      evalLeave?.note || (isEvalOnLeave ? 'Dokter Cuti' : null);
-    const evalLeaveStart = isEvalOnLeave ? evalDate : null;
-    const evalLeaveEnd = isEvalOnLeave ? evalDate : null;
+      evalApprovedLeave?.reason ||
+      evalLeave?.note ||
+      (isEvalOnLeave ? 'Dokter Cuti' : null);
+    const evalLeaveStart =
+      evalApprovedLeave?.startDate || (isEvalOnLeave ? evalDate : null);
+    const evalLeaveEnd =
+      evalApprovedLeave?.endDate || (isEvalOnLeave ? evalDate : null);
+    const evalLeaveType = evalApprovedLeave?.requestType || null;
+
+    const evalRepOpp = monthReplacementOpportunities.find(
+      (ro) => ro.workDate === evalDate,
+    );
+    const replacementStatus = evalRepOpp?.status || null;
+    const substituteDoctorName =
+      evalRepOpp?.claimedByStaffProfile?.fullName ||
+      evalApprovedLeave?.substituteNameSnapshot ||
+      null;
 
     const defaultRoomName = prac.clinicRoom
       ? `${prac.clinicRoom.name}${prac.clinicRoom.location ? `, ${prac.clinicRoom.location}` : ''}`
@@ -309,6 +364,9 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
         leave_reason: evalLeaveReason,
         leave_start: evalLeaveStart,
         leave_end: evalLeaveEnd,
+        leave_type: evalLeaveType,
+        substitute_doctor_name: substituteDoctorName,
+        replacement_status: replacementStatus,
         monthly_schedule: monthlySchedule,
         sesi_harian: sesiHarian,
         timeline_intervals: timelineIntervals,

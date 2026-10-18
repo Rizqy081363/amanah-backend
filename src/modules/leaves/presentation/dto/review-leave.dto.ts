@@ -1,24 +1,18 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
-
-export enum LeaveReviewStatusEnum {
-  DISETUJUI = 'DISETUJUI',
-  DITOLAK = 'DITOLAK',
-}
+import { IsIn, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class ReviewLeaveDto {
   @ApiProperty({
-    enum: LeaveReviewStatusEnum,
-    example: LeaveReviewStatusEnum.DISETUJUI,
+    example: 'approved',
+    enum: ['approved', 'rejected', 'DISETUJUI', 'DITOLAK'],
     description: 'Status keputusan persetujuan cuti oleh Admin',
   })
-  @IsEnum(LeaveReviewStatusEnum)
+  @IsIn(['approved', 'rejected', 'DISETUJUI', 'DITOLAK'])
   @IsNotEmpty()
-  status: LeaveReviewStatusEnum;
+  status: 'approved' | 'rejected' | 'DISETUJUI' | 'DITOLAK';
 
   @ApiPropertyOptional({
-    example:
-      'Disetujui, jadwal jaga selama tanggal tersebut telah dialihkan ke staf pengganti',
+    example: 'Disetujui untuk tanggal dinas terkait',
     description: 'Catatan atau pertimbangan keputusan persetujuan cuti',
   })
   @IsString()

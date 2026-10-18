@@ -1440,6 +1440,8 @@ export const staffLeaveRequests = pgTable(
     substitutePractitionerId: uuid('substitute_practitioner_id'),
     substituteNameSnapshot: text('substitute_name_snapshot'),
     status: staffLeaveRequestStatus().default('pending').notNull(),
+    scope: varchar('scope', { length: 20 }).default('full_day').notNull(),
+    decisionSource: varchar('decision_source', { length: 20 }).default('admin'),
     reviewedBy: uuid('reviewed_by'),
     reviewedAt: timestamp('reviewed_at', {
       withTimezone: true,
@@ -2140,6 +2142,13 @@ export const staffAttendanceRecords = pgTable(
     staffProfileId: uuid('staff_profile_id').notNull(),
     qrSessionId: uuid('qr_session_id'),
     leaveRequestId: uuid('leave_request_id'),
+    replacementOpportunityId: uuid('replacement_opportunity_id'),
+    sessionId: uuid('session_id'),
+    validatedDurationHours: numeric('validated_duration_hours', {
+      precision: 5,
+      scale: 2,
+    }).default('0.00'),
+    isReplacement: boolean('is_replacement').default(false).notNull(),
     unitId: uuid('unit_id'),
     roomId: uuid('room_id'),
     deviceId: uuid('device_id'),

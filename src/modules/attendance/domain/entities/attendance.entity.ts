@@ -1,9 +1,15 @@
 export class AttendanceEntity {
   id: string;
   staffId: string;
-  scanTime: Date;
-  shift: 'PAGI' | 'SIANG' | 'MALAM';
-  status: 'HADIR' | 'TERLAMBAT' | 'TIDAK_HADIR';
+  shift: string;
+  status: string;
+  checkInAt?: Date | null;
+  checkOutAt?: Date | null;
+  validatedDurationHours?: number;
+  isReplacement: boolean;
+  replacementOpportunityId?: string | null;
+  sessionId?: string | null;
   deviceInfo?: string | null;
+  attendanceDate?: string;
   createdAt: Date;
 }

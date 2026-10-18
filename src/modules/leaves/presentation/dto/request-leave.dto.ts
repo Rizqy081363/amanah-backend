@@ -1,14 +1,17 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  IsArray,
   IsDateString,
+  IsIn,
   IsNotEmpty,
   IsOptional,
   IsString,
+  IsUUID,
 } from 'class-validator';
 
 export class RequestLeaveDto {
   @ApiProperty({
-    example: '2026-09-20',
+    example: '2026-10-20',
     description: 'Tanggal awal cuti/izin (Format YYYY-MM-DD)',
   })
   @IsDateString()
@@ -16,15 +19,33 @@ export class RequestLeaveDto {
   startDate: string;
 
   @ApiProperty({
-    example: '2026-09-22',
+    example: '2026-10-20',
     description: 'Tanggal akhir cuti/izin (Format YYYY-MM-DD)',
   })
   @IsDateString()
   @IsNotEmpty()
   endDate: string;
 
+  @ApiPropertyOptional({
+    example: 'session',
+    enum: ['session', 'full_day'],
+    description: 'Cakupan permohonan: sesi tertentu atau satu hari penuh',
+  })
+  @IsIn(['session', 'full_day'])
+  @IsOptional()
+  scope?: 'session' | 'full_day';
+
+  @ApiPropertyOptional({
+    example: ['b20f1a9d-972e-4672-9373-9a4f78931383'],
+    description: 'Daftar ID sesi yang dicakup jika scope adalah session',
+  })
+  @IsArray()
+  @IsUUID('4', { each: true })
+  @IsOptional()
+  sessionIds?: string[];
+
   @ApiProperty({
-    example: 'Keperluan keluarga mendesak dan acara pernikahan keluarga',
+    example: 'Keperluan keluarga mendesak dan acara keluarga',
     description: 'Alasan atau keterangan permohonan cuti',
   })
   @IsString()
@@ -58,7 +79,7 @@ export class RequestLeaveDto {
 
   @ApiPropertyOptional({
     example: '550e8400-e29b-41d4-a716-446655440000',
-    description: 'ID staf pengganti yang melimpahkan tugas selama cuti',
+    description: 'ID staf pengganti opsional',
   })
   @IsString()
   @IsOptional()

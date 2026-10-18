@@ -10,6 +10,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -21,6 +22,7 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiParam,
+  ApiQuery,
   ApiTags,
   ApiUnauthorizedResponse,
   ApiUnprocessableEntityResponse,
@@ -53,13 +55,38 @@ export class LeavesController {
     private readonly leaveRepo: LeaveRepository,
   ) {}
 
+  @Get('eligible-sessions')
+  @Roles('STAF', 'ADMIN')
+  @ApiOperation({
+    summary: 'Melihat sesi jadwal yang eligible untuk diajukan cuti (Mobile App & Web)',
+    description:
+      'Mengambil sesi dinas aktif staf atau dokter pada tanggal tertentu berdasarkan roster resmi.',
+  })
+  @ApiQuery({
+    name: 'date',
+    required: true,
+    description: 'Tanggal yang ingin diperiksa sesi dinasnya (YYYY-MM-DD)',
+    example: '2026-10-20',
+  })
+  @ApiOkResponse({ description: 'Daftar sesi eligible berhasil diambil' })
+  async getEligibleSessions(
+    @Query('date') date: string,
+    @CurrentUser() user: any,
+  ) {
+    if (!user.staff?.id) {
+      throw new ForbiddenException('User bukan staf terdaftar');
+    }
+    const targetDate = date || new Date().toISOString().split('T')[0];
+    return this.leaveRepo.getEligibleSessions(user.staff.id, targetDate);
+  }
+
   @Post()
   @Roles('STAF')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Staf mengajukan permohonan cuti / izin (Mobile App)',
     description:
-      'Mengajukan permohonan izin atau cuti kerja dengan melampirkan tanggal, alasan, dan berkas surat pendukung opsional.',
+      'Mengajukan permohonan izin kerja (per sesi atau satu hari penuh) sesuai jadwal roster resmi.',
   })
   @ApiCreatedResponse({ description: 'Permohonan cuti berhasil diajukan' })
   @ApiForbiddenResponse({ description: 'User bukan staf terdaftar' })
@@ -74,10 +101,13 @@ export class LeavesController {
 
     return this.leaveRepo.create({
       staffId: user.staff.id,
+      practitionerId: user.doctor?.id || null,
       startDate: body.startDate,
       endDate: body.endDate,
       reason: body.reason,
       type: body.type,
+      scope: body.scope,
+      sessionIds: body.sessionIds,
       substituteStaffId: body.substituteStaffId,
       documentUrl: body.documentUrl,
     });
@@ -88,7 +118,7 @@ export class LeavesController {
   @ApiOperation({
     summary: 'Melihat riwayat pengajuan cuti staf login (Mobile App)',
     description:
-      'Menampilkan seluruh status pengajuan permohonan cuti staf (MENUNGGU, DISETUJUI, DITOLAK).',
+      'Menampilkan seluruh status pengajuan permohonan cuti staf (pending, approved, rejected, cancelled).',
   })
   @ApiOkResponse({
     description: 'Daftar permohonan cuti staf berhasil diambil',
@@ -107,7 +137,7 @@ export class LeavesController {
     summary:
       'Admin melihat daftar pengajuan cuti yang butuh persetujuan (Web Dashboard)',
     description:
-      'Menampilkan seluruh pengajuan izin staf dengan status MENUNGGU untuk ditinjau oleh Admin/SDM.',
+      'Menampilkan seluruh pengajuan izin staf dengan status pending untuk ditinjau oleh Admin/SDM.',
   })
   @ApiOkResponse({
     description: 'Daftar permohonan cuti pending berhasil diambil',
@@ -117,12 +147,37 @@ export class LeavesController {
     return this.leaveRepo.findAllPending();
   }
 
+  @Get('all')
+  @Roles('ADMIN')
+  @ApiOperation({
+    summary: 'Admin melihat seluruh data permohonan cuti (Web Dashboard)',
+    description:
+      'Menampilkan riwayat cuti staf dengan filter status dan tipe staf opsional.',
+  })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    description: 'Filter status (pending, approved, rejected, cancelled)',
+  })
+  @ApiQuery({
+    name: 'staffType',
+    required: false,
+    description: 'Filter jenis staf (doctor, midwife, worker)',
+  })
+  @ApiOkResponse({ description: 'Daftar seluruh cuti staf berhasil diambil' })
+  async getAllLeaves(
+    @Query('status') status?: string,
+    @Query('staffType') staffType?: string,
+  ) {
+    return this.leaveRepo.findAll({ status, staffType });
+  }
+
   @Patch(':id/status')
   @Roles('ADMIN')
   @ApiOperation({
     summary: 'Admin menyetujui atau menolak cuti staf (Web Dashboard)',
     description:
-      'Memperbarui status permohonan cuti staf menjadi DISETUJUI atau DITOLAK dengan menyertakan catatan persetujuan.',
+      'Memperbarui status permohonan cuti staf menjadi approved atau rejected serta membuka jadwal pengganti jika disetujui.',
   })
   @ApiParam({
     name: 'id',
@@ -132,17 +187,18 @@ export class LeavesController {
   @ApiOkResponse({ description: 'Status cuti berhasil diperbarui' })
   @ApiNotFoundResponse({ description: 'Permohonan cuti tidak ditemukan' })
   @ApiForbiddenResponse({ description: 'Hanya Admin yang diizinkan' })
-  @ApiUnprocessableEntityResponse({
-    description: 'Keputusan status tidak valid',
-  })
   async reviewLeave(
     @Param('id') id: string,
     @Body() body: ReviewLeaveDto,
     @CurrentUser() user: any,
   ) {
+    const normStatus: 'approved' | 'rejected' =
+      body.status === 'DISETUJUI' || body.status === 'approved'
+        ? 'approved'
+        : 'rejected';
     const updated = await this.leaveRepo.updateStatus(
       id,
-      body.status,
+      normStatus,
       user.id,
       body.approvalNotes,
     );

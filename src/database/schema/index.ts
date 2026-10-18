@@ -9,3 +9,5 @@ export * from './outbox.schema';
 export * from './push-subscriptions.schema';
 export * from './queue-ticketing.relations';
 export * from './queue-ticketing.schema';
+export * from './leave-payroll.schema';
+export * from './leave-payroll.relations';

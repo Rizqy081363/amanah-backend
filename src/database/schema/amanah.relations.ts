@@ -68,6 +68,7 @@ import {
   maternalHusbandProfiles,
 } from './maternal.schema';
 import { sessionDefs, staffRosters } from './queue-ticketing.schema';
+import { leaveRequestSessions } from './leave-payroll.schema';
 
 export const userDevicesRelations = relations(userDevices, ({ one, many }) => ({
   user: one(users, {
@@ -444,6 +445,7 @@ export const staffLeaveRequestsRelations = relations(
     }),
     practitionerLeavePeriods: many(practitionerLeavePeriods),
     staffAttendanceRecords: many(staffAttendanceRecords),
+    sessions: many(leaveRequestSessions),
   }),
 );
 

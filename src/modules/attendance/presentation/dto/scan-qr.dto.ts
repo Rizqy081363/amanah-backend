@@ -1,30 +1,24 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
-
-export enum ShiftEnum {
-  PAGI = 'PAGI',
-  SIANG = 'SIANG',
-  MALAM = 'MALAM',
-}
+import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class ScanQrDto {
   @ApiProperty({
-    enum: ShiftEnum,
-    example: ShiftEnum.PAGI,
-    description: 'Sesi giliran jaga kerja staf',
-  })
-  @IsEnum(ShiftEnum)
-  @IsNotEmpty()
-  shift: ShiftEnum;
-
-  @ApiProperty({
     example: 'AMANAH-PRESENSI-2026-09-17-PAGI',
     description:
-      'Kode token QR terenkripsi yang ditampilkan pada layar terminal presensi',
+      'Kode token QR atau 6-digit OTP yang ditampilkan pada layar terminal presensi',
   })
   @IsString()
   @IsNotEmpty()
   qrToken: string;
+
+  @ApiPropertyOptional({
+    example: 'morning',
+    description:
+      'Sesi giliran kerja (early_morning, morning, afternoon, night). Jika dikosongkan, backend menentukan shift aktif saat ini.',
+  })
+  @IsString()
+  @IsOptional()
+  shift?: string;
 
   @ApiPropertyOptional({
     example: 'Samsung Galaxy A54 (Android 14) / Web App',
@@ -33,4 +27,11 @@ export class ScanQrDto {
   @IsString()
   @IsOptional()
   deviceInfo?: string;
+
+  @ApiPropertyOptional({
+    description: 'ID sesi definisi jadwal bila diketahui',
+  })
+  @IsString()
+  @IsOptional()
+  sessionId?: string;
 }

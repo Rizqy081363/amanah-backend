@@ -4,6 +4,7 @@ import {
   appointments,
   doctorAssignments,
   shiftExceptions,
+  staffLeaveRequests,
 } from '@database/schema';
 import { ACTIVE_APPOINTMENT_STATUSES } from '@modules/schedules/domain/constants/schedule.constants';
 import {
@@ -12,7 +13,7 @@ import {
 } from '@modules/schedules/domain/entities/schedule.entity';
 import { PractitionerResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/practitioner.resolver';
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, gte, inArray, lte } from 'drizzle-orm';
+import { and, eq, gte, inArray, lte, or } from 'drizzle-orm';
 
 @Injectable()
 export class DrizzleScheduleDayRepository {
@@ -44,30 +45,45 @@ export class DrizzleScheduleDayRepository {
     const startDate = `${month}-01`;
     const endDate = `${month}-${String(daysInMonth).padStart(2, '0')}`;
 
-    const [assignments, exceptions, monthAppointments] = await Promise.all([
-      this.db.query.doctorAssignments.findMany({
-        where: and(
-          eq(doctorAssignments.doctorId, practitionerId),
-          eq(doctorAssignments.isActive, true),
-        ),
-      }),
-      this.db.query.shiftExceptions.findMany({
-        where: and(
-          eq(shiftExceptions.doctorId, practitionerId),
-          gte(shiftExceptions.serviceDate, startDate),
-          lte(shiftExceptions.serviceDate, endDate),
-          eq(shiftExceptions.type, 'leave'),
-        ),
-      }),
-      this.db.query.appointments.findMany({
-        where: and(
-          eq(appointments.practitionerId, practitionerId),
-          gte(appointments.scheduledDate, startDate),
-          lte(appointments.scheduledDate, endDate),
-          inArray(appointments.status, [...ACTIVE_APPOINTMENT_STATUSES]),
-        ),
-      }),
-    ]);
+    const [assignments, exceptions, monthAppointments, approvedLeaves] =
+      await Promise.all([
+        this.db.query.doctorAssignments.findMany({
+          where: and(
+            eq(doctorAssignments.doctorId, practitionerId),
+            eq(doctorAssignments.isActive, true),
+          ),
+        }),
+        this.db.query.shiftExceptions.findMany({
+          where: and(
+            eq(shiftExceptions.doctorId, practitionerId),
+            gte(shiftExceptions.serviceDate, startDate),
+            lte(shiftExceptions.serviceDate, endDate),
+            eq(shiftExceptions.type, 'leave'),
+          ),
+        }),
+        this.db.query.appointments.findMany({
+          where: and(
+            eq(appointments.practitionerId, practitionerId),
+            gte(appointments.scheduledDate, startDate),
+            lte(appointments.scheduledDate, endDate),
+            inArray(appointments.status, [...ACTIVE_APPOINTMENT_STATUSES]),
+          ),
+        }),
+        this.db.query.staffLeaveRequests.findMany({
+          where: and(
+            or(
+              eq(staffLeaveRequests.practitionerId, practitionerId),
+              eq(
+                staffLeaveRequests.staffProfileId,
+                practitioner.staffProfileId || '',
+              ),
+            ),
+            eq(staffLeaveRequests.status, 'approved'),
+            lte(staffLeaveRequests.startDate, endDate),
+            gte(staffLeaveRequests.endDate, startDate),
+          ),
+        }),
+      ]);
 
     const days = [];
     for (let day = 1; day <= daysInMonth; day++) {
@@ -77,19 +93,26 @@ export class DrizzleScheduleDayRepository {
         (a) => a.dow === null || a.dow === dow,
       );
       const leaveException = exceptions.find((ex) => ex.serviceDate === date);
+      const approvedLeave = approvedLeaves.find(
+        (l) => l.startDate <= date && l.endDate >= date,
+      );
       const dayAppointments = monthAppointments.filter(
         (a) => a.scheduledDate === date,
       );
 
       const hasSchedule = dayAssignments.length > 0;
-      const isOnLeave = Boolean(leaveException);
+      const isOnLeave = Boolean(leaveException || approvedLeave);
       const leaveReason =
-        leaveException?.note || (isOnLeave ? 'Dokter Cuti' : null);
+        approvedLeave?.reason ||
+        leaveException?.note ||
+        (isOnLeave ? 'Dokter Cuti' : null);
       const sessionCount = dayAssignments.length;
       const bookedPatientCount = dayAppointments.length;
 
       let dayOpStatus: ScheduleOperationalStatus;
-      if (isOnLeave || !hasSchedule) {
+      if (isOnLeave) {
+        dayOpStatus = ScheduleOperationalStatus.ON_LEAVE;
+      } else if (!hasSchedule) {
         dayOpStatus = ScheduleOperationalStatus.CLOSED;
       } else {
         dayOpStatus = ScheduleOperationalStatus.OPEN;

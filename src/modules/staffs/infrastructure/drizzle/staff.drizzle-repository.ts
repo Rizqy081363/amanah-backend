@@ -1,11 +1,13 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, ilike } from 'drizzle-orm';
+import { and, desc, eq, gte, ilike, lte } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
   practitioners,
   staffAddresses,
+  staffAttendanceRecords,
   staffCredentials,
+  staffLeaveRequests,
   staffProfiles,
   user,
   users,
@@ -24,7 +26,46 @@ export class StaffDrizzleRepository implements StaffRepository {
     r: any,
     addressRecord?: any,
     practitionerRecord?: any,
+    leaveRecord?: any,
+    attendanceRecord?: any,
   ): StaffEntity {
+    let leaveInfo: StaffEntity['leaveInfo'] = null;
+    if (leaveRecord) {
+      leaveInfo = {
+        isOnLeave: true,
+        requestType: leaveRecord.requestType ?? null,
+        startDate: leaveRecord.startDate ? String(leaveRecord.startDate) : null,
+        endDate: leaveRecord.endDate ? String(leaveRecord.endDate) : null,
+        reason: leaveRecord.reason ?? null,
+        substituteName: leaveRecord.substituteNameSnapshot ?? null,
+        replacementStatus: leaveRecord.replacementStatus ?? null,
+      };
+    }
+
+    let todayAttendance: StaffEntity['todayAttendance'] = null;
+    if (attendanceRecord) {
+      todayAttendance = {
+        status: attendanceRecord.status,
+        checkInAt: attendanceRecord.checkInAt ?? null,
+        checkOutAt: attendanceRecord.checkOutAt ?? null,
+        shift: attendanceRecord.shift ?? null,
+      };
+    } else if (leaveInfo?.isOnLeave) {
+      todayAttendance = {
+        status: 'leave',
+        checkInAt: null,
+        checkOutAt: null,
+        shift: null,
+      };
+    } else {
+      todayAttendance = {
+        status: 'not_checked_in',
+        checkInAt: null,
+        checkOutAt: null,
+        shift: null,
+      };
+    }
+
     return {
       id: r.id,
       userId: r.userId || '',
@@ -60,6 +101,8 @@ export class StaffDrizzleRepository implements StaffRepository {
             fullAddress: addressRecord.fullAddress || null,
           }
         : null,
+      leaveInfo,
+      todayAttendance,
       createdAt: new Date(r.createdAt),
       updatedAt: new Date(r.updatedAt),
     };
@@ -128,14 +171,39 @@ export class StaffDrizzleRepository implements StaffRepository {
 
     if (!record) return null;
 
-    const primaryAddr = await this.db.query.staffAddresses.findFirst({
-      where: and(
-        eq(staffAddresses.staffProfileId, targetProfileId),
-        eq(staffAddresses.isPrimary, true),
-      ),
-    });
+    const todayStr = new Date().toISOString().split('T')[0];
 
-    return this.mapRecordToEntity(record, primaryAddr, practitionerRecord);
+    const [primaryAddr, activeLeave, todayAtt] = await Promise.all([
+      this.db.query.staffAddresses.findFirst({
+        where: and(
+          eq(staffAddresses.staffProfileId, targetProfileId),
+          eq(staffAddresses.isPrimary, true),
+        ),
+      }),
+      this.db.query.staffLeaveRequests.findFirst({
+        where: and(
+          eq(staffLeaveRequests.staffProfileId, targetProfileId),
+          eq(staffLeaveRequests.status, 'approved'),
+          lte(staffLeaveRequests.startDate, todayStr),
+          gte(staffLeaveRequests.endDate, todayStr),
+        ),
+      }),
+      this.db.query.staffAttendanceRecords.findFirst({
+        where: and(
+          eq(staffAttendanceRecords.staffProfileId, targetProfileId),
+          eq(staffAttendanceRecords.attendanceDate, todayStr),
+        ),
+        orderBy: [desc(staffAttendanceRecords.checkInAt)],
+      }),
+    ]);
+
+    return this.mapRecordToEntity(
+      record,
+      primaryAddr,
+      practitionerRecord,
+      activeLeave,
+      todayAtt,
+    );
   }
 
   async findByUserId(userId: string): Promise<StaffEntity | null> {
@@ -144,18 +212,43 @@ export class StaffDrizzleRepository implements StaffRepository {
     });
     if (!record) return null;
 
-    const primaryAddr = await this.db.query.staffAddresses.findFirst({
-      where: and(
-        eq(staffAddresses.staffProfileId, record.id),
-        eq(staffAddresses.isPrimary, true),
-      ),
-    });
+    const todayStr = new Date().toISOString().split('T')[0];
 
-    const practitionerRecord = await this.db.query.practitioners.findFirst({
-      where: eq(practitioners.staffProfileId, record.id),
-    });
+    const [primaryAddr, practitionerRecord, activeLeave, todayAtt] =
+      await Promise.all([
+        this.db.query.staffAddresses.findFirst({
+          where: and(
+            eq(staffAddresses.staffProfileId, record.id),
+            eq(staffAddresses.isPrimary, true),
+          ),
+        }),
+        this.db.query.practitioners.findFirst({
+          where: eq(practitioners.staffProfileId, record.id),
+        }),
+        this.db.query.staffLeaveRequests.findFirst({
+          where: and(
+            eq(staffLeaveRequests.staffProfileId, record.id),
+            eq(staffLeaveRequests.status, 'approved'),
+            lte(staffLeaveRequests.startDate, todayStr),
+            gte(staffLeaveRequests.endDate, todayStr),
+          ),
+        }),
+        this.db.query.staffAttendanceRecords.findFirst({
+          where: and(
+            eq(staffAttendanceRecords.staffProfileId, record.id),
+            eq(staffAttendanceRecords.attendanceDate, todayStr),
+          ),
+          orderBy: [desc(staffAttendanceRecords.checkInAt)],
+        }),
+      ]);
 
-    return this.mapRecordToEntity(record, primaryAddr, practitionerRecord);
+    return this.mapRecordToEntity(
+      record,
+      primaryAddr,
+      practitionerRecord,
+      activeLeave,
+      todayAtt,
+    );
   }
 
   async findByCardNumber(cardNum: string): Promise<StaffEntity | null> {
@@ -180,25 +273,64 @@ export class StaffDrizzleRepository implements StaffRepository {
   }
 
   async findAll(): Promise<StaffEntity[]> {
-    const records = await this.db.query.staffProfiles.findMany({
-      where: eq(staffProfiles.status, 'active'),
-      with: {
-        addresses: true,
-      },
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    const [records, activeLeaves, todayAttendances, allPractitioners] =
+      await Promise.all([
+        this.db.query.staffProfiles.findMany({
+          where: eq(staffProfiles.status, 'active'),
+          with: {
+            addresses: true,
+          },
+        }),
+        this.db.query.staffLeaveRequests.findMany({
+          where: and(
+            eq(staffLeaveRequests.status, 'approved'),
+            lte(staffLeaveRequests.startDate, todayStr),
+            gte(staffLeaveRequests.endDate, todayStr),
+          ),
+        }),
+        this.db.query.staffAttendanceRecords.findMany({
+          where: eq(staffAttendanceRecords.attendanceDate, todayStr),
+          orderBy: [desc(staffAttendanceRecords.checkInAt)],
+        }),
+        this.db.query.practitioners.findMany(),
+      ]);
+
+    const leaveByStaff = new Map<string, any>();
+    for (const l of activeLeaves) {
+      leaveByStaff.set(l.staffProfileId, l);
+    }
+
+    const attByStaff = new Map<string, any>();
+    for (const a of todayAttendances) {
+      if (!attByStaff.has(a.staffProfileId)) {
+        attByStaff.set(a.staffProfileId, a);
+      }
+    }
+
+    const practitionerByStaff = new Map<string, any>();
+    for (const p of allPractitioners) {
+      if (p.staffProfileId) {
+        practitionerByStaff.set(p.staffProfileId, p);
+      }
+    }
+
+    return records.map((r: any) => {
+      const primaryAddr =
+        r.addresses?.find((a: any) => a.isPrimary) || r.addresses?.[0];
+      const practitionerRecord = practitionerByStaff.get(r.id);
+      const leaveRec = leaveByStaff.get(r.id);
+      const attRec = attByStaff.get(r.id);
+
+      return this.mapRecordToEntity(
+        r,
+        primaryAddr,
+        practitionerRecord,
+        leaveRec,
+        attRec,
+      );
     });
-    return Promise.all(
-      records.map(async (r: any) => {
-        const primaryAddr =
-          r.addresses?.find((a: any) => a.isPrimary) || r.addresses?.[0];
-        let practitionerRecord: any = null;
-        if (r.staffType === 'doctor' || r.staffType === 'midwife') {
-          practitionerRecord = await this.db.query.practitioners.findFirst({
-            where: eq(practitioners.staffProfileId, r.id),
-          });
-        }
-        return this.mapRecordToEntity(r, primaryAddr, practitionerRecord);
-      }),
-    );
   }
 
   async update(

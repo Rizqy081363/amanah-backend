@@ -76,6 +76,9 @@ export class CandidateResolverService implements ICandidateResolverPort {
     const [
       rawRosterAssignments,
       activeLeaves,
+      activeStaffLeaves,
+      claimedReplacements,
+      attendanceRecords,
       queueCounts,
       allPractitioners,
       allSpecialties,
@@ -84,6 +87,9 @@ export class CandidateResolverService implements ICandidateResolverPort {
         ? this.repository.findRosteredDoctors(resolvedSessionId, dow)
         : Promise.resolve([]),
       this.repository.findActiveDoctorLeaves(scheduledDate, resolvedSessionId),
+      this.repository.findActiveStaffLeaves(scheduledDate),
+      this.repository.findClaimedReplacements(scheduledDate, resolvedSessionId),
+      this.repository.findAttendanceRecordsForDate(scheduledDate),
       this.repository.countActiveQueuePerDoctor(
         scheduledDate,
         resolvedSessionId,
@@ -101,7 +107,33 @@ export class CandidateResolverService implements ICandidateResolverPort {
     const onRosterDoctorIds = new Set(
       effectiveRosterAssignments.map((ra: { doctorId: string }) => ra.doctorId),
     );
-    const onLeaveDoctorIds = new Set(activeLeaves.map((l) => l.doctorId));
+
+    // Leave mapping by practitioner ID and staffProfileId
+    const leaveByDoctorId = new Map<string, { reason: string }>();
+    for (const l of activeLeaves) {
+      leaveByDoctorId.set(l.doctorId, { reason: l.note || 'Cuti Dokter' });
+    }
+    for (const sl of activeStaffLeaves) {
+      if (sl.practitionerId) {
+        leaveByDoctorId.set(sl.practitionerId, {
+          reason: sl.reason || 'Cuti Dokter',
+        });
+      }
+    }
+
+    // Replacement mapping: claimed by practitioner
+    const replacementByDoctorId = new Map<string, any>();
+    for (const rep of claimedReplacements) {
+      if (rep.claimedByPractitionerId) {
+        replacementByDoctorId.set(rep.claimedByPractitionerId, rep);
+      }
+    }
+
+    // Attendance mapping: by staffProfileId
+    const attendanceByStaffId = new Map<string, any>();
+    for (const att of attendanceRecords) {
+      attendanceByStaffId.set(att.staffProfileId, att);
+    }
 
     // Dynamic specialty map from database
     const specialtyMap = new Map(allSpecialties.map((s) => [s.id, s]));
@@ -121,11 +153,49 @@ export class CandidateResolverService implements ICandidateResolverPort {
       // Don't show doctor if currently assigned as the patient's existing doctor
       if (p.id === apt.practitionerId) continue;
 
+      const staffProfId = p.staffProfileId || p.staffProfile?.id;
       // Check leave
-      const isOnLeave = onLeaveDoctorIds.has(p.id);
-      if (isOnLeave) continue;
+      const leaveInfo =
+        leaveByDoctorId.get(p.id) ||
+        (staffProfId
+          ? activeStaffLeaves.find((sl) => sl.staffProfileId === staffProfId)
+          : null);
+      const isOnLeave = Boolean(leaveInfo);
 
-      const isRostered = onRosterDoctorIds.has(p.id);
+      // Check replacement
+      const repRecord = replacementByDoctorId.get(p.id);
+      const isReplacement = Boolean(repRecord);
+      const replacingDoctorName = repRecord
+        ? repRecord.originalPractitioner?.displayName ||
+          repRecord.originalPractitioner?.staffProfile?.fullName ||
+          null
+        : null;
+
+      // Check attendance
+      const attRecord = staffProfId ? attendanceByStaffId.get(staffProfId) : null;
+      let attendanceStatus:
+        | 'checked_in'
+        | 'not_checked_in'
+        | 'late'
+        | 'on_leave'
+        | 'absent' = 'not_checked_in';
+      let attendanceWarning: string | null = null;
+
+      if (isOnLeave) {
+        attendanceStatus = 'on_leave';
+      } else if (attRecord) {
+        if (attRecord.checkInAt) {
+          attendanceStatus = attRecord.status === 'late' ? 'late' : 'checked_in';
+        } else {
+          attendanceStatus = 'not_checked_in';
+          attendanceWarning = 'Dokter belum melakukan presensi hari ini';
+        }
+      } else {
+        attendanceStatus = 'not_checked_in';
+        attendanceWarning = 'Dokter belum melakukan presensi hari ini';
+      }
+
+      const isRostered = onRosterDoctorIds.has(p.id) || isReplacement;
       const queueCount = queueCounts.get(p.id) || 0;
 
       // Resolve specialty strictly against dynamic medical specialties (SSOT)
@@ -157,16 +227,26 @@ export class CandidateResolverService implements ICandidateResolverPort {
       const currentGroup = groupMap.get(matchedSpecialty.id);
       if (!currentGroup) continue;
 
+      const availability = isOnLeave
+        ? DOCTOR_AVAILABILITY.SCHEDULE_REQUIRED
+        : isRostered
+          ? DOCTOR_AVAILABILITY.AVAILABLE
+          : DOCTOR_AVAILABILITY.SCHEDULE_REQUIRED;
+
       currentGroup.doctors.push({
         id: p.id,
         name: p.displayName || p.staffProfile?.fullName || '',
         specialty: currentGroup.name,
         staffType: p.staffProfile?.staffType || STAFF_TYPE.DOCTOR,
-        availability: isRostered
-          ? DOCTOR_AVAILABILITY.AVAILABLE
-          : DOCTOR_AVAILABILITY.SCHEDULE_REQUIRED,
+        availability,
         existingSessionId: resolvedSessionId,
         currentQueueCount: queueCount,
+        isOnLeave,
+        leaveReason: leaveInfo?.reason || null,
+        isReplacement,
+        replacingDoctorName,
+        attendanceStatus,
+        attendanceWarning,
       });
     }
 
@@ -175,9 +255,12 @@ export class CandidateResolverService implements ICandidateResolverPort {
       (g) => g.doctors.length > 0,
     );
 
-    // Sort: AVAILABLE doctors first, then by current queue load ascending
+    // Sort: AVAILABLE doctors who are NOT on leave first, then by current queue load ascending
     for (const group of activeGroups) {
       group.doctors.sort((a, b) => {
+        if (a.isOnLeave !== b.isOnLeave) {
+          return a.isOnLeave ? 1 : -1;
+        }
         if (a.availability !== b.availability) {
           return a.availability === DOCTOR_AVAILABILITY.AVAILABLE ? -1 : 1;
         }

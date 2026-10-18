@@ -308,6 +308,25 @@ export class ClinicConfigService {
     return { okMax, busyMax };
   }
 
+  async getAttendanceConfig(scope?: ScopeQuery): Promise<{
+    checkInWindowMinutesBefore: number;
+    checkInWindowMinutesAfter: number;
+  }> {
+    const [checkInWindowMinutesBefore, checkInWindowMinutesAfter] =
+      await Promise.all([
+        this.getNumber(
+          'attendance.check_in_window_minutes_before',
+          scope,
+        ).catch(() => 30),
+        this.getNumber(
+          'attendance.check_in_window_minutes_after',
+          scope,
+        ).catch(() => 60),
+      ]);
+
+    return { checkInWindowMinutesBefore, checkInWindowMinutesAfter };
+  }
+
   // --- Regional & Format Settings ---
 
   async getDateFormatStyle(scope?: ScopeQuery): Promise<string> {
