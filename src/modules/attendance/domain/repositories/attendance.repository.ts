@@ -64,6 +64,8 @@ export interface AttendanceRepository {
     data: {
       checkOutAt?: string | null;
       validatedDurationHours?: string | null;
+      notes?: string | null;
+      isEarlyDeparture?: boolean;
       updatedAt?: string;
     },
   ): Promise<AttendanceEntity>;
@@ -128,11 +130,11 @@ export interface AttendanceRepository {
 
   resolveSessionDefByTime(
     hour: number,
-  ): Promise<{ id: string; code: string; defaultStartsAt: string | null } | null>;
+  ): Promise<{ id: string; code: string; defaultStartsAt: string | null; defaultEndsAt?: string | null } | null>;
 
   resolveSessionDefById(
     sessionId: string,
-  ): Promise<{ id: string; code: string; defaultStartsAt: string | null } | null>;
+  ): Promise<{ id: string; code: string; defaultStartsAt: string | null; defaultEndsAt?: string | null } | null>;
 
   // Master days and historical trends from database
   getMasterDays(): Promise<Array<{

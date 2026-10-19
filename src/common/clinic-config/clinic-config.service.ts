@@ -312,6 +312,8 @@ export class ClinicConfigService {
     checkInWindowMinutesBefore: number;
     checkInWindowMinutesAfter: number;
     lateToleranceMinutes: number;
+    checkOutWindowMinutesBefore: number;
+    earlyCheckoutRequiresNotes: boolean;
     qrRotationSeconds: number;
     overtimeEnabled: boolean;
   }> {
@@ -319,12 +321,16 @@ export class ClinicConfigService {
       checkInWindowMinutesBefore,
       checkInWindowMinutesAfter,
       lateToleranceMinutes,
+      checkOutWindowMinutesBefore,
+      earlyCheckoutRequiresNotes,
       qrRotationSeconds,
       overtimeEnabled,
     ] = await Promise.all([
       this.getNumber('attendance.check_in_window_minutes_before', scope),
       this.getNumber('attendance.check_in_window_minutes_after', scope),
       this.getNumber('attendance.late_tolerance_minutes', scope),
+      this.getNumber('attendance.check_out_window_minutes_before', scope).catch(() => 30),
+      this.getBoolean('attendance.early_checkout_requires_notes', scope).catch(() => true),
       this.getNumber('attendance.qr_rotation_seconds', scope),
       this.getBoolean('attendance.overtime_enabled', scope),
     ]);
@@ -333,6 +339,8 @@ export class ClinicConfigService {
       checkInWindowMinutesBefore,
       checkInWindowMinutesAfter,
       lateToleranceMinutes,
+      checkOutWindowMinutesBefore,
+      earlyCheckoutRequiresNotes,
       qrRotationSeconds,
       overtimeEnabled,
     };

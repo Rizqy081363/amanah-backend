@@ -42,4 +42,81 @@ export class AttendanceTimingService {
 
     return { status: calculatedStatus, lateMinutes };
   }
+
+  async evaluateCheckOutTiming(params: {
+    checkInTime: Date;
+    checkOutTime: Date;
+    scheduledEndTime?: string | null;
+    scheduledShiftDurationHours?: number;
+  }): Promise<{
+    isEarlyDeparture: boolean;
+    validatedDurationHours: number;
+    requiresNotes: boolean;
+    earlyMinutes: number;
+  }> {
+    const {
+      checkInTime,
+      checkOutTime,
+      scheduledEndTime,
+      scheduledShiftDurationHours = 6,
+    } = params;
+
+    const config = await this.clinicConfig.getAttendanceConfig();
+    const windowMinutesBefore = config.checkOutWindowMinutesBefore ?? 30;
+
+    let isEarlyDeparture = false;
+    let earlyMinutes = 0;
+    let validatedDurationHours = scheduledShiftDurationHours;
+
+    if (scheduledEndTime) {
+      let [endH, endM] = scheduledEndTime.split(':').map(Number);
+      if (endH === 24) endH = 0;
+
+      const scheduledEndDate = new Date(checkOutTime);
+      scheduledEndDate.setHours(endH, endM || 0, 0, 0);
+
+      if (endH === 0 && checkInTime.getHours() >= 12) {
+        scheduledEndDate.setDate(scheduledEndDate.getDate() + 1);
+      }
+
+      const windowStartDate = new Date(
+        scheduledEndDate.getTime() - windowMinutesBefore * 60 * 1000,
+      );
+
+      if (checkOutTime.getTime() < windowStartDate.getTime()) {
+        isEarlyDeparture = true;
+        earlyMinutes = Math.round(
+          (scheduledEndDate.getTime() - checkOutTime.getTime()) / (1000 * 60),
+        );
+        const elapsedMs = Math.max(0, checkOutTime.getTime() - checkInTime.getTime());
+        const rawHours = Number((elapsedMs / (1000 * 60 * 60)).toFixed(2));
+        validatedDurationHours = Math.min(
+          scheduledShiftDurationHours,
+          Math.max(0.5, rawHours),
+        );
+      } else {
+        // Within or after normal window: Fair Credit Rounding grants full scheduled hours
+        validatedDurationHours = scheduledShiftDurationHours;
+      }
+    } else {
+      const elapsedMs = Math.max(0, checkOutTime.getTime() - checkInTime.getTime());
+      const rawHours = Number((elapsedMs / (1000 * 60 * 60)).toFixed(2));
+      const thresholdHours = scheduledShiftDurationHours - windowMinutesBefore / 60;
+
+      if (rawHours < thresholdHours) {
+        isEarlyDeparture = true;
+        earlyMinutes = Math.round((thresholdHours - rawHours) * 60);
+        validatedDurationHours = Math.max(0.5, rawHours);
+      } else {
+        validatedDurationHours = scheduledShiftDurationHours;
+      }
+    }
+
+    return {
+      isEarlyDeparture,
+      validatedDurationHours,
+      requiresNotes: isEarlyDeparture && (config.earlyCheckoutRequiresNotes ?? true),
+      earlyMinutes,
+    };
+  }
 }

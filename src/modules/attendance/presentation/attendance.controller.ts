@@ -133,6 +133,7 @@ export class AttendanceController {
     return this.checkOutAttendanceUseCase.execute({
       staffId: targetStaffId,
       qrToken: body?.qrToken,
+      notes: body?.notes,
     });
   }
 

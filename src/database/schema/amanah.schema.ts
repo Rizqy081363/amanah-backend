@@ -2149,6 +2149,7 @@ export const staffAttendanceRecords = pgTable(
       scale: 2,
     }).default('0.00'),
     isReplacement: boolean('is_replacement').default(false).notNull(),
+    isEarlyDeparture: boolean('is_early_departure').default(false).notNull(),
     unitId: uuid('unit_id'),
     roomId: uuid('room_id'),
     deviceId: uuid('device_id'),

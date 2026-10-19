@@ -4,18 +4,21 @@ import { AttendanceEntity } from '../../domain/entities/attendance.entity';
 import {
   AttendanceAlreadyCheckedOutException,
   AttendanceRecordNotFoundException,
+  EarlyDepartureNotesRequiredException,
   InvalidQrTokenException,
 } from '../../domain/errors/attendance-domain.errors';
 import {
   ATTENDANCE_REPOSITORY,
   AttendanceRepository,
 } from '../../domain/repositories/attendance.repository';
+import { AttendanceTimingService } from '../../domain/services/attendance-timing.service';
 import { AttendanceNotificationService } from '../services/attendance-notification.service';
 
 export interface CheckOutAttendanceInput {
   staffId: string;
   attendanceDate?: string;
   qrToken?: string;
+  notes?: string;
 }
 
 @Injectable()
@@ -23,6 +26,7 @@ export class CheckOutAttendanceUseCase {
   constructor(
     @Inject(ATTENDANCE_REPOSITORY)
     private readonly repo: AttendanceRepository,
+    private readonly timingService: AttendanceTimingService,
     private readonly notificationService: AttendanceNotificationService,
     @Optional()
     private readonly clinicTimeService?: ClinicTimeService,
@@ -77,16 +81,43 @@ export class CheckOutAttendanceUseCase {
     const checkOutDate = this.clinicTimeService?.nowDate() ?? new Date();
     const checkInDate = existing.checkInAt ?? checkOutDate;
 
-    // Calculate validated duration hours (min 0.5h, max 12h)
-    const diffMs = Math.max(0, checkOutDate.getTime() - checkInDate.getTime());
-    const hours = Math.min(
-      12,
-      Math.max(0.5, Number((diffMs / (1000 * 60 * 60)).toFixed(2))),
-    );
+    // Resolve scheduled end time from session or shift definition
+    let scheduledEndTime: string | null = null;
+    if (existing.sessionId) {
+      const sessionDef = await this.repo.resolveSessionDefById(existing.sessionId);
+      if (sessionDef?.defaultEndsAt) {
+        scheduledEndTime = sessionDef.defaultEndsAt;
+      }
+    }
+
+    // Fallback standard shift end times if session def did not supply defaultEndsAt
+    if (!scheduledEndTime && existing.shift) {
+      const shiftLower = existing.shift.toLowerCase();
+      if (shiftLower === 'morning') scheduledEndTime = '12:00';
+      else if (shiftLower === 'afternoon') scheduledEndTime = '18:00';
+      else if (shiftLower === 'night') scheduledEndTime = '00:00';
+      else if (shiftLower === 'early_morning') scheduledEndTime = '06:00';
+    }
+
+    // Evaluate Check-Out timing (Window, Early Departure & Fair Credit Rounding)
+    const timingEval = await this.timingService.evaluateCheckOutTiming({
+      checkInTime: checkInDate,
+      checkOutTime: checkOutDate,
+      scheduledEndTime,
+      scheduledShiftDurationHours: 6,
+    });
+
+    // Enforce notes requirement on early departure
+    const notesTrimmed = input.notes?.trim();
+    if (timingEval.requiresNotes && (!notesTrimmed || notesTrimmed.length === 0)) {
+      throw new EarlyDepartureNotesRequiredException();
+    }
 
     const updated = await this.repo.updateAttendanceRecord(existing.id, {
       checkOutAt: checkOutDate.toISOString(),
-      validatedDurationHours: hours.toString(),
+      validatedDurationHours: timingEval.validatedDurationHours.toFixed(2),
+      isEarlyDeparture: timingEval.isEarlyDeparture,
+      notes: notesTrimmed || existing.notes || null,
       updatedAt: checkOutDate.toISOString(),
     });
 

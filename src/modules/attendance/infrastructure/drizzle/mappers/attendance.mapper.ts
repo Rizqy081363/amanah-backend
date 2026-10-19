@@ -14,11 +14,13 @@ export class AttendanceMapper {
         ? Number(r.validatedDurationHours)
         : undefined,
       isReplacement: Boolean(r.isReplacement),
+      isEarlyDeparture: Boolean(r.isEarlyDeparture),
       replacementOpportunityId: r.replacementOpportunityId || null,
       sessionId: r.sessionId || null,
-      deviceInfo: r.notes || null,
+      deviceInfo: r.deviceInfo || null,
       attendanceDate: r.attendanceDate,
       lateMinutes: r.lateMinutes ?? null,
+      notes: r.notes || null,
       createdAt: new Date(r.createdAt),
     };
   }

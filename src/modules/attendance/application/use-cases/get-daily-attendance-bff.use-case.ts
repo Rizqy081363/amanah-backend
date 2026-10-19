@@ -109,6 +109,8 @@ export class GetDailyAttendanceBffUseCase {
           ? Number(rec.validatedDurationHours)
           : 0,
         isReplacement: Boolean(rec.isReplacement),
+        isEarlyDeparture: Boolean(rec.isEarlyDeparture),
+        notes: rec.notes || null,
       };
     });
 

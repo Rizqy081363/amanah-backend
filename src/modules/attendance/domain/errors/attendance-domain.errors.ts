@@ -64,3 +64,11 @@ export class AttendanceAlreadyCheckedOutException extends ConflictException {
     super(message);
   }
 }
+
+export class EarlyDepartureNotesRequiredException extends BadRequestException {
+  constructor(
+    message: string = 'Catatan alasan kepulangan lebih awal wajib diisi karena presensi pulang dilakukan sebelum jendela kepulangan normal.',
+  ) {
+    super(message);
+  }
+}

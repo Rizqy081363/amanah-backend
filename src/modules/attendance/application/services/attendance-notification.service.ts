@@ -85,6 +85,8 @@ export class AttendanceNotificationService {
         shift: shiftLabel,
         validatedDurationHours: record.validatedDurationHours ? Number(record.validatedDurationHours) : 0,
         isReplacement: Boolean(record.isReplacement),
+        isEarlyDeparture: Boolean(record.isEarlyDeparture),
+        notes: record.notes || null,
         action,
       };
 
@@ -94,10 +96,16 @@ export class AttendanceNotificationService {
         if (typeof (this.realtimeGateway as any).broadcast === 'function') {
           void (this.realtimeGateway as any).broadcast('attendance:recorded', payload);
           void (this.realtimeGateway as any).broadcast(`attendance:${action}`, payload);
+          if (record.isEarlyDeparture) {
+            void (this.realtimeGateway as any).broadcast('attendance:early_departure', payload);
+          }
           void (this.realtimeGateway as any).broadcast('attendance:refresh', { date: record.attendanceDate });
         } else if ((this.realtimeGateway as any).server?.emit) {
           (this.realtimeGateway as any).server.emit('attendance:recorded', payload);
           (this.realtimeGateway as any).server.emit(`attendance:${action}`, payload);
+          if (record.isEarlyDeparture) {
+            (this.realtimeGateway as any).server.emit('attendance:early_departure', payload);
+          }
           (this.realtimeGateway as any).server.emit('attendance:refresh', { date: record.attendanceDate });
         }
 
@@ -108,16 +116,24 @@ export class AttendanceNotificationService {
         void this.realtimeGateway.emitToRole?.('STAF', 'attendance:recorded', payload);
         void this.realtimeGateway.emitToRoom?.('role:admin', 'attendance:recorded', payload);
         void this.realtimeGateway.emitToRoom?.('role:admin', `attendance:${action}`, payload);
+        if (record.isEarlyDeparture) {
+          void this.realtimeGateway.emitToRole?.('admin', 'attendance:early_departure', payload);
+          void this.realtimeGateway.emitToRole?.('ADMIN', 'attendance:early_departure', payload);
+          void this.realtimeGateway.emitToRoom?.('role:admin', 'attendance:early_departure', payload);
+        }
         void this.realtimeGateway.emitToRoom?.('role:admin', 'attendance:refresh', { date: record.attendanceDate });
 
         // C. Target staff user personal room
         if (staffUserId) {
           void this.realtimeGateway.emitToUser(staffUserId, 'attendance:recorded', payload);
           void this.realtimeGateway.emitToUser(staffUserId, `attendance:${action}`, payload);
+          if (record.isEarlyDeparture) {
+            void this.realtimeGateway.emitToUser(staffUserId, 'attendance:early_departure', payload);
+          }
         }
 
         this.logger.log(
-          `[AttendanceEDA] Dispatched realtime event: attendance:recorded (staff=${staffName}, action=${action}, status=${statusLabel})`,
+          `[AttendanceEDA] Dispatched realtime event: attendance:recorded (staff=${staffName}, action=${action}, status=${statusLabel}${record.isEarlyDeparture ? ', earlyDeparture=true' : ''})`,
         );
       }
 
@@ -125,9 +141,17 @@ export class AttendanceNotificationService {
       if (this.notificationGateway) {
         let title = 'Presensi Masuk Berhasil';
         let body = `Presensi dinas ${staffName} (${categoryLabel}) berhasil dicatat.`;
+        let priority: 'normal' | 'high' = 'normal';
+
         if (action === 'check_out') {
-          title = 'Presensi Pulang Berhasil';
-          body = `Presensi pulang dinas ${staffName} berhasil dicatat. Durasi kerja: ${record.validatedDurationHours || 0} jam.`;
+          if (record.isEarlyDeparture) {
+            title = 'Peringatan: Kepulangan Lebih Awal (Early Departure)';
+            body = `Presensi pulang dinas lebih awal dicatat untuk ${staffName} (${categoryLabel}). Alasan: ${record.notes || '-'}. Durasi kerja diakui: ${record.validatedDurationHours || 0} jam.`;
+            priority = 'high';
+          } else {
+            title = 'Presensi Pulang Berhasil';
+            body = `Presensi pulang dinas ${staffName} berhasil dicatat. Durasi kerja: ${record.validatedDurationHours || 0} jam.`;
+          }
         } else if (record.status === 'late') {
           title = 'Presensi Terlambat Dicatat';
           body = `Presensi dinas ${staffName} dicatat terlambat (${record.lateMinutes || 0} menit).`;
@@ -149,7 +173,7 @@ export class AttendanceNotificationService {
             actionUrl: `/dashboard/kehadiran-pegawai?highlight=${record.id}`,
             data: payload,
           },
-          priority: 'normal',
+          priority,
         });
 
         // If staff user exists, dispatch personal notification
@@ -169,7 +193,7 @@ export class AttendanceNotificationService {
               actionUrl: `/dashboard/kehadiran-pegawai?highlight=${record.id}`,
               data: payload,
             },
-            priority: 'normal',
+            priority,
           });
         }
       }

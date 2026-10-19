@@ -402,6 +402,26 @@ export const CLINIC_SETTING_METADATA_REGISTRY: Record<
     max: 300,
     step: 5,
   },
+  'attendance.check_out_window_minutes_before': {
+    isAdminFacing: true,
+    category: 'attendance',
+    label: 'Jendela Buka Presensi Pulang (Normal)',
+    description:
+      'Batas menit diperbolehkannya check-out normal sebelum jam shift usai. Presensi di dalam jendela ini mendapatkan kredit dinas penuh tanpa pemotongan.',
+    controlType: 'number',
+    unit: 'menit',
+    min: 0,
+    max: 120,
+    step: 5,
+  },
+  'attendance.early_checkout_requires_notes': {
+    isAdminFacing: true,
+    category: 'attendance',
+    label: 'Wajib Catatan Alasan Pulang Cepat',
+    description:
+      'Mewajibkan staf mengisi catatan alasan darurat jika melakukan check-out sebelum jendela normal dibuka.',
+    controlType: 'boolean',
+  },
   'attendance.overtime_enabled': {
     isAdminFacing: true,
     category: 'attendance',

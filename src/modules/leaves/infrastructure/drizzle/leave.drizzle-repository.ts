@@ -20,6 +20,7 @@ import {
   staffLeaveRequests,
   staffProfiles,
   staffRosters,
+  staffAttendanceRecords,
 } from '../../../../database/schema';
 import {
   leavePolicies,
@@ -104,6 +105,8 @@ export class LeaveDrizzleRepository implements LeaveRepository {
       .where(eq(practitioners.staffProfileId, staffProfileId))
       .limit(1);
 
+    let eligibleSessions: any[] = [];
+
     if (practitioner) {
       // Doctor / Midwife schedule
       const assignments = await this.db.query.doctorAssignments.findMany({
@@ -117,7 +120,7 @@ export class LeaveDrizzleRepository implements LeaveRepository {
         },
       });
 
-      return assignments.map((a) => ({
+      eligibleSessions = assignments.map((a) => ({
         sessionId: a.sessionId,
         sessionCode: a.sessionDef.code,
         sessionLabel: a.sessionDef.labelKey,
@@ -125,28 +128,80 @@ export class LeaveDrizzleRepository implements LeaveRepository {
         endsAt: a.sessionDef.defaultEndsAt,
         workDate: date,
       }));
+    } else {
+      // Operational Worker schedule
+      const rosters = await this.db.query.staffRosters.findMany({
+        where: and(
+          eq(staffRosters.staffProfileId, staffProfileId),
+          eq(staffRosters.dow, dayOfWeek),
+          eq(staffRosters.isActive, true),
+        ),
+        with: {
+          sessionDef: true,
+        },
+      });
+
+      eligibleSessions = rosters.map((r) => ({
+        sessionId: r.sessionId,
+        sessionCode: r.sessionDef.code,
+        sessionLabel: r.sessionDef.labelKey,
+        startsAt: r.sessionDef.defaultStartsAt,
+        endsAt: r.sessionDef.defaultEndsAt,
+        workDate: date,
+      }));
     }
 
-    // Operational Worker schedule
-    const rosters = await this.db.query.staffRosters.findMany({
-      where: and(
-        eq(staffRosters.staffProfileId, staffProfileId),
-        eq(staffRosters.dow, dayOfWeek),
-        eq(staffRosters.isActive, true),
-      ),
-      with: {
-        sessionDef: true,
-      },
-    });
+    // Smart Filter for Today: Exclude shifts already finished, attended, or checked-out
+    const todayStr = new Date().toISOString().split('T')[0];
+    const isToday = date === todayStr;
 
-    return rosters.map((r) => ({
-      sessionId: r.sessionId,
-      sessionCode: r.sessionDef.code,
-      sessionLabel: r.sessionDef.labelKey,
-      startsAt: r.sessionDef.defaultStartsAt,
-      endsAt: r.sessionDef.defaultEndsAt,
-      workDate: date,
-    }));
+    if (isToday && eligibleSessions.length > 0) {
+      const now = new Date();
+      const todayAttendances = await this.db
+        .select()
+        .from(staffAttendanceRecords)
+        .where(
+          and(
+            eq(staffAttendanceRecords.staffProfileId, staffProfileId),
+            eq(staffAttendanceRecords.attendanceDate, date),
+          ),
+        );
+
+      eligibleSessions = eligibleSessions.filter((s) => {
+        const att = todayAttendances.find(
+          (a) =>
+            a.sessionId === s.sessionId ||
+            (a.shift && a.shift.toLowerCase() === s.sessionCode.toLowerCase()),
+        );
+
+        // 1. If staff has already checked out from this session, it cannot be requested as leave
+        if (att?.checkOutAt) {
+          return false;
+        }
+
+        // 2. If staff has already checked in, mid-shift departure belongs to Attendance (Early Check-Out)
+        if (att?.checkInAt) {
+          return false;
+        }
+
+        // 3. If session end time has already elapsed in the past
+        if (s.endsAt) {
+          let [endH, endM] = s.endsAt.split(':').map(Number);
+          if (endH === 24) endH = 0;
+          const sessionEndDate = new Date(targetDate);
+          sessionEndDate.setHours(endH, endM || 0, 0, 0);
+          if (endH === 0) sessionEndDate.setDate(sessionEndDate.getDate() + 1);
+
+          if (now.getTime() > sessionEndDate.getTime()) {
+            return false;
+          }
+        }
+
+        return true;
+      });
+    }
+
+    return eligibleSessions;
   }
 
   async create(data: {

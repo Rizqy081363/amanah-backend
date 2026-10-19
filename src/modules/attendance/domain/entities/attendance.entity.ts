@@ -7,10 +7,12 @@ export class AttendanceEntity {
   checkOutAt?: Date | null;
   validatedDurationHours?: number;
   isReplacement: boolean;
+  isEarlyDeparture?: boolean;
   replacementOpportunityId?: string | null;
   sessionId?: string | null;
   deviceInfo?: string | null;
   attendanceDate?: string;
   lateMinutes?: number | null;
+  notes?: string | null;
   createdAt: Date;
 }

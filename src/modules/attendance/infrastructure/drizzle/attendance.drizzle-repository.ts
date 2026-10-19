@@ -91,16 +91,26 @@ export class AttendanceDrizzleRepository implements AttendanceRepository {
     data: {
       checkOutAt?: string | null;
       validatedDurationHours?: string | null;
+      notes?: string | null;
+      isEarlyDeparture?: boolean;
       updatedAt?: string;
     },
   ): Promise<AttendanceEntity> {
+    const updateValues: Record<string, any> = {
+      checkOutAt: data.checkOutAt,
+      validatedDurationHours: data.validatedDurationHours,
+      updatedAt: data.updatedAt || new Date().toISOString(),
+    };
+    if (data.notes !== undefined) {
+      updateValues.notes = data.notes;
+    }
+    if (data.isEarlyDeparture !== undefined) {
+      updateValues.isEarlyDeparture = data.isEarlyDeparture;
+    }
+
     const [updated] = await this.db
       .update(staffAttendanceRecords)
-      .set({
-        checkOutAt: data.checkOutAt,
-        validatedDurationHours: data.validatedDurationHours,
-        updatedAt: data.updatedAt || new Date().toISOString(),
-      })
+      .set(updateValues)
       .where(eq(staffAttendanceRecords.id, id))
       .returning();
 
@@ -413,6 +423,7 @@ export class AttendanceDrizzleRepository implements AttendanceRepository {
         id: sessionDefs.id,
         code: sessionDefs.code,
         defaultStartsAt: sessionDefs.defaultStartsAt,
+        defaultEndsAt: sessionDefs.defaultEndsAt,
       })
       .from(sessionDefs)
       .where(eq(sessionDefs.code, sessionCode))
@@ -423,12 +434,13 @@ export class AttendanceDrizzleRepository implements AttendanceRepository {
 
   async resolveSessionDefById(
     sessionId: string,
-  ): Promise<{ id: string; code: string; defaultStartsAt: string | null } | null> {
+  ): Promise<{ id: string; code: string; defaultStartsAt: string | null; defaultEndsAt?: string | null } | null> {
     const defs = await this.db
       .select({
         id: sessionDefs.id,
         code: sessionDefs.code,
         defaultStartsAt: sessionDefs.defaultStartsAt,
+        defaultEndsAt: sessionDefs.defaultEndsAt,
       })
       .from(sessionDefs)
       .where(eq(sessionDefs.id, sessionId))

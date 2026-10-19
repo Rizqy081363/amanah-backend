@@ -17,4 +17,12 @@ export class CheckOutDto {
   @IsString()
   @IsOptional()
   qrToken?: string;
+
+  @ApiPropertyOptional({
+    description: 'Catatan alasan kepulangan darurat / pulang awal jika sebelum jadwal usai',
+    example: 'Kondisi medis darurat: Sakit kepala hebat',
+  })
+  @IsString()
+  @IsOptional()
+  notes?: string;
 }

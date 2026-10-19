@@ -362,6 +362,43 @@ export class PayrollDrizzleRepository implements PayrollRepository {
         });
       }
 
+      // B.2 Calculate Early Departure Attendance Deductions (Regular Shift under-hours)
+      const earlyDepartures = await this.db
+        .select()
+        .from(staffAttendanceRecords)
+        .where(
+          and(
+            eq(staffAttendanceRecords.staffProfileId, staff.id),
+            eq(staffAttendanceRecords.isReplacement, false),
+            eq(staffAttendanceRecords.isEarlyDeparture, true),
+            gte(staffAttendanceRecords.attendanceDate, periodStart),
+            lte(staffAttendanceRecords.attendanceDate, periodEnd),
+          ),
+        );
+
+      let earlyDepartureDeductionHours = 0;
+      for (const ed of earlyDepartures) {
+        const validated = Number(ed.validatedDurationHours) || 0;
+        const deficit = Math.max(0, 6 - validated);
+        earlyDepartureDeductionHours += deficit;
+      }
+
+      const totalEarlyDepartureDeductions =
+        earlyDepartureDeductionHours * rates.hourly;
+      if (earlyDepartureDeductionHours > 0) {
+        entriesToInsert.push({
+          payrollPeriodId: periodId,
+          staffProfileId: staff.id,
+          practitionerId,
+          entryType: 'leave_deduction',
+          sourceType: 'attendance',
+          quantityHours: earlyDepartureDeductionHours.toFixed(2),
+          hourlyRate: rates.hourly.toString(),
+          amount: totalEarlyDepartureDeductions.toFixed(2),
+          description: `Penyesuaian jam dinas kepulangan lebih awal / early departure (${earlyDepartureDeductionHours.toFixed(2)} jam)`,
+        });
+      }
+
       // C. Calculate Replacement / Overtime Additions
       const attendanceAdditions = await this.db
         .select()
@@ -402,7 +439,10 @@ export class PayrollDrizzleRepository implements PayrollRepository {
         .returning();
 
       const netPayroll =
-        baseEarnings - totalLeaveDeductions + totalReplacementAdditions;
+        baseEarnings -
+        totalLeaveDeductions -
+        totalEarlyDepartureDeductions +
+        totalReplacementAdditions;
       totalClinicPayout += netPayroll;
 
       summaries.push({
