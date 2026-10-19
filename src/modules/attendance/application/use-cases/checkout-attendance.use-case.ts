@@ -1,5 +1,7 @@
 import { Inject, Injectable, Optional } from '@nestjs/common';
+import { ClinicConfigService } from '../../../../common/clinic-config/clinic-config.service';
 import { ClinicTimeService } from '../../../../common/time/clinic-time.service';
+import { calculateSessionNetHours } from '../../../schedules/domain/services/shift-duration.helper';
 import { AttendanceEntity } from '../../domain/entities/attendance.entity';
 import {
   AttendanceAlreadyCheckedOutException,
@@ -30,6 +32,8 @@ export class CheckOutAttendanceUseCase {
     private readonly notificationService: AttendanceNotificationService,
     @Optional()
     private readonly clinicTimeService?: ClinicTimeService,
+    @Optional()
+    private readonly clinicConfigService?: ClinicConfigService,
   ) {}
 
   async execute(input: CheckOutAttendanceInput): Promise<AttendanceEntity> {
@@ -81,12 +85,22 @@ export class CheckOutAttendanceUseCase {
     const checkOutDate = this.clinicTimeService?.nowDate() ?? new Date();
     const checkInDate = existing.checkInAt ?? checkOutDate;
 
-    // Resolve scheduled end time from session or shift definition
+    // Resolve scheduled end time & duration from session or shift definition
     let scheduledEndTime: string | null = null;
+    let scheduledShiftDurationHours = 6;
     if (existing.sessionId) {
       const sessionDef = await this.repo.resolveSessionDefById(existing.sessionId);
       if (sessionDef?.defaultEndsAt) {
         scheduledEndTime = sessionDef.defaultEndsAt;
+      }
+      if (sessionDef?.defaultStartsAt && sessionDef?.defaultEndsAt) {
+        const breakConfig = await this.clinicConfigService?.getRosterBreakConfig();
+        scheduledShiftDurationHours = calculateSessionNetHours({
+          startsAt: sessionDef.defaultStartsAt,
+          endsAt: sessionDef.defaultEndsAt,
+          breakMinutes: breakConfig?.breakDurationMinutes ?? 30,
+          isBreakPaid: breakConfig?.isBreakPaid ?? false,
+        });
       }
     }
 
@@ -104,7 +118,7 @@ export class CheckOutAttendanceUseCase {
       checkInTime: checkInDate,
       checkOutTime: checkOutDate,
       scheduledEndTime,
-      scheduledShiftDurationHours: 6,
+      scheduledShiftDurationHours,
     });
 
     // Enforce notes requirement on early departure

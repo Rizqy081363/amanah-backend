@@ -346,6 +346,30 @@ export class ClinicConfigService {
     };
   }
 
+  // --- Roster & Shift Break Settings ---
+
+  async getRosterBreakConfig(scope?: ScopeQuery): Promise<{
+    breakDurationMinutes: number;
+    isBreakPaid: boolean;
+    breakDeductionScope: 'per_session' | 'per_day';
+  }> {
+    const [breakDurationMinutes, isBreakPaid, breakDeductionScope] =
+      await Promise.all([
+        this.getNumber('roster.break_duration_minutes', scope).catch(() => 30),
+        this.getBoolean('roster.is_break_paid', scope).catch(() => false),
+        this.getString('roster.break_deduction_scope', scope).catch(
+          () => 'per_session',
+        ),
+      ]);
+
+    return {
+      breakDurationMinutes,
+      isBreakPaid,
+      breakDeductionScope:
+        breakDeductionScope === 'per_day' ? 'per_day' : 'per_session',
+    };
+  }
+
   // --- Regional & Format Settings ---
 
   async getDateFormatStyle(scope?: ScopeQuery): Promise<string> {

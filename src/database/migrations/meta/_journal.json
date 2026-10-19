@@ -351,6 +351,27 @@
       "when": 1791333000000,
       "tag": "0049_attendance_and_checkin_window",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1791334000000,
+      "tag": "0050_attendance_dynamic_clinic_settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1791335000000,
+      "tag": "0051_attendance_checkout_window_and_early_departure",
+      "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1791336000000,
+      "tag": "0052_add_roster_break_settings",
+      "breakpoints": true
     }
   ]
 }

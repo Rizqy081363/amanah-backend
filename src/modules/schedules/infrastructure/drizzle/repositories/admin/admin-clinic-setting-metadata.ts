@@ -430,6 +430,38 @@ export const CLINIC_SETTING_METADATA_REGISTRY: Record<
       'Mengaktifkan pencatatan durasi dinas yang melebihi batas jam shift normal untuk payroll.',
     controlType: 'boolean',
   },
+  'roster.break_duration_minutes': {
+    isAdminFacing: true,
+    category: 'attendance',
+    label: 'Durasi Waktu Istirahat Shift',
+    description:
+      'Alokasi durasi istirahat (menit) per sesi dinas tugas untuk kalkulasi jam kerja bersih payroll.',
+    controlType: 'number',
+    unit: 'menit',
+    min: 0,
+    max: 120,
+    step: 15,
+  },
+  'roster.is_break_paid': {
+    isAdminFacing: true,
+    category: 'attendance',
+    label: 'Istirahat Tetap Dibayar (Paid Break)',
+    description:
+      'Jika diaktifkan, waktu istirahat tidak memotong jam kerja nominal pada kalkulasi payroll.',
+    controlType: 'boolean',
+  },
+  'roster.break_deduction_scope': {
+    isAdminFacing: true,
+    category: 'attendance',
+    label: 'Skema Pemotongan Istirahat Harian',
+    description:
+      'Aturan pemotongan istirahat jika staf memiliki beberapa sesi dalam 1 hari: per sesi dinas atau maksimal 1 kali per hari.',
+    controlType: 'select',
+    options: [
+      { label: '1 Kali per Sesi Dinas (Rasional)', value: 'per_session' },
+      { label: 'Maksimal 1 Kali per Hari (Jika beruntun)', value: 'per_day' },
+    ],
+  },
   'feature.legacy_compat': {
     isAdminFacing: false,
     category: 'general',

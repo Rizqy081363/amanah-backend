@@ -258,16 +258,32 @@ export class DrizzleAdminScheduleConfigurationRepository {
     if (!defs || defs.length === 0) return;
     const now = new Date().toISOString();
     for (const def of defs) {
+      const updateData: any = {
+        ...(typeof def.isActive === 'boolean' && { isActive: def.isActive }),
+        ...(typeof def.sortOrder === 'number' && {
+          sortOrder: def.sortOrder,
+        }),
+        ...(def.defaultStartsAt && { defaultStartsAt: def.defaultStartsAt }),
+        ...(def.defaultEndsAt && { defaultEndsAt: def.defaultEndsAt }),
+        updatedAt: now,
+      };
+
       await executor
         .update(sessionDefs)
-        .set({
-          ...(typeof def.isActive === 'boolean' && { isActive: def.isActive }),
-          ...(typeof def.sortOrder === 'number' && {
-            sortOrder: def.sortOrder,
-          }),
-          updatedAt: now,
-        })
+        .set(updateData)
         .where(eq(sessionDefs.id, def.id));
+
+      // Cascade perubahan jam baku master ke seluruh jadwal mingguan (session_schedule)
+      if (def.defaultStartsAt || def.defaultEndsAt) {
+        await executor
+          .update(sessionSchedules)
+          .set({
+            ...(def.defaultStartsAt && { startsAt: def.defaultStartsAt }),
+            ...(def.defaultEndsAt && { endsAt: def.defaultEndsAt }),
+            updatedAt: now,
+          })
+          .where(eq(sessionSchedules.sessionId, def.id));
+      }
     }
     if (executor === this.db) {
       await this.invalidateCaches();

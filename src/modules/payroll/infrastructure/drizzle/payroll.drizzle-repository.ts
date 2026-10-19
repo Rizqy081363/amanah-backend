@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { and, desc, eq, gte, lte } from 'drizzle-orm';
+import { ClinicConfigService } from '../../../../common/clinic-config/clinic-config.service';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
@@ -21,6 +22,7 @@ import {
   payrollEntries,
   payrollPeriods,
 } from '../../../../database/schema/leave-payroll.schema';
+import { calculateSessionNetHours } from '../../../schedules/domain/services/shift-duration.helper';
 import { PayrollEntryEntity } from '../../domain/entities/payroll-entry.entity';
 import { PayrollPeriodEntity } from '../../domain/entities/payroll-period.entity';
 import {
@@ -33,6 +35,7 @@ export class PayrollDrizzleRepository implements PayrollRepository {
   constructor(
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,
+    private readonly clinicConfigService: ClinicConfigService,
   ) {}
 
   private mapPeriod(r: any): PayrollPeriodEntity {
@@ -246,13 +249,34 @@ export class PayrollDrizzleRepository implements PayrollRepository {
       periodId = newPeriod.id;
     }
 
-    // 3. Fetch active staff
-    const activeStaff = await this.db.query.staffProfiles.findMany({
-      where: eq(staffProfiles.status, 'active'),
-      with: {
-        practitioners: true,
-      },
-    });
+    // 3. Fetch active staff, roster break config, and master session definitions
+    const [activeStaff, breakConfig, allSessionDefs] = await Promise.all([
+      this.db.query.staffProfiles.findMany({
+        where: eq(staffProfiles.status, 'active'),
+        with: {
+          practitioners: true,
+        },
+      }),
+      this.clinicConfigService.getRosterBreakConfig(),
+      this.db.select().from(sessionDefs),
+    ]);
+
+    // Build session duration cache (gross hours minus break)
+    const sessionNetMap = new Map<string, number>();
+    for (const sd of allSessionDefs) {
+      const net = calculateSessionNetHours({
+        startsAt: sd.defaultStartsAt,
+        endsAt: sd.defaultEndsAt,
+        breakMinutes: breakConfig.breakDurationMinutes,
+        isBreakPaid: breakConfig.isBreakPaid,
+      });
+      sessionNetMap.set(sd.id, net);
+    }
+    const defaultShiftNet = sessionNetMap.get(allSessionDefs[0]?.id) ?? 5.5;
+    const getSessionNet = (sessionId?: string | null): number => {
+      if (!sessionId) return defaultShiftNet;
+      return sessionNetMap.get(sessionId) ?? defaultShiftNet;
+    };
 
     const summaries: PayrollSummary[] = [];
     let totalClinicPayout = 0;
@@ -292,8 +316,9 @@ export class PayrollDrizzleRepository implements PayrollRepository {
               eq(doctorAssignments.isActive, true),
             ),
           );
-        // Each session is nominally 6 hours
-        weeklyScheduledHours = assignments.length * 6;
+        for (const da of assignments) {
+          weeklyScheduledHours += getSessionNet(da.sessionId);
+        }
       } else {
         // Operational Worker schedule
         const rosters = await this.db
@@ -305,7 +330,9 @@ export class PayrollDrizzleRepository implements PayrollRepository {
               eq(staffRosters.isActive, true),
             ),
           );
-        weeklyScheduledHours = rosters.length * 6;
+        for (const sr of rosters) {
+          weeklyScheduledHours += getSessionNet(sr.sessionId);
+        }
       }
 
       // Default minimal baseline if not assigned yet: 20 hours/week
@@ -343,8 +370,14 @@ export class PayrollDrizzleRepository implements PayrollRepository {
       let leaveDeductionHours = 0;
       for (const l of leaves) {
         const leaveDays = l.durationDays || 1;
-        // 1 day leave = 6 scheduled hours
-        leaveDeductionHours += leaveDays * 6;
+        // Daily scheduled hours derived from staff weekly schedule (default 5 working days) or standard session net
+        const dailyScheduledHours =
+          weeklyScheduledHours > 0
+            ? weeklyScheduledHours / 5
+            : defaultShiftNet;
+        leaveDeductionHours += Number(
+          (leaveDays * dailyScheduledHours).toFixed(2),
+        );
       }
 
       const totalLeaveDeductions = leaveDeductionHours * rates.hourly;
@@ -379,7 +412,8 @@ export class PayrollDrizzleRepository implements PayrollRepository {
       let earlyDepartureDeductionHours = 0;
       for (const ed of earlyDepartures) {
         const validated = Number(ed.validatedDurationHours) || 0;
-        const deficit = Math.max(0, 6 - validated);
+        const expectedHours = getSessionNet(ed.sessionId);
+        const deficit = Math.max(0, expectedHours - validated);
         earlyDepartureDeductionHours += deficit;
       }
 
@@ -414,7 +448,8 @@ export class PayrollDrizzleRepository implements PayrollRepository {
 
       let replacementHours = 0;
       for (const a of attendanceAdditions) {
-        replacementHours += Number(a.validatedDurationHours) || 6;
+        replacementHours +=
+          Number(a.validatedDurationHours) || getSessionNet(a.sessionId);
       }
 
       const totalReplacementAdditions = replacementHours * rates.overtime;

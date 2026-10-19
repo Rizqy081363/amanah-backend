@@ -39,6 +39,28 @@ export class UpdateSessionDefDto {
   @IsInt()
   @Min(1)
   sortOrder?: number;
+
+  @ApiPropertyOptional({
+    description: 'Waktu mulai standar master shift operasional (HH:mm atau HH:mm:ss)',
+    example: '06:00:00',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/, {
+    message: 'defaultStartsAt must be a valid time in HH:mm or HH:mm:ss format',
+  })
+  defaultStartsAt?: string;
+
+  @ApiPropertyOptional({
+    description: 'Waktu selesai standar master shift operasional (HH:mm atau HH:mm:ss)',
+    example: '12:00:00',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(/^(([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?|24:00(:00)?)$/, {
+    message: 'defaultEndsAt must be a valid time in HH:mm or HH:mm:ss format',
+  })
+  defaultEndsAt?: string;
 }
 
 export class UpdateWeeklyTemplateItemDto {
