@@ -84,6 +84,8 @@ export class ManualAttendanceUseCase {
         fullName: staff.fullName,
         staffCode: staff.staffCode,
         userId: staff.userId,
+        staffType: staff.staffType,
+        avatarUrl: staff.avatarUrl,
       },
     );
 

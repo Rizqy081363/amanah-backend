@@ -18,6 +18,7 @@ export class AttendanceMapper {
       sessionId: r.sessionId || null,
       deviceInfo: r.notes || null,
       attendanceDate: r.attendanceDate,
+      lateMinutes: r.lateMinutes ?? null,
       createdAt: new Date(r.createdAt),
     };
   }

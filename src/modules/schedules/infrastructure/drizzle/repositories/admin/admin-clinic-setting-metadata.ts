@@ -2,7 +2,8 @@ export type ClinicSettingCategory =
   | 'general'
   | 'duration'
   | 'queue'
-  | 'notification';
+  | 'notification'
+  | 'attendance';
 
 export type ClinicSettingControlType = 'text' | 'number' | 'boolean' | 'select';
 
@@ -350,6 +351,64 @@ export const CLINIC_SETTING_METADATA_REGISTRY: Record<
     min: 1,
     max: 60,
     step: 1,
+  },
+
+  // --- Attendance & Shift Settings (Admin-Facing) ---
+  'attendance.late_tolerance_minutes': {
+    isAdminFacing: true,
+    category: 'attendance',
+    label: 'Toleransi Keterlambatan Presensi',
+    description:
+      'Batas menit keterlambatan check-in dari jam mulai shift sebelum dicatat berstatus Terlambat.',
+    controlType: 'number',
+    unit: 'menit',
+    min: 0,
+    max: 120,
+    step: 1,
+  },
+  'attendance.check_in_window_minutes_before': {
+    isAdminFacing: true,
+    category: 'attendance',
+    label: 'Jendela Buka Presensi Masuk',
+    description:
+      'Waktu dimulainya izin scan presensi sebelum jadwal jam mulai shift.',
+    controlType: 'number',
+    unit: 'menit',
+    min: 0,
+    max: 120,
+    step: 5,
+  },
+  'attendance.check_in_window_minutes_after': {
+    isAdminFacing: true,
+    category: 'attendance',
+    label: 'Batas Akhir Jendela Presensi Masuk',
+    description:
+      'Batas waktu maksimal presensi masuk diperbolehkan setelah jam mulai shift.',
+    controlType: 'number',
+    unit: 'menit',
+    min: 15,
+    max: 240,
+    step: 5,
+  },
+  'attendance.qr_rotation_seconds': {
+    isAdminFacing: true,
+    category: 'attendance',
+    label: 'Interval Rotasi QR Presensi',
+    description:
+      'Durasi waktu aktif per token QR sebelum berotasi otomatis di terminal presensi.',
+    controlType: 'number',
+    unit: 'detik',
+    min: 10,
+    max: 300,
+    step: 5,
+  },
+  'attendance.overtime_enabled': {
+    isAdminFacing: true,
+    category: 'attendance',
+    label: 'Kalkulasi Lembur Presensi',
+    description:
+      'Mengaktifkan pencatatan durasi dinas yang melebihi batas jam shift normal untuk payroll.',
+    controlType: 'boolean',
   },
   'feature.legacy_compat': {
     isAdminFacing: false,

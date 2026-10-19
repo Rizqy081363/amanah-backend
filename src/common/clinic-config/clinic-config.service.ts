@@ -311,20 +311,31 @@ export class ClinicConfigService {
   async getAttendanceConfig(scope?: ScopeQuery): Promise<{
     checkInWindowMinutesBefore: number;
     checkInWindowMinutesAfter: number;
+    lateToleranceMinutes: number;
+    qrRotationSeconds: number;
+    overtimeEnabled: boolean;
   }> {
-    const [checkInWindowMinutesBefore, checkInWindowMinutesAfter] =
-      await Promise.all([
-        this.getNumber(
-          'attendance.check_in_window_minutes_before',
-          scope,
-        ).catch(() => 30),
-        this.getNumber(
-          'attendance.check_in_window_minutes_after',
-          scope,
-        ).catch(() => 60),
-      ]);
+    const [
+      checkInWindowMinutesBefore,
+      checkInWindowMinutesAfter,
+      lateToleranceMinutes,
+      qrRotationSeconds,
+      overtimeEnabled,
+    ] = await Promise.all([
+      this.getNumber('attendance.check_in_window_minutes_before', scope),
+      this.getNumber('attendance.check_in_window_minutes_after', scope),
+      this.getNumber('attendance.late_tolerance_minutes', scope),
+      this.getNumber('attendance.qr_rotation_seconds', scope),
+      this.getBoolean('attendance.overtime_enabled', scope),
+    ]);
 
-    return { checkInWindowMinutesBefore, checkInWindowMinutesAfter };
+    return {
+      checkInWindowMinutesBefore,
+      checkInWindowMinutesAfter,
+      lateToleranceMinutes,
+      qrRotationSeconds,
+      overtimeEnabled,
+    };
   }
 
   // --- Regional & Format Settings ---

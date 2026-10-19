@@ -264,6 +264,17 @@ export class SocketIoRealtimeGateway
     return true;
   }
 
+  async broadcast(event: string, payload: unknown): Promise<boolean> {
+    if (!this.server) {
+      this.logger.warn(
+        `Cannot broadcast event "${event}": server not ready`,
+      );
+      return false;
+    }
+    this.server.emit(event, payload);
+    return true;
+  }
+
   @SubscribeMessage('chat:join')
   async handleChatJoin(
     @ConnectedSocket() client: Socket,

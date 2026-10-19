@@ -89,6 +89,7 @@ import { NotificationRulesRegistry } from './registry/notification-rules-registr
     NOTIFICATION_PUBLISHER,
     RedisStreamsPublisher,
     REALTIME_GATEWAY_PORT,
+    SocketIoRealtimeGateway,
     NOTIFICATION_RULES_REGISTRY,
     NotificationRulesRegistry,
     NotificationOrchestratorService,

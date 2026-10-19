@@ -11,5 +11,6 @@ export class AttendanceEntity {
   sessionId?: string | null;
   deviceInfo?: string | null;
   attendanceDate?: string;
+  lateMinutes?: number | null;
   createdAt: Date;
 }

@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import * as crypto from 'crypto';
+import { ClinicConfigService } from '../../../../common/clinic-config/clinic-config.service';
 import { normalizeShift } from '../../domain/constants/attendance.constants';
 import { QrSessionEntity } from '../../domain/entities/qr-session.entity';
 import {
@@ -20,6 +21,7 @@ export class RotateQrSessionUseCase {
   constructor(
     @Inject(ATTENDANCE_REPOSITORY)
     private readonly repo: AttendanceRepository,
+    private readonly clinicConfig: ClinicConfigService,
   ) {}
 
   async execute(input: RotateQrSessionInput): Promise<QrSessionEntity> {
@@ -29,9 +31,8 @@ export class RotateQrSessionUseCase {
         : 'location_check_in';
     const shift = normalizeShift(input.shift);
     const rotationSeconds =
-      input.rotationSeconds && input.rotationSeconds > 0
-        ? input.rotationSeconds
-        : 30;
+      input.rotationSeconds ??
+      (await this.clinicConfig.getAttendanceConfig()).qrRotationSeconds;
 
     // Cryptographically secure 6-character alphanumeric token
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';

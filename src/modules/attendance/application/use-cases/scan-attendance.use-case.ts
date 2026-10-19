@@ -60,7 +60,19 @@ export class ScanAttendanceUseCase {
 
     // 1. Verify dynamic QR session token if provided
     if (input.qrToken) {
-      const qrSession = await this.repo.findQrSessionByToken(input.qrToken);
+      let tokenToVerify = input.qrToken.trim();
+      if (tokenToVerify.startsWith('{') && tokenToVerify.endsWith('}')) {
+        try {
+          const parsed = JSON.parse(tokenToVerify);
+          if (parsed && typeof parsed.token === 'string') {
+            tokenToVerify = parsed.token.trim();
+          }
+        } catch {
+          // Keep raw token if not valid JSON
+        }
+      }
+
+      const qrSession = await this.repo.findQrSessionByToken(tokenToVerify);
       if (!qrSession) {
         throw new InvalidQrTokenException();
       }
@@ -120,6 +132,8 @@ export class ScanAttendanceUseCase {
         fullName: staff.fullName,
         staffCode: staff.staffCode,
         userId: staff.userId,
+        staffType: staff.staffType,
+        avatarUrl: staff.avatarUrl,
       });
     }
 

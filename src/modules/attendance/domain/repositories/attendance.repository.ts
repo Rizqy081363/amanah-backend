@@ -31,6 +31,13 @@ export interface AttendanceBFFResponse {
     qr_context: string;
     qr_validity: string;
     rotation_seconds: number;
+    validUntil?: string;
+    valid_until?: string;
+  };
+  availableFilters: {
+    shifts: Array<{ label: string; value: string }>;
+    statuses: Array<{ label: string; value: string }>;
+    categories: Array<{ label: string; value: string }>;
   };
 }
 
@@ -110,7 +117,14 @@ export interface AttendanceRepository {
 
   resolveStaffByIdOrCode(
     query: string,
-  ): Promise<{ id: string; staffCode: string; fullName: string; userId: string | null } | null>;
+  ): Promise<{
+    id: string;
+    staffCode: string;
+    fullName: string;
+    userId: string | null;
+    staffType?: string | null;
+    avatarUrl?: string | null;
+  } | null>;
 
   resolveSessionDefByTime(
     hour: number,
@@ -133,4 +147,10 @@ export interface AttendanceRepository {
     startDate: string,
     endDate: string,
   ): Promise<Map<string, { presentCount: number; lateCount: number }>>;
+
+  getAvailableFilterOptions(): Promise<{
+    shifts: Array<{ label: string; value: string }>;
+    statuses: Array<{ label: string; value: string }>;
+    categories: Array<{ label: string; value: string }>;
+  }>;
 }

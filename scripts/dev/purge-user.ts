@@ -23,6 +23,12 @@ import { runAppointmentPurgeInteractive } from './purge/appointment-purge.servic
 import { runAffiliationPurgeInteractive } from './purge/affiliation-purge.service';
 import { runSchedulePurgeInteractive } from './purge/schedule-purge.service';
 import { runDoctorPurgeInteractive } from './purge/doctor-purge.service';
+import {
+  runAttendancePurgeInteractive,
+  executePurgeTodayAll,
+  executePurgeTodayForStaff,
+  resolveStaff,
+} from './purge/attendance-purge.service';
 
 async function runMainMenu(): Promise<void> {
   const pool = createDbPool();
@@ -43,9 +49,10 @@ async function runMainMenu(): Promise<void> {
       console.log(' [3] Patient Affiliation Purge (Inspect & purge affiliations by User, or 100% flush)');
       console.log(' [4] Doctor Schedule Purge (Purge ALL schedules or by Doctor)');
       console.log(' [5] Doctor / Practitioner Purge (Purge ALL doctors or single Doctor profile)');
+      console.log(' [6] Attendance Purge (Flush today\'s attendance, by Staff/Doctor, or 100% flush)');
       console.log(' [q] Quit CLI\n');
 
-      const choice = await askSafeQuestion(rl, 'Enter choice [1-5 or q]: ');
+      const choice = await askSafeQuestion(rl, 'Enter choice [1-6 or q]: ');
       if (!choice || choice.toLowerCase() === 'q' || choice.toLowerCase() === 'exit') {
         console.log('\n[INFO] Exiting CLI. No further actions taken.\n');
         break;
@@ -61,8 +68,10 @@ async function runMainMenu(): Promise<void> {
         await runSchedulePurgeInteractive(pool, redisClient, rl);
       } else if (choice === '5') {
         await runDoctorPurgeInteractive(pool, redisClient, rl);
+      } else if (choice === '6') {
+        await runAttendancePurgeInteractive(pool, redisClient, rl);
       } else {
-        console.log('[WARN] Invalid choice. Please enter 1, 2, 3, 4, 5, or q.');
+        console.log('[WARN] Invalid choice. Please enter 1, 2, 3, 4, 5, 6, or q.');
       }
     }
   } finally {
@@ -90,6 +99,9 @@ Usage:
   bun ./scripts/dev/purge-user.ts --affiliations      Launch patient affiliations purge menu
   bun ./scripts/dev/purge-user.ts --schedules         Launch schedules purge menu
   bun ./scripts/dev/purge-user.ts --doctors           Launch doctors purge menu
+  bun ./scripts/dev/purge-user.ts --attendance        Launch attendance purge menu
+  bun ./scripts/dev/purge-user.ts --attendance-today  Flush all today's attendance records
+  bun ./scripts/dev/purge-user.ts --attendance-user=<email_or_uuid> Flush attendance for staff
 
 Options:
   --yes, -y       Skip confirmation prompt (for non-interactive batch runs)
@@ -187,6 +199,66 @@ Options:
         await runDoctorPurgeInteractive(pool, redisClient, rl);
       } finally {
         rl.close();
+      }
+      return;
+    }
+
+    if (args.includes('--attendance')) {
+      const rl = readline.createInterface({ input, output });
+      try {
+        await runAttendancePurgeInteractive(pool, redisClient, rl);
+      } finally {
+        rl.close();
+      }
+      return;
+    }
+
+    if (args.includes('--attendance-today')) {
+      const skipConfirm = args.includes('--yes') || args.includes('-y');
+      if (!skipConfirm) {
+        const rl = readline.createInterface({ input, output });
+        const confirm = (await rl.question('\nFlush ALL today\'s attendance records (CURRENT_DATE)? [y/N]: ')).trim().toLowerCase();
+        rl.close();
+        if (confirm !== 'y') {
+          console.log('[INFO] Purge aborted.');
+          return;
+        }
+      }
+      console.log('\n[INFO] Flushing all attendance records for today...');
+      const res = await executePurgeTodayAll(pool, redisClient);
+      if (res.success) {
+        console.log(`[SUCCESS] Purged ${res.deletedCount} attendance record(s) for today.`);
+      } else {
+        console.error(`[ERROR] Purge failed: ${res.error}`);
+        process.exit(1);
+      }
+      return;
+    }
+
+    const attendanceUserArg = args.find((a) => a.startsWith('--attendance-user='))?.split('=')[1];
+    if (attendanceUserArg) {
+      const staff = await resolveStaff(pool, attendanceUserArg);
+      if (!staff) {
+        console.error(`[ERROR] Staff not found: ${attendanceUserArg}`);
+        process.exit(1);
+      }
+      const skipConfirm = args.includes('--yes') || args.includes('-y');
+      if (!skipConfirm) {
+        const rl = readline.createInterface({ input, output });
+        const confirm = (await rl.question(`\nFlush today's attendance for ${staff.fullName} (${staff.email})? [y/N]: `)).trim().toLowerCase();
+        rl.close();
+        if (confirm !== 'y') {
+          console.log('[INFO] Purge aborted.');
+          return;
+        }
+      }
+      console.log(`\n[INFO] Flushing today's attendance for ${staff.fullName}...`);
+      const res = await executePurgeTodayForStaff(pool, staff.staffProfileId, redisClient);
+      if (res.success) {
+        console.log(`[SUCCESS] Purged ${res.deletedCount} attendance record(s) for ${staff.fullName}.`);
+      } else {
+        console.error(`[ERROR] Purge failed: ${res.error}`);
+        process.exit(1);
       }
       return;
     }

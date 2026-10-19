@@ -104,6 +104,7 @@ export class GetDailyAttendanceBffUseCase {
         sessionName: shiftLabel,
         rawStatus: rec.status,
         rawShift: rec.shift,
+        rawCategory: staff?.staffType || 'worker',
         validatedDurationHours: rec.validatedDurationHours
           ? Number(rec.validatedDurationHours)
           : 0,
@@ -122,24 +123,29 @@ export class GetDailyAttendanceBffUseCase {
     }
 
     if (query.category && query.category !== 'all') {
+      const cat = query.category.toLowerCase();
       tableRecords = tableRecords.filter(
-        (r) => r.kategori.toLowerCase() === query.category?.toLowerCase(),
+        (r) =>
+          r.kategori.toLowerCase() === cat ||
+          r.rawCategory?.toLowerCase() === cat,
       );
     }
 
     if (query.status && query.status !== 'all') {
+      const st = query.status.toLowerCase();
       tableRecords = tableRecords.filter(
         (r) =>
-          r.status.toLowerCase() === query.status?.toLowerCase() ||
-          r.rawStatus.toLowerCase() === query.status?.toLowerCase(),
+          r.status.toLowerCase() === st ||
+          r.rawStatus.toLowerCase() === st,
       );
     }
 
     if (query.shift && query.shift !== 'all') {
+      const sh = query.shift.toLowerCase();
       tableRecords = tableRecords.filter(
         (r) =>
-          r.shift.toLowerCase() === query.shift?.toLowerCase() ||
-          r.rawShift.toLowerCase() === query.shift?.toLowerCase(),
+          r.shift.toLowerCase() === sh ||
+          r.rawShift.toLowerCase() === sh,
       );
     }
 
@@ -150,6 +156,39 @@ export class GetDailyAttendanceBffUseCase {
 
     // 5. Active QR Session config for Terminal
     const activeQr = await this.rotateQrUseCase.getActiveSession();
+
+    // 6. DB-Driven Filter Options (Zero Hardcoding, Scalable SSOT)
+    const availableFilters = await this.repo.getAvailableFilterOptions();
+
+    // Dynamically guarantee any ad-hoc/legacy data present today also appears in filter options
+    for (const r of tableRecords) {
+      if (
+        r.shift &&
+        !availableFilters.shifts.some(
+          (s) =>
+            s.label.toLowerCase() === r.shift.toLowerCase() ||
+            s.value.toLowerCase() === r.rawShift?.toLowerCase(),
+        )
+      ) {
+        availableFilters.shifts.push({
+          label: r.shift,
+          value: r.rawShift || r.shift,
+        });
+      }
+      if (
+        r.kategori &&
+        !availableFilters.categories.some(
+          (c) =>
+            c.label.toLowerCase() === r.kategori.toLowerCase() ||
+            c.value.toLowerCase() === r.rawCategory?.toLowerCase(),
+        )
+      ) {
+        availableFilters.categories.push({
+          label: r.kategori,
+          value: r.rawCategory || r.kategori,
+        });
+      }
+    }
 
     return {
       records: paginatedRecords,
@@ -176,8 +215,11 @@ export class GetDailyAttendanceBffUseCase {
         qr_code_identifier: activeQr.qrCodeIdentifier,
         qr_context: activeQr.context || 'Terminal Utama Presensi',
         qr_validity: activeQr.validUntil.toLocaleTimeString('id-ID'),
+        validUntil: activeQr.validUntil.toISOString(),
+        valid_until: activeQr.validUntil.toISOString(),
         rotation_seconds: activeQr.rotationSeconds || 30,
       },
+      availableFilters,
     };
   }
 }

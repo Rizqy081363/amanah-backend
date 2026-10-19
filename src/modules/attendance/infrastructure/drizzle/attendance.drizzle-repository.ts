@@ -360,7 +360,14 @@ export class AttendanceDrizzleRepository implements AttendanceRepository {
 
   async resolveStaffByIdOrCode(
     query: string,
-  ): Promise<{ id: string; staffCode: string; fullName: string; userId: string | null } | null> {
+  ): Promise<{
+    id: string;
+    staffCode: string;
+    fullName: string;
+    userId: string | null;
+    staffType?: string | null;
+    avatarUrl?: string | null;
+  } | null> {
     const q = query.trim();
     const profiles = await this.db
       .select({
@@ -368,6 +375,8 @@ export class AttendanceDrizzleRepository implements AttendanceRepository {
         staffCode: staffProfiles.staffCode,
         fullName: staffProfiles.fullName,
         userId: staffProfiles.userId,
+        staffType: staffProfiles.staffType,
+        avatarUrl: staffProfiles.avatarUrl,
       })
       .from(staffProfiles)
       .where(
@@ -479,5 +488,74 @@ export class AttendanceDrizzleRepository implements AttendanceRepository {
     }
 
     return map;
+  }
+
+  async getAvailableFilterOptions(): Promise<{
+    shifts: Array<{ label: string; value: string }>;
+    statuses: Array<{ label: string; value: string }>;
+    categories: Array<{ label: string; value: string }>;
+  }> {
+    // 1. Database-driven active shifts from session_def
+    const activeSessions = await this.db
+      .select({
+        code: sessionDefs.code,
+        labelKey: sessionDefs.labelKey,
+        sortOrder: sessionDefs.sortOrder,
+      })
+      .from(sessionDefs)
+      .where(eq(sessionDefs.isActive, true))
+      .orderBy(sessionDefs.sortOrder);
+
+    const shiftLabelMap: Record<string, string> = {
+      morning: 'Pagi',
+      afternoon: 'Siang',
+      night: 'Malam',
+      early_morning: 'Dini Hari',
+    };
+
+    const shifts = [
+      { label: 'Semua Shift', value: 'all' },
+      ...activeSessions.map((s) => ({
+        label:
+          shiftLabelMap[s.code] ||
+          s.labelKey?.replace(/^session\./, '').replace(/^\w/, (c) => c.toUpperCase()) ||
+          s.code,
+        value: s.code,
+      })),
+    ];
+
+    // 2. Database-driven distinct staff categories from staff_profiles
+    const staffTypeRows = await this.db
+      .selectDistinct({ staffType: staffProfiles.staffType })
+      .from(staffProfiles);
+
+    const categoryLabelMap: Record<string, string> = {
+      doctor: 'Dokter',
+      midwife: 'Bidan',
+      worker: 'Staf',
+    };
+
+    const categories = [
+      { label: 'Semua Kategori', value: 'all' },
+      ...staffTypeRows
+        .filter((r) => Boolean(r.staffType))
+        .map((r) => ({
+          label:
+            categoryLabelMap[r.staffType as string] ||
+            (r.staffType ? r.staffType.charAt(0).toUpperCase() + r.staffType.slice(1) : 'Lainnya'),
+          value: r.staffType as string,
+        })),
+    ];
+
+    // 3. Database & System-driven canonical attendance statuses
+    const statuses = [
+      { label: 'Semua Status', value: 'all' },
+      { label: 'Hadir', value: 'present' },
+      { label: 'Terlambat', value: 'late' },
+      { label: 'Izin / Cuti', value: 'leave' },
+      { label: 'Tidak Hadir', value: 'absent' },
+    ];
+
+    return { shifts, statuses, categories };
   }
 }

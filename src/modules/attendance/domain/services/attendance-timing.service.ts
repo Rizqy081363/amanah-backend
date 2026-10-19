@@ -1,12 +1,11 @@
-import { Injectable, Optional } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ClinicConfigService } from '../../../../common/clinic-config/clinic-config.service';
 import { AttendanceStatus, normalizeStatus } from '../constants/attendance.constants';
 
 @Injectable()
 export class AttendanceTimingService {
   constructor(
-    @Optional()
-    private readonly clinicConfig?: ClinicConfigService,
+    private readonly clinicConfig: ClinicConfigService,
   ) {}
 
   async calculateTimingStatus(params: {
@@ -21,18 +20,8 @@ export class AttendanceTimingService {
       return { status: explicit, lateMinutes: 0 };
     }
 
-    let lateThresholdMinutes = 15;
-    if (this.clinicConfig) {
-      try {
-        const attConfig = await this.clinicConfig.getAttendanceConfig();
-        lateThresholdMinutes = Math.min(
-          30,
-          Math.floor(attConfig.checkInWindowMinutesAfter / 2),
-        );
-      } catch {
-        lateThresholdMinutes = 15;
-      }
-    }
+    const lateThresholdMinutes =
+      (await this.clinicConfig.getAttendanceConfig()).lateToleranceMinutes;
 
     let calculatedStatus: AttendanceStatus = 'present';
     let lateMinutes = 0;
