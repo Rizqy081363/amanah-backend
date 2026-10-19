@@ -26,6 +26,10 @@ import {
   Logger,
   Optional,
 } from '@nestjs/common';
+import {
+  validateSessionDefsNonOverlap,
+  validateWeeklyTemplatesNonOverlap,
+} from '@modules/schedules/domain/services/shift-overlap.validator';
 import { and, asc, eq, gte, inArray, sql } from 'drizzle-orm';
 import {
   ClinicSettingCategory,
@@ -52,6 +56,8 @@ export interface CanonicalSessionDefConfig {
   isActive: boolean;
   defaultStartsAt: string;
   defaultEndsAt: string;
+  canonicalStartsAt?: string;
+  canonicalEndsAt?: string;
 }
 
 export interface CanonicalWeeklyTemplateConfig {
@@ -178,6 +184,12 @@ export class DrizzleAdminScheduleConfigurationRepository {
           isActive: sd.isActive,
           defaultStartsAt: sd.defaultStartsAt,
           defaultEndsAt: sd.defaultEndsAt,
+          canonicalStartsAt: descriptor?.defaultStartTime
+            ? `${descriptor.defaultStartTime}:00`
+            : sd.defaultStartsAt,
+          canonicalEndsAt: descriptor?.defaultEndTime
+            ? `${descriptor.defaultEndTime}:00`
+            : sd.defaultEndsAt,
         };
       },
     );
@@ -257,6 +269,53 @@ export class DrizzleAdminScheduleConfigurationRepository {
   ): Promise<void> {
     if (!defs || defs.length === 0) return;
     const now = new Date().toISOString();
+
+    // 1. Validasi invariant non-overlap pada seluruh master shift aktif
+    const existingDefs = await executor
+      .select({
+        id: sessionDefs.id,
+        code: sessionDefs.code,
+        labelKey: sessionDefs.labelKey,
+        sortOrder: sessionDefs.sortOrder,
+        isActive: sessionDefs.isActive,
+        defaultStartsAt: sessionDefs.defaultStartsAt,
+        defaultEndsAt: sessionDefs.defaultEndsAt,
+      })
+      .from(sessionDefs);
+
+    const mergedDefs = existingDefs.map((ed: any) => {
+      const incoming = defs.find((d) => d.id === ed.id);
+      const descriptor = ScheduleShiftRegistry.find(ed.code);
+      if (!incoming) {
+        return {
+          id: ed.id,
+          code: ed.code,
+          label: descriptor?.label ?? ed.code,
+          sortOrder: ed.sortOrder,
+          isActive: ed.isActive,
+          startsAt: ed.defaultStartsAt,
+          endsAt: ed.defaultEndsAt,
+        };
+      }
+      return {
+        id: ed.id,
+        code: ed.code,
+        label: descriptor?.label ?? ed.code,
+        sortOrder:
+          typeof incoming.sortOrder === 'number'
+            ? incoming.sortOrder
+            : ed.sortOrder,
+        isActive:
+          typeof incoming.isActive === 'boolean'
+            ? incoming.isActive
+            : ed.isActive,
+        startsAt: incoming.defaultStartsAt || ed.defaultStartsAt,
+        endsAt: incoming.defaultEndsAt || ed.defaultEndsAt,
+      };
+    });
+
+    validateSessionDefsNonOverlap(mergedDefs);
+
     for (const def of defs) {
       const updateData: any = {
         ...(typeof def.isActive === 'boolean' && { isActive: def.isActive }),
@@ -296,6 +355,17 @@ export class DrizzleAdminScheduleConfigurationRepository {
   ): Promise<void> {
     if (!templates || templates.length === 0) return;
     const now = new Date().toISOString();
+
+    // Validasi non-overlap antar shift aktif pada hari yang sama (DOW)
+    validateWeeklyTemplatesNonOverlap(
+      templates.map((t) => ({
+        sessionId: t.sessionId,
+        dow: t.dow,
+        startsAt: t.startsAt,
+        endsAt: t.endsAt,
+        isActive: t.isActive,
+      })),
+    );
 
     const allDefs = await executor
       .select({
