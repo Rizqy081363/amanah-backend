@@ -27,9 +27,11 @@ import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
 import { Roles } from '../../../common/auth/roles.decorator';
 import { RolesGuard } from '../../../common/auth/roles.guard';
 import { Idempotent } from '../../../common/decorators/idempotent.decorator';
+import { REPLACEMENT_OPPORTUNITY_STATUSES } from '../../../database/schema';
 import {
   REPLACEMENT_REPOSITORY,
-  ReplacementRepository,
+  type ReplacementOpportunityFilter,
+  type ReplacementRepository,
 } from '../domain/repositories/replacement.repository';
 
 @ApiTags('Replacement Opportunities (Jadwal Pengganti & Cuti Terbuka)')
@@ -51,20 +53,30 @@ export class ReplacementsController {
   @Get(['', 'opportunities'])
   @Roles('STAF', 'ADMIN')
   @ApiOperation({
-    summary: 'Melihat daftar peluang jadwal pengganti yang terbuka (Mobile App & Admin)',
+    summary: 'Melihat daftar peluang jadwal pengganti (Mobile App & Admin)',
     description:
-      'Menampilkan sesi dinas rekan yang cuti dan terbuka untuk diambil sebagai lembur/pengganti.',
+      'Menampilkan sesi dinas rekan yang cuti (terbuka maupun yang telah diklaim).',
   })
   @ApiQuery({
     name: 'date',
     required: false,
     description: 'Filter tanggal awal peluang pengganti (YYYY-MM-DD)',
   })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: ['all', ...REPLACEMENT_OPPORTUNITY_STATUSES],
+    description:
+      'Filter status peluang pengganti (all | open | claimed | completed | cancelled). Default: all',
+  })
   @ApiOkResponse({
     description: 'Daftar peluang pengganti berhasil diambil',
   })
-  async getOpenOpportunities(@Query('date') date?: string) {
-    return this.replacementRepo.findOpenOpportunities(date);
+  async getOpportunities(
+    @Query('date') date?: string,
+    @Query('status') status?: ReplacementOpportunityFilter['status'],
+  ) {
+    return this.replacementRepo.findOpportunities({ date, status });
   }
 
   @Post(':id/claim')

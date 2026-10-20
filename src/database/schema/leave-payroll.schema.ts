@@ -143,6 +143,16 @@ export const leaveRequestSessions = pgTable(
 // ============================================================================
 // 4. REPLACEMENT OPPORTUNITIES (Open shifts created from approved leave)
 // ============================================================================
+export const REPLACEMENT_OPPORTUNITY_STATUSES = [
+  'open',
+  'claimed',
+  'completed',
+  'cancelled',
+] as const;
+
+export type ReplacementOpportunityStatus =
+  (typeof REPLACEMENT_OPPORTUNITY_STATUSES)[number];
+
 export const replacementOpportunities = pgTable(
   'replacement_opportunities',
   {

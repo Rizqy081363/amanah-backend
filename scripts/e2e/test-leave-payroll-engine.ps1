@@ -13,10 +13,17 @@ Reset-TestCounters
 
 try {
     # 1. Health and Readiness
-    Write-Host "`n[Step 1] Checking API Readiness..." -ForegroundColor Yellow
+    Write-Host "`n[Step 1] Checking API Readiness & Flushing Stale E2E Data..." -ForegroundColor Yellow
     Wait-E2EApiReady
     $apiBase = Get-E2EApiBaseUrl
     Assert-Test "API is ready at $apiBase" ($null -ne $apiBase)
+
+    # Clean flush stale E2E leave & payroll test data to prevent conflict guards
+    $flushStartDate = (Get-Date).AddDays(5).ToString("yyyy-MM-dd")
+    $flushEndDate = (Get-Date).AddDays(6).ToString("yyyy-MM-dd")
+    $flushSql = "DELETE FROM staff_leave_requests WHERE reason LIKE '%Keperluan keluarga mendesak%' OR reason LIKE '%E2E Test Suite%' OR (start_date >= '$flushStartDate' AND end_date <= '$flushEndDate'); DELETE FROM payroll_periods WHERE period_name LIKE '%Payroll Periode%';"
+    $null = Run-DockerSql $flushSql
+    Assert-Test "Stale test records flushed via Docker PostgreSQL" $true
 
     # 2. Authentication
     Write-Host "`n[Step 2] Authenticating Admin & Staff Doctor..." -ForegroundColor Yellow

@@ -7,7 +7,7 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
-import { and, desc, eq, gte } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
@@ -18,7 +18,10 @@ import {
 import { replacementOpportunities } from '../../../../database/schema/leave-payroll.schema';
 import { NotificationGatewayService } from '../../../notifications/application/services/notification-gateway.service';
 import { ReplacementOpportunityEntity } from '../../domain/entities/replacement-opportunity.entity';
-import { ReplacementRepository } from '../../domain/repositories/replacement.repository';
+import {
+  type ReplacementOpportunityFilter,
+  type ReplacementRepository,
+} from '../../domain/repositories/replacement.repository';
 
 @Injectable()
 export class ReplacementDrizzleRepository implements ReplacementRepository {
@@ -38,13 +41,26 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
       sessionId: r.sessionId,
       sessionCode: r.sessionDef?.code || undefined,
       sessionLabel: r.sessionDef?.labelKey || undefined,
+      startTime: r.sessionDef?.defaultStartsAt || null,
+      endTime: r.sessionDef?.defaultEndsAt || null,
       workDate: r.workDate,
       originalStaffProfileId: r.originalStaffProfileId,
       originalPractitionerId: r.originalPractitionerId || null,
       originalStaffName: r.originalStaffProfile?.fullName || undefined,
+      originalStaffRole:
+        r.originalStaffProfile?.positionTitle ||
+        r.originalStaffProfile?.staffType ||
+        null,
+      originalStaffAvatarUrl: r.originalStaffProfile?.avatarUrl || null,
+      leaveReason: r.leaveRequest?.reason || null,
       claimedByStaffProfileId: r.claimedByStaffProfileId || null,
       claimedByPractitionerId: r.claimedByPractitionerId || null,
       claimedByName: r.claimedByStaffProfile?.fullName || null,
+      claimedByRole:
+        r.claimedByStaffProfile?.positionTitle ||
+        r.claimedByStaffProfile?.staffType ||
+        null,
+      claimedByAvatarUrl: r.claimedByStaffProfile?.avatarUrl || null,
       claimedAt: r.claimedAt ? new Date(r.claimedAt) : null,
       status: r.status,
       notes: r.notes || null,
@@ -53,24 +69,46 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
     };
   }
 
-  async findOpenOpportunities(
-    date?: string,
+  async findOpportunities(
+    filters?: ReplacementOpportunityFilter,
   ): Promise<ReplacementOpportunityEntity[]> {
-    const todayStr = date || new Date().toISOString().split('T')[0];
+    const todayStr = filters?.date || new Date().toISOString().split('T')[0];
+    const statusFilter = filters?.status || 'all';
+
+    const conditions = [gte(replacementOpportunities.workDate, todayStr)];
+
+    if (statusFilter === 'open') {
+      conditions.push(eq(replacementOpportunities.status, 'open'));
+    } else if (statusFilter === 'claimed') {
+      conditions.push(eq(replacementOpportunities.status, 'claimed'));
+    } else if (statusFilter === 'completed') {
+      conditions.push(eq(replacementOpportunities.status, 'completed'));
+    } else if (statusFilter === 'cancelled') {
+      conditions.push(eq(replacementOpportunities.status, 'cancelled'));
+    } else {
+      conditions.push(
+        inArray(replacementOpportunities.status, ['open', 'claimed']),
+      );
+    }
 
     const records = await this.db.query.replacementOpportunities.findMany({
-      where: and(
-        eq(replacementOpportunities.status, 'open'),
-        gte(replacementOpportunities.workDate, todayStr),
-      ),
+      where: and(...conditions),
       with: {
         sessionDef: true,
         originalStaffProfile: true,
+        claimedByStaffProfile: true,
+        leaveRequest: true,
       },
       orderBy: [replacementOpportunities.workDate],
     });
 
     return records.map((r) => this.mapOpportunity(r));
+  }
+
+  async findOpenOpportunities(
+    date?: string,
+  ): Promise<ReplacementOpportunityEntity[]> {
+    return this.findOpportunities({ date, status: 'open' });
   }
 
   async findByLeaveRequestId(
@@ -82,6 +120,7 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
         sessionDef: true,
         originalStaffProfile: true,
         claimedByStaffProfile: true,
+        leaveRequest: true,
       },
       orderBy: [replacementOpportunities.workDate],
     });
