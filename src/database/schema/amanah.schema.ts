@@ -1176,8 +1176,8 @@ export const staffAddresses = pgTable(
     districtName: text('district_name'),
     villageCode: text('village_code'),
     villageName: text('village_name'),
-    line1: text().notNull(),
-    fullAddress: text('full_address').notNull(),
+    line1: text('line1'),
+    fullAddress: text('full_address'),
     isPrimary: boolean('is_primary').default(true).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()

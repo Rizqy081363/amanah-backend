@@ -70,9 +70,11 @@ export class StaffDrizzleRepository implements StaffRepository {
       id: r.id,
       userId: r.userId || '',
       poliklinikId: r.primaryUnitId || '',
+      poliklinikName: (r as any).clinicUnit?.name || null,
       fullName: r.fullName,
       profession: r.positionTitle || 'Staf Operasional',
       staffType: r.staffType || 'worker',
+      staffCode: r.staffCode,
       idCardNumber: r.staffCode,
       licenseNumber:
         practitionerRecord?.licenseNumber ??
@@ -82,7 +84,7 @@ export class StaffDrizzleRepository implements StaffRepository {
       birthPlace: r.birthPlace || null,
       birthDate: r.birthDate ? String(r.birthDate) : null,
       gender: r.gender || null,
-      nationalId: r.nationalIdEncrypted || r.nationalIdHash || null,
+      nationalId: r.nationalIdEncrypted || null,
       email: r.email || null,
       photoUrl: r.avatarUrl || null,
       phoneNumber: r.phone || '',
@@ -97,8 +99,14 @@ export class StaffDrizzleRepository implements StaffRepository {
             districtName: addressRecord.districtName || null,
             villageCode: addressRecord.villageCode || null,
             villageName: addressRecord.villageName || null,
-            line1: addressRecord.line1 || null,
-            fullAddress: addressRecord.fullAddress || null,
+            line1:
+              addressRecord.line1 && addressRecord.line1 !== '-'
+                ? addressRecord.line1
+                : null,
+            fullAddress:
+              addressRecord.fullAddress && addressRecord.fullAddress !== '-'
+                ? addressRecord.fullAddress
+                : null,
           }
         : null,
       leaveInfo,
@@ -119,8 +127,7 @@ export class StaffDrizzleRepository implements StaffRepository {
           ? 'doctor'
           : 'worker');
 
-    const staffCode =
-      data.idCardNumber || `STF-AMANAH-${Date.now().toString().slice(-4)}`;
+    const staffCode = data.staffCode || '';
 
     const [record] = await this.db
       .insert(staffProfiles)
@@ -150,6 +157,9 @@ export class StaffDrizzleRepository implements StaffRepository {
     let targetProfileId = id;
     let record = await this.db.query.staffProfiles.findFirst({
       where: eq(staffProfiles.id, id),
+      with: {
+        clinicUnit: true,
+      },
     });
 
     let practitionerRecord: any = null;
@@ -161,6 +171,9 @@ export class StaffDrizzleRepository implements StaffRepository {
         targetProfileId = practitionerRecord.staffProfileId;
         record = await this.db.query.staffProfiles.findFirst({
           where: eq(staffProfiles.id, targetProfileId),
+          with: {
+            clinicUnit: true,
+          },
         });
       }
     } else {
@@ -209,6 +222,9 @@ export class StaffDrizzleRepository implements StaffRepository {
   async findByUserId(userId: string): Promise<StaffEntity | null> {
     const record = await this.db.query.staffProfiles.findFirst({
       where: eq(staffProfiles.userId, userId),
+      with: {
+        clinicUnit: true,
+      },
     });
     if (!record) return null;
 
@@ -396,18 +412,23 @@ export class StaffDrizzleRepository implements StaffRepository {
         ),
       });
 
-      const line1Val = data.address.line1 || data.address.fullAddress || '-';
+      const line1Val =
+        data.address.line1 && data.address.line1.trim() !== '-'
+          ? data.address.line1.trim()
+          : null;
       const fullAddressVal =
-        data.address.fullAddress ||
+        (data.address.fullAddress && data.address.fullAddress.trim() !== '-'
+          ? data.address.fullAddress.trim()
+          : null) ||
         [
-          data.address.line1,
+          line1Val,
           data.address.villageName ? `Kel. ${data.address.villageName}` : null,
           data.address.districtName ? `Kec. ${data.address.districtName}` : null,
           data.address.regencyName,
           data.address.provinceName,
         ]
           .filter(Boolean)
-          .join(', ');
+          .join(', ') || null;
 
       if (existingAddr) {
         await this.db

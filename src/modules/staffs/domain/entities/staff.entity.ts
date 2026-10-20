@@ -32,9 +32,11 @@ export class StaffEntity {
   id: string;
   userId: string;
   poliklinikId: string;
+  poliklinikName?: string | null;
   fullName: string;
   profession: string;
   staffType: 'doctor' | 'midwife' | 'worker';
+  staffCode?: string;
   idCardNumber: string;
   licenseNumber?: string | null;
   birthPlace?: string | null;

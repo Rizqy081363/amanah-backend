@@ -19,6 +19,14 @@ export class CreateStaffDto {
 
   @ApiPropertyOptional({
     example: 'DOC-AMANAH-002',
+    description: 'Kode Staf Pegawai',
+  })
+  @IsString()
+  @IsOptional()
+  staffCode?: string;
+
+  @ApiPropertyOptional({
+    example: 'DOC-AMANAH-002',
     description: 'Nomor Kartu Staf / ID Digital',
   })
   @IsString()

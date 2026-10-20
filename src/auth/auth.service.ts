@@ -134,6 +134,7 @@ export class AuthService {
           with: {
             practitioners: true,
             addresses: true,
+            clinicUnit: true,
           },
         },
         patientProfiles: {
@@ -427,6 +428,7 @@ export class AuthService {
           with: {
             practitioners: true,
             addresses: true,
+            clinicUnit: true,
           },
         },
         patientProfiles: {
@@ -612,14 +614,36 @@ export class AuthService {
           userId: s.userId,
           practitionerId: s.practitioners?.[0]?.id || s.practitionerId || null,
           poliklinikId: s.primaryUnitId || s.poliklinikId || null,
+          poliklinikName: s.clinicUnit?.name || s.poliklinikName || null,
           fullName: s.fullName,
           profession: s.positionTitle || s.profession || null,
           staffCode: s.staffCode || null,
-          idCardNumber: s.nationalIdEncrypted || null,
+          nationalId: s.nationalIdEncrypted || null,
+          idCardNumber: s.staffCode || null,
+          birthPlace: s.birthPlace || null,
+          birthDate:
+            typeof s.birthDate === 'string'
+              ? s.birthDate
+              : s.birthDate?.toISOString?.()?.slice(0, 10) || null,
+          gender: s.gender || null,
           photoUrl: avatar.url,
           phoneNumber: s.phone,
           isActive: s.status === 'active',
-          address: primaryStaffAddress?.fullAddress || '',
+          address: primaryStaffAddress
+            ? {
+                provinceCode: primaryStaffAddress.provinceCode || null,
+                provinceName: primaryStaffAddress.provinceName || null,
+                regencyCode: primaryStaffAddress.regencyCode || null,
+                regencyName: primaryStaffAddress.regencyName || null,
+                districtCode: primaryStaffAddress.districtCode || null,
+                districtName: primaryStaffAddress.districtName || null,
+                villageCode: primaryStaffAddress.villageCode || null,
+                villageName: primaryStaffAddress.villageName || null,
+                line1: primaryStaffAddress.line1 || null,
+                fullAddress: primaryStaffAddress.fullAddress || null,
+              }
+            : null,
+          fullAddress: primaryStaffAddress?.fullAddress || '',
           alamatDetail: primaryStaffAddress?.line1 || null,
           provinsi: primaryStaffAddress?.provinceName || null,
           provinsiId: primaryStaffAddress?.provinceCode || null,
@@ -692,6 +716,7 @@ export class AuthService {
           with: {
             practitioners: true,
             addresses: true,
+            clinicUnit: true,
           },
         },
         patientProfiles: {
@@ -1116,6 +1141,7 @@ export class AuthService {
           with: {
             practitioners: true,
             addresses: true,
+            clinicUnit: true,
           },
         },
         patientProfiles: {
@@ -1798,8 +1824,8 @@ export class AuthService {
               districtName: distName || null,
               villageCode: villCode || null,
               villageName: villName || null,
-              line1: streetLine1 || '-',
-              fullAddress: fullAddress || streetLine1 || '-',
+              line1: streetLine1 || null,
+              fullAddress: fullAddress || streetLine1 || null,
               isPrimary: true,
             });
           }
