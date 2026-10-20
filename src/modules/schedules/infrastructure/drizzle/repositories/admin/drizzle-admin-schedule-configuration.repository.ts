@@ -122,6 +122,7 @@ export class DrizzleAdminScheduleConfigurationRepository {
         'schedule:detail',
         'schedule:patients',
         'booking',
+        'schedule:ref',
       );
     } catch {
       // Safe fallback when redis is unreachable

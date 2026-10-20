@@ -1,12 +1,18 @@
 import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
-import { clinicRooms, clinicUnits, medicalSpecialties } from '@database/schema';
+import {
+  clinicRooms,
+  clinicUnits,
+  medicalSpecialties,
+  sessionDefs,
+} from '@database/schema';
 import { SCHEDULE_CONTEXT_DEFINITIONS } from '@modules/schedules/domain/constants/schedule-context.constants';
 import {
   type ClinicRoomReferenceEntity,
   ScheduleOperationalStatus,
   type ScheduleOptionsReferenceEntity,
 } from '@modules/schedules/domain/entities/schedule.entity';
+import { SHIFT_DEFINITIONS } from '@modules/schedules/domain/factories/schedule-session.factory';
 import { SchedulePolicyReader } from '@modules/schedules/infrastructure/drizzle/queries/schedule-policy.reader';
 import { Inject, Injectable } from '@nestjs/common';
 import { asc, eq } from 'drizzle-orm';
@@ -89,13 +95,17 @@ export class DrizzleScheduleReferenceRepository {
   }
 
   async getAdminDoctorScheduleFilterOptions(): Promise<any> {
-    const [units, specs] = await Promise.all([
+    const [units, specs, sessionList] = await Promise.all([
       this.db.query.clinicUnits.findMany({
         where: eq(clinicUnits.isActive, true),
         orderBy: [asc(clinicUnits.name)],
       }),
       this.db.query.medicalSpecialties.findMany({
         orderBy: [asc(medicalSpecialties.name)],
+      }),
+      this.db.query.sessionDefs.findMany({
+        where: eq(sessionDefs.isActive, true),
+        orderBy: [asc(sessionDefs.sortOrder)],
       }),
     ]);
 
@@ -119,7 +129,24 @@ export class DrizzleScheduleReferenceRepository {
             id: ScheduleOperationalStatus.PENDING,
             label: 'Menunggu Verifikasi',
           },
+          {
+            id: ScheduleOperationalStatus.ON_LEAVE,
+            label: 'Sedang Cuti',
+          },
+          { id: 'ACTIVE', label: 'Aktif' },
+          { id: 'INACTIVE', label: 'Non-Aktif' },
         ],
+        sessions: sessionList.map((s) => {
+          const shiftDef = SHIFT_DEFINITIONS.find((def) => def.shift === s.code);
+          return {
+            id: s.id,
+            code: s.code,
+            name: shiftDef?.label ?? s.code,
+            label: shiftDef?.label ?? s.code,
+            startsAt: s.defaultStartsAt,
+            endsAt: s.defaultEndsAt,
+          };
+        }),
       },
     };
   }

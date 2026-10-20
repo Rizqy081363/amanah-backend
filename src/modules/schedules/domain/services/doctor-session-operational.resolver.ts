@@ -178,21 +178,32 @@ export function resolveDoctorSessionOperability(
   // 3. Priority Resolution: Explicit Doctor Roster Override
   // If doctor has explicit assignment for this day of week (da.dow === targetDow),
   // the roster assignment OVERRIDES global day deactivation and weekly template!
-  const hasExplicitRosterOverride =
-    da.dow !== null && da.dow === targetDow && da.isActive === true;
-
-  if (hasExplicitRosterOverride) {
-    return {
-      isOperable: true,
-      isOpen: true,
-      status: 'open',
-      closureReason: null,
-      notes: null,
-      startTime,
-      endTime,
-      sessionShift: shiftCode,
-      sessionLabel,
-    };
+  if (da.dow !== null && da.dow === targetDow) {
+    if (da.isActive) {
+      return {
+        isOperable: true,
+        isOpen: true,
+        status: 'open',
+        closureReason: null,
+        notes: null,
+        startTime,
+        endTime,
+        sessionShift: shiftCode,
+        sessionLabel,
+      };
+    } else {
+      return {
+        isOperable: true,
+        isOpen: false,
+        status: 'closed',
+        closureReason: ScheduleClosureReason.ADMIN_OVERRIDE,
+        notes: 'Tidak Bertugas',
+        startTime,
+        endTime,
+        sessionShift: shiftCode,
+        sessionLabel,
+      };
+    }
   }
 
   // 4. Clinic Day Operating Status:

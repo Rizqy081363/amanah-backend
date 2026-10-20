@@ -16,15 +16,24 @@ export class AdminDoctorSchedulesQueryDto {
   page?: number = 1;
 
   @ApiPropertyOptional({
-    description: 'Jumlah dokter per halaman (6, 12, 18, 24, 30)',
-    default: 6,
-    example: 6,
+    description: 'Jumlah dokter per halaman (default 20 untuk infinite feed)',
+    default: 20,
+    example: 20,
   })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  limit?: number = 6;
+  limit?: number = 20;
+
+  @ApiPropertyOptional({
+    description:
+      'Filter sesi shift operasional (bisa koma jika multi, e.g. morning,afternoon)',
+    example: 'morning',
+  })
+  @IsOptional()
+  @IsString()
+  session?: string;
 
   @ApiPropertyOptional({
     description:
@@ -45,9 +54,8 @@ export class AdminDoctorSchedulesQueryDto {
 
   @ApiPropertyOptional({
     description:
-      'Filter canonical effective schedule status. Comma-separated values are allowed.',
-    enum: ScheduleOperationalStatus,
-    example: ScheduleOperationalStatus.OPEN,
+      'Filter status operasional atau lifecycle dokter (OPEN, CLOSED, PENDING, ON_LEAVE, ACTIVE, INACTIVE). Comma-separated values are allowed.',
+    example: 'OPEN',
   })
   @IsOptional()
   @IsString()

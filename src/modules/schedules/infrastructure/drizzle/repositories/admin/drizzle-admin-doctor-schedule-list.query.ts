@@ -116,7 +116,6 @@ export class DrizzleAdminDoctorScheduleListQuery {
       }),
       this.policyReader.getClinicSchedulePolicy(),
       this.db.query.doctorAssignments.findMany({
-        where: eq(doctorAssignments.isActive, true),
         with: {
           sessionDef: {
             with: {
@@ -235,6 +234,7 @@ export class DrizzleAdminDoctorScheduleListQuery {
 
           return {
             id: da.sessionDef.id,
+            sessionCode: da.sessionDef.code,
             practitionerId: p.id,
             scheduleDate: targetDate,
             startTime: res.startTime,
@@ -418,35 +418,86 @@ export class DrizzleAdminDoctorScheduleListQuery {
       }
 
       if (query.poli) {
-        const poliFilter = query.poli.toLowerCase();
-        const matchPoli =
-          spesialisasi.toLowerCase().includes(poliFilter) ||
-          (p.staffProfile?.clinicUnit?.name || '')
-            .toLowerCase()
-            .includes(poliFilter);
-        if (!matchPoli) continue;
+        const poliList = query.poli
+          .split(',')
+          .map((item) => item.trim().toLowerCase())
+          .filter(Boolean);
+        if (poliList.length > 0) {
+          const matchPoli = poliList.some(
+            (item) =>
+              spesialisasi.toLowerCase().includes(item) ||
+              (p.staffProfile?.clinicUnit?.name || '')
+                .toLowerCase()
+                .includes(item),
+          );
+          if (!matchPoli) continue;
+        }
+      }
+
+      if (query.session) {
+        if (isPending || sesiHarian.length === 0) continue;
+        const sessionFilters = query.session
+          .split(',')
+          .map((s) => s.trim().toLowerCase())
+          .filter(Boolean);
+        if (sessionFilters.length > 0) {
+          const hasMatchingSession = sessions.some((s: any) => {
+            if (s.status === 'closed') return false;
+            const matchId = sessionFilters.includes(s.id.toLowerCase());
+            const matchCode =
+              s.sessionCode &&
+              sessionFilters.includes(s.sessionCode.toLowerCase());
+            const matchShift =
+              s.sessionShift &&
+              sessionFilters.includes(s.sessionShift.toLowerCase());
+            const matchLabel =
+              s.sessionLabel &&
+              sessionFilters.includes(s.sessionLabel.toLowerCase());
+            return matchId || matchCode || matchShift || matchLabel;
+          });
+          if (!hasMatchingSession) continue;
+        }
       }
 
       if (query.status) {
         const statusList = query.status
           .split(',')
-          .map((s) => s.trim())
+          .map((s) => s.trim().toUpperCase())
           .filter(Boolean);
+        const validCanonicalStatuses = [
+          ...Object.values(ScheduleOperationalStatus),
+          'ACTIVE',
+          'INACTIVE',
+        ];
         const invalidStatuses = statusList.filter(
-          (status) =>
-            !Object.values(ScheduleOperationalStatus).includes(
-              status as ScheduleOperationalStatus,
-            ),
+          (status) => !validCanonicalStatuses.includes(status as any),
         );
         if (invalidStatuses.length > 0) {
           throw new BadRequestException({
             code: 'INVALID_SCHEDULE_STATUS_FILTER',
             message:
-              'Status filter must use canonical values: OPEN, CLOSED, PENDING, ON_LEAVE.',
+              'Status filter must use canonical values: OPEN, CLOSED, PENDING, ON_LEAVE, ACTIVE, INACTIVE.',
             metadata: { invalidStatuses },
           });
         }
-        if (!statusList.includes(scheduleStatus)) continue;
+
+        const isDocActive =
+          !isPending &&
+          (p.isAcceptingAppointments ?? true) &&
+          p.staffProfile?.status !== 'inactive';
+
+        const matchesStatus = statusList.some((st) => {
+          if (st === 'ACTIVE') return isDocActive;
+          if (st === 'INACTIVE') return !isDocActive;
+          if (st === ScheduleOperationalStatus.ON_LEAVE) {
+            return (
+              isOnLeave || scheduleStatus === ScheduleOperationalStatus.ON_LEAVE
+            );
+          }
+          return st === scheduleStatus;
+        });
+
+        if (!matchesStatus) continue;
       }
 
       cards.push({
@@ -484,7 +535,7 @@ export class DrizzleAdminDoctorScheduleListQuery {
     }
 
     const page = query.page || 1;
-    const limit = query.limit || 6;
+    const limit = query.limit || 20;
     const totalDoctors = cards.length;
     const totalPages = Math.ceil(totalDoctors / limit) || 1;
     const paginated = cards.slice((page - 1) * limit, page * limit);
