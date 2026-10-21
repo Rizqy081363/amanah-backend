@@ -3,7 +3,6 @@ import { existsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { resolve } from 'node:path';
 
-// 1. Guard against running inside Docker container, CI, or when explicitly bypassed
 if (
   process.env.NO_DOCKER ||
   process.env.IS_DOCKER ||
@@ -14,54 +13,129 @@ if (
   process.exit(0);
 }
 
-// 2. Check if Docker is installed and daemon is running
 const dockerCheck = spawnSync('docker', ['info'], {
   stdio: 'ignore',
   shell: process.platform === 'win32',
 });
 
 if (dockerCheck.status !== 0) {
-  console.log('[Docker Sync] Docker daemon tidak aktif atau tidak ditemukan. Melewati build Docker.');
+  console.log('[Docker Sync] Docker daemon tidak aktif atau tidak ditemukan. Melewati sinkronisasi Docker.');
   process.exit(0);
 }
 
 const repoRoot = resolve(import.meta.dir, '../..');
+const forceRebuild = process.argv.includes('--rebuild') || process.argv.includes('-r') || process.env.DOCKER_FORCE_REBUILD === '1';
 
 console.log('\n================================================================================');
-console.log(' [Docker Sync] Local build selesai. Sinkronisasi otomatis ke Docker (backend-api)...');
+console.log(' [Docker Sync] Local build selesai. Memulai sinkronisasi cepat ke Docker...');
 console.log('================================================================================');
 
-// 3. Build Docker container image
-const buildResult = spawnSync('docker', ['compose', 'build', 'api'], {
-  cwd: repoRoot,
-  stdio: 'inherit',
-  shell: process.platform === 'win32',
-});
-
-if (buildResult.status !== 0) {
-  console.warn('[Docker Sync] Perhatian: Docker build selesai dengan kode keluar', buildResult.status);
-  process.exit(0);
-}
-
-// 4. Cek apakah container backend-api sedang aktif (running)
-const psResult = spawnSync('docker', ['compose', 'ps', '-q', 'api'], {
-  cwd: repoRoot,
-  encoding: 'utf8',
-  shell: process.platform === 'win32',
-});
-
-const isRunning = Boolean(psResult.stdout && psResult.stdout.trim());
-
-if (isRunning) {
-  console.log('[Docker Sync] Container api sedang berjalan. Memperbarui container dengan image baru...');
+if (forceRebuild) {
+  console.log('[Docker Sync] Mode rebuild aktif. Membangun ulang image api...');
+  spawnSync('docker', ['compose', 'build', 'api'], {
+    cwd: repoRoot,
+    stdio: 'inherit',
+    shell: process.platform === 'win32',
+  });
   spawnSync('docker', ['compose', 'up', '-d', '--no-deps', 'api'], {
     cwd: repoRoot,
     stdio: 'inherit',
     shell: process.platform === 'win32',
   });
-  console.log('[Docker Sync] Container backend-api berhasil diperbarui!');
-} else {
-  console.log('[Docker Sync] Image Docker backend-api berhasil di-build.');
+  spawnSync('docker', ['image', 'prune', '-f'], {
+    cwd: repoRoot,
+    stdio: 'ignore',
+    shell: process.platform === 'win32',
+  });
+  console.log('[Docker Sync] Image backend-api berhasil dibangun ulang & container diperbarui.');
+  console.log('================================================================================\n');
+  process.exit(0);
 }
+
+const runningCheck = spawnSync('docker', ['compose', 'ps', '--status', 'running', '-q', 'api'], {
+  cwd: repoRoot,
+  encoding: 'utf8',
+  shell: process.platform === 'win32',
+});
+
+const isRunning = Boolean(runningCheck.stdout && runningCheck.stdout.trim());
+
+if (isRunning) {
+  console.log('[Docker Sync] Container api aktif. Menyalin build artifacts (dist) ke container...');
+  const cpResult = spawnSync('docker', ['compose', 'cp', 'dist/.', 'api:/usr/src/app/dist/'], {
+    cwd: repoRoot,
+    stdio: 'inherit',
+    shell: process.platform === 'win32',
+  });
+
+  if (cpResult.status !== 0) {
+    console.warn('[Docker Sync] Gagal menyalin dist ke container api. Kode keluar:', cpResult.status);
+    process.exit(0);
+  }
+
+  console.log('[Docker Sync] Merestart container api...');
+  spawnSync('docker', ['compose', 'restart', 'api'], {
+    cwd: repoRoot,
+    stdio: 'inherit',
+    shell: process.platform === 'win32',
+  });
+
+  console.log('[Docker Sync] Sinkronisasi instan selesai! 0 build overhead, 0 disk bloat.');
+  console.log('================================================================================\n');
+  process.exit(0);
+}
+
+const imageCheck = spawnSync('docker', ['images', '-q', 'backend-api'], {
+  cwd: repoRoot,
+  encoding: 'utf8',
+  shell: process.platform === 'win32',
+});
+
+const hasImage = Boolean(imageCheck.stdout && imageCheck.stdout.trim());
+
+if (hasImage) {
+  console.log('[Docker Sync] Container api tidak aktif tetapi image tersedia. Menyalakan stack...');
+  spawnSync('docker', ['compose', 'up', '-d', 'api'], {
+    cwd: repoRoot,
+    stdio: 'inherit',
+    shell: process.platform === 'win32',
+  });
+
+  spawnSync('docker', ['compose', 'cp', 'dist/.', 'api:/usr/src/app/dist/'], {
+    cwd: repoRoot,
+    stdio: 'inherit',
+    shell: process.platform === 'win32',
+  });
+
+  spawnSync('docker', ['compose', 'restart', 'api'], {
+    cwd: repoRoot,
+    stdio: 'inherit',
+    shell: process.platform === 'win32',
+  });
+
+  console.log('[Docker Sync] Container api berhasil dinyalakan dan disinkronisasi.');
+} else {
+  console.log('[Docker Sync] Image backend-api belum ada. Menjalankan initial build...');
+  spawnSync('docker', ['compose', 'build', 'api'], {
+    cwd: repoRoot,
+    stdio: 'inherit',
+    shell: process.platform === 'win32',
+  });
+
+  spawnSync('docker', ['compose', 'up', '-d', 'api'], {
+    cwd: repoRoot,
+    stdio: 'inherit',
+    shell: process.platform === 'win32',
+  });
+
+  spawnSync('docker', ['image', 'prune', '-f'], {
+    cwd: repoRoot,
+    stdio: 'ignore',
+    shell: process.platform === 'win32',
+  });
+
+  console.log('[Docker Sync] Initial build dan deployment stack api selesai.');
+}
+
 console.log('================================================================================\n');
 process.exit(0);

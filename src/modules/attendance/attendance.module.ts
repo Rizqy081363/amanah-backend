@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { PayrollModule } from '../payroll/payroll.module';
 import { AttendanceMetricsCalculator } from './application/services/attendance-metrics.calculator';
 import { AttendanceNotificationService } from './application/services/attendance-notification.service';
 import { CheckOutAttendanceUseCase } from './application/use-cases/checkout-attendance.use-case';
@@ -13,6 +14,7 @@ import { AttendanceDrizzleRepository } from './infrastructure/drizzle/attendance
 import { AttendanceController } from './presentation/attendance.controller';
 
 @Module({
+  imports: [PayrollModule],
   controllers: [AttendanceController],
   providers: [
     // Repository

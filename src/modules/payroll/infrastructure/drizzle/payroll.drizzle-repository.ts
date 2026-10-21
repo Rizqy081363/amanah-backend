@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { and, desc, eq, gte, lte } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, lte, ne } from 'drizzle-orm';
 import { ClinicConfigService } from '../../../../common/clinic-config/clinic-config.service';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
@@ -26,16 +26,22 @@ import { calculateSessionNetHours } from '../../../schedules/domain/services/shi
 import { PayrollEntryEntity } from '../../domain/entities/payroll-entry.entity';
 import { PayrollPeriodEntity } from '../../domain/entities/payroll-period.entity';
 import {
+  MonthlyPayrollGroup,
   PayrollRepository,
   PayrollSummary,
+  RecordAttendanceShiftInput,
 } from '../../domain/repositories/payroll.repository';
+
+function formatHours(h: number): string {
+  return h % 1 === 0 ? `${h} jam` : `${Number(h.toFixed(1))} jam`;
+}
 
 @Injectable()
 export class PayrollDrizzleRepository implements PayrollRepository {
   constructor(
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,
-    private readonly clinicConfigService: ClinicConfigService,
+    private readonly clinicConfigService?: ClinicConfigService,
   ) {}
 
   private mapPeriod(r: any): PayrollPeriodEntity {
@@ -55,7 +61,15 @@ export class PayrollDrizzleRepository implements PayrollRepository {
     };
   }
 
-  private mapEntry(r: any): PayrollEntryEntity {
+  private mapEntry(
+    r: any,
+    attRecord?: {
+      checkInAt?: string | null;
+      checkOutAt?: string | null;
+      isEarlyDeparture?: boolean;
+      notes?: string | null;
+    },
+  ): PayrollEntryEntity {
     return {
       id: r.id,
       payrollPeriodId: r.payrollPeriodId,
@@ -68,8 +82,56 @@ export class PayrollDrizzleRepository implements PayrollRepository {
       hourlyRate: Number(r.hourlyRate),
       amount: Number(r.amount),
       description: r.description || null,
+      checkInAt: attRecord?.checkInAt ? String(attRecord.checkInAt) : null,
+      checkOutAt: attRecord?.checkOutAt ? String(attRecord.checkOutAt) : null,
+      isEarlyDeparture: Boolean(attRecord?.isEarlyDeparture),
+      notes: attRecord?.notes || null,
       createdAt: new Date(r.createdAt),
     };
+  }
+
+  private async getAttendanceRecordsMap(
+    sourceIds: (string | null | undefined)[],
+  ): Promise<
+    Map<
+      string,
+      {
+        checkInAt: string | null;
+        checkOutAt: string | null;
+        isEarlyDeparture: boolean;
+        notes: string | null;
+      }
+    >
+  > {
+    const validIds = Array.from(
+      new Set(sourceIds.filter((id): id is string => Boolean(id))),
+    );
+    const map = new Map<
+      string,
+      {
+        checkInAt: string | null;
+        checkOutAt: string | null;
+        isEarlyDeparture: boolean;
+        notes: string | null;
+      }
+    >();
+    if (validIds.length === 0) return map;
+
+    const records = await this.db
+      .select({
+        id: staffAttendanceRecords.id,
+        checkInAt: staffAttendanceRecords.checkInAt,
+        checkOutAt: staffAttendanceRecords.checkOutAt,
+        isEarlyDeparture: staffAttendanceRecords.isEarlyDeparture,
+        notes: staffAttendanceRecords.notes,
+      })
+      .from(staffAttendanceRecords)
+      .where(inArray(staffAttendanceRecords.id, validIds));
+
+    for (const r of records) {
+      map.set(r.id, r);
+    }
+    return map;
   }
 
   async findPeriods(): Promise<PayrollPeriodEntity[]> {
@@ -108,6 +170,11 @@ export class PayrollDrizzleRepository implements PayrollRepository {
       .from(payrollEntries)
       .where(eq(payrollEntries.payrollPeriodId, id));
 
+    const attIds = entries
+      .filter((e) => e.sourceType === 'attendance' && e.sourceId)
+      .map((e) => e.sourceId);
+    const attMap = await this.getAttendanceRecordsMap(attIds);
+
     const staffList = await this.db.query.staffProfiles.findMany({
       with: {
         practitioners: true,
@@ -123,12 +190,26 @@ export class PayrollDrizzleRepository implements PayrollRepository {
     }
 
     const summaries: PayrollSummary[] = [];
+    const locale = this.clinicConfigService
+      ? await this.clinicConfigService.getLocale().catch(() => 'id-ID')
+      : 'id-ID';
+    const monthFormatter = new Intl.DateTimeFormat(locale, {
+      month: 'long',
+      year: 'numeric',
+      timeZone: 'UTC',
+    });
+    const monthLabel = period.periodStart
+      ? monthFormatter.format(new Date(`${period.periodStart}T00:00:00Z`))
+      : undefined;
+
     for (const [staffId, staffEntries] of entriesByStaff.entries()) {
       const staff = staffMap.get(staffId);
       if (!staff) continue;
 
       let baseEarnings = 0;
       let baseHours = 0;
+      let deductionHours = 0;
+      let additionHours = 0;
       let leaveDeductions = 0;
       let replacementAdditions = 0;
 
@@ -140,28 +221,45 @@ export class PayrollDrizzleRepository implements PayrollRepository {
           baseHours += hrs;
         } else if (e.entryType === 'leave_deduction') {
           leaveDeductions += amt;
+          deductionHours += hrs;
         } else if (
           e.entryType === 'replacement_addition' ||
           e.entryType === 'overtime_addition'
         ) {
           replacementAdditions += amt;
+          additionHours += hrs;
         }
       }
 
-      const netPayroll = baseEarnings - leaveDeductions + replacementAdditions;
+      const grossEarnings = baseEarnings + replacementAdditions;
+      const netPayroll = grossEarnings - leaveDeductions;
 
       summaries.push({
         staffId: staff.id,
+        staffCode: staff.staffCode || undefined,
         fullName: staff.fullName,
         staffType: staff.staffType,
         positionTitle: staff.positionTitle || undefined,
+        departmentName: staff.departmentName || undefined,
         practitionerId: staff.practitioners?.[0]?.id || null,
+        periodId: period.id,
+        periodName: period.periodName,
+        periodStart: period.periodStart,
+        periodEnd: period.periodEnd,
+        periodStatus: period.status,
+        monthLabel,
+        calculatedAt: period.calculatedAt ? new Date(period.calculatedAt) : null,
         baseHours,
+        deductionHours: Number(deductionHours.toFixed(2)),
+        additionHours: Number(additionHours.toFixed(2)),
         baseEarnings,
+        grossEarnings,
         leaveDeductions,
         replacementAdditions,
         netPayroll,
-        entries: staffEntries.map((e) => this.mapEntry(e)),
+        entries: staffEntries.map((e) =>
+          this.mapEntry(e, e.sourceId ? attMap.get(e.sourceId) : undefined),
+        ),
       });
     }
 
@@ -196,20 +294,6 @@ export class PayrollDrizzleRepository implements PayrollRepository {
         overtime: Number(r.overtimeHourlyRate),
       });
     }
-
-    // Default fallbacks if rates table was empty
-    const defaultDoctorRate = rateMap.get('doctor') || {
-      hourly: 150000,
-      overtime: 200000,
-    };
-    const defaultMidwifeRate = rateMap.get('midwife') || {
-      hourly: 150000,
-      overtime: 200000,
-    };
-    const defaultWorkerRate = rateMap.get('worker') || {
-      hourly: 75000,
-      overtime: 100000,
-    };
 
     // 2. Create or find payroll_period record
     const [existingPeriod] = await this.db
@@ -257,7 +341,9 @@ export class PayrollDrizzleRepository implements PayrollRepository {
           practitioners: true,
         },
       }),
-      this.clinicConfigService.getRosterBreakConfig(),
+      this.clinicConfigService
+        ? this.clinicConfigService.getRosterBreakConfig()
+        : Promise.resolve({ breakDurationMinutes: 30, isBreakPaid: false }),
       this.db.select().from(sessionDefs),
     ]);
 
@@ -292,69 +378,57 @@ export class PayrollDrizzleRepository implements PayrollRepository {
     );
     const weeksInPeriod = Math.max(1, dayDiff / 7);
 
+    const locale = this.clinicConfigService
+      ? await this.clinicConfigService.getLocale().catch(() => 'id-ID')
+      : 'id-ID';
+    const monthFormatter = new Intl.DateTimeFormat(locale, {
+      month: 'long',
+      year: 'numeric',
+      timeZone: 'UTC',
+    });
+    const calculatedMonthLabel = monthFormatter.format(
+      new Date(`${periodStart}T00:00:00Z`),
+    );
+
     for (const staff of activeStaff) {
-      const rates =
-        staff.staffType === 'doctor'
-          ? defaultDoctorRate
-          : staff.staffType === 'midwife'
-            ? defaultMidwifeRate
-            : defaultWorkerRate;
+      const staffType = (staff.staffType || 'worker').toLowerCase();
+      const rates = rateMap.get(staffType) ?? { hourly: 0, overtime: 0 };
 
       const practitionerId = staff.practitioners?.[0]?.id || null;
       const entriesToInsert: any[] = [];
 
-      // A. Calculate Base Roster Hours
-      let weeklyScheduledHours = 0;
-      if (practitionerId) {
-        // Doctor / Midwife schedule assignments
-        const assignments = await this.db
-          .select()
-          .from(doctorAssignments)
-          .where(
-            and(
-              eq(doctorAssignments.doctorId, practitionerId),
-              eq(doctorAssignments.isActive, true),
-            ),
-          );
-        for (const da of assignments) {
-          weeklyScheduledHours += getSessionNet(da.sessionId);
-        }
-      } else {
-        // Operational Worker schedule
-        const rosters = await this.db
-          .select()
-          .from(staffRosters)
-          .where(
-            and(
-              eq(staffRosters.staffProfileId, staff.id),
-              eq(staffRosters.isActive, true),
-            ),
-          );
-        for (const sr of rosters) {
-          weeklyScheduledHours += getSessionNet(sr.sessionId);
+      // A. Populate atomic shift attendance records for this period
+      const attendances = await this.db
+        .select()
+        .from(staffAttendanceRecords)
+        .where(
+          and(
+            eq(staffAttendanceRecords.staffProfileId, staff.id),
+            gte(staffAttendanceRecords.attendanceDate, periodStart),
+            lte(staffAttendanceRecords.attendanceDate, periodEnd),
+          ),
+        );
+
+      for (const att of attendances) {
+        const validatedHours = Number(att.validatedDurationHours) || 0;
+        if (!att.isReplacement && validatedHours > 0) {
+          const shiftEarnings = validatedHours * rates.hourly;
+          entriesToInsert.push({
+            payrollPeriodId: periodId,
+            staffProfileId: staff.id,
+            practitionerId,
+            entryType: 'base_scheduled',
+            sourceType: 'attendance',
+            sourceId: att.id,
+            quantityHours: validatedHours.toFixed(2),
+            hourlyRate: rates.hourly.toString(),
+            amount: shiftEarnings.toFixed(2),
+            description: `Upah hari ini - Pelayanan (${formatHours(validatedHours)} x Rp ${rates.hourly.toLocaleString('id-ID')})`,
+          });
         }
       }
 
-      // Default minimal baseline if not assigned yet: 20 hours/week
-      const totalBaseHours = Math.round(
-        (weeklyScheduledHours > 0 ? weeklyScheduledHours : 20) *
-          weeksInPeriod,
-      );
-      const baseEarnings = totalBaseHours * rates.hourly;
-
-      entriesToInsert.push({
-        payrollPeriodId: periodId,
-        staffProfileId: staff.id,
-        practitionerId,
-        entryType: 'base_scheduled',
-        sourceType: 'roster',
-        quantityHours: totalBaseHours.toString(),
-        hourlyRate: rates.hourly.toString(),
-        amount: baseEarnings.toString(),
-        description: `Gaji pokok dinas terjadwal (${totalBaseHours} jam @ Rp ${rates.hourly.toLocaleString('id-ID')})`,
-      });
-
-      // B. Calculate Approved Leave Deductions
+      // B. Calculate Approved Leave Deductions (1 shift net per leave day)
       const leaves = await this.db
         .select()
         .from(staffLeaveRequests)
@@ -367,131 +441,137 @@ export class PayrollDrizzleRepository implements PayrollRepository {
           ),
         );
 
-      let leaveDeductionHours = 0;
       for (const l of leaves) {
         const leaveDays = l.durationDays || 1;
-        // Daily scheduled hours derived from staff weekly schedule (default 5 working days) or standard session net
-        const dailyScheduledHours =
-          weeklyScheduledHours > 0
-            ? weeklyScheduledHours / 5
-            : defaultShiftNet;
-        leaveDeductionHours += Number(
-          (leaveDays * dailyScheduledHours).toFixed(2),
-        );
-      }
-
-      const totalLeaveDeductions = leaveDeductionHours * rates.hourly;
-      if (leaveDeductionHours > 0) {
+        const deductionHours = Number((leaveDays * defaultShiftNet).toFixed(2));
+        const deductionAmount = deductionHours * rates.hourly;
         entriesToInsert.push({
           payrollPeriodId: periodId,
           staffProfileId: staff.id,
           practitionerId,
           entryType: 'leave_deduction',
           sourceType: 'leave_request',
-          quantityHours: leaveDeductionHours.toString(),
+          sourceId: l.id,
+          quantityHours: deductionHours.toFixed(2),
           hourlyRate: rates.hourly.toString(),
-          amount: totalLeaveDeductions.toString(),
-          description: `Pemotongan ketidakhadiran izin/cuti (${leaveDeductionHours} jam)`,
+          amount: deductionAmount.toFixed(2),
+          description: `Gaji di potong - Izin/cuti (${formatHours(deductionHours)})`,
         });
       }
 
-      // B.2 Calculate Early Departure Attendance Deductions (Regular Shift under-hours)
-      const earlyDepartures = await this.db
-        .select()
-        .from(staffAttendanceRecords)
-        .where(
-          and(
-            eq(staffAttendanceRecords.staffProfileId, staff.id),
-            eq(staffAttendanceRecords.isReplacement, false),
-            eq(staffAttendanceRecords.isEarlyDeparture, true),
-            gte(staffAttendanceRecords.attendanceDate, periodStart),
-            lte(staffAttendanceRecords.attendanceDate, periodEnd),
-          ),
-        );
-
-      let earlyDepartureDeductionHours = 0;
+      // B.2 Calculate Early Departure Attendance Deductions
+      const earlyDepartures = attendances.filter(
+        (a) => !a.isReplacement && a.isEarlyDeparture,
+      );
       for (const ed of earlyDepartures) {
         const validated = Number(ed.validatedDurationHours) || 0;
         const expectedHours = getSessionNet(ed.sessionId);
         const deficit = Math.max(0, expectedHours - validated);
-        earlyDepartureDeductionHours += deficit;
-      }
-
-      const totalEarlyDepartureDeductions =
-        earlyDepartureDeductionHours * rates.hourly;
-      if (earlyDepartureDeductionHours > 0) {
-        entriesToInsert.push({
-          payrollPeriodId: periodId,
-          staffProfileId: staff.id,
-          practitionerId,
-          entryType: 'leave_deduction',
-          sourceType: 'attendance',
-          quantityHours: earlyDepartureDeductionHours.toFixed(2),
-          hourlyRate: rates.hourly.toString(),
-          amount: totalEarlyDepartureDeductions.toFixed(2),
-          description: `Penyesuaian jam dinas kepulangan lebih awal / early departure (${earlyDepartureDeductionHours.toFixed(2)} jam)`,
-        });
+        if (deficit > 0) {
+          const deductionAmount = deficit * rates.hourly;
+          entriesToInsert.push({
+            payrollPeriodId: periodId,
+            staffProfileId: staff.id,
+            practitionerId,
+            entryType: 'leave_deduction',
+            sourceType: 'attendance',
+            sourceId: ed.id,
+            quantityHours: deficit.toFixed(2),
+            hourlyRate: rates.hourly.toString(),
+            amount: deductionAmount.toFixed(2),
+            description: `Gaji di potong - Pulang lebih awal (${formatHours(deficit)})`,
+          });
+        }
       }
 
       // C. Calculate Replacement / Overtime Additions
-      const attendanceAdditions = await this.db
-        .select()
-        .from(staffAttendanceRecords)
-        .where(
-          and(
-            eq(staffAttendanceRecords.staffProfileId, staff.id),
-            eq(staffAttendanceRecords.isReplacement, true),
-            gte(staffAttendanceRecords.attendanceDate, periodStart),
-            lte(staffAttendanceRecords.attendanceDate, periodEnd),
-          ),
-        );
-
-      let replacementHours = 0;
-      for (const a of attendanceAdditions) {
-        replacementHours +=
-          Number(a.validatedDurationHours) || getSessionNet(a.sessionId);
+      const replacements = attendances.filter((a) => a.isReplacement);
+      for (const rep of replacements) {
+        const repHours =
+          Number(rep.validatedDurationHours) || getSessionNet(rep.sessionId);
+        if (repHours > 0) {
+          const repAmount = repHours * rates.overtime;
+          entriesToInsert.push({
+            payrollPeriodId: periodId,
+            staffProfileId: staff.id,
+            practitionerId,
+            entryType: 'replacement_addition',
+            sourceType: 'attendance',
+            sourceId: rep.id,
+            quantityHours: repHours.toFixed(2),
+            hourlyRate: rates.overtime.toString(),
+            amount: repAmount.toFixed(2),
+            description: `Upah pengganti - Dinas pengganti/lembur (${formatHours(repHours)} x Rp ${rates.overtime.toLocaleString('id-ID')})`,
+          });
+        }
       }
 
-      const totalReplacementAdditions = replacementHours * rates.overtime;
-      if (replacementHours > 0) {
-        entriesToInsert.push({
-          payrollPeriodId: periodId,
-          staffProfileId: staff.id,
-          practitionerId,
-          entryType: 'replacement_addition',
-          sourceType: 'attendance',
-          quantityHours: replacementHours.toString(),
-          hourlyRate: rates.overtime.toString(),
-          amount: totalReplacementAdditions.toString(),
-          description: `Insentif jadwal dinas pengganti/lembur (${replacementHours} jam)`,
-        });
+      // Insert all atomic entries for this staff in this period
+      let insertedEntries: any[] = [];
+      if (entriesToInsert.length > 0) {
+        insertedEntries = await this.db
+          .insert(payrollEntries)
+          .values(entriesToInsert)
+          .returning();
       }
 
-      // Insert all entries for this staff
-      const insertedEntries = await this.db
-        .insert(payrollEntries)
-        .values(entriesToInsert)
-        .returning();
+      let baseHours = 0;
+      let baseEarnings = 0;
+      let deductionHours = 0;
+      let leaveDeductions = 0;
+      let additionHours = 0;
+      let replacementAdditions = 0;
 
-      const netPayroll =
-        baseEarnings -
-        totalLeaveDeductions -
-        totalEarlyDepartureDeductions +
-        totalReplacementAdditions;
+      for (const e of insertedEntries) {
+        const amt = Number(e.amount);
+        const hrs = Number(e.quantityHours);
+        if (e.entryType === 'base_scheduled') {
+          baseEarnings += amt;
+          baseHours += hrs;
+        } else if (e.entryType === 'leave_deduction') {
+          leaveDeductions += amt;
+          deductionHours += hrs;
+        } else if (
+          e.entryType === 'replacement_addition' ||
+          e.entryType === 'overtime_addition'
+        ) {
+          replacementAdditions += amt;
+          additionHours += hrs;
+        }
+      }
+
+      const grossEarnings = baseEarnings + replacementAdditions;
+      const netPayroll = grossEarnings - leaveDeductions;
       totalClinicPayout += netPayroll;
+
+      const attMap = new Map<string, any>(attendances.map((a) => [a.id, a]));
 
       summaries.push({
         staffId: staff.id,
+        staffCode: staff.staffCode || undefined,
         fullName: staff.fullName,
         staffType: staff.staffType,
         positionTitle: staff.positionTitle || undefined,
+        departmentName: staff.departmentName || undefined,
         practitionerId,
-        baseHours: totalBaseHours,
+        periodId,
+        periodName,
+        periodStart,
+        periodEnd,
+        periodStatus: 'calculated',
+        monthLabel: calculatedMonthLabel,
+        calculatedAt: new Date(),
+        baseHours: Number(baseHours.toFixed(2)),
+        deductionHours: Number(deductionHours.toFixed(2)),
+        additionHours: Number(additionHours.toFixed(2)),
         baseEarnings,
-        leaveDeductions: totalLeaveDeductions,
-        replacementAdditions: totalReplacementAdditions,
+        grossEarnings,
+        leaveDeductions,
+        replacementAdditions,
         netPayroll,
-        entries: insertedEntries.map((e) => this.mapEntry(e)),
+        entries: insertedEntries.map((e) =>
+          this.mapEntry(e, e.sourceId ? attMap.get(e.sourceId) : undefined),
+        ),
       });
     }
 
@@ -527,6 +607,7 @@ export class PayrollDrizzleRepository implements PayrollRepository {
     if (!staff) return null;
 
     let targetPeriodId = periodId;
+    let targetPeriod: any = null;
     if (!targetPeriodId) {
       const [latestPeriod] = await this.db
         .select()
@@ -536,6 +617,14 @@ export class PayrollDrizzleRepository implements PayrollRepository {
 
       if (!latestPeriod) return null;
       targetPeriodId = latestPeriod.id;
+      targetPeriod = latestPeriod;
+    } else {
+      const [p] = await this.db
+        .select()
+        .from(payrollPeriods)
+        .where(eq(payrollPeriods.id, targetPeriodId))
+        .limit(1);
+      targetPeriod = p;
     }
 
     const entries = await this.db
@@ -546,10 +635,18 @@ export class PayrollDrizzleRepository implements PayrollRepository {
           eq(payrollEntries.payrollPeriodId, targetPeriodId),
           eq(payrollEntries.staffProfileId, staffId),
         ),
-      );
+      )
+      .orderBy(desc(payrollEntries.createdAt));
+
+    const attIds = entries
+      .filter((e) => e.sourceType === 'attendance' && e.sourceId)
+      .map((e) => e.sourceId);
+    const attMap = await this.getAttendanceRecordsMap(attIds);
 
     let baseEarnings = 0;
     let baseHours = 0;
+    let deductionHours = 0;
+    let additionHours = 0;
     let leaveDeductions = 0;
     let replacementAdditions = 0;
 
@@ -561,29 +658,147 @@ export class PayrollDrizzleRepository implements PayrollRepository {
         baseHours += hrs;
       } else if (e.entryType === 'leave_deduction') {
         leaveDeductions += amt;
+        deductionHours += hrs;
       } else if (
         e.entryType === 'replacement_addition' ||
         e.entryType === 'overtime_addition'
       ) {
         replacementAdditions += amt;
+        additionHours += hrs;
       }
     }
 
-    const netPayroll = baseEarnings - leaveDeductions + replacementAdditions;
+    const grossEarnings = baseEarnings + replacementAdditions;
+    const netPayroll = grossEarnings - leaveDeductions;
+
+    const locale = this.clinicConfigService
+      ? await this.clinicConfigService.getLocale().catch(() => 'id-ID')
+      : 'id-ID';
+
+    const monthFormatter = new Intl.DateTimeFormat(locale, {
+      month: 'long',
+      year: 'numeric',
+      timeZone: 'UTC',
+    });
+
+    const monthLabel = targetPeriod?.periodStart
+      ? monthFormatter.format(new Date(`${targetPeriod.periodStart}T00:00:00Z`))
+      : undefined;
 
     return {
       staffId: staff.id,
+      staffCode: staff.staffCode || undefined,
       fullName: staff.fullName,
       staffType: staff.staffType,
       positionTitle: staff.positionTitle || undefined,
+      departmentName: staff.departmentName || undefined,
       practitionerId: staff.practitioners?.[0]?.id || null,
+      periodId: targetPeriod?.id,
+      periodName: targetPeriod?.periodName,
+      periodStart: targetPeriod?.periodStart,
+      periodEnd: targetPeriod?.periodEnd,
+      periodStatus: targetPeriod?.status,
+      monthLabel,
+      calculatedAt: targetPeriod?.calculatedAt
+        ? new Date(targetPeriod.calculatedAt)
+        : null,
       baseHours,
+      deductionHours: Number(deductionHours.toFixed(2)),
+      additionHours: Number(additionHours.toFixed(2)),
       baseEarnings,
+      grossEarnings,
       leaveDeductions,
       replacementAdditions,
       netPayroll,
-      entries: entries.map((e) => this.mapEntry(e)),
+      entries: entries.map((e) =>
+        this.mapEntry(e, e.sourceId ? attMap.get(e.sourceId) : undefined),
+      ),
     };
+  }
+
+  async getStaffPayrollHistory(
+    staffId: string,
+  ): Promise<MonthlyPayrollGroup[]> {
+    const periods = await this.db
+      .select()
+      .from(payrollPeriods)
+      .orderBy(desc(payrollPeriods.periodStart));
+
+    const locale = this.clinicConfigService
+      ? await this.clinicConfigService.getLocale().catch(() => 'id-ID')
+      : 'id-ID';
+
+    const monthFormatter = new Intl.DateTimeFormat(locale, {
+      month: 'long',
+      year: 'numeric',
+      timeZone: 'UTC',
+    });
+
+    const result: MonthlyPayrollGroup[] = [];
+
+    for (const period of periods) {
+      const entries = await this.db
+        .select()
+        .from(payrollEntries)
+        .where(
+          and(
+            eq(payrollEntries.payrollPeriodId, period.id),
+            eq(payrollEntries.staffProfileId, staffId),
+          ),
+        )
+        .orderBy(desc(payrollEntries.createdAt));
+
+      const attIds = entries
+        .filter((e) => e.sourceType === 'attendance' && e.sourceId)
+        .map((e) => e.sourceId);
+      const attMap = await this.getAttendanceRecordsMap(attIds);
+
+      let baseEarnings = 0;
+      let additionEarnings = 0;
+      let leaveDeductions = 0;
+      let totalHours = 0;
+
+      for (const e of entries) {
+        const amt = Number(e.amount);
+        const hrs = Number(e.quantityHours);
+        if (e.entryType === 'base_scheduled') {
+          baseEarnings += amt;
+          totalHours += hrs;
+        } else if (e.entryType === 'leave_deduction') {
+          leaveDeductions += amt;
+        } else if (
+          e.entryType === 'replacement_addition' ||
+          e.entryType === 'overtime_addition'
+        ) {
+          additionEarnings += amt;
+          totalHours += hrs;
+        }
+      }
+
+      const totalGross = baseEarnings + additionEarnings;
+      const totalNet = totalGross - leaveDeductions;
+
+      const dateObj = new Date(`${period.periodStart}T00:00:00Z`);
+      const monthLabel = monthFormatter.format(dateObj);
+
+      result.push({
+        periodId: period.id,
+        periodName: period.periodName,
+        periodStart: period.periodStart,
+        periodEnd: period.periodEnd,
+        periodStatus: period.status,
+        monthLabel,
+        totalNet,
+        totalGross,
+        totalDeductions: leaveDeductions,
+        totalHours: Number(totalHours.toFixed(2)),
+        entries: entries.map((e) =>
+        this.mapEntry(e, e.sourceId ? attMap.get(e.sourceId) : undefined),
+      ),
+      });
+    }
+
+    return result;
   }
 
   async finalizePeriod(
@@ -617,5 +832,129 @@ export class PayrollDrizzleRepository implements PayrollRepository {
       .returning();
 
     return this.mapPeriod(updated);
+  }
+
+  async recordAttendanceShift(
+    input: RecordAttendanceShiftInput,
+  ): Promise<PayrollEntryEntity> {
+    // 1. Locate open active payroll period that covers input.attendanceDate
+    let [activePeriod] = await this.db
+      .select()
+      .from(payrollPeriods)
+      .where(
+        and(
+          lte(payrollPeriods.periodStart, input.attendanceDate),
+          gte(payrollPeriods.periodEnd, input.attendanceDate),
+          ne(payrollPeriods.status, 'finalized'),
+        ),
+      )
+      .limit(1);
+
+    // If no exact date match, look for latest non-finalized period
+    if (!activePeriod) {
+      const [latestOpen] = await this.db
+        .select()
+        .from(payrollPeriods)
+        .where(ne(payrollPeriods.status, 'finalized'))
+        .orderBy(desc(payrollPeriods.periodStart))
+        .limit(1);
+      activePeriod = latestOpen;
+    }
+
+    // If still no open period, create an active period for the month
+    if (!activePeriod) {
+      const dateObj = new Date(input.attendanceDate);
+      const year = dateObj.getFullYear();
+      const month = dateObj.getMonth();
+      const locale = this.clinicConfigService
+        ? await this.clinicConfigService.getLocale().catch(() => 'id-ID')
+        : 'id-ID';
+      const monthName = new Intl.DateTimeFormat(locale, {
+        month: 'long',
+      }).format(dateObj);
+      const startOfMonth = new Date(year, month, 1).toISOString().split('T')[0];
+      const endOfMonth = new Date(year, month + 1, 0).toISOString().split('T')[0];
+      const periodName = `Payroll Periode ${monthName} ${year}`;
+
+      const [created] = await this.db
+        .insert(payrollPeriods)
+        .values({
+          periodStart: startOfMonth,
+          periodEnd: endOfMonth,
+          periodName,
+          status: 'calculated',
+          calculatedAt: new Date().toISOString(),
+          notes: 'Periode aktif dibuat otomatis oleh sistem presensi',
+        })
+        .returning();
+      activePeriod = created;
+    }
+
+    // 2. Fetch staff profile & active compensation rate
+    const [staff] = await this.db
+      .select()
+      .from(staffProfiles)
+      .where(eq(staffProfiles.id, input.staffProfileId))
+      .limit(1);
+
+    const staffType = staff?.staffType?.toLowerCase() || 'worker';
+    const rates = await this.db
+      .select()
+      .from(compensationRates)
+      .where(eq(compensationRates.isActive, true));
+
+    const rateRow = rates.find((r) => r.category.toLowerCase() === staffType);
+    const standardHourlyRate = Number(rateRow?.hourlyRate ?? 0);
+    const overtimeHourlyRate = Number(rateRow?.overtimeHourlyRate ?? 0);
+
+    const isReplacement = Boolean(input.isReplacement);
+    const effectiveHourlyRate = isReplacement
+      ? overtimeHourlyRate
+      : standardHourlyRate;
+
+    const entryType = isReplacement
+      ? 'replacement_addition'
+      : 'base_scheduled';
+
+    const validatedHours = Number(input.validatedDurationHours || 0);
+    const amount = Number((validatedHours * effectiveHourlyRate).toFixed(2));
+    const description = isReplacement
+      ? `Upah hari ini - Dinas Pengganti (${formatHours(validatedHours)} x Rp ${effectiveHourlyRate.toLocaleString('id-ID')})`
+      : `Upah hari ini - Pelayanan (${formatHours(validatedHours)} x Rp ${standardHourlyRate.toLocaleString('id-ID')})`;
+
+    // 3. Delete existing entry for this attendance record (idempotency)
+    await this.db
+      .delete(payrollEntries)
+      .where(
+        and(
+          eq(payrollEntries.sourceType, 'attendance'),
+          eq(payrollEntries.sourceId, input.attendanceRecordId),
+        ),
+      );
+
+    // 4. Insert shift earnings entry (Zero double-penalty: Early checkout paid strictly pro-rata for actual hours worked)
+    const [insertedEntry] = await this.db
+      .insert(payrollEntries)
+      .values({
+        payrollPeriodId: activePeriod.id,
+        staffProfileId: input.staffProfileId,
+        practitionerId: input.practitionerId || null,
+        entryType,
+        sourceType: 'attendance',
+        sourceId: input.attendanceRecordId,
+        quantityHours: validatedHours.toFixed(2),
+        hourlyRate: effectiveHourlyRate.toFixed(2),
+        amount: amount.toFixed(2),
+        description,
+      })
+      .returning();
+
+    const attMap = await this.getAttendanceRecordsMap([
+      input.attendanceRecordId,
+    ]);
+    return this.mapEntry(
+      insertedEntry,
+      attMap.get(input.attendanceRecordId),
+    );
   }
 }

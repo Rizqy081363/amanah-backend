@@ -10,6 +10,7 @@ import { CorrelationIdMiddleware } from './common/middleware/correlation-id.midd
 import { OutboxModule } from './common/outbox/outbox.module';
 import { RabbitMQModule } from './common/rabbitmq/rabbitmq.module';
 import { RedisModule } from './common/redis/redis.module';
+import { SchedulerModule } from './common/scheduler/scheduler.module';
 import { ClinicTimeModule } from './common/time/clinic-time.module';
 import appConfig from './config/app.config';
 import realtimeConfig from './config/realtime.config';
@@ -65,6 +66,7 @@ import { SupportTicketsModule } from './modules/support-tickets/support-tickets.
     ClinicTimeModule,
     LoggingModule,
     OutboxModule,
+    SchedulerModule,
     NotificationsModule,
     HealthModule,
     HomeModule,

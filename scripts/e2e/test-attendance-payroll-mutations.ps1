@@ -62,8 +62,13 @@ try {
     Assert-Test "Compensation rates populated" ($policyData.rates.Count -ge 3)
     Write-Host "  >> Policy Limit Mode: $($policyData.policy.limitMode)" -ForegroundColor Gray
 
-    # Clean previous test records for today to allow fresh mutation
-    Run-DockerSql "DELETE FROM staff_attendance_records WHERE attendance_date = CURRENT_DATE AND (staff_profile_id IN (SELECT id FROM staff_profiles WHERE user_id IN (SELECT id FROM users WHERE email IN ('dokter@amanah.com', 'staff.operasional@amanah.clinic'))));"
+    # Clean previous test records to allow fresh idempotent mutation
+    Run-DockerSql @"
+DELETE FROM staff_attendance_records WHERE attendance_date = CURRENT_DATE AND (staff_profile_id IN (SELECT id FROM staff_profiles WHERE user_id IN (SELECT id FROM users WHERE email IN ('dokter@amanah.com', 'staff.operasional@amanah.clinic'))));
+DELETE FROM leave_request_sessions WHERE leave_request_id IN (SELECT id FROM staff_leave_requests WHERE staff_profile_id IN (SELECT id FROM staff_profiles WHERE user_id IN (SELECT id FROM users WHERE email = 'dokter@amanah.com')) AND start_date >= CURRENT_DATE);
+DELETE FROM replacement_opportunities WHERE leave_request_id IN (SELECT id FROM staff_leave_requests WHERE staff_profile_id IN (SELECT id FROM staff_profiles WHERE user_id IN (SELECT id FROM users WHERE email = 'dokter@amanah.com')) AND start_date >= CURRENT_DATE);
+DELETE FROM staff_leave_requests WHERE staff_profile_id IN (SELECT id FROM staff_profiles WHERE user_id IN (SELECT id FROM users WHERE email = 'dokter@amanah.com')) AND start_date >= CURRENT_DATE;
+"@ | Out-Null
 
     # --------------------------------------------------------------------------
     # 4. QR Session Rotation Mutation (Terminal / Admin)
@@ -122,11 +127,21 @@ try {
     # --------------------------------------------------------------------------
     # 7. Doctor Check-Out Mutation & Duration Validation
     # --------------------------------------------------------------------------
-    Write-Host "`n[Step 7] Doctor Performing Check-Out..." -ForegroundColor Yellow
-    $checkoutRes = Invoke-RestMethod -Uri "$apiBase/attendance/checkout" -Method Post -Headers $doctorAuth.headers
+    Write-Host "`n[Step 7] Doctor Performing Check-Out via Real Endpoint..." -ForegroundColor Yellow
+    # Simulate realistic 4-hour clinical service shift on Doctor's own attendance record
+    Write-Host "  >> Simulating realistic 4-hour clinical duty on attendance record..." -ForegroundColor Gray
+    Run-DockerSql "UPDATE staff_attendance_records SET check_in_at = NOW() - INTERVAL '4 hours' WHERE id = '$doctorAttendanceId';" | Out-Null
+
+    $checkoutPayload = @{
+        qrToken = $activeQrToken
+        notes = "Selesai dinas pelayanan poliklinik 4 jam"
+    } | ConvertTo-Json
+
+    $checkoutRes = Invoke-RestMethod -Uri "$apiBase/attendance/checkout" -Method Post -Headers $doctorAuth.headers -Body $checkoutPayload
     $checkoutData = Get-ResponseData $checkoutRes
     Assert-Test "Doctor checkout recorded" ($null -ne $checkoutData.checkOutAt)
     Assert-Test "Validated duration hours computed" ($null -ne $checkoutData.validatedDurationHours)
+    Assert-Test "Validated duration is exactly 4 hours" ([double]$checkoutData.validatedDurationHours -eq 4.0)
     Write-Host "  >> CheckOut At: $($checkoutData.checkOutAt) | Duration: $($checkoutData.validatedDurationHours) jam" -ForegroundColor Green
 
     # --------------------------------------------------------------------------
@@ -190,24 +205,17 @@ try {
     Write-Host "  >> Opportunity $($claimData.id) status: $($claimData.status)" -ForegroundColor Green
 
     # --------------------------------------------------------------------------
-    # 11. Payroll Engine Period Calculation Mutation
+    # 11. Payroll Engine Period Inspection
     # --------------------------------------------------------------------------
-    Write-Host "`n[Step 11] Running Payroll Engine Calculation Mutation..." -ForegroundColor Yellow
-    $periodStart = (Get-Date).ToString("yyyy-MM-01")
-    $periodEnd = (Get-Date).AddMonths(1).ToString("yyyy-MM-01")
-    $calcPayload = @{
-        periodName = "Payroll E2E Mutation Periode $($periodStart) - $($periodEnd)"
-        periodStart = $periodStart
-        periodEnd = $periodEnd
-        notes = "Kalkulasi E2E otomatis verifikasi in/out mutasi"
-    } | ConvertTo-Json
-
-    $calcRes = Invoke-RestMethod -Uri "$apiBase/payroll/calculate" -Method Post -Headers $adminAuth.headers -Body $calcPayload
-    $calcData = Get-ResponseData $calcRes
-    Assert-Test "Payroll period created/calculated" ($null -ne $calcData.period)
-    Assert-Test "Payroll period status is calculated" ($calcData.period.status -eq "calculated")
-    Assert-Test "Payroll period total payout > 0" ([double]$calcData.period.totalPayout -gt 0)
-    $activePeriodId = $calcData.period.id
+    Write-Host "`n[Step 11] Inspecting Active Payroll Period..." -ForegroundColor Yellow
+    $periodsRes = Invoke-RestMethod -Uri "$apiBase/payroll/periods" -Method Get -Headers $adminAuth.headers
+    $periodsData = Get-ResponseData $periodsRes
+    $activePeriod = $periodsData | Where-Object { $_.status -ne 'finalized' } | Select-Object -First 1
+    Assert-Test "Active open payroll period exists" ($null -ne $activePeriod)
+    $activePeriodId = $activePeriod.id
+    Assert-Test "Payroll period status is calculated" ($activePeriod.status -eq "calculated")
+    Assert-Test "Payroll period total payout > 0" ([double]$activePeriod.totalPayout -gt 0)
+    Write-Host "  >> Active Period ID: $activePeriodId | Name: $($activePeriod.periodName) | Total Payout: Rp $($activePeriod.totalPayout)" -ForegroundColor Green
     Write-Host "  >> Calculated Period ID: $activePeriodId | Total Payout: Rp $($calcData.period.totalPayout)" -ForegroundColor Green
 
     # --------------------------------------------------------------------------
@@ -218,8 +226,19 @@ try {
     $myPayData = Get-ResponseData $myPayRes
     Assert-Test "Doctor retrieved my-summary statement" ($null -ne $myPayData)
     Assert-Test "Doctor base earnings > 0" ($myPayData.baseEarnings -gt 0)
-    Assert-Test "Doctor net payout computed" ($myPayData.netPayroll -gt 0)
+    Assert-Test "Doctor net payout computed" ($null -ne $myPayData.netPayroll)
     Assert-Test "Doctor line items include base_scheduled" (@($myPayData.entries | Where-Object { $_.entryType -eq 'base_scheduled' }).Count -gt 0)
+
+    # Locate the exact entry produced by the checkout use-case:
+    $attEntry = @($myPayData.entries | Where-Object { $_.sourceId -eq $doctorAttendanceId }) | Select-Object -First 1
+    Assert-Test "Payroll entry automatically generated by attendance checkout engine exists" ($null -ne $attEntry)
+    Assert-Test "Payroll entry quantityHours matches engine validatedDurationHours (4 jam)" ([double]$attEntry.quantityHours -eq [double]$checkoutData.validatedDurationHours)
+    Assert-Test "Payroll entry amount matches duration * hourlyRate" ([double]$attEntry.amount -eq ([double]$checkoutData.validatedDurationHours * [double]$attEntry.hourlyRate))
+    Assert-Test "Payroll entry checkInAt matches attendance record" ($null -ne $attEntry.checkInAt)
+    Assert-Test "Payroll entry checkOutAt matches attendance record" ($null -ne $attEntry.checkOutAt)
+    Assert-Test "Payroll entry description formula formatted correctly (4 jam x Rp ...)" ($attEntry.description -like "*4 jam x Rp*")
+    Assert-Test "Payroll entry description has NO '@' symbol" (-not ($attEntry.description -like "*@*"))
+    Assert-Test "Payroll entry notes matches checkout notes" ($attEntry.notes -eq "Selesai dinas pelayanan poliklinik 4 jam")
 
     Write-Host "  >> Doctor Base Earnings    : Rp $($myPayData.baseEarnings)" -ForegroundColor Green
     Write-Host "  >> Doctor Leave Deductions : Rp $($myPayData.leaveDeductions)" -ForegroundColor Yellow

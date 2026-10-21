@@ -5,7 +5,7 @@ RUN apk add --no-cache bash python3 make g++
 WORKDIR /usr/src/app
 ENV IS_DOCKER=true
 COPY package.json bun.lock ./
-RUN bun install --frozen-lockfile
+RUN --mount=type=cache,target=/root/.bun/install/cache bun install --frozen-lockfile
 
 COPY . .
 RUN bun run build
@@ -16,6 +16,7 @@ RUN apk add --no-cache bash curl tzdata && \
     cp /usr/share/zoneinfo/Asia/Jakarta /etc/localtime && \
     echo "Asia/Jakarta" > /etc/timezone
 WORKDIR /usr/src/app
+RUN mkdir -p /usr/src/app/config /usr/src/app/data/uploads
 
 COPY --from=builder /usr/src/app/package.json ./
 COPY --from=builder /usr/src/app/bun.lock ./
@@ -23,7 +24,6 @@ COPY --from=builder /usr/src/app/tsconfig.json ./tsconfig.json
 COPY --from=builder /usr/src/app/node_modules ./node_modules
 COPY --from=builder /usr/src/app/dist ./dist
 COPY --from=builder /usr/src/app/src ./src
-COPY --from=builder /usr/src/app/config ./config
 COPY --from=builder /usr/src/app/drizzle.config.ts ./drizzle.config.ts
 COPY --from=builder /usr/src/app/wait-for-it.sh /opt/wait-for-it.sh
 COPY --from=builder /usr/src/app/startup.relational.dev.sh /opt/startup.relational.dev.sh

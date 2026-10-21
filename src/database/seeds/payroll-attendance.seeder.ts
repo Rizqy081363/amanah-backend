@@ -51,58 +51,75 @@ async function runPayrollAttendanceSeeder() {
     const factory = new PayrollAttendanceFactory(db as any);
     await factory.init();
 
-    const today = new Date();
-    // Default period: Current Month (01 to last day of month)
-    const year = today.getFullYear();
-    const month = today.getMonth();
-    const pad = (n: number) => n.toString().padStart(2, '0');
+    console.log(`\n--- [Step 1/5] Cleaning Obsolete Test Periods ---`);
+    await db.delete(leaveTables.payrollPeriods);
+    console.log(`  ✓ Cleared legacy payroll periods and cascaded entries.`);
 
-    const periodStart = `${year}-${pad(month + 1)}-01`;
-    const lastDayOfMonth = new Date(year, month + 1, 0).getDate();
-    const periodEnd = `${year}-${pad(month + 1)}-${pad(lastDayOfMonth)}`;
-
-    console.log(`\n--- [Step 1/4] Ensuring Rosters & Doctor Assignments ---`);
+    console.log(`\n--- [Step 2/5] Ensuring Rosters & Doctor Assignments ---`);
     await factory.ensureRostersAndAssignments();
 
-    console.log(`\n--- [Step 2/4] Orchestrating Leave & Replacement Opportunities ---`);
-    const leaveDay = `${year}-${pad(month + 1)}-07`;
-    const { leaveId, opportunityId } = await factory.orchestrateLeaveAndReplacement(leaveDay);
+    console.log(`\n--- [Step 3/5] Orchestrating Leave & Attendance Scenarios ---`);
+    const leaveDay = `2026-10-07`;
+    const { opportunityId } = await factory.orchestrateLeaveAndReplacement(leaveDay);
 
-    console.log(`\n--- [Step 3/4] Orchestrating Realistic Attendance Scenarios ---`);
-    const regularDate = `${year}-${pad(month + 1)}-05`;
-    const lateDate = `${year}-${pad(month + 1)}-06`;
     await factory.orchestrateAttendanceRecords({
-      regularDate,
-      lateDate,
+      regularDate: '2026-10-05',
+      lateDate: '2026-10-06',
       replacementDate: leaveDay,
       opportunityId,
     });
 
-    console.log(`\n--- [Step 4/4] Executing Payroll Calculation Engine ---`);
-    const { period, summaries } = await factory.orchestratePayrollCalculation(
-      periodStart,
-      periodEnd,
-      `Payroll Periode ${periodStart} - ${periodEnd}`,
+    console.log(`  Orchestrating dr. Rizqy Wahyu 59 scenarios for September (Leave + Replacement)...`);
+    await factory.orchestrateRizqySeptemberScenarios();
+
+    console.log(`\n--- [Step 4/5] Executing 3-Month Payroll Calculation Engine ---`);
+
+    // 1. Agustus 2026 (Finalized)
+    console.log(`\n [Month 1/3] Processing Agustus 2026...`);
+    const augResult = await factory.orchestratePayrollCalculation(
+      '2026-08-01',
+      '2026-08-31',
+      'Payroll Periode Agustus 2026',
     );
+    await factory.finalizePeriod(augResult.period.id);
+    console.log(`  ✓ Finalized Agustus 2026 (ID: ${augResult.period.id})`);
+
+    // 2. September 2026 (Finalized, includes dr. Rizqy leaves & replacements)
+    console.log(`\n [Month 2/3] Processing September 2026...`);
+    const septResult = await factory.orchestratePayrollCalculation(
+      '2026-09-01',
+      '2026-09-30',
+      'Payroll Periode September 2026',
+    );
+    await factory.finalizePeriod(septResult.period.id);
+    console.log(`  ✓ Finalized September 2026 (ID: ${septResult.period.id})`);
+
+    // 3. Oktober 2026 (Calculated / Active Ongoing Period)
+    console.log(`\n [Month 3/3] Processing Oktober 2026 (Periode Berjalan)...`);
+    const octResult = await factory.orchestratePayrollCalculation(
+      '2026-10-01',
+      '2026-10-31',
+      'Payroll Periode Oktober 2026',
+    );
+    console.log(`  ✓ Calculated Oktober 2026 (ID: ${octResult.period.id}, status: calculated)`);
 
     console.log(`\n================================================================`);
-    console.log(` SEEDING & ENGINE ORCHESTRATION COMPLETED SUCCESSFULLY!`);
+    console.log(` SEEDING & 3-MONTH ENGINE ORCHESTRATION COMPLETED SUCCESSFULLY!`);
     console.log(`================================================================`);
-    console.log(` Period ID    : ${period.id}`);
-    console.log(` Period Name  : ${period.periodName}`);
-    console.log(` Dates        : ${period.periodStart} s/d ${period.periodEnd}`);
-    console.log(` Status       : ${period.status}`);
-    console.log(` Total Payout : Rp ${Number(period.totalPayout).toLocaleString('id-ID')}`);
-    console.log(` Summaries    : ${summaries.length} active employees computed\n`);
+    console.log(` Period 1 (Finalized) : ${augResult.period.periodName} (${augResult.period.periodStart} s/d ${augResult.period.periodEnd})`);
+    console.log(` Period 2 (Finalized) : ${septResult.period.periodName} (${septResult.period.periodStart} s/d ${septResult.period.periodEnd})`);
+    console.log(` Period 3 (Ongoing)   : ${octResult.period.periodName} (${octResult.period.periodStart} s/d ${octResult.period.periodEnd})\n`);
 
-    console.log(`Sample Calculated Payroll Line Items:`);
-    for (const s of summaries.slice(0, 3)) {
-      console.log(` • [${s.staffType.toUpperCase()}] ${s.fullName}:`);
-      console.log(`     - Base Scheduled  : Rp ${s.baseEarnings.toLocaleString('id-ID')} (${s.baseHours} hrs)`);
-      console.log(`     - Leave Deductions: Rp ${s.leaveDeductions.toLocaleString('id-ID')}`);
-      console.log(`     - Replacements    : Rp ${s.replacementAdditions.toLocaleString('id-ID')}`);
-      console.log(`     = NET PAYOUT (THP): Rp ${s.netPayroll.toLocaleString('id-ID')}`);
-      console.log(`     - Auditable Items : ${s.entries.length} payroll_entries`);
+    const rizqySummarySept = septResult.summaries.find(
+      (s: any) => s.email === 'rizqywahyu59@gmail.com',
+    );
+    if (rizqySummarySept) {
+      console.log(`Sample dr. Rizqy Wahyu 59 (September 2026):`);
+      console.log(` • Base Scheduled  : Rp ${rizqySummarySept.baseEarnings.toLocaleString('id-ID')} (${rizqySummarySept.baseHours} hrs)`);
+      console.log(` • Leave Deductions: Rp ${rizqySummarySept.leaveDeductions.toLocaleString('id-ID')} (${rizqySummarySept.deductionHours || 0} hrs)`);
+      console.log(` • Replacements    : Rp ${rizqySummarySept.replacementAdditions.toLocaleString('id-ID')} (${rizqySummarySept.additionHours || 0} hrs)`);
+      console.log(` = NET PAYOUT (THP): Rp ${rizqySummarySept.netPayroll.toLocaleString('id-ID')}`);
+      console.log(` • Entries Count   : ${rizqySummarySept.entries.length} items`);
     }
 
   } catch (error) {

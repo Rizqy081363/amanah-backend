@@ -3,9 +3,10 @@ FROM oven/bun:1.2.19-alpine
 RUN apk add --no-cache bash
 
 WORKDIR /usr/src/app
+ENV IS_DOCKER=true
 
 COPY package.json bun.lock ./
-RUN bun install --frozen-lockfile
+RUN --mount=type=cache,target=/root/.bun/install/cache bun install --frozen-lockfile
 
 COPY . .
 COPY ./wait-for-it.sh /opt/wait-for-it.sh

@@ -1,6 +1,10 @@
-import { Inject, Injectable, Optional } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { ClinicConfigService } from '../../../../common/clinic-config/clinic-config.service';
 import { ClinicTimeService } from '../../../../common/time/clinic-time.service';
+import {
+  PAYROLL_REPOSITORY,
+  PayrollRepository,
+} from '../../../payroll/domain/repositories/payroll.repository';
 import { calculateSessionNetHours } from '../../../schedules/domain/services/shift-duration.helper';
 import { AttendanceEntity } from '../../domain/entities/attendance.entity';
 import {
@@ -25,11 +29,16 @@ export interface CheckOutAttendanceInput {
 
 @Injectable()
 export class CheckOutAttendanceUseCase {
+  private readonly logger = new Logger(CheckOutAttendanceUseCase.name);
+
   constructor(
     @Inject(ATTENDANCE_REPOSITORY)
     private readonly repo: AttendanceRepository,
     private readonly timingService: AttendanceTimingService,
     private readonly notificationService: AttendanceNotificationService,
+    @Optional()
+    @Inject(PAYROLL_REPOSITORY)
+    private readonly payrollRepo?: PayrollRepository,
     @Optional()
     private readonly clinicTimeService?: ClinicTimeService,
     @Optional()
@@ -142,6 +151,31 @@ export class CheckOutAttendanceUseCase {
       );
     }
 
+    // Atomically record shift earnings into active payroll period
+    let earnedAmount = 0;
+    if (this.payrollRepo && timingEval.validatedDurationHours > 0) {
+      try {
+        const isReplacementShift = Boolean(
+          existing.isReplacement || existing.replacementOpportunityId,
+        );
+
+        const shiftEntry = await this.payrollRepo.recordAttendanceShift({
+          attendanceRecordId: updated.id,
+          staffProfileId: resolvedStaffId,
+          practitionerId: (staff as any)?.practitioners?.[0]?.id || null,
+          attendanceDate: todayStr,
+          validatedDurationHours: timingEval.validatedDurationHours,
+          isEarlyDeparture: timingEval.isEarlyDeparture,
+          isReplacement: isReplacementShift,
+        });
+        earnedAmount = Number(shiftEntry.amount || 0);
+      } catch (payrollErr) {
+        this.logger.error(
+          `Failed to record attendance shift payroll entry: ${String(payrollErr)}`,
+        );
+      }
+    }
+
     if (staff) {
       void this.notificationService.dispatchNotification(updated, 'check_out', {
         fullName: staff.fullName,
@@ -149,6 +183,7 @@ export class CheckOutAttendanceUseCase {
         userId: staff.userId,
         staffType: staff.staffType,
         avatarUrl: staff.avatarUrl,
+        earnedAmount,
       });
     }
 

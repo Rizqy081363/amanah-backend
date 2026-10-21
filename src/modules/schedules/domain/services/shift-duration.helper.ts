@@ -1,7 +1,36 @@
 /**
- * Helper utilitas murni untuk kalkulasi durasi shift, waktu istirahat,
- * dan jam kerja bersih (net billable hours) untuk scheduling dan payroll.
+ * Helper utilitas murni domain untuk kalkulasi durasi shift, waktu istirahat,
+ * dan jam kerja bersih (net billable hours) untuk scheduling dan penggajian.
+ *
+ * Menganut prinsip Functional Core: Murni matematis, bebas dependensi I/O,
+ * dan deterministik. Nilai konfigurasi istirahat diinjeksikan secara dinamis
+ * dari ClinicConfigService (tabel clinic_setting) oleh service pemanggil.
  */
+
+/**
+ * Batas minimum rasional durasi shift bersih (0.5 jam = 30 menit).
+ * Mencegah hasil nol atau negatif apabila durasi istirahat melampaui jam dinas kotor.
+ */
+export const MINIMUM_SESSION_NET_HOURS = 0.5;
+
+/**
+ * Durasi default jam kotor shift standar klinik apabila penanda waktu tidak lengkap.
+ */
+export const DEFAULT_SHIFT_GROSS_HOURS = 6.0;
+
+/**
+ * Konstanta rasio waktu untuk konversi menit ke jam.
+ */
+export const MINUTES_IN_AN_HOUR = 60;
+export const MIDDAY_MINUTES = 12 * MINUTES_IN_AN_HOUR;
+export const MIDNIGHT_MINUTES = 24 * MINUTES_IN_AN_HOUR;
+
+export interface SessionNetHoursParams {
+  startsAt: string;
+  endsAt: string;
+  breakMinutes?: number;
+  isBreakPaid?: boolean;
+}
 
 /**
  * Mengonversi format waktu 'HH:mm' atau 'HH:mm:ss' ke total menit sejak 00:00.
@@ -9,9 +38,9 @@
 export function parseTimeToMinutes(timeStr: string): number {
   if (!timeStr) return 0;
   const parts = timeStr.trim().split(':');
-  const h = Number(parts[0]) || 0;
-  const m = Number(parts[1]) || 0;
-  return h * 60 + m;
+  const hours = Number(parts[0]) || 0;
+  const minutes = Number(parts[1]) || 0;
+  return hours * MINUTES_IN_AN_HOUR + minutes;
 }
 
 /**
@@ -19,7 +48,9 @@ export function parseTimeToMinutes(timeStr: string): number {
  * Menangani kasus pergantian hari (midnight crossing) dan format 24:00.
  */
 export function calculateGrossHours(startsAt: string, endsAt: string): number {
-  if (!startsAt || !endsAt) return 6.0; // Standard fallback jika data parsial
+  if (!startsAt || !endsAt) {
+    return DEFAULT_SHIFT_GROSS_HOURS;
+  }
 
   const startMin = parseTimeToMinutes(startsAt);
   let endMin = parseTimeToMinutes(endsAt);
@@ -27,36 +58,42 @@ export function calculateGrossHours(startsAt: string, endsAt: string): number {
   // Khusus shift malam yang berakhir pada tengah malam: '24:00' atau '00:00'
   if (
     (endsAt.startsWith('24:') || endsAt.startsWith('00:')) &&
-    startMin >= 12 * 60
+    startMin >= MIDDAY_MINUTES
   ) {
-    endMin = 24 * 60;
+    endMin = MIDNIGHT_MINUTES;
   } else if (endMin <= startMin) {
-    // Midnight cross (misal: mulai 22:00, selesai 06:00)
-    endMin += 24 * 60;
+    // Penanganan midnight crossing (contoh: shift malam mulai 22:00, selesai 06:00)
+    endMin += MIDNIGHT_MINUTES;
   }
 
-  const diffMin = Math.max(0, endMin - startMin);
-  return Number((diffMin / 60).toFixed(2));
+  const diffMinutes = Math.max(0, endMin - startMin);
+  return Number((diffMinutes / MINUTES_IN_AN_HOUR).toFixed(2));
 }
 
 /**
- * Menghitung jam dinas bersih (net hours) yang diakui dan digaji setelah dikurangi istirahat.
+ * Menghitung jam dinas bersih (net billable hours) yang diakui dan digaji
+ * setelah dikurangi alokasi waktu istirahat yang tidak dibayar (unpaid break).
  */
-export function calculateSessionNetHours(params: {
-  startsAt: string;
-  endsAt: string;
-  breakMinutes?: number;
-  isBreakPaid?: boolean;
-}): number {
-  const { startsAt, endsAt, breakMinutes = 30, isBreakPaid = false } = params;
+export function calculateSessionNetHours(params: SessionNetHoursParams): number {
+  const {
+    startsAt,
+    endsAt,
+    breakMinutes = 0,
+    isBreakPaid = false,
+  } = params;
 
   const grossHours = calculateGrossHours(startsAt, endsAt);
+
+  // Jika istirahat tetap dibayar (paid break) atau tidak ada alokasi istirahat
   if (isBreakPaid || breakMinutes <= 0) {
     return grossHours;
   }
 
-  const breakHours = breakMinutes / 60;
-  // Menjamin batas minimal rasional jam dinas bersih 0.5 jam
-  const netHours = Math.max(0.5, grossHours - breakHours);
+  const breakHours = breakMinutes / MINUTES_IN_AN_HOUR;
+  const netHours = Math.max(
+    MINIMUM_SESSION_NET_HOURS,
+    grossHours - breakHours,
+  );
+
   return Number(netHours.toFixed(2));
 }

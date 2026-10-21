@@ -8,8 +8,6 @@ APP_CORS_ORIGINS=http://localhost:3000
 CLINIC_TIMEZONE=Asia/Jakarta
 PROCESS_TZ=Asia/Jakarta
 DB_TIMEZONE=Asia/Jakarta
-RUN_DB_MIGRATIONS=true
-RUN_DB_SEED=true
 WAIT_TIMEOUT_SECONDS=60
 
 # Observability & Logging (Pino)

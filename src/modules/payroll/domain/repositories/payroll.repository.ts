@@ -5,15 +5,51 @@ export const PAYROLL_REPOSITORY = 'PAYROLL_REPOSITORY';
 
 export interface PayrollSummary {
   staffId: string;
+  staffCode?: string;
   fullName: string;
   staffType: string;
   positionTitle?: string;
+  departmentName?: string;
   practitionerId?: string | null;
+  periodId?: string;
+  periodName?: string;
+  periodStart?: string;
+  periodEnd?: string;
+  periodStatus?: string;
+  monthLabel?: string;
+  calculatedAt?: Date | null;
   baseHours: number;
+  deductionHours: number;
+  additionHours: number;
   baseEarnings: number;
+  grossEarnings: number;
   leaveDeductions: number;
   replacementAdditions: number;
   netPayroll: number;
+  entries: PayrollEntryEntity[];
+}
+
+export interface RecordAttendanceShiftInput {
+  attendanceRecordId: string;
+  staffProfileId: string;
+  practitionerId?: string | null;
+  attendanceDate: string;
+  validatedDurationHours: number;
+  isEarlyDeparture?: boolean;
+  isReplacement?: boolean;
+}
+
+export interface MonthlyPayrollGroup {
+  periodId: string;
+  periodName: string;
+  periodStart: string;
+  periodEnd: string;
+  periodStatus: string;
+  monthLabel: string;
+  totalNet: number;
+  totalGross: number;
+  totalDeductions: number;
+  totalHours: number;
   entries: PayrollEntryEntity[];
 }
 
@@ -37,8 +73,14 @@ export interface PayrollRepository {
     staffId: string,
     periodId?: string,
   ): Promise<PayrollSummary | null>;
+  getStaffPayrollHistory(
+    staffId: string,
+  ): Promise<MonthlyPayrollGroup[]>;
   finalizePeriod(
     id: string,
     finalizedBy: string,
   ): Promise<PayrollPeriodEntity>;
+  recordAttendanceShift(
+    input: RecordAttendanceShiftInput,
+  ): Promise<PayrollEntryEntity>;
 }

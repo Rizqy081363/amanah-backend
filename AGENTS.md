@@ -8357,5 +8357,23 @@ The changelog is the historical record of contract evolution.
 
 The frontend consumes the contract; it does not invent or duplicate it.
 
-```
-```
+---
+
+# 46. Backend Docker Efficiency & Container Lifecycle Standards
+
+## 46.1 Core Principles
+1. **Fast Local-to-Docker Sync Over Image Rebuilding**:
+   - `bun run build` compiles `dist/` natively on the host and performs zero-build synchronization via `docker-sync.ts`.
+   - Never reintroduce `docker compose build` into routine `postbuild` hooks.
+2. **Context Minimization**:
+   - Verify `.dockerignore` excludes `backup/`, `logs/`, `data/`, and credentials. Transferred context must remain under 10 MB.
+3. **Layer Caching**:
+   - Dependency stages must use BuildKit cache mounts (`--mount=type=cache,target=/root/.bun/install/cache`).
+4. **Lifecycle State Handling**:
+   - **Running**: Copy `dist` + fast restart `api` (~1.5s).
+   - **Stopped**: Start stack + copy `dist` + restart.
+   - **Missing Image**: Single initial build + auto prune dangling images.
+5. **Standard Developer Commands**:
+   - Routine code edits: `bun run build`
+   - Dependency / Dockerfile changes: `bun run docker:reload`
+   - Routine disk maintenance: `bun run docker:prune`

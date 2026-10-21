@@ -16,6 +16,7 @@ export interface AttendanceNotificationStaffInfo {
   userId?: string | null;
   staffType?: string | null;
   avatarUrl?: string | null;
+  earnedAmount?: number;
 }
 
 @Injectable()
@@ -87,6 +88,7 @@ export class AttendanceNotificationService {
         isReplacement: Boolean(record.isReplacement),
         isEarlyDeparture: Boolean(record.isEarlyDeparture),
         notes: record.notes || null,
+        earnedAmount: staffInfo.earnedAmount || 0,
         action,
       };
 
@@ -144,13 +146,17 @@ export class AttendanceNotificationService {
         let priority: 'normal' | 'high' = 'normal';
 
         if (action === 'check_out') {
+          const earnedText = staffInfo.earnedAmount
+            ? ` Upah dinas Rp ${staffInfo.earnedAmount.toLocaleString('id-ID')} (${record.validatedDurationHours || 0} jam) telah masuk ke rekap gaji bulan berjalan.`
+            : ` Durasi kerja: ${record.validatedDurationHours || 0} jam.`;
+
           if (record.isEarlyDeparture) {
-            title = 'Peringatan: Kepulangan Lebih Awal (Early Departure)';
-            body = `Presensi pulang dinas lebih awal dicatat untuk ${staffName} (${categoryLabel}). Alasan: ${record.notes || '-'}. Durasi kerja diakui: ${record.validatedDurationHours || 0} jam.`;
+            title = 'Peringatan: Kepulangan Lebih Awal';
+            body = `Presensi pulang dinas lebih awal dicatat untuk ${staffName} (${categoryLabel}). Alasan: ${record.notes || '-'}.${earnedText}`;
             priority = 'high';
           } else {
             title = 'Presensi Pulang Berhasil';
-            body = `Presensi pulang dinas ${staffName} berhasil dicatat. Durasi kerja: ${record.validatedDurationHours || 0} jam.`;
+            body = `Presensi pulang dinas ${staffName} berhasil dicatat.${earnedText}`;
           }
         } else if (record.status === 'late') {
           title = 'Presensi Terlambat Dicatat';

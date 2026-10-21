@@ -412,6 +412,106 @@ export class PayrollAttendanceFactory {
   }
 
   /**
+   * Orchestrates leave deduction and replacement addition specifically for
+   * dr. Rizqy Wahyu 59 in September 2026 to showcase full variation.
+   */
+  async orchestrateRizqySeptemberScenarios(): Promise<void> {
+    const rizqyStaff = await this.db.query.staffProfiles.findFirst({
+      where: eq(staffProfiles.email, 'rizqywahyu59@gmail.com'),
+      with: { practitioners: true },
+    });
+
+    if (!rizqyStaff) {
+      console.log('  [Notice] dr. Rizqy Wahyu 59 profile not found, skipping specific scenarios.');
+      return;
+    }
+
+    const practitionerId = rizqyStaff.practitioners?.[0]?.id || null;
+
+    // 1. Leave on 2026-09-10
+    const leaveDate = '2026-09-10';
+    const existingLeave = await this.db
+      .select()
+      .from(staffLeaveRequests)
+      .where(
+        and(
+          eq(staffLeaveRequests.staffProfileId, rizqyStaff.id),
+          eq(staffLeaveRequests.startDate, leaveDate),
+        ),
+      );
+
+    if (existingLeave.length === 0) {
+      const [leave] = await this.db
+        .insert(staffLeaveRequests)
+        .values({
+          staffProfileId: rizqyStaff.id,
+          practitionerId,
+          requestType: 'annual_leave',
+          startDate: leaveDate,
+          endDate: leaveDate,
+          durationDays: 1,
+          reason: 'Izin menghadiri simposium kedokteran dan keluarga',
+          status: 'approved',
+          scope: 'session',
+          decisionSource: 'admin',
+          reviewedBy: this.adminUser.id,
+          reviewedAt: new Date().toISOString(),
+          reviewerNotes: 'Disetujui untuk pengembangan profesi medis',
+        })
+        .returning();
+
+      await this.db.insert(leaveRequestSessions).values({
+        leaveRequestId: leave.id,
+        sessionId: this.morningSession.id,
+        workDate: leaveDate,
+      });
+
+      console.log(`  ✓ Created approved leave for dr. Rizqy Wahyu 59 on ${leaveDate}`);
+    }
+
+    // 2. Replacement shift worked by dr. Rizqy on 2026-09-22
+    const replaceDate = '2026-09-22';
+    const existingAttendance = await this.db
+      .select()
+      .from(staffAttendanceRecords)
+      .where(
+        and(
+          eq(staffAttendanceRecords.staffProfileId, rizqyStaff.id),
+          eq(staffAttendanceRecords.attendanceDate, replaceDate),
+        ),
+      );
+
+    if (existingAttendance.length === 0) {
+      await this.db.insert(staffAttendanceRecords).values({
+        staffProfileId: rizqyStaff.id,
+        sessionId: this.morningSession.id,
+        unitId: this.activeUnit.id,
+        roomId: this.defaultRoom?.id || null,
+        attendanceDate: replaceDate,
+        shift: 'morning',
+        status: 'present',
+        expectedCheckInAt: `${replaceDate}T08:00:00+07:00`,
+        checkInAt: `${replaceDate}T07:50:00+07:00`,
+        checkOutAt: `${replaceDate}T14:00:00+07:00`,
+        lateMinutes: 0,
+        validatedDurationHours: '6.00',
+        isReplacement: true,
+        recordedMethod: 'qr_scan',
+        notes: 'Dinas pengganti poli umum (6.00 jam insentif)',
+      });
+      console.log(`  ✓ Created replacement shift worked by dr. Rizqy Wahyu 59 on ${replaceDate}`);
+    }
+  }
+
+  /**
+   * Finalizes an existing period to mark it as closed/paid.
+   */
+  async finalizePeriod(periodId: string): Promise<any> {
+    const payrollRepo = new PayrollDrizzleRepository(this.db as any);
+    return payrollRepo.finalizePeriod(periodId, this.adminUser.id);
+  }
+
+  /**
    * Invokes the real PayrollDrizzleRepository calculation engine
    * rather than fabricating synthetic totals.
    */

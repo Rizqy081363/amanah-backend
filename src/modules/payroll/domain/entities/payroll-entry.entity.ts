@@ -19,5 +19,9 @@ export class PayrollEntryEntity {
   hourlyRate: number;
   amount: number;
   description?: string | null;
+  checkInAt?: string | null;
+  checkOutAt?: string | null;
+  isEarlyDeparture?: boolean;
+  notes?: string | null;
   createdAt: Date;
 }

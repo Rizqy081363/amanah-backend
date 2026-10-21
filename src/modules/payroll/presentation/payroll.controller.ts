@@ -30,6 +30,8 @@ import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
 import { Roles } from '../../../common/auth/roles.decorator';
 import { RolesGuard } from '../../../common/auth/roles.guard';
 import { Idempotent } from '../../../common/decorators/idempotent.decorator';
+import { Optional } from '@nestjs/common';
+import { DailyLeavePayrollService } from '../application/services/daily-leave-payroll.service';
 import {
   PAYROLL_REPOSITORY,
   PayrollRepository,
@@ -50,7 +52,35 @@ export class PayrollController {
   constructor(
     @Inject(PAYROLL_REPOSITORY)
     private readonly payrollRepo: PayrollRepository,
+    @Optional()
+    private readonly dailyLeaveService?: DailyLeavePayrollService,
   ) {}
+
+  @Post('reconcile-leave')
+  @Roles('ADMIN')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Admin memicu konsolidasi pemotongan cuti harian on-demand',
+    description:
+      'Menghitung dan memotong cuti yang disetujui untuk tanggal tertentu atau rentang tanggal serta mengirimkan notifikasi.',
+  })
+  async reconcileDailyLeave(
+    @Query('targetDate') targetDate?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('force') force?: string,
+  ) {
+    if (!this.dailyLeaveService) {
+      throw new Error('DailyLeavePayrollService is not available');
+    }
+    const forceAllShifts = force === 'false' ? false : true;
+    return this.dailyLeaveService.processDailyLeave({
+      targetDate,
+      startDate,
+      endDate,
+      forceAllShifts,
+    });
+  }
 
   @Get('periods')
   @Roles('ADMIN', 'STAF')
@@ -177,13 +207,36 @@ export class PayrollController {
     );
     return summary || {
       staffId: user.staff.id,
+      staffCode: user.staff.staffCode || undefined,
       fullName: user.name,
+      staffType: user.staff.staffType || 'worker',
+      positionTitle: user.staff.positionTitle || undefined,
+      departmentName: user.staff.departmentName || undefined,
+      periodId,
       baseHours: 0,
+      deductionHours: 0,
+      additionHours: 0,
       baseEarnings: 0,
+      grossEarnings: 0,
       leaveDeductions: 0,
       replacementAdditions: 0,
       netPayroll: 0,
       entries: [],
     };
+  }
+
+  @Get('my-history')
+  @Roles('STAF')
+  @ApiOperation({
+    summary: 'Staf / Dokter melihat riwayat penggajian buku besar per bulan (Mobile App Screen 2)',
+    description:
+      'Menampilkan riwayat buku besar penggajian dikelompokkan per bulan beserta rincian transaksi harian.',
+  })
+  @ApiOkResponse({ description: 'Riwayat buku besar penggajian staf berhasil diambil' })
+  async getMyPayrollHistory(@CurrentUser() user: any) {
+    if (!user.staff?.id) {
+      throw new ForbiddenException('User bukan staf terdaftar');
+    }
+    return this.payrollRepo.getStaffPayrollHistory(user.staff.id);
   }
 }
