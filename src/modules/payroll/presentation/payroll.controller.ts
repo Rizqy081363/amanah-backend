@@ -7,6 +7,7 @@ import {
   HttpStatus,
   Inject,
   NotFoundException,
+  Optional,
   Param,
   Patch,
   Post,
@@ -30,7 +31,6 @@ import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
 import { Roles } from '../../../common/auth/roles.decorator';
 import { RolesGuard } from '../../../common/auth/roles.guard';
 import { Idempotent } from '../../../common/decorators/idempotent.decorator';
-import { Optional } from '@nestjs/common';
 import { DailyLeavePayrollService } from '../application/services/daily-leave-payroll.service';
 import {
   PAYROLL_REPOSITORY,
@@ -82,6 +82,19 @@ export class PayrollController {
     });
   }
 
+  @Get('filter-options')
+  @Roles('ADMIN')
+  @ApiOperation({
+    summary:
+      'Admin mendapatkan opsi filter penggajian dinamis (Web Dashboard & Mobile)',
+    description:
+      'Menampilkan opsi kategori staf, daftar periode aktif, dan status buku besar penggajian.',
+  })
+  @ApiOkResponse({ description: 'Opsi filter penggajian berhasil diambil' })
+  async getFilterOptions() {
+    return this.payrollRepo.getPayrollFilterOptions();
+  }
+
   @Get('periods')
   @Roles('ADMIN', 'STAF')
   @ApiOperation({
@@ -105,12 +118,16 @@ export class PayrollController {
     name: 'id',
     description: 'ID periode payroll (UUID)',
   })
-  @ApiOkResponse({ description: 'Detail periode dan rekap gaji staf berhasil diambil' })
+  @ApiOkResponse({
+    description: 'Detail periode dan rekap gaji staf berhasil diambil',
+  })
   @ApiNotFoundResponse({ description: 'Periode tidak ditemukan' })
   async getPeriodDetail(@Param('id') id: string) {
     const result = await this.payrollRepo.findPeriodWithSummaries(id);
     if (!result) {
-      throw new NotFoundException(`Periode payroll dengan ID ${id} tidak ditemukan`);
+      throw new NotFoundException(
+        `Periode payroll dengan ID ${id} tidak ditemukan`,
+      );
     }
     return result;
   }
@@ -149,7 +166,9 @@ export class PayrollController {
     name: 'id',
     description: 'ID periode payroll (UUID)',
   })
-  @ApiOkResponse({ description: 'Periode payroll berhasil ditutup buku (FINALIZED)' })
+  @ApiOkResponse({
+    description: 'Periode payroll berhasil ditutup buku (FINALIZED)',
+  })
   @ApiNotFoundResponse({ description: 'Periode tidak ditemukan' })
   async finalizePeriod(@Param('id') id: string, @CurrentUser() user: any) {
     return this.payrollRepo.finalizePeriod(id, user.id);
@@ -158,7 +177,8 @@ export class PayrollController {
   @Get('staff/:staffId')
   @Roles('ADMIN')
   @ApiOperation({
-    summary: 'Admin melihat rincian kalkulasi gaji seorang staf (Web Dashboard)',
+    summary:
+      'Admin melihat rincian kalkulasi gaji seorang staf (Web Dashboard)',
     description:
       'Menampilkan rincian earnings pokok, pemotongan izin, dan penambahan pengganti staf.',
   })
@@ -197,7 +217,10 @@ export class PayrollController {
     description: 'ID periode penggajian tertentu',
   })
   @ApiOkResponse({ description: 'Ringkasan gaji staf berhasil diambil' })
-  async getMyPayroll(@CurrentUser() user: any, @Query('periodId') periodId?: string) {
+  async getMyPayroll(
+    @CurrentUser() user: any,
+    @Query('periodId') periodId?: string,
+  ) {
     if (!user.staff?.id) {
       throw new ForbiddenException('User bukan staf terdaftar');
     }
@@ -205,34 +228,39 @@ export class PayrollController {
       user.staff.id,
       periodId,
     );
-    return summary || {
-      staffId: user.staff.id,
-      staffCode: user.staff.staffCode || undefined,
-      fullName: user.name,
-      staffType: user.staff.staffType || 'worker',
-      positionTitle: user.staff.positionTitle || undefined,
-      departmentName: user.staff.departmentName || undefined,
-      periodId,
-      baseHours: 0,
-      deductionHours: 0,
-      additionHours: 0,
-      baseEarnings: 0,
-      grossEarnings: 0,
-      leaveDeductions: 0,
-      replacementAdditions: 0,
-      netPayroll: 0,
-      entries: [],
-    };
+    return (
+      summary || {
+        staffId: user.staff.id,
+        staffCode: user.staff.staffCode || undefined,
+        fullName: user.name,
+        staffType: user.staff.staffType || 'worker',
+        positionTitle: user.staff.positionTitle || undefined,
+        departmentName: user.staff.departmentName || undefined,
+        periodId,
+        baseHours: 0,
+        deductionHours: 0,
+        additionHours: 0,
+        baseEarnings: 0,
+        grossEarnings: 0,
+        leaveDeductions: 0,
+        replacementAdditions: 0,
+        netPayroll: 0,
+        entries: [],
+      }
+    );
   }
 
   @Get('my-history')
   @Roles('STAF')
   @ApiOperation({
-    summary: 'Staf / Dokter melihat riwayat penggajian buku besar per bulan (Mobile App Screen 2)',
+    summary:
+      'Staf / Dokter melihat riwayat penggajian buku besar per bulan (Mobile App Screen 2)',
     description:
       'Menampilkan riwayat buku besar penggajian dikelompokkan per bulan beserta rincian transaksi harian.',
   })
-  @ApiOkResponse({ description: 'Riwayat buku besar penggajian staf berhasil diambil' })
+  @ApiOkResponse({
+    description: 'Riwayat buku besar penggajian staf berhasil diambil',
+  })
   async getMyPayrollHistory(@CurrentUser() user: any) {
     if (!user.staff?.id) {
       throw new ForbiddenException('User bukan staf terdaftar');

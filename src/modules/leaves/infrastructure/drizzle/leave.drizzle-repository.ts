@@ -619,6 +619,7 @@ export class LeaveDrizzleRepository implements LeaveRepository {
             profession: r.staffProfile.positionTitle,
             idCardNumber: r.staffProfile.staffCode,
             staffType: r.staffProfile.staffType,
+            avatarUrl: r.staffProfile.avatarUrl || null,
           }
         : null,
     }));
@@ -656,6 +657,7 @@ export class LeaveDrizzleRepository implements LeaveRepository {
               profession: r.staffProfile.positionTitle,
               idCardNumber: r.staffProfile.staffCode,
               staffType: r.staffProfile.staffType,
+              avatarUrl: r.staffProfile.avatarUrl || null,
             }
           : null,
       }));

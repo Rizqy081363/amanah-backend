@@ -1,5 +1,16 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
-import { and, desc, eq, gte, inArray, isNull, like, lte, ne, or } from 'drizzle-orm';
+import {
+  and,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNull,
+  like,
+  lte,
+  ne,
+  or,
+} from 'drizzle-orm';
 import { ClinicConfigService } from '../../../../common/clinic-config/clinic-config.service';
 import { ClinicTimeService } from '../../../../common/time/clinic-time.service';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
@@ -15,10 +26,10 @@ import {
   staffProfiles,
   staffRosters,
 } from '../../../../database/schema';
-import { calculateSessionNetHours } from '../../../schedules/domain/services/shift-duration.helper';
 import { NotificationGatewayService } from '../../../notifications/application/services/notification-gateway.service';
 import { SocketIoRealtimeGateway } from '../../../notifications/infrastructure/realtime/socket-io-realtime.gateway';
 import { REALTIME_GATEWAY_PORT } from '../../../notifications/notifications.constants';
+import { calculateSessionNetHours } from '../../../schedules/domain/services/shift-duration.helper';
 
 export interface DailyLeaveProcessOptions {
   targetDate?: string;
@@ -182,8 +193,7 @@ export class DailyLeavePayrollService {
 
     // Check if targetDate is today to evaluate shift-end condition
     const todayStr =
-      this.clinicTimeService?.today() ||
-      new Date().toISOString().split('T')[0];
+      this.clinicTimeService?.today() || new Date().toISOString().split('T')[0];
     const isToday = targetDate === todayStr;
 
     // Current time in minutes from 00:00
@@ -219,7 +229,10 @@ export class DailyLeavePayrollService {
         let totalLeaveHours = 0;
         let latestShiftEndMinutes = 0;
         const leaveRequestIds: string[] = [];
-        const sessionMap = new Map<string, { startsAt: string; endsAt: string }>();
+        const sessionMap = new Map<
+          string,
+          { startsAt: string; endsAt: string }
+        >();
 
         for (const leave of staffLeaves) {
           leaveRequestIds.push(leave.id);
@@ -265,7 +278,8 @@ export class DailyLeavePayrollService {
                 ),
               );
 
-            let doctorSessions: Array<{ startsAt: string; endsAt: string }> = [];
+            let doctorSessions: Array<{ startsAt: string; endsAt: string }> =
+              [];
             const practitionerId = staff.practitioners?.[0]?.id;
             if (practitionerId) {
               const explicitSessions = await this.db
@@ -349,8 +363,15 @@ export class DailyLeavePayrollService {
 
         // Dynamic Shift-End Condition:
         // For today's automated sweeper runs (not forced), only process if the staff's shift has already finished
-        if (!forceAllShifts && isToday && currentMinutes < latestShiftEndMinutes) {
-          const endHH = String(Math.floor(latestShiftEndMinutes / 60)).padStart(2, '0');
+        if (
+          !forceAllShifts &&
+          isToday &&
+          currentMinutes < latestShiftEndMinutes
+        ) {
+          const endHH = String(Math.floor(latestShiftEndMinutes / 60)).padStart(
+            2,
+            '0',
+          );
           const endMM = String(latestShiftEndMinutes % 60).padStart(2, '0');
           this.logger.log(
             `[DailyLeavePayroll] Staff "${staff.fullName}" shift ends at ${endHH}:${endMM}. Current time is ${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}. Skipping until shift completion.`,
@@ -466,7 +487,9 @@ export class DailyLeavePayrollService {
         month: 'long',
       }).format(dateObj);
       const startOfMonth = new Date(year, month, 1).toISOString().split('T')[0];
-      const endOfMonth = new Date(year, month + 1, 0).toISOString().split('T')[0];
+      const endOfMonth = new Date(year, month + 1, 0)
+        .toISOString()
+        .split('T')[0];
       const periodName = `Payroll Periode ${monthName} ${year}`;
 
       const [created] = await this.db
@@ -538,11 +561,9 @@ export class DailyLeavePayrollService {
         'payroll:leave_deduction_applied',
         payload,
       );
-      void this.realtimeGateway.emitToRoom?.(
-        'role:admin',
-        'payroll:refresh',
-        { date: targetDate },
-      );
+      void this.realtimeGateway.emitToRoom?.('role:admin', 'payroll:refresh', {
+        date: targetDate,
+      });
     }
 
     // 2. In-App and Push Notification Center

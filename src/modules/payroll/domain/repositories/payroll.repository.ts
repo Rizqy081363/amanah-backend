@@ -53,6 +53,18 @@ export interface MonthlyPayrollGroup {
   entries: PayrollEntryEntity[];
 }
 
+export interface PayrollFilterOptions {
+  categories: Array<{ id: string; label: string }>;
+  periods: Array<{
+    id: string;
+    name: string;
+    status: string;
+    periodStart: string;
+    periodEnd: string;
+  }>;
+  statuses: Array<{ id: string; label: string }>;
+}
+
 export interface PayrollRepository {
   findPeriods(): Promise<PayrollPeriodEntity[]>;
   findPeriodById(id: string): Promise<PayrollPeriodEntity | null>;
@@ -73,14 +85,10 @@ export interface PayrollRepository {
     staffId: string,
     periodId?: string,
   ): Promise<PayrollSummary | null>;
-  getStaffPayrollHistory(
-    staffId: string,
-  ): Promise<MonthlyPayrollGroup[]>;
-  finalizePeriod(
-    id: string,
-    finalizedBy: string,
-  ): Promise<PayrollPeriodEntity>;
+  getStaffPayrollHistory(staffId: string): Promise<MonthlyPayrollGroup[]>;
+  finalizePeriod(id: string, finalizedBy: string): Promise<PayrollPeriodEntity>;
   recordAttendanceShift(
     input: RecordAttendanceShiftInput,
   ): Promise<PayrollEntryEntity>;
+  getPayrollFilterOptions(): Promise<PayrollFilterOptions>;
 }

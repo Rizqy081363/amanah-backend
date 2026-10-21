@@ -27,6 +27,7 @@ import { PayrollEntryEntity } from '../../domain/entities/payroll-entry.entity';
 import { PayrollPeriodEntity } from '../../domain/entities/payroll-period.entity';
 import {
   MonthlyPayrollGroup,
+  PayrollFilterOptions,
   PayrollRepository,
   PayrollSummary,
   RecordAttendanceShiftInput,
@@ -248,7 +249,9 @@ export class PayrollDrizzleRepository implements PayrollRepository {
         periodEnd: period.periodEnd,
         periodStatus: period.status,
         monthLabel,
-        calculatedAt: period.calculatedAt ? new Date(period.calculatedAt) : null,
+        calculatedAt: period.calculatedAt
+          ? new Date(period.calculatedAt)
+          : null,
         baseHours,
         deductionHours: Number(deductionHours.toFixed(2)),
         additionHours: Number(additionHours.toFixed(2)),
@@ -284,10 +287,7 @@ export class PayrollDrizzleRepository implements PayrollRepository {
       .from(compensationRates)
       .where(eq(compensationRates.isActive, true));
 
-    const rateMap = new Map<
-      string,
-      { hourly: number; overtime: number }
-    >();
+    const rateMap = new Map<string, { hourly: number; overtime: number }>();
     for (const r of rates) {
       rateMap.set(r.category, {
         hourly: Number(r.hourlyRate),
@@ -793,8 +793,8 @@ export class PayrollDrizzleRepository implements PayrollRepository {
         totalDeductions: leaveDeductions,
         totalHours: Number(totalHours.toFixed(2)),
         entries: entries.map((e) =>
-        this.mapEntry(e, e.sourceId ? attMap.get(e.sourceId) : undefined),
-      ),
+          this.mapEntry(e, e.sourceId ? attMap.get(e.sourceId) : undefined),
+        ),
       });
     }
 
@@ -812,7 +812,9 @@ export class PayrollDrizzleRepository implements PayrollRepository {
       .limit(1);
 
     if (!period) {
-      throw new NotFoundException(`Periode payroll dengan ID ${id} tidak ditemukan`);
+      throw new NotFoundException(
+        `Periode payroll dengan ID ${id} tidak ditemukan`,
+      );
     }
 
     if (period.status === 'finalized') {
@@ -873,7 +875,9 @@ export class PayrollDrizzleRepository implements PayrollRepository {
         month: 'long',
       }).format(dateObj);
       const startOfMonth = new Date(year, month, 1).toISOString().split('T')[0];
-      const endOfMonth = new Date(year, month + 1, 0).toISOString().split('T')[0];
+      const endOfMonth = new Date(year, month + 1, 0)
+        .toISOString()
+        .split('T')[0];
       const periodName = `Payroll Periode ${monthName} ${year}`;
 
       const [created] = await this.db
@@ -912,9 +916,7 @@ export class PayrollDrizzleRepository implements PayrollRepository {
       ? overtimeHourlyRate
       : standardHourlyRate;
 
-    const entryType = isReplacement
-      ? 'replacement_addition'
-      : 'base_scheduled';
+    const entryType = isReplacement ? 'replacement_addition' : 'base_scheduled';
 
     const validatedHours = Number(input.validatedDurationHours || 0);
     const amount = Number((validatedHours * effectiveHourlyRate).toFixed(2));
@@ -952,9 +954,33 @@ export class PayrollDrizzleRepository implements PayrollRepository {
     const attMap = await this.getAttendanceRecordsMap([
       input.attendanceRecordId,
     ]);
-    return this.mapEntry(
-      insertedEntry,
-      attMap.get(input.attendanceRecordId),
-    );
+    return this.mapEntry(insertedEntry, attMap.get(input.attendanceRecordId));
+  }
+
+  async getPayrollFilterOptions(): Promise<PayrollFilterOptions> {
+    const periods = await this.db
+      .select({
+        id: payrollPeriods.id,
+        name: payrollPeriods.periodName,
+        status: payrollPeriods.status,
+        periodStart: payrollPeriods.periodStart,
+        periodEnd: payrollPeriods.periodEnd,
+      })
+      .from(payrollPeriods)
+      .orderBy(desc(payrollPeriods.periodStart));
+
+    return {
+      categories: [
+        { id: 'doctor', label: 'Dokter' },
+        { id: 'midwife', label: 'Bidan' },
+        { id: 'worker', label: 'Staf Operasional' },
+      ],
+      periods,
+      statuses: [
+        { id: 'draft', label: 'Draf' },
+        { id: 'calculated', label: 'Terkalkulasi' },
+        { id: 'finalized', label: 'Ditutup Buku' },
+      ],
+    };
   }
 }

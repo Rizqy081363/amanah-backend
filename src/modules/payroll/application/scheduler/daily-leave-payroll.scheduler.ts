@@ -4,10 +4,7 @@ import {
   Logger,
   OnApplicationBootstrap,
 } from '@nestjs/common';
-import {
-  ISchedulerPort,
-  SCHEDULER_PORT,
-} from '../../../../common/scheduler';
+import { ISchedulerPort, SCHEDULER_PORT } from '../../../../common/scheduler';
 import { DailyLeavePayrollService } from '../services/daily-leave-payroll.service';
 
 @Injectable()
@@ -37,7 +34,9 @@ export class DailyLeavePayrollScheduler implements OnApplicationBootstrap {
         },
       });
 
-      this.logger.log('Daily leave payroll dynamic job registered successfully.');
+      this.logger.log(
+        'Daily leave payroll dynamic job registered successfully.',
+      );
     } catch (err) {
       this.logger.error(
         `Failed to register daily leave payroll scheduler job: ${String(err)}`,
