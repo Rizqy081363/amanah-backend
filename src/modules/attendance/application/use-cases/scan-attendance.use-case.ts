@@ -43,22 +43,11 @@ export class ScanAttendanceUseCase {
     const targetDateObj = new Date(todayStr + 'T12:00:00Z');
     const dow = targetDateObj.getDay();
 
-    // 0. Duplicate Guard: Disallow multiple check-ins on the same day
-    const existing = await this.repo.findStaffAttendanceForDate(
-      input.staffId,
-      todayStr,
-    );
-    if (existing && existing.checkInAt) {
-      throw new DuplicateAttendanceException(
-        'Staf sudah melakukan presensi masuk untuk tanggal ini.',
-      );
-    }
-
     let shift = normalizeShift(input.shift);
     let resolvedSessionId: string | null = input.sessionId || null;
     let qrSessionId: string | null = null;
 
-    // 1. Verify dynamic QR session token if provided
+    // 0. Verify dynamic QR session token if provided
     if (input.qrToken) {
       let tokenToVerify = input.qrToken.trim();
       if (tokenToVerify.startsWith('{') && tokenToVerify.endsWith('}')) {
@@ -80,6 +69,17 @@ export class ScanAttendanceUseCase {
       if (qrSession.shift) {
         shift = normalizeShift(qrSession.shift);
       }
+    }
+
+    // 1. Duplicate Guard: Disallow multiple check-ins on the same day
+    const existing = await this.repo.findStaffAttendanceForDate(
+      input.staffId,
+      todayStr,
+    );
+    if (existing && existing.checkInAt) {
+      throw new DuplicateAttendanceException(
+        'Staf sudah melakukan presensi masuk untuk tanggal ini.',
+      );
     }
 
     // 2. Resolve matching session definition from time if not supplied

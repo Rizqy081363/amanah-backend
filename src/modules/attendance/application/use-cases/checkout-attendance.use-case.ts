@@ -18,12 +18,14 @@ import {
   AttendanceRepository,
 } from '../../domain/repositories/attendance.repository';
 import { AttendanceTimingService } from '../../domain/services/attendance-timing.service';
+import { CheckoutTicketService } from '../../domain/services/checkout-ticket.service';
 import { AttendanceNotificationService } from '../services/attendance-notification.service';
 
 export interface CheckOutAttendanceInput {
   staffId: string;
   attendanceDate?: string;
   qrToken?: string;
+  checkoutTicket?: string;
   notes?: string;
 }
 
@@ -36,6 +38,7 @@ export class CheckOutAttendanceUseCase {
     private readonly repo: AttendanceRepository,
     private readonly timingService: AttendanceTimingService,
     private readonly notificationService: AttendanceNotificationService,
+    private readonly ticketService: CheckoutTicketService,
     @Optional()
     @Inject(PAYROLL_REPOSITORY)
     private readonly payrollRepo?: PayrollRepository,
@@ -46,8 +49,52 @@ export class CheckOutAttendanceUseCase {
   ) {}
 
   async execute(input: CheckOutAttendanceInput): Promise<AttendanceEntity> {
-    // 0. Verify dynamic QR session token if provided (Proximity Proof)
-    if (input.qrToken) {
+    const staff = await this.repo.resolveStaffByIdOrCode(input.staffId);
+    const resolvedStaffId = staff ? staff.id : input.staffId;
+
+    const todayStr = input.attendanceDate
+      ? this.clinicTimeService
+        ? this.clinicTimeService.normalizeDate(input.attendanceDate)
+        : input.attendanceDate
+      : this.clinicTimeService?.today() ?? new Date().toISOString().split('T')[0];
+
+    // 0. Proximity Proof Verification (Two-Phase: Bounded Ticket OR Dynamic QR Scan)
+    let proximityVerified = false;
+
+    // Fase 2: Validasi melalui Bounded Domain Ticket (3 Menit Server-Authoritative)
+    if (input.checkoutTicket) {
+      const existingRecord = await this.repo.findStaffAttendanceForDate(
+        resolvedStaffId,
+        todayStr,
+      );
+
+      if (!existingRecord) {
+        throw new AttendanceRecordNotFoundException();
+      }
+
+      const ticketCheck = this.ticketService.verifyTicket(
+        input.checkoutTicket,
+        resolvedStaffId,
+        existingRecord.id,
+      );
+
+      if (ticketCheck.isExpired) {
+        throw new InvalidQrTokenException(
+          'Tiket presensi pulang kedaluwarsa (melebihi 3 menit). Silakan scan ulang QR code di terminal klinik.',
+        );
+      }
+
+      if (!ticketCheck.isValid) {
+        throw new InvalidQrTokenException(
+          'Tiket presensi pulang tidak valid.',
+        );
+      }
+
+      proximityVerified = true;
+    }
+
+    // Fase 1: Validasi melalui Dynamic Terminal QR Token (< 30 Detik)
+    if (!proximityVerified && input.qrToken) {
       let tokenToVerify = input.qrToken.trim();
       if (tokenToVerify.startsWith('{') && tokenToVerify.endsWith('}')) {
         try {
@@ -64,17 +111,14 @@ export class CheckOutAttendanceUseCase {
       if (!qrSession) {
         throw new InvalidQrTokenException();
       }
+      proximityVerified = true;
     }
 
-    const staff = await this.repo.resolveStaffByIdOrCode(input.staffId);
-    const resolvedStaffId = staff ? staff.id : input.staffId;
+    if (!proximityVerified) {
+      throw new InvalidQrTokenException('Token QR atau tiket presensi wajib disertakan.');
+    }
 
-    const todayStr = input.attendanceDate
-      ? this.clinicTimeService
-        ? this.clinicTimeService.normalizeDate(input.attendanceDate)
-        : input.attendanceDate
-      : this.clinicTimeService?.today() ?? new Date().toISOString().split('T')[0];
-
+    // 1. Domain Attendance Record Validation
     const existing = await this.repo.findStaffAttendanceForDate(
       resolvedStaffId,
       todayStr,
@@ -133,7 +177,16 @@ export class CheckOutAttendanceUseCase {
     // Enforce notes requirement on early departure
     const notesTrimmed = input.notes?.trim();
     if (timingEval.requiresNotes && (!notesTrimmed || notesTrimmed.length === 0)) {
-      throw new EarlyDepartureNotesRequiredException();
+      // Terbitkan tiket kepulangan berbatas waktu 3 menit absolut (180 detik)
+      const ticket = this.ticketService.issueTicket(
+        resolvedStaffId,
+        existing.id,
+        180,
+      );
+      throw new EarlyDepartureNotesRequiredException({
+        checkoutTicket: ticket.ticket,
+        expiresAt: ticket.expiresAt,
+      });
     }
 
     const updated = await this.repo.updateAttendanceRecord(existing.id, {

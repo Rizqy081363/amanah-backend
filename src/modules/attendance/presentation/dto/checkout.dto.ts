@@ -25,4 +25,12 @@ export class CheckOutDto {
   @IsString()
   @IsOptional()
   notes?: string;
+
+  @ApiPropertyOptional({
+    description: 'Tiket verifikasi presensi pulang awal berbatas waktu 3 menit dari scan terminal fisik',
+    example: 'eyJnZW4iOjF9.signature...',
+  })
+  @IsString()
+  @IsOptional()
+  checkoutTicket?: string;
 }

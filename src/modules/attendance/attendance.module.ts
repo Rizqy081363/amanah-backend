@@ -10,6 +10,7 @@ import { ScanAttendanceUseCase } from './application/use-cases/scan-attendance.u
 import { ATTENDANCE_REPOSITORY } from './domain/repositories/attendance.repository';
 import { AttendanceEligibilityService } from './domain/services/attendance-eligibility.service';
 import { AttendanceTimingService } from './domain/services/attendance-timing.service';
+import { CheckoutTicketService } from './domain/services/checkout-ticket.service';
 import { AttendanceDrizzleRepository } from './infrastructure/drizzle/attendance.drizzle-repository';
 import { AttendanceController } from './presentation/attendance.controller';
 
@@ -25,6 +26,7 @@ import { AttendanceController } from './presentation/attendance.controller';
     // Domain Services
     AttendanceEligibilityService,
     AttendanceTimingService,
+    CheckoutTicketService,
     // Application Services
     AttendanceMetricsCalculator,
     AttendanceNotificationService,
@@ -37,6 +39,7 @@ import { AttendanceController } from './presentation/attendance.controller';
   ],
   exports: [
     ATTENDANCE_REPOSITORY,
+    CheckoutTicketService,
     ScanAttendanceUseCase,
     ManualAttendanceUseCase,
     CheckOutAttendanceUseCase,

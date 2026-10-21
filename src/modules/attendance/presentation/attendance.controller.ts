@@ -134,6 +134,7 @@ export class AttendanceController {
       staffId: targetStaffId,
       qrToken: body?.qrToken,
       notes: body?.notes,
+      checkoutTicket: body?.checkoutTicket,
     });
   }
 
