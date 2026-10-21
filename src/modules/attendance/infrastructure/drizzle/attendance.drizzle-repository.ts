@@ -17,7 +17,10 @@ import {
 import { replacementOpportunities } from '../../../../database/schema/leave-payroll.schema';
 import { AttendanceEntity } from '../../domain/entities/attendance.entity';
 import { QrSessionEntity } from '../../domain/entities/qr-session.entity';
-import { AttendanceRepository } from '../../domain/repositories/attendance.repository';
+import {
+  AttendanceHistoryResultDto,
+  AttendanceRepository,
+} from '../../domain/repositories/attendance.repository';
 import { AttendanceMapper } from './mappers/attendance.mapper';
 
 @Injectable()
@@ -149,6 +152,63 @@ export class AttendanceDrizzleRepository implements AttendanceRepository {
     });
 
     return records.map((r) => AttendanceMapper.toAttendanceEntity(r));
+  }
+
+  async findHistoryWithSummaryByStaffId(
+    staffId: string,
+    limit: number = 30,
+  ): Promise<AttendanceHistoryResultDto> {
+    const records = await this.db.query.staffAttendanceRecords.findMany({
+      where: eq(staffAttendanceRecords.staffProfileId, staffId),
+      orderBy: [desc(staffAttendanceRecords.attendanceDate)],
+      limit,
+    });
+
+    const entities = records.map((r) => AttendanceMapper.toAttendanceEntity(r));
+
+    let totalWorkHours = 0;
+    const distinctDates = new Set<string>();
+    let hadirCount = 0;
+    let telatCount = 0;
+    let missedCount = 0;
+    let cutiCount = 0;
+
+    for (const r of records) {
+      if (r.attendanceDate) {
+        distinctDates.add(r.attendanceDate);
+      }
+      if (r.validatedDurationHours) {
+        const val = parseFloat(r.validatedDurationHours);
+        if (!isNaN(val)) totalWorkHours += val;
+      }
+      const st = (r.status || '').toLowerCase();
+      if (st === 'present') {
+        hadirCount++;
+      } else if (st === 'late') {
+        telatCount++;
+      } else if (st === 'leave') {
+        cutiCount++;
+      } else if (st === 'absent' || st === 'missed') {
+        missedCount++;
+      }
+    }
+
+    totalWorkHours = Math.round(totalWorkHours * 10) / 10;
+
+    return {
+      records: entities,
+      summary: {
+        totalWorkHours,
+        totalDays: distinctDates.size || entities.length,
+        periodLabel: 'Periode Ini',
+        facets: [
+          { status: 'hadir', label: 'Hadir', count: hadirCount, color: '#10B981' },
+          { status: 'telat', label: 'Telat', count: telatCount, color: '#F59E0B' },
+          { status: 'missed', label: 'Missed', count: missedCount, color: '#EF4444' },
+          { status: 'cuti', label: 'Cuti', count: cutiCount, color: '#8B5CF6' },
+        ],
+      },
+    };
   }
 
   async findDailyWithStaff(date: string): Promise<any[]> {
