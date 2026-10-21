@@ -52,6 +52,10 @@ export class RedisService implements OnModuleDestroy {
     return this.redisClient.ping();
   }
 
+  getClient(): Redis {
+    return this.redisClient;
+  }
+
   async getJson<T>(key: string): Promise<T | null> {
     const cacheKey = this.buildKey(key);
 

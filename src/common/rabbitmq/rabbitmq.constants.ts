@@ -14,3 +14,7 @@ export const ROUTING_KEY_IN_APP_PATTERN = 'notifications.dispatch.*.in_app';
 export const QUEUE_EVENTS_EXCHANGE = 'queue.events.exchange';
 export const QUEUE_RECALCULATION_QUEUE = 'queue.recalculation.queue';
 export const ROUTING_KEY_QUEUE_PROGRESSION = 'queue.progression.*';
+
+export const EXPORTS_EXCHANGE = 'exports';
+export const EXPORTS_WORK_QUEUE = 'exports.work';
+export const ROUTING_KEY_EXPORT_REQUESTED = 'export.requested';

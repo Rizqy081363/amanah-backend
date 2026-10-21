@@ -6,6 +6,8 @@ import {
 } from '@nestjs/common';
 import * as amqp from 'amqplib';
 import {
+  EXPORTS_EXCHANGE,
+  EXPORTS_WORK_QUEUE,
   NOTIFICATIONS_DLX_EXCHANGE,
   NOTIFICATIONS_EXCHANGE,
   NOTIFICATIONS_FAILED_QUEUE,
@@ -13,6 +15,7 @@ import {
   NOTIFICATIONS_PUSH_QUEUE,
   QUEUE_EVENTS_EXCHANGE,
   QUEUE_RECALCULATION_QUEUE,
+  ROUTING_KEY_EXPORT_REQUESTED,
   ROUTING_KEY_IN_APP_PATTERN,
   ROUTING_KEY_PUSH_PATTERN,
   ROUTING_KEY_QUEUE_PROGRESSION,
@@ -89,6 +92,19 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
         QUEUE_RECALCULATION_QUEUE,
         QUEUE_EVENTS_EXCHANGE,
         ROUTING_KEY_QUEUE_PROGRESSION,
+      );
+
+      // Async Export Pipeline Work Queue
+      await this.channel.assertExchange(EXPORTS_EXCHANGE, 'direct', {
+        durable: true,
+      });
+      await this.channel.assertQueue(EXPORTS_WORK_QUEUE, {
+        durable: true,
+      });
+      await this.channel.bindQueue(
+        EXPORTS_WORK_QUEUE,
+        EXPORTS_EXCHANGE,
+        ROUTING_KEY_EXPORT_REQUESTED,
       );
 
       this.logger.log(

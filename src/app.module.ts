@@ -29,6 +29,7 @@ import { ChatModule } from './modules/chat/chat.module';
 import { ClinicsModule } from './modules/clinics/clinics.module';
 import { LeavesModule } from './modules/leaves/leaves.module';
 import { PayrollModule } from './modules/payroll/payroll.module';
+import { ExportsModule } from './modules/exports/exports.module';
 import { ReplacementsModule } from './modules/replacements/replacements.module';
 import { WorkPoliciesModule } from './modules/work-policies/work-policies.module';
 import { MedicalRecordsModule } from './modules/medical-records/medical-records.module';
@@ -85,6 +86,7 @@ import { SupportTicketsModule } from './modules/support-tickets/support-tickets.
     WorkPoliciesModule,
     ReplacementsModule,
     PayrollModule,
+    ExportsModule,
     SupportTicketsModule,
     QueueEngineModule,
     ChatModule,
