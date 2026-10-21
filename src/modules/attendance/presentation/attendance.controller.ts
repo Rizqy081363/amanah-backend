@@ -172,15 +172,17 @@ export class AttendanceController {
   @ApiOperation({
     summary: 'Melihat riwayat presensi staf yang sedang login (Mobile App)',
     description:
-      'Mengambil rekapitulasi kehadiran pribadi staf medis selama periode dinas.',
+      'Mengambil rekapitulasi kehadiran pribadi staf medis selama periode dinas beserta metrik tervalidasi.',
   })
-  @ApiOkResponse({ description: 'Riwayat presensi staf berhasil diambil' })
+  @ApiOkResponse({
+    description: 'Riwayat presensi staf dan ringkasan metrik berhasil diambil',
+  })
   @ApiForbiddenResponse({ description: 'User bukan staf terdaftar' })
   async getMyHistory(@CurrentUser() user: any) {
     if (!user.staff?.id) {
       throw new ForbiddenException('User bukan staf terdaftar');
     }
-    return this.attendanceRepo.findByStaffId(user.staff.id);
+    return this.attendanceRepo.findHistoryWithSummaryByStaffId(user.staff.id);
   }
 
   @Get('daily')

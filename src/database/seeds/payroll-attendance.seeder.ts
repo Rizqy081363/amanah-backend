@@ -72,6 +72,8 @@ async function runPayrollAttendanceSeeder() {
     console.log(`  Orchestrating dr. Rizqy Wahyu 59 scenarios for September (Leave + Replacement)...`);
     await factory.orchestrateRizqySeptemberScenarios();
 
+    await factory.orchestrateFullMonthlyAttendance();
+
     console.log(`\n--- [Step 4/5] Executing 3-Month Payroll Calculation Engine ---`);
 
     // 1. Agustus 2026 (Finalized)

@@ -778,6 +778,11 @@ export class PayrollDrizzleRepository implements PayrollRepository {
       const totalGross = baseEarnings + additionEarnings;
       const totalNet = totalGross - leaveDeductions;
 
+      // Hanya sertakan periode yang memiliki catatan penggajian untuk staf ini
+      if (entries.length === 0 && totalGross === 0 && totalNet === 0) {
+        continue;
+      }
+
       const dateObj = new Date(`${period.periodStart}T00:00:00Z`);
       const monthLabel = monthFormatter.format(dateObj);
 

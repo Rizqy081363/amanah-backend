@@ -5,6 +5,18 @@ export const ATTENDANCE_REPOSITORY = 'ATTENDANCE_REPOSITORY';
 
 export type QRSessionInfo = QrSessionEntity;
 
+export interface AttendanceHistorySummaryDto {
+  totalWorkHours: number;
+  totalDays: number;
+  periodLabel: string;
+  facets: Array<{ status: string; label: string; count: number; color: string }>;
+}
+
+export interface AttendanceHistoryResultDto {
+  records: AttendanceEntity[];
+  summary: AttendanceHistorySummaryDto;
+}
+
 export interface AttendanceBFFResponse {
   records: any[];
   total: number;
@@ -76,6 +88,11 @@ export interface AttendanceRepository {
   ): Promise<AttendanceEntity | null>;
 
   findByStaffId(staffId: string, limit?: number): Promise<AttendanceEntity[]>;
+
+  findHistoryWithSummaryByStaffId(
+    staffId: string,
+    limit?: number,
+  ): Promise<AttendanceHistoryResultDto>;
 
   findDailyWithStaff(date: string): Promise<any[]>;
 

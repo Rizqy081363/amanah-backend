@@ -504,6 +504,67 @@ export class PayrollAttendanceFactory {
   }
 
   /**
+   * Generates abundant, realistic attendance records across August, September,
+   * and October 2026 for testing export pipelines with substantial data.
+   */
+  async orchestrateFullMonthlyAttendance(): Promise<void> {
+    console.log('[Factory] Seeding full monthly attendance records for realistic export data...');
+    const staffs = [this.activeDoctor, this.activeWorker, this.activeMidwife].filter(Boolean);
+    const months = [
+      { year: 2026, month: 8, days: 31 },
+      { year: 2026, month: 9, days: 30 },
+      { year: 2026, month: 10, days: 21 },
+    ];
+
+    const recordsToInsert: any[] = [];
+    for (const m of months) {
+      for (let day = 1; day <= m.days; day++) {
+        const dateStr = `${m.year}-${String(m.month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const dayOfWeek = new Date(dateStr).getDay();
+        if (dayOfWeek === 0) continue; // Skip Sunday
+
+        for (const staff of staffs) {
+          const isLate = day % 7 === 0;
+          const status = isLate ? 'late' : 'present';
+          const lateMins = isLate ? 15 : 0;
+          const checkIn = isLate ? `${dateStr}T08:15:00+07:00` : `${dateStr}T07:55:00+07:00`;
+          const checkOut = `${dateStr}T16:00:00+07:00`;
+
+          recordsToInsert.push({
+            staffProfileId: staff.id,
+            sessionId: this.morningSession?.id || null,
+            unitId: this.activeUnit?.id || null,
+            roomId: this.defaultRoom?.id || null,
+            attendanceDate: dateStr,
+            shift: 'morning',
+            status,
+            expectedCheckInAt: `${dateStr}T08:00:00+07:00`,
+            checkInAt: checkIn,
+            checkOutAt: checkOut,
+            lateMinutes: lateMins,
+            validatedDurationHours: '8.00',
+            isReplacement: false,
+            recordedMethod: 'qr_scan',
+            locationLabel: 'Ruang Poli Umum 1',
+            notes: isLate ? 'Terlambat 15 menit' : 'Presensi reguler tepat waktu',
+          });
+        }
+      }
+    }
+
+    if (recordsToInsert.length > 0) {
+      for (let i = 0; i < recordsToInsert.length; i += 100) {
+        const chunk = recordsToInsert.slice(i, i + 100);
+        await this.db
+          .insert(staffAttendanceRecords)
+          .values(chunk)
+          .onConflictDoNothing();
+      }
+      console.log(`  ✓ Inserted ${recordsToInsert.length} dense attendance records across 3 months.`);
+    }
+  }
+
+  /**
    * Finalizes an existing period to mark it as closed/paid.
    */
   async finalizePeriod(periodId: string): Promise<any> {
