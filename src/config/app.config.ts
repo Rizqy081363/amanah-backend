@@ -10,6 +10,7 @@ import {
 } from 'class-validator';
 import validateConfig from '.././utils/validate-config';
 import { AppConfig } from './app-config.type';
+import { buildOriginPolicy } from './origin-policy';
 
 enum Environment {
   Development = 'development',
@@ -39,6 +40,10 @@ class EnvironmentVariablesValidator {
   @IsString()
   @IsOptional()
   APP_CORS_ORIGINS: string;
+
+  @IsString()
+  @IsOptional()
+  APP_DEV_ORIGIN_PATTERNS: string;
 
   @IsString()
   @IsOptional()
@@ -75,20 +80,36 @@ export default registerAs<AppConfig>('app', () => {
 
   const isProduction = process.env.NODE_ENV === 'production';
 
+  const devOriginPatterns = (process.env.APP_DEV_ORIGIN_PATTERNS || '')
+    .split(',')
+    .map((p) => p.trim())
+    .filter(Boolean);
+
+  const rawCorsOrigins = (
+    process.env.APP_CORS_ORIGINS ||
+    process.env.FRONTEND_DOMAIN ||
+    ''
+  )
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+  const originPolicy = buildOriginPolicy({
+    appEnv: process.env.NODE_ENV || 'development',
+    publicUrl: process.env.FRONTEND_DOMAIN,
+    extraOrigins: rawCorsOrigins,
+    devPatterns: devOriginPatterns,
+  });
+
   return {
     nodeEnv: process.env.NODE_ENV || 'development',
     name: process.env.APP_NAME || 'app',
     workingDirectory: process.env.PWD || process.cwd(),
     frontendDomain: process.env.FRONTEND_DOMAIN,
     backendDomain: process.env.BACKEND_DOMAIN ?? 'http://localhost',
-    corsOrigins: (
-      process.env.APP_CORS_ORIGINS ||
-      process.env.FRONTEND_DOMAIN ||
-      '*'
-    )
-      .split(',')
-      .map((origin) => origin.trim())
-      .filter((origin) => origin.length > 0),
+    corsOrigins: Array.from(originPolicy.exact),
+    devOriginPatterns,
+    originPolicy,
     port: process.env.APP_PORT
       ? parseInt(process.env.APP_PORT, 10)
       : process.env.PORT

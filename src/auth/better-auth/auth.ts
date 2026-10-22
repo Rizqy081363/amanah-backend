@@ -11,6 +11,7 @@ import {
   staffMidwife,
   staffWorker,
 } from './permissions';
+import { buildOriginPolicy } from '../../config/origin-policy';
 
 const getDatabaseUrl = (): string => {
   if (process.env.DATABASE_URL?.trim()) {
@@ -81,21 +82,45 @@ async function sendSmtpEmail({
   }
 }
 
+const devOriginPatterns = (process.env.APP_DEV_ORIGIN_PATTERNS || '')
+  .split(',')
+  .map((p) => p.trim())
+  .filter(Boolean);
+
+const rawCorsOrigins = (
+  process.env.APP_CORS_ORIGINS ||
+  process.env.FRONTEND_DOMAIN ||
+  ''
+)
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+const betterAuthOriginPolicy = buildOriginPolicy({
+  appEnv: process.env.NODE_ENV || 'development',
+  publicUrl: process.env.FRONTEND_DOMAIN,
+  extraOrigins: [
+    ...rawCorsOrigins,
+    process.env.BACKEND_DOMAIN || '',
+  ],
+  devPatterns: devOriginPatterns,
+});
+
 export const auth = betterAuth({
   appName: 'Amanah Healthcare',
-  baseURL: process.env.BETTER_AUTH_URL || 'http://localhost:3001',
+  baseURL: (
+    process.env.BETTER_AUTH_URL ||
+    process.env.BACKEND_DOMAIN ||
+    ''
+  ).replace(/\/+$/, ''),
   basePath: '/api/auth',
   secret:
     process.env.BETTER_AUTH_SECRET ||
     'dev-insecure-secret-replace-in-env-file-min-32-bytes',
   database: pool,
   trustedOrigins: [
-    process.env.FRONTEND_DOMAIN || 'http://localhost:3000',
-    process.env.BACKEND_DOMAIN || 'http://localhost:3001',
-    'http://localhost:3000',
-    'http://localhost:3001',
-    'http://127.0.0.1:3000',
-    'http://127.0.0.1:3001',
+    ...betterAuthOriginPolicy.exact,
+    ...betterAuthOriginPolicy.patterns,
   ],
   socialProviders: {
     google: {

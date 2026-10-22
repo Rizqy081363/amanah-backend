@@ -25,6 +25,7 @@ import { HttpObservabilityInterceptor } from './common/logging/interceptors/http
 import { RedisService } from './common/redis/redis.service';
 import { RateLimiterGuard } from './common/throttling';
 import { AllConfigType } from './config/config.type';
+import { isOriginAllowed } from './config/origin-policy';
 import { ResolvePromisesInterceptor } from './utils/serializer.interceptor';
 import validationOptions from './utils/validation-options';
 
@@ -52,11 +53,17 @@ async function bootstrap() {
     }),
   );
 
-  const corsOrigins = configService.getOrThrow('app.corsOrigins', {
+  const originPolicy = configService.getOrThrow('app.originPolicy', {
     infer: true,
   });
   app.enableCors({
-    origin: corsOrigins.includes('*') ? true : corsOrigins,
+    origin: (
+      requestOrigin: string | undefined,
+      callback: (err: Error | null, allow?: boolean) => void,
+    ) => {
+      const allowed = isOriginAllowed(requestOrigin, originPolicy);
+      callback(null, allowed);
+    },
     credentials: true,
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
     allowedHeaders: [

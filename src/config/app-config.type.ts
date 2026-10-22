@@ -1,3 +1,5 @@
+import { OriginPolicy } from './origin-policy';
+
 export type AppConfig = {
   nodeEnv: string;
   name: string;
@@ -5,6 +7,8 @@ export type AppConfig = {
   frontendDomain?: string;
   backendDomain: string;
   corsOrigins: string[];
+  devOriginPatterns: string[];
+  originPolicy: OriginPolicy;
   port: number;
   apiPrefix: string;
   headerLanguage: string;

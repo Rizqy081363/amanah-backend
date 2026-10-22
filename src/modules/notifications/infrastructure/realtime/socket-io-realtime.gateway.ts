@@ -19,9 +19,35 @@ import { auth as betterAuth } from '../../../../auth/better-auth/auth';
 import { JwtPayloadType } from '../../../../auth/strategies/types/jwt-payload.type';
 import { REDIS_CLIENT } from '../../../../common/redis/redis.constants';
 import { AllConfigType } from '../../../../config/config.type';
+import {
+  buildOriginPolicy,
+  isOriginAllowed,
+} from '../../../../config/origin-policy';
 import { RealtimeGatewayPort } from '../../contracts/realtime-gateway.interface';
 import { REALTIME_ROOMS } from '../../notifications.constants';
 import { RealtimeTicketService } from '../../application/services/realtime-ticket.service';
+
+const wsDevOriginPatterns = (process.env.APP_DEV_ORIGIN_PATTERNS || '')
+  .split(',')
+  .map((p) => p.trim())
+  .filter(Boolean);
+
+const wsRawAllowed = (
+  process.env.REALTIME_CORS_ORIGINS ||
+  process.env.APP_CORS_ORIGINS ||
+  process.env.FRONTEND_DOMAIN ||
+  ''
+)
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+const wsOriginPolicy = buildOriginPolicy({
+  appEnv: process.env.NODE_ENV || 'development',
+  publicUrl: process.env.FRONTEND_DOMAIN,
+  extraOrigins: wsRawAllowed,
+  devPatterns: wsDevOriginPatterns,
+});
 
 @Injectable()
 @WebSocketGateway({
@@ -30,26 +56,7 @@ import { RealtimeTicketService } from '../../application/services/realtime-ticke
       requestOrigin: string | undefined,
       callback: (err: Error | null, allow?: boolean) => void,
     ) => {
-      if (!requestOrigin) {
-        return callback(null, true);
-      }
-      const rawAllowed =
-        process.env.REALTIME_CORS_ORIGINS ||
-        process.env.APP_CORS_ORIGINS ||
-        process.env.FRONTEND_DOMAIN ||
-        'http://localhost:3000,http://127.0.0.1:3000';
-      const allowedOrigins = rawAllowed
-        .split(',')
-        .map((origin) => origin.trim())
-        .filter(Boolean);
-
-      if (
-        allowedOrigins.includes('*') ||
-        allowedOrigins.includes(requestOrigin)
-      ) {
-        return callback(null, true);
-      }
-      return callback(null, false);
+      callback(null, isOriginAllowed(requestOrigin, wsOriginPolicy));
     },
     credentials: true,
   },

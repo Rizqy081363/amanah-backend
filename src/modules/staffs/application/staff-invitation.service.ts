@@ -339,8 +339,7 @@ export class StaffInvitationService {
 
     // 6. Build login url & dispatch invitation email
     const frontendDomain =
-      this.configService.get('app.frontendDomain', { infer: true }) ||
-      'http://localhost:3000';
+      this.configService.get('app.frontendDomain', { infer: true }) || '';
     const loginUrl = `${frontendDomain}/auth/sign-in?email=${encodeURIComponent(email)}`;
 
     try {
@@ -554,8 +553,7 @@ export class StaffInvitationService {
 
     // 5. Build login url & dispatch invitation email
     const frontendDomain =
-      this.configService.get('app.frontendDomain', { infer: true }) ||
-      'http://localhost:3000';
+      this.configService.get('app.frontendDomain', { infer: true }) || '';
     const loginUrl = `${frontendDomain}/auth/sign-in?email=${encodeURIComponent(email)}`;
 
     try {
