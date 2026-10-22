@@ -24,7 +24,10 @@ export class CsvExporter implements Exporter {
   ): Promise<{ parts: number; rowCount: number }> {
     return new Promise((resolve, reject) => {
       let totalExported = 0;
-      const csvStream = csv.format({ headers: true });
+      // Prepend UTF-8 BOM so Microsoft Excel on Windows automatically detects UTF-8 encoding
+      sink.write('\ufeff');
+
+      const csvStream = csv.format({ headers: false, delimiter: ',' });
 
       csvStream.pipe(sink);
 

@@ -423,7 +423,7 @@ export class PayrollDrizzleRepository implements PayrollRepository {
             quantityHours: validatedHours.toFixed(2),
             hourlyRate: rates.hourly.toString(),
             amount: shiftEarnings.toFixed(2),
-            description: `Upah hari ini - Pelayanan (${formatHours(validatedHours)} x Rp ${rates.hourly.toLocaleString('id-ID')})`,
+            description: `Pelayanan Klinis Terjadwal (${formatHours(validatedHours)} jam @ Rp${rates.hourly.toLocaleString('id-ID')}/jam)`,
           });
         }
       }
@@ -926,8 +926,8 @@ export class PayrollDrizzleRepository implements PayrollRepository {
     const validatedHours = Number(input.validatedDurationHours || 0);
     const amount = Number((validatedHours * effectiveHourlyRate).toFixed(2));
     const description = isReplacement
-      ? `Upah hari ini - Dinas Pengganti (${formatHours(validatedHours)} x Rp ${effectiveHourlyRate.toLocaleString('id-ID')})`
-      : `Upah hari ini - Pelayanan (${formatHours(validatedHours)} x Rp ${standardHourlyRate.toLocaleString('id-ID')})`;
+      ? `Pelayanan Dinas Pengganti (${formatHours(validatedHours)} jam @ Rp${effectiveHourlyRate.toLocaleString('id-ID')}/jam)`
+      : `Pelayanan Klinis Terjadwal (${formatHours(validatedHours)} jam @ Rp${standardHourlyRate.toLocaleString('id-ID')}/jam)`;
 
     // 3. Delete existing entry for this attendance record (idempotency)
     await this.db

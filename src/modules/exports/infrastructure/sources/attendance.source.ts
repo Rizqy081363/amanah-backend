@@ -4,6 +4,12 @@ import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import type { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import { staffAttendanceRecords, staffProfiles } from '../../../../database/schema/amanah.schema';
 import { ExportSource } from '../../domain/export-source.interface';
+import {
+  SHIFT_LABEL_MAP,
+  STATUS_LABEL_MAP,
+  normalizeShift,
+  normalizeStatus,
+} from '../../../attendance/domain/constants/attendance.constants';
 
 @Injectable()
 export class AttendanceExportSource implements ExportSource {
@@ -121,15 +127,21 @@ export class AttendanceExportSource implements ExportSource {
         : d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false });
     };
 
+    const shiftCode = normalizeShift(row.shift);
+    const shiftLabel = SHIFT_LABEL_MAP[shiftCode] || row.shift || '-';
+
+    const statusCode = normalizeStatus(row.status);
+    const statusLabel = STATUS_LABEL_MAP[statusCode] || row.status || '-';
+
     return [
       index,
       row.attendanceDate,
-      row.shift ?? '-',
+      shiftLabel,
       formatTime(row.checkInAt),
       formatTime(row.checkOutAt),
       row.lateMinutes ?? 0,
       Number(row.validatedDurationHours ?? 0),
-      row.status ?? '-',
+      statusLabel,
       row.locationLabel ?? 'Klinik Utama',
     ];
   }

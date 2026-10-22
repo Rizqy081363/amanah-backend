@@ -1,3 +1,5 @@
+import { PayrollReportAggregation } from './payroll-report.contract';
+
 export interface ExportSource {
   readonly type: string;
   getTitle(params: Record<string, any>): string;
@@ -14,4 +16,8 @@ export interface ExportSource {
     params: Record<string, any>,
     userId: string,
   ): Promise<Record<string, string>>;
+  getAggregation?(
+    params: Record<string, any>,
+    userId: string,
+  ): Promise<PayrollReportAggregation | null>;
 }

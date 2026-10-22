@@ -372,6 +372,13 @@
       "when": 1791336000000,
       "tag": "0052_add_roster_break_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1791337000000,
+      "tag": "0053_export_jobs_architecture",
+      "breakpoints": true
     }
   ]
 }

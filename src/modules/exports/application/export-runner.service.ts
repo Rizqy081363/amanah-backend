@@ -3,6 +3,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
 import {
   NOTIFICATIONS_EXCHANGE,
+  ROUTING_KEY_IN_APP_PATTERN,
   ROUTING_KEY_PUSH_PATTERN,
 } from '../../../common/rabbitmq/rabbitmq.constants';
 import { RabbitMQService } from '../../../common/rabbitmq/rabbitmq.service';
@@ -10,6 +11,7 @@ import { RedisService } from '../../../common/redis/redis.service';
 import { DRIZZLE_SOURCE } from '../../../database/drizzle/drizzle.constants';
 import type { DrizzleDatabase } from '../../../database/drizzle/drizzle.provider';
 import { exportJobs } from '../../../database/schema/export-jobs.schema';
+import { NotificationDispatchCommand } from '../../notifications/contracts/notification-dispatch.contract';
 import { ExportContext } from '../domain/exporter.interface';
 import { ExporterRegistry } from '../infrastructure/exporters/exporter.registry';
 import { ExportSourceRegistry } from '../infrastructure/sources/source.registry';
@@ -110,6 +112,11 @@ export class ExportRunnerService {
         progress,
       );
 
+      // Ensure sink stream has completed flushing to disk
+      if (!sink.destroyed && sink.writable) {
+        await new Promise<void>((resolve) => sink.end(resolve));
+      }
+
       // 5. Measure file size & record in files table
       const fileStats = fs.statSync(filePath);
       const originalName = `${job.exportType}-${job.id.slice(0, 8)}.${exporter.extension}`;
@@ -140,16 +147,19 @@ export class ExportRunnerService {
 
       await progress.finish();
 
-      // 7. Announce completion via RabbitMQ to Push Notification Gateway
-      const routingKey = ROUTING_KEY_PUSH_PATTERN.replace('*', job.requestedBy);
-      await this.rabbitmqService.publish(
-        routingKey,
-        {
-          recipientId: job.requestedBy,
+      // 7. Announce completion via RabbitMQ to Push Notification Gateway & In-App Store
+      const dispatchCommand: NotificationDispatchCommand = {
+        commandId: `export-${job.id}`,
+        sourceDomain: 'exports',
+        target: {
+          type: 'user',
+          recipientUserIds: [job.requestedBy],
+        },
+        category: 'system',
+        content: {
           title: 'Laporan Siap Diunduh',
           body: `Berkas ekspor ${job.exportType} (${exporter.format.toUpperCase()}) telah selesai diproses.`,
-          category: 'export',
-          priority: 'high',
+          actionUrl: `/exports/${job.id}/download`,
           data: {
             jobId: job.id,
             exportType: job.exportType,
@@ -158,8 +168,25 @@ export class ExportRunnerService {
             fileName: originalName,
           },
         },
-        NOTIFICATIONS_EXCHANGE,
-      );
+        channels: ['push', 'in_app'],
+        priority: 'high',
+      };
+
+      const pushRoutingKey = ROUTING_KEY_PUSH_PATTERN.replace('*', 'exports');
+      const inAppRoutingKey = ROUTING_KEY_IN_APP_PATTERN.replace('*', 'exports');
+
+      await Promise.all([
+        this.rabbitmqService.publish(
+          pushRoutingKey,
+          dispatchCommand,
+          NOTIFICATIONS_EXCHANGE,
+        ),
+        this.rabbitmqService.publish(
+          inAppRoutingKey,
+          dispatchCommand,
+          NOTIFICATIONS_EXCHANGE,
+        ),
+      ]);
 
       this.logger.log(
         `Successfully completed export job ${job.id} (${rowCount} rows, ${fileStats.size} bytes).`,
