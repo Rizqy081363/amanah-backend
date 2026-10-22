@@ -175,6 +175,7 @@ export const auth = betterAuth({
   },
   account: {
     encryptOAuthTokens: true,
+    skipStateCookieCheck: true,
     accountLinking: {
       enabled: true,
       trustedProviders: ['google'],
@@ -203,6 +204,7 @@ export const auth = betterAuth({
     },
   },
   advanced: {
+    trustedProxyHeaders: true,
     useSecureCookies: process.env.NODE_ENV === 'production',
     disableCSRFCheck: false,
     disableOriginCheck: false,
