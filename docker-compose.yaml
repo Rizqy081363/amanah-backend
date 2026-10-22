@@ -128,7 +128,7 @@ services:
       FRONTEND_DOMAIN: ${FRONTEND_DOMAIN:-http://localhost:3000}
       BACKEND_DOMAIN: ${BACKEND_DOMAIN:-http://localhost:3001}
       APP_CORS_ORIGINS: ${APP_CORS_ORIGINS:-http://localhost:3000}
-      APP_DEV_ORIGIN_PATTERNS: ${APP_DEV_ORIGIN_PATTERNS:-https://*.devtunnels.ms}
+      APP_DEV_ORIGIN_PATTERNS: ${APP_DEV_ORIGIN_PATTERNS:-https://*.devtunnels.ms,https://*.ngrok-free.app,https://*.trycloudflare.com}
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3001}
       RUN_DB_MIGRATIONS: ${RUN_DB_MIGRATIONS:-true}
       RUN_DB_SEED: ${RUN_DB_SEED:-true}
