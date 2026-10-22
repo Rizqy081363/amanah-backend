@@ -25,6 +25,9 @@ export class AttendanceExportSource implements ExportSource {
   }
 
   getSubtitle(params: Record<string, any>): string {
+    if (params.periodLabel) {
+      return `Periode: ${params.periodLabel}`;
+    }
     const start = params.startDate ? `Mulai: ${params.startDate}` : '';
     const end = params.endDate ? `Sampai: ${params.endDate}` : '';
     return [start, end].filter(Boolean).join(' | ') || 'Seluruh Arsip Presensi Terkalkulasi';

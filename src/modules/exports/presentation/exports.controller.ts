@@ -24,6 +24,7 @@ import {
 import type { Response } from 'express';
 import { CurrentUser } from '../../../common/auth/current-user.decorator';
 import { ExportsService } from '../application/exports.service';
+import { CheckExportAvailabilityDto } from './dto/check-export-availability.dto';
 import { CreateExportDto } from './dto/create-export.dto';
 
 @ApiTags('Exports (Pipeline Asinkronus Berkas & Artefak)')
@@ -49,6 +50,25 @@ export class ExportsController {
     @Headers('idempotency-key') idempotencyKey?: string,
   ) {
     return this.exportsService.requestExport(dto, user.id, idempotencyKey);
+  }
+
+  @Post('check-availability')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Mengecek ketersediaan data untuk parameter ekspor sebelum submit',
+    description:
+      'Menghitung jumlah rekaman data yang cocok di basis data secara instan untuk mencegah pengunduhan data kosong.',
+  })
+  @ApiOkResponse({ description: 'Ketersediaan data berhasil diverifikasi' })
+  async checkAvailability(
+    @Body() dto: CheckExportAvailabilityDto,
+    @CurrentUser() user: any,
+  ) {
+    return this.exportsService.checkAvailability(
+      dto.exportType,
+      dto.parameters || {},
+      user.id,
+    );
   }
 
   @Get('my-history')

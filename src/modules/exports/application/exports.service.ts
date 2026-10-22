@@ -16,6 +16,7 @@ import { RedisService } from '../../../common/redis/redis.service';
 import { DRIZZLE_SOURCE } from '../../../database/drizzle/drizzle.constants';
 import type { DrizzleDatabase } from '../../../database/drizzle/drizzle.provider';
 import { exportJobs } from '../../../database/schema/export-jobs.schema';
+import { ExportSourceRegistry } from '../infrastructure/sources/source.registry';
 import { ExportStorageService } from '../infrastructure/storage/export-storage.service';
 import { CreateExportDto } from '../presentation/dto/create-export.dto';
 
@@ -29,6 +30,7 @@ export class ExportsService {
     private readonly rabbitmqService: RabbitMQService,
     private readonly redisService: RedisService,
     private readonly storageService: ExportStorageService,
+    private readonly sourceRegistry: ExportSourceRegistry,
   ) {}
 
   async requestExport(
@@ -197,5 +199,18 @@ export class ExportsService {
       .where(eq(exportJobs.id, jobId));
 
     return { success: true, message: 'Export job successfully cancelled' };
+  }
+
+  async checkAvailability(
+    exportType: string,
+    parameters: Record<string, any>,
+    userId: string,
+  ): Promise<{ available: boolean; totalRows: number }> {
+    const source = this.sourceRegistry.get(exportType as any);
+    const total = await source.count(parameters, userId);
+    return {
+      available: total > 0,
+      totalRows: total,
+    };
   }
 }
