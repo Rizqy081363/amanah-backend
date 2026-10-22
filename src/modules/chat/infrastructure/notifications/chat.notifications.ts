@@ -30,7 +30,9 @@ export class ChatNotificationRules implements OnModuleInit {
         // 1. Customer Message Alert for Clinic Staff (Audience: 'clinic')
         if (payload.senderRole === 'customer') {
           const staffUserIds = this.recipientResolver
-            ? await this.recipientResolver.resolveAdminAndStaffUserIds()
+            ? await this.recipientResolver.resolveScopedClinicRecipients(
+                payload.assignedStaffId,
+              )
             : [];
 
           for (const staffUserId of staffUserIds) {

@@ -5,3 +5,12 @@ export const CHAT_EVENTS = {
 
 export type ChatEventType =
   (typeof CHAT_EVENTS)[keyof typeof CHAT_EVENTS];
+
+/**
+ * Roles responsible for handling live chat & online consultations.
+ * Excludes clinical practitioners (doctors & midwives) who operate on clinical queues.
+ */
+export const CHAT_SUPPORT_ROLE_CODES = [
+  'admin',
+  'staff_worker',
+] as const;

@@ -1,13 +1,15 @@
 import { randomUUID } from 'node:crypto';
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
-import { CLINIC_ADMIN_STAFF_ROLE_CODES } from '../../../appointments/domain/constants/appointment-lifecycle.constants';
 import { NotificationGatewayService } from '../../../notifications/application/services/notification-gateway.service';
 import {
   type DomainEvent,
   type NotificationPublisher,
 } from '../../../notifications/contracts/domain-event.interface';
 import { NOTIFICATION_PUBLISHER } from '../../../notifications/notifications.constants';
-import { CHAT_EVENTS } from '../../domain/constants/chat-lifecycle.constants';
+import {
+  CHAT_EVENTS,
+  CHAT_SUPPORT_ROLE_CODES,
+} from '../../domain/constants/chat-lifecycle.constants';
 import { ChatMessageEntity } from '../../domain/entities/chat-message.entity';
 import { ConversationEntity } from '../../domain/entities/conversation.entity';
 
@@ -55,6 +57,7 @@ export class ChatNotificationPublisher {
             guestId: conversation.guestId || null,
             guestEmail: conversation.guestEmail || null,
             patientUserId: conversation.userId || null,
+            assignedStaffId: conversation.assignedStaffId || null,
           },
           actor: {
             userId: actor?.userId || message.senderUserId || undefined,
@@ -76,13 +79,18 @@ export class ChatNotificationPublisher {
     // 2. Dispatch via RabbitMQ Notification Gateway (for mobile / browser Web Push)
     if (this.notificationGateway) {
       try {
+        const senderActorUserId =
+          actor?.userId || message.senderUserId || undefined;
+        const excludedUserIds = senderActorUserId ? [senderActorUserId] : [];
+
         if (message.senderRole === 'customer') {
           await this.notificationGateway.dispatch({
             commandId: `chat-${message.id}-${Date.now()}`,
             sourceDomain: 'chat',
             target: {
               type: 'role',
-              roles: Array.from(CLINIC_ADMIN_STAFF_ROLE_CODES),
+              roles: Array.from(CHAT_SUPPORT_ROLE_CODES),
+              excludedUserIds,
             },
             category: 'support',
             content: {
@@ -103,6 +111,7 @@ export class ChatNotificationPublisher {
             target: {
               type: 'user',
               recipientUserIds: [conversation.userId],
+              excludedUserIds,
             },
             category: 'support',
             content: {

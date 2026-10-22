@@ -6,6 +6,7 @@ export interface NotificationTarget {
   type: NotificationTargetType;
   recipientUserIds?: string[];
   roles?: string[];
+  excludedUserIds?: string[];
 }
 
 export interface NotificationContent {

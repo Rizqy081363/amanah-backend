@@ -10,7 +10,6 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -19,6 +18,9 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { CurrentUser } from '../../../../common/auth/current-user.decorator';
+import { HybridAuthGuard } from '../../../../common/auth/hybrid-auth.guard';
+import { Roles } from '../../../../common/auth/roles.decorator';
+import { RolesGuard } from '../../../../common/auth/roles.guard';
 import { ChatService } from '../../application/services/chat.service';
 import { AdminConversationQueryDto } from '../dto/conversation-query.dto';
 import { MessageQueryDto } from '../dto/message-query.dto';
@@ -26,7 +28,8 @@ import { SendMessageDto } from '../dto/send-message.dto';
 
 @ApiTags('Admin Chat (Inbox Admin & Staf)')
 @ApiBearerAuth('access-token')
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(HybridAuthGuard, RolesGuard)
+@Roles('ADMIN', 'STAF')
 @ApiUnauthorizedResponse({
   description: 'Sesi autentikasi admin tidak valid atau token tidak disertakan',
 })

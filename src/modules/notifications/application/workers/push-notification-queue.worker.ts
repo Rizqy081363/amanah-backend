@@ -299,11 +299,15 @@ export class PushNotificationQueueWorker
     command: NotificationDispatchCommand,
   ): Promise<string[]> {
     const { target } = command;
-    if (target.type === 'user') {
-      return target.recipientUserIds || [];
-    }
+    let recipientIds: string[] = [];
 
-    if (target.type === 'role' && target.roles && target.roles.length > 0) {
+    if (target.type === 'user') {
+      recipientIds = target.recipientUserIds || [];
+    } else if (
+      target.type === 'role' &&
+      target.roles &&
+      target.roles.length > 0
+    ) {
       const normalizedRoles = target.roles.map((r) => r.toLowerCase());
       const rows = await this.db
         .select({ userId: userRoles.userId })
@@ -311,14 +315,17 @@ export class PushNotificationQueueWorker
         .innerJoin(roles, sql`${userRoles.roleId} = ${roles.id}`)
         .where(inArray(sql`lower(${roles.code})`, normalizedRoles));
 
-      return [...new Set(rows.map((r) => r.userId))];
-    }
-
-    if (target.type === 'broadcast') {
+      recipientIds = [...new Set(rows.map((r) => r.userId))];
+    } else if (target.type === 'broadcast') {
       const allSubs = await this.pushSubscriptionRepo.findAllActive();
-      return [...new Set(allSubs.map((s) => s.userId))];
+      recipientIds = [...new Set(allSubs.map((s) => s.userId))];
     }
 
-    return [];
+    if (target.excludedUserIds && target.excludedUserIds.length > 0) {
+      const excluded = new Set(target.excludedUserIds);
+      return recipientIds.filter((id) => !excluded.has(id));
+    }
+
+    return recipientIds;
   }
 }
