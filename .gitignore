@@ -54,4 +54,8 @@ lerna-debug.log*
 
 # Firebase credentials
 /config/*.json
-!/config/.gitkeep
+!/config/.gitkeep
+
+# Team credentials vault archives
+/dist-vault
+*.zip
