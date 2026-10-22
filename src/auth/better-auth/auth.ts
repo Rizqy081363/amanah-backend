@@ -106,46 +106,26 @@ const betterAuthOriginPolicy = buildOriginPolicy({
   devPatterns: devOriginPatterns,
 });
 
-const dynamicAllowedHosts = Array.from(
-  new Set([
-    ...betterAuthOriginPolicy.exact.map((origin) => {
-      try {
-        return new URL(origin).host;
-      } catch {
-        return '';
-      }
-    }),
-    ...betterAuthOriginPolicy.patterns.map((pattern) => {
-      return pattern.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
-    }),
-  ]),
-).filter(Boolean);
+const trustedOrigins = [
+  ...betterAuthOriginPolicy.exact,
+  ...betterAuthOriginPolicy.patterns,
+];
 
 export const auth = betterAuth({
   appName: 'Amanah Healthcare',
   baseURL: {
-    allowedHosts: dynamicAllowedHosts,
-    fallback: (
-      process.env.BETTER_AUTH_URL ||
-      process.env.BACKEND_DOMAIN ||
-      'http://localhost:3001'
-    ).replace(/\/+$/, ''),
+    allowedHosts: trustedOrigins,
+    fallback: process.env.BETTER_AUTH_URL,
     protocol: 'auto',
   },
   basePath: '/api/auth',
-  secret:
-    process.env.BETTER_AUTH_SECRET ||
-    'dev-insecure-secret-replace-in-env-file-min-32-bytes',
+  secret: process.env.BETTER_AUTH_SECRET || process.env.AUTH_JWT_SECRET,
   database: pool,
-  trustedOrigins: [
-    ...betterAuthOriginPolicy.exact,
-    ...betterAuthOriginPolicy.patterns,
-  ],
+  trustedOrigins,
   socialProviders: {
     google: {
-      clientId: process.env.GOOGLE_CLIENT_ID || 'PENDING_USER_GOOGLE_CLIENT_ID',
-      clientSecret:
-        process.env.GOOGLE_CLIENT_SECRET || 'PENDING_USER_GOOGLE_CLIENT_SECRET',
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
       prompt: 'select_account',
       requireEmailVerification: true,
       accessType: 'offline',
