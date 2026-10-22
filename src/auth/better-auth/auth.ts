@@ -106,13 +106,32 @@ const betterAuthOriginPolicy = buildOriginPolicy({
   devPatterns: devOriginPatterns,
 });
 
+const dynamicAllowedHosts = Array.from(
+  new Set([
+    ...betterAuthOriginPolicy.exact.map((origin) => {
+      try {
+        return new URL(origin).host;
+      } catch {
+        return '';
+      }
+    }),
+    ...betterAuthOriginPolicy.patterns.map((pattern) => {
+      return pattern.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+    }),
+  ]),
+).filter(Boolean);
+
 export const auth = betterAuth({
   appName: 'Amanah Healthcare',
-  baseURL: (
-    process.env.BETTER_AUTH_URL ||
-    process.env.BACKEND_DOMAIN ||
-    ''
-  ).replace(/\/+$/, ''),
+  baseURL: {
+    allowedHosts: dynamicAllowedHosts,
+    fallback: (
+      process.env.BETTER_AUTH_URL ||
+      process.env.BACKEND_DOMAIN ||
+      'http://localhost:3001'
+    ).replace(/\/+$/, ''),
+    protocol: 'auto',
+  },
   basePath: '/api/auth',
   secret:
     process.env.BETTER_AUTH_SECRET ||
