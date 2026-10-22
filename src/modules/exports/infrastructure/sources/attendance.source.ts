@@ -36,6 +36,8 @@ export class AttendanceExportSource implements ExportSource {
   getHeaders(): string[] {
     return [
       'No',
+      'Nama Pegawai',
+      'Kode Pegawai',
       'Tanggal',
       'Shift Kerja',
       'Jam Masuk',
@@ -48,7 +50,17 @@ export class AttendanceExportSource implements ExportSource {
   }
 
   private async resolveStaffProfileId(userId: string, explicitStaffId?: string): Promise<string | null> {
-    if (explicitStaffId) return explicitStaffId;
+    if (explicitStaffId) {
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(explicitStaffId);
+      if (isUuid) return explicitStaffId;
+
+      const [found] = await this.db
+        .select({ id: staffProfiles.id })
+        .from(staffProfiles)
+        .where(eq(staffProfiles.staffCode, explicitStaffId))
+        .limit(1);
+      return found?.id ?? explicitStaffId;
+    }
 
     const [staff] = await this.db
       .select({ id: staffProfiles.id })
@@ -61,9 +73,11 @@ export class AttendanceExportSource implements ExportSource {
 
   async count(params: Record<string, any>, userId: string): Promise<number> {
     const staffId = await this.resolveStaffProfileId(userId, params.staffProfileId);
-    if (!staffId) return 0;
 
-    const conditions = [eq(staffAttendanceRecords.staffProfileId, staffId)];
+    const conditions = [];
+    if (staffId) {
+      conditions.push(eq(staffAttendanceRecords.staffProfileId, staffId));
+    }
     if (params.startDate) {
       conditions.push(gte(staffAttendanceRecords.attendanceDate, params.startDate));
     }
@@ -74,7 +88,7 @@ export class AttendanceExportSource implements ExportSource {
     const [result] = await this.db
       .select({ count: sql<number>`count(*)::int` })
       .from(staffAttendanceRecords)
-      .where(and(...conditions));
+      .where(conditions.length > 0 ? and(...conditions) : undefined);
 
     return result?.count ?? 0;
   }
@@ -85,11 +99,13 @@ export class AttendanceExportSource implements ExportSource {
     batchSize: number = 500,
   ): AsyncGenerator<any[]> {
     const staffId = await this.resolveStaffProfileId(userId, params.staffProfileId);
-    if (!staffId) return;
 
     let offset = 0;
     for (;;) {
-      const conditions = [eq(staffAttendanceRecords.staffProfileId, staffId)];
+      const conditions = [];
+      if (staffId) {
+        conditions.push(eq(staffAttendanceRecords.staffProfileId, staffId));
+      }
       if (params.startDate) {
         conditions.push(gte(staffAttendanceRecords.attendanceDate, params.startDate));
       }
@@ -108,9 +124,12 @@ export class AttendanceExportSource implements ExportSource {
           lateMinutes: staffAttendanceRecords.lateMinutes,
           validatedDurationHours: staffAttendanceRecords.validatedDurationHours,
           locationLabel: staffAttendanceRecords.locationLabel,
+          staffName: staffProfiles.fullName,
+          staffCode: staffProfiles.staffCode,
         })
         .from(staffAttendanceRecords)
-        .where(and(...conditions))
+        .leftJoin(staffProfiles, eq(staffAttendanceRecords.staffProfileId, staffProfiles.id))
+        .where(conditions.length > 0 ? and(...conditions) : undefined)
         .orderBy(desc(staffAttendanceRecords.attendanceDate), asc(staffAttendanceRecords.id))
         .limit(batchSize)
         .offset(offset);
@@ -138,6 +157,8 @@ export class AttendanceExportSource implements ExportSource {
 
     return [
       index,
+      row.staffName ?? 'Pegawai Klinik',
+      row.staffCode ?? '-',
       row.attendanceDate,
       shiftLabel,
       formatTime(row.checkInAt),

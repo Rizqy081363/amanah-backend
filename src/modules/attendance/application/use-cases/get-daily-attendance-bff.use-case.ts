@@ -91,6 +91,7 @@ export class GetDailyAttendanceBffUseCase {
       return {
         id: rec.id,
         id_staf: staff?.staffCode || '-',
+        staffProfileId: staff?.id || rec.staffProfileId || undefined,
         nama_staf: staff?.fullName || 'Staf',
         avatar: staff?.avatarUrl || undefined,
         kategori: categoryLabel,
