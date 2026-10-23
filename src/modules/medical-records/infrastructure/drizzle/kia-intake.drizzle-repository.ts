@@ -391,6 +391,93 @@ export class KiaIntakeDrizzleRepository {
       }
     }
 
+    const appt = await this.db.query.appointments.findFirst({
+      where: eq(appointments.id, appointmentId),
+      with: {
+        patientProfile: {
+          with: {
+            patientAddresses: true,
+            patientAffiliations: {
+              with: {
+                user: true,
+              },
+            },
+            patientAllergies: true,
+            patientEmergencyContacts: true,
+            user: true,
+          },
+        },
+        clinicService: true,
+        clinicRoom: true,
+        practitioner: {
+          with: {
+            staffProfile: true,
+            medicalSpecialty: true,
+          },
+        },
+      },
+    });
+
+    const patientData = appt?.patientProfile
+      ? this.mapPatientProfile(appt.patientProfile, fullAppt)
+      : null;
+
+    const baseAppointmentData = {
+      ...(fullAppt || {}),
+      appointmentId: appt?.id || appointmentId,
+      bookingCode: fullAppt?.bookingCode || appt?.bookingCode || null,
+      queueNumber: fullAppt?.queueNumber || appt?.queueNumber || '-',
+      scheduledDate: fullAppt?.appointmentDate || appt?.scheduledDate || null,
+      appointmentDateFormatted:
+        fullAppt?.appointmentDateFormatted || fullAppt?.appointmentDate || appt?.scheduledDate || null,
+      scheduledStartTime:
+        fullAppt?.scheduledStartTime || appt?.scheduledStartTime || null,
+      scheduledEndTime:
+        fullAppt?.scheduledEndTime || appt?.scheduledEndTime || null,
+      etaRange: fullAppt?.etaRange || null,
+      session: fullAppt?.session || null,
+      sessionName: fullAppt?.sessionName || null,
+      doctorName:
+        fullAppt?.doctorName ||
+        appt?.practitioner?.staffProfile?.fullName ||
+        null,
+      doctorSpecialty:
+        fullAppt?.doctorSpecialty ||
+        appt?.practitioner?.medicalSpecialty?.name ||
+        null,
+      roomName:
+        fullAppt?.roomName ||
+        appt?.clinicRoom?.name ||
+        null,
+      poliklinikId: fullAppt?.poliklinikId || null,
+      poliklinikName:
+        fullAppt?.poliklinikName ||
+        null,
+      layananId:
+        fullAppt?.layananId ||
+        appt?.serviceId ||
+        appt?.clinicService?.id ||
+        null,
+      layananName:
+        fullAppt?.layananName ||
+        appt?.clinicService?.name ||
+        null,
+      serviceName:
+        fullAppt?.layananName ||
+        appt?.clinicService?.name ||
+        null,
+      actualStartedAt: fullAppt?.actualStartedAt || appt?.actualStartedAt || null,
+      actualCompletedAt: fullAppt?.actualCompletedAt || appt?.actualCompletedAt || null,
+      consultationDurationFormatted:
+        fullAppt?.consultationDurationFormatted || null,
+      consultationElapsedSeconds:
+        fullAppt?.consultationElapsedSeconds || null,
+      status: fullAppt?.status || appt?.status || 'BOOKED',
+      rawStatus: fullAppt?.rawStatus || appt?.status || 'booked',
+      complaint: fullAppt?.complaint || appt?.complaint || null,
+      patient: patientData,
+    };
+
     const maternal =
       await this.findMaternalIntakeByAppointmentId(appointmentId);
     if (maternal) {
@@ -398,45 +485,25 @@ export class KiaIntakeDrizzleRepository {
         flow: 'pregnancy',
         type: 'maternal',
         data: {
-          ...(fullAppt || {}),
+          ...baseAppointmentData,
           ...maternal,
           appointmentId,
+          patient: patientData,
         },
       };
     }
 
     const immunization =
       await this.findImmunizationIntakeByAppointmentId(appointmentId);
-
     if (immunization) {
-      const appt = await this.db.query.appointments.findFirst({
-        where: eq(appointments.id, appointmentId),
-        with: {
-          clinicService: true,
-        },
-      });
-
       return {
         flow: 'immunization',
         type: 'immunization',
         data: {
-          ...(fullAppt || {}),
+          ...baseAppointmentData,
           ...immunization,
           appointmentId,
-          bookingCode: fullAppt?.bookingCode || appt?.bookingCode,
-          queueNumber: fullAppt?.queueNumber || appt?.queueNumber,
-          scheduledDate: fullAppt?.appointmentDate || appt?.scheduledDate,
-          scheduledStartTime:
-            fullAppt?.scheduledStartTime || appt?.scheduledStartTime,
-          scheduledEndTime:
-            fullAppt?.scheduledEndTime || appt?.scheduledEndTime,
-          etaRange: fullAppt?.etaRange,
-          sessionName: fullAppt?.sessionName,
-          doctorName: fullAppt?.doctorName,
-          roomName: fullAppt?.roomName,
-          poliklinikName: fullAppt?.poliklinikName,
-          complaint: fullAppt?.complaint || appt?.complaint,
-          serviceName: fullAppt?.layananName || appt?.clinicService?.name,
+          patient: patientData,
         },
       };
     }
@@ -472,61 +539,22 @@ export class KiaIntakeDrizzleRepository {
         flow: genericIntake.flow,
         type: 'generic',
         data: {
-          ...(fullAppt || {}),
+          ...baseAppointmentData,
           ...genericIntake,
           serviceName:
             fullAppt?.layananName || genericIntake.appointment?.clinicService?.name,
-          patient: this.mapPatientProfile(genericIntake.patientProfile, fullAppt),
+          patient: patientData || this.mapPatientProfile(genericIntake.patientProfile, fullAppt),
         },
       };
     }
-
-    const appt = await this.db.query.appointments.findFirst({
-      where: eq(appointments.id, appointmentId),
-      with: {
-        patientProfile: {
-          with: {
-            patientAddresses: true,
-            patientAffiliations: {
-              with: {
-                user: true,
-              },
-            },
-            patientAllergies: true,
-            patientEmergencyContacts: true,
-            user: true,
-          },
-        },
-        clinicService: true,
-      },
-    });
 
     if (appt?.patientProfile) {
       return {
         flow: appt.medicalFlow || 'regular',
         type: 'regular',
         data: {
-          ...(fullAppt || {}),
-          appointmentId: appt.id,
-          bookingCode: fullAppt?.bookingCode || appt.bookingCode,
-          queueNumber: fullAppt?.queueNumber || appt.queueNumber,
-          scheduledDate: fullAppt?.appointmentDate || appt.scheduledDate,
-          scheduledStartTime:
-            fullAppt?.scheduledStartTime || appt.scheduledStartTime,
-          scheduledEndTime: fullAppt?.scheduledEndTime || appt.scheduledEndTime,
-          etaRange: fullAppt?.etaRange,
-          sessionName: fullAppt?.sessionName,
-          doctorName: fullAppt?.doctorName,
-          roomName: fullAppt?.roomName,
-          poliklinikName: fullAppt?.poliklinikName,
-          serviceName: fullAppt?.layananName || appt.clinicService?.name,
-          actualStartedAt: fullAppt?.actualStartedAt,
-          actualCompletedAt: fullAppt?.actualCompletedAt,
-          consultationDurationFormatted:
-            fullAppt?.consultationDurationFormatted,
-          status: fullAppt?.status || appt.status,
-          complaint: fullAppt?.complaint || appt.complaint,
-          patient: this.mapPatientProfile(appt.patientProfile, fullAppt),
+          ...baseAppointmentData,
+          patient: patientData,
         },
       };
     }
