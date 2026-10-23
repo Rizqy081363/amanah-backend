@@ -353,7 +353,7 @@ export class AuthService {
           name: displayName,
           email,
           emailVerified: true,
-          imageUrl: verifiedGoogle.picture || null,
+          avatarUrl: verifiedGoogle.picture || null,
           status: 'active',
           preferredLocale: 'id-ID',
         })
@@ -394,11 +394,11 @@ export class AuthService {
         });
       }
 
-      if (verifiedGoogle.picture && !userRecord.imageUrl) {
+      if (verifiedGoogle.picture && !userRecord.avatarUrl) {
         await this.db
           .update(users)
           .set({
-            imageUrl: verifiedGoogle.picture,
+            avatarUrl: verifiedGoogle.picture,
             emailVerified: true,
             updatedAt: new Date().toISOString(),
           })
@@ -571,18 +571,18 @@ export class AuthService {
     const fullName = s?.fullName || p?.fullName || sanitizedUser.name || '';
     const initials = NameInitialsHelper.getInitials(fullName);
 
-    const storedImageUrl = sanitizedUser.imageUrl || s?.avatarUrl || null;
+    const storedAvatarUrl = sanitizedUser.avatarUrl || s?.avatarUrl || null;
     let avatarType: 'custom' | 'oauth' | 'initials' = 'initials';
     let hasCustomAvatar = false;
 
-    if (storedImageUrl) {
+    if (storedAvatarUrl) {
       if (
-        storedImageUrl.startsWith('http://') ||
-        storedImageUrl.startsWith('https://')
+        storedAvatarUrl.startsWith('http://') ||
+        storedAvatarUrl.startsWith('https://')
       ) {
         if (
-          storedImageUrl.includes('/api/v1/users/') &&
-          storedImageUrl.includes('/avatar')
+          storedAvatarUrl.includes('/api/v1/users/') &&
+          storedAvatarUrl.includes('/avatar')
         ) {
           avatarType = 'custom';
           hasCustomAvatar = true;
@@ -602,7 +602,7 @@ export class AuthService {
       initials,
       type: avatarType,
       hasCustomAvatar,
-      directUrl: storedImageUrl || canonicalAvatarUrl,
+      directUrl: storedAvatarUrl || canonicalAvatarUrl,
     };
 
     const primaryStaffAddress =
@@ -626,6 +626,7 @@ export class AuthService {
               ? s.birthDate
               : s.birthDate?.toISOString?.()?.slice(0, 10) || null,
           gender: s.gender || null,
+          avatarUrl: s.avatarUrl || avatar.url,
           photoUrl: avatar.url,
           phoneNumber: s.phone,
           isActive: s.status === 'active',
@@ -689,7 +690,7 @@ export class AuthService {
 
     return {
       ...sanitizedUser,
-      imageUrl: avatar.url,
+      avatarUrl: avatar.url,
       avatar,
       systemRole,
       role: {
@@ -1578,7 +1579,7 @@ export class AuthService {
     const resolvedPoliklinikId = await this.resolveOnboardingPoliklinikId(
       dto.poliklinikId,
     );
-    const userImageUrl = userRecord.imageUrl?.trim() || null;
+    const userAvatarUrl = userRecord.avatarUrl?.trim() || null;
 
     await this.db.transaction(async (tx) => {
       // 1. Update Better Auth "user" table
@@ -1646,7 +1647,7 @@ export class AuthService {
               dto.nationalId?.trim() || existingStaff.nationalIdEncrypted,
             phone: dto.phoneNumber?.trim() || existingStaff.phone,
             primaryUnitId: resolvedPoliklinikId || existingStaff.primaryUnitId,
-            avatarUrl: existingStaff.avatarUrl || userImageUrl,
+            avatarUrl: existingStaff.avatarUrl || userAvatarUrl,
             status: STAFF_STATUS.ACTIVE,
             updatedAt: new Date().toISOString(),
           })
@@ -1670,7 +1671,7 @@ export class AuthService {
             phone: dto.phoneNumber?.trim(),
             email: userRecord.email,
             primaryUnitId: resolvedPoliklinikId,
-            avatarUrl: userImageUrl,
+            avatarUrl: userAvatarUrl,
             status: STAFF_STATUS.ACTIVE,
           })
           .returning();

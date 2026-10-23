@@ -15,7 +15,7 @@ async function main() {
 
     // 2. Canonical "users" table — fadhiilah
     const coreUser = await pool.query(
-      `SELECT id, name, email, image_url FROM users WHERE email = 'zikridokter@gmail.com'`
+      `SELECT id, name, email, avatar_url FROM users WHERE email = 'zikridokter@gmail.com'`
     );
     console.log('\n=== Canonical "users" table ===');
     console.log(JSON.stringify(coreUser.rows, null, 2));
@@ -34,12 +34,12 @@ async function main() {
     console.log('\n=== Triggers ===');
     console.log(JSON.stringify(triggers.rows, null, 2));
 
-    // 5. Check ALL staff_profiles avatar_url vs their user image_url
+    // 5. Check ALL staff_profiles avatar_url vs their user avatar_url
     const comparison = await pool.query(`
       SELECT 
         sp.full_name,
         sp.avatar_url as staff_avatar,
-        u.image_url as users_image_url,
+        u.avatar_url as users_avatar_url,
         ba.image as betterauth_image
       FROM staff_profiles sp
       LEFT JOIN users u ON sp.user_id = u.id
@@ -49,7 +49,7 @@ async function main() {
     for (const row of comparison.rows) {
       console.log(`  ${row.full_name}:`);
       console.log(`    staff_profiles.avatar_url: ${row.staff_avatar || '(null)'}`);
-      console.log(`    users.image_url:           ${row.users_image_url || '(null)'}`);
+      console.log(`    users.avatar_url:          ${row.users_avatar_url || '(null)'}`);
       console.log(`    user.image (BetterAuth):   ${row.betterauth_image || '(null)'}`);
     }
 

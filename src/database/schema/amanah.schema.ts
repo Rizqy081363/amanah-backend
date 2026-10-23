@@ -276,7 +276,7 @@ export const users = pgTable(
     phone: text(),
     emailVerified: boolean('email_verified').default(false).notNull(),
     phoneVerified: boolean('phone_verified').default(false).notNull(),
-    imageUrl: text('image_url'),
+    avatarUrl: text('avatar_url'),
     status: userStatus().default('pending_verification').notNull(),
     preferredLocale: varchar('preferred_locale', { length: 16 })
       .default('id-ID')

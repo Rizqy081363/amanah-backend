@@ -139,9 +139,17 @@ export class CompleteServiceUseCase {
             patientUserId: updated.patientUserId,
             patientName: updated.patientName,
             staffId: updated.practitionerId,
-            doctorName: user?.staff?.fullName || user?.name || null,
+            doctorName:
+              updated.doctorName ||
+              user?.staff?.fullName ||
+              user?.name ||
+              null,
+            avatarUrl: updated.avatarUrl ?? null,
+            roomName: updated.roomName || null,
             poliklinikName: updated.poliklinikName,
             queueNumber: updated.queueNumber,
+            ticketNumber:
+              updated.bookingCode || String(updated.queueNumber || '-'),
             scheduledDate: updated.scheduledDate,
           },
           user,

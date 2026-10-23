@@ -1,6 +1,7 @@
 import { Injectable, OnModuleInit, Optional } from '@nestjs/common';
 import { NotificationIntent } from '../notifications/domain/entities/notification-rule.entity';
 import { NotificationRulesRegistry } from '../notifications/registry/notification-rules-registry';
+import { AppointmentNotificationMessageBuilder } from './application/appointment-notification-message.builder';
 import { APPOINTMENT_EVENTS } from './domain/constants/appointment-lifecycle.constants';
 import { AppointmentRecipientResolver } from './infrastructure/resolvers/appointment-recipient.resolver';
 
@@ -48,7 +49,7 @@ export class AppointmentsNotificationRules implements OnModuleInit {
               label: 'Lihat Antrean',
             },
             badgeIcon: 'calendar-check',
-            visualKey: payload.doctorAvatarUrl || null,
+            visualKey: payload.avatarUrl ?? null,
             senderName: 'Klinik Amanah',
             senderRole: 'Sistem Pendaftaran',
             isUrgent: false,
@@ -149,20 +150,24 @@ export class AppointmentsNotificationRules implements OnModuleInit {
         actor?: any,
       ): Promise<NotificationIntent[]> => {
         const intents: NotificationIntent[] = [];
-        const attemptInfo =
-          payload.attemptNumber && payload.maxAttempts
-            ? ` Panggilan ke-${payload.attemptNumber} dari ${payload.maxAttempts}.`
-            : '';
+        const messages =
+          AppointmentNotificationMessageBuilder.buildPatientCalledMessages(
+            payload,
+            actor,
+          );
 
         // Intent 1: Patient notification
         if (payload.patientUserId) {
           intents.push({
             recipientUserId: payload.patientUserId,
             audience: 'patient',
-            title: 'Panggilan Antrean',
-            body: `Nomor antrean ${payload.ticketNumber || '-'} dipanggil ke ${payload.poliklinikName || 'Poli'}.${attemptInfo} Segera menuju ruang periksa.`,
+            title: messages.patientTitle,
+            body: messages.patientBody,
             severity: 'warning',
             badgeIcon: 'bell',
+            visualKey: payload.avatarUrl ?? null,
+            senderName: payload.doctorName || 'Dokter',
+            senderRole: 'Dokter',
             isUrgent: true,
             action: {
               type: 'view_queue',
@@ -193,10 +198,13 @@ export class AppointmentsNotificationRules implements OnModuleInit {
             intents.push({
               recipientUserId: staffUserId,
               audience: 'clinic',
-              title: 'Pasien Dipanggil',
-              body: `Nomor antrean ${payload.ticketNumber || '-'} (${payload.patientName || 'Pasien'}) sedang dipanggil ke ${payload.poliklinikName || 'Poli'}.${attemptInfo}`,
+              title: messages.clinicTitle,
+              body: messages.clinicBody,
               severity: 'info',
               badgeIcon: 'bell',
+              visualKey: payload.avatarUrl ?? null,
+              senderName: payload.doctorName || 'Dokter',
+              senderRole: 'Dokter',
               isUrgent: false,
               presentation: {
                 toast: !isActorStaff,
@@ -220,13 +228,10 @@ export class AppointmentsNotificationRules implements OnModuleInit {
         return recipients;
       },
       titleTemplate: 'Panggilan Antrean',
-      bodyTemplate: (payload: any) => {
-        const attemptInfo =
-          payload.attemptNumber && payload.maxAttempts
-            ? ` Panggilan ke-${payload.attemptNumber} dari ${payload.maxAttempts}.`
-            : '';
-        return `Nomor antrean ${payload.ticketNumber || '-'} dipanggil ke ${payload.poliklinikName || 'Poli'}.${attemptInfo} Segera menuju ruang periksa.`;
-      },
+      bodyTemplate: (payload: any) =>
+        AppointmentNotificationMessageBuilder.buildPatientCalledMessages(
+          payload,
+        ).clinicBody,
       isUrgent: true,
       badgeIcon: 'bell',
       resolveSource: (payload: any) => ({
@@ -252,16 +257,39 @@ export class AppointmentsNotificationRules implements OnModuleInit {
         actor?: any,
       ): Promise<NotificationIntent[]> => {
         const intents: NotificationIntent[] = [];
+        const rawRole =
+          typeof actor?.roleCode === 'string'
+            ? actor.roleCode
+            : typeof actor?.role === 'object' && actor?.role
+              ? actor.role.name || actor.role.code
+              : typeof actor?.role === 'string'
+                ? actor.role
+                : '';
+        const isAdminActor = (rawRole || '').toUpperCase() === 'ADMIN';
+
+        const messages = isAdminActor
+          ? AppointmentNotificationMessageBuilder.buildAdminStatusChangedMessages(
+              payload,
+              'in_service',
+              actor,
+            )
+          : AppointmentNotificationMessageBuilder.buildDoctorStartedMessages(
+              payload,
+              actor,
+            );
 
         // Intent 1: Patient notification
         if (payload.patientUserId) {
           intents.push({
             recipientUserId: payload.patientUserId,
             audience: 'patient',
-            title: 'Pemeriksaan Dimulai',
-            body: `Pemeriksaan untuk antrean ${payload.ticketNumber || payload.queueNumber || '-'} di ${payload.poliklinikName || 'Poli'} sedang berlangsung.`,
+            title: messages.patientTitle,
+            body: messages.patientBody,
             severity: 'info',
             badgeIcon: 'stethoscope',
+            visualKey: payload.avatarUrl ?? null,
+            senderName: payload.doctorName || 'Dokter',
+            senderRole: 'Dokter',
             isUrgent: false,
             action: {
               type: 'view_queue',
@@ -287,17 +315,25 @@ export class AppointmentsNotificationRules implements OnModuleInit {
               payload.staffId,
             );
 
+          const clinicTitle = isAdminActor
+            ? messages.doctorTitle
+            : messages.clinicTitle;
+          const clinicBody = isAdminActor
+            ? messages.doctorBody
+            : messages.clinicBody;
+
           for (const staffUserId of clinicUserIds) {
             const isActorStaff = actor?.userId === staffUserId;
             intents.push({
               recipientUserId: staffUserId,
               audience: 'clinic',
-              title: 'Pemeriksaan Dimulai',
-              body: payload.doctorName
-                ? `${payload.doctorName} telah memulai pemeriksaan pasien ${payload.patientName || 'Pasien'} (${payload.ticketNumber || payload.queueNumber || '-'}).`
-                : `Pemeriksaan antrean ${payload.ticketNumber || payload.queueNumber || '-'} (${payload.patientName || 'Pasien'}) sedang berlangsung.`,
+              title: clinicTitle,
+              body: clinicBody,
               severity: 'info',
               badgeIcon: 'stethoscope',
+              visualKey: payload.avatarUrl ?? null,
+              senderName: payload.doctorName || 'Dokter',
+              senderRole: 'Dokter',
               isUrgent: false,
               action: {
                 type: 'view_patient',
@@ -325,7 +361,9 @@ export class AppointmentsNotificationRules implements OnModuleInit {
       },
       titleTemplate: 'Pemeriksaan Dimulai',
       bodyTemplate: (payload: any) =>
-        `Pemeriksaan untuk antrean ${payload.ticketNumber || '-'} di ${payload.poliklinikName || 'Poli'} sedang berlangsung.`,
+        AppointmentNotificationMessageBuilder.buildDoctorStartedMessages(
+          payload,
+        ).clinicBody,
       isUrgent: false,
       badgeIcon: 'stethoscope',
       resolveSource: (payload: any) => ({
@@ -396,9 +434,14 @@ export class AppointmentsNotificationRules implements OnModuleInit {
             recipientUserId: payload.patientUserId,
             audience: 'patient',
             title: 'Panggilan Terlewati (No-Show)',
-            body: `Pasien tidak hadir setelah ${payload.totalAttempts || 3} kali pemanggilan di ${payload.poliklinikName || 'Poli'}. Status: No-Show.`,
+            body: payload.doctorName
+              ? `Pasien tidak hadir pada pemeriksaan ${payload.doctorName} di ${payload.poliklinikName || 'Poli'}. Status: No-Show.`
+              : `Pasien tidak hadir setelah ${payload.totalAttempts || 3} kali pemanggilan di ${payload.poliklinikName || 'Poli'}. Status: No-Show.`,
             severity: 'error',
             badgeIcon: 'alert-circle',
+            visualKey: payload.avatarUrl ?? null,
+            senderName: payload.doctorName || 'Dokter',
+            senderRole: 'Dokter',
             isUrgent: true,
             presentation: { toast: true },
           });
@@ -417,9 +460,14 @@ export class AppointmentsNotificationRules implements OnModuleInit {
               recipientUserId: staffUserId,
               audience: 'clinic',
               title: 'Pasien Tidak Hadir (No-Show)',
-              body: `Pasien ${payload.patientName || 'Pasien'} (${payload.ticketNumber || payload.queueNumber || '-'}) ditandai tidak hadir (No-Show) setelah ${payload.totalAttempts || 3} kali pemanggilan.`,
+              body: payload.doctorName
+                ? `Pasien ${payload.patientName || 'Pasien'} (${payload.ticketNumber || payload.queueNumber || '-'}) ditandai tidak hadir (No-Show) oleh ${payload.doctorName}.`
+                : `Pasien ${payload.patientName || 'Pasien'} (${payload.ticketNumber || payload.queueNumber || '-'}) ditandai tidak hadir (No-Show) setelah ${payload.totalAttempts || 3} kali pemanggilan.`,
               severity: 'warning',
               badgeIcon: 'alert-circle',
+              visualKey: payload.avatarUrl ?? null,
+              senderName: payload.doctorName || 'Dokter',
+              senderRole: 'Dokter',
               isUrgent: true,
               presentation: { toast: !isActorStaff },
             });
@@ -471,6 +519,9 @@ export class AppointmentsNotificationRules implements OnModuleInit {
             body: `Konsultasi dan pemeriksaan medis di ${payload.poliklinikName || 'Poli'} telah selesai.`,
             severity: 'success',
             badgeIcon: 'check-circle',
+            visualKey: payload.avatarUrl ?? null,
+            senderName: payload.doctorName || 'Dokter',
+            senderRole: 'Dokter',
             isUrgent: false,
             presentation: { toast: true },
           });
@@ -494,6 +545,9 @@ export class AppointmentsNotificationRules implements OnModuleInit {
                 : `Pemeriksaan antrean ${payload.ticketNumber || payload.queueNumber || '-'} (${payload.patientName || 'Pasien'}) telah selesai.`,
               severity: 'success',
               badgeIcon: 'check-circle',
+              visualKey: payload.avatarUrl ?? null,
+              senderName: payload.doctorName || 'Dokter',
+              senderRole: 'Dokter',
               isUrgent: false,
               action: {
                 type: 'view_patient',
@@ -542,7 +596,8 @@ export class AppointmentsNotificationRules implements OnModuleInit {
         const intents: NotificationIntent[] = [];
         const isClinicActor =
           payload.rescheduledByRole === 'admin' ||
-          payload.rescheduledByRole === 'staff';
+          payload.rescheduledByRole === 'staff' ||
+          payload.rescheduledByRole === 'doctor';
 
         const timeInfo = payload.targetStartTime
           ? ` (${payload.targetStartTime.slice(0, 5)})`
@@ -555,13 +610,19 @@ export class AppointmentsNotificationRules implements OnModuleInit {
             audience: 'patient',
             title: 'Jadwal Diperbarui',
             body: isClinicActor
-              ? `Jadwal konsultasi Anda${timeInfo} dipindahkan ke tanggal ${payload.targetDate}.`
+              ? payload.rescheduledByRole === 'doctor' && payload.doctorName
+                ? `Jadwal konsultasi Anda${timeInfo} dipindahkan ke tanggal ${payload.targetDate} oleh ${payload.doctorName}.`
+                : `Jadwal konsultasi Anda${timeInfo} dipindahkan ke tanggal ${payload.targetDate}.`
               : `Jadwal Anda berhasil dipindahkan ke tanggal ${payload.targetDate}.`,
             severity: isClinicActor ? 'info' : 'success',
             badgeIcon: 'calendar',
-            visualKey: payload.doctorAvatarUrl || null,
-            senderName: 'Klinik Amanah',
-            senderRole: 'Admin',
+            visualKey: payload.avatarUrl ?? null,
+            senderName:
+              payload.rescheduledByRole === 'doctor' && payload.doctorName
+                ? payload.doctorName
+                : 'Klinik Amanah',
+            senderRole:
+              payload.rescheduledByRole === 'doctor' ? 'Dokter' : 'Admin',
             action: {
               type: 'view_queue',
               params: { appointmentId: payload.appointmentId || '' },
@@ -656,11 +717,7 @@ export class AppointmentsNotificationRules implements OnModuleInit {
         payload.rescheduledByRole === 'staff'
           ? 'Admin'
           : 'Pasien',
-      visualKey: (payload: any) =>
-        payload.rescheduledByRole === 'admin' ||
-        payload.rescheduledByRole === 'staff'
-          ? payload.doctorAvatarUrl || null
-          : payload.avatarUrl || null,
+      visualKey: (payload: any) => payload.avatarUrl ?? null,
       isUrgent: false,
       badgeIcon: 'calendar',
       resolveSource: (payload: any) => ({
@@ -689,7 +746,8 @@ export class AppointmentsNotificationRules implements OnModuleInit {
         const intents: NotificationIntent[] = [];
         const isClinicActor =
           payload.cancelledByRole === 'admin' ||
-          payload.cancelledByRole === 'staff';
+          payload.cancelledByRole === 'staff' ||
+          payload.cancelledByRole === 'doctor';
 
         // 1. Patient Notification
         if (payload.patientUserId) {
@@ -698,13 +756,17 @@ export class AppointmentsNotificationRules implements OnModuleInit {
             audience: 'patient',
             title: 'Janji Temu Dibatalkan',
             body: isClinicActor
-              ? `Janji temu Anda (${payload.queueNumber || '-'}) dengan ${payload.doctorName || 'Dokter'} dibatalkan oleh klinik. Alasan: ${payload.reason || '-'}.`
+              ? `Janji temu Anda (${payload.queueNumber || '-'}) dengan ${payload.doctorName || 'Dokter'} dibatalkan oleh ${payload.cancelledByRole === 'doctor' ? (payload.doctorName || 'dokter') : 'pihak klinik'}. Alasan: ${payload.reason || '-'}.`
               : `Janji temu Anda dengan ${payload.doctorName || 'Dokter'} telah berhasil dibatalkan.`,
             severity: isClinicActor ? 'error' : 'info',
             badgeIcon: 'alert-circle',
-            visualKey: payload.doctorAvatarUrl || null,
-            senderName: 'Klinik Amanah',
-            senderRole: 'Admin',
+            visualKey: payload.avatarUrl ?? null,
+            senderName:
+              payload.cancelledByRole === 'doctor' && payload.doctorName
+                ? payload.doctorName
+                : 'Klinik Amanah',
+            senderRole:
+              payload.cancelledByRole === 'doctor' ? 'Dokter' : 'Admin',
             isUrgent: isClinicActor,
             presentation: { toast: isClinicActor },
           });
@@ -727,9 +789,11 @@ export class AppointmentsNotificationRules implements OnModuleInit {
                 : `Pasien ${payload.patientName || 'Pasien'} membatalkan janji temu (${payload.queueNumber || '-'}). Alasan: ${payload.reason || '-'}.`,
               severity: 'warning',
               badgeIcon: 'alert-circle',
-              visualKey: payload.avatarUrl || null,
-              senderName: isClinicActor ? 'Klinik Amanah' : (payload.patientName || 'Pasien'),
-              senderRole: isClinicActor ? 'Klinik' : 'Pasien',
+              visualKey: payload.avatarUrl ?? null,
+              senderName: isClinicActor
+                ? (payload.doctorName || 'Dokter')
+                : (payload.patientName || 'Pasien'),
+              senderRole: isClinicActor ? 'Dokter' : 'Pasien',
               action: {
                 type: 'view_schedule',
                 params: {
@@ -792,11 +856,7 @@ export class AppointmentsNotificationRules implements OnModuleInit {
         payload.cancelledByRole === 'staff'
           ? 'Admin'
           : 'Pasien',
-      visualKey: (payload: any) =>
-        payload.cancelledByRole === 'admin' ||
-        payload.cancelledByRole === 'staff'
-          ? payload.doctorAvatarUrl || null
-          : payload.avatarUrl || null,
+      visualKey: (payload: any) => payload.avatarUrl ?? null,
       isUrgent: true,
       badgeIcon: 'alert-circle',
       resolveSource: (payload: any) => ({
@@ -840,7 +900,7 @@ export class AppointmentsNotificationRules implements OnModuleInit {
             body: changeBody,
             severity: 'info',
             badgeIcon: 'stethoscope',
-            visualKey: payload.doctorAvatarUrl || null,
+            visualKey: payload.avatarUrl ?? null,
             senderName: 'Klinik Amanah',
             senderRole: 'Admin',
             action: {
@@ -875,7 +935,7 @@ export class AppointmentsNotificationRules implements OnModuleInit {
               body: staffBody,
               severity: 'info',
               badgeIcon: 'stethoscope',
-              visualKey: payload.doctorAvatarUrl || null,
+              visualKey: payload.avatarUrl ?? null,
               senderName: 'Klinik Amanah',
               senderRole: 'Admin',
               action: {
@@ -918,7 +978,7 @@ export class AppointmentsNotificationRules implements OnModuleInit {
       },
       senderName: 'Klinik Amanah',
       senderRole: 'Admin',
-      visualKey: (payload: any) => payload.doctorAvatarUrl || null,
+      visualKey: (payload: any) => payload.avatarUrl ?? null,
       isUrgent: false,
       badgeIcon: 'stethoscope',
       resolveSource: (payload: any) => ({

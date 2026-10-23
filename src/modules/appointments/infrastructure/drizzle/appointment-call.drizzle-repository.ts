@@ -11,6 +11,7 @@ import {
   patientProfiles,
   practitioners,
   queueTickets,
+  staffProfiles,
 } from '../../../../database/schema';
 import {
   DB_APPOINTMENT_STATUS,
@@ -146,6 +147,7 @@ export class AppointmentCallDrizzleRepository
         roomName: clinicRooms.name,
         doctorName: practitioners.displayName,
         practitionerId: appointments.practitionerId,
+        avatarUrl: staffProfiles.avatarUrl,
         categoryId: queueTickets.categoryId,
         scheduledDate: appointments.scheduledDate,
       })
@@ -161,6 +163,10 @@ export class AppointmentCallDrizzleRepository
       .leftJoin(
         practitioners,
         eq(practitioners.id, appointments.practitionerId),
+      )
+      .leftJoin(
+        staffProfiles,
+        eq(staffProfiles.id, practitioners.staffProfileId),
       )
       .where(eq(appointments.id, appointmentId));
 

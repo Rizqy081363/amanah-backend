@@ -22,6 +22,20 @@ export class AppointmentNotificationPublisher {
     );
   }
 
+  private extractRoleCode(user?: any, fallback = 'STAF'): string {
+    if (!user) return fallback;
+    const rawRole =
+      user.roleCode ||
+      user.role?.code ||
+      user.systemRole ||
+      user.role?.name ||
+      (typeof user.role === 'string' ? user.role : fallback);
+    if (typeof rawRole === 'string' && rawRole.trim() !== '') {
+      return rawRole.toUpperCase();
+    }
+    return fallback;
+  }
+
   async publishCreated(created: AppointmentEntity, user?: any): Promise<void> {
     if (!this.notificationPublisher) return;
 
@@ -44,7 +58,6 @@ export class AppointmentNotificationPublisher {
           layananName: created.layananName || null,
           staffId: created.staffId || null,
           doctorName: created.doctorName || null,
-          doctorAvatarUrl: created.doctorAvatarUrl || null,
           appointmentDate: created.appointmentDate,
           scheduledStartTime: created.scheduledStartTime || null,
           scheduledEndTime: created.scheduledEndTime || null,
@@ -56,10 +69,7 @@ export class AppointmentNotificationPublisher {
         },
         actor: {
           userId: user?.id || user?.sub,
-          roleCode:
-            typeof user?.role === 'object' && user?.role
-              ? user.role.name
-              : user?.role || user?.systemRole || 'PATIENT',
+          roleCode: this.extractRoleCode(user, 'PATIENT'),
         },
       };
       await this.notificationPublisher.publish(domainEvent);
@@ -71,7 +81,26 @@ export class AppointmentNotificationPublisher {
   }
 
   async publishCancelled(
-    appointment: AppointmentEntity,
+    appointment: {
+      id: string;
+      patientId?: string | null;
+      patientUserId?: string | null;
+      patientName?: string | null;
+      avatarUrl?: string | null;
+      doctorName?: string | null;
+      staffId?: string | null;
+      poliklinikId?: string | null;
+      poliklinikName?: string | null;
+      layananId?: string | null;
+      layananName?: string | null;
+      roomName?: string | null;
+      appointmentDate?: string | null;
+      session?: any;
+      scheduledStartTime?: string | null;
+      scheduledEndTime?: string | null;
+      queueNumber?: number | string | null;
+      status?: string | null;
+    },
     reason: string,
     user?: any,
   ): Promise<void> {
@@ -85,19 +114,21 @@ export class AppointmentNotificationPublisher {
           appointment.patientUserId === actorUserId,
       );
 
-      const rawRole =
-        typeof user?.role === 'object' && user?.role
-          ? user.role.name || user.role.code
-          : user?.role || user?.systemRole;
-      const normalizedRole = (rawRole || '').toUpperCase();
+      const normalizedRole = this.extractRoleCode(user, 'PATIENT');
+      const isDoctorRole =
+        normalizedRole === 'DOCTOR' || normalizedRole === 'DOKTER';
       const isStaffOrAdmin =
         normalizedRole === 'ADMIN' ||
         normalizedRole === 'STAF' ||
-        normalizedRole === 'STAFF' ||
-        normalizedRole === 'DOCTOR' ||
-        normalizedRole === 'DOKTER';
+        normalizedRole === 'STAFF';
 
-      const isCancelledByAdmin = isPatientOwner ? false : isStaffOrAdmin;
+      const determinedRole = isDoctorRole
+        ? 'doctor'
+        : isPatientOwner
+          ? 'patient'
+          : isStaffOrAdmin
+            ? 'admin'
+            : 'patient';
 
       const domainEvent: DomainEvent = {
         eventId: randomUUID(),
@@ -112,7 +143,6 @@ export class AppointmentNotificationPublisher {
           patientName: appointment.patientName || 'Pasien',
           avatarUrl: appointment.avatarUrl || null,
           doctorName: appointment.doctorName || null,
-          doctorAvatarUrl: appointment.doctorAvatarUrl || null,
           staffId: appointment.staffId || null,
           poliklinikId: appointment.poliklinikId,
           poliklinikName: appointment.poliklinikName || null,
@@ -126,11 +156,16 @@ export class AppointmentNotificationPublisher {
           queueNumber: appointment.queueNumber,
           status: 'BATAL',
           reason,
-          cancelledByRole: isCancelledByAdmin ? 'admin' : 'patient',
+          cancelledByRole: determinedRole,
         },
         actor: {
           userId: user?.id || user?.sub,
-          roleCode: isCancelledByAdmin ? 'ADMIN' : 'PATIENT',
+          roleCode:
+            determinedRole === 'doctor'
+              ? 'DOCTOR'
+              : determinedRole === 'admin'
+                ? 'ADMIN'
+                : 'PATIENT',
         },
       };
 
@@ -163,25 +198,23 @@ export class AppointmentNotificationPublisher {
           appointment.patientUserId === actorUserId,
       );
 
-      const rawRole =
-        typeof user?.role === 'object' && user?.role
-          ? user.role.name || user.role.code
-          : user?.role || user?.systemRole;
-      const normalizedRole = (rawRole || '').toUpperCase();
+      const normalizedRole = this.extractRoleCode(user, 'PATIENT');
+      const isDoctorCaller =
+        normalizedRole === 'DOCTOR' || normalizedRole === 'DOKTER';
       const isStaffOrAdmin =
         normalizedRole === 'ADMIN' ||
         normalizedRole === 'STAF' ||
-        normalizedRole === 'STAFF' ||
-        normalizedRole === 'DOCTOR' ||
-        normalizedRole === 'DOKTER';
+        normalizedRole === 'STAFF';
 
       const determinedRole = options.rescheduledByRole
         ? options.rescheduledByRole
-        : isPatientOwner
-          ? 'patient'
-          : isStaffOrAdmin
-            ? 'admin'
-            : 'patient';
+        : isDoctorCaller
+          ? 'doctor'
+          : isPatientOwner
+            ? 'patient'
+            : isStaffOrAdmin
+              ? 'admin'
+              : 'patient';
 
       const domainEvent: DomainEvent = {
         eventId: randomUUID(),
@@ -196,7 +229,6 @@ export class AppointmentNotificationPublisher {
           patientName: appointment.patientName || 'Pasien',
           avatarUrl: appointment.avatarUrl || null,
           doctorName: appointment.doctorName || null,
-          doctorAvatarUrl: appointment.doctorAvatarUrl || null,
           practitionerId: appointment.staffId || null,
           staffId: appointment.staffId || null,
           poliklinikId: appointment.poliklinikId,
@@ -217,7 +249,12 @@ export class AppointmentNotificationPublisher {
         },
         actor: {
           userId: user?.id || user?.sub,
-          roleCode: determinedRole === 'admin' ? 'ADMIN' : 'PATIENT',
+          roleCode:
+            determinedRole === 'doctor'
+              ? 'DOCTOR'
+              : determinedRole === 'admin'
+                ? 'ADMIN'
+                : 'PATIENT',
         },
       };
 
@@ -271,7 +308,7 @@ export class AppointmentNotificationPublisher {
         },
         actor: {
           userId: user?.id || user?.sub,
-          roleCode: user?.role || 'ADMIN',
+          roleCode: this.extractRoleCode(user, 'ADMIN'),
         },
       };
 
@@ -304,7 +341,6 @@ export class AppointmentNotificationPublisher {
           avatarUrl: appointment.avatarUrl || null,
           staffId: appointment.staffId || null,
           doctorName: appointment.doctorName || null,
-          doctorAvatarUrl: appointment.doctorAvatarUrl || null,
           roomName: appointment.roomName || null,
           poliklinikName: appointment.poliklinikName || null,
           scheduledDate: appointment.appointmentDate,
@@ -317,7 +353,7 @@ export class AppointmentNotificationPublisher {
         },
         actor: {
           userId: user?.id || user?.sub,
-          roleCode: user?.role || 'PATIENT',
+          roleCode: this.extractRoleCode(user, 'PATIENT'),
         },
       };
 
@@ -337,9 +373,9 @@ export class AppointmentNotificationPublisher {
       patientName?: string | null;
       avatarUrl?: string | null;
       doctorName?: string | null;
-      doctorAvatarUrl?: string | null;
       staffId?: string | null;
       poliklinikName?: string | null;
+      roomName?: string | null;
       queueNumber?: number | string | null;
       ticketNumber?: string | null;
       scheduledDate?: string | null;
@@ -363,8 +399,8 @@ export class AppointmentNotificationPublisher {
           avatarUrl: appointment.avatarUrl || null,
           staffId: appointment.staffId || null,
           doctorName: appointment.doctorName || null,
-          doctorAvatarUrl: appointment.doctorAvatarUrl || null,
           poliklinikName: appointment.poliklinikName || null,
+          roomName: appointment.roomName || null,
           ticketNumber:
             appointment.ticketNumber ||
             String(appointment.queueNumber || '-'),
@@ -377,7 +413,7 @@ export class AppointmentNotificationPublisher {
         },
         actor: {
           userId: user?.id || user?.sub,
-          roleCode: user?.role || user?.systemRole || 'STAF',
+          roleCode: this.extractRoleCode(user, 'STAF'),
         },
       };
 
@@ -397,9 +433,9 @@ export class AppointmentNotificationPublisher {
       patientName?: string | null;
       avatarUrl?: string | null;
       doctorName?: string | null;
-      doctorAvatarUrl?: string | null;
       staffId?: string | null;
       poliklinikName?: string | null;
+      roomName?: string | null;
       queueNumber?: number | string | null;
       ticketNumber?: string | null;
       scheduledDate?: string | null;
@@ -423,8 +459,8 @@ export class AppointmentNotificationPublisher {
           avatarUrl: appointment.avatarUrl || null,
           staffId: appointment.staffId || null,
           doctorName: appointment.doctorName || null,
-          doctorAvatarUrl: appointment.doctorAvatarUrl || null,
           poliklinikName: appointment.poliklinikName || null,
+          roomName: appointment.roomName || null,
           ticketNumber:
             appointment.ticketNumber ||
             String(appointment.queueNumber || '-'),
@@ -437,7 +473,7 @@ export class AppointmentNotificationPublisher {
         },
         actor: {
           userId: user?.id || user?.sub,
-          roleCode: user?.role || user?.systemRole || 'STAF',
+          roleCode: this.extractRoleCode(user, 'STAF'),
         },
       };
 

@@ -154,7 +154,6 @@ export interface AppointmentRecord {
   avatarUrl?: string | null;
   practitionerId: string;
   doctorName?: string | null;
-  doctorAvatarUrl?: string | null;
   serviceId?: string | null;
   serviceName?: string | null;
   poliklinikId?: string | null;

@@ -76,8 +76,8 @@ export class AppointmentRecordMapper {
     const patientUserId = parentUserId;
     const directPatientAvatar =
       apt.patientProfile?.avatarUrl ||
-      apt.patientProfile?.user?.imageUrl ||
-      primaryAffiliation?.user?.imageUrl ||
+      apt.patientProfile?.user?.avatarUrl ||
+      primaryAffiliation?.user?.avatarUrl ||
       null;
     const avatarUrl =
       directPatientAvatar ||
@@ -86,11 +86,8 @@ export class AppointmentRecordMapper {
     const doctorUserId = apt.practitioner?.staffProfile?.userId || null;
     const directDoctorAvatar =
       apt.practitioner?.staffProfile?.avatarUrl ||
-      apt.practitioner?.staffProfile?.user?.imageUrl ||
+      apt.practitioner?.staffProfile?.user?.avatarUrl ||
       null;
-    const doctorAvatarUrl =
-      directDoctorAvatar ||
-      (doctorUserId ? `/api/v1/users/${doctorUserId}/avatar` : null);
 
     const actualStartedAt = apt.actualStartedAt
       ? new Date(apt.actualStartedAt)
@@ -223,7 +220,6 @@ export class AppointmentRecordMapper {
         apt.practitioner?.name ||
         null,
       doctorSpecialty: apt.practitioner?.medicalSpecialty?.name || null,
-      doctorAvatarUrl,
       roomId: apt.roomId || null,
       roomName: apt.clinicRoom?.name || null,
       roomLocation: apt.clinicRoom?.location || null,

@@ -7,6 +7,7 @@ import {
   Inject,
   Param,
   Patch,
+  UseFilters,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -36,10 +37,12 @@ import { AdminUpdateAppointmentStatusDto } from './dto/admin-update-appointment-
 import { CancelAppointmentDto } from './dto/cancel-appointment.dto';
 import { ChangeAppointmentDoctorDto } from './dto/change-appointment-doctor.dto';
 import { ChangeAppointmentRoomDto } from './dto/change-appointment-room.dto';
+import { AppointmentDomainExceptionFilter } from './filters/appointment-domain-exception.filter';
 
 @ApiTags('Admin Appointments (Manajemen Janji Temu & Antrean)')
 @ApiBearerAuth('access-token')
 @UseGuards(HybridAuthGuard, RolesGuard)
+@UseFilters(AppointmentDomainExceptionFilter)
 @Roles('ADMIN', 'STAF')
 @ApiUnauthorizedResponse({
   description: 'Sesi autentikasi tidak valid atau token tidak disertakan',

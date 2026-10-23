@@ -789,7 +789,7 @@ export class PatientDrizzleRepository implements PatientRepository {
         userId: patientProfiles.userId,
         avatarUrl: patientProfiles.avatarUrl,
         userAvatarUrl: sql<string | null>`(
-          SELECT image_url FROM users WHERE users.id = ${patientProfiles.userId}
+          SELECT avatar_url FROM users WHERE users.id = ${patientProfiles.userId}
         )`,
         masterUserId: sql<string | null>`(
           SELECT pa.user_id FROM patient_affiliations pa
@@ -798,14 +798,14 @@ export class PatientDrizzleRepository implements PatientRepository {
           LIMIT 1
         )`,
         masterUserAvatarUrl: sql<string | null>`(
-          SELECT u.image_url FROM patient_affiliations pa
+          SELECT u.avatar_url FROM patient_affiliations pa
           JOIN users u ON u.id = pa.user_id
           WHERE pa.patient_id = patient_profiles.id
           ORDER BY pa.is_primary DESC, pa.created_at DESC
           LIMIT 1
         )`,
         emailUserAvatarUrl: sql<string | null>`(
-          SELECT image_url FROM users WHERE users.email = ${patientProfiles.email} LIMIT 1
+          SELECT avatar_url FROM users WHERE users.email = ${patientProfiles.email} LIMIT 1
         )`,
         emailUserId: sql<string | null>`(
           SELECT id FROM users WHERE users.email = ${patientProfiles.email} LIMIT 1
@@ -995,10 +995,10 @@ export class PatientDrizzleRepository implements PatientRepository {
             masterUserId: patientAffiliations.userId,
             avatarUrl: patientProfiles.avatarUrl,
             masterUserAvatar: sql<string | null>`(
-              SELECT image_url FROM users WHERE users.id = ${patientAffiliations.userId}
+              SELECT avatar_url FROM users WHERE users.id = ${patientAffiliations.userId}
             )`,
             emailUserAvatar: sql<string | null>`(
-              SELECT image_url FROM users WHERE users.email = ${patientProfiles.email} LIMIT 1
+              SELECT avatar_url FROM users WHERE users.email = ${patientProfiles.email} LIMIT 1
             )`,
             emailUserId: sql<string | null>`(
               SELECT id FROM users WHERE users.email = ${patientProfiles.email} LIMIT 1

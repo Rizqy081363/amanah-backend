@@ -583,8 +583,8 @@ export class AppointmentHardenedDrizzleRepository
     const patientUserId = parentUserId;
     const directPatientAvatar =
       apt.patientProfile?.avatarUrl ||
-      apt.patientProfile?.user?.imageUrl ||
-      primaryAffiliation?.user?.imageUrl ||
+      apt.patientProfile?.user?.avatarUrl ||
+      primaryAffiliation?.user?.avatarUrl ||
       null;
     const avatarUrl =
       directPatientAvatar ||
@@ -593,11 +593,8 @@ export class AppointmentHardenedDrizzleRepository
     const doctorUserId = apt.practitioner?.staffProfile?.userId || null;
     const directDoctorAvatar =
       apt.practitioner?.staffProfile?.avatarUrl ||
-      apt.practitioner?.staffProfile?.user?.imageUrl ||
+      apt.practitioner?.staffProfile?.user?.avatarUrl ||
       null;
-    const doctorAvatarUrl =
-      directDoctorAvatar ||
-      (doctorUserId ? `/api/v1/users/${doctorUserId}/avatar` : null);
 
     return {
       id: apt.id,
@@ -615,7 +612,6 @@ export class AppointmentHardenedDrizzleRepository
         apt.practitioner?.staffProfile?.fullName ||
         apt.practitioner?.name ||
         null,
-      doctorAvatarUrl,
       serviceId: apt.serviceId || null,
       serviceName: apt.clinicService?.name || null,
       poliklinikId: apt.clinicRoom?.unitId || null,

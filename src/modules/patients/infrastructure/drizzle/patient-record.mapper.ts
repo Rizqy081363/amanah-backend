@@ -21,8 +21,8 @@ export class PatientRecordMapper {
       null;
     const resolvedAvatarUrl =
       record.avatarUrl ||
-      record.user?.imageUrl ||
-      primaryAffiliation?.user?.imageUrl ||
+      record.user?.avatarUrl ||
+      primaryAffiliation?.user?.avatarUrl ||
       (resolvedUserId ? `/api/v1/users/${resolvedUserId}/avatar` : null);
 
     const resolvedPhone = record.phone || record.user?.phone || '';

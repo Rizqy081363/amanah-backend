@@ -27,6 +27,7 @@ export interface AppointmentCallDetails {
   practitionerId?: string | null;
   categoryId?: string | null;
   scheduledDate?: string | null;
+  avatarUrl?: string | null;
 }
 
 export abstract class AppointmentCallRepository {

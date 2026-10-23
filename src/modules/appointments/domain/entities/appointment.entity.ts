@@ -25,7 +25,6 @@ export class AppointmentEntity {
   doctorId?: string | null;
   doctorName?: string | null;
   doctorSpecialty?: string | null;
-  doctorAvatarUrl?: string | null;
   roomId?: string | null;
   roomName?: string | null;
   roomLocation?: string | null;

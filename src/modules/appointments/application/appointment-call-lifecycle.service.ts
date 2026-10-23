@@ -154,6 +154,7 @@ export class AppointmentCallLifecycleService {
         poliklinikName: details.poliklinikName || '',
         roomName: details.roomName || null,
         doctorName: details.doctorName || null,
+        avatarUrl: details.avatarUrl ?? null,
         staffId: details.practitionerId || null,
         calledBy: calledByUserId,
         notes,
@@ -273,6 +274,7 @@ export class AppointmentCallLifecycleService {
         patientName: details.patientName || 'Pasien',
         staffId: details.practitionerId || null,
         doctorName: details.doctorName || null,
+        avatarUrl: details.avatarUrl ?? null,
         ticketNumber: details.ticketNumber,
         poliklinikName:
           details.roomName || details.poliklinikName || 'Poliklinik',
@@ -354,19 +356,113 @@ export class AppointmentCallLifecycleService {
       throw new NotFoundException('Janji temu tidak ditemukan.');
     }
 
+    const now = new Date().toISOString();
     const latestAttempt = await this.callRepo.getLatestAttempt(appointmentId);
     if (!latestAttempt) {
-      throw new BadRequestException(
-        'Belum ada panggilan untuk janji temu ini.',
+      await this.callRepo.recordCallAttempt({
+        appointmentId,
+        queueTicketId: details.ticketId,
+        attemptNumber: 1,
+        status: APPOINTMENT_CALL_STATUS.NO_RESPONSE,
+        calledBy: calledByUserId,
+        notes: notes || 'Ditandai tidak hadir langsung oleh dokter',
+      });
+
+      await this.callRepo.updateAppointmentAndTicketStatus(
+        appointmentId,
+        DB_APPOINTMENT_STATUS.NO_SHOW,
+        details.ticketId,
+        QUEUE_TICKET_STATUS.SKIPPED,
       );
+
+      await this.invalidateQueueCache();
+
+      const event: DomainEvent = {
+        eventId: randomUUID(),
+        eventType: APPOINTMENT_EVENTS.NO_SHOW,
+        version: 1,
+        occurredAt: now,
+        module: 'appointments',
+        payload: {
+          appointmentId,
+          patientUserId: details.patientUserId,
+          patientName: details.patientName,
+          ticketNumber: details.ticketNumber,
+          staffId: details.practitionerId || null,
+          doctorName: details.doctorName || null,
+          avatarUrl: details.avatarUrl ?? null,
+          totalAttempts: 1,
+          poliklinikName:
+            details.roomName || details.poliklinikName || 'Poliklinik',
+          notes: notes || 'Ditandai tidak hadir langsung oleh dokter',
+        },
+        actor: {
+          userId: calledByUserId,
+          roleCode: 'staff',
+        },
+      };
+
+      await this.publisher.publish(event);
+
+      if (this.realtimeEmitter) {
+        await this.realtimeEmitter.emitStatusChanged({
+          appointmentId,
+          status: 'CANCELLED',
+          previousStatus: 'WAITING',
+          queueNumber:
+            parseInt(String(details.ticketNumber).replace(/\D/g, ''), 10) || 0,
+          practitionerId: details.practitionerId || '',
+        });
+      }
+
+      if (this.queueEventPublisher && details.scheduledDate) {
+        this.queueEventPublisher
+          .publishProgression({
+            eventType: 'cancelled',
+            serviceDate: details.scheduledDate,
+            appointmentId,
+            categoryId: details.categoryId || undefined,
+            ticketId: details.ticketId || undefined,
+          })
+          .catch((err) => {
+            this.logger.warn(
+              `Failed to publish queue progression on direct no-show for ${appointmentId}: ${err.message}`,
+            );
+          });
+      }
+
+      if (this.pushNotification && details.patientUserId) {
+        const roomOrPoli =
+          details.roomName || details.poliklinikName || 'Ruang Pemeriksaan';
+        this.pushNotification
+          .sendPush({
+            userId: details.patientUserId,
+            title: 'Panggilan Terlewati (No-Show)',
+            body: `Nomor antrean ${details.ticketNumber} (${details.patientName || 'Pasien'}) ditandai tidak hadir di ${roomOrPoli}.`,
+            data: {
+              appointmentId,
+              queueNumber: String(details.ticketNumber),
+              status: 'NO_SHOW',
+            },
+          })
+          .catch((error) => {
+            this.logger.warn(
+              `Push notification failed on direct no-show for patient ${details.patientUserId}: ${error.message}`,
+            );
+          });
+      }
+
+      return {
+        noShow: true,
+        attemptNumber: 1,
+        status: DB_APPOINTMENT_STATUS.NO_SHOW,
+      };
     }
 
     await this.callRepo.updateAttemptStatus(
       latestAttempt.id,
       APPOINTMENT_CALL_STATUS.NO_RESPONSE,
     );
-
-    const now = new Date().toISOString();
 
     if (latestAttempt.attemptNumber < MAX_PATIENT_CALL_ATTEMPTS) {
       // Requeue behind 3 positions
@@ -468,6 +564,7 @@ export class AppointmentCallLifecycleService {
         ticketNumber: details.ticketNumber,
         staffId: details.practitionerId || null,
         doctorName: details.doctorName || null,
+        avatarUrl: details.avatarUrl ?? null,
         totalAttempts: latestAttempt.attemptNumber,
         poliklinikName:
           details.roomName || details.poliklinikName || 'Poliklinik',

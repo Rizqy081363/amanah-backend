@@ -594,6 +594,50 @@ export class AppointmentsService {
         dto.reason,
       );
 
+      if (this.notificationPublisher) {
+        if (result.data.newStatus === DB_APPOINTMENT_STATUS.IN_SERVICE) {
+          await this.notificationPublisher
+            .publishStarted(
+              {
+                id: apt.id,
+                patientUserId: apt.patientUserId,
+                patientName: apt.patientName,
+                staffId: apt.staffId,
+                doctorName: apt.doctorName || null,
+                poliklinikName: apt.poliklinikName,
+                queueNumber: apt.queueNumber,
+                scheduledDate: apt.appointmentDate,
+              },
+              user,
+            )
+            .catch((error) => {
+              this.logger.warn(
+                `Failed to publish started notification event: ${error.message}`,
+              );
+            });
+        } else if (result.data.newStatus === DB_APPOINTMENT_STATUS.COMPLETED) {
+          await this.notificationPublisher
+            .publishCompleted(
+              {
+                id: apt.id,
+                patientUserId: apt.patientUserId,
+                patientName: apt.patientName,
+                staffId: apt.staffId,
+                doctorName: apt.doctorName || null,
+                poliklinikName: apt.poliklinikName,
+                queueNumber: apt.queueNumber,
+                scheduledDate: apt.appointmentDate,
+              },
+              user,
+            )
+            .catch((error) => {
+              this.logger.warn(
+                `Failed to publish completed notification event: ${error.message}`,
+              );
+            });
+        }
+      }
+
       if (
         this.queueEventPublisher &&
         (result.data.newStatus === DB_APPOINTMENT_STATUS.COMPLETED ||

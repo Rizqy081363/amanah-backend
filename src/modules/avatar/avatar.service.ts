@@ -66,7 +66,7 @@ export class AvatarService {
    * Upload and process a new custom avatar for a user:
    * 1. Validates magic bytes & converts to 512x512 WebP (stripping EXIF)
    * 2. Atomically writes to storage
-   * 3. Updates users.image_url, user.image (Better Auth), and staff_profiles.avatar_url directly
+   * 3. Updates users.avatar_url, user.image (Better Auth), and staff_profiles.avatar_url directly
    */
   async uploadAvatar(
     userId: string,
@@ -103,7 +103,7 @@ export class AvatarService {
     await this.db
       .update(users)
       .set({
-        imageUrl: avatarUrl,
+        avatarUrl: avatarUrl,
         updatedAt: new Date().toISOString(),
       })
       .where(eq(users.id, userId));
@@ -189,14 +189,14 @@ export class AvatarService {
 
     // Check if user has an external OAuth image URL (e.g. googleusercontent.com)
     if (
-      userRecord.imageUrl &&
-      (userRecord.imageUrl.startsWith('http://') ||
-        userRecord.imageUrl.startsWith('https://')) &&
-      !userRecord.imageUrl.includes(`/api/v1/users/${userId}/avatar`)
+      userRecord.avatarUrl &&
+      (userRecord.avatarUrl.startsWith('http://') ||
+        userRecord.avatarUrl.startsWith('https://')) &&
+      !userRecord.avatarUrl.includes(`/api/v1/users/${userId}/avatar`)
     ) {
       return {
         kind: 'redirect',
-        url: userRecord.imageUrl,
+        url: userRecord.avatarUrl,
         statusCode: 307,
       };
     }
@@ -248,7 +248,7 @@ export class AvatarService {
     await this.db
       .update(users)
       .set({
-        imageUrl: null,
+        avatarUrl: null,
         updatedAt: new Date().toISOString(),
       })
       .where(eq(users.id, userId));

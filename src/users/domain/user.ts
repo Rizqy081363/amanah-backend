@@ -58,7 +58,7 @@ export class User {
     description: 'URL kanonikal avatar profil pengguna',
   })
   @Expose({ groups: ['me', 'admin'] })
-  imageUrl?: string | null;
+  avatarUrl?: string | null;
 
   @ApiProperty({
     type: Object,

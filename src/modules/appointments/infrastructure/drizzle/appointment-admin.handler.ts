@@ -10,6 +10,13 @@ import {
   DB_APPOINTMENT_STATUS,
   QUEUE_TICKET_STATUS,
 } from '../../domain/constants/appointment-lifecycle.constants';
+import {
+  AppointmentMissingDoctorError,
+  AppointmentMissingRoomError,
+  AppointmentNotCheckedInError,
+  AppointmentQueueTurnNotReachedError,
+  DoctorAlreadyServingError,
+} from '../../domain/errors/appointment-domain.errors';
 import { AdminUpdateAppointmentStatusDto } from '../../presentation/dto/admin-update-appointment-status.dto';
 import { CancelAppointmentDto } from '../../presentation/dto/cancel-appointment.dto';
 
@@ -177,22 +184,22 @@ export class AppointmentAdminHandler {
 
       if (targetStatus === DB_APPOINTMENT_STATUS.IN_SERVICE) {
         if (!apt.practitionerId) {
-          throw new BadRequestException(
-            'Dokter penanggung jawab belum ditugaskan untuk janji temu ini.',
+          throw new AppointmentMissingDoctorError(
+            appointmentId,
+            'memulai pemeriksaan pasien',
           );
         }
         if (!apt.roomId) {
-          throw new BadRequestException(
-            'Ruangan periksa belum ditugaskan untuk janji temu ini.',
+          throw new AppointmentMissingRoomError(
+            appointmentId,
+            'memulai pemeriksaan pasien',
           );
         }
         if (
           previousStatus === DB_APPOINTMENT_STATUS.BOOKED ||
           !apt.checkedInAt
         ) {
-          throw new BadRequestException(
-            'Pasien belum melakukan check-in kedatangan di klinik.',
-          );
+          throw new AppointmentNotCheckedInError(appointmentId, previousStatus);
         }
         if (
           previousStatus !== DB_APPOINTMENT_STATUS.WAITING &&
@@ -221,8 +228,9 @@ export class AppointmentAdminHandler {
           .limit(1);
 
         if (activeServing) {
-          throw new BadRequestException(
-            `Dokter sedang memeriksa pasien lain (Nomor antrean ${activeServing.queueNumber ?? 1}). Selesaikan pemeriksaan pasien tersebut terlebih dahulu sebelum memulai pemeriksaan baru.`,
+          throw new DoctorAlreadyServingError(
+            apt.practitionerId,
+            activeServing.queueNumber ?? 1,
           );
         }
 
@@ -250,8 +258,10 @@ export class AppointmentAdminHandler {
           .limit(1);
 
         if (earlierWaiting) {
-          throw new BadRequestException(
-            `Pasien belum giliran. Nomor antrean sebelumnya (${earlierWaiting.queueNumber ?? 1}) masih menunggu dan harus diperiksa terlebih dahulu.`,
+          throw new AppointmentQueueTurnNotReachedError(
+            appointmentId,
+            apt.queueNumber ?? 1,
+            earlierWaiting.queueNumber ?? 1,
           );
         }
       }

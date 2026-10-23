@@ -235,7 +235,6 @@ export class DrizzleSchedulePatientRepository {
           inArray(appointments.status, [
             'waiting',
             'checked_in',
-            'booked',
             'in_service',
           ]),
         );
