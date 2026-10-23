@@ -6,6 +6,7 @@ import { REDIS_CLIENT } from '../../../../common/redis/redis.constants';
 export interface RealtimeTicketData {
   userId: string;
   role: string;
+  roles?: string[];
   issuedAt: number;
 }
 
@@ -39,14 +40,19 @@ export class RealtimeTicketService {
   async createTicket(
     userId: string,
     role = 'patient',
+    roles: string[] = [],
   ): Promise<RealtimeTicketResult> {
     const rawTicket = randomBytes(32).toString('base64url');
     const ticketHash = this.hashTicket(rawTicket);
     const key = `${RealtimeTicketService.KEY_PREFIX}${ticketHash}`;
 
+    const normalizedRoles =
+      Array.isArray(roles) && roles.length > 0 ? roles : [role];
+
     const payload: RealtimeTicketData = {
       userId,
       role,
+      roles: normalizedRoles,
       issuedAt: Date.now(),
     };
 
@@ -87,7 +93,7 @@ export class RealtimeTicketService {
    */
   async consumeTicket(
     ticket: string,
-  ): Promise<{ userId: string; role: string } | null> {
+  ): Promise<{ userId: string; role: string; roles?: string[] } | null> {
     if (!ticket || typeof ticket !== 'string') {
       return null;
     }
@@ -109,7 +115,11 @@ export class RealtimeTicketService {
 
         if (typeof result === 'string' && result.length > 0) {
           const parsed = JSON.parse(result) as RealtimeTicketData;
-          return { userId: parsed.userId, role: parsed.role };
+          return {
+            userId: parsed.userId,
+            role: parsed.role,
+            roles: parsed.roles || [parsed.role],
+          };
         }
         return null;
       } catch (err) {
@@ -130,7 +140,11 @@ export class RealtimeTicketService {
       return null; // Expired
     }
 
-    return { userId: entry.data.userId, role: entry.data.role };
+    return {
+      userId: entry.data.userId,
+      role: entry.data.role,
+      roles: entry.data.roles || [entry.data.role],
+    };
   }
 
   private hashTicket(ticket: string): string {

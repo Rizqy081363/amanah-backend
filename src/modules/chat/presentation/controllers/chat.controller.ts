@@ -133,8 +133,24 @@ export class ChatController {
         'Either authenticated user or guestId is required',
       );
     }
-    const role = user?.id ? user?.role || 'patient' : 'guest';
-    return this.realtimeTicketService.createTicket(targetId, role);
+    const primaryRole = user?.id
+      ? user?.roleCode ||
+        user?.role?.code ||
+        user?.systemRole ||
+        user?.role?.name ||
+        (typeof user?.role === 'string' ? user?.role : 'patient')
+      : 'guest';
+
+    const roles: string[] =
+      user?.id && Array.isArray(user?.roles) && user.roles.length > 0
+        ? user.roles
+        : [primaryRole];
+
+    return this.realtimeTicketService.createTicket(
+      targetId,
+      primaryRole,
+      roles,
+    );
   }
 
   @Get('presence')

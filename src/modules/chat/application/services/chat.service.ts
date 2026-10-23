@@ -8,7 +8,10 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
-import { CHAT_SUPPORT_ROLE_CODES } from '../../domain/constants/chat-lifecycle.constants';
+import {
+  CANONICAL_ROLES,
+  CHAT_SUPPORT_ROLES,
+} from '../../../../auth/constants/auth.constants';
 import { RealtimeGatewayPort } from '../../../notifications/contracts/realtime-gateway.interface';
 import { REALTIME_GATEWAY_PORT } from '../../../notifications/notifications.constants';
 import { ChatNotificationPublisher } from '../publishers/chat-notification.publisher';
@@ -177,16 +180,21 @@ export class ChatService {
           'chat:message',
           message,
         );
-        await this.realtimeGateway.emitToRole?.(
-          'admin',
-          'chat:message',
-          message,
-        );
-        await this.realtimeGateway.emitToRole?.(
-          'staff_worker',
-          'chat:message',
-          message,
-        );
+        for (const role of CHAT_SUPPORT_ROLES) {
+          await this.realtimeGateway.emitToRole?.(
+            role,
+            'chat:message',
+            message,
+          );
+        }
+        const recipient = caller?.userId || caller?.guestId;
+        if (recipient) {
+          await this.realtimeGateway.emitToUser(
+            recipient,
+            'chat:message',
+            message,
+          );
+        }
       } catch (err) {
         this.logger.warn(`Failed to broadcast customer chat message: ${err}`);
       }
@@ -271,16 +279,13 @@ export class ChatService {
             message,
           );
         }
-        await this.realtimeGateway.emitToRole?.(
-          'admin',
-          'chat:message',
-          message,
-        );
-        await this.realtimeGateway.emitToRole?.(
-          'staff_worker',
-          'chat:message',
-          message,
-        );
+        for (const role of CHAT_SUPPORT_ROLES) {
+          await this.realtimeGateway.emitToRole?.(
+            role,
+            'chat:message',
+            message,
+          );
+        }
       } catch (err) {
         this.logger.warn(`Failed to broadcast admin chat message: ${err}`);
       }
@@ -316,16 +321,13 @@ export class ChatService {
           payload,
         );
       }
-      await this.realtimeGateway.emitToRole?.(
-        'admin',
-        'chat:conversation_closed',
-        payload,
-      );
-      await this.realtimeGateway.emitToRole?.(
-        'staff_worker',
-        'chat:conversation_closed',
-        payload,
-      );
+      for (const role of CHAT_SUPPORT_ROLES) {
+        await this.realtimeGateway.emitToRole?.(
+          role,
+          'chat:conversation_closed',
+          payload,
+        );
+      }
     }
 
     return closed;
@@ -344,7 +346,7 @@ export class ChatService {
     ) {
       return false;
     }
-    return CHAT_SUPPORT_ROLE_CODES.some((role: string) =>
+    return CHAT_SUPPORT_ROLES.some((role: string) =>
       this.realtimeGateway!.isRoleOnline!(role),
     );
   }

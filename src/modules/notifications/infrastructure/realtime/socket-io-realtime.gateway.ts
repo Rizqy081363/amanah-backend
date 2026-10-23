@@ -16,6 +16,10 @@ import { fromNodeHeaders } from 'better-auth/node';
 import type Redis from 'ioredis';
 import type { Server, Socket } from 'socket.io';
 import { auth as betterAuth } from '../../../../auth/better-auth/auth';
+import {
+  CANONICAL_ROLES,
+  CLINIC_STAFF_ROLES,
+} from '../../../../auth/constants/auth.constants';
 import { JwtPayloadType } from '../../../../auth/strategies/types/jwt-payload.type';
 import { REDIS_CLIENT } from '../../../../common/redis/redis.constants';
 import { AllConfigType } from '../../../../config/config.type';
@@ -125,6 +129,7 @@ export class SocketIoRealtimeGateway
             socket.data.userId = ticketData.userId;
             socket.data.user = ticketData;
             socket.data.role = ticketData.role || 'patient';
+            socket.data.roles = ticketData.roles || [socket.data.role];
             return next();
           }
 
@@ -149,9 +154,12 @@ export class SocketIoRealtimeGateway
               socket.data.userId = payload.id;
               socket.data.user = payload;
               socket.data.role =
+                (payload as any).roleCode ||
                 payload.systemRole ||
                 payload.role?.name ||
                 (typeof payload.role === 'string' ? payload.role : 'patient');
+              socket.data.roles =
+                (payload as any).roles || [socket.data.role];
               return next();
             }
           } catch {
@@ -171,6 +179,7 @@ export class SocketIoRealtimeGateway
               socket.data.userId = session.user.id;
               socket.data.user = session.user;
               socket.data.role = (session.user as any).role || 'patient';
+              socket.data.roles = (session.user as any).roles || [socket.data.role];
               return next();
             }
           } catch {
@@ -202,13 +211,33 @@ export class SocketIoRealtimeGateway
       return;
     }
 
-    const roleCode = client.data.role || 'patient';
+    const roles: string[] =
+      Array.isArray(client.data.roles) && client.data.roles.length > 0
+        ? client.data.roles
+        : [client.data.role || CANONICAL_ROLES.PATIENT];
+
+    // 1. Join private user room
     await client.join(REALTIME_ROOMS.user(userId));
-    await client.join(REALTIME_ROOMS.role(roleCode));
+
+    // 2. Join canonical role rooms directly from DB roles
+    for (const r of roles) {
+      if (r) {
+        await client.join(REALTIME_ROOMS.role(r));
+      }
+    }
+
+    // 3. If user belongs to any clinic staff role, join clinic room
+    const isClinicStaff = roles.some((r) =>
+      (CLINIC_STAFF_ROLES as readonly string[]).includes(r),
+    );
+    if (isClinicStaff) {
+      await client.join(REALTIME_ROOMS.clinic);
+    }
+
     this.trackSocket(userId, client.id);
 
     this.logger.log(
-      `realtime.connect userId=${userId} role=${roleCode} transport=${transport} [id=${client.id}]`,
+      `realtime.connect userId=${userId} roles=[${roles.join(', ')}] transport=${transport} [id=${client.id}]`,
     );
   }
 

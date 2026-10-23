@@ -64,6 +64,17 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       systemRole = SYSTEM_ROLES.STAF;
     }
 
+    const userRoleCodes = (user.userRoles_userId || [])
+      .map((ur) => ur.role?.code)
+      .filter((code): code is string => Boolean(code));
+    const roleCode =
+      primaryRole?.code ||
+      (systemRole === SYSTEM_ROLES.ADMIN
+        ? 'admin'
+        : systemRole === SYSTEM_ROLES.STAF
+          ? 'staff_worker'
+          : 'patient');
+
     const staffProfile = user.staffProfiles?.[0];
     const patientProfile = user.patientProfiles?.[0];
 
@@ -72,8 +83,11 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       id: user.id,
       email: user.email,
       systemRole,
+      roleCode,
+      roles: userRoleCodes.length > 0 ? userRoleCodes : [roleCode],
       role: {
         id: primaryRole?.id,
+        code: primaryRole?.code,
         name: systemRole,
       },
       staff: staffProfile

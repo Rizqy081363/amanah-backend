@@ -51,11 +51,18 @@ export class RealtimeTicketController {
       throw new UnauthorizedException('Identitas pengguna tidak ditemukan');
     }
 
-    const role =
+    const primaryRole =
+      user?.roleCode ||
+      user?.role?.code ||
       user?.systemRole ||
       user?.role?.name ||
       (typeof user?.role === 'string' ? user?.role : 'patient');
 
-    return this.realtimeTicketService.createTicket(userId, role);
+    const roles: string[] =
+      Array.isArray(user?.roles) && user.roles.length > 0
+        ? user.roles
+        : [primaryRole];
+
+    return this.realtimeTicketService.createTicket(userId, primaryRole, roles);
   }
 }

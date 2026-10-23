@@ -115,6 +115,17 @@ export class HybridAuthGuard extends AuthGuard('jwt') implements CanActivate {
         systemRole = SYSTEM_ROLES.STAF;
       }
 
+      const userRoleCodes = (userRecord.userRoles_userId || [])
+        .map((ur) => ur.role?.code)
+        .filter((code): code is string => Boolean(code));
+      const roleCode =
+        primaryRole?.code ||
+        (systemRole === SYSTEM_ROLES.ADMIN
+          ? 'admin'
+          : systemRole === SYSTEM_ROLES.STAF
+            ? 'staff_worker'
+            : 'patient');
+
       const staffProfile = userRecord.staffProfiles?.[0];
       const patientProfile = userRecord.patientProfiles?.[0];
 
@@ -122,6 +133,8 @@ export class HybridAuthGuard extends AuthGuard('jwt') implements CanActivate {
         id: userRecord.id,
         email: userRecord.email,
         systemRole,
+        roleCode,
+        roles: userRoleCodes.length > 0 ? userRoleCodes : [roleCode],
         role: {
           id: primaryRole?.id,
           code: primaryRole?.code,

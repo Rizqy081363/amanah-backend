@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { CANONICAL_ROLES } from '../../../../auth/constants/auth.constants';
 import { SocketIoRealtimeGateway } from '../../../../modules/notifications/infrastructure/realtime/socket-io-realtime.gateway';
 import { REALTIME_GATEWAY_PORT } from '../../../../modules/notifications/notifications.constants';
 import type {
@@ -6,6 +7,14 @@ import type {
   RealtimeEmitterPort,
   StatusChangedEvent,
 } from '../../application/ports/realtime-emitter.port';
+
+const APPOINTMENT_NOTIFICATION_ROLES = [
+  CANONICAL_ROLES.ADMIN,
+  CANONICAL_ROLES.STAFF_DOCTOR,
+  CANONICAL_ROLES.STAFF_MIDWIFE,
+  CANONICAL_ROLES.STAFF_WORKER,
+  CANONICAL_ROLES.PATIENT,
+] as const;
 
 @Injectable()
 export class AppointmentRealtimeAdapter implements RealtimeEmitterPort {
@@ -22,36 +31,18 @@ export class AppointmentRealtimeAdapter implements RealtimeEmitterPort {
         this.realtimeGateway.server.emit('appointment.status_changed', event);
         this.realtimeGateway.server.emit('appointment:status_changed', event);
       }
-      await this.realtimeGateway.emitToRole(
-        'admin',
-        'appointment.status_changed',
-        event,
-      );
-      await this.realtimeGateway.emitToRole(
-        'admin',
-        'appointment:status_changed',
-        event,
-      );
-      await this.realtimeGateway.emitToRole(
-        'doctor',
-        'appointment.status_changed',
-        event,
-      );
-      await this.realtimeGateway.emitToRole(
-        'doctor',
-        'appointment:status_changed',
-        event,
-      );
-      await this.realtimeGateway.emitToRole(
-        'patient',
-        'appointment.status_changed',
-        event,
-      );
-      await this.realtimeGateway.emitToRole(
-        'patient',
-        'appointment:status_changed',
-        event,
-      );
+      for (const role of APPOINTMENT_NOTIFICATION_ROLES) {
+        await this.realtimeGateway.emitToRole(
+          role,
+          'appointment.status_changed',
+          event,
+        );
+        await this.realtimeGateway.emitToRole(
+          role,
+          'appointment:status_changed',
+          event,
+        );
+      }
     } catch (err: any) {
       this.logger.warn(`Failed to emit status changed event: ${err.message}`);
     }
@@ -63,36 +54,18 @@ export class AppointmentRealtimeAdapter implements RealtimeEmitterPort {
         this.realtimeGateway.server.emit('appointment.patient_called', event);
         this.realtimeGateway.server.emit('appointment:called', event);
       }
-      await this.realtimeGateway.emitToRole(
-        'admin',
-        'appointment.patient_called',
-        event,
-      );
-      await this.realtimeGateway.emitToRole(
-        'admin',
-        'appointment:called',
-        event,
-      );
-      await this.realtimeGateway.emitToRole(
-        'doctor',
-        'appointment.patient_called',
-        event,
-      );
-      await this.realtimeGateway.emitToRole(
-        'doctor',
-        'appointment:called',
-        event,
-      );
-      await this.realtimeGateway.emitToRole(
-        'patient',
-        'appointment.patient_called',
-        event,
-      );
-      await this.realtimeGateway.emitToRole(
-        'patient',
-        'appointment:called',
-        event,
-      );
+      for (const role of APPOINTMENT_NOTIFICATION_ROLES) {
+        await this.realtimeGateway.emitToRole(
+          role,
+          'appointment.patient_called',
+          event,
+        );
+        await this.realtimeGateway.emitToRole(
+          role,
+          'appointment:called',
+          event,
+        );
+      }
     } catch (err: any) {
       this.logger.warn(`Failed to emit patient called event: ${err.message}`);
     }
