@@ -8377,3 +8377,16 @@ The frontend consumes the contract; it does not invent or duplicate it.
    - Routine code edits: `bun run build`
    - Dependency / Dockerfile changes: `bun run docker:reload`
    - Routine disk maintenance: `bun run docker:prune`
+
+---
+
+# 47. Searching Code with Ripgrep (rg)
+
+- ALWAYS pass an explicit path to rg. Never run `rg pattern` without a path.
+- This is a monorepo. Search the owning package first (`backend/src`). Widen to dependent packages only if there are zero hits. Search the monorepo root only as a last resort.
+- A root-wide search MUST use a type/glob filter (`-t ts`, `-g '*.ts'`), `-l` or a tight output cap, `--max-filesize 2M`, and `timeout 30`.
+- Use `-F` for literals and `-w` for identifiers. Use `-n --no-heading --color never`.
+- Cap output: `-l` first, then `| head -n 50`; use `--max-columns 200` for minified files.
+- Do not use `-u`, `-uu`, `-uuu`, `--no-ignore`, `--hidden`, or `-L` by default. Use them only on a narrow path, and only after a normal search came back empty.
+- Do not use `grep -r` or `find | xargs grep` instead of rg.
+- Respect the repo's `.ignore` / `.rgignore`. Do not edit them to make a search work without asking.
