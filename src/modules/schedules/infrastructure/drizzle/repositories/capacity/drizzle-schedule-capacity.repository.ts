@@ -66,9 +66,7 @@ export class DrizzleScheduleCapacityRepository {
     });
 
     const isOnLeave = Boolean(activeLeave);
-    const leaveReason = isOnLeave
-      ? activeLeave?.note || 'Doctor on leave'
-      : null;
+    const leaveReason = isOnLeave ? activeLeave?.note || null : null;
 
     // 2. Resolve room name and count active clinic rooms
     const activeRooms = await this.db.query.clinicRooms.findMany({
@@ -79,7 +77,7 @@ export class DrizzleScheduleCapacityRepository {
     let targetRoomName: string | null = null;
     if (query.roomId) {
       const room = activeRooms.find((r) => r.id === query.roomId);
-      targetRoomName = room?.name || 'Ruangan';
+      targetRoomName = room?.name || null;
     }
 
     // 3. Query session definitions, doctor assignments, and active tickets

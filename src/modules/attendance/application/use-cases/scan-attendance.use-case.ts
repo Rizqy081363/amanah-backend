@@ -133,6 +133,7 @@ export class ScanAttendanceUseCase {
         staffCode: staff.staffCode,
         userId: staff.userId,
         staffType: staff.staffType,
+        positionTitle: staff.positionTitle,
         avatarUrl: staff.avatarUrl,
       });
     }

@@ -37,6 +37,7 @@ import {
   ScheduleShiftRegistry,
   SHIFT_TIMING_CONFIGS,
 } from '../../../schedules/domain/constants/schedule-shift.constants';
+import { MEDICAL_SPECIALTY_CODES } from '../../../clinics/domain/constants/medical-specialty.constants';
 import {
   DB_APPOINTMENT_STATUS,
   QUEUE_TICKET_STATUS,
@@ -159,7 +160,8 @@ export class AppointmentCreationHandler {
           });
           const isMidwife = prac?.staffProfile?.staffType === 'midwife';
           const isKiaSpecialty =
-            prac?.medicalSpecialty?.code === 'maternal_child_health';
+            prac?.medicalSpecialty?.code ===
+            MEDICAL_SPECIALTY_CODES.MATERNAL_CHILD_HEALTH;
           if (!isMidwife && !isKiaSpecialty) {
             throw new UnprocessableEntityException(
               'Layanan KIA hanya dapat ditangani oleh Bidan atau Dokter Spesialis KIA',

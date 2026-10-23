@@ -22,6 +22,7 @@ import {
 } from '../domain/entities/candidate-doctor.entity';
 import type { RoomCandidateItem } from '../domain/entities/candidate-room.entity';
 import { SessionResolutionHelper } from '../domain/helpers/session-resolution.helper';
+import { MEDICAL_SPECIALTY_CODES } from '@modules/clinics/domain/constants/medical-specialty.constants';
 import { DrizzleCandidateAssignmentRepository } from '../infrastructure/drizzle-candidate-assignment.repository';
 
 @Injectable()
@@ -111,12 +112,12 @@ export class CandidateResolverService implements ICandidateResolverPort {
     // Leave mapping by practitioner ID and staffProfileId
     const leaveByDoctorId = new Map<string, { reason: string }>();
     for (const l of activeLeaves) {
-      leaveByDoctorId.set(l.doctorId, { reason: l.note || 'Cuti Dokter' });
+      leaveByDoctorId.set(l.doctorId, { reason: l.note || '' });
     }
     for (const sl of activeStaffLeaves) {
       if (sl.practitionerId) {
         leaveByDoctorId.set(sl.practitionerId, {
-          reason: sl.reason || 'Cuti Dokter',
+          reason: sl.reason || '',
         });
       }
     }
@@ -210,10 +211,10 @@ export class CandidateResolverService implements ICandidateResolverPort {
         const staffType = p.staffProfile?.staffType;
         if (unitCode === 'poli_kia' || staffType === 'midwife') {
           matchedSpecialty =
-            allSpecialties.find((s) => s.code === 'maternal_child_health') || null;
+            allSpecialties.find((s) => s.code === MEDICAL_SPECIALTY_CODES.MATERNAL_CHILD_HEALTH) || null;
         } else {
           matchedSpecialty =
-            allSpecialties.find((s) => s.code === 'general_practitioner') || null;
+            allSpecialties.find((s) => s.code === MEDICAL_SPECIALTY_CODES.GENERAL_PRACTITIONER) || null;
         }
       }
 

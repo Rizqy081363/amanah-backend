@@ -49,7 +49,7 @@ export class AppointmentRescheduleHandler {
         patientProfile: true,
         clinicService: true,
         clinicRoom: { with: { clinicUnit: true } },
-        practitioner: { with: { staffProfile: true } },
+        practitioner: { with: { staffProfile: true, medicalSpecialty: true } },
       },
     });
 
@@ -144,10 +144,14 @@ export class AppointmentRescheduleHandler {
       doctor: {
         id: apt.practitionerId,
         name:
-          apt.practitioner?.displayName ||
           apt.practitioner?.staffProfile?.fullName ||
-          'Dokter',
-        specialization: apt.clinicService?.name || 'Dokter Umum',
+          apt.practitioner?.displayName ||
+          '',
+        specialization:
+          apt.practitioner?.medicalSpecialty?.name ||
+          apt.practitioner?.staffProfile?.positionTitle ||
+          apt.clinicService?.name ||
+          '',
       },
       service: {
         id: apt.serviceId,

@@ -399,15 +399,12 @@ export class DrizzleAdminDoctorScheduleListQuery {
 
       const ruangPraktik =
         sesiHarian.length > 0 ? sesiHarian[0].ruang : defaultRoomName;
-      const isMidwifeStaff = p.staffProfile?.staffType === 'midwife';
       const spesialisasi =
         p.medicalSpecialty?.name ||
         p.staffProfile?.clinicUnit?.name ||
-        (isMidwifeStaff ? 'Kesehatan Ibu dan Anak' : 'Dokter Umum');
-      const namaDokter =
-        p.staffProfile?.fullName ||
-        p.displayName ||
-        (isMidwifeStaff ? 'Bidan Amanah' : 'Dokter Amanah');
+        p.staffProfile?.positionTitle ||
+        '';
+      const namaDokter = p.staffProfile?.fullName || p.displayName || '';
       if (query.search) {
         const q = query.search.toLowerCase();
         const matchSearch =

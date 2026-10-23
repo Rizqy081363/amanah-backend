@@ -532,7 +532,7 @@ export class PdfExporter implements Exporter {
                   color: '#0F172A',
                 },
                 {
-                  text: `${aggregation.positionTitle || 'Dokter'}`,
+                  text: `${aggregation.positionTitle || '-'}`,
                   fontSize: 8.5,
                   bold: true,
                   color: '#0F172A',

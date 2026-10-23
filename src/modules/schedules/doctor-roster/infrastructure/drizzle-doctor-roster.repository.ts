@@ -30,6 +30,10 @@ import {
   DoctorRosterRepository,
   RecordScheduleHistoryParams,
 } from '../domain/doctor-roster.repository';
+import {
+  formatSessionTitle,
+  SHIFT_DISPLAY_LABELS,
+} from '@modules/schedules/domain/constants/schedule-shift.constants';
 
 @Injectable()
 export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
@@ -98,12 +102,12 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
         this.db.query.clinicRooms.findMany(),
       ]);
 
-    const doctorName =
-      prac.staffProfile?.fullName || prac.displayName || 'Dokter Amanah';
+    const doctorName = prac.staffProfile?.fullName || prac.displayName || '';
     const specialization =
       prac.medicalSpecialty?.name ||
       prac.staffProfile?.clinicUnit?.name ||
-      'Dokter Umum';
+      prac.staffProfile?.positionTitle ||
+      '';
 
     const roomMap = new Map(allRooms.map((r) => [r.id, r.name]));
 
@@ -156,16 +160,7 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
           ? roomMap.get(preferredRoomId) || null
           : null;
 
-        let sessionLabel = def.code;
-        if (def.labelKey === 'session.early_morning') {
-          sessionLabel = 'Sesi Dini Hari';
-        } else if (def.labelKey === 'session.morning') {
-          sessionLabel = 'Sesi Pagi';
-        } else if (def.labelKey === 'session.afternoon') {
-          sessionLabel = 'Sesi Siang';
-        } else if (def.labelKey === 'session.night') {
-          sessionLabel = 'Sesi Malam';
-        }
+        const sessionLabel = formatSessionTitle(def.code);
 
         const isTemplateActive = d.isActive && Boolean(sched);
 
@@ -361,20 +356,11 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
     const total = totalResult[0]?.value ?? 0;
 
     const items: DoctorScheduleHistoryItemEntity[] = rows.map((r) => {
-      let sessionLabel: string | null = null;
-      if (r.sessionDef) {
-        if (r.sessionDef.labelKey === 'session.early_morning') {
-          sessionLabel = 'Dini Hari';
-        } else if (r.sessionDef.labelKey === 'session.morning') {
-          sessionLabel = 'Pagi';
-        } else if (r.sessionDef.labelKey === 'session.afternoon') {
-          sessionLabel = 'Siang';
-        } else if (r.sessionDef.labelKey === 'session.night') {
-          sessionLabel = 'Malam';
-        } else {
-          sessionLabel = r.sessionDef.code;
-        }
-      }
+      const sessionLabel = r.sessionDef
+        ? SHIFT_DISPLAY_LABELS[
+            r.sessionDef.code as keyof typeof SHIFT_DISPLAY_LABELS
+          ] || r.sessionDef.code
+        : null;
 
       return {
         id: r.id,

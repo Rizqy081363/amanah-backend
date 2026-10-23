@@ -46,6 +46,7 @@ import {
   type StaffRoleCode,
   type StaffType,
 } from '../modules/staffs/domain/constants/staff-invitation.constants';
+import { MEDICAL_SPECIALTY_CODES } from '../modules/clinics/domain/constants/medical-specialty.constants';
 import { auth } from './better-auth/auth';
 import {
   AUTH_ERROR_CODES,
@@ -1705,8 +1706,8 @@ export class AuthService {
 
         const targetSpecialtyCode =
           staffTypeVal === STAFF_TYPES.MIDWIFE
-            ? 'maternal_child_health'
-            : 'general_practitioner';
+            ? MEDICAL_SPECIALTY_CODES.MATERNAL_CHILD_HEALTH
+            : MEDICAL_SPECIALTY_CODES.GENERAL_PRACTITIONER;
         const matchedSpecialty = await tx.query.medicalSpecialties.findFirst({
           where: eq(medicalSpecialties.code, targetSpecialtyCode),
         });

@@ -7,7 +7,7 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
-import { and, desc, eq, gte, inArray } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, lte } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
@@ -17,6 +17,7 @@ import {
 } from '../../../../database/schema';
 import { replacementOpportunities } from '../../../../database/schema/leave-payroll.schema';
 import { NotificationGatewayService } from '../../../notifications/application/services/notification-gateway.service';
+import { formatSessionTitle } from '../../../schedules/domain/constants/schedule-shift.constants';
 import { ReplacementOpportunityEntity } from '../../domain/entities/replacement-opportunity.entity';
 import {
   type ReplacementOpportunityFilter,
@@ -40,7 +41,7 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
       leaveRequestId: r.leaveRequestId,
       sessionId: r.sessionId,
       sessionCode: r.sessionDef?.code || undefined,
-      sessionLabel: r.sessionDef?.labelKey || undefined,
+      sessionLabel: formatSessionTitle(r.sessionDef?.code),
       startTime: r.sessionDef?.defaultStartsAt || null,
       endTime: r.sessionDef?.defaultEndsAt || null,
       workDate: r.workDate,
@@ -48,6 +49,7 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
       originalPractitionerId: r.originalPractitionerId || null,
       originalStaffName: r.originalStaffProfile?.fullName || undefined,
       originalStaffRole:
+        r.originalPractitioner?.medicalSpecialty?.name ||
         r.originalStaffProfile?.positionTitle ||
         r.originalStaffProfile?.staffType ||
         null,
@@ -57,6 +59,7 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
       claimedByPractitionerId: r.claimedByPractitionerId || null,
       claimedByName: r.claimedByStaffProfile?.fullName || null,
       claimedByRole:
+        r.claimedByPractitioner?.medicalSpecialty?.name ||
         r.claimedByStaffProfile?.positionTitle ||
         r.claimedByStaffProfile?.staffType ||
         null,
@@ -72,34 +75,49 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
   async findOpportunities(
     filters?: ReplacementOpportunityFilter,
   ): Promise<ReplacementOpportunityEntity[]> {
-    const todayStr = filters?.date || new Date().toISOString().split('T')[0];
-    const statusFilter = filters?.status || 'all';
+    const conditions = [];
 
-    const conditions = [gte(replacementOpportunities.workDate, todayStr)];
+    // Date filtering
+    if (filters?.startDate && filters?.endDate) {
+      conditions.push(gte(replacementOpportunities.workDate, filters.startDate));
+      conditions.push(lte(replacementOpportunities.workDate, filters.endDate));
+    } else if (filters?.startDate) {
+      conditions.push(gte(replacementOpportunities.workDate, filters.startDate));
+    } else if (filters?.endDate) {
+      conditions.push(lte(replacementOpportunities.workDate, filters.endDate));
+    } else if (filters?.date && filters.date !== 'all') {
+      conditions.push(gte(replacementOpportunities.workDate, filters.date));
+    } else if (!filters?.date && filters?.status === 'open') {
+      // Mobile app default for open opportunities: upcoming/today only
+      const todayStr = new Date().toISOString().split('T')[0];
+      conditions.push(gte(replacementOpportunities.workDate, todayStr));
+    }
 
-    if (statusFilter === 'open') {
-      conditions.push(eq(replacementOpportunities.status, 'open'));
-    } else if (statusFilter === 'claimed') {
-      conditions.push(eq(replacementOpportunities.status, 'claimed'));
-    } else if (statusFilter === 'completed') {
-      conditions.push(eq(replacementOpportunities.status, 'completed'));
-    } else if (statusFilter === 'cancelled') {
-      conditions.push(eq(replacementOpportunities.status, 'cancelled'));
-    } else {
-      conditions.push(
-        inArray(replacementOpportunities.status, ['open', 'claimed']),
-      );
+    // Status filtering: If provided and not 'all', filter by exact status
+    const statusFilter = filters?.status;
+    if (statusFilter && statusFilter !== 'all') {
+      conditions.push(eq(replacementOpportunities.status, statusFilter));
     }
 
     const records = await this.db.query.replacementOpportunities.findMany({
-      where: and(...conditions),
+      where: conditions.length > 0 ? and(...conditions) : undefined,
       with: {
         sessionDef: true,
         originalStaffProfile: true,
+        originalPractitioner: {
+          with: {
+            medicalSpecialty: true,
+          },
+        },
         claimedByStaffProfile: true,
+        claimedByPractitioner: {
+          with: {
+            medicalSpecialty: true,
+          },
+        },
         leaveRequest: true,
       },
-      orderBy: [replacementOpportunities.workDate],
+      orderBy: [desc(replacementOpportunities.workDate)],
     });
 
     return records.map((r) => this.mapOpportunity(r));
@@ -119,7 +137,17 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
       with: {
         sessionDef: true,
         originalStaffProfile: true,
+        originalPractitioner: {
+          with: {
+            medicalSpecialty: true,
+          },
+        },
         claimedByStaffProfile: true,
+        claimedByPractitioner: {
+          with: {
+            medicalSpecialty: true,
+          },
+        },
         leaveRequest: true,
       },
       orderBy: [replacementOpportunities.workDate],
@@ -181,13 +209,23 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
       );
     }
 
+    let resolvedPractitionerId = practitionerId || null;
+    if (!resolvedPractitionerId) {
+      const p = await this.db.query.practitioners.findFirst({
+        where: eq(practitioners.staffProfileId, staffProfileId),
+      });
+      if (p) {
+        resolvedPractitionerId = p.id;
+      }
+    }
+
     // Atomic claim with status check
     const [updated] = await this.db
       .update(replacementOpportunities)
       .set({
         status: 'claimed',
         claimedByStaffProfileId: staffProfileId,
-        claimedByPractitionerId: practitionerId || null,
+        claimedByPractitionerId: resolvedPractitionerId,
         claimedAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       })
@@ -208,6 +246,151 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
     void this.dispatchClaimNotifications(opportunityId);
 
     return this.mapOpportunity(updated);
+  }
+
+  async assignOpportunity(
+    opportunityId: string,
+    staffProfileId: string,
+    practitionerId?: string,
+    notes?: string,
+  ): Promise<ReplacementOpportunityEntity> {
+    const [existing] = await this.db
+      .select()
+      .from(replacementOpportunities)
+      .where(eq(replacementOpportunities.id, opportunityId))
+      .limit(1);
+
+    if (!existing) {
+      throw new NotFoundException('Peluang pengganti tidak ditemukan');
+    }
+
+    if (existing.originalStaffProfileId === staffProfileId) {
+      throw new BadRequestException(
+        'Staf tidak dapat ditugaskan menggantikan cuti dirinya sendiri',
+      );
+    }
+
+    if (existing.status === 'completed') {
+      throw new ConflictException(
+        'Sesi pengganti ini telah selesai dilaksanakan dan tidak dapat diubah',
+      );
+    }
+
+    if (existing.status === 'cancelled') {
+      throw new ConflictException(
+        'Sesi pengganti ini telah dibatalkan',
+      );
+    }
+
+    let resolvedPractitionerId = practitionerId || null;
+    if (!resolvedPractitionerId) {
+      const p = await this.db.query.practitioners.findFirst({
+        where: eq(practitioners.staffProfileId, staffProfileId),
+      });
+      if (p) {
+        resolvedPractitionerId = p.id;
+      }
+    }
+
+    const [updated] = await this.db
+      .update(replacementOpportunities)
+      .set({
+        status: 'claimed',
+        claimedByStaffProfileId: staffProfileId,
+        claimedByPractitionerId: resolvedPractitionerId,
+        claimedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        notes: notes || existing.notes,
+      })
+      .where(eq(replacementOpportunities.id, opportunityId))
+      .returning();
+
+    if (!updated) {
+      throw new NotFoundException('Gagal menugaskan staf pengganti');
+    }
+
+    void this.dispatchClaimNotifications(opportunityId);
+
+    const fullRecord = await this.db.query.replacementOpportunities.findFirst({
+      where: eq(replacementOpportunities.id, opportunityId),
+      with: {
+        sessionDef: true,
+        originalStaffProfile: true,
+        originalPractitioner: {
+          with: {
+            medicalSpecialty: true,
+          },
+        },
+        claimedByStaffProfile: true,
+        claimedByPractitioner: {
+          with: {
+            medicalSpecialty: true,
+          },
+        },
+        leaveRequest: true,
+      },
+    });
+
+    return this.mapOpportunity(fullRecord || updated);
+  }
+
+  async cancelOpportunity(
+    opportunityId: string,
+    reason?: string,
+  ): Promise<ReplacementOpportunityEntity> {
+    const [existing] = await this.db
+      .select()
+      .from(replacementOpportunities)
+      .where(eq(replacementOpportunities.id, opportunityId))
+      .limit(1);
+
+    if (!existing) {
+      throw new NotFoundException('Peluang pengganti tidak ditemukan');
+    }
+
+    if (existing.status === 'completed') {
+      throw new ConflictException(
+        'Sesi dinas pengganti yang telah selesai tidak dapat dibatalkan',
+      );
+    }
+
+    const [updated] = await this.db
+      .update(replacementOpportunities)
+      .set({
+        status: 'cancelled',
+        updatedAt: new Date().toISOString(),
+        notes: reason
+          ? `Dibatalkan admin: ${reason}`
+          : existing.notes || 'Dibatalkan admin',
+      })
+      .where(eq(replacementOpportunities.id, opportunityId))
+      .returning();
+
+    if (!updated) {
+      throw new NotFoundException('Gagal membatalkan peluang pengganti');
+    }
+
+    const fullRecord = await this.db.query.replacementOpportunities.findFirst({
+      where: eq(replacementOpportunities.id, opportunityId),
+      with: {
+        sessionDef: true,
+        originalStaffProfile: true,
+        originalPractitioner: {
+          with: {
+            medicalSpecialty: true,
+          },
+        },
+        claimedByStaffProfile: true,
+        claimedByPractitioner: {
+          with: {
+            medicalSpecialty: true,
+          },
+        },
+        leaveRequest: true,
+      },
+    });
+
+    return this.mapOpportunity(fullRecord || updated);
   }
 
   private async dispatchNewOpportunityNotification(
@@ -264,12 +447,10 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
       const opp = records[0];
 
       const originalStaffUserId = opp.originalStaffProfile?.userId;
-      const originalStaffName =
-        opp.originalStaffProfile?.fullName || 'Rekan Staf';
+      const originalStaffName = opp.originalStaffProfile?.fullName || '';
       const claimedByStaffUserId = opp.claimedByStaffProfile?.userId;
-      const claimedByName = opp.claimedByStaffProfile?.fullName || 'Rekan Staf';
-      const sessionName =
-        opp.sessionDef?.labelKey || opp.sessionDef?.code || 'Sesi Dinas';
+      const claimedByName = opp.claimedByStaffProfile?.fullName || '';
+      const sessionName = formatSessionTitle(opp.sessionDef?.code);
       const dateStr = opp.workDate;
 
       // 1. Notify Original Staff (whose shift was covered)

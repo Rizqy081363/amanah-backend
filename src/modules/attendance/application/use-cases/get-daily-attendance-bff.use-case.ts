@@ -81,18 +81,13 @@ export class GetDailyAttendanceBffUseCase {
         }
       }
 
-      const categoryLabel =
-        staff?.staffType === 'doctor'
-          ? 'Dokter'
-          : staff?.staffType === 'midwife'
-            ? 'Bidan'
-            : 'Staf';
+      const categoryLabel = staff?.positionTitle || '';
 
       return {
         id: rec.id,
         id_staf: staff?.staffCode || '-',
         staffProfileId: staff?.id || rec.staffProfileId || undefined,
-        nama_staf: staff?.fullName || 'Staf',
+        nama_staf: staff?.fullName || '',
         avatar:
           staff?.avatarUrl ||
           (staff?.userId ? `/api/v1/users/${staff.userId}/avatar` : undefined),
@@ -107,7 +102,7 @@ export class GetDailyAttendanceBffUseCase {
         sessionName: shiftLabel,
         rawStatus: rec.status,
         rawShift: rec.shift,
-        rawCategory: staff?.staffType || 'worker',
+        rawCategory: staff?.staffType || '',
         validatedDurationHours: rec.validatedDurationHours
           ? Number(rec.validatedDurationHours)
           : 0,

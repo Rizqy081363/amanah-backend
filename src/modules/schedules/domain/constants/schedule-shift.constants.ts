@@ -24,6 +24,82 @@ export interface ShiftTimingConfig {
   defaultEndTime: string;
 }
 
+export const SHIFT_CONFIGS: Record<CanonicalStaffShift, ShiftTimingConfig> = {
+  early_morning: {
+    shift: 'early_morning',
+    session: 'DINI_HARI',
+    label: 'Dini Hari',
+    defaultStartTime: '00:00',
+    defaultEndTime: '06:00',
+  },
+  morning: {
+    shift: 'morning',
+    session: 'PAGI',
+    label: 'Pagi',
+    defaultStartTime: '06:00',
+    defaultEndTime: '12:00',
+  },
+  afternoon: {
+    shift: 'afternoon',
+    session: 'SIANG',
+    label: 'Siang',
+    defaultStartTime: '12:00',
+    defaultEndTime: '18:00',
+  },
+  night: {
+    shift: 'night',
+    session: 'MALAM',
+    label: 'Malam',
+    defaultStartTime: '18:00',
+    defaultEndTime: '24:00',
+  },
+};
+
+export const SHIFT_TO_SESSION_MAP: Record<
+  CanonicalStaffShift,
+  CanonicalSessionName
+> = {
+  early_morning: 'DINI_HARI',
+  morning: 'PAGI',
+  afternoon: 'SIANG',
+  night: 'MALAM',
+};
+
+export const SESSION_TO_SHIFT_MAP: Record<string, CanonicalStaffShift> = {
+  DINI_HARI: 'early_morning',
+  PAGI: 'morning',
+  SIANG: 'afternoon',
+  MALAM: 'night',
+  early_morning: 'early_morning',
+  morning: 'morning',
+  afternoon: 'afternoon',
+  night: 'night',
+};
+
+export const SHIFT_DISPLAY_LABELS: Record<CanonicalStaffShift, string> = {
+  early_morning: 'Dini Hari',
+  morning: 'Pagi',
+  afternoon: 'Siang',
+  night: 'Malam',
+};
+
+export const SESSION_FRIENDLY_LABELS: Record<string, string> = {
+  early_morning: 'Sesi Dini Hari',
+  morning: 'Sesi Pagi',
+  afternoon: 'Sesi Siang',
+  night: 'Sesi Malam',
+  DINI_HARI: 'Sesi Dini Hari',
+  PAGI: 'Sesi Pagi',
+  SIANG: 'Sesi Siang',
+  MALAM: 'Sesi Malam',
+};
+
+export function formatSessionTitle(codeOrKey?: string | null): string {
+  if (!codeOrKey) return 'Sesi Dinas';
+  const key = codeOrKey.startsWith('session.') ? codeOrKey.slice(8) : codeOrKey;
+  return SESSION_FRIENDLY_LABELS[key] || `Sesi ${key}`;
+}
+
 export class ScheduleShiftDescriptor {
   constructor(
     public readonly shift: CanonicalStaffShift,
@@ -32,19 +108,6 @@ export class ScheduleShiftDescriptor {
     public readonly defaultStartTime: string,
     public readonly defaultEndTime: string,
   ) {}
-
-  matches(raw?: string | null): boolean {
-    if (!raw) return false;
-    const normalized = raw
-      .trim()
-      .toLowerCase()
-      .replace(/[\s-]+/g, '_');
-    return (
-      this.shift === normalized ||
-      this.session.toLowerCase() === normalized ||
-      this.label.toLowerCase() === normalized
-    );
-  }
 }
 
 export class ScheduleShiftRegistry {
@@ -69,23 +132,10 @@ export class ScheduleShiftRegistry {
 
   static find(raw?: string | null): ScheduleShiftDescriptor | null {
     if (!raw) return null;
-    const normalized = raw
-      .trim()
-      .toLowerCase()
-      .replace(/[\s-]+/g, '_');
-    if (normalized.includes('dini') || normalized.includes('early'))
-      return this.DESCRIPTORS[0];
-    if (
-      normalized.includes('siang') ||
-      normalized.includes('sore') ||
-      normalized.includes('afternoon')
-    )
-      return this.DESCRIPTORS[2];
-    if (normalized.includes('malam') || normalized.includes('night'))
-      return this.DESCRIPTORS[3];
-    if (normalized.includes('pagi') || normalized.includes('morning'))
-      return this.DESCRIPTORS[1];
-    return this.DESCRIPTORS.find((d) => d.matches(raw)) ?? null;
+    const shift =
+      SESSION_TO_SHIFT_MAP[raw] || SESSION_TO_SHIFT_MAP[raw.toLowerCase()];
+    if (shift) return this.getByShift(shift);
+    return null;
   }
 
   static resolve(raw?: string | null): ScheduleShiftDescriptor {
@@ -97,49 +147,15 @@ export class ScheduleShiftRegistry {
   }
 
   static getByShift(shift: CanonicalStaffShift): ScheduleShiftDescriptor {
-    return (
-      this.DESCRIPTORS.find((d) => d.shift === shift) ?? this.DESCRIPTORS[1]
-    );
+    const idx = CANONICAL_STAFF_SHIFTS.indexOf(shift);
+    return this.DESCRIPTORS[idx >= 0 ? idx : 1];
   }
 }
-
-export const SHIFT_TO_SESSION_MAP: Record<
-  CanonicalStaffShift,
-  CanonicalSessionName
-> = {
-  early_morning: 'DINI_HARI',
-  morning: 'PAGI',
-  afternoon: 'SIANG',
-  night: 'MALAM',
-};
-
-export const SESSION_TO_SHIFT_MAP: Record<string, CanonicalStaffShift> =
-  new Proxy(
-    {},
-    {
-      get(_target, prop: string | symbol) {
-        if (typeof prop !== 'string') return undefined;
-        return ScheduleShiftRegistry.resolve(prop).shift;
-      },
-    },
-  );
-
-export const SHIFT_DISPLAY_LABELS: Record<CanonicalStaffShift, string> = {
-  early_morning: 'Dini Hari',
-  morning: 'Pagi',
-  afternoon: 'Siang',
-  night: 'Malam',
-};
 
 export const SHIFT_TIMING_CONFIGS: Record<
   CanonicalStaffShift,
   ShiftTimingConfig
-> = {
-  early_morning: ScheduleShiftRegistry.getByShift('early_morning'),
-  morning: ScheduleShiftRegistry.getByShift('morning'),
-  afternoon: ScheduleShiftRegistry.getByShift('afternoon'),
-  night: ScheduleShiftRegistry.getByShift('night'),
-};
+> = SHIFT_CONFIGS;
 
 export function resolveCanonicalShift(input: {
   session?: string | null;

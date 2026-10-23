@@ -72,8 +72,8 @@ export class StaffDrizzleRepository implements StaffRepository {
       poliklinikId: r.primaryUnitId || '',
       poliklinikName: (r as any).clinicUnit?.name || null,
       fullName: r.fullName,
-      profession: r.positionTitle || 'Staf Operasional',
-      staffType: r.staffType || 'worker',
+      profession: r.positionTitle || '',
+      staffType: r.staffType,
       staffCode: r.staffCode,
       idCardNumber: r.staffCode,
       licenseNumber:

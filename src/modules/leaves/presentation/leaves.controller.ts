@@ -101,7 +101,7 @@ export class LeavesController {
 
     return this.leaveRepo.create({
       staffId: user.staff.id,
-      practitionerId: user.doctor?.id || null,
+      practitionerId: user.staff?.practitionerId || user.doctor?.id || null,
       startDate: body.startDate,
       endDate: body.endDate,
       reason: body.reason,

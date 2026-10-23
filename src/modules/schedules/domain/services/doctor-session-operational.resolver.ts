@@ -4,6 +4,7 @@ import {
   type SessionShiftType,
   SHIFT_DEFINITIONS,
 } from '../factories/schedule-session.factory';
+import { formatSessionTitle } from '../constants/schedule-shift.constants';
 
 export interface DoctorSessionAssignmentContext {
   id: string;
@@ -126,16 +127,7 @@ export function resolveDoctorSessionOperability(
   const endTime = rawEndTime.slice(0, 5);
 
   // Label resolution
-  let sessionLabel = shiftDef.label;
-  if (sessionDef?.labelKey === 'session.morning') {
-    sessionLabel = 'Sesi Pagi';
-  } else if (sessionDef?.labelKey === 'session.afternoon') {
-    sessionLabel = 'Sesi Siang';
-  } else if (sessionDef?.labelKey === 'session.night') {
-    sessionLabel = 'Sesi Malam';
-  } else if (sessionDef?.labelKey === 'session.early_morning') {
-    sessionLabel = 'Sesi Dini Hari';
-  }
+  const sessionLabel = formatSessionTitle(shiftCode);
 
   // 1. Master definition inactive: Shift does not operate anywhere in the clinic
   if (!isMasterDefActive) {
@@ -167,7 +159,7 @@ export function resolveDoctorSessionOperability(
       isOpen: false,
       status: 'closed',
       closureReason: ScheduleClosureReason.DOCTOR_LEAVE,
-      notes: exception?.note || 'Dokter Cuti',
+      notes: exception?.note || null,
       startTime,
       endTime,
       sessionShift: shiftCode,

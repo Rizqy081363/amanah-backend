@@ -42,6 +42,7 @@ import {
   StaffType,
 } from '../domain/constants/staff-invitation.constants';
 import { USER_STATUS } from '../../../auth/constants/auth.constants';
+import { MEDICAL_SPECIALTY_CODES } from '../../clinics/domain/constants/medical-specialty.constants';
 import { StaffInvitationEntity } from '../domain/entities/staff-invitation.entity';
 import {
   STAFF_INVITATION_REPOSITORY,
@@ -235,7 +236,27 @@ export class StaffInvitationService {
       });
     }
 
-    // 3. Create or update staff_profiles
+    // 3. Resolve clinical unit and canonical specialty from DB
+    const assignedUnit = dto.poliklinikId
+      ? await this.db.query.clinicUnits.findFirst({
+          where: eq(clinicUnits.id, dto.poliklinikId),
+        })
+      : null;
+
+    const isKiaPolyclinic = assignedUnit?.code === 'poli_kia';
+    const targetSpecialtyCode =
+      isMidwife || isKiaPolyclinic
+        ? MEDICAL_SPECIALTY_CODES.MATERNAL_CHILD_HEALTH
+        : MEDICAL_SPECIALTY_CODES.GENERAL_PRACTITIONER;
+
+    const matchedSpecialty = await this.db.query.medicalSpecialties.findFirst({
+      where: eq(medicalSpecialties.code, targetSpecialtyCode),
+    });
+
+    const canonicalPositionTitle =
+      matchedSpecialty?.name || (isMidwife ? 'Bidan' : 'Dokter');
+
+    // 4. Create or update staff_profiles
     let staff = await this.db.query.staffProfiles.findFirst({
       where: or(
         eq(staffProfiles.userId, userRecord.id),
@@ -252,7 +273,7 @@ export class StaffInvitationService {
           staffCode,
           fullName: doctorName,
           staffType,
-          positionTitle: roleTitle,
+          positionTitle: canonicalPositionTitle,
           primaryUnitId: dto.poliklinikId,
           phone: null,
           email,
@@ -267,7 +288,7 @@ export class StaffInvitationService {
           fullName: doctorName,
           staffType,
           primaryUnitId: dto.poliklinikId,
-          positionTitle: roleTitle,
+          positionTitle: canonicalPositionTitle,
           status: STAFF_STATUS.INACTIVE,
           updatedAt: new Date().toISOString(),
         })
@@ -276,24 +297,8 @@ export class StaffInvitationService {
       staff = updated;
     }
 
-    // 4. Create or update practitioners record (Clinical Practitioner)
+    // 5. Create or update practitioners record (Clinical Practitioner)
     if (staff) {
-      const assignedUnit = dto.poliklinikId
-        ? await this.db.query.clinicUnits.findFirst({
-            where: eq(clinicUnits.id, dto.poliklinikId),
-          })
-        : null;
-
-      const isKiaPolyclinic = assignedUnit?.code === 'poli_kia';
-      const targetSpecialtyCode =
-        isMidwife || isKiaPolyclinic
-          ? 'maternal_child_health'
-          : 'general_practitioner';
-
-      const matchedSpecialty = await this.db.query.medicalSpecialties.findFirst({
-        where: eq(medicalSpecialties.code, targetSpecialtyCode),
-      });
-
       const existingPractitioner = await this.db.query.practitioners.findFirst({
         where: eq(practitioners.staffProfileId, staff.id),
       });
@@ -347,7 +352,7 @@ export class StaffInvitationService {
         to: email,
         data: {
           name: doctorName,
-          roleTitle,
+          roleTitle: canonicalPositionTitle,
           temporaryPassword,
           loginUrl,
           expiresAt: expiresAt.toLocaleDateString('id-ID', {

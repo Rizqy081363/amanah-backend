@@ -185,7 +185,7 @@ export class XlsxExporter implements Exporter {
       '',
       '',
       '',
-      `${aggregation.positionTitle || 'Dokter'}`,
+      `${aggregation.positionTitle || '-'}`,
       '',
       '',
       '',

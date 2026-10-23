@@ -94,7 +94,7 @@ export class CandidateAssignmentService implements ICandidateAssignmentPort {
     const isDocOnLeave = leaves.some((l) => l.doctorId === targetDoctorId);
     if (isDocOnLeave) {
       throw new BadRequestException(
-        `Dokter ${targetDoc.displayName || 'terpilih'} sedang cuti pada tanggal ${apt.scheduledDate}.`,
+        `Dokter ${targetDoc.displayName || targetDoc.staffProfile?.fullName || ''} sedang cuti pada tanggal ${apt.scheduledDate}.`,
       );
     }
 

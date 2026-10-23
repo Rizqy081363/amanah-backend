@@ -504,7 +504,7 @@ export class DrizzleSchedulePatientRepository {
     });
 
     const doctorName =
-      prac?.staffProfile?.fullName || prac?.displayName || 'Dokter Amanah';
+      prac?.staffProfile?.fullName || prac?.displayName || '';
 
     const targetDow = new Date(date).getDay();
     const assignments = await this.db.query.doctorAssignments.findMany({

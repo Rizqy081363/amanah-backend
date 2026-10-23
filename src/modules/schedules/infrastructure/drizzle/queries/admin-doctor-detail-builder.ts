@@ -188,7 +188,7 @@ export function buildMonthlySchedule(
       dayStatus = 'LEAVE';
       statusLabel = 'Cuti';
       badgeVariant = 'warning';
-      dayNotes = daySetting?.leaveReason || leave?.reason || 'Cuti Dokter';
+      dayNotes = daySetting?.leaveReason || leave?.reason || null;
     } else if (daySessions.length === 0) {
       dayStatus = 'EMPTY';
       statusLabel = 'Kosong';
@@ -198,7 +198,7 @@ export function buildMonthlySchedule(
       dayStatus = 'CLOSED';
       statusLabel = 'Tutup';
       badgeVariant = 'danger';
-      dayNotes = daySetting?.leaveReason || 'Jadwal ditutup oleh admin';
+      dayNotes = daySetting?.leaveReason || null;
     } else {
       dayStatus = 'OPEN';
       statusLabel = 'Buka';

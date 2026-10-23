@@ -22,6 +22,9 @@ export interface PublishRescheduleNotificationsParams {
   practitioner: {
     id: string;
     displayName?: string | null;
+    staffProfile?: {
+      fullName?: string | null;
+    } | null;
   };
   notes?: string | null;
   reason?: string | null;
@@ -79,7 +82,10 @@ export async function publishRescheduleNotifications(
         patientId: appt.patientId,
         patientUserId,
         patientName,
-        doctorName: practitioner.displayName || 'Dokter',
+        doctorName:
+          practitioner.displayName ||
+          practitioner.staffProfile?.fullName ||
+          '',
         practitionerId: practitioner.id,
         targetDate,
         targetStartTime: `${apptStartTime}:00`,

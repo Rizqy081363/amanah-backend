@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   ForbiddenException,
   Get,
@@ -33,6 +34,8 @@ import {
   type ReplacementOpportunityFilter,
   type ReplacementRepository,
 } from '../domain/repositories/replacement.repository';
+import { AssignReplacementDto } from './dto/assign-replacement.dto';
+import { CancelReplacementDto } from './dto/cancel-replacement.dto';
 
 @ApiTags('Replacement Opportunities (Jadwal Pengganti & Cuti Terbuka)')
 @ApiBearerAuth('access-token')
@@ -60,7 +63,17 @@ export class ReplacementsController {
   @ApiQuery({
     name: 'date',
     required: false,
-    description: 'Filter tanggal awal peluang pengganti (YYYY-MM-DD)',
+    description: 'Filter tanggal awal peluang pengganti (YYYY-MM-DD atau all)',
+  })
+  @ApiQuery({
+    name: 'startDate',
+    required: false,
+    description: 'Filter rentang awal tanggal dinas (YYYY-MM-DD)',
+  })
+  @ApiQuery({
+    name: 'endDate',
+    required: false,
+    description: 'Filter rentang akhir tanggal dinas (YYYY-MM-DD)',
   })
   @ApiQuery({
     name: 'status',
@@ -74,9 +87,16 @@ export class ReplacementsController {
   })
   async getOpportunities(
     @Query('date') date?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
     @Query('status') status?: ReplacementOpportunityFilter['status'],
   ) {
-    return this.replacementRepo.findOpportunities({ date, status });
+    return this.replacementRepo.findOpportunities({
+      date,
+      startDate,
+      endDate,
+      status,
+    });
   }
 
   @Post(':id/claim')
@@ -105,7 +125,55 @@ export class ReplacementsController {
     return this.replacementRepo.claimOpportunity(
       id,
       user.staff.id,
-      user.doctor?.id,
+      user.staff.practitionerId || user.doctor?.id,
     );
+  }
+
+  @Post(':id/assign')
+  @Roles('ADMIN')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Admin menugaskan staf pengganti secara langsung (Web Admin)',
+    description:
+      'Menetapkan staf pengganti untuk peluang sesi dinas terbuka atau pergantian penugasan.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID unik peluang pengganti (replacement_opportunities)',
+  })
+  @ApiOkResponse({ description: 'Staf pengganti berhasil ditugaskan' })
+  @ApiNotFoundResponse({ description: 'Peluang pengganti tidak ditemukan' })
+  @Idempotent()
+  async assignOpportunity(
+    @Param('id') id: string,
+    @Body() dto: AssignReplacementDto,
+  ) {
+    return this.replacementRepo.assignOpportunity(
+      id,
+      dto.staffProfileId,
+      dto.practitionerId,
+      dto.notes,
+    );
+  }
+
+  @Post(':id/cancel')
+  @Roles('ADMIN')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Admin membatalkan peluang dinas pengganti (Web Admin)',
+    description: 'Mengubah status peluang dinas pengganti menjadi cancelled.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID unik peluang pengganti (replacement_opportunities)',
+  })
+  @ApiOkResponse({ description: 'Peluang pengganti berhasil dibatalkan' })
+  @ApiNotFoundResponse({ description: 'Peluang pengganti tidak ditemukan' })
+  @Idempotent()
+  async cancelOpportunity(
+    @Param('id') id: string,
+    @Body() dto?: CancelReplacementDto,
+  ) {
+    return this.replacementRepo.cancelOpportunity(id, dto?.reason);
   }
 }

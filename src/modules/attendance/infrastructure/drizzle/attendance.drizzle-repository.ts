@@ -446,6 +446,7 @@ export class AttendanceDrizzleRepository implements AttendanceRepository {
         fullName: staffProfiles.fullName,
         userId: staffProfiles.userId,
         staffType: staffProfiles.staffType,
+        positionTitle: staffProfiles.positionTitle,
         avatarUrl: staffProfiles.avatarUrl,
       })
       .from(staffProfiles)
@@ -588,10 +589,7 @@ export class AttendanceDrizzleRepository implements AttendanceRepository {
     const shifts = [
       { label: 'Semua Shift', value: 'all' },
       ...activeSessions.map((s) => ({
-        label:
-          shiftLabelMap[s.code] ||
-          s.labelKey?.replace(/^session\./, '').replace(/^\w/, (c) => c.toUpperCase()) ||
-          s.code,
+        label: shiftLabelMap[s.code] || `Sesi ${s.code}`,
         value: s.code,
       })),
     ];

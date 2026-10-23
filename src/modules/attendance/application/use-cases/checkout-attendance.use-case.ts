@@ -235,6 +235,7 @@ export class CheckOutAttendanceUseCase {
         staffCode: staff.staffCode,
         userId: staff.userId,
         staffType: staff.staffType,
+        positionTitle: staff.positionTitle,
         avatarUrl: staff.avatarUrl,
         earnedAmount,
       });

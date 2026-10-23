@@ -15,6 +15,7 @@ export interface AttendanceNotificationStaffInfo {
   staffCode: string;
   userId?: string | null;
   staffType?: string | null;
+  positionTitle?: string | null;
   avatarUrl?: string | null;
   earnedAmount?: number;
 }
@@ -39,17 +40,11 @@ export class AttendanceNotificationService {
     staffInfo: AttendanceNotificationStaffInfo,
   ): Promise<void> {
     try {
-      const staffName = staffInfo.fullName || 'Staf';
+      const staffName = staffInfo.fullName || '';
       const staffUserId = staffInfo.userId;
-      const staffCode = staffInfo.staffCode || '-';
-      const staffType = staffInfo.staffType || 'worker';
-
-      const categoryLabel =
-        staffType === 'doctor'
-          ? 'Dokter'
-          : staffType === 'midwife'
-            ? 'Bidan'
-            : 'Staf';
+      const staffCode = staffInfo.staffCode || '';
+      const staffType = staffInfo.staffType || '';
+      const categoryLabel = staffInfo.positionTitle || staffType;
 
       const shiftKey = (record.shift || 'morning') as ShiftCode;
       const shiftLabel = SHIFT_LABEL_MAP[shiftKey] || 'Pagi';

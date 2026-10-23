@@ -26,6 +26,9 @@ type PractitionerRecord = {
   id?: string | null;
   staffProfileId?: string | null;
   displayName?: string | null;
+  medicalSpecialty?: {
+    name?: string | null;
+  } | null;
   staffProfile?: StaffProfileRecord | null;
 };
 
@@ -120,9 +123,11 @@ export function mapScheduleRecordToEntity(
     staffName:
       record.practitioner?.staffProfile?.fullName ||
       record.practitioner?.displayName ||
-      'Dokter Amanah',
+      '',
     profession:
-      record.practitioner?.staffProfile?.positionTitle || 'Dokter Umum',
+      record.practitioner?.medicalSpecialty?.name ||
+      record.practitioner?.staffProfile?.positionTitle ||
+      '',
     scheduleDate: record.scheduleDate,
     specificDate: record.scheduleDate,
     poliklinikId:

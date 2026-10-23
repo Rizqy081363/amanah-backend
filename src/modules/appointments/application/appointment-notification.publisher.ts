@@ -346,7 +346,7 @@ export class AppointmentNotificationPublisher {
           scheduledDate: appointment.appointmentDate,
           scheduledStartTime: appointment.scheduledStartTime,
           scheduledEndTime: appointment.scheduledEndTime,
-          queueNumber: appointment.queueNumber || 'A01',
+          queueNumber: appointment.queueNumber || null,
           status: appointment.status,
           title: 'Pasien Telah Check-In',
           message: `Pasien ${appointment.patientName || 'Pasien'} (Nomor antrean #${appointment.queueNumber}) telah hadir di klinik dan menunggu di ruang tunggu.`,

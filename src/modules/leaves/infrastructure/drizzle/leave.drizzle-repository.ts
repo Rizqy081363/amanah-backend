@@ -28,6 +28,7 @@ import {
   replacementOpportunities,
 } from '../../../../database/schema/leave-payroll.schema';
 import { NotificationGatewayService } from '../../../notifications/application/services/notification-gateway.service';
+import { formatSessionTitle } from '../../../schedules/domain/constants/schedule-shift.constants';
 import { LeaveEntity } from '../../domain/entities/leave.entity';
 import { LeaveRepository } from '../../domain/repositories/leave.repository';
 
@@ -83,7 +84,7 @@ export class LeaveDrizzleRepository implements LeaveRepository {
         id: s.id,
         sessionId: s.sessionId,
         sessionCode: s.sessionDef?.code,
-        sessionLabel: s.sessionDef?.labelKey,
+        sessionLabel: formatSessionTitle(s.sessionDef?.code),
         workDate: s.workDate,
       })),
       createdAt: new Date(r.createdAt),
@@ -123,7 +124,7 @@ export class LeaveDrizzleRepository implements LeaveRepository {
       eligibleSessions = assignments.map((a) => ({
         sessionId: a.sessionId,
         sessionCode: a.sessionDef.code,
-        sessionLabel: a.sessionDef.labelKey,
+        sessionLabel: formatSessionTitle(a.sessionDef.code),
         startsAt: a.sessionDef.defaultStartsAt,
         endsAt: a.sessionDef.defaultEndsAt,
         workDate: date,
@@ -144,7 +145,7 @@ export class LeaveDrizzleRepository implements LeaveRepository {
       eligibleSessions = rosters.map((r) => ({
         sessionId: r.sessionId,
         sessionCode: r.sessionDef.code,
-        sessionLabel: r.sessionDef.labelKey,
+        sessionLabel: formatSessionTitle(r.sessionDef.code),
         startsAt: r.sessionDef.defaultStartsAt,
         endsAt: r.sessionDef.defaultEndsAt,
         workDate: date,
@@ -465,7 +466,7 @@ export class LeaveDrizzleRepository implements LeaveRepository {
         .where(eq(staffProfiles.id, record.staffProfileId))
         .limit(1);
 
-      const staffName = staff?.fullName || 'Staf';
+      const staffName = staff?.fullName || '';
       const staffUserId = staff?.userId;
 
       if (status === 'pending') {

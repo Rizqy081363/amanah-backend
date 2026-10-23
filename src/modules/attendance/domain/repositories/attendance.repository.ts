@@ -142,6 +142,7 @@ export interface AttendanceRepository {
     fullName: string;
     userId: string | null;
     staffType?: string | null;
+    positionTitle?: string | null;
     avatarUrl?: string | null;
   } | null>;
 

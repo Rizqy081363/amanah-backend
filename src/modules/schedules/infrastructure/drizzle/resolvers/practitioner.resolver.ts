@@ -25,20 +25,18 @@ export class PractitionerResolver {
         ),
         with: {
           staffProfile: true,
+          medicalSpecialty: true,
         },
       });
     }
 
     const decoded = decodeURIComponent(staffOrPractitionerId).trim();
-    const cleanName = decoded.replace(/^dr\.?\s*/i, '').trim();
 
     const byName = await this.db.query.practitioners.findFirst({
-      where: or(
-        ilike(practitioners.displayName, `%${decoded}%`),
-        ilike(practitioners.displayName, `%${cleanName}%`),
-      ),
+      where: ilike(practitioners.displayName, `%${decoded}%`),
       with: {
         staffProfile: true,
+        medicalSpecialty: true,
       },
     });
 
@@ -47,10 +45,7 @@ export class PractitionerResolver {
     }
 
     const matchedStaff = await this.db.query.staffProfiles.findFirst({
-      where: or(
-        ilike(staffProfiles.fullName, `%${decoded}%`),
-        ilike(staffProfiles.fullName, `%${cleanName}%`),
-      ),
+      where: ilike(staffProfiles.fullName, `%${decoded}%`),
     });
 
     if (matchedStaff) {
@@ -58,6 +53,7 @@ export class PractitionerResolver {
         where: eq(practitioners.staffProfileId, matchedStaff.id),
         with: {
           staffProfile: true,
+          medicalSpecialty: true,
         },
       });
     }

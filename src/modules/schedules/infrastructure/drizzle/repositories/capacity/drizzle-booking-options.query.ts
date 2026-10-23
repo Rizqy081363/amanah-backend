@@ -241,15 +241,15 @@ export class DrizzleBookingOptionsQuery {
       const shiftKey = def.code.toLowerCase();
       const canonicalInfo = CANONICAL_SESSION_NAME_MAP[shiftKey] || {
         session: def.code.toUpperCase(),
-        label: `Shift ${def.labelKey || def.code}`,
+        label: `Shift ${def.code}`,
       };
 
       // Operating time: template schedule > def default
       const sched = activeSchedules.find((s) => s.sessionId === def.id);
-      const startTimeRaw = sched?.startsAt || def.defaultStartsAt || '08:00:00';
-      const endTimeRaw = sched?.endsAt || def.defaultEndsAt || '17:00:00';
-      const startTime = startTimeRaw.slice(0, 5);
-      const endTime = endTimeRaw.slice(0, 5);
+      const startTimeRaw = sched?.startsAt || def.defaultStartsAt || '';
+      const endTimeRaw = sched?.endsAt || def.defaultEndsAt || '';
+      const startTime = startTimeRaw ? startTimeRaw.slice(0, 5) : '';
+      const endTime = endTimeRaw ? endTimeRaw.slice(0, 5) : '';
 
       // Practitioners assigned to this session
       const sessionAssignments = availableAssignments.filter(
@@ -258,11 +258,13 @@ export class DrizzleBookingOptionsQuery {
       const practitioners: BookingPractitionerItem[] = sessionAssignments.map(
         (da) => {
           const staff = da.practitioner?.staffProfile;
-          const name =
-            staff?.fullName || da.practitioner?.displayName || 'Dokter Amanah';
+          const name = staff?.fullName || da.practitioner?.displayName || '';
           const specialty =
-            da.practitioner?.medicalSpecialty?.name || 'Dokter Umum';
-          const roomName = da.preferredRoom?.name || 'Ruang Konsultasi';
+            da.practitioner?.medicalSpecialty?.name ||
+            staff?.clinicUnit?.name ||
+            staff?.positionTitle ||
+            '';
+          const roomName = da.preferredRoom?.name || '';
 
           return {
             id: da.doctorId,
@@ -292,7 +294,7 @@ export class DrizzleBookingOptionsQuery {
 
       if (activeDayClosure) {
         isDisabled = true;
-        disabledReason = activeDayClosure.reason || 'Klinik Tutup';
+        disabledReason = activeDayClosure.reason || null;
       } else if (!isClinicDayActive && !hasExplicitOverride) {
         isDisabled = true;
         disabledReason = 'Hari Operasional Tutup';
@@ -330,7 +332,7 @@ export class DrizzleBookingOptionsQuery {
           dateFormatStyle as DateDisplayFormatStyle,
         ),
         dayOfWeek: targetDow,
-        dayName: dayRecord?.nameId || 'Hari',
+        dayName: dayRecord?.nameId || '',
         poliklinikId: poliklinikId || null,
         poliklinikName: unitRecord?.name || null,
         estimatedDurationMinutes: estimatedDuration,

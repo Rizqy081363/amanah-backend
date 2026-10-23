@@ -5,6 +5,8 @@ export const REPLACEMENT_REPOSITORY = 'REPLACEMENT_REPOSITORY';
 
 export type ReplacementOpportunityFilter = {
   date?: string;
+  startDate?: string;
+  endDate?: string;
   status?: ReplacementOpportunityStatus | 'all';
 };
 
@@ -20,6 +22,16 @@ export interface ReplacementRepository {
     opportunityId: string,
     staffProfileId: string,
     practitionerId?: string,
+  ): Promise<ReplacementOpportunityEntity>;
+  assignOpportunity(
+    opportunityId: string,
+    staffProfileId: string,
+    practitionerId?: string,
+    notes?: string,
+  ): Promise<ReplacementOpportunityEntity>;
+  cancelOpportunity(
+    opportunityId: string,
+    reason?: string,
   ): Promise<ReplacementOpportunityEntity>;
   createOpportunity(data: {
     leaveRequestId: string;

@@ -346,12 +346,12 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
       data: {
         id: prac.id,
         practitioner_id: prac.id,
-        nama_dokter:
-          prac.staffProfile?.fullName || prac.displayName || 'Dokter Amanah',
+        nama_dokter: prac.staffProfile?.fullName || prac.displayName || '',
         spesialisasi:
           prac.medicalSpecialty?.name ||
           prac.staffProfile?.clinicUnit?.name ||
-          'Dokter Umum',
+          prac.staffProfile?.positionTitle ||
+          '',
         status_dokter: statusDokter,
         is_accepting_appointments: prac.isAcceptingAppointments,
         email: prac.staffProfile?.email || null,

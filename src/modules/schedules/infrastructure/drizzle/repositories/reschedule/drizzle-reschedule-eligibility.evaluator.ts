@@ -8,6 +8,7 @@ import {
   shiftExceptions,
 } from '@database/schema';
 import { ACTIVE_APPOINTMENT_STATUSES } from '@modules/schedules/domain/constants/schedule.constants';
+import { formatSessionTitle } from '@modules/schedules/domain/constants/schedule-shift.constants';
 import {
   type RescheduleEligibilityEntity,
   type RescheduleSourceSessionInfo,
@@ -141,8 +142,8 @@ export class DrizzleRescheduleEligibilityEvaluator {
       timeRange: `${effectiveSessionDef.defaultStartsAt.slice(0, 5)} - ${effectiveSessionDef.defaultEndsAt.slice(0, 5)} WIB`,
       status: 'open',
       statusLabel: sourceStatus,
-      sessionLabel: effectiveSessionDef.labelKey || 'Sesi Praktik',
-      sessionShift: effectiveSessionDef.code || 'morning',
+      sessionLabel: formatSessionTitle(effectiveSessionDef.code),
+      sessionShift: effectiveSessionDef.code,
       roomName,
       activeAppointmentsCount: activeAppts.length,
       isSourceEligible,
@@ -259,7 +260,7 @@ export class DrizzleRescheduleEligibilityEvaluator {
     const practitionerName =
       practitioner.staffProfile?.fullName ||
       practitioner.displayName ||
-      'Dokter Amanah';
+      '';
 
     return {
       sessionId: effectiveSessionDef.id,
