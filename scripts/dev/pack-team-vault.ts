@@ -32,6 +32,7 @@ interface VaultConfig {
     filename_prefix: string;
     include_timestamp?: boolean;
     create_latest_copy?: boolean;
+    wrap_namespace?: boolean;
   };
   targets: TargetConfig[];
 }
@@ -46,10 +47,36 @@ interface ManifestFileEntry {
 interface VaultManifest {
   version: string;
   created_at: string;
+  human_label: string;
+  namespace?: string;
   generator: string;
   total_files: number;
   total_bytes: number;
   files: ManifestFileEntry[];
+}
+
+/**
+ * Format namespace tanggal dan hari secara human-readable
+ * menggunakan standar runtime Intl.DateTimeFormat (Zero hardcoding).
+ */
+function formatVaultNamespace(now: Date = new Date(), locale: string = 'id-ID'): {
+  namespace: string;
+  humanLabel: string;
+} {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const weekday = new Intl.DateTimeFormat(locale, { weekday: 'long' }).format(now);
+  const month = new Intl.DateTimeFormat(locale, { month: 'long' }).format(now);
+  const day = pad(now.getDate());
+  const year = now.getFullYear();
+  const hours = pad(now.getHours());
+  const minutes = pad(now.getMinutes());
+  const seconds = pad(now.getSeconds());
+
+  // Namespace: 2026-10-23_Jumat_23-Oktober_11.45.12
+  const namespace = `${year}-${pad(now.getMonth() + 1)}-${day}_${weekday}_${day}-${month}_${hours}.${minutes}.${seconds}`;
+  const humanLabel = `${weekday}, ${day} ${month} ${year} pukul ${hours}:${minutes}:${seconds}`;
+
+  return { namespace, humanLabel };
 }
 
 /**
@@ -211,10 +238,15 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  const now = new Date();
+  const { namespace, humanLabel } = formatVaultNamespace(now);
+
   // Generate metadata manifest
   const manifest: VaultManifest = {
     version: '1.0.0',
-    created_at: new Date().toISOString(),
+    created_at: now.toISOString(),
+    human_label: humanLabel,
+    namespace: config.archive.wrap_namespace !== false ? namespace : undefined,
     generator: 'Amanah Healthcare Vault Bundler (Config-Driven)',
     total_files: manifestEntries.length,
     total_bytes: totalBytes,
@@ -223,18 +255,27 @@ async function main(): Promise<void> {
   zip.addFile('manifest.json', Buffer.from(JSON.stringify(manifest, null, 2), 'utf8'));
 
   // Generate README.md panduan ekstraksi bagi rekan tim
+  const prefix = config.archive.filename_prefix || 'amanah-team-credentials';
   const readmeContent = `# Amanah Healthcare - Team Credentials Archive
 
 Arsip ini berisi file konfigurasi environment (\`.env*\`) dan kredensial untuk monorepo Amanah Healthcare.
-Arsip ini di-generate secara otomatis pada: **${manifest.created_at}**
+Arsip ini di-generate secara otomatis pada: **${humanLabel}** (${manifest.created_at})
+Namespace: **${namespace}**
 
 ## Cara Penggunaan / Ekstraksi:
 
 ### Cara 1: Menggunakan Script Otomatis (Direkomendasikan)
-Letakkan file zip ini di root folder proyek \`Amanah-health-care\`, lalu jalankan:
+Jalankan salah satu perintah berikut:
 \`\`\`bash
+# Ekstrak namespace ini secara spesifik:
 cd backend
-bun run vault:unpack ../dist-vault/amanah-team-credentials-latest.zip
+bun run vault:unpack ../dist-vault/${namespace}/${prefix}_${namespace}.zip
+
+# Atau ekstrak namespace folder langsung:
+bun run vault:unpack ../dist-vault/${namespace}
+
+# Atau ekstrak versi latest:
+bun run vault:unpack
 \`\`\`
 
 ### Cara 2: Ekstraksi Manual
@@ -250,34 +291,45 @@ Struktur folder di dalam zip sudah disesuaikan persis dengan struktur 3 reposito
 `;
   zip.addFile('README.md', Buffer.from(readmeContent, 'utf8'));
 
-  // Menentukan output zip file path
-  const outputDir = resolve(workspaceRoot, config.archive.output_dir || './dist-vault');
-  if (!existsSync(outputDir)) {
-    mkdirSync(outputDir, { recursive: true });
+  // Menentukan output folder path
+  const rootOutputDir = resolve(workspaceRoot, config.archive.output_dir || './dist-vault');
+  if (!existsSync(rootOutputDir)) {
+    mkdirSync(rootOutputDir, { recursive: true });
   }
 
-  const now = new Date();
-  const pad = (n: number) => String(n).padStart(2, '0');
-  const timestampStr = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+  const isWrapNamespace = config.archive.wrap_namespace !== false;
+  const targetDir = isWrapNamespace ? join(rootOutputDir, namespace) : rootOutputDir;
+  if (!existsSync(targetDir)) {
+    mkdirSync(targetDir, { recursive: true });
+  }
 
-  const prefix = config.archive.filename_prefix || 'amanah-team-credentials';
-  const filename = config.archive.include_timestamp !== false
-    ? `${prefix}-${timestampStr}.zip`
-    : `${prefix}.zip`;
+  const zipFilename = isWrapNamespace
+    ? `${prefix}_${namespace}.zip`
+    : `${prefix}-${namespace}.zip`;
 
-  const outputPath = join(outputDir, filename);
+  const outputPath = join(targetDir, zipFilename);
   zip.writeZip(outputPath);
+
+  // Jika di-wrap ke namespace, salin juga manifest.json & README.md ke folder namespace
+  // agar langsung bisa diinspeksi di file manager / terminal tanpa perlu ekstrak zip
+  if (isWrapNamespace) {
+    writeFileSync(join(targetDir, 'manifest.json'), JSON.stringify(manifest, null, 2), 'utf8');
+    writeFileSync(join(targetDir, 'README.md'), readmeContent, 'utf8');
+  }
 
   console.log('\n' + '='.repeat(80));
   console.log(' HASIL BUNDLING BERHASIL');
   console.log('='.repeat(80));
+  console.log(` Namespace       : ${namespace}`);
+  console.log(` Waktu           : ${humanLabel}`);
+  console.log(` Folder Vault    : ${targetDir}`);
   console.log(` Output ZIP      : ${outputPath}`);
   console.log(` Ukuran Arsip    : ${formatBytes(statSync(outputPath).size)}`);
   console.log(` Jumlah File     : ${manifestEntries.length} file dikemas`);
   console.log(` Total Uncompressed: ${formatBytes(totalBytes)}`);
 
   if (config.archive.create_latest_copy !== false) {
-    const latestPath = join(outputDir, `${prefix}-latest.zip`);
+    const latestPath = join(rootOutputDir, `${prefix}-latest.zip`);
     zip.writeZip(latestPath);
     console.log(` Copy Terkini    : ${latestPath}`);
   }

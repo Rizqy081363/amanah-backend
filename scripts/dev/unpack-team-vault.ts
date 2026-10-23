@@ -5,7 +5,7 @@
  * langsung ke repositori masing-masing (Backend, Frontend Web, Mobile App, Root).
  */
 
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync, statSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import AdmZip from 'adm-zip';
 
@@ -42,7 +42,15 @@ async function main(): Promise<void> {
 
   const zipArg = args.find((a) => !a.startsWith('--'));
   const defaultZip = join(workspaceRoot, 'dist-vault', 'amanah-team-credentials-latest.zip');
-  const targetZipPath = resolve(workspaceRoot, zipArg || defaultZip);
+  let targetZipPath = resolve(workspaceRoot, zipArg || defaultZip);
+
+  // Jika input berupa namespace folder, cari file zip di dalamnya
+  if (existsSync(targetZipPath) && statSync(targetZipPath).isDirectory()) {
+    const zipFiles = readdirSync(targetZipPath).filter((f) => f.endsWith('.zip'));
+    if (zipFiles.length > 0) {
+      targetZipPath = join(targetZipPath, zipFiles[0]);
+    }
+  }
 
   console.log('='.repeat(80));
   console.log(' AMANAH HEALTHCARE - TEAM CREDENTIALS VAULT UNPACK TOOL');
