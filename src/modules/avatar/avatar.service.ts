@@ -5,6 +5,8 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import * as fs from 'fs';
+import * as path from 'path';
 import { eq } from 'drizzle-orm';
 import { Readable } from 'stream';
 import { NameInitialsHelper } from '../../common/utils/name-initials.helper';
@@ -199,7 +201,27 @@ export class AvatarService {
       };
     }
 
-    // Generate fallback SVG
+    // Stream canonical default avatar image asset from disk if available
+    const defaultAvatarCandidates = [
+      path.resolve(process.cwd(), 'data/uploads/avatars/default-avatar.png'),
+      path.resolve(__dirname, 'assets/default-avatar.png'),
+      path.resolve(process.cwd(), 'src/modules/avatar/assets/default-avatar.png'),
+    ];
+
+    for (const candidate of defaultAvatarCandidates) {
+      if (fs.existsSync(candidate)) {
+        const stats = fs.statSync(candidate);
+        return {
+          kind: 'stream',
+          stream: fs.createReadStream(candidate),
+          mimeType: 'image/png',
+          byteSize: stats.size,
+          etag: `W/"default-avatar-${stats.size}-${stats.mtimeMs}"`,
+        };
+      }
+    }
+
+    // Fallback to SVG initials if disk image is not found
     const svg = this.svgService.generateSvg(userRecord.name);
     const buffer = Buffer.from(svg, 'utf-8');
     const safeNameHash = Buffer.from(userRecord.name || '')

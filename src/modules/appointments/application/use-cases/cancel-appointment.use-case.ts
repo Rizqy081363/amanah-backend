@@ -114,7 +114,7 @@ export class CancelAppointmentUseCase {
             patientId: updated.patientId,
             patientUserId: updated.patientUserId,
             patientName: updated.patientName,
-            patientAvatarUrl: null,
+            avatarUrl: null,
             doctorName: updated.doctorName,
             doctorAvatarUrl: null,
             staffId: updated.practitionerId,

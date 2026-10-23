@@ -45,6 +45,13 @@ export class PatientDirectoryItemDto {
   email: string | null;
 
   @ApiProperty({
+    description: 'URL foto avatar profil pasien (atau master akun afiliasi)',
+    nullable: true,
+    example: 'https://lh3.googleusercontent.com/a/...',
+  })
+  avatarUrl?: string | null;
+
+  @ApiProperty({
     description: 'Nomor telepon / WhatsApp',
     nullable: true,
   })

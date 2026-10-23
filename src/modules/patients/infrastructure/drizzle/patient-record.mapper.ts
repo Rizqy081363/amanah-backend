@@ -9,6 +9,21 @@ export class PatientRecordMapper {
       record.patientAddresses?.find((a: any) => a.isPrimary) ||
       record.patientAddresses?.[0];
     const primaryEmergency = record.patientEmergencyContacts?.[0];
+    const primaryAffiliation =
+      record.patientAffiliations?.find((a: any) => a.isPrimary) ||
+      record.patientAffiliations?.[0];
+
+    const resolvedUserId =
+      record.userId ||
+      primaryAffiliation?.userId ||
+      record.masterUserId ||
+      record.user?.id ||
+      null;
+    const resolvedAvatarUrl =
+      record.avatarUrl ||
+      record.user?.imageUrl ||
+      primaryAffiliation?.user?.imageUrl ||
+      (resolvedUserId ? `/api/v1/users/${resolvedUserId}/avatar` : null);
 
     const resolvedPhone = record.phone || record.user?.phone || '';
     const resolvedEmail = record.email || record.user?.email || null;
@@ -90,7 +105,7 @@ export class PatientRecordMapper {
         : null,
       allergies: record.patientAllergies || [],
       medicalHistory: record.medicalHistorySummary || null,
-      avatarUrl: record.avatarUrl || null,
+      avatarUrl: resolvedAvatarUrl,
       status: record.status || 'active',
       registeredAt: resolvedRegisteredAt,
       firstLoginAt: resolvedFirstLoginAt,

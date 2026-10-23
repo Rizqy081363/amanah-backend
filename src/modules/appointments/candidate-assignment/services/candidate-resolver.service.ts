@@ -236,6 +236,7 @@ export class CandidateResolverService implements ICandidateResolverPort {
       currentGroup.doctors.push({
         id: p.id,
         name: p.displayName || p.staffProfile?.fullName || '',
+        avatarUrl: p.staffProfile?.avatarUrl || null,
         specialty: currentGroup.name,
         staffType: p.staffProfile?.staffType || STAFF_TYPE.DOCTOR,
         availability,

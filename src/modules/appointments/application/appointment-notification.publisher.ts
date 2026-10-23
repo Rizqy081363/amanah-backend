@@ -37,7 +37,7 @@ export class AppointmentNotificationPublisher {
           patientId: created.patientId,
           patientUserId: created.patientUserId || user?.id || user?.sub,
           patientName: created.patientName || user?.name || 'Pasien',
-          patientAvatarUrl: created.patientAvatarUrl || null,
+          avatarUrl: created.avatarUrl || null,
           poliklinikId: created.poliklinikId,
           poliklinikName: created.poliklinikName || null,
           layananId: created.layananId,
@@ -110,7 +110,7 @@ export class AppointmentNotificationPublisher {
           patientId: appointment.patientId,
           patientUserId: appointment.patientUserId || null,
           patientName: appointment.patientName || 'Pasien',
-          patientAvatarUrl: appointment.patientAvatarUrl || null,
+          avatarUrl: appointment.avatarUrl || null,
           doctorName: appointment.doctorName || null,
           doctorAvatarUrl: appointment.doctorAvatarUrl || null,
           staffId: appointment.staffId || null,
@@ -194,7 +194,7 @@ export class AppointmentNotificationPublisher {
           patientId: appointment.patientId,
           patientUserId: appointment.patientUserId || null,
           patientName: appointment.patientName || 'Pasien',
-          patientAvatarUrl: appointment.patientAvatarUrl || null,
+          avatarUrl: appointment.avatarUrl || null,
           doctorName: appointment.doctorName || null,
           doctorAvatarUrl: appointment.doctorAvatarUrl || null,
           practitionerId: appointment.staffId || null,
@@ -301,7 +301,7 @@ export class AppointmentNotificationPublisher {
           patientId: appointment.patientId,
           patientUserId: appointment.patientUserId || null,
           patientName: appointment.patientName || 'Pasien',
-          patientAvatarUrl: appointment.patientAvatarUrl || null,
+          avatarUrl: appointment.avatarUrl || null,
           staffId: appointment.staffId || null,
           doctorName: appointment.doctorName || null,
           doctorAvatarUrl: appointment.doctorAvatarUrl || null,
@@ -335,7 +335,7 @@ export class AppointmentNotificationPublisher {
       patientId?: string | null;
       patientUserId?: string | null;
       patientName?: string | null;
-      patientAvatarUrl?: string | null;
+      avatarUrl?: string | null;
       doctorName?: string | null;
       doctorAvatarUrl?: string | null;
       staffId?: string | null;
@@ -360,7 +360,7 @@ export class AppointmentNotificationPublisher {
           patientId: appointment.patientId || null,
           patientUserId: appointment.patientUserId || null,
           patientName: appointment.patientName || 'Pasien',
-          patientAvatarUrl: appointment.patientAvatarUrl || null,
+          avatarUrl: appointment.avatarUrl || null,
           staffId: appointment.staffId || null,
           doctorName: appointment.doctorName || null,
           doctorAvatarUrl: appointment.doctorAvatarUrl || null,
@@ -395,7 +395,7 @@ export class AppointmentNotificationPublisher {
       patientId?: string | null;
       patientUserId?: string | null;
       patientName?: string | null;
-      patientAvatarUrl?: string | null;
+      avatarUrl?: string | null;
       doctorName?: string | null;
       doctorAvatarUrl?: string | null;
       staffId?: string | null;
@@ -420,7 +420,7 @@ export class AppointmentNotificationPublisher {
           patientId: appointment.patientId || null,
           patientUserId: appointment.patientUserId || null,
           patientName: appointment.patientName || 'Pasien',
-          patientAvatarUrl: appointment.patientAvatarUrl || null,
+          avatarUrl: appointment.avatarUrl || null,
           staffId: appointment.staffId || null,
           doctorName: appointment.doctorName || null,
           doctorAvatarUrl: appointment.doctorAvatarUrl || null,

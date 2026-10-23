@@ -16,7 +16,7 @@ export class AppointmentEntity {
   parentUserId?: string | null;
   parentUserName?: string | null;
   patientName?: string;
-  patientAvatarUrl?: string | null;
+  avatarUrl?: string | null;
   poliklinikId: string;
   poliklinikName?: string;
   layananId: string;

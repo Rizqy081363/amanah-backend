@@ -93,13 +93,16 @@ export class AppointmentHardenedDrizzleRepository
       where: eq(appointments.id, id),
       with: {
         patientProfile: {
-          with: { patientAffiliations: { with: { user: true } } },
+          with: {
+            user: true,
+            patientAffiliations: { with: { user: true } },
+          },
         },
         clinicService: true,
         clinicRoom: { with: { clinicUnit: true } },
         practitioner: {
           with: {
-            staffProfile: true,
+            staffProfile: { with: { user: true } },
             medicalSpecialty: true,
           },
         },
@@ -516,13 +519,16 @@ export class AppointmentHardenedDrizzleRepository
       orderBy: [asc(appointments.queueNumber), desc(appointments.createdAt)],
       with: {
         patientProfile: {
-          with: { patientAffiliations: { with: { user: true } } },
+          with: {
+            user: true,
+            patientAffiliations: { with: { user: true } },
+          },
         },
         clinicService: true,
         clinicRoom: { with: { clinicUnit: true } },
         practitioner: {
           with: {
-            staffProfile: true,
+            staffProfile: { with: { user: true } },
             medicalSpecialty: true,
           },
         },
@@ -574,6 +580,25 @@ export class AppointmentHardenedDrizzleRepository
     const parentUserName =
       primaryAffiliation?.user?.name || primaryAffiliation?.user?.email || null;
 
+    const patientUserId = parentUserId;
+    const directPatientAvatar =
+      apt.patientProfile?.avatarUrl ||
+      apt.patientProfile?.user?.imageUrl ||
+      primaryAffiliation?.user?.imageUrl ||
+      null;
+    const avatarUrl =
+      directPatientAvatar ||
+      (patientUserId ? `/api/v1/users/${patientUserId}/avatar` : null);
+
+    const doctorUserId = apt.practitioner?.staffProfile?.userId || null;
+    const directDoctorAvatar =
+      apt.practitioner?.staffProfile?.avatarUrl ||
+      apt.practitioner?.staffProfile?.user?.imageUrl ||
+      null;
+    const doctorAvatarUrl =
+      directDoctorAvatar ||
+      (doctorUserId ? `/api/v1/users/${doctorUserId}/avatar` : null);
+
     return {
       id: apt.id,
       bookingCode: apt.bookingCode || '',
@@ -584,11 +609,13 @@ export class AppointmentHardenedDrizzleRepository
       parentUserId,
       parentUserName,
       patientName: apt.patientProfile?.fullName || null,
+      avatarUrl,
       practitionerId: apt.practitionerId,
       doctorName:
         apt.practitioner?.staffProfile?.fullName ||
         apt.practitioner?.name ||
         null,
+      doctorAvatarUrl,
       serviceId: apt.serviceId || null,
       serviceName: apt.clinicService?.name || null,
       poliklinikId: apt.clinicRoom?.unitId || null,

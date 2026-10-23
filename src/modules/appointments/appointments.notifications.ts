@@ -94,7 +94,7 @@ export class AppointmentsNotificationRules implements OnModuleInit {
                 },
               ],
               badgeIcon: 'user-plus',
-              visualKey: payload.patientAvatarUrl || null,
+              visualKey: payload.avatarUrl || null,
               senderName: payload.patientName || 'Pasien',
               senderRole: 'Pasien',
               isUrgent: false,
@@ -122,7 +122,7 @@ export class AppointmentsNotificationRules implements OnModuleInit {
           : `Pasien baru ${payload.patientName || 'Pasien'} (${payload.queueNumber || '-'}) terdaftar untuk tanggal ${payload.appointmentDate}.`,
       senderName: (payload: any) => payload.patientName || 'Pasien',
       senderRole: 'Pasien',
-      visualKey: (payload: any) => payload.patientAvatarUrl || null,
+      visualKey: (payload: any) => payload.avatarUrl || null,
       isUrgent: false,
       badgeIcon: 'user-plus',
       resolveSource: (payload: any) => ({
@@ -586,7 +586,7 @@ export class AppointmentsNotificationRules implements OnModuleInit {
               body: `Jadwal pasien ${payload.patientName || 'Pasien'} (${payload.queueNumber || '-'}) dipindahkan ke tanggal ${payload.targetDate}${timeInfo}. Alasan: ${payload.reason || '-'}.`,
               severity: 'info',
               badgeIcon: 'calendar',
-              visualKey: payload.patientAvatarUrl || null,
+              visualKey: payload.avatarUrl || null,
               senderName: isClinicActor ? 'Klinik Amanah' : (payload.patientName || 'Pasien'),
               senderRole: isClinicActor ? 'Staf' : 'Pasien',
               action: {
@@ -660,7 +660,7 @@ export class AppointmentsNotificationRules implements OnModuleInit {
         payload.rescheduledByRole === 'admin' ||
         payload.rescheduledByRole === 'staff'
           ? payload.doctorAvatarUrl || null
-          : payload.patientAvatarUrl || null,
+          : payload.avatarUrl || null,
       isUrgent: false,
       badgeIcon: 'calendar',
       resolveSource: (payload: any) => ({
@@ -727,7 +727,7 @@ export class AppointmentsNotificationRules implements OnModuleInit {
                 : `Pasien ${payload.patientName || 'Pasien'} membatalkan janji temu (${payload.queueNumber || '-'}). Alasan: ${payload.reason || '-'}.`,
               severity: 'warning',
               badgeIcon: 'alert-circle',
-              visualKey: payload.patientAvatarUrl || null,
+              visualKey: payload.avatarUrl || null,
               senderName: isClinicActor ? 'Klinik Amanah' : (payload.patientName || 'Pasien'),
               senderRole: isClinicActor ? 'Klinik' : 'Pasien',
               action: {
@@ -796,7 +796,7 @@ export class AppointmentsNotificationRules implements OnModuleInit {
         payload.cancelledByRole === 'admin' ||
         payload.cancelledByRole === 'staff'
           ? payload.doctorAvatarUrl || null
-          : payload.patientAvatarUrl || null,
+          : payload.avatarUrl || null,
       isUrgent: true,
       badgeIcon: 'alert-circle',
       resolveSource: (payload: any) => ({

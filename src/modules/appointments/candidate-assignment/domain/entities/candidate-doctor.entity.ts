@@ -8,6 +8,7 @@ export { DOCTOR_AVAILABILITY, type DoctorAvailability };
 export interface DoctorCandidateItem {
   id: string;
   name: string;
+  avatarUrl?: string | null;
   specialty: string;
   staffType: string;
   availability: DoctorAvailability;

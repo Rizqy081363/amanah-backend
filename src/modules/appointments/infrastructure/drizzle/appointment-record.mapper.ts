@@ -74,13 +74,22 @@ export class AppointmentRecordMapper {
       primaryAffiliation?.user?.name || primaryAffiliation?.user?.email || null;
 
     const patientUserId = parentUserId;
-    const patientAvatarUrl =
+    const directPatientAvatar =
       apt.patientProfile?.avatarUrl ||
+      apt.patientProfile?.user?.imageUrl ||
+      primaryAffiliation?.user?.imageUrl ||
+      null;
+    const avatarUrl =
+      directPatientAvatar ||
       (patientUserId ? `/api/v1/users/${patientUserId}/avatar` : null);
 
     const doctorUserId = apt.practitioner?.staffProfile?.userId || null;
-    const doctorAvatarUrl =
+    const directDoctorAvatar =
       apt.practitioner?.staffProfile?.avatarUrl ||
+      apt.practitioner?.staffProfile?.user?.imageUrl ||
+      null;
+    const doctorAvatarUrl =
+      directDoctorAvatar ||
       (doctorUserId ? `/api/v1/users/${doctorUserId}/avatar` : null);
 
     const actualStartedAt = apt.actualStartedAt
@@ -202,7 +211,7 @@ export class AppointmentRecordMapper {
       parentUserId,
       parentUserName,
       patientName: apt.patientProfile?.fullName || 'Pasien Amanah',
-      patientAvatarUrl,
+      avatarUrl,
       poliklinikId: poliId,
       poliklinikName: resolvedPoliName,
       layananId: apt.serviceId,

@@ -50,13 +50,18 @@ import { AppointmentStatusHandler } from './appointment-status.handler';
 
 const APPOINTMENT_RELATIONS = {
   queueTickets: true,
-  patientProfile: { with: { patientAffiliations: { with: { user: true } } } },
+  patientProfile: {
+    with: {
+      user: true,
+      patientAffiliations: { with: { user: true } },
+    },
+  },
   clinicService: true,
   clinicRoom: { with: { clinicUnit: true } },
   practitioner: {
     with: {
       clinicRoom: { with: { clinicUnit: true } },
-      staffProfile: { with: { clinicUnit: true } },
+      staffProfile: { with: { user: true, clinicUnit: true } },
       medicalSpecialty: true,
     },
   },

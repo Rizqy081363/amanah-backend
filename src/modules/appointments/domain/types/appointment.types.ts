@@ -151,8 +151,10 @@ export interface AppointmentRecord {
   parentUserId?: string | null;
   parentUserName?: string | null;
   patientName?: string | null;
+  avatarUrl?: string | null;
   practitionerId: string;
   doctorName?: string | null;
+  doctorAvatarUrl?: string | null;
   serviceId?: string | null;
   serviceName?: string | null;
   poliklinikId?: string | null;

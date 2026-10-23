@@ -213,6 +213,11 @@ export class PatientDrizzleRepository implements PatientRepository {
         user: true,
         patientAddresses: true,
         patientEmergencyContacts: true,
+        patientAffiliations: {
+          with: {
+            user: true,
+          },
+        },
       },
     });
 
@@ -330,8 +335,14 @@ export class PatientDrizzleRepository implements PatientRepository {
     const record = await this.db.query.patientProfiles.findFirst({
       where: eq(patientProfiles.userId, userId),
       with: {
+        user: true,
         patientAddresses: true,
         patientEmergencyContacts: true,
+        patientAffiliations: {
+          with: {
+            user: true,
+          },
+        },
       },
     });
     return record ? this.mapRecordToEntity(record) : null;
@@ -344,8 +355,14 @@ export class PatientDrizzleRepository implements PatientRepository {
         eq(patientProfiles.nationalIdHash, nik),
       ),
       with: {
+        user: true,
         patientAddresses: true,
         patientEmergencyContacts: true,
+        patientAffiliations: {
+          with: {
+            user: true,
+          },
+        },
       },
     });
     return record ? this.mapRecordToEntity(record) : null;
@@ -355,8 +372,14 @@ export class PatientDrizzleRepository implements PatientRepository {
     const record = await this.db.query.patientProfiles.findFirst({
       where: eq(patientProfiles.medicalRecordNumber, rm),
       with: {
+        user: true,
         patientAddresses: true,
         patientEmergencyContacts: true,
+        patientAffiliations: {
+          with: {
+            user: true,
+          },
+        },
       },
     });
     return record ? this.mapRecordToEntity(record) : null;
@@ -381,8 +404,14 @@ export class PatientDrizzleRepository implements PatientRepository {
       offset,
       orderBy: [desc(patientProfiles.createdAt), desc(patientProfiles.id)],
       with: {
+        user: true,
         patientAddresses: true,
         patientEmergencyContacts: true,
+        patientAffiliations: {
+          with: {
+            user: true,
+          },
+        },
       },
     });
     return records.map((r) => this.mapRecordToEntity(r));
@@ -758,6 +787,29 @@ export class PatientDrizzleRepository implements PatientRepository {
       .select({
         id: patientProfiles.id,
         userId: patientProfiles.userId,
+        avatarUrl: patientProfiles.avatarUrl,
+        userAvatarUrl: sql<string | null>`(
+          SELECT image_url FROM users WHERE users.id = ${patientProfiles.userId}
+        )`,
+        masterUserId: sql<string | null>`(
+          SELECT pa.user_id FROM patient_affiliations pa
+          WHERE pa.patient_id = patient_profiles.id
+          ORDER BY pa.is_primary DESC, pa.created_at DESC
+          LIMIT 1
+        )`,
+        masterUserAvatarUrl: sql<string | null>`(
+          SELECT u.image_url FROM patient_affiliations pa
+          JOIN users u ON u.id = pa.user_id
+          WHERE pa.patient_id = patient_profiles.id
+          ORDER BY pa.is_primary DESC, pa.created_at DESC
+          LIMIT 1
+        )`,
+        emailUserAvatarUrl: sql<string | null>`(
+          SELECT image_url FROM users WHERE users.email = ${patientProfiles.email} LIMIT 1
+        )`,
+        emailUserId: sql<string | null>`(
+          SELECT id FROM users WHERE users.email = ${patientProfiles.email} LIMIT 1
+        )`,
         medicalRecordNumber: patientProfiles.medicalRecordNumber,
         fullName: patientProfiles.fullName,
         nationalIdHash: patientProfiles.nationalIdHash,
@@ -877,8 +929,23 @@ export class PatientDrizzleRepository implements PatientRepository {
         maskedNik = '********';
       }
 
+      const resolvedUserId =
+        r.userId || r.masterUserId || r.emailUserId || null;
+      const resolvedDirectAvatar =
+        r.avatarUrl ||
+        r.userAvatarUrl ||
+        r.masterUserAvatar ||
+        r.masterUserAvatarUrl ||
+        r.emailUserAvatar ||
+        r.emailUserAvatarUrl ||
+        null;
+      const finalAvatarUrl =
+        resolvedDirectAvatar ||
+        (resolvedUserId ? `/api/v1/users/${resolvedUserId}/avatar` : null);
+
       return {
         id: r.id,
+        avatarUrl: finalAvatarUrl,
         medicalRecordNumber: r.medicalRecordNumber,
         fullName: r.fullName,
         maskedNik,
@@ -926,6 +993,16 @@ export class PatientDrizzleRepository implements PatientRepository {
           .select({
             id: patientProfiles.id,
             masterUserId: patientAffiliations.userId,
+            avatarUrl: patientProfiles.avatarUrl,
+            masterUserAvatar: sql<string | null>`(
+              SELECT image_url FROM users WHERE users.id = ${patientAffiliations.userId}
+            )`,
+            emailUserAvatar: sql<string | null>`(
+              SELECT image_url FROM users WHERE users.email = ${patientProfiles.email} LIMIT 1
+            )`,
+            emailUserId: sql<string | null>`(
+              SELECT id FROM users WHERE users.email = ${patientProfiles.email} LIMIT 1
+            )`,
             medicalRecordNumber: patientProfiles.medicalRecordNumber,
             fullName: patientProfiles.fullName,
             nationalIdHash: patientProfiles.nationalIdHash,

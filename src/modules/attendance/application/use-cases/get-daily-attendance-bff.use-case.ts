@@ -93,7 +93,9 @@ export class GetDailyAttendanceBffUseCase {
         id_staf: staff?.staffCode || '-',
         staffProfileId: staff?.id || rec.staffProfileId || undefined,
         nama_staf: staff?.fullName || 'Staf',
-        avatar: staff?.avatarUrl || undefined,
+        avatar:
+          staff?.avatarUrl ||
+          (staff?.userId ? `/api/v1/users/${staff.userId}/avatar` : undefined),
         kategori: categoryLabel,
         tanggal_presensi: rec.attendanceDate,
         waktu_presensi: checkInFormatted,
