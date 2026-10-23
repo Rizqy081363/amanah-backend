@@ -1,1 +1,2 @@
+bun ./tools/hooks/pre-commit-guard.ts
 bun run lint

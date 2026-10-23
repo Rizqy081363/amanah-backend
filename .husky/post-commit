@@ -1,2 +1,3 @@
 bun run backup:pull:hook
+bun ./tools/hooks/post-commit-notify.ts
 bun run deadcode || true
