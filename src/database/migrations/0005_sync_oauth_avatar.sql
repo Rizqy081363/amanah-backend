@@ -1,8 +1,8 @@
 -- Migration: 0005_sync_oauth_avatar.sql
--- Description: Propagates OAuth profile image from Better Auth "user" to canonical "users"."image_url",
--- and keeps "staff_profiles"."avatar_url" synchronized with "users"."image_url".
+-- Description: Propagates OAuth profile image from Better Auth "user" to canonical "users"."avatar_url",
+-- and keeps "staff_profiles"."avatar_url" synchronized with "users"."avatar_url".
 
--- 1. Update fn_sync_better_auth_user_to_core_users to synchronize image -> image_url
+-- 1. Update fn_sync_better_auth_user_to_core_users to synchronize image -> avatar_url
 CREATE OR REPLACE FUNCTION fn_sync_better_auth_user_to_core_users()
 RETURNS TRIGGER AS $$
 DECLARE
@@ -27,7 +27,7 @@ BEGIN
     name,
     email,
     email_verified,
-    image_url,
+    avatar_url,
     status,
     preferred_locale,
     created_at,
@@ -52,7 +52,7 @@ BEGIN
   SET name = EXCLUDED.name,
       email = EXCLUDED.email,
       email_verified = EXCLUDED.email_verified,
-      image_url = COALESCE(users.image_url, EXCLUDED.image_url),
+      avatar_url = COALESCE(users.avatar_url, EXCLUDED.avatar_url),
       status = CASE 
         WHEN NEW.banned THEN 'inactive'::user_status 
         WHEN NEW."emailVerified" THEN 'active'::user_status
@@ -70,13 +70,13 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- 2. Trigger function to automatically keep staff_profiles.avatar_url in sync with users.image_url
+-- 2. Trigger function to automatically keep staff_profiles.avatar_url in sync with users.avatar_url
 CREATE OR REPLACE FUNCTION fn_sync_users_image_to_staff_profiles()
 RETURNS TRIGGER AS $$
 BEGIN
-  IF NEW.image_url IS DISTINCT FROM OLD.image_url THEN
+  IF NEW.avatar_url IS DISTINCT FROM OLD.avatar_url THEN
     UPDATE staff_profiles
-    SET avatar_url = NEW.image_url,
+    SET avatar_url = NEW.avatar_url,
         updated_at = now()
     WHERE user_id = NEW.id;
   END IF;
@@ -86,6 +86,6 @@ $$ LANGUAGE plpgsql;
 
 DROP TRIGGER IF EXISTS trg_sync_users_image_to_staff_profiles ON users;
 CREATE TRIGGER trg_sync_users_image_to_staff_profiles
-AFTER UPDATE OF image_url ON users
+AFTER UPDATE OF avatar_url ON users
 FOR EACH ROW
 EXECUTE FUNCTION fn_sync_users_image_to_staff_profiles();

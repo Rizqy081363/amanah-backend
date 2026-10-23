@@ -651,6 +651,7 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
         ? {
             queueNumber: currentlyCalled.queueNumber,
             patientName: currentlyCalled.patientName,
+            avatarUrl: currentlyCalled.avatarUrl,
             roomName: currentlyCalled.poliklinikName,
             doctorName: currentlyCalled.doctorName,
             status:
@@ -672,6 +673,7 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
       nextTickets: waitingList.slice(0, 5).map((w) => ({
         queueNumber: w.queueNumber,
         patientName: w.patientName,
+        avatarUrl: w.avatarUrl,
         poliklinikName: w.poliklinikName,
         etaRange: w.etaRange,
         estimatedStartAt: w.estimatedStartAt,
