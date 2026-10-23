@@ -11,6 +11,9 @@
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "db:visualize": "bun ./scripts/dev/visualize-erd.ts",
+    "db:atlas": "bun ./tools/dbatlas/bin/cli.ts generate",
+    "db:atlas:check": "bun ./tools/dbatlas/bin/cli.ts check",
+    "db:atlas:doctor": "bun ./tools/dbatlas/bin/cli.ts doctor",
     "db:seed:dev": "bun ./src/database/seeds/drizzle/seed.ts",
     "db:seed:staff": "bun ./src/database/seeds/staff.seeder.ts",
     "db:seed:payroll": "bun ./src/database/seeds/payroll-attendance.seeder.ts",
@@ -62,6 +65,7 @@
     "docker:reload": "docker compose up -d --no-deps --build api && docker image prune -f",
     "docker:prune": "bun ./scripts/dev/docker-clean.ts",
     "docker:clean": "bun ./scripts/dev/docker-clean.ts",
+    "docker:clean:orphans": "bun ./scripts/dev/docker-clean.ts --prune-orphans",
     "format": "biome format . --write",
     "format:check": "biome format .",
     "lint": "biome lint .",
@@ -110,7 +114,8 @@
     "test:e2e:generators:relational:docker": "bash test/generators/run-crud-relational.sh",
     "test:e2e:relational:docker": "docker-compose -f docker-compose.relational.test.yaml --env-file env-example-relational -p tests up -d --build && docker-compose -f docker-compose.relational.test.yaml -p tests exec api /opt/wait-for-it.sh -t 0 localhost:3001 -- bun run test:e2e -- --watchAll --runInBand && docker-compose -f docker-compose.relational.test.yaml -p tests down && docker-compose -p tests rm -svf",
     "prepare": "is-ci || husky",
-    "release": "release-it"
+    "release": "release-it",
+    "patch": "bun ./tools/safe-edit/safe-edit.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1011.0",

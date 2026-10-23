@@ -1,0 +1,38 @@
+[
+  {
+    "pattern": "nik|no_identitas|national_id|family_card|no_kk|ktp",
+    "sensitivity": "pii",
+    "reason": "Indonesian National ID / Family Card Number",
+    "isRegex": true
+  },
+  {
+    "pattern": "bpjs|no_bpjs|asuransi|insurance_number",
+    "sensitivity": "pii",
+    "reason": "National Healthcare Insurance Identifier (BPJS)",
+    "isRegex": true
+  },
+  {
+    "pattern": "rekam_medis|no_rm|medical_record|medical_history|diagnosis|keluhan|gejala|alergi|allergy|icd|resep|prescription|clinical_notes|catatan_medis|lab_result|hasil_lab",
+    "sensitivity": "phi",
+    "reason": "Protected Health Information / Clinical Data",
+    "isRegex": true
+  },
+  {
+    "pattern": "password|passwd|secret|token|hash|salt|api_key|private_key|pin|credential",
+    "sensitivity": "credential",
+    "reason": "Security Authentication Credential / Secret",
+    "isRegex": true
+  },
+  {
+    "pattern": "salary|gaji|nominal|fee|tarif|rekening|bank_account|credit_card|payment_info",
+    "sensitivity": "financial",
+    "reason": "Financial or Compensation Details",
+    "isRegex": true
+  },
+  {
+    "pattern": "phone|no_hp|telepon|telephone|email|alamat|address|birth_date|dob|tanggal_lahir|gender|jenis_kelamin",
+    "sensitivity": "pii",
+    "reason": "Personally Identifiable Contact or Demographic Data",
+    "isRegex": true
+  }
+]
