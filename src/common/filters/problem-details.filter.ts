@@ -111,6 +111,15 @@ export class ProblemDetailsFilter implements ExceptionFilter {
         ) {
           extraFields.existingTicket = resObj.existingTicket;
         }
+        if (typeof resObj.checkoutTicket === 'string') {
+          extraFields.checkoutTicket = resObj.checkoutTicket;
+        }
+        if (typeof resObj.expiresAt === 'string') {
+          extraFields.expiresAt = resObj.expiresAt;
+        }
+        if (typeof resObj.requiresNotes === 'boolean') {
+          extraFields.requiresNotes = resObj.requiresNotes;
+        }
       }
     } else if (exception instanceof Error) {
       this.logger.error(

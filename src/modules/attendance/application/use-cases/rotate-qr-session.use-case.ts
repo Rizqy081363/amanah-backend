@@ -30,8 +30,8 @@ export class RotateQrSessionUseCase {
         ? 'staff_identity'
         : 'location_check_in';
     const shift = normalizeShift(input.shift);
+    // SSOT: Authoritative rotation interval from clinic_setting
     const rotationSeconds =
-      input.rotationSeconds ??
       (await this.clinicConfig.getAttendanceConfig()).qrRotationSeconds;
 
     // Cryptographically secure 6-character alphanumeric token

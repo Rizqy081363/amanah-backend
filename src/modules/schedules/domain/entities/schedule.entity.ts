@@ -350,6 +350,9 @@ export class AdminDoctorScheduleCardEntity {
   @ApiPropertyOptional({ description: 'ID staf' })
   staff_id?: string | null;
 
+  @ApiPropertyOptional({ description: 'Kode unik staf (contoh: STF-DOK-3841)' })
+  staff_code?: string | null;
+
   @ApiProperty({ description: 'Nama lengkap dokter beserta gelar' })
   nama_dokter: string;
 
@@ -568,6 +571,15 @@ export class AdminDoctorScheduleDetailData {
 
   @ApiProperty({ description: 'ID praktisi' })
   practitioner_id: string;
+
+  @ApiPropertyOptional({ description: 'ID profil staf dokter / bidan' })
+  staff_profile_id?: string | null;
+
+  @ApiPropertyOptional({ description: 'ID staf' })
+  staff_id?: string | null;
+
+  @ApiPropertyOptional({ description: 'Kode unik staf (contoh: STF-DOK-3841)' })
+  staff_code?: string | null;
 
   @ApiProperty({ description: 'Nama dokter' })
   nama_dokter: string;

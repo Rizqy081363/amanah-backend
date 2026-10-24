@@ -1,32 +1,31 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
-import { ClinicConfigService } from '../../../../common/clinic-config/clinic-config.service';
 import { ClinicTimeService } from '../../../../common/time/clinic-time.service';
 import {
   PAYROLL_REPOSITORY,
   PayrollRepository,
 } from '../../../payroll/domain/repositories/payroll.repository';
-import { calculateSessionNetHours } from '../../../schedules/domain/services/shift-duration.helper';
-import { AttendanceEntity } from '../../domain/entities/attendance.entity';
 import {
-  AttendanceAlreadyCheckedOutException,
-  AttendanceRecordNotFoundException,
-  EarlyDepartureNotesRequiredException,
-  InvalidQrTokenException,
-} from '../../domain/errors/attendance-domain.errors';
+  ATTENDANCE_ACTIONS,
+  AttendanceMethod,
+} from '../../domain/constants/attendance.constants';
+import { AttendanceEntity } from '../../domain/entities/attendance.entity';
+import { StaffNotFoundException } from '../../domain/errors/attendance-domain.errors';
 import {
   ATTENDANCE_REPOSITORY,
   AttendanceRepository,
 } from '../../domain/repositories/attendance.repository';
-import { AttendanceTimingService } from '../../domain/services/attendance-timing.service';
-import { CheckoutTicketService } from '../../domain/services/checkout-ticket.service';
+import { AttendanceEligibilityService } from '../../domain/services/attendance-eligibility.service';
 import { AttendanceNotificationService } from '../services/attendance-notification.service';
 
 export interface CheckOutAttendanceInput {
   staffId: string;
+  staffIdOrCode?: string;
   attendanceDate?: string;
   qrToken?: string;
+  method?: AttendanceMethod;
   checkoutTicket?: string;
   notes?: string;
+  isAdministrativeEntry?: boolean;
 }
 
 @Injectable()
@@ -36,21 +35,22 @@ export class CheckOutAttendanceUseCase {
   constructor(
     @Inject(ATTENDANCE_REPOSITORY)
     private readonly repo: AttendanceRepository,
-    private readonly timingService: AttendanceTimingService,
+    private readonly eligibilityService: AttendanceEligibilityService,
     private readonly notificationService: AttendanceNotificationService,
-    private readonly ticketService: CheckoutTicketService,
     @Optional()
     @Inject(PAYROLL_REPOSITORY)
     private readonly payrollRepo?: PayrollRepository,
     @Optional()
     private readonly clinicTimeService?: ClinicTimeService,
-    @Optional()
-    private readonly clinicConfigService?: ClinicConfigService,
   ) {}
 
   async execute(input: CheckOutAttendanceInput): Promise<AttendanceEntity> {
-    const staff = await this.repo.resolveStaffByIdOrCode(input.staffId);
-    const resolvedStaffId = staff ? staff.id : input.staffId;
+    const targetIdentifier = (input.staffIdOrCode || input.staffId || '').trim();
+    const staff = await this.repo.resolveStaffByIdOrCode(targetIdentifier);
+    if (!staff) {
+      throw new StaffNotFoundException(targetIdentifier);
+    }
+    const resolvedStaffId = staff.id;
 
     const todayStr = input.attendanceDate
       ? this.clinicTimeService
@@ -58,158 +58,43 @@ export class CheckOutAttendanceUseCase {
         : input.attendanceDate
       : this.clinicTimeService?.today() ?? new Date().toISOString().split('T')[0];
 
-    // 0. Proximity Proof Verification (Two-Phase: Bounded Ticket OR Dynamic QR Scan)
-    let proximityVerified = false;
-
-    // Fase 2: Validasi melalui Bounded Domain Ticket (3 Menit Server-Authoritative)
-    if (input.checkoutTicket) {
-      const existingRecord = await this.repo.findStaffAttendanceForDate(
-        resolvedStaffId,
-        todayStr,
-      );
-
-      if (!existingRecord) {
-        throw new AttendanceRecordNotFoundException();
-      }
-
-      const ticketCheck = this.ticketService.verifyTicket(
-        input.checkoutTicket,
-        resolvedStaffId,
-        existingRecord.id,
-      );
-
-      if (ticketCheck.isExpired) {
-        throw new InvalidQrTokenException(
-          'Tiket presensi pulang kedaluwarsa (melebihi 3 menit). Silakan scan ulang QR code di terminal klinik.',
-        );
-      }
-
-      if (!ticketCheck.isValid) {
-        throw new InvalidQrTokenException(
-          'Tiket presensi pulang tidak valid.',
-        );
-      }
-
-      proximityVerified = true;
-    }
-
-    // Fase 1: Validasi melalui Dynamic Terminal QR Token (< 30 Detik)
-    if (!proximityVerified && input.qrToken) {
-      let tokenToVerify = input.qrToken.trim();
-      if (tokenToVerify.startsWith('{') && tokenToVerify.endsWith('}')) {
-        try {
-          const parsed = JSON.parse(tokenToVerify);
-          if (parsed && typeof parsed.token === 'string') {
-            tokenToVerify = parsed.token.trim();
-          }
-        } catch {
-          // Keep raw token if not valid JSON
-        }
-      }
-
-      const qrSession = await this.repo.findQrSessionByToken(tokenToVerify);
-      if (!qrSession) {
-        throw new InvalidQrTokenException();
-      }
-      proximityVerified = true;
-    }
-
-    if (!proximityVerified) {
-      throw new InvalidQrTokenException('Token QR atau tiket presensi wajib disertakan.');
-    }
-
-    // 1. Domain Attendance Record Validation
-    const existing = await this.repo.findStaffAttendanceForDate(
-      resolvedStaffId,
-      todayStr,
-    );
-
-    if (!existing) {
-      throw new AttendanceRecordNotFoundException();
-    }
-
-    // Duplicate Check-Out Guard
-    if (existing.checkOutAt) {
-      throw new AttendanceAlreadyCheckedOutException(
-        'Presensi pulang dinas sudah tercatat sebelumnya pada tanggal ini.',
-      );
-    }
+    // 1. Authoritative Core Check-Out Eligibility & Verification (SSOT)
+    // Validates existence, duplicate checkout, proximity proof, and early departure notes
+    const { existingRecord, timingEval, notes } =
+      await this.eligibilityService.verifyCheckOutEligibility({
+        staffId: resolvedStaffId,
+        targetDate: todayStr,
+        isAdministrativeEntry: input.isAdministrativeEntry,
+        qrToken: input.qrToken,
+        method: input.method,
+        checkoutTicket: input.checkoutTicket,
+        notes: input.notes,
+      });
 
     const checkOutDate = this.clinicTimeService?.nowDate() ?? new Date();
-    const checkInDate = existing.checkInAt ?? checkOutDate;
 
-    // Resolve scheduled end time & duration from session or shift definition
-    let scheduledEndTime: string | null = null;
-    let scheduledShiftDurationHours = 6;
-    if (existing.sessionId) {
-      const sessionDef = await this.repo.resolveSessionDefById(existing.sessionId);
-      if (sessionDef?.defaultEndsAt) {
-        scheduledEndTime = sessionDef.defaultEndsAt;
-      }
-      if (sessionDef?.defaultStartsAt && sessionDef?.defaultEndsAt) {
-        const breakConfig = await this.clinicConfigService?.getRosterBreakConfig();
-        scheduledShiftDurationHours = calculateSessionNetHours({
-          startsAt: sessionDef.defaultStartsAt,
-          endsAt: sessionDef.defaultEndsAt,
-          breakMinutes: breakConfig?.breakDurationMinutes ?? 30,
-          isBreakPaid: breakConfig?.isBreakPaid ?? false,
-        });
-      }
-    }
-
-    // Fallback standard shift end times if session def did not supply defaultEndsAt
-    if (!scheduledEndTime && existing.shift) {
-      const shiftLower = existing.shift.toLowerCase();
-      if (shiftLower === 'morning') scheduledEndTime = '12:00';
-      else if (shiftLower === 'afternoon') scheduledEndTime = '18:00';
-      else if (shiftLower === 'night') scheduledEndTime = '00:00';
-      else if (shiftLower === 'early_morning') scheduledEndTime = '06:00';
-    }
-
-    // Evaluate Check-Out timing (Window, Early Departure & Fair Credit Rounding)
-    const timingEval = await this.timingService.evaluateCheckOutTiming({
-      checkInTime: checkInDate,
-      checkOutTime: checkOutDate,
-      scheduledEndTime,
-      scheduledShiftDurationHours,
-    });
-
-    // Enforce notes requirement on early departure
-    const notesTrimmed = input.notes?.trim();
-    if (timingEval.requiresNotes && (!notesTrimmed || notesTrimmed.length === 0)) {
-      // Terbitkan tiket kepulangan berbatas waktu 3 menit absolut (180 detik)
-      const ticket = this.ticketService.issueTicket(
-        resolvedStaffId,
-        existing.id,
-        180,
-      );
-      throw new EarlyDepartureNotesRequiredException({
-        checkoutTicket: ticket.ticket,
-        expiresAt: ticket.expiresAt,
-      });
-    }
-
-    const updated = await this.repo.updateAttendanceRecord(existing.id, {
+    // 2. Persist Check-Out State Mutation
+    const updated = await this.repo.updateAttendanceRecord(existingRecord.id, {
       checkOutAt: checkOutDate.toISOString(),
       validatedDurationHours: timingEval.validatedDurationHours.toFixed(2),
       isEarlyDeparture: timingEval.isEarlyDeparture,
-      notes: notesTrimmed || existing.notes || null,
+      notes: notes || existingRecord.notes || null,
       updatedAt: checkOutDate.toISOString(),
     });
 
-    // If this was an approved replacement, mark opportunity as completed
-    if (existing.replacementOpportunityId) {
+    // 3. If this was an approved replacement, mark opportunity as completed
+    if (existingRecord.replacementOpportunityId) {
       await this.repo.markReplacementCompleted(
-        existing.replacementOpportunityId,
+        existingRecord.replacementOpportunityId,
       );
     }
 
-    // Atomically record shift earnings into active payroll period
+    // 4. Atomically record shift earnings into active payroll period
     let earnedAmount = 0;
     if (this.payrollRepo && timingEval.validatedDurationHours > 0) {
       try {
         const isReplacementShift = Boolean(
-          existing.isReplacement || existing.replacementOpportunityId,
+          existingRecord.isReplacement || existingRecord.replacementOpportunityId,
         );
 
         const shiftEntry = await this.payrollRepo.recordAttendanceShift({
@@ -229,8 +114,11 @@ export class CheckOutAttendanceUseCase {
       }
     }
 
-    if (staff) {
-      void this.notificationService.dispatchNotification(updated, 'check_out', {
+    // 5. Asynchronously Dispatch Realtime Socket & In-App Notification (Role-Scoped)
+    void this.notificationService.dispatchNotification(
+      updated,
+      ATTENDANCE_ACTIONS.CHECK_OUT,
+      {
         fullName: staff.fullName,
         staffCode: staff.staffCode,
         userId: staff.userId,
@@ -238,8 +126,8 @@ export class CheckOutAttendanceUseCase {
         positionTitle: staff.positionTitle,
         avatarUrl: staff.avatarUrl,
         earnedAmount,
-      });
-    }
+      },
+    );
 
     return updated;
   }

@@ -17,6 +17,7 @@ import { NotificationRepository } from '../../domain/repositories/notification.r
 import { SocketIoRealtimeGateway } from '../../infrastructure/realtime/socket-io-realtime.gateway';
 import {
   NOTIFICATION_REPOSITORY,
+  NOTIFICATION_SOURCE_DOMAINS,
   NotificationEnvelopeV2,
   REALTIME_EVENTS,
   REALTIME_GATEWAY_PORT,
@@ -115,6 +116,13 @@ export class InAppNotificationQueueWorker
     for (const userId of targetUserIds) {
       const idempotencyKey = `${command.commandId}:${userId}:in_app`;
 
+      const badgeIcon =
+        command.sourceDomain === NOTIFICATION_SOURCE_DOMAINS.ATTENDANCE
+          ? 'clock'
+          : command.sourceDomain === NOTIFICATION_SOURCE_DOMAINS.PAYROLL
+            ? 'wallet'
+            : 'calendar';
+
       const persisted = await this.notificationRepo.createIfNotExists({
         idempotencyKey,
         category: command.category || 'shift',
@@ -123,7 +131,7 @@ export class InAppNotificationQueueWorker
         body: content.body,
         senderName: 'Sistem Klinik',
         senderRole: 'Klinik Amanah',
-        badgeIcon: command.sourceDomain === 'attendance' ? 'clock' : 'calendar',
+        badgeIcon,
         visualKey: command.sourceDomain || 'shift',
         isUrgent: command.priority === 'high',
         sourceType: command.sourceDomain,
@@ -177,7 +185,7 @@ export class InAppNotificationQueueWorker
           toast: true,
         },
         createdAt: new Date().toISOString(),
-        badgeIcon: 'calendar',
+        badgeIcon,
         senderName: 'Sistem Klinik',
         senderRole: 'Klinik Amanah',
       };

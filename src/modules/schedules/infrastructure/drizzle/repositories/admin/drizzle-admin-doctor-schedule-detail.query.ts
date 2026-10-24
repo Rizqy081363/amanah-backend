@@ -184,19 +184,7 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
 
     const dayMap = new Map(masterDaysList.map((m) => [m.dow, m.isActive]));
 
-    const effectiveAssignments =
-      assignments.length > 0
-        ? assignments
-        : activeSessionDefs.map((def: any) => ({
-            id: `default-${prac.id}-${def.id}`,
-            doctorId: prac.id,
-            sessionId: def.id,
-            dow: null,
-            isActive: true,
-            preferredRoomId: prac.defaultRoomId || null,
-            preferredRoom: prac.clinicRoom,
-            sessionDef: def,
-          }));
+    const effectiveAssignments = assignments;
 
     const monthSessions: any[] = [];
     for (let day = 1; day <= daysInMonth; day++) {
@@ -346,6 +334,9 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
       data: {
         id: prac.id,
         practitioner_id: prac.id,
+        staff_profile_id: prac.staffProfileId,
+        staff_id: prac.staffProfileId,
+        staff_code: prac.staffProfile?.staffCode || null,
         nama_dokter: prac.staffProfile?.fullName || prac.displayName || '',
         spesialisasi:
           prac.medicalSpecialty?.name ||

@@ -202,22 +202,8 @@ export class DrizzleAdminDoctorScheduleListQuery {
         (da) => da.doctorId === p.id,
       );
 
-      const effectiveAssignmentsPool =
-        doctorAssignmentsForP.length > 0
-          ? doctorAssignmentsForP
-          : activeSessionDefs.map((def: any) => ({
-              id: `default-${p.id}-${def.id}`,
-              doctorId: p.id,
-              sessionId: def.id,
-              dow: null,
-              isActive: true,
-              preferredRoomId: p.defaultRoomId || null,
-              preferredRoom: p.clinicRoom,
-              sessionDef: def,
-            }));
-
       const assignments: any[] = filterEffectiveDoctorAssignments<any>(
-        effectiveAssignmentsPool as any,
+        doctorAssignmentsForP as any,
         targetDow,
       );
 
@@ -502,6 +488,7 @@ export class DrizzleAdminDoctorScheduleListQuery {
         practitioner_id: p.id,
         staff_profile_id: p.staffProfileId,
         staff_id: p.staffProfileId,
+        staff_code: p.staffProfile?.staffCode || null,
         nama_dokter: namaDokter,
         spesialisasi,
         status_dokter: scheduleStatus,

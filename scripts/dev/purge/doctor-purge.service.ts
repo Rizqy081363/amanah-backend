@@ -204,6 +204,7 @@ export async function executeDoctorPurge(
       deletedPracs = delPracs.rowCount ?? 0;
 
       await client.query('DELETE FROM attendance_qr_sessions WHERE staff_profile_id IS NOT NULL');
+      await client.query("DELETE FROM payroll_entries WHERE source_type = 'attendance'");
       await client.query('DELETE FROM staff_attendance_records');
       await client.query('DELETE FROM staff_leave_requests');
       await client.query('DELETE FROM staff_credentials');
@@ -225,6 +226,7 @@ export async function executeDoctorPurge(
       deletedPracs = delPrac.rowCount ?? 0;
 
       await client.query('DELETE FROM attendance_qr_sessions WHERE staff_profile_id = $1', [spid]);
+      await client.query("DELETE FROM payroll_entries WHERE source_type = 'attendance' AND staff_profile_id = $1", [spid]);
       await client.query('DELETE FROM staff_attendance_records WHERE staff_profile_id = $1', [spid]);
       await client.query('DELETE FROM staff_leave_requests WHERE staff_profile_id = $1', [spid]);
       await client.query('DELETE FROM staff_credentials WHERE staff_profile_id = $1', [spid]);

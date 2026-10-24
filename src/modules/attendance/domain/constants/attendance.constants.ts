@@ -1,4 +1,18 @@
+import { attendanceMethod } from '../../../../database/schema/amanah.schema';
+
 export type ShiftCode = 'early_morning' | 'morning' | 'afternoon' | 'night';
+
+export const ATTENDANCE_ACTIONS = {
+  CHECK_IN: 'check_in',
+  MANUAL_CHECK_IN: 'manual_check_in',
+  CHECK_OUT: 'check_out',
+} as const;
+
+export type AttendanceAction =
+  (typeof ATTENDANCE_ACTIONS)[keyof typeof ATTENDANCE_ACTIONS];
+
+export type AttendanceMethod = (typeof attendanceMethod.enumValues)[number];
+export const ATTENDANCE_METHODS = attendanceMethod.enumValues;
 
 export type AttendanceStatus =
   | 'present'

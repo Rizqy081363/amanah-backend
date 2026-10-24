@@ -1,14 +1,34 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsIn, IsOptional, IsString } from 'class-validator';
+import {
+  ATTENDANCE_METHODS,
+  AttendanceMethod,
+} from '../../domain/constants/attendance.constants';
 
 export class CheckOutDto {
   @ApiPropertyOptional({
-    description: 'ID profil staf opsional jika dilakukan oleh Admin',
-    example: '550e8400-e29b-41d4-a716-446655440000',
+    description: 'ID profil staf (UUID) atau kode staf resmi (Staff Code)',
+    example: 'STF-DOK-5763',
   })
-  @IsUUID()
+  @IsString()
   @IsOptional()
   staffId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Alias untuk staffId: ID profil staf atau Staff Code resmi',
+    example: 'STF-DOK-5763',
+  })
+  @IsString()
+  @IsOptional()
+  staffIdOrCode?: string;
+
+  @ApiPropertyOptional({
+    description: 'Tanggal presensi (YYYY-MM-DD)',
+    example: '2026-10-24',
+  })
+  @IsString()
+  @IsOptional()
+  attendanceDate?: string;
 
   @ApiPropertyOptional({
     description: 'Token QR dinamis dari terminal klinik (6-digit token atau kode)',
@@ -19,8 +39,17 @@ export class CheckOutDto {
   qrToken?: string;
 
   @ApiPropertyOptional({
+    description: 'Metode presensi pulang staf sesuai enum attendance_method di database',
+    enum: ATTENDANCE_METHODS,
+    example: 'qr_scan',
+  })
+  @IsIn(ATTENDANCE_METHODS)
+  @IsOptional()
+  method?: AttendanceMethod;
+
+  @ApiPropertyOptional({
     description: 'Catatan alasan kepulangan darurat / pulang awal jika sebelum jadwal usai',
-    example: 'Kondisi medis darurat: Sakit kepala hebat',
+    example: 'Izin dinas luar / visit rujukan',
   })
   @IsString()
   @IsOptional()

@@ -28,6 +28,7 @@ import {
 } from '../../../../database/schema';
 import { NotificationGatewayService } from '../../../notifications/application/services/notification-gateway.service';
 import { SocketIoRealtimeGateway } from '../../../notifications/infrastructure/realtime/socket-io-realtime.gateway';
+import { NOTIFICATION_SOURCE_DOMAINS } from '../../../notifications/notifications.constants';
 import { REALTIME_GATEWAY_PORT } from '../../../notifications/notifications.constants';
 import { calculateSessionNetHours } from '../../../schedules/domain/services/shift-duration.helper';
 
@@ -570,7 +571,7 @@ export class DailyLeavePayrollService {
     if (this.notificationGateway && staffUserId) {
       await this.notificationGateway.dispatch({
         commandId: `leave-payroll-${staff.id}-${targetDate}`,
-        sourceDomain: 'payroll',
+        sourceDomain: NOTIFICATION_SOURCE_DOMAINS.PAYROLL,
         channels: ['in_app', 'push'],
         target: {
           type: 'user',

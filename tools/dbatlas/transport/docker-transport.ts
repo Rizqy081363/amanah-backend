@@ -54,13 +54,17 @@ export class DockerTransport implements DatabaseTransport {
           return reject(new Error(`[docker-transport] psql exited with code ${code}: ${stderr}`));
         }
         try {
-          // psql -A -t mengembalikan output raw, cari baris JSON
-          const trimmed = stdout.trim();
-          if (!trimmed || trimmed === '[]' || trimmed === 'null') {
+          // psql -A -t mengembalikan output raw, cari baris JSON (filter BEGIN/ROLLBACK)
+          const lines = stdout
+            .split('\n')
+            .map((l) => l.trim())
+            .filter((l) => l && l !== 'BEGIN' && l !== 'ROLLBACK' && l !== 'COMMIT');
+          const jsonText = lines.join('\n').trim();
+          if (!jsonText || jsonText === '[]' || jsonText === 'null') {
             return resolve([] as unknown as T);
           }
           // Ambil hasil query utama
-          const parsed = JSON.parse(trimmed);
+          const parsed = JSON.parse(jsonText);
           resolve(parsed as T);
         } catch (err: any) {
           reject(new Error(`[docker-transport] Gagal parse JSON output: ${err.message}. Raw: ${stdout}`));

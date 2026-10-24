@@ -150,6 +150,10 @@ export interface AttendanceRepository {
     hour: number,
   ): Promise<{ id: string; code: string; defaultStartsAt: string | null; defaultEndsAt?: string | null } | null>;
 
+  resolveSessionDefByCode(
+    sessionCode: string,
+  ): Promise<{ id: string; code: string; defaultStartsAt: string | null; defaultEndsAt?: string | null } | null>;
+
   resolveSessionDefById(
     sessionId: string,
   ): Promise<{ id: string; code: string; defaultStartsAt: string | null; defaultEndsAt?: string | null } | null>;

@@ -2,8 +2,13 @@ import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { ClinicTimeService } from '../../../../common/time/clinic-time.service';
 import { NotificationGatewayService } from '../../../notifications/application/services/notification-gateway.service';
 import { SocketIoRealtimeGateway } from '../../../notifications/infrastructure/realtime/socket-io-realtime.gateway';
-import { REALTIME_GATEWAY_PORT } from '../../../notifications/notifications.constants';
 import {
+  NOTIFICATION_SOURCE_DOMAINS,
+  REALTIME_GATEWAY_PORT,
+} from '../../../notifications/notifications.constants';
+import {
+  ATTENDANCE_ACTIONS,
+  AttendanceAction,
   SHIFT_LABEL_MAP,
   STATUS_LABEL_MAP,
   ShiftCode,
@@ -36,7 +41,7 @@ export class AttendanceNotificationService {
 
   async dispatchNotification(
     record: AttendanceEntity,
-    action: 'check_in' | 'manual_check_in' | 'check_out',
+    action: AttendanceAction,
     staffInfo: AttendanceNotificationStaffInfo,
   ): Promise<void> {
     try {
@@ -52,15 +57,24 @@ export class AttendanceNotificationService {
       const statusKey = (record.status || 'present') as keyof typeof STATUS_LABEL_MAP;
       const statusLabel = STATUS_LABEL_MAP[statusKey] || 'Hadir';
 
+      // Determine the canonical event timestamp based on the recorded action:
+      // For checkout, the event timestamp is checkOutAt; for checkin, it is checkInAt.
+      const isCheckoutAction = action === ATTENDANCE_ACTIONS.CHECK_OUT;
+      const eventDate =
+        isCheckoutAction && record.checkOutAt
+          ? new Date(record.checkOutAt)
+          : record.checkInAt
+            ? new Date(record.checkInAt)
+            : null;
+
       let formattedTime = '-';
-      const checkInDate = record.checkInAt ? new Date(record.checkInAt) : null;
-      if (checkInDate) {
+      if (eventDate && !Number.isNaN(eventDate.getTime())) {
         if (this.clinicTimeService) {
-          formattedTime = `${this.clinicTimeService.formatTime(checkInDate)} ${this.clinicTimeService.getTimezoneAbbreviation(checkInDate)}`;
+          formattedTime = `${this.clinicTimeService.formatTime(eventDate)} ${this.clinicTimeService.getTimezoneAbbreviation(eventDate)}`;
         } else {
-          const hours = String(checkInDate.getHours()).padStart(2, '0');
-          const minutes = String(checkInDate.getMinutes()).padStart(2, '0');
-          const seconds = String(checkInDate.getSeconds()).padStart(2, '0');
+          const hours = String(eventDate.getHours()).padStart(2, '0');
+          const minutes = String(eventDate.getMinutes()).padStart(2, '0');
+          const seconds = String(eventDate.getSeconds()).padStart(2, '0');
           formattedTime = `${hours}:${minutes}:${seconds} WIB`;
         }
       }
@@ -68,6 +82,7 @@ export class AttendanceNotificationService {
       // Canonical domain event payload matching StaffAttendance SSOT
       const payload = {
         id: record.id,
+        attendanceId: record.id,
         id_staf: staffCode,
         nama_staf: staffName,
         avatar: staffInfo.avatarUrl || undefined,
@@ -87,38 +102,23 @@ export class AttendanceNotificationService {
         action,
       };
 
-      // 1. Direct Realtime WebSocket Broadcast (< 1ms In-Memory EDA)
+      // 1. Scoped Realtime WebSocket Dispatch (Strictly Isolated to Clinic Staff & Admin)
       if (this.realtimeGateway) {
-        // A. Global broadcast to entire clinic terminal namespace
-        if (typeof (this.realtimeGateway as any).broadcast === 'function') {
-          void (this.realtimeGateway as any).broadcast('attendance:recorded', payload);
-          void (this.realtimeGateway as any).broadcast(`attendance:${action}`, payload);
-          if (record.isEarlyDeparture) {
-            void (this.realtimeGateway as any).broadcast('attendance:early_departure', payload);
-          }
-          void (this.realtimeGateway as any).broadcast('attendance:refresh', { date: record.attendanceDate });
-        } else if ((this.realtimeGateway as any).server?.emit) {
-          (this.realtimeGateway as any).server.emit('attendance:recorded', payload);
-          (this.realtimeGateway as any).server.emit(`attendance:${action}`, payload);
-          if (record.isEarlyDeparture) {
-            (this.realtimeGateway as any).server.emit('attendance:early_departure', payload);
-          }
-          (this.realtimeGateway as any).server.emit('attendance:refresh', { date: record.attendanceDate });
-        }
-
-        // B. Target role rooms (Admin Web & Clinic Supervisors)
-        void this.realtimeGateway.emitToRole?.('admin', 'attendance:recorded', payload);
-        void this.realtimeGateway.emitToRole?.('ADMIN', 'attendance:recorded', payload);
-        void this.realtimeGateway.emitToRole?.('staff', 'attendance:recorded', payload);
-        void this.realtimeGateway.emitToRole?.('STAF', 'attendance:recorded', payload);
-        void this.realtimeGateway.emitToRoom?.('role:admin', 'attendance:recorded', payload);
-        void this.realtimeGateway.emitToRoom?.('role:admin', `attendance:${action}`, payload);
+        // A. Target clinic staff room (Terminal & Clinic Operational Room)
+        void this.realtimeGateway.emitToRoom?.('room:clinic', 'attendance:recorded', payload);
+        void this.realtimeGateway.emitToRoom?.('room:clinic', `attendance:${action}`, payload);
         if (record.isEarlyDeparture) {
-          void this.realtimeGateway.emitToRole?.('admin', 'attendance:early_departure', payload);
-          void this.realtimeGateway.emitToRole?.('ADMIN', 'attendance:early_departure', payload);
-          void this.realtimeGateway.emitToRoom?.('role:admin', 'attendance:early_departure', payload);
+          void this.realtimeGateway.emitToRoom?.('room:clinic', 'attendance:early_departure', payload);
         }
-        void this.realtimeGateway.emitToRoom?.('role:admin', 'attendance:refresh', { date: record.attendanceDate });
+        void this.realtimeGateway.emitToRoom?.('room:clinic', 'attendance:refresh', { date: record.attendanceDate });
+
+        // B. Target admin role room (Admin Web & Supervisors)
+        void this.realtimeGateway.emitToRole('admin', 'attendance:recorded', payload);
+        void this.realtimeGateway.emitToRole('admin', `attendance:${action}`, payload);
+        if (record.isEarlyDeparture) {
+          void this.realtimeGateway.emitToRole('admin', 'attendance:early_departure', payload);
+        }
+        void this.realtimeGateway.emitToRole('admin', 'attendance:refresh', { date: record.attendanceDate });
 
         // C. Target staff user personal room
         if (staffUserId) {
@@ -134,24 +134,73 @@ export class AttendanceNotificationService {
         );
       }
 
-      // 2. In-App Notification (Admin Web Bell & Notification Center)
+      // 2. Realtime Shift Earnings WebSocket Dispatch (Dedicated Financial Event)
+      if (
+        this.realtimeGateway &&
+        isCheckoutAction &&
+        staffInfo.earnedAmount &&
+        staffInfo.earnedAmount > 0
+      ) {
+        const payrollPayload = {
+          id: record.id,
+          id_staf: staffCode,
+          nama_staf: staffName,
+          tanggal: record.attendanceDate || '',
+          earnedAmount: staffInfo.earnedAmount,
+          validatedDurationHours: record.validatedDurationHours
+            ? Number(record.validatedDurationHours)
+            : 0,
+          isReplacement: Boolean(record.isReplacement),
+          type: record.isReplacement
+            ? 'replacement_addition'
+            : 'base_scheduled',
+        };
+
+        if (staffUserId) {
+          void this.realtimeGateway.emitToUser(
+            staffUserId,
+            'payroll:shift_earnings_recorded',
+            payrollPayload,
+          );
+        }
+        void this.realtimeGateway.emitToRole(
+          'admin',
+          'payroll:shift_earnings_recorded',
+          payrollPayload,
+        );
+        void this.realtimeGateway.emitToRole(
+          'ADMIN',
+          'payroll:shift_earnings_recorded',
+          payrollPayload,
+        );
+        void this.realtimeGateway.emitToRoom?.('role:admin', 'payroll:refresh', {
+          date: record.attendanceDate,
+        });
+        void this.realtimeGateway.emitToRoom?.('room:clinic', 'payroll:refresh', {
+          date: record.attendanceDate,
+        });
+
+        this.logger.log(
+          `[PayrollEDA] Dispatched realtime event: payroll:shift_earnings_recorded (staff=${staffName}, amount=${staffInfo.earnedAmount}, isReplacement=${Boolean(record.isReplacement)})`,
+        );
+      }
+
+      // 3. In-App Notification (Admin Web Bell & Notification Center)
       if (this.notificationGateway) {
         let title = 'Presensi Masuk Berhasil';
         let body = `Presensi dinas ${staffName} (${categoryLabel}) berhasil dicatat.`;
         let priority: 'normal' | 'high' = 'normal';
 
-        if (action === 'check_out') {
-          const earnedText = staffInfo.earnedAmount
-            ? ` Upah dinas Rp ${staffInfo.earnedAmount.toLocaleString('id-ID')} (${record.validatedDurationHours || 0} jam) telah masuk ke rekap gaji bulan berjalan.`
-            : ` Durasi kerja: ${record.validatedDurationHours || 0} jam.`;
+        if (action === ATTENDANCE_ACTIONS.CHECK_OUT) {
+          const durationText = ` Durasi kerja: ${record.validatedDurationHours || 0} jam.`;
 
           if (record.isEarlyDeparture) {
             title = 'Peringatan: Kepulangan Lebih Awal';
-            body = `Presensi pulang dinas lebih awal dicatat untuk ${staffName} (${categoryLabel}). Alasan: ${record.notes || '-'}.${earnedText}`;
+            body = `Presensi pulang dinas lebih awal dicatat untuk ${staffName} (${categoryLabel}). Alasan: ${record.notes || '-'}.${durationText}`;
             priority = 'high';
           } else {
             title = 'Presensi Pulang Berhasil';
-            body = `Presensi pulang dinas ${staffName} berhasil dicatat.${earnedText}`;
+            body = `Presensi pulang dinas ${staffName} berhasil dicatat.${durationText}`;
           }
         } else if (record.status === 'late') {
           title = 'Presensi Terlambat Dicatat';
@@ -161,7 +210,7 @@ export class AttendanceNotificationService {
         // Broadcast notification to clinic administration
         await this.notificationGateway.dispatch({
           commandId: `att-admin-${action}-${record.id}-${Date.now()}`,
-          sourceDomain: 'attendance',
+          sourceDomain: NOTIFICATION_SOURCE_DOMAINS.ATTENDANCE,
           channels: ['in_app'],
           target: {
             type: 'role',
@@ -177,11 +226,11 @@ export class AttendanceNotificationService {
           priority,
         });
 
-        // If staff user exists, dispatch personal notification
+        // If staff user exists, dispatch personal attendance notification
         if (staffUserId) {
           await this.notificationGateway.dispatch({
             commandId: `att-user-${action}-${record.id}-${Date.now()}`,
-            sourceDomain: 'attendance',
+            sourceDomain: NOTIFICATION_SOURCE_DOMAINS.ATTENDANCE,
             channels: ['in_app', 'push'],
             target: {
               type: 'user',
@@ -196,6 +245,54 @@ export class AttendanceNotificationService {
             },
             priority,
           });
+        }
+
+        // 4. Dedicated Shift Earnings Notification for Check-Out (Realtime Payroll Ledger)
+        if (
+          isCheckoutAction &&
+          staffInfo.earnedAmount &&
+          staffInfo.earnedAmount > 0 &&
+          staffUserId
+        ) {
+          const isReplacement = Boolean(record.isReplacement);
+          const payrollTitle = isReplacement
+            ? 'Upah Pengganti Masuk'
+            : 'Upah Hari Ini Masuk';
+          const durationVal = record.validatedDurationHours || 0;
+          const payrollBody = isReplacement
+            ? `Upah dinas pengganti sebesar Rp ${staffInfo.earnedAmount.toLocaleString('id-ID')} (${durationVal} jam dinas) telah masuk ke rekap gaji bulan berjalan.`
+            : `Upah dinas sebesar Rp ${staffInfo.earnedAmount.toLocaleString('id-ID')} (${durationVal} jam kerja) telah masuk ke rekap gaji bulan berjalan.`;
+
+          await this.notificationGateway.dispatch({
+            commandId: `payroll-earn-${record.id}-${Date.now()}`,
+            sourceDomain: NOTIFICATION_SOURCE_DOMAINS.PAYROLL,
+            channels: ['in_app', 'push'],
+            target: {
+              type: 'user',
+              recipientUserIds: [staffUserId],
+            },
+            category: 'shift',
+            content: {
+              title: payrollTitle,
+              body: payrollBody,
+              actionUrl: '/dashboard/penggajian',
+              data: {
+                attendanceId: record.id,
+                staffId: record.staffId,
+                earnedAmount: staffInfo.earnedAmount,
+                validatedDurationHours: record.validatedDurationHours
+                  ? Number(record.validatedDurationHours)
+                  : 0,
+                isReplacement,
+                date: record.attendanceDate,
+              },
+            },
+            priority: 'normal',
+          });
+
+          this.logger.log(
+            `[PayrollNotification] Dispatched shift earnings notification to user=${staffUserId} (title="${payrollTitle}", amount=${staffInfo.earnedAmount})`,
+          );
         }
       }
     } catch (err) {

@@ -1,4 +1,7 @@
-import { NotificationCategoryType } from '../notifications.constants';
+import {
+  NotificationCategoryType,
+  NotificationSourceDomain,
+} from '../notifications.constants';
 
 export type NotificationTargetType = 'user' | 'role' | 'broadcast';
 
@@ -18,7 +21,7 @@ export interface NotificationContent {
 
 export interface NotificationDispatchCommand {
   commandId: string;
-  sourceDomain: string;
+  sourceDomain: NotificationSourceDomain | string;
   target: NotificationTarget;
   category: NotificationCategoryType;
   content: NotificationContent;

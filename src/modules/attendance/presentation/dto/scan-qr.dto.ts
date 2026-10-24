@@ -1,15 +1,28 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsIn, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import {
+  ATTENDANCE_METHODS,
+  AttendanceMethod,
+} from '../../domain/constants/attendance.constants';
 
 export class ScanQrDto {
   @ApiProperty({
-    example: 'AMANAH-PRESENSI-2026-09-17-PAGI',
+    example: 'VAPV8K',
     description:
-      'Kode token QR atau 6-digit OTP yang ditampilkan pada layar terminal presensi',
+      'Kode token QR atau 6-digit kode manual yang ditampilkan pada layar terminal presensi',
   })
   @IsString()
   @IsNotEmpty()
   qrToken: string;
+
+  @ApiPropertyOptional({
+    description: 'Metode presensi staf sesuai enum attendance_method di database',
+    enum: ATTENDANCE_METHODS,
+    example: 'qr_scan',
+  })
+  @IsIn(ATTENDANCE_METHODS)
+  @IsOptional()
+  method?: AttendanceMethod;
 
   @ApiPropertyOptional({
     example: 'morning',

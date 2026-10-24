@@ -151,8 +151,6 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
         } else if (genericAssignment) {
           isActive = d.isActive && Boolean(sched);
           assignment = d.isActive && sched ? genericAssignment : undefined;
-        } else if (existingAssignments.length === 0) {
-          isActive = d.isActive && Boolean(sched);
         }
 
         const preferredRoomId = assignment?.preferredRoomId || null;

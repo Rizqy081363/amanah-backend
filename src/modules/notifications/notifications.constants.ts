@@ -17,6 +17,18 @@ export const REDIS_CONSUMER_GROUP_NOTIFICATIONS = 'notification-service';
 export const NOTIFICATION_CHANNELS = ['in_app', 'push', 'email'] as const;
 export type NotificationChannel = (typeof NOTIFICATION_CHANNELS)[number];
 
+export const NOTIFICATION_SOURCE_DOMAINS = {
+  ATTENDANCE: 'attendance',
+  PAYROLL: 'payroll',
+  LEAVE: 'leave',
+  REPLACEMENT: 'replacement',
+  QUEUE: 'queue',
+  APPOINTMENT: 'appointment',
+  CLINICAL: 'clinical',
+} as const;
+export type NotificationSourceDomain =
+  (typeof NOTIFICATION_SOURCE_DOMAINS)[keyof typeof NOTIFICATION_SOURCE_DOMAINS];
+
 export const NOTIFICATION_CATEGORIES = [
   'appointment',
   'promotion',

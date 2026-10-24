@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, desc, eq, gte, ilike, lte, or } from 'drizzle-orm';
+import { and, desc, eq, gte, ilike, lte, or, sql } from 'drizzle-orm';
 import { isUUID } from 'class-validator';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
@@ -9,6 +9,7 @@ import {
   masterDays,
   practitioners,
   sessionDefs,
+  sessionSchedules,
   staffAttendanceRecords,
   staffLeaveRequests,
   staffProfiles,
@@ -246,6 +247,7 @@ export class AttendanceDrizzleRepository implements AttendanceRepository {
       .insert(attendanceQrSessions)
       .values({
         codeHash: data.codeHash,
+        manualPinHash: data.codeHash,
         sessionType: data.sessionType,
         shift: data.shift as any,
         rotationSeconds: data.rotationSeconds,
@@ -286,14 +288,17 @@ export class AttendanceDrizzleRepository implements AttendanceRepository {
   }
 
   async findQrSessionByToken(token: string): Promise<QrSessionEntity | null> {
-    const trimmed = token.trim();
+    const trimmed = token.trim().toUpperCase();
     const nowIso = new Date().toISOString();
     const sessions = await this.db
       .select()
       .from(attendanceQrSessions)
       .where(
         and(
-          eq(attendanceQrSessions.codeHash, trimmed),
+          or(
+            eq(attendanceQrSessions.codeHash, trimmed),
+            eq(attendanceQrSessions.manualPinHash, trimmed),
+          ),
           eq(attendanceQrSessions.isActive, true),
           gte(attendanceQrSessions.validUntil, nowIso),
         ),
@@ -385,11 +390,25 @@ export class AttendanceDrizzleRepository implements AttendanceRepository {
         practitioners,
         eq(doctorAssignments.doctorId, practitioners.id),
       )
+      .leftJoin(
+        sessionSchedules,
+        and(
+          eq(sessionSchedules.sessionId, doctorAssignments.sessionId),
+          eq(sessionSchedules.dow, dow),
+          eq(sessionSchedules.isActive, true),
+        ),
+      )
       .where(
         and(
           eq(practitioners.staffProfileId, staffId),
-          eq(doctorAssignments.dow, dow),
           eq(doctorAssignments.isActive, true),
+          or(
+            eq(doctorAssignments.dow, dow),
+            and(
+              sql`${doctorAssignments.dow} IS NULL`,
+              sql`${sessionSchedules.id} IS NOT NULL`,
+            ),
+          ),
         ),
       );
   }
@@ -403,10 +422,24 @@ export class AttendanceDrizzleRepository implements AttendanceRepository {
           practitioners,
           eq(doctorAssignments.doctorId, practitioners.id),
         )
+        .leftJoin(
+          sessionSchedules,
+          and(
+            eq(sessionSchedules.sessionId, doctorAssignments.sessionId),
+            eq(sessionSchedules.dow, dow),
+            eq(sessionSchedules.isActive, true),
+          ),
+        )
         .where(
           and(
-            eq(doctorAssignments.dow, dow),
             eq(doctorAssignments.isActive, true),
+            or(
+              eq(doctorAssignments.dow, dow),
+              and(
+                sql`${doctorAssignments.dow} IS NULL`,
+                sql`${sessionSchedules.id} IS NOT NULL`,
+              ),
+            ),
           ),
         ),
       this.db
@@ -469,7 +502,7 @@ export class AttendanceDrizzleRepository implements AttendanceRepository {
 
   async resolveSessionDefByTime(
     hour: number,
-  ): Promise<{ id: string; code: string; defaultStartsAt: string | null } | null> {
+  ): Promise<{ id: string; code: string; defaultStartsAt: string | null; defaultEndsAt?: string | null } | null> {
     const sessionCode =
       hour < 6
         ? 'early_morning'
@@ -479,6 +512,12 @@ export class AttendanceDrizzleRepository implements AttendanceRepository {
             ? 'afternoon'
             : 'night';
 
+    return this.resolveSessionDefByCode(sessionCode);
+  }
+
+  async resolveSessionDefByCode(
+    sessionCode: string,
+  ): Promise<{ id: string; code: string; defaultStartsAt: string | null; defaultEndsAt?: string | null } | null> {
     const defs = await this.db
       .select({
         id: sessionDefs.id,

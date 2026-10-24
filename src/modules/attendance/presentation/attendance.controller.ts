@@ -83,6 +83,7 @@ export class AttendanceController {
     return this.scanAttendanceUseCase.execute({
       staffId: user.staff.id,
       qrToken: body.qrToken,
+      method: body.method,
       shift: body.shift,
       sessionId: body.sessionId,
       deviceInfo: body.deviceInfo,
@@ -123,18 +124,23 @@ export class AttendanceController {
   @ApiOkResponse({ description: 'Presensi pulang dinas berhasil dicatat' })
   @ApiForbiddenResponse({ description: 'User bukan staf terdaftar' })
   async checkOut(@CurrentUser() user: any, @Body() body?: CheckOutDto) {
-    const targetStaffId = body?.staffId || user.staff?.id;
+    const targetStaffId = body?.staffIdOrCode || body?.staffId || user.staff?.id;
     if (!targetStaffId) {
       throw new ForbiddenException(
         'User bukan staf terdaftar atau staffId tidak disertakan',
       );
     }
 
+    const isAdministrativeEntry = user.systemRole === 'ADMIN';
+
     return this.checkOutAttendanceUseCase.execute({
       staffId: targetStaffId,
+      attendanceDate: body?.attendanceDate,
       qrToken: body?.qrToken,
+      method: body?.method,
       notes: body?.notes,
       checkoutTicket: body?.checkoutTicket,
+      isAdministrativeEntry,
     });
   }
 

@@ -48,6 +48,18 @@ export class InvalidQrTokenException extends BadRequestException {
   }
 }
 
+export class InvalidManualCodeException extends BadRequestException {
+  constructor(
+    message: string = 'Kode presensi tidak valid atau sudah kedaluwarsa',
+  ) {
+    super({
+      statusCode: 400,
+      code: 'INVALID_MANUAL_CODE',
+      message,
+    });
+  }
+}
+
 export class StaffNotFoundException extends NotFoundException {
   constructor(identifier: string) {
     super({

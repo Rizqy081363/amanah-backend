@@ -206,11 +206,19 @@ export async function executePurgeTodayAll(
   const client: PoolClient = await pool.connect();
   try {
     await client.query('BEGIN');
+    // Cascading purge: delete dependent attendance payroll entries first for data integrity
+    await client.query(`
+      DELETE FROM payroll_entries
+      WHERE source_type = 'attendance'
+        AND source_id IN (
+          SELECT id FROM staff_attendance_records WHERE attendance_date = CURRENT_DATE
+        );
+    `);
     const deleteRes = await client.query(
       'DELETE FROM staff_attendance_records WHERE attendance_date = CURRENT_DATE;',
     );
     await client.query('COMMIT');
-    await invalidateRedisTagsAndPrefixes(redisClient, ['attendance', 'presence'], ['*attendance*', '*presence*']);
+    await invalidateRedisTagsAndPrefixes(redisClient, ['attendance', 'presence', 'payroll'], ['*attendance*', '*presence*', '*payroll*']);
     return { success: true, deletedCount: deleteRes.rowCount ?? 0 };
   } catch (err) {
     await client.query('ROLLBACK');
@@ -228,12 +236,21 @@ export async function executePurgeTodayForStaff(
   const client: PoolClient = await pool.connect();
   try {
     await client.query('BEGIN');
+    // Cascading purge: delete dependent attendance payroll entries for this staff today
+    await client.query(`
+      DELETE FROM payroll_entries
+      WHERE source_type = 'attendance'
+        AND source_id IN (
+          SELECT id FROM staff_attendance_records 
+          WHERE staff_profile_id = $1 AND attendance_date = CURRENT_DATE
+        );
+    `, [staffProfileId]);
     const deleteRes = await client.query(
       'DELETE FROM staff_attendance_records WHERE staff_profile_id = $1 AND attendance_date = CURRENT_DATE;',
       [staffProfileId],
     );
     await client.query('COMMIT');
-    await invalidateRedisTagsAndPrefixes(redisClient, ['attendance', 'presence'], ['*attendance*', '*presence*']);
+    await invalidateRedisTagsAndPrefixes(redisClient, ['attendance', 'presence', 'payroll'], ['*attendance*', '*presence*', '*payroll*']);
     return { success: true, deletedCount: deleteRes.rowCount ?? 0 };
   } catch (err) {
     await client.query('ROLLBACK');
@@ -251,12 +268,21 @@ export async function executePurgeAllForStaff(
   const client: PoolClient = await pool.connect();
   try {
     await client.query('BEGIN');
+    // Cascading purge: delete all dependent attendance payroll entries for this staff
+    await client.query(`
+      DELETE FROM payroll_entries
+      WHERE source_type = 'attendance'
+        AND source_id IN (
+          SELECT id FROM staff_attendance_records 
+          WHERE staff_profile_id = $1
+        );
+    `, [staffProfileId]);
     const deleteRes = await client.query(
       'DELETE FROM staff_attendance_records WHERE staff_profile_id = $1;',
       [staffProfileId],
     );
     await client.query('COMMIT');
-    await invalidateRedisTagsAndPrefixes(redisClient, ['attendance', 'presence'], ['*attendance*', '*presence*']);
+    await invalidateRedisTagsAndPrefixes(redisClient, ['attendance', 'presence', 'payroll'], ['*attendance*', '*presence*', '*payroll*']);
     return { success: true, deletedCount: deleteRes.rowCount ?? 0 };
   } catch (err) {
     await client.query('ROLLBACK');
@@ -275,10 +301,34 @@ export async function executePurgeAllSystemWide(
     await client.query('BEGIN');
     const countRes = await client.query('SELECT count(*)::int FROM staff_attendance_records;');
     const totalCount = Number(countRes.rows[0].count);
+    // Explicitly delete attendance payroll entries before truncate to ensure 100% cascade
+    await client.query("DELETE FROM payroll_entries WHERE source_type = 'attendance';");
     await client.query('TRUNCATE TABLE staff_attendance_records CASCADE;');
     await client.query('COMMIT');
-    await invalidateRedisTagsAndPrefixes(redisClient, ['attendance', 'presence'], ['*attendance*', '*presence*']);
+    await invalidateRedisTagsAndPrefixes(redisClient, ['attendance', 'presence', 'payroll'], ['*attendance*', '*presence*', '*payroll*']);
     return { success: true, deletedCount: totalCount };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    return { success: false, deletedCount: 0, error: err instanceof Error ? err.message : String(err) };
+  } finally {
+    client.release();
+  }
+}
+
+export async function executeReconcileOrphanedPayrollEntries(
+  pool: Pool,
+): Promise<{ success: boolean; deletedCount: number; error?: string }> {
+  const client: PoolClient = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const deleteRes = await client.query(`
+      DELETE FROM payroll_entries
+      WHERE source_type = 'attendance'
+        AND source_id IS NOT NULL
+        AND source_id NOT IN (SELECT id FROM staff_attendance_records);
+    `);
+    await client.query('COMMIT');
+    return { success: true, deletedCount: deleteRes.rowCount ?? 0 };
   } catch (err) {
     await client.query('ROLLBACK');
     return { success: false, deletedCount: 0, error: err instanceof Error ? err.message : String(err) };
@@ -321,9 +371,10 @@ export async function runAttendancePurgeInteractive(
     console.log(' [4] Flush 100% Attendance Records System-Wide (Hapus total seluruh presensi)');
     console.log(' [5] Inspect Today\'s Attendance Directory (Lihat daftar presensi hari ini)');
     console.log(' [6] Flush Active/Expired QR Kiosk Sessions (Bersihkan sesi QR attendance)');
+    console.log(' [7] Reconcile Orphaned Attendance Payroll Entries (Bersihkan saldo payroll yatim)');
     console.log(' [b] Back to Main Menu\n');
 
-    const choice = await askSafeQuestion(rl, 'Enter choice [1-6 or b]: ');
+    const choice = await askSafeQuestion(rl, 'Enter choice [1-7 or b]: ');
     if (!choice || choice.toLowerCase() === 'b' || choice.toLowerCase() === 'back') {
       break;
     }
@@ -486,8 +537,40 @@ export async function runAttendancePurgeInteractive(
       } else {
         console.error(`[ERROR] Purge failed: ${res.error}`);
       }
+    } else if (choice === '7') {
+      const checkRes = await pool.query(`
+        SELECT count(*)::int as count 
+        FROM payroll_entries 
+        WHERE source_type = 'attendance' 
+          AND source_id IS NOT NULL 
+          AND source_id NOT IN (SELECT id FROM staff_attendance_records);
+      `);
+      const orphanCount = Number(checkRes.rows[0]?.count ?? 0);
+      if (orphanCount === 0) {
+        console.log('\n[INFO] Zero orphaned attendance payroll entries found. Database is perfectly consistent.\n');
+        continue;
+      }
+
+      const confirmed = await confirmPurge(
+        rl,
+        'Orphaned Attendance Payroll Entries',
+        orphanCount,
+        'Deletes zombie payroll entries that reference deleted attendance records to correct employee balances.',
+      );
+      if (!confirmed) {
+        console.log('[INFO] Reconciliation aborted.');
+        continue;
+      }
+
+      console.log('\n[INFO] Reconciling orphaned payroll entries...');
+      const res = await executeReconcileOrphanedPayrollEntries(pool);
+      if (res.success) {
+        console.log(`[SUCCESS] Reconciled and purged ${res.deletedCount} orphaned payroll entry/entries.`);
+      } else {
+        console.error(`[ERROR] Reconciliation failed: ${res.error}`);
+      }
     } else {
-      console.log('[WARN] Invalid choice. Please enter 1-6 or b.');
+      console.log('[WARN] Invalid choice. Please enter 1-7 or b.');
     }
   }
 }

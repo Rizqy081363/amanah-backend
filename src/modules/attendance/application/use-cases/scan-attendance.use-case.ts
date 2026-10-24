@@ -1,11 +1,14 @@
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import { ClinicTimeService } from '../../../../common/time/clinic-time.service';
-import { normalizeShift } from '../../domain/constants/attendance.constants';
+import {
+  ATTENDANCE_ACTIONS,
+  AttendanceMethod,
+  normalizeShift,
+} from '../../domain/constants/attendance.constants';
 import { AttendanceEntity } from '../../domain/entities/attendance.entity';
 import {
-  DuplicateAttendanceException,
+  InvalidManualCodeException,
   InvalidQrTokenException,
-  StaffNotFoundException,
 } from '../../domain/errors/attendance-domain.errors';
 import {
   ATTENDANCE_REPOSITORY,
@@ -18,6 +21,7 @@ import { AttendanceNotificationService } from '../services/attendance-notificati
 export interface ScanAttendanceInput {
   staffId: string;
   qrToken: string;
+  method?: AttendanceMethod;
   shift?: string;
   sessionId?: string;
   deviceInfo?: string;
@@ -43,6 +47,7 @@ export class ScanAttendanceUseCase {
     const targetDateObj = new Date(todayStr + 'T12:00:00Z');
     const dow = targetDateObj.getDay();
 
+    const method = input.method === 'manual_pin' ? 'manual_pin' : 'qr_scan';
     let shift = normalizeShift(input.shift);
     let resolvedSessionId: string | null = input.sessionId || null;
     let qrSessionId: string | null = null;
@@ -63,6 +68,9 @@ export class ScanAttendanceUseCase {
 
       const qrSession = await this.repo.findQrSessionByToken(tokenToVerify);
       if (!qrSession) {
+        if (method === 'manual_pin') {
+          throw new InvalidManualCodeException();
+        }
         throw new InvalidQrTokenException();
       }
       qrSessionId = qrSession.id;
@@ -71,18 +79,7 @@ export class ScanAttendanceUseCase {
       }
     }
 
-    // 1. Duplicate Guard: Disallow multiple check-ins on the same day
-    const existing = await this.repo.findStaffAttendanceForDate(
-      input.staffId,
-      todayStr,
-    );
-    if (existing && existing.checkInAt) {
-      throw new DuplicateAttendanceException(
-        'Staf sudah melakukan presensi masuk untuk tanggal ini.',
-      );
-    }
-
-    // 2. Resolve matching session definition from time if not supplied
+    // 1. Resolve matching session definition from time if not supplied
     let sessionDef: { id: string; code: string; defaultStartsAt: string | null } | null = null;
     if (resolvedSessionId) {
       sessionDef = await this.repo.resolveSessionDefById(resolvedSessionId);
@@ -94,22 +91,24 @@ export class ScanAttendanceUseCase {
       }
     }
 
-    // 3. Verify Roster Eligibility & Leave Status
-    const eligibility = await this.eligibilityService.verifyEligibility({
+    // 2. Authoritative Core Eligibility & State Check (Leave, Already Checked-Out, Duplicate, Roster)
+    const eligibility = await this.eligibilityService.verifyCheckInEligibility({
       staffId: input.staffId,
       targetDate: todayStr,
       dow,
       resolvedSessionId,
+      shift,
+      isAdministrativeEntry: false,
     });
 
-    // 4. Determine Timing Status ('present' vs 'late')
+    // 3. Determine Timing Status ('present' vs 'late')
     const timing = await this.timingService.calculateTimingStatus({
       checkInTime: now,
       scheduledStartTime: sessionDef?.defaultStartsAt,
       explicitStatus: input.status,
     });
 
-    // 5. Persist Attendance Record
+    // 4. Persist Attendance Record
     const record = await this.repo.saveAttendanceRecord({
       staffProfileId: input.staffId,
       attendanceDate: todayStr,
@@ -117,7 +116,7 @@ export class ScanAttendanceUseCase {
       status: timing.status,
       checkInAt: nowIso,
       lateMinutes: timing.lateMinutes > 0 ? timing.lateMinutes : null,
-      recordedMethod: 'qr_scan',
+      recordedMethod: method,
       sessionId: resolvedSessionId,
       qrSessionId,
       isReplacement: eligibility.isReplacement,
@@ -125,17 +124,21 @@ export class ScanAttendanceUseCase {
       notes: input.deviceInfo || null,
     });
 
-    // 6. Asynchronously Dispatch Realtime Socket & In-App Notification
+    // 5. Asynchronously Dispatch Realtime Socket & In-App Notification (Role-Scoped)
     const staff = await this.repo.resolveStaffByIdOrCode(input.staffId);
     if (staff) {
-      void this.notificationService.dispatchNotification(record, 'check_in', {
-        fullName: staff.fullName,
-        staffCode: staff.staffCode,
-        userId: staff.userId,
-        staffType: staff.staffType,
-        positionTitle: staff.positionTitle,
-        avatarUrl: staff.avatarUrl,
-      });
+      void this.notificationService.dispatchNotification(
+        record,
+        ATTENDANCE_ACTIONS.CHECK_IN,
+        {
+          fullName: staff.fullName,
+          staffCode: staff.staffCode,
+          userId: staff.userId,
+          staffType: staff.staffType,
+          positionTitle: staff.positionTitle,
+          avatarUrl: staff.avatarUrl,
+        },
+      );
     }
 
     return record;
