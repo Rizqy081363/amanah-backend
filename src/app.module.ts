@@ -40,6 +40,8 @@ import { SchedulesModule } from './modules/schedules/schedules.module';
 import { StaffsModule } from './modules/staffs/staffs.module';
 import { SupportTicketsModule } from './modules/support-tickets/support-tickets.module';
 
+import { validateEnvironment } from './config/env';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -53,7 +55,8 @@ import { SupportTicketsModule } from './modules/support-tickets/support-tickets.
         mailConfig,
         realtimeConfig,
       ],
-      envFilePath: ['.env', 'env-example-relational'],
+      envFilePath: ['.env'],
+      validate: (config) => validateEnvironment(config) as any,
     }),
     EventEmitterModule.forRoot({
       wildcard: true,

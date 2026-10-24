@@ -3,6 +3,7 @@ import { betterAuth } from 'better-auth';
 import { admin as adminPlugin, bearer, emailOTP } from 'better-auth/plugins';
 import nodemailer from 'nodemailer';
 import { Pool } from 'pg';
+import { env } from '../../config/env';
 import {
   ac,
   admin,
@@ -14,47 +15,22 @@ import {
 import { buildOriginPolicy } from '../../config/origin-policy';
 
 const getDatabaseUrl = (): string => {
-  if (process.env.DATABASE_URL?.trim()) {
-    return process.env.DATABASE_URL;
-  }
-
-  const host = process.env.DATABASE_HOST || '127.0.0.1';
-  const isLocalHost = host === 'localhost' || host === '127.0.0.1';
-  const port = isLocalHost
-    ? process.env.POSTGRES_HOST_PORT || process.env.DATABASE_PORT || '5433'
-    : process.env.DATABASE_PORT || '5432';
-  const username = process.env.DATABASE_USERNAME || 'amanah';
-  const password = process.env.DATABASE_PASSWORD || 'amanah_secret';
-  const database = process.env.DATABASE_NAME || 'amanah_healthcare';
-
-  return `postgresql://${username}:${password}@${host}:${port}/${database}`;
+  return `postgresql://${env.DATABASE_USERNAME}:${env.DATABASE_PASSWORD}@${env.DATABASE_HOST}:${env.DATABASE_PORT}/${env.DATABASE_NAME}`;
 };
 
 const pool = new Pool({
   connectionString: getDatabaseUrl(),
 });
 
-const smtpHost = process.env.SMTP_HOST || process.env.MAIL_HOST || '127.0.0.1';
-const isLocalSmtp = smtpHost === 'localhost' || smtpHost === '127.0.0.1';
-const smtpPort = parseInt(
-  isLocalSmtp
-    ? process.env.SMTP_HOST_PORT ||
-        process.env.SMTP_PORT ||
-        process.env.MAIL_PORT ||
-        '1025'
-    : process.env.SMTP_PORT || process.env.MAIL_PORT || '1025',
-  10,
-);
-const mailFrom =
-  process.env.MAIL_FROM ||
-  process.env.MAIL_DEFAULT_EMAIL ||
-  'noreply@amanah-healthcare.local';
-const mailFromName = process.env.MAIL_DEFAULT_NAME || 'Amanah Healthcare';
+const smtpHost = env.SMTP_HOST;
+const smtpPort = env.SMTP_PORT;
+const mailFrom = env.MAIL_DEFAULT_EMAIL || 'noreply@amanah-healthcare.local';
+const mailFromName = env.MAIL_DEFAULT_NAME || 'Amanah Healthcare';
 
 const mailTransporter = nodemailer.createTransport({
   host: smtpHost,
   port: smtpPort,
-  secure: (process.env.SMTP_SECURE || process.env.MAIL_SECURE) === 'true',
+  secure: false,
   ignoreTLS: true,
 });
 
@@ -82,14 +58,14 @@ async function sendSmtpEmail({
   }
 }
 
-const devOriginPatterns = (process.env.APP_DEV_ORIGIN_PATTERNS || '')
+const devOriginPatterns = (env.APP_DEV_ORIGIN_PATTERNS || '')
   .split(',')
   .map((p) => p.trim())
   .filter(Boolean);
 
 const rawCorsOrigins = (
-  process.env.APP_CORS_ORIGINS ||
-  process.env.FRONTEND_DOMAIN ||
+  env.APP_CORS_ORIGINS ||
+  env.FRONTEND_DOMAIN ||
   ''
 )
   .split(',')
@@ -97,11 +73,11 @@ const rawCorsOrigins = (
   .filter(Boolean);
 
 const betterAuthOriginPolicy = buildOriginPolicy({
-  appEnv: process.env.NODE_ENV || 'development',
-  publicUrl: process.env.FRONTEND_DOMAIN,
+  appEnv: env.NODE_ENV || 'development',
+  publicUrl: env.FRONTEND_DOMAIN,
   extraOrigins: [
     ...rawCorsOrigins,
-    process.env.BACKEND_DOMAIN || '',
+    env.BACKEND_DOMAIN || '',
   ],
   devPatterns: devOriginPatterns,
 });
@@ -115,17 +91,17 @@ export const auth = betterAuth({
   appName: 'Amanah Healthcare',
   baseURL: {
     allowedHosts: trustedOrigins,
-    fallback: process.env.BETTER_AUTH_URL,
+    fallback: env.BETTER_AUTH_URL,
     protocol: 'auto',
   },
   basePath: '/api/auth',
-  secret: process.env.BETTER_AUTH_SECRET || process.env.AUTH_JWT_SECRET,
+  secret: env.BETTER_AUTH_SECRET,
   database: pool,
   trustedOrigins,
   socialProviders: {
     google: {
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      clientId: env.GOOGLE_CLIENT_ID || '',
+      clientSecret: env.GOOGLE_CLIENT_SECRET || '',
       prompt: 'select_account',
       requireEmailVerification: true,
       accessType: 'offline',
@@ -189,7 +165,7 @@ export const auth = betterAuth({
   },
   rateLimit: {
     enabled:
-      process.env.NODE_ENV === 'production' ||
+      env.NODE_ENV === 'production' ||
       process.env.RATE_LIMIT_ENABLED === 'true',
     customRules: {
       '/sign-in/social': { window: 60, max: 10 },
@@ -204,12 +180,12 @@ export const auth = betterAuth({
   },
   advanced: {
     trustedProxyHeaders: true,
-    useSecureCookies: process.env.NODE_ENV === 'production',
+    useSecureCookies: env.NODE_ENV === 'production',
     disableCSRFCheck: false,
     disableOriginCheck: false,
     defaultCookieAttributes: {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: env.NODE_ENV === 'production',
       sameSite: 'lax',
     },
     database: { generateId: 'uuid' },

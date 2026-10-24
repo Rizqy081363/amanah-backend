@@ -47,7 +47,6 @@ export const postgresPoolProvider: Provider = {
       configService.get('time.dbTimezone', { infer: true }) || 'UTC';
 
     const pool = new Pool({
-      connectionString: configService.get('database.url', { infer: true }),
       host: configService.get('database.host', { infer: true }),
       port: configService.get('database.port', { infer: true }),
       user: configService.get('database.username', { infer: true }),

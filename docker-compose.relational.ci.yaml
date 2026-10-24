@@ -46,7 +46,8 @@ services:
       dockerfile: relational.e2e.Dockerfile
     init: true
     env_file:
-      - env-example-relational
+      - path: .env
+        required: true
     depends_on:
       postgres:
         condition: service_healthy

@@ -8,6 +8,7 @@ import {
   Max,
   Min,
 } from 'class-validator';
+import { env } from '../../config/env';
 import validateConfig from '../../utils/validate-config';
 import { MailConfig } from './mail-config.type';
 
@@ -80,12 +81,8 @@ class EnvironmentVariablesValidator {
 export default registerAs<MailConfig>('mail', () => {
   validateConfig(process.env, EnvironmentVariablesValidator);
 
-  const host = process.env.SMTP_HOST || process.env.MAIL_HOST || 'localhost';
-  const port = process.env.SMTP_PORT
-    ? parseInt(process.env.SMTP_PORT, 10)
-    : process.env.MAIL_PORT
-      ? parseInt(process.env.MAIL_PORT, 10)
-      : 1025;
+  const host = env.SMTP_HOST;
+  const port = env.SMTP_PORT;
   const secure =
     (process.env.SMTP_SECURE ?? process.env.MAIL_SECURE) === 'true';
   const user = process.env.SMTP_USER || process.env.MAIL_USER;

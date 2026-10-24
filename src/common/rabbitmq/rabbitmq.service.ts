@@ -5,6 +5,7 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import * as amqp from 'amqplib';
+import { env } from '../../config/env';
 import {
   EXPORTS_EXCHANGE,
   EXPORTS_WORK_QUEUE,
@@ -36,8 +37,7 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
   }
 
   async connect(): Promise<void> {
-    const url =
-      process.env.RABBITMQ_URL || 'amqp://amanah:amanah_secret@127.0.0.1:5672';
+    const url = env.RABBITMQ_URL;
     try {
       this.connection = await amqp.connect(url);
       this.channel = await this.connection.createChannel();

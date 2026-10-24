@@ -16,9 +16,9 @@ services:
       - amanah-postgres-data:/var/lib/postgresql/data
     command: ["postgres", "-c", "timezone=${DB_TIMEZONE:-Asia/Jakarta}", "-c", "log_timezone=${DB_TIMEZONE:-Asia/Jakarta}"]
     environment:
-      POSTGRES_USER: ${DATABASE_USERNAME:-amanah}
-      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-amanah_secret}
-      POSTGRES_DB: ${DATABASE_NAME:-amanah_healthcare}
+      POSTGRES_USER: ${DATABASE_USERNAME:?DATABASE_USERNAME wajib diisi di .env}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:?DATABASE_PASSWORD wajib diisi di .env}
+      POSTGRES_DB: ${DATABASE_NAME:?DATABASE_NAME wajib diisi di .env}
       TZ: ${PROCESS_TZ:-Asia/Jakarta}
       PGTZ: ${DB_TIMEZONE:-Asia/Jakarta}
     healthcheck:
@@ -98,8 +98,8 @@ services:
       - "127.0.0.1:${RABBITMQ_HOST_PORT:-5672}:5672"
       - "127.0.0.1:${RABBITMQ_MGMT_HOST_PORT:-15672}:15672"
     environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-amanah}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-amanah_secret}
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:?RABBITMQ_USER wajib diisi di .env}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD wajib diisi di .env}
     volumes:
       - amanah-rabbitmq-data:/var/lib/rabbitmq
     healthcheck:
@@ -122,29 +122,23 @@ services:
         max-size: "10m"
         max-file: "3"
     env_file:
-      - env-example-relational
+      - path: .env
+        required: true
     environment:
-      APP_PORT: ${APP_PORT:-3001}
-      FRONTEND_DOMAIN: ${FRONTEND_DOMAIN:-http://localhost:3000}
-      BACKEND_DOMAIN: ${BACKEND_DOMAIN:-http://localhost:3001}
-      APP_CORS_ORIGINS: ${APP_CORS_ORIGINS:-http://localhost:3000}
-      APP_DEV_ORIGIN_PATTERNS: ${APP_DEV_ORIGIN_PATTERNS:-https://*.devtunnels.ms,https://*.ngrok-free.app,https://*.trycloudflare.com}
-      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3001}
-      RUN_DB_MIGRATIONS: ${RUN_DB_MIGRATIONS:-true}
-      RUN_DB_SEED: ${RUN_DB_SEED:-true}
-      WAIT_TIMEOUT_SECONDS: ${WAIT_TIMEOUT_SECONDS:-60}
+      APP_RUNTIME: container
       DATABASE_HOST: postgres
-      DATABASE_PORT: 5432
-      DATABASE_USERNAME: ${DATABASE_USERNAME:-amanah}
-      DATABASE_PASSWORD: ${DATABASE_PASSWORD:-amanah_secret}
-      DATABASE_NAME: ${DATABASE_NAME:-amanah_healthcare}
-      RABBITMQ_URL: amqp://${RABBITMQ_USER:-amanah}:${RABBITMQ_PASSWORD:-amanah_secret}@rabbitmq:5672
-      TZ: ${PROCESS_TZ:?set PROCESS_TZ in .env}
-      CLINIC_TIMEZONE: ${CLINIC_TIMEZONE:?set CLINIC_TIMEZONE in .env}
-      DB_TIMEZONE: ${DB_TIMEZONE:?set DB_TIMEZONE in .env}
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
-      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
-      GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-/usr/src/app/config/firebase-adminsdk.json}
+      REDIS_URL: redis://redis:6379/1
+      SMTP_HOST: mailpit
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:?RABBITMQ_USER wajib diisi di .env}:${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD wajib diisi di .env}@rabbitmq:5672
+    develop:
+      watch:
+        - action: sync+restart
+          path: ./dist
+          target: /usr/src/app/dist
+        - action: rebuild
+          path: ./package.json
+        - action: rebuild
+          path: ./bun.lock
     depends_on:
       postgres:
         condition: service_healthy
