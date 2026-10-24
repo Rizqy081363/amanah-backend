@@ -36,6 +36,12 @@ export const STATUS_LABEL_MAP: Record<AttendanceStatus, string> = {
   missed: 'Tidak Hadir',
 };
 
+export const CATEGORY_LABEL_MAP: Record<string, string> = {
+  doctor: 'Dokter',
+  midwife: 'Bidan',
+  worker: 'Staf',
+};
+
 export function normalizeShift(rawShift?: string): ShiftCode {
   if (!rawShift) return 'morning';
   const s = rawShift.toLowerCase();

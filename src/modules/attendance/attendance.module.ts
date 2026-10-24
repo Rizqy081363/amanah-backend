@@ -3,6 +3,7 @@ import { PayrollModule } from '../payroll/payroll.module';
 import { AttendanceMetricsCalculator } from './application/services/attendance-metrics.calculator';
 import { AttendanceNotificationService } from './application/services/attendance-notification.service';
 import { CheckOutAttendanceUseCase } from './application/use-cases/checkout-attendance.use-case';
+import { GetAttendanceExportCandidatesUseCase } from './application/use-cases/get-attendance-export-candidates.use-case';
 import { GetDailyAttendanceBffUseCase } from './application/use-cases/get-daily-attendance-bff.use-case';
 import { ManualAttendanceUseCase } from './application/use-cases/manual-attendance.use-case';
 import { RotateQrSessionUseCase } from './application/use-cases/rotate-qr-session.use-case';
@@ -36,6 +37,7 @@ import { AttendanceController } from './presentation/attendance.controller';
     CheckOutAttendanceUseCase,
     RotateQrSessionUseCase,
     GetDailyAttendanceBffUseCase,
+    GetAttendanceExportCandidatesUseCase,
   ],
   exports: [
     ATTENDANCE_REPOSITORY,
@@ -45,6 +47,7 @@ import { AttendanceController } from './presentation/attendance.controller';
     CheckOutAttendanceUseCase,
     RotateQrSessionUseCase,
     GetDailyAttendanceBffUseCase,
+    GetAttendanceExportCandidatesUseCase,
   ],
 })
 export class AttendanceModule {}

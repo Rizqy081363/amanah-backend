@@ -1,5 +1,6 @@
 import { AttendanceEntity } from '../entities/attendance.entity';
 import { QrSessionEntity } from '../entities/qr-session.entity';
+import type { StaffType } from '../../../staffs/domain/constants/staff-invitation.constants';
 
 export const ATTENDANCE_REPOSITORY = 'ATTENDANCE_REPOSITORY';
 
@@ -17,12 +18,20 @@ export interface AttendanceHistoryResultDto {
   summary: AttendanceHistorySummaryDto;
 }
 
+export interface AttendanceExportCandidate {
+  id: string;
+  staffCode: string;
+  fullName: string;
+  avatarUrl: string | null;
+  staffType: StaffType;
+  positionTitle: string | null;
+  specialtyName: string | null;
+  totalAttendance: number;
+}
+
 export interface AttendanceBFFResponse {
   records: any[];
   total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
   summary: {
     total_staf: number;
     staf_hadir: number;
@@ -177,4 +186,9 @@ export interface AttendanceRepository {
     statuses: Array<{ label: string; value: string }>;
     categories: Array<{ label: string; value: string }>;
   }>;
+
+  getExportCandidates(
+    startDate: string,
+    endDate: string,
+  ): Promise<AttendanceExportCandidate[]>;
 }

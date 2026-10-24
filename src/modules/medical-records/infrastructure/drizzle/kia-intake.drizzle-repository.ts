@@ -1,4 +1,5 @@
 import { forwardRef, Inject, Injectable, Optional } from '@nestjs/common';
+import { isUUID } from 'class-validator';
 import { and, count, desc, eq, gte, ilike, inArray, lte, or } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
@@ -376,11 +377,7 @@ export class KiaIntakeDrizzleRepository {
   async findUnifiedIntakeByAppointmentId(
     appointmentId: string,
   ): Promise<any | null> {
-    const isUuid =
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-        appointmentId,
-      );
-    if (!isUuid) return null;
+    if (!isUUID(appointmentId)) return null;
 
     let fullAppt: any = null;
     if (this.appointmentsService) {
@@ -581,11 +578,7 @@ export class KiaIntakeDrizzleRepository {
     patientId: string,
     flow?: string,
   ): Promise<any | null> {
-    const isUuid =
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-        patientId,
-      );
-    if (!isUuid) return null;
+    if (!isUUID(patientId)) return null;
 
     if (flow === 'pregnancy' || flow === 'maternal' || !flow) {
       const maternal = await this.maternalRepo.findLatestByPatientId(patientId);

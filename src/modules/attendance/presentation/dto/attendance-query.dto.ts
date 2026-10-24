@@ -1,6 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsOptional, IsString } from 'class-validator';
 
 export class AttendanceQueryDto {
   @ApiPropertyOptional({
@@ -42,24 +41,4 @@ export class AttendanceQueryDto {
   @IsString()
   @IsOptional()
   search?: string;
-
-  @ApiPropertyOptional({
-    example: 1,
-    description: 'Halaman data (default: 1)',
-  })
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @IsOptional()
-  page?: number = 1;
-
-  @ApiPropertyOptional({
-    example: 10,
-    description: 'Jumlah data per halaman (default: 10)',
-  })
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @IsOptional()
-  limit?: number = 10;
 }

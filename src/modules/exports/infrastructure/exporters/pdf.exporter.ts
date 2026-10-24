@@ -41,7 +41,13 @@ export class PdfExporter implements Exporter {
     sink: Writable,
     progress: IProgressReporter,
   ): Promise<{ parts: number; rowCount: number }> {
-    const headers = source.getHeaders(ctx.params);
+    const columnDefs = source.getColumnDefs
+      ? source.getColumnDefs(ctx.params)
+      : null;
+    const headers = columnDefs
+      ? columnDefs.map((c) => c.header)
+      : source.getHeaders(ctx.params);
+
     const aggregation = source.getAggregation
       ? await source.getAggregation(ctx.params, ctx.userId)
       : null;
@@ -74,33 +80,50 @@ export class PdfExporter implements Exporter {
 
         tableBody.push(
           rowValues.map((val, colIdx) => {
+            const colDef = columnDefs?.[colIdx];
             const isNum = typeof val === 'number';
-            const isPayroll = source.type === 'payroll' || headers.length === 11;
-            const isCurrency = isPayroll && (colIdx === 9 || colIdx === 10);
-            const strVal =
-              val === null || val === undefined
-                ? '-'
-                : isCurrency && isNum
-                  ? Math.round(val).toLocaleString('id-ID')
-                  : typeof val === 'number' && colIdx === 6 && !isPayroll
-                    ? val.toFixed(2)
-                    : String(val);
 
-            let alignment = 'left';
-            if (isPayroll) {
-              alignment =
-                colIdx === 0 || colIdx === 3 || colIdx === 4 || colIdx === 5
-                  ? 'center'
-                  : isNum
-                    ? 'right'
-                    : 'left';
-            } else {
-              alignment =
-                colIdx === 0 || colIdx === 1 || colIdx === 2 || colIdx === 3 || colIdx === 4 || colIdx === 7
-                  ? 'center'
-                  : isNum
-                    ? 'right'
-                    : 'left';
+            let strVal = '-';
+            let alignment: 'left' | 'center' | 'right' = 'left';
+
+            if (val !== null && val !== undefined) {
+              if (colDef?.format === 'currency' && isNum) {
+                strVal = Math.round(val).toLocaleString('id-ID');
+              } else if (colDef?.format === 'decimal' && isNum) {
+                strVal = val.toFixed(2);
+              } else if (colDef?.format === 'number' && isNum) {
+                strVal = Number.isInteger(val) ? String(val) : val.toFixed(2);
+              } else if (isNum) {
+                strVal =
+                  colIdx === 0
+                    ? String(val)
+                    : Number.isInteger(val) && Math.abs(val) >= 1000
+                      ? Math.round(val).toLocaleString('id-ID')
+                      : Number.isInteger(val)
+                        ? String(val)
+                        : val.toFixed(2);
+              } else {
+                strVal = String(val);
+              }
+
+              if (colDef?.align) {
+                alignment = colDef.align;
+              } else if (colIdx === 0) {
+                alignment = 'center';
+              } else if (isNum) {
+                alignment = 'right';
+              } else if (
+                typeof val === 'string' &&
+                (/^\d{4}-\d{2}-\d{2}/.test(val) || /^\d{2}:\d{2}/.test(val))
+              ) {
+                alignment = 'center';
+              } else {
+                alignment = 'left';
+              }
+            } else if (colDef?.align) {
+              alignment = colDef.align;
+            } else if (colIdx === 0) {
+              alignment = 'center';
             }
 
             return {
@@ -117,19 +140,33 @@ export class PdfExporter implements Exporter {
       await progress.advance(batch.length);
     }
 
-    const title = source.getTitle(ctx.params);
+    const title = await Promise.resolve(source.getTitle(ctx.params, ctx.userId));
     const isLandscape = headers.length > 6;
 
-    const isAttendance = source.type === 'attendance' || headers.length === 9;
-    const detailsTitle = isAttendance
-      ? 'RIWAYAT PRESENSI & KEHADIRAN PEGAWAI'
-      : 'RINCIAN TRANSAKSI PENGGAJIAN HARIAN';
+    const detailsTitle = source.getDetailsTitle
+      ? await Promise.resolve(source.getDetailsTitle(ctx.params, ctx.userId))
+      : 'RINCIAN DATA LAPORAN';
 
-    const detailTableWidths = isAttendance
-      ? [24, 65, 65, 55, 55, 75, 75, 75, '*']
-      : headers.length === 11
-        ? [20, 62, '*', 58, 50, 32, 72, '*', 46, 70, 78]
-        : headers.map((_, i) => (i === 0 ? 24 : '*'));
+    const subtitle = aggregation
+      ? `Periode: ${aggregation.periodMonth} ${aggregation.periodYear}`
+      : source.getSubtitle
+        ? await Promise.resolve(source.getSubtitle(ctx.params, ctx.userId))
+        : '';
+
+    const detailTableWidths: (number | string)[] = headers.map((_header, i) => {
+      if (columnDefs?.[i]?.width !== undefined) {
+        return columnDefs[i].width!;
+      }
+      return i === 0 ? 'auto' : i === 1 ? '*' : 'auto';
+    });
+
+    // Invariant: table width definition length MUST strictly match headers length
+    while (detailTableWidths.length < headers.length) {
+      detailTableWidths.push('*');
+    }
+    if (detailTableWidths.length > headers.length) {
+      detailTableWidths.length = headers.length;
+    }
 
     // 1. Component Summary (Pivot) Table
     const componentBody: any[][] = [];
@@ -471,11 +508,7 @@ export class PdfExporter implements Exporter {
               width: '*',
               stack: [
                 {
-                  text: aggregation
-                    ? `Periode: ${aggregation.periodMonth} ${aggregation.periodYear}`
-                    : source.getSubtitle
-                      ? source.getSubtitle(ctx.params)
-                      : '',
+                  text: subtitle,
                   fontSize: 8.5,
                   bold: true,
                   alignment: 'right',

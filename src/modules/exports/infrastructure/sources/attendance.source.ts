@@ -1,9 +1,16 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { isUUID } from 'class-validator';
 import { and, asc, desc, eq, gte, lte, sql } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import type { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
-import { staffAttendanceRecords, staffProfiles } from '../../../../database/schema/amanah.schema';
-import { ExportSource } from '../../domain/export-source.interface';
+import {
+  roles,
+  staffAttendanceRecords,
+  staffProfiles,
+  userRoles,
+  users,
+} from '../../../../database/schema/amanah.schema';
+import { ExportColumnDef, ExportSource } from '../../domain/export-source.interface';
 import {
   SHIFT_LABEL_MAP,
   STATUS_LABEL_MAP,
@@ -20,7 +27,16 @@ export class AttendanceExportSource implements ExportSource {
     private readonly db: DrizzleDatabase,
   ) {}
 
-  getTitle(params: Record<string, any>): string {
+  async getTitle(params: Record<string, any>, userId?: string): Promise<string> {
+    if (params.staffName) {
+      return `Laporan Rekapitulasi Presensi: ${params.staffName}`;
+    }
+    if (userId) {
+      const scope = await this.resolveActorScope(userId, params.staffProfileId);
+      if (!scope.isClinicWide && scope.staffName) {
+        return `Laporan Rekapitulasi Presensi: ${scope.staffName}`;
+      }
+    }
     return 'Laporan Rekapitulasi Riwayat Presensi Pegawai';
   }
 
@@ -33,50 +49,115 @@ export class AttendanceExportSource implements ExportSource {
     return [start, end].filter(Boolean).join(' | ') || 'Seluruh Arsip Presensi Terkalkulasi';
   }
 
-  getHeaders(): string[] {
+  async getDetailsTitle(params: Record<string, any>, userId?: string): Promise<string> {
+    if (params.staffName) {
+      return `RIWAYAT PRESENSI & KEHADIRAN: ${String(params.staffName).toUpperCase()}`;
+    }
+    if (userId) {
+      const scope = await this.resolveActorScope(userId, params.staffProfileId);
+      if (!scope.isClinicWide && scope.staffName) {
+        return `RIWAYAT PRESENSI & KEHADIRAN: ${scope.staffName.toUpperCase()}`;
+      }
+    }
+    return 'RIWAYAT PRESENSI & KEHADIRAN PEGAWAI';
+  }
+
+  getColumnDefs(): ExportColumnDef[] {
     return [
-      'No',
-      'Nama Pegawai',
-      'Kode Pegawai',
-      'Tanggal',
-      'Shift Kerja',
-      'Jam Masuk',
-      'Jam Pulang',
-      'Keterlambatan (Mnt)',
-      'Durasi Efektif (Jam)',
-      'Status Kehadiran',
-      'Unit / Lokasi',
+      { header: 'No', width: 'auto', align: 'center' },
+      { header: 'Nama Pegawai', width: '*', align: 'left' },
+      { header: 'Kode Pegawai', width: 'auto', align: 'center' },
+      { header: 'Tanggal', width: 'auto', align: 'center' },
+      { header: 'Shift Kerja', width: 'auto', align: 'center' },
+      { header: 'Jam Masuk', width: 'auto', align: 'center' },
+      { header: 'Jam Pulang', width: 'auto', align: 'center' },
+      { header: 'Keterlambatan (Mnt)', width: 'auto', align: 'right', format: 'number' },
+      { header: 'Durasi Efektif (Jam)', width: 'auto', align: 'right', format: 'decimal' },
+      { header: 'Status Kehadiran', width: 'auto', align: 'center' },
+      { header: 'Unit / Lokasi', width: 'auto', align: 'left' },
     ];
   }
 
-  private async resolveStaffProfileId(userId: string, explicitStaffId?: string): Promise<string | null> {
-    if (explicitStaffId) {
-      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(explicitStaffId);
-      if (isUuid) return explicitStaffId;
+  getHeaders(): string[] {
+    return this.getColumnDefs().map((c) => c.header);
+  }
 
-      const [found] = await this.db
-        .select({ id: staffProfiles.id })
-        .from(staffProfiles)
-        .where(eq(staffProfiles.staffCode, explicitStaffId))
-        .limit(1);
-      return found?.id ?? explicitStaffId;
-    }
+  private async resolveActorScope(
+    userId: string,
+    explicitStaffId?: string,
+  ): Promise<{ staffId: string | null; isClinicWide: boolean; staffName?: string }> {
+    // 1. Check if actor has admin role
+    const [actor] = await this.db
+      .select({
+        roleCode: roles.code,
+      })
+      .from(users)
+      .leftJoin(userRoles, eq(users.id, userRoles.userId))
+      .leftJoin(roles, eq(userRoles.roleId, roles.id))
+      .where(eq(users.id, userId))
+      .limit(1);
 
-    const [staff] = await this.db
-      .select({ id: staffProfiles.id })
+    const isAdmin = actor?.roleCode === 'admin';
+
+    // 2. Lookup actor's own linked staff profile
+    const [ownStaff] = await this.db
+      .select({ id: staffProfiles.id, fullName: staffProfiles.fullName })
       .from(staffProfiles)
       .where(eq(staffProfiles.userId, userId))
       .limit(1);
 
-    return staff?.id ?? null;
+    // Non-admin (Doctor, Midwife, Worker on Flutter): strictly locked to own profile
+    if (!isAdmin) {
+      return {
+        staffId: ownStaff?.id ?? null,
+        isClinicWide: false,
+        staffName: ownStaff?.fullName,
+      };
+    }
+
+    // Admin (Web Portal): can target explicit staff or export clinic-wide
+    if (explicitStaffId) {
+      if (isUUID(explicitStaffId)) {
+        const [targetStaff] = await this.db
+          .select({ id: staffProfiles.id, fullName: staffProfiles.fullName })
+          .from(staffProfiles)
+          .where(eq(staffProfiles.id, explicitStaffId))
+          .limit(1);
+        return {
+          staffId: explicitStaffId,
+          isClinicWide: false,
+          staffName: targetStaff?.fullName,
+        };
+      }
+
+      const [found] = await this.db
+        .select({ id: staffProfiles.id, fullName: staffProfiles.fullName })
+        .from(staffProfiles)
+        .where(eq(staffProfiles.staffCode, explicitStaffId))
+        .limit(1);
+
+      return {
+        staffId: found?.id ?? explicitStaffId,
+        isClinicWide: false,
+        staffName: found?.fullName,
+      };
+    }
+
+    // Admin without explicit staff: clinic-wide
+    return { staffId: null, isClinicWide: true };
   }
 
   async count(params: Record<string, any>, userId: string): Promise<number> {
-    const staffId = await this.resolveStaffProfileId(userId, params.staffProfileId);
+    const scope = await this.resolveActorScope(userId, params.staffProfileId);
+
+    // If non-admin has no linked staff profile, they have no records to export
+    if (!scope.isClinicWide && !scope.staffId) {
+      return 0;
+    }
 
     const conditions = [];
-    if (staffId) {
-      conditions.push(eq(staffAttendanceRecords.staffProfileId, staffId));
+    if (scope.staffId) {
+      conditions.push(eq(staffAttendanceRecords.staffProfileId, scope.staffId));
     }
     if (params.startDate) {
       conditions.push(gte(staffAttendanceRecords.attendanceDate, params.startDate));
@@ -98,13 +179,17 @@ export class AttendanceExportSource implements ExportSource {
     userId: string,
     batchSize: number = 500,
   ): AsyncGenerator<any[]> {
-    const staffId = await this.resolveStaffProfileId(userId, params.staffProfileId);
+    const scope = await this.resolveActorScope(userId, params.staffProfileId);
+
+    if (!scope.isClinicWide && !scope.staffId) {
+      return;
+    }
 
     let offset = 0;
     for (;;) {
       const conditions = [];
-      if (staffId) {
-        conditions.push(eq(staffAttendanceRecords.staffProfileId, staffId));
+      if (scope.staffId) {
+        conditions.push(eq(staffAttendanceRecords.staffProfileId, scope.staffId));
       }
       if (params.startDate) {
         conditions.push(gte(staffAttendanceRecords.attendanceDate, params.startDate));

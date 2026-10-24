@@ -25,6 +25,7 @@ import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
 import { Roles } from '../../../common/auth/roles.decorator';
 import { RolesGuard } from '../../../common/auth/roles.guard';
 import { CheckOutAttendanceUseCase } from '../application/use-cases/checkout-attendance.use-case';
+import { GetAttendanceExportCandidatesUseCase } from '../application/use-cases/get-attendance-export-candidates.use-case';
 import { GetDailyAttendanceBffUseCase } from '../application/use-cases/get-daily-attendance-bff.use-case';
 import { ManualAttendanceUseCase } from '../application/use-cases/manual-attendance.use-case';
 import { RotateQrSessionUseCase } from '../application/use-cases/rotate-qr-session.use-case';
@@ -56,6 +57,7 @@ export class AttendanceController {
     private readonly checkOutAttendanceUseCase: CheckOutAttendanceUseCase,
     private readonly rotateQrSessionUseCase: RotateQrSessionUseCase,
     private readonly getDailyAttendanceBffUseCase: GetDailyAttendanceBffUseCase,
+    private readonly getAttendanceExportCandidatesUseCase: GetAttendanceExportCandidatesUseCase,
     @Inject(ATTENDANCE_REPOSITORY)
     private readonly attendanceRepo: AttendanceRepository,
   ) {}
@@ -204,5 +206,19 @@ export class AttendanceController {
   })
   async getDailyAttendance(@Query() query: AttendanceQueryDto) {
     return this.getDailyAttendanceBffUseCase.execute(query);
+  }
+
+  @Get('export-candidates')
+  @Roles('ADMIN', 'STAF')
+  @ApiOperation({
+    summary: 'Daftar staf dan rekap total kehadiran bulanan untuk wizard ekspor',
+    description:
+      'Mengambil daftar staf aktif beserta spesialisasi dan total presensi pada bulan target untuk modalitas ekspor berkas.',
+  })
+  @ApiOkResponse({
+    description: 'Daftar kandidat ekspor staf berhasil diambil',
+  })
+  async getExportCandidates(@Query('month') month?: string) {
+    return this.getAttendanceExportCandidatesUseCase.execute(month);
   }
 }

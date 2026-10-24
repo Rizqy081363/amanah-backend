@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, desc, eq, gte, ilike, lte, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, ilike, lte, or, sql } from 'drizzle-orm';
 import { isUUID } from 'class-validator';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
@@ -7,6 +7,7 @@ import {
   attendanceQrSessions,
   doctorAssignments,
   masterDays,
+  medicalSpecialties,
   practitioners,
   sessionDefs,
   sessionSchedules,
@@ -19,6 +20,13 @@ import { replacementOpportunities } from '../../../../database/schema/leave-payr
 import { AttendanceEntity } from '../../domain/entities/attendance.entity';
 import { QrSessionEntity } from '../../domain/entities/qr-session.entity';
 import {
+  CATEGORY_LABEL_MAP,
+  SHIFT_LABEL_MAP,
+  STATUS_LABEL_MAP,
+  ShiftCode,
+} from '../../domain/constants/attendance.constants';
+import {
+  AttendanceExportCandidate,
   AttendanceHistoryResultDto,
   AttendanceRepository,
 } from '../../domain/repositories/attendance.repository';
@@ -618,53 +626,79 @@ export class AttendanceDrizzleRepository implements AttendanceRepository {
       .where(eq(sessionDefs.isActive, true))
       .orderBy(sessionDefs.sortOrder);
 
-    const shiftLabelMap: Record<string, string> = {
-      morning: 'Pagi',
-      afternoon: 'Siang',
-      night: 'Malam',
-      early_morning: 'Dini Hari',
-    };
-
-    const shifts = [
-      { label: 'Semua Shift', value: 'all' },
-      ...activeSessions.map((s) => ({
-        label: shiftLabelMap[s.code] || `Sesi ${s.code}`,
-        value: s.code,
-      })),
-    ];
+    const shifts = activeSessions.map((s) => ({
+      label: SHIFT_LABEL_MAP[s.code as ShiftCode] ?? s.code,
+      value: s.code,
+    }));
 
     // 2. Database-driven distinct staff categories from staff_profiles
     const staffTypeRows = await this.db
       .selectDistinct({ staffType: staffProfiles.staffType })
       .from(staffProfiles);
 
-    const categoryLabelMap: Record<string, string> = {
-      doctor: 'Dokter',
-      midwife: 'Bidan',
-      worker: 'Staf',
-    };
-
-    const categories = [
-      { label: 'Semua Kategori', value: 'all' },
-      ...staffTypeRows
-        .filter((r) => Boolean(r.staffType))
-        .map((r) => ({
-          label:
-            categoryLabelMap[r.staffType as string] ||
-            (r.staffType ? r.staffType.charAt(0).toUpperCase() + r.staffType.slice(1) : 'Lainnya'),
-          value: r.staffType as string,
-        })),
-    ];
+    const categories = staffTypeRows.map((r) => ({
+      label: CATEGORY_LABEL_MAP[r.staffType] ?? r.staffType,
+      value: r.staffType,
+    }));
 
     // 3. Database & System-driven canonical attendance statuses
     const statuses = [
-      { label: 'Semua Status', value: 'all' },
-      { label: 'Hadir', value: 'present' },
-      { label: 'Terlambat', value: 'late' },
-      { label: 'Izin / Cuti', value: 'leave' },
-      { label: 'Tidak Hadir', value: 'absent' },
+      { label: STATUS_LABEL_MAP.present, value: 'present' },
+      { label: STATUS_LABEL_MAP.late, value: 'late' },
+      { label: STATUS_LABEL_MAP.leave, value: 'leave' },
+      { label: STATUS_LABEL_MAP.absent, value: 'absent' },
     ];
 
     return { shifts, statuses, categories };
+  }
+
+  async getExportCandidates(
+    startDate: string,
+    endDate: string,
+  ): Promise<AttendanceExportCandidate[]> {
+    const rows = await this.db
+      .select({
+        id: staffProfiles.id,
+        staffCode: staffProfiles.staffCode,
+        fullName: staffProfiles.fullName,
+        avatarUrl: staffProfiles.avatarUrl,
+        staffType: staffProfiles.staffType,
+        positionTitle: staffProfiles.positionTitle,
+        specialtyName: medicalSpecialties.name,
+        totalAttendance: sql<number>`COALESCE(COUNT(DISTINCT ${staffAttendanceRecords.attendanceDate}), 0)::int`,
+      })
+      .from(staffProfiles)
+      .leftJoin(practitioners, eq(practitioners.staffProfileId, staffProfiles.id))
+      .leftJoin(medicalSpecialties, eq(medicalSpecialties.id, practitioners.specialtyId))
+      .leftJoin(
+        staffAttendanceRecords,
+        and(
+          eq(staffAttendanceRecords.staffProfileId, staffProfiles.id),
+          gte(staffAttendanceRecords.attendanceDate, startDate),
+          lte(staffAttendanceRecords.attendanceDate, endDate),
+        ),
+      )
+      .where(eq(staffProfiles.status, 'active'))
+      .groupBy(
+        staffProfiles.id,
+        staffProfiles.staffCode,
+        staffProfiles.fullName,
+        staffProfiles.avatarUrl,
+        staffProfiles.staffType,
+        staffProfiles.positionTitle,
+        medicalSpecialties.name,
+      )
+      .orderBy(asc(staffProfiles.fullName));
+
+    return rows.map((r) => ({
+      id: r.id,
+      staffCode: r.staffCode,
+      fullName: r.fullName,
+      avatarUrl: r.avatarUrl,
+      staffType: r.staffType,
+      positionTitle: r.positionTitle,
+      specialtyName: r.specialtyName,
+      totalAttendance: Number(r.totalAttendance) || 0,
+    }));
   }
 }

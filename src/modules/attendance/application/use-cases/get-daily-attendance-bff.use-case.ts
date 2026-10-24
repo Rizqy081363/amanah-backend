@@ -19,8 +19,6 @@ export interface GetDailyAttendanceBffQuery {
   status?: string;
   category?: string;
   search?: string;
-  page?: number;
-  limit?: number;
 }
 
 @Injectable()
@@ -42,9 +40,6 @@ export class GetDailyAttendanceBffUseCase {
         ? this.clinicTimeService.normalizeDate(query.date)
         : query.date
       : this.clinicTimeService?.today() ?? new Date().toISOString().split('T')[0];
-
-    const page = query.page && query.page > 0 ? query.page : 1;
-    const limit = query.limit && query.limit > 0 ? query.limit : 8;
 
     const targetDateObj = new Date(targetDate + 'T12:00:00Z');
     const dow = targetDateObj.getDay();
@@ -149,53 +144,15 @@ export class GetDailyAttendanceBffUseCase {
       );
     }
 
-    const totalFiltered = tableRecords.length;
-    const totalPages = Math.ceil(totalFiltered / limit) || 1;
-    const startIndex = (page - 1) * limit;
-    const paginatedRecords = tableRecords.slice(startIndex, startIndex + limit);
-
     // 5. Active QR Session config for Terminal
     const activeQr = await this.rotateQrUseCase.getActiveSession();
 
     // 6. DB-Driven Filter Options (Zero Hardcoding, Scalable SSOT)
     const availableFilters = await this.repo.getAvailableFilterOptions();
 
-    // Dynamically guarantee any ad-hoc/legacy data present today also appears in filter options
-    for (const r of tableRecords) {
-      if (
-        r.shift &&
-        !availableFilters.shifts.some(
-          (s) =>
-            s.label.toLowerCase() === r.shift.toLowerCase() ||
-            s.value.toLowerCase() === r.rawShift?.toLowerCase(),
-        )
-      ) {
-        availableFilters.shifts.push({
-          label: r.shift,
-          value: r.rawShift || r.shift,
-        });
-      }
-      if (
-        r.kategori &&
-        !availableFilters.categories.some(
-          (c) =>
-            c.label.toLowerCase() === r.kategori.toLowerCase() ||
-            c.value.toLowerCase() === r.rawCategory?.toLowerCase(),
-        )
-      ) {
-        availableFilters.categories.push({
-          label: r.kategori,
-          value: r.rawCategory || r.kategori,
-        });
-      }
-    }
-
     return {
-      records: paginatedRecords,
-      total: totalFiltered,
-      page,
-      limit,
-      totalPages,
+      records: tableRecords,
+      total: tableRecords.length,
       summary: {
         total_staf: metrics.totalStaffCount,
         staf_hadir: metrics.presentCount,

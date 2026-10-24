@@ -171,7 +171,8 @@ export class XlsxExporter implements Exporter {
     sheet.addRow([]);
 
     // Row 6: Document Title (Centered)
-    const r6 = sheet.addRow([source.getTitle(ctx.params).toUpperCase()]);
+    const titleText = (await Promise.resolve(source.getTitle(ctx.params, ctx.userId))).toUpperCase();
+    const r6 = sheet.addRow([titleText]);
     sheet.mergeCells('A6:K6');
     r6.font = { bold: true, size: 11, color: { argb: 'FF0F172A' } };
     r6.alignment = { horizontal: 'center', vertical: 'middle' };
@@ -705,33 +706,31 @@ export class XlsxExporter implements Exporter {
     ctx: ExportContext,
     progress: IProgressReporter,
   ): Promise<number> {
-    const isAttendance = source.type === 'attendance';
-    const sheetTitle = isAttendance ? 'Riwayat Presensi' : 'Laporan Data';
+    const columnDefs = source.getColumnDefs ? source.getColumnDefs(ctx.params) : null;
+    const headers = columnDefs ? columnDefs.map((c) => c.header) : source.getHeaders(ctx.params);
+
+    const rawSheetTitle = source.getDetailsTitle
+      ? await Promise.resolve(source.getDetailsTitle(ctx.params, ctx.userId))
+      : 'Laporan Data';
+    const sheetTitle = rawSheetTitle.replace(/[\\/*?:[\]]/g, '').slice(0, 31);
 
     const sheet = workbook.addWorksheet(sheetTitle, {
       views: [{ showGridLines: true }],
     });
 
-    const headers = source.getHeaders(ctx.params);
-
-    if (isAttendance && headers.length === 9) {
-      sheet.columns = [
-        { key: 'colA', width: 6 }, // No
-        { key: 'colB', width: 16 }, // Tanggal
-        { key: 'colC', width: 16 }, // Shift Kerja
-        { key: 'colD', width: 14 }, // Jam Masuk
-        { key: 'colE', width: 14 }, // Jam Pulang
-        { key: 'colF', width: 20 }, // Keterlambatan (Mnt)
-        { key: 'colG', width: 22 }, // Durasi Efektif (Jam)
-        { key: 'colH', width: 18 }, // Status Kehadiran
-        { key: 'colI', width: 26 }, // Unit / Lokasi
-      ];
-    } else {
-      sheet.columns = headers.map((_, i) => ({
+    sheet.columns = headers.map((_, i) => {
+      const colDef = columnDefs?.[i];
+      let width = 20;
+      if (typeof colDef?.width === 'number') {
+        width = Math.max(8, Math.round(colDef.width / 4.5));
+      } else if (i === 0) {
+        width = 6;
+      }
+      return {
         key: `col_${i}`,
-        width: i === 0 ? 6 : 22,
-      }));
-    }
+        width,
+      };
+    });
 
     const colCount = headers.length;
 
@@ -783,14 +782,14 @@ export class XlsxExporter implements Exporter {
     sheet.addRow([]);
 
     // Row 6: Report Title (Centered)
-    const title = source.getTitle(ctx.params).toUpperCase();
+    const title = (await Promise.resolve(source.getTitle(ctx.params, ctx.userId))).toUpperCase();
     const r6 = sheet.addRow([title, ...new Array(colCount - 1).fill('')]);
     sheet.mergeCells(6, 1, 6, colCount);
     r6.font = { bold: true, size: 11, color: { argb: 'FF0F172A' } };
     r6.alignment = { horizontal: 'center', vertical: 'middle' };
 
     // Row 7: Subtitle
-    const subtitle = source.getSubtitle ? source.getSubtitle(ctx.params) : '';
+    const subtitle = source.getSubtitle ? await Promise.resolve(source.getSubtitle(ctx.params, ctx.userId)) : '';
     if (subtitle) {
       const r7 = sheet.addRow([subtitle, ...new Array(colCount - 1).fill('')]);
       sheet.mergeCells(7, 1, 7, colCount);
@@ -849,23 +848,18 @@ export class XlsxExporter implements Exporter {
           };
           cell.alignment = { vertical: 'middle' };
 
-          if (isAttendance) {
-            if (
-              colNumber === 1 ||
-              colNumber === 2 ||
-              colNumber === 3 ||
-              colNumber === 4 ||
-              colNumber === 5 ||
-              colNumber === 8
-            ) {
-              cell.alignment = { vertical: 'middle', horizontal: 'center' };
-            } else if (colNumber === 6) {
-              cell.numFmt = '#,##0';
-              cell.alignment = { vertical: 'middle', horizontal: 'right' };
-            } else if (colNumber === 7) {
-              cell.numFmt = '0.00';
-              cell.alignment = { vertical: 'middle', horizontal: 'right' };
-            }
+          const colDef = columnDefs?.[colNumber - 1];
+          if (colDef?.align) {
+            cell.alignment = { vertical: 'middle', horizontal: colDef.align };
+          } else if (colNumber === 1) {
+            cell.alignment = { vertical: 'middle', horizontal: 'center' };
+          }
+          if (colDef?.format === 'currency' || colDef?.format === 'number') {
+            cell.numFmt = '#,##0';
+            cell.alignment = { vertical: 'middle', horizontal: 'right' };
+          } else if (colDef?.format === 'decimal') {
+            cell.numFmt = '0.00';
+            cell.alignment = { vertical: 'middle', horizontal: 'right' };
           }
         });
       }

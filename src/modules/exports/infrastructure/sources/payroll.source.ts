@@ -11,7 +11,7 @@ import {
   payrollEntries,
   payrollPeriods,
 } from '../../../../database/schema/leave-payroll.schema';
-import { ExportSource } from '../../domain/export-source.interface';
+import { ExportColumnDef, ExportSource } from '../../domain/export-source.interface';
 import {
   DailyMatrixItem,
   LeaveDeductionItem,
@@ -87,20 +87,28 @@ export class PayrollExportSource implements ExportSource {
     return params.periodName ? `Periode: ${params.periodName}` : '';
   }
 
-  getHeaders(_params?: Record<string, any>): string[] {
+  getDetailsTitle(): string {
+    return 'RINCIAN TRANSAKSI PENGGAJIAN HARIAN';
+  }
+
+  getColumnDefs(): ExportColumnDef[] {
     return [
-      'No',
-      'Kode Pegawai',
-      'Nama Pegawai',
-      'Tanggal',
-      'Bulan',
-      'Tahun',
-      'Komponen Transaksi',
-      'Jenis Transaksi',
-      'Kuantitas (Jam)',
-      'Tarif Satuan (Rp)',
-      'Total Nominal (Rp)',
+      { header: 'No', width: 'auto', align: 'center' },
+      { header: 'Kode Pegawai', width: 'auto', align: 'center' },
+      { header: 'Nama Pegawai', width: '*', align: 'left' },
+      { header: 'Tanggal', width: 'auto', align: 'center' },
+      { header: 'Bulan', width: 'auto', align: 'center' },
+      { header: 'Tahun', width: 'auto', align: 'center' },
+      { header: 'Komponen Transaksi', width: 'auto', align: 'left' },
+      { header: 'Jenis Transaksi', width: 'auto', align: 'left' },
+      { header: 'Kuantitas (Jam)', width: 'auto', align: 'right', format: 'decimal' },
+      { header: 'Tarif Satuan (Rp)', width: 'auto', align: 'right', format: 'currency' },
+      { header: 'Total Nominal (Rp)', width: 'auto', align: 'right', format: 'currency' },
     ];
+  }
+
+  getHeaders(_params?: Record<string, any>): string[] {
+    return this.getColumnDefs().map((c) => c.header);
   }
 
   private async resolveStaffProfileId(

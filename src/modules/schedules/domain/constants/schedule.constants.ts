@@ -1,3 +1,5 @@
+import { isUUID } from 'class-validator';
+
 export const ACTIVE_APPOINTMENT_STATUSES = [
   'booked',
   'checked_in',
@@ -27,11 +29,8 @@ export const DEFAULT_CONSULTATION_DURATION_MINUTES =
 export const DEFAULT_START_PRECISION_MINUTES =
   CLINIC_POLICY_FALLBACK_CONFIG.startPrecisionMinutes;
 
-export const UUID_REGEX =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 export function isUuid(value: string | null | undefined): boolean {
-  return typeof value === 'string' && UUID_REGEX.test(value);
+  return typeof value === 'string' && isUUID(value);
 }
 
 export const INDO_DAYS = [

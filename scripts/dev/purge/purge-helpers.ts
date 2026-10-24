@@ -1,4 +1,5 @@
 import type * as readline from 'node:readline/promises';
+import { isUUID } from 'class-validator';
 
 export function printHeader(title: string): void {
   console.log('\n================================================================================');
@@ -50,5 +51,5 @@ export async function confirmPurge(
 }
 
 export function isUuid(str: string): boolean {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str.trim());
+  return isUUID(str.trim());
 }
