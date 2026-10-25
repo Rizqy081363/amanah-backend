@@ -72,8 +72,8 @@ export class PatientDrizzleRepository implements PatientRepository {
         birthDate: data.birthDate,
         bloodType: 'unknown',
         phone: data.phoneNumber,
-        motherName: data.namaIbuKandung || null,
-        occupation: data.pekerjaan || null,
+        motherName: data.motherName || null,
+        occupation: data.occupation || null,
         medicalHistorySummary: data.medicalHistory || null,
         avatarUrl: data.avatarUrl || null,
         status: 'active',
@@ -84,16 +84,16 @@ export class PatientDrizzleRepository implements PatientRepository {
       await this.db.insert(patientAddresses).values({
         patientId: record.id,
         type: 'domicile',
-        line1: data.alamatDetail || data.address,
+        line1: data.line1 || data.address,
         fullAddress: data.address,
-        provinceCode: data.provinsiId || null,
-        provinceName: data.provinsi || null,
-        regencyCode: data.kabupatenId || null,
-        regencyName: data.kabupaten || null,
-        districtCode: data.kecamatanId || null,
-        districtName: data.kecamatan || null,
-        villageCode: data.kelurahanId || null,
-        villageName: data.kelurahan || null,
+        provinceCode: data.provinceCode || null,
+        provinceName: data.provinceName || null,
+        regencyCode: data.regencyCode || null,
+        regencyName: data.regencyName || null,
+        districtCode: data.districtCode || null,
+        districtName: data.districtName || null,
+        villageCode: data.villageCode || null,
+        villageName: data.villageName || null,
         isPrimary: true,
       });
     }
@@ -163,7 +163,7 @@ export class PatientDrizzleRepository implements PatientRepository {
       phoneToUse = userRecord?.phone || '';
     }
 
-    const fullAddress = `${dto.alamat_detail}, Kel. ${dto.kelurahan}, Kec. ${dto.kecamatan}, ${dto.kabupaten}, Prov. ${dto.provinsi}`;
+    const fullAddress = `${dto.line1}, Kel. ${dto.villageName}, Kec. ${dto.districtName}, ${dto.regencyName}, Prov. ${dto.provinceName}`;
 
     const [record] = await this.db
       .insert(patientProfiles)
@@ -174,12 +174,12 @@ export class PatientDrizzleRepository implements PatientRepository {
         nationalIdHash: dto.nik,
         fullName: dto.name.trim(),
         gender: dbGender,
-        birthPlace: dto.tempat_lahir.trim(),
-        birthDate: dto.birth_date,
+        birthPlace: dto.birthPlace.trim(),
+        birthDate: dto.birthDate || dto.birth_date || '',
         bloodType: dbBloodType,
         phone: phoneToUse,
-        motherName: dto.nama_ibu_kandung.trim(),
-        occupation: dto.pekerjaan.trim(),
+        motherName: dto.motherName.trim(),
+        occupation: dto.occupation.trim(),
         status: 'active',
         registeredAt: new Date().toISOString(),
         firstLoginAt: new Date().toISOString(),
@@ -189,15 +189,15 @@ export class PatientDrizzleRepository implements PatientRepository {
     await this.db.insert(patientAddresses).values({
       patientId: record.id,
       type: 'domicile',
-      provinceCode: dto.provinsi_id,
-      provinceName: dto.provinsi,
-      regencyCode: dto.kabupaten_id,
-      regencyName: dto.kabupaten,
-      districtCode: dto.kecamatan_id,
-      districtName: dto.kecamatan,
-      villageCode: dto.kelurahan_id,
-      villageName: dto.kelurahan,
-      line1: dto.alamat_detail.trim(),
+      provinceCode: dto.provinceCode,
+      provinceName: dto.provinceName,
+      regencyCode: dto.regencyCode,
+      regencyName: dto.regencyName,
+      districtCode: dto.districtCode,
+      districtName: dto.districtName,
+      villageCode: dto.villageCode,
+      villageName: dto.villageName,
+      line1: dto.line1.trim(),
       fullAddress,
       isPrimary: true,
     });
@@ -433,31 +433,21 @@ export class PatientDrizzleRepository implements PatientRepository {
       updatedAt: new Date().toISOString(),
     };
 
-    const fullName = d.fullName ?? d.name;
-    if (fullName !== undefined) updateValues.fullName = fullName.trim();
-
-    const phone = d.phoneNumber ?? d.phone;
-    if (phone !== undefined) updateValues.phone = phone.trim();
-
-    const motherName = d.namaIbuKandung ?? d.nama_ibu_kandung;
-    if (motherName !== undefined) updateValues.motherName = motherName.trim();
-
-    const birthPlace = d.birthPlace ?? d.tempat_lahir;
-    if (birthPlace !== undefined) updateValues.birthPlace = birthPlace.trim();
-
-    const birthDate = d.birthDate ?? d.birth_date;
-    if (birthDate !== undefined) updateValues.birthDate = birthDate;
+    if (d.fullName !== undefined) updateValues.fullName = d.fullName.trim();
+    if (d.phoneNumber !== undefined) updateValues.phone = d.phoneNumber.trim();
+    if (d.motherName !== undefined) updateValues.motherName = d.motherName.trim();
+    if (d.birthPlace !== undefined) updateValues.birthPlace = d.birthPlace.trim();
+    if (d.birthDate !== undefined) updateValues.birthDate = d.birthDate;
 
     if (d.gender !== undefined) {
       updateValues.gender = d.gender;
     }
 
-    const bloodType = d.bloodType ?? d.blood_type;
-    if (bloodType !== undefined) {
-      updateValues.bloodType = normalizeBloodTypeToDb(bloodType);
+    if (d.bloodType !== undefined) {
+      updateValues.bloodType = normalizeBloodTypeToDb(d.bloodType);
     }
 
-    if (d.pekerjaan !== undefined) updateValues.occupation = d.pekerjaan.trim();
+    if (d.occupation !== undefined) updateValues.occupation = d.occupation.trim();
     if (d.medicalHistory !== undefined)
       updateValues.medicalHistorySummary = d.medicalHistory;
     if (d.avatarUrl !== undefined) updateValues.avatarUrl = d.avatarUrl;
@@ -488,28 +478,28 @@ export class PatientDrizzleRepository implements PatientRepository {
         .where(eq(patientProfiles.id, id));
     }
 
-    // Address handling
-    const alamatDetail = d.alamatDetail ?? d.alamat_detail;
-    const provinsi = d.provinsi;
-    const provinsiId = d.provinsiId ?? d.provinsi_id;
-    const kabupaten = d.kabupaten;
-    const kabupatenId = d.kabupatenId ?? d.kabupaten_id;
-    const kecamatan = d.kecamatan;
-    const kecamatanId = d.kecamatanId ?? d.kecamatan_id;
-    const kelurahan = d.kelurahan;
-    const kelurahanId = d.kelurahanId ?? d.kelurahan_id;
-    const address = d.address;
+    // Address handling (aligned with public.patient_addresses schema)
+    const line1 = d.line1;
+    const provinceName = d.provinceName;
+    const provinceCode = d.provinceCode;
+    const regencyName = d.regencyName;
+    const regencyCode = d.regencyCode;
+    const districtName = d.districtName;
+    const districtCode = d.districtCode;
+    const villageName = d.villageName;
+    const villageCode = d.villageCode;
+    const address = d.fullAddress ?? d.address;
 
     const hasAddressUpdate =
-      alamatDetail !== undefined ||
-      provinsi !== undefined ||
-      provinsiId !== undefined ||
-      kabupaten !== undefined ||
-      kabupatenId !== undefined ||
-      kecamatan !== undefined ||
-      kecamatanId !== undefined ||
-      kelurahan !== undefined ||
-      kelurahanId !== undefined ||
+      line1 !== undefined ||
+      provinceName !== undefined ||
+      provinceCode !== undefined ||
+      regencyName !== undefined ||
+      regencyCode !== undefined ||
+      districtName !== undefined ||
+      districtCode !== undefined ||
+      villageName !== undefined ||
+      villageCode !== undefined ||
       address !== undefined;
 
     if (hasAddressUpdate) {
@@ -518,21 +508,20 @@ export class PatientDrizzleRepository implements PatientRepository {
       });
 
       const line1ToUse = (
-        alamatDetail ??
+        line1 ??
         existingAddress?.line1 ??
         address ??
         ''
       ).trim();
 
-      const provNameToUse = provinsi ?? existingAddress?.provinceName ?? '';
-      const provCodeToUse = provinsiId ?? existingAddress?.provinceCode ?? null;
-      const regNameToUse = kabupaten ?? existingAddress?.regencyName ?? '';
-      const regCodeToUse = kabupatenId ?? existingAddress?.regencyCode ?? null;
-      const distNameToUse = kecamatan ?? existingAddress?.districtName ?? '';
-      const distCodeToUse =
-        kecamatanId ?? existingAddress?.districtCode ?? null;
-      const villNameToUse = kelurahan ?? existingAddress?.villageName ?? '';
-      const villCodeToUse = kelurahanId ?? existingAddress?.villageCode ?? null;
+      const provNameToUse = provinceName ?? existingAddress?.provinceName ?? '';
+      const provCodeToUse = provinceCode ?? existingAddress?.provinceCode ?? null;
+      const regNameToUse = regencyName ?? existingAddress?.regencyName ?? '';
+      const regCodeToUse = regencyCode ?? existingAddress?.regencyCode ?? null;
+      const distNameToUse = districtName ?? existingAddress?.districtName ?? '';
+      const distCodeToUse = districtCode ?? existingAddress?.districtCode ?? null;
+      const villNameToUse = villageName ?? existingAddress?.villageName ?? '';
+      const villCodeToUse = villageCode ?? existingAddress?.villageCode ?? null;
 
       let fullAddressToUse = address?.trim() || '';
       if (!fullAddressToUse && (line1ToUse || provNameToUse || regNameToUse)) {
@@ -586,10 +575,9 @@ export class PatientDrizzleRepository implements PatientRepository {
     }
 
     // Emergency contact handling
-    const emergencyName = d.emergencyContactName ?? d.nama_kontak_darurat;
-    const emergencyPhone = d.emergencyContactPhone ?? d.nomor_kontak_darurat;
-    const emergencyRel =
-      d.emergencyContactRelationship ?? d.hubungan_kontak_darurat;
+    const emergencyName = d.emergencyContactName;
+    const emergencyPhone = d.emergencyContactPhone;
+    const emergencyRel = d.emergencyContactRelationship;
 
     if (
       emergencyPhone !== undefined ||

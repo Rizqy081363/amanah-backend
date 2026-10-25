@@ -8,9 +8,9 @@ import {
   maternalScreeningQuestions,
   occupations,
 } from '../../../../database/schema';
+import { BACKEND_BLOOD_TYPE_OPTIONS } from '../../../patients/domain/data/patient-reference.data';
 import {
   BIRTH_ATTENDANT_OPTIONS,
-  BLOOD_TYPE_OPTIONS,
   CHILD_SEX_OPTIONS,
   CONTRACEPTIVE_TYPE_OPTIONS,
   DELIVERY_METHOD_OPTIONS,
@@ -105,7 +105,12 @@ export class MaternalCatalogService {
     return {
       educationLevels: EDUCATION_LEVEL_OPTIONS,
       religions: RELIGION_OPTIONS,
-      bloodTypes: BLOOD_TYPE_OPTIONS,
+      bloodTypes: BACKEND_BLOOD_TYPE_OPTIONS.map((b, index) => ({
+        code: b.value,
+        label: b.label,
+        description: b.description,
+        displayOrder: index + 1,
+      })),
       tetanusStatuses: TETANUS_STATUS_OPTIONS,
       deliveryMethods: DELIVERY_METHOD_OPTIONS,
       deliveryPlaces: DELIVERY_PLACE_OPTIONS,

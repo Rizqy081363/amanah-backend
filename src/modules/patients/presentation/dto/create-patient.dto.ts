@@ -55,12 +55,12 @@ export class CreatePatientDto {
   @ApiPropertyOptional({ example: 'Siti Aminah' })
   @IsString()
   @IsOptional()
-  namaIbuKandung?: string;
+  motherName?: string;
 
   @ApiPropertyOptional({ example: 'Karyawan Swasta' })
   @IsString()
   @IsOptional()
-  pekerjaan?: string;
+  occupation?: string;
 
   @ApiPropertyOptional({ example: 'Tidak ada riwayat alergi berat' })
   @IsString()

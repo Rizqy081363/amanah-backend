@@ -16,6 +16,7 @@ import { SYSTEM_ROLES, type SystemRole } from '../../auth/constants/auth.constan
 import { DRIZZLE_SOURCE } from '../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../database/drizzle/drizzle.provider';
 import { users } from '../../database/schema';
+import { formatBloodTypeDisplay } from '../../modules/patients/domain/data/patient-reference.data';
 import { STAFF_ROLE_CODES } from '../../modules/staffs/domain/constants/staff-invitation.constants';
 import { RedisService } from '../redis/redis.service';
 import { IS_PUBLIC_KEY } from './public.decorator';
@@ -174,12 +175,7 @@ export class HybridAuthGuard extends AuthGuard('jwt') implements CanActivate {
                   : (patientProfile.birthDate as any)
                       ?.toISOString?.()
                       ?.slice(0, 10) || null,
-              bloodType:
-                patientProfile.bloodType === 'unknown'
-                  ? 'Belum Tahu'
-                  : (patientProfile.bloodType?.toUpperCase() ??
-                    patientProfile.bloodType ??
-                    null),
+              bloodType: formatBloodTypeDisplay(patientProfile.bloodType),
               phoneNumber: patientProfile.phone,
               status: patientProfile.status,
             }

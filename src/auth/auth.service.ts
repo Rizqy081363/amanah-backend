@@ -47,6 +47,7 @@ import {
   type StaffType,
 } from '../modules/staffs/domain/constants/staff-invitation.constants';
 import { MEDICAL_SPECIALTY_CODES } from '../modules/clinics/domain/constants/medical-specialty.constants';
+import { formatBloodTypeDisplay } from '../modules/patients/domain/data/patient-reference.data';
 import { auth } from './better-auth/auth';
 import {
   AUTH_ERROR_CODES,
@@ -542,13 +543,10 @@ export class AuthService {
             typeof p.birthDate === 'string'
               ? p.birthDate
               : p.birthDate?.toISOString?.()?.slice(0, 10) || null,
-          bloodType:
-            p.bloodType === 'unknown'
-              ? 'Belum Tahu'
-              : (p.bloodType?.toUpperCase() ?? p.bloodType ?? null),
+          bloodType: formatBloodTypeDisplay(p.bloodType),
           phoneNumber: p.phone,
-          namaIbuKandung: p.motherName || null,
-          pekerjaan: p.occupation || null,
+          motherName: p.motherName || null,
+          occupation: p.occupation || null,
           address: primaryAddress?.fullAddress || '',
           alamatDetail: primaryAddress?.line1 || null,
           provinsi: primaryAddress?.provinceName || null,

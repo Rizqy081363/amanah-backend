@@ -379,6 +379,13 @@
       "when": 1791337000000,
       "tag": "0053_export_jobs_architecture",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1791338000000,
+      "tag": "0054_sync_better_auth_avatar_url",
+      "breakpoints": true
     }
   ]
 }

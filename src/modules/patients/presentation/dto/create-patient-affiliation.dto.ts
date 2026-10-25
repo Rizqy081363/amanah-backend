@@ -7,7 +7,6 @@ import {
   IsString,
   Matches,
 } from 'class-validator';
-import { VALID_BLOOD_TYPE_VALUES } from '../../domain/data/patient-reference.data';
 
 export class CreatePatientAffiliationDto {
   @ApiPropertyOptional({
@@ -16,7 +15,7 @@ export class CreatePatientAffiliationDto {
   })
   @IsString()
   @IsOptional()
-  patient_id?: string;
+  patientId?: string;
 
   @ApiProperty({
     example: 'parent',
@@ -25,7 +24,7 @@ export class CreatePatientAffiliationDto {
   })
   @IsNotEmpty({ message: 'Pilih tipe hubungan' })
   @IsIn(['self', 'parent', 'child', 'spouse', 'relative', 'friend', 'other'])
-  relationship_type:
+  relationshipType:
     | 'self'
     | 'parent'
     | 'child'
@@ -40,7 +39,7 @@ export class CreatePatientAffiliationDto {
   })
   @IsString()
   @IsOptional()
-  relation_label?: string;
+  relationLabel?: string;
 
   @ApiPropertyOptional({
     example: false,
@@ -48,7 +47,7 @@ export class CreatePatientAffiliationDto {
   })
   @IsBoolean()
   @IsOptional()
-  is_primary?: boolean;
+  isPrimary?: boolean;
 
   @ApiPropertyOptional({ example: 'Siti Aminah' })
   @IsString()
@@ -64,12 +63,12 @@ export class CreatePatientAffiliationDto {
   @ApiPropertyOptional({ example: 'Bandung' })
   @IsString()
   @IsOptional()
-  tempat_lahir?: string;
+  birthPlace?: string;
 
   @ApiPropertyOptional({ example: '1968-05-12' })
   @IsString()
   @IsOptional()
-  birth_date?: string;
+  birthDate?: string;
 
   @ApiPropertyOptional({
     example: 'female',
@@ -80,29 +79,27 @@ export class CreatePatientAffiliationDto {
   gender?: 'male' | 'female';
 
   @ApiPropertyOptional({
-    example: 'B',
+    example: 'b_positive',
     description: 'Golongan darah afiliasi',
   })
+  @IsString()
   @IsOptional()
-  @IsIn([...VALID_BLOOD_TYPE_VALUES], {
-    message: 'Pilih golongan darah standar atau simbol rhesus yang valid',
-  })
-  blood_type?: string;
+  bloodType?: string;
 
   @ApiPropertyOptional({ example: 'Siti Rohmah' })
   @IsString()
   @IsOptional()
-  nama_ibu_kandung?: string;
+  motherName?: string;
 
   @ApiPropertyOptional({ example: '550e8400-e29b-41d4-a716-446655440001' })
   @IsString()
   @IsOptional()
-  occupation_id?: string;
+  occupationId?: string;
 
   @ApiPropertyOptional({ example: 'Ibu Rumah Tangga' })
   @IsString()
   @IsOptional()
-  pekerjaan?: string;
+  occupation?: string;
 
   @ApiPropertyOptional({ example: '081234567891' })
   @IsString()
@@ -117,45 +114,45 @@ export class CreatePatientAffiliationDto {
   @ApiPropertyOptional({ example: 'Jawa Barat' })
   @IsString()
   @IsOptional()
-  provinsi?: string;
+  provinceName?: string;
 
   @ApiPropertyOptional({ example: '32' })
   @IsString()
   @IsOptional()
-  provinsi_id?: string;
+  provinceCode?: string;
 
   @ApiPropertyOptional({ example: 'Kota Bandung' })
   @IsString()
   @IsOptional()
-  kabupaten?: string;
+  regencyName?: string;
 
   @ApiPropertyOptional({ example: '3273' })
   @IsString()
   @IsOptional()
-  kabupaten_id?: string;
+  regencyCode?: string;
 
   @ApiPropertyOptional({ example: 'Coblong' })
   @IsString()
   @IsOptional()
-  kecamatan?: string;
+  districtName?: string;
 
   @ApiPropertyOptional({ example: '327301' })
   @IsString()
   @IsOptional()
-  kecamatan_id?: string;
+  districtCode?: string;
 
   @ApiPropertyOptional({ example: 'Dago' })
   @IsString()
   @IsOptional()
-  kelurahan?: string;
+  villageName?: string;
 
   @ApiPropertyOptional({ example: '3273011001' })
   @IsString()
   @IsOptional()
-  kelurahan_id?: string;
+  villageCode?: string;
 
   @ApiPropertyOptional({ example: 'Jl. Dago Asri No. 10' })
   @IsString()
   @IsOptional()
-  alamat_detail?: string;
+  line1?: string;
 }

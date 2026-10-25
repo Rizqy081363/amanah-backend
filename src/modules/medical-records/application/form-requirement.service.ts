@@ -9,6 +9,7 @@ import {
   patientAddresses,
   patientProfiles,
 } from '../../../database/schema/amanah.schema';
+import { formatBloodTypeDisplay } from '../../patients/domain/data/patient-reference.data';
 
 export interface FormRequirementResponse {
   flow: 'immunization' | 'pregnancy' | 'general';
@@ -109,12 +110,7 @@ export class FormRequirementService {
     const normalizedGender = patient.gender || null;
 
     const rawBlood = patient.bloodType as string | null | undefined;
-    const normalizedBlood =
-      rawBlood && rawBlood !== 'unknown'
-        ? rawBlood === 'Belum Tahu'
-          ? 'Belum Tahu'
-          : rawBlood.toUpperCase()
-        : 'Belum Tahu';
+    const normalizedBlood = formatBloodTypeDisplay(rawBlood);
 
     const patientNik =
       patient.nationalIdEncrypted || patient.nationalIdHash || '';
@@ -187,7 +183,7 @@ export class FormRequirementService {
         partnerName: latestIntake?.partnerName || '',
         partnerNik: latestIntake?.partnerNik || '',
         partnerJob: latestIntake?.partnerJob || '',
-        partnerBloodType: latestIntake?.partnerBloodType || 'Belum Tahu',
+        partnerBloodType: latestIntake?.partnerBloodType || 'unknown',
         motherJob: latestIntake?.motherJob || patient.occupation || '',
         motherEducation: latestIntake?.motherEducation || '',
         religion: latestIntake?.religion || '',

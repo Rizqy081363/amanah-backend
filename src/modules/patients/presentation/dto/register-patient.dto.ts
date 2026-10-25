@@ -7,7 +7,6 @@ import {
   Matches,
   MinLength,
 } from 'class-validator';
-import { VALID_BLOOD_TYPE_VALUES } from '../../domain/data/patient-reference.data';
 
 export class RegisterPatientDto {
   @ApiProperty({
@@ -37,7 +36,7 @@ export class RegisterPatientDto {
   @IsString({ message: 'Nama ibu kandung harus berupa teks' })
   @IsNotEmpty({ message: 'Nama ibu kandung tidak boleh kosong' })
   @MinLength(3, { message: 'Nama ibu kandung minimal 3 karakter' })
-  nama_ibu_kandung: string;
+  motherName: string;
 
   @ApiProperty({
     example: 'Bandung',
@@ -47,18 +46,20 @@ export class RegisterPatientDto {
   @IsString({ message: 'Tempat lahir harus berupa teks' })
   @IsNotEmpty({ message: 'Tempat lahir tidak boleh kosong' })
   @MinLength(2, { message: 'Tempat lahir minimal 2 karakter' })
-  tempat_lahir: string;
+  birthPlace: string;
 
   @ApiProperty({
     example: '1995-05-12',
     description: 'Tanggal lahir pasien dengan format ISO YYYY-MM-DD',
   })
   @IsString({ message: 'Tanggal lahir harus berupa teks' })
-  @IsNotEmpty({ message: 'Tanggal lahir tidak boleh kosong' })
-  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
-    message: 'Format tanggal lahir harus YYYY-MM-DD',
-  })
-  birth_date: string;
+  @IsOptional()
+  birthDate?: string;
+
+  @ApiPropertyOptional({ example: '1995-05-12' })
+  @IsString()
+  @IsOptional()
+  birth_date?: string;
 
   @ApiProperty({
     example: 'male',
@@ -75,21 +76,19 @@ export class RegisterPatientDto {
     example: 'O',
     description: 'Golongan darah pasien',
   })
+  @IsString({ message: 'Golongan darah harus berupa teks' })
   @IsNotEmpty({ message: 'Pilih golongan darah' })
-  @IsIn([...VALID_BLOOD_TYPE_VALUES], {
-    message: 'Pilih golongan darah standar atau simbol rhesus yang valid',
-  })
   blood_type: string;
 
   @ApiProperty({ example: 'Jawa Barat', description: 'Nama provinsi domisili' })
   @IsString()
   @IsNotEmpty({ message: 'Pilih provinsi domisili' })
-  provinsi: string;
+  provinceName: string;
 
   @ApiProperty({ example: '32', description: 'Kode identifikasi provinsi' })
   @IsString()
   @IsNotEmpty({ message: 'Kode provinsi tidak boleh kosong' })
-  provinsi_id: string;
+  provinceCode: string;
 
   @ApiProperty({
     example: 'Kota Bandung',
@@ -97,7 +96,7 @@ export class RegisterPatientDto {
   })
   @IsString()
   @IsNotEmpty({ message: 'Pilih kota atau kabupaten domisili' })
-  kabupaten: string;
+  regencyName: string;
 
   @ApiProperty({
     example: '3273',
@@ -105,7 +104,7 @@ export class RegisterPatientDto {
   })
   @IsString()
   @IsNotEmpty({ message: 'Kode kabupaten tidak boleh kosong' })
-  kabupaten_id: string;
+  regencyCode: string;
 
   @ApiProperty({
     example: 'Coblong',
@@ -113,7 +112,7 @@ export class RegisterPatientDto {
   })
   @IsString()
   @IsNotEmpty({ message: 'Pilih kecamatan domisili' })
-  kecamatan: string;
+  districtName: string;
 
   @ApiProperty({
     example: '327301',
@@ -121,7 +120,7 @@ export class RegisterPatientDto {
   })
   @IsString()
   @IsNotEmpty({ message: 'Kode kecamatan tidak boleh kosong' })
-  kecamatan_id: string;
+  districtCode: string;
 
   @ApiProperty({
     example: 'Dago',
@@ -129,7 +128,7 @@ export class RegisterPatientDto {
   })
   @IsString()
   @IsNotEmpty({ message: 'Pilih kelurahan atau desa domisili' })
-  kelurahan: string;
+  villageName: string;
 
   @ApiProperty({
     example: '3273011001',
@@ -137,7 +136,7 @@ export class RegisterPatientDto {
   })
   @IsString()
   @IsNotEmpty({ message: 'Kode kelurahan tidak boleh kosong' })
-  kelurahan_id: string;
+  villageCode: string;
 
   @ApiProperty({
     example: 'Jl. Ir. H. Juanda No. 123, RT 02 / RW 05',
@@ -148,7 +147,7 @@ export class RegisterPatientDto {
   @IsString({ message: 'Alamat detail harus berupa teks' })
   @IsNotEmpty({ message: 'Alamat detail tidak boleh kosong' })
   @MinLength(5, { message: 'Alamat detail minimal 5 karakter' })
-  alamat_detail: string;
+  line1: string;
 
   @ApiProperty({
     example: 'Karyawan Swasta',
@@ -158,7 +157,7 @@ export class RegisterPatientDto {
   @IsString({ message: 'Pekerjaan harus berupa teks' })
   @IsNotEmpty({ message: 'Pekerjaan tidak boleh kosong' })
   @MinLength(2, { message: 'Pekerjaan minimal 2 karakter' })
-  pekerjaan: string;
+  occupation: string;
 
   @ApiPropertyOptional({
     example: '081234567890',

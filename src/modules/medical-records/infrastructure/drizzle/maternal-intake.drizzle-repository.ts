@@ -51,7 +51,7 @@ export class MaternalIntakeDrizzleRepository {
           targetMotherBirthDate = targetMotherBirthDate || patient.birthDate;
           targetPhone = targetPhone || patient.phone || '';
           targetBloodType =
-            targetBloodType || patient.bloodType || 'Belum Tahu';
+            targetBloodType || patient.bloodType || 'unknown';
         }
       }
 

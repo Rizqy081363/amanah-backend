@@ -47,7 +47,8 @@ export interface AttendanceBFFResponse {
     sparkline_tingkat_kehadiran: Array<{ label: string; value: number }>;
   };
   qrConfig: {
-    status_presensi: string;
+    status: string;
+    isActive: boolean;
     qr_code_identifier: string;
     qr_context: string;
     qr_validity: string;

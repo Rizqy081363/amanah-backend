@@ -168,7 +168,8 @@ export class GetDailyAttendanceBffUseCase {
         sparkline_tingkat_kehadiran: metrics.sparklineRate,
       },
       qrConfig: {
-        status_presensi: activeQr.isActive ? 'Aktif' : 'Tidak aktif',
+        status: activeQr.isActive ? 'active' : 'inactive',
+        isActive: activeQr.isActive,
         qr_code_identifier: activeQr.qrCodeIdentifier,
         qr_context: activeQr.context || 'Terminal Utama Presensi',
         qr_validity: activeQr.validUntil.toLocaleTimeString('id-ID'),

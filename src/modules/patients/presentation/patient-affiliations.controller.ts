@@ -64,8 +64,8 @@ function mapEnrichedPatient(
     bloodType: p?.bloodType || null,
     birthPlace: p?.birthPlace || null,
     birthDate: p?.birthDate || null,
-    motherName: p?.namaIbuKandung || null,
-    address: p?.address || p?.alamatDetail || null,
+    motherName: p?.motherName || null,
+    address: p?.address || null,
     alamatDetail: p?.alamatDetail || null,
     provinsi: p?.provinsi || null,
     provinsiId: p?.provinsiId || null,
@@ -89,9 +89,8 @@ function mapEnrichedPatient(
             : aff.relationshipType === 'parent'
               ? 'Orang Tua'
               : aff.relationshipType),
-    occupationName: p?.pekerjaan || null,
+    occupationName: p?.occupation || null,
     status: pStatus,
-    isActive: pStatus === 'active',
     hasExistingIntake: forceIntakeTrue ? true : Boolean(latestIntake),
     latestIntakeId: latestIntake?.id || null,
     latestIntakeDate: latestIntake?.createdAt || null,
@@ -293,7 +292,7 @@ export class PatientAffiliationsController {
     @CurrentUser() user: any,
     @Body() dto: CreatePatientAffiliationDto,
   ) {
-    if (dto.relationship_type === 'self' || dto.is_primary) {
+    if (dto.relationshipType === 'self' || dto.isPrimary) {
       const existingUserAffiliations = await this.affiliationRepo.findByUserId(user.id);
       const hasSelf = existingUserAffiliations.some(
         (aff) => aff.relationshipType === 'self' || aff.isPrimary,
@@ -306,10 +305,10 @@ export class PatientAffiliationsController {
       }
     }
 
-    let targetPatientId = dto.patient_id;
+    let targetPatientId = dto.patientId;
 
     if (!targetPatientId) {
-      if (!dto.name || !dto.nik || !dto.birth_date || !dto.gender) {
+      if (!dto.name || !dto.nik || !dto.birthDate || !dto.gender) {
         throw new BadRequestException({
           code: 'INCOMPLETE_DEMOGRAPHIC_DATA',
           message:
@@ -322,23 +321,24 @@ export class PatientAffiliationsController {
       if (existingPatient) {
         targetPatientId = existingPatient.id;
         const updates: Record<string, any> = {};
+        const newBloodType = dto.bloodType
+          ? normalizeBloodTypeToDb(dto.bloodType)
+          : 'unknown';
         if (
           (!existingPatient.bloodType ||
-            existingPatient.bloodType === 'unknown' ||
-            existingPatient.bloodType === 'Belum Tahu') &&
-          dto.blood_type &&
-          dto.blood_type !== 'Belum Tahu'
+            existingPatient.bloodType === 'unknown') &&
+          newBloodType !== 'unknown'
         ) {
-          updates.bloodType = normalizeBloodTypeToDb(dto.blood_type);
+          updates.bloodType = newBloodType;
         }
-        if (!existingPatient.pekerjaan && dto.pekerjaan) {
-          updates.occupation = dto.pekerjaan.trim();
+        if (!existingPatient.occupation && dto.occupation) {
+          updates.occupation = dto.occupation.trim();
         }
-        if (!existingPatient.namaIbuKandung && dto.nama_ibu_kandung) {
-          updates.motherName = dto.nama_ibu_kandung.trim();
+        if (!existingPatient.motherName && dto.motherName) {
+          updates.motherName = dto.motherName.trim();
         }
-        if (!existingPatient.birthPlace && dto.tempat_lahir) {
-          updates.birthPlace = dto.tempat_lahir.trim();
+        if (!existingPatient.birthPlace && dto.birthPlace) {
+          updates.birthPlace = dto.birthPlace.trim();
         }
         if (
           dto.phone?.trim() &&
@@ -348,8 +348,6 @@ export class PatientAffiliationsController {
         }
         if (dto.email?.trim() && dto.email.trim() !== existingPatient.email) {
           updates.email = dto.email.trim();
-        } else if (!existingPatient.email) {
-          updates.email = user.email || null;
         }
         if (Object.keys(updates).length > 0) {
           updates.updatedAt = new Date().toISOString();
@@ -383,25 +381,25 @@ export class PatientAffiliationsController {
         const rmNumber = `${prefix}${String(nextSequence).padStart(4, '0')}`;
 
         const dbGender = dto.gender || 'male';
-        const dbBloodType = normalizeBloodTypeToDb(dto.blood_type);
+        const dbBloodType = normalizeBloodTypeToDb(dto.bloodType);
 
         const [newProfile] = await this.db
           .insert(patientProfiles)
           .values({
-            userId: dto.relationship_type === 'self' ? user.id : null,
-            occupationId: dto.occupation_id || null,
+            userId: dto.relationshipType === 'self' ? user.id : null,
+            occupationId: dto.occupationId || null,
             medicalRecordNumber: rmNumber,
             nationalIdEncrypted: dto.nik,
             nationalIdHash: dto.nik,
             fullName: dto.name.trim(),
             gender: dbGender,
-            birthPlace: dto.tempat_lahir?.trim() || '',
-            birthDate: dto.birth_date,
+            birthPlace: dto.birthPlace?.trim() || '',
+            birthDate: dto.birthDate,
             bloodType: dbBloodType,
             phone: dto.phone?.trim() || null,
-            email: dto.email?.trim() || user.email || null,
-            motherName: dto.nama_ibu_kandung?.trim() || null,
-            occupation: dto.pekerjaan?.trim() || null,
+            email: dto.email?.trim() || null,
+            motherName: dto.motherName?.trim() || null,
+            occupation: dto.occupation?.trim() || null,
             status: 'active',
             registeredAt: new Date().toISOString(),
           })
@@ -409,21 +407,31 @@ export class PatientAffiliationsController {
 
         targetPatientId = newProfile.id;
 
-        if (dto.alamat_detail || dto.provinsi) {
+        const line1 = dto.line1?.trim() || '';
+        const provinceName = dto.provinceName || null;
+        const provinceCode = dto.provinceCode || null;
+        const regencyName = dto.regencyName || null;
+        const regencyCode = dto.regencyCode || null;
+        const districtName = dto.districtName || null;
+        const districtCode = dto.districtCode || null;
+        const villageName = dto.villageName || null;
+        const villageCode = dto.villageCode || null;
+
+        if (line1 || provinceName) {
           const fullAddress =
-            `${dto.alamat_detail || ''}, ${dto.kelurahan ? `Kel. ${dto.kelurahan}, ` : ''}${dto.kecamatan ? `Kec. ${dto.kecamatan}, ` : ''}${dto.kabupaten || ''}, Prov. ${dto.provinsi || ''}`.trim();
+            `${line1}, ${villageName ? `Kel. ${villageName}, ` : ''}${districtName ? `Kec. ${districtName}, ` : ''}${regencyName || ''}, Prov. ${provinceName || ''}`.trim();
           await this.db.insert(patientAddresses).values({
             patientId: newProfile.id,
             type: 'domicile',
-            provinceCode: dto.provinsi_id || null,
-            provinceName: dto.provinsi || null,
-            regencyCode: dto.kabupaten_id || null,
-            regencyName: dto.kabupaten || null,
-            districtCode: dto.kecamatan_id || null,
-            districtName: dto.kecamatan || null,
-            villageCode: dto.kelurahan_id || null,
-            villageName: dto.kelurahan || null,
-            line1: dto.alamat_detail?.trim() || fullAddress,
+            provinceCode,
+            provinceName,
+            regencyCode,
+            regencyName,
+            districtCode,
+            districtName,
+            villageCode,
+            villageName,
+            line1: line1 || fullAddress,
             fullAddress,
             isPrimary: true,
           });
@@ -434,9 +442,9 @@ export class PatientAffiliationsController {
     const createdAffiliation = await this.affiliationRepo.create({
       userId: user.id,
       patientId: targetPatientId,
-      relationshipType: dto.relationship_type,
-      relationLabel: dto.relation_label || null,
-      isPrimary: dto.is_primary ?? false,
+      relationshipType: dto.relationshipType,
+      relationLabel: dto.relationLabel || null,
+      isPrimary: dto.isPrimary ?? false,
     });
 
     return {

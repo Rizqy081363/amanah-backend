@@ -8,7 +8,6 @@ import {
   MinLength,
   ValidateIf,
 } from 'class-validator';
-import { VALID_BLOOD_TYPE_VALUES } from '../../domain/data/patient-reference.data';
 
 export class UpdatePatientDto {
   @ApiPropertyOptional({
@@ -41,19 +40,11 @@ export class UpdatePatientDto {
 
   @ApiPropertyOptional({
     example: 'Siti Aminah',
-    description: 'Nama ibu kandung (camelCase)',
+    description: 'Nama ibu kandung',
   })
   @IsString()
   @IsOptional()
-  namaIbuKandung?: string;
-
-  @ApiPropertyOptional({
-    example: 'Siti Aminah',
-    description: 'Nama ibu kandung (alias snake_case)',
-  })
-  @IsString()
-  @IsOptional()
-  nama_ibu_kandung?: string;
+  motherName?: string;
 
   @ApiPropertyOptional({
     example: 'Bandung',
@@ -62,14 +53,6 @@ export class UpdatePatientDto {
   @IsString()
   @IsOptional()
   birthPlace?: string;
-
-  @ApiPropertyOptional({
-    example: 'Bandung',
-    description: 'Kota/kabupaten tempat lahir (alias snake_case)',
-  })
-  @IsString()
-  @IsOptional()
-  tempat_lahir?: string;
 
   @ApiPropertyOptional({
     example: '1995-05-12',
@@ -110,20 +93,16 @@ export class UpdatePatientDto {
     example: 'O',
     description: 'Golongan darah (camelCase)',
   })
+  @IsString()
   @IsOptional()
-  @IsIn([...VALID_BLOOD_TYPE_VALUES], {
-    message: 'Pilih golongan darah standar atau simbol rhesus yang valid',
-  })
   bloodType?: string;
 
   @ApiPropertyOptional({
     example: 'O',
     description: 'Golongan darah (alias snake_case)',
   })
+  @IsString()
   @IsOptional()
-  @IsIn([...VALID_BLOOD_TYPE_VALUES], {
-    message: 'Pilih golongan darah standar atau simbol rhesus yang valid',
-  })
   blood_type?: string;
 
   @ApiPropertyOptional({
@@ -148,7 +127,7 @@ export class UpdatePatientDto {
   })
   @IsString()
   @IsOptional()
-  pekerjaan?: string;
+  occupation?: string;
 
   @ApiPropertyOptional({
     example: 'Jl. Dago Asri No. 10, Bandung',
@@ -159,164 +138,108 @@ export class UpdatePatientDto {
   address?: string;
 
   @ApiPropertyOptional({
-    example: 'Jl. Ir. H. Juanda No. 123, RT 02 / RW 05',
-    description: 'Alamat jalan, RT/RW, nomor rumah (camelCase)',
+    example: 'Jl. Dago Asri No. 10, Bandung',
+    description: 'Alamat lengkap string terpadu (canonical)',
   })
   @IsString()
   @IsOptional()
-  alamatDetail?: string;
+  fullAddress?: string;
 
   @ApiPropertyOptional({
     example: 'Jl. Ir. H. Juanda No. 123, RT 02 / RW 05',
-    description: 'Alamat jalan, RT/RW, nomor rumah (alias snake_case)',
+    description: 'Alamat jalan, RT/RW, nomor rumah (canonical)',
   })
   @IsString()
   @IsOptional()
-  alamat_detail?: string;
+  line1?: string;
 
   @ApiPropertyOptional({
     example: 'Jawa Barat',
-    description: 'Nama provinsi',
+    description: 'Nama provinsi (canonical)',
   })
   @IsString()
   @IsOptional()
-  provinsi?: string;
+  provinceName?: string;
 
   @ApiPropertyOptional({
     example: '32',
-    description: 'Kode identifikasi provinsi (camelCase)',
+    description: 'Kode identifikasi provinsi (canonical)',
   })
   @IsString()
   @IsOptional()
-  provinsiId?: string;
-
-  @ApiPropertyOptional({
-    example: '32',
-    description: 'Kode identifikasi provinsi (alias snake_case)',
-  })
-  @IsString()
-  @IsOptional()
-  provinsi_id?: string;
+  provinceCode?: string;
 
   @ApiPropertyOptional({
     example: 'Kota Bandung',
-    description: 'Nama kabupaten/kota',
+    description: 'Nama kabupaten/kota (canonical)',
   })
   @IsString()
   @IsOptional()
-  kabupaten?: string;
+  regencyName?: string;
 
   @ApiPropertyOptional({
     example: '3273',
-    description: 'Kode identifikasi kabupaten/kota (camelCase)',
+    description: 'Kode identifikasi kabupaten/kota (canonical)',
   })
   @IsString()
   @IsOptional()
-  kabupatenId?: string;
-
-  @ApiPropertyOptional({
-    example: '3273',
-    description: 'Kode identifikasi kabupaten/kota (alias snake_case)',
-  })
-  @IsString()
-  @IsOptional()
-  kabupaten_id?: string;
+  regencyCode?: string;
 
   @ApiPropertyOptional({
     example: 'Coblong',
-    description: 'Nama kecamatan',
+    description: 'Nama kecamatan (canonical)',
   })
   @IsString()
   @IsOptional()
-  kecamatan?: string;
+  districtName?: string;
 
   @ApiPropertyOptional({
     example: '327301',
-    description: 'Kode identifikasi kecamatan (camelCase)',
+    description: 'Kode identifikasi kecamatan (canonical)',
   })
   @IsString()
   @IsOptional()
-  kecamatanId?: string;
-
-  @ApiPropertyOptional({
-    example: '327301',
-    description: 'Kode identifikasi kecamatan (alias snake_case)',
-  })
-  @IsString()
-  @IsOptional()
-  kecamatan_id?: string;
+  districtCode?: string;
 
   @ApiPropertyOptional({
     example: 'Dago',
-    description: 'Nama kelurahan/desa',
+    description: 'Nama kelurahan/desa (canonical)',
   })
   @IsString()
   @IsOptional()
-  kelurahan?: string;
+  villageName?: string;
 
   @ApiPropertyOptional({
     example: '3273011001',
-    description: 'Kode identifikasi kelurahan/desa (camelCase)',
+    description: 'Kode identifikasi kelurahan/desa (canonical)',
   })
   @IsString()
   @IsOptional()
-  kelurahanId?: string;
-
-  @ApiPropertyOptional({
-    example: '3273011001',
-    description: 'Kode identifikasi kelurahan/desa (alias snake_case)',
-  })
-  @IsString()
-  @IsOptional()
-  kelurahan_id?: string;
+  villageCode?: string;
 
   @ApiPropertyOptional({
     example: 'Ahmad Fauzi',
-    description: 'Nama kontak darurat (camelCase)',
+    description: 'Nama kontak darurat',
   })
   @IsString()
   @IsOptional()
   emergencyContactName?: string;
 
   @ApiPropertyOptional({
-    example: 'Ahmad Fauzi',
-    description: 'Nama kontak darurat (alias snake_case)',
-  })
-  @IsString()
-  @IsOptional()
-  nama_kontak_darurat?: string;
-
-  @ApiPropertyOptional({
     example: '081298765432',
-    description: 'Nomor telepon kontak darurat (camelCase)',
+    description: 'Nomor telepon kontak darurat',
   })
   @IsString()
   @IsOptional()
   emergencyContactPhone?: string;
 
   @ApiPropertyOptional({
-    example: '081298765432',
-    description: 'Nomor telepon kontak darurat (alias snake_case)',
-  })
-  @IsString()
-  @IsOptional()
-  nomor_kontak_darurat?: string;
-
-  @ApiPropertyOptional({
     example: 'Suami',
-    description: 'Hubungan dengan kontak darurat (camelCase)',
+    description: 'Hubungan dengan kontak darurat',
   })
   @IsString()
   @IsOptional()
   emergencyContactRelationship?: string;
-
-  @ApiPropertyOptional({
-    example: 'Suami',
-    description: 'Hubungan dengan kontak darurat (alias snake_case)',
-  })
-  @IsString()
-  @IsOptional()
-  hubungan_kontak_darurat?: string;
 
   @ApiPropertyOptional({
     example: 'Riwayat asma alergi dingin',
