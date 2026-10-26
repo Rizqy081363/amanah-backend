@@ -8,7 +8,7 @@
       "@common/*": ["src/common/*"]
     },
     "module": "commonjs",
-    "declaration": true,
+    "declaration": false,
     "removeComments": true,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
