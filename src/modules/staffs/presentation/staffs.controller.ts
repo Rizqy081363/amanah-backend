@@ -39,6 +39,7 @@ import {
   Roles,
   RolesGuard,
 } from '../../../common/auth';
+import { SYSTEM_ROLES } from '../../../auth/constants/auth.constants';
 import { AvatarService } from '../../avatar/avatar.service';
 import {
   STAFF_REPOSITORY,
@@ -74,7 +75,7 @@ export class StaffsController {
   ) {}
 
   @Get('me')
-  @Roles('ADMIN', 'STAF')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
   @ApiOperation({
     summary: 'Mendapatkan profil dan Kartu ID digital staf login',
     description:
@@ -95,7 +96,7 @@ export class StaffsController {
   }
 
   @Patch('me')
-  @Roles('ADMIN', 'STAF')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
   @ApiOperation({
     summary: 'Memperbarui profil staf login saat ini (Self-Update)',
     description:
@@ -135,7 +136,7 @@ export class StaffsController {
   }
 
   @Patch('me/avatar')
-  @Roles('ADMIN', 'STAF')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
   @UseInterceptors(
     FileInterceptor('file', {
       limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
@@ -171,7 +172,7 @@ export class StaffsController {
   }
 
   @Post('me/avatar')
-  @Roles('ADMIN', 'STAF')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
   @UseInterceptors(
     FileInterceptor('file', {
       limits: { fileSize: 5 * 1024 * 1024 },
@@ -202,7 +203,7 @@ export class StaffsController {
   }
 
   @Get('me/credentials')
-  @Roles('ADMIN', 'STAF')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
   @ApiOperation({
     summary: 'Melihat kredensial legalitas staf yang sedang login (SIP/STR)',
     description:
@@ -223,7 +224,7 @@ export class StaffsController {
   }
 
   @Post('me/credentials')
-  @Roles('ADMIN', 'STAF')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Menambahkan kredensial SIP/STR untuk staf yang sedang login',
@@ -246,7 +247,7 @@ export class StaffsController {
   }
 
   @Patch('me/credentials/:credentialId')
-  @Roles('ADMIN', 'STAF')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
   @ApiOperation({
     summary: 'Memperbarui kredensial SIP/STR staf login',
     description:
@@ -277,7 +278,7 @@ export class StaffsController {
   }
 
   @Delete('me/credentials/:credentialId')
-  @Roles('ADMIN', 'STAF')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Menghapus kredensial SIP/STR staf login',
@@ -306,7 +307,7 @@ export class StaffsController {
   }
 
   @Post()
-  @Roles('ADMIN')
+  @Roles(SYSTEM_ROLES.ADMIN)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Menambahkan profil staf klinis baru (Admin)',
@@ -340,7 +341,7 @@ export class StaffsController {
   }
 
   @Get()
-  @Roles('ADMIN')
+  @Roles(SYSTEM_ROLES.ADMIN)
   @ApiOperation({
     summary: 'Mendapatkan daftar seluruh staf klinis (Admin)',
     description:
@@ -354,7 +355,7 @@ export class StaffsController {
   }
 
   @Get('profession/:profession')
-  @Roles('ADMIN', 'STAF')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
   @ApiOperation({
     summary: 'Filter staf berdasarkan profesi klinis',
     description:
@@ -373,7 +374,7 @@ export class StaffsController {
   }
 
   @Get(':id')
-  @Roles('ADMIN', 'STAF')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
   @ApiOperation({
     summary: 'Mendapatkan detail profil staf berdasarkan ID',
     description:
@@ -397,7 +398,7 @@ export class StaffsController {
   }
 
   @Patch(':id')
-  @Roles('ADMIN', 'STAF')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
   @ApiOperation({
     summary: 'Memperbarui data profil staf (Admin / Staf Pemilik)',
     description:
@@ -421,7 +422,7 @@ export class StaffsController {
       throw new NotFoundException(`Staf dengan ID ${id} tidak ditemukan`);
     }
 
-    if (user.systemRole !== 'ADMIN' && existing.userId !== user.id) {
+    if (user.systemRole !== SYSTEM_ROLES.ADMIN && existing.userId !== user.id) {
       throw new ForbiddenException(
         'Akses ditolak: Anda hanya berwenang memperbarui data profil staf Anda sendiri',
       );
@@ -435,7 +436,7 @@ export class StaffsController {
   }
 
   @Patch(':id/avatar')
-  @Roles('ADMIN')
+  @Roles(SYSTEM_ROLES.ADMIN)
   @UseInterceptors(
     FileInterceptor('file', {
       limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
@@ -485,7 +486,7 @@ export class StaffsController {
   }
 
   @Post(':id/avatar')
-  @Roles('ADMIN')
+  @Roles(SYSTEM_ROLES.ADMIN)
   @UseInterceptors(
     FileInterceptor('file', {
       limits: { fileSize: 5 * 1024 * 1024 },
@@ -521,7 +522,7 @@ export class StaffsController {
   }
 
   @Delete(':id')
-  @Roles('ADMIN')
+  @Roles(SYSTEM_ROLES.ADMIN)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Menonaktifkan staf (Admin)',
@@ -540,7 +541,7 @@ export class StaffsController {
   }
 
   @Get(':id/credentials')
-  @Roles('ADMIN', 'STAF')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
   @ApiOperation({
     summary: 'Melihat daftar legalitas/kredensial staf (SIP, STR)',
     description:
@@ -557,7 +558,7 @@ export class StaffsController {
   }
 
   @Post(':id/credentials')
-  @Roles('ADMIN', 'STAF')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Menambahkan kredensial SIP/STR untuk staf',
@@ -582,7 +583,7 @@ export class StaffsController {
     if (!staff) {
       throw new NotFoundException(`Staf dengan ID ${id} tidak ditemukan`);
     }
-    if (user.systemRole !== 'ADMIN' && staff.userId !== user.id) {
+    if (user.systemRole !== SYSTEM_ROLES.ADMIN && staff.userId !== user.id) {
       throw new ForbiddenException(
         'Akses ditolak: Anda hanya berwenang menambahkan kredensial untuk profil Anda sendiri',
       );
@@ -591,7 +592,7 @@ export class StaffsController {
   }
 
   @Patch(':id/credentials/:credentialId')
-  @Roles('ADMIN', 'STAF')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
   @ApiOperation({
     summary:
       'Memperbarui kredensial SIP/STR staf berdasarkan ID staf dan ID kredensial',
@@ -618,7 +619,7 @@ export class StaffsController {
     if (!staff) {
       throw new NotFoundException(`Staf dengan ID ${id} tidak ditemukan`);
     }
-    if (user.systemRole !== 'ADMIN' && staff.userId !== user.id) {
+    if (user.systemRole !== SYSTEM_ROLES.ADMIN && staff.userId !== user.id) {
       throw new ForbiddenException(
         'Akses ditolak: Anda hanya berwenang mengubah kredensial profil Anda sendiri',
       );
@@ -633,7 +634,7 @@ export class StaffsController {
   }
 
   @Delete(':id/credentials/:credentialId')
-  @Roles('ADMIN', 'STAF')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Menghapus kredensial SIP/STR staf berdasarkan ID',
@@ -657,7 +658,7 @@ export class StaffsController {
     if (!staff) {
       throw new NotFoundException(`Staf dengan ID ${id} tidak ditemukan`);
     }
-    if (user.systemRole !== 'ADMIN' && staff.userId !== user.id) {
+    if (user.systemRole !== SYSTEM_ROLES.ADMIN && staff.userId !== user.id) {
       throw new ForbiddenException(
         'Akses ditolak: Anda hanya berwenang menghapus kredensial profil Anda sendiri',
       );
@@ -672,7 +673,7 @@ export class StaffsController {
   }
 
   @Get(':id/roster')
-  @Roles('ADMIN', 'STAF')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
   @ApiOperation({
     summary: 'Mendapatkan jadwal shift roster staf operasional',
     description:
@@ -694,7 +695,7 @@ export class StaffsController {
   }
 
   @Put(':id/roster')
-  @Roles('ADMIN')
+  @Roles(SYSTEM_ROLES.ADMIN)
   @ApiOperation({
     summary:
       'Mengganti seluruh jadwal shift roster staf operasional (Bulk Replace)',
@@ -720,7 +721,7 @@ export class StaffsController {
   }
 
   @Delete(':id/roster/:rosterId')
-  @Roles('ADMIN')
+  @Roles(SYSTEM_ROLES.ADMIN)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Menghapus satu item jadwal roster staf operasional',
@@ -746,7 +747,7 @@ export class StaffsController {
   }
 
   @Delete(':id/roster')
-  @Roles('ADMIN')
+  @Roles(SYSTEM_ROLES.ADMIN)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Mereset roster staf ke template master jadwal mingguan klinik',
