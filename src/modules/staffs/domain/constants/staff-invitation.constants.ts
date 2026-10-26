@@ -17,13 +17,7 @@ export const STAFF_ROLE_CODES = {
 export type StaffRoleCode =
   (typeof STAFF_ROLE_CODES)[keyof typeof STAFF_ROLE_CODES];
 
-export const STAFF_TYPES = {
-  DOCTOR: 'doctor',
-  MIDWIFE: 'midwife',
-  WORKER: 'worker',
-} as const;
-
-export type StaffType = (typeof STAFF_TYPES)[keyof typeof STAFF_TYPES];
+export { STAFF_TYPES, type StaffType } from '../../../../common/constants/staff-types.constant';
 
 export const STAFF_STATUS = {
   ACTIVE: 'active',

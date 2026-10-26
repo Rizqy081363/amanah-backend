@@ -25,18 +25,11 @@ export class ClinicDrizzleRepository implements ClinicRepository {
   ) {}
 
   private mapUnitToPoli(r: typeof clinicUnits.$inferSelect): PoliklinikEntity {
-    const upperCode =
-      r.code === 'poli_umum'
-        ? 'POLI-UMUM'
-        : r.code === 'poli_kia'
-          ? 'POLI-KIA'
-          : r.code.toUpperCase().replace(/_/g, '-');
-
     return {
       id: r.id,
-      namaPoli: r.name,
-      kodePoli: upperCode,
-      deskripsi: r.location || null,
+      code: r.code,
+      name: r.name,
+      location: r.location || null,
       isActive: r.isActive,
       createdAt: new Date(r.createdAt),
     };
@@ -109,8 +102,9 @@ export class ClinicDrizzleRepository implements ClinicRepository {
     const updateValues: Record<string, any> = {
       updatedAt: new Date().toISOString(),
     };
-    if (data.namaPoli !== undefined) updateValues.name = data.namaPoli;
-    if (data.deskripsi !== undefined) updateValues.location = data.deskripsi;
+    if (data.name !== undefined) updateValues.name = data.name;
+    if (data.location !== undefined) updateValues.location = data.location;
+    if (data.code !== undefined) updateValues.code = data.code;
     if (data.isActive !== undefined) updateValues.isActive = data.isActive;
 
     const [updated] = await this.db
@@ -174,8 +168,8 @@ export class ClinicDrizzleRepository implements ClinicRepository {
     return {
       id: record.id,
       poliklinikId,
-      namaLayanan: record.name,
-      deskripsi: record.description || null,
+      name: record.name,
+      description: record.description || null,
       medicalFlow: (record.medicalFlow as any) || 'general',
       isActive: record.isActive,
       createdAt: new Date(record.createdAt),
@@ -218,8 +212,8 @@ export class ClinicDrizzleRepository implements ClinicRepository {
         return filtered.map((r) => ({
           id: r.id,
           poliklinikId,
-          namaLayanan: r.name,
-          deskripsi: r.description || null,
+          name: r.name,
+          description: r.description || null,
           medicalFlow: (r.medicalFlow as any) || 'general',
           isActive: r.isActive,
           createdAt: new Date(r.createdAt),
@@ -237,8 +231,8 @@ export class ClinicDrizzleRepository implements ClinicRepository {
     return {
       id: record.id,
       poliklinikId: '',
-      namaLayanan: record.name,
-      deskripsi: record.description || null,
+      name: record.name,
+      description: record.description || null,
       medicalFlow: (record.medicalFlow as any) || 'general',
       isActive: record.isActive,
       createdAt: new Date(record.createdAt),
@@ -252,8 +246,8 @@ export class ClinicDrizzleRepository implements ClinicRepository {
     const updateValues: Record<string, any> = {
       updatedAt: new Date().toISOString(),
     };
-    if (data.namaLayanan !== undefined) updateValues.name = data.namaLayanan;
-    if (data.deskripsi !== undefined) updateValues.description = data.deskripsi;
+    if (data.name !== undefined) updateValues.name = data.name;
+    if (data.description !== undefined) updateValues.description = data.description;
     if (data.medicalFlow !== undefined)
       updateValues.medicalFlow =
         data.medicalFlow === 'pregnancy' || data.medicalFlow === 'immunization'
@@ -275,8 +269,8 @@ export class ClinicDrizzleRepository implements ClinicRepository {
       ? {
           id: updated.id,
           poliklinikId: data.poliklinikId || '',
-          namaLayanan: updated.name,
-          deskripsi: updated.description || null,
+          name: updated.name,
+          description: updated.description || null,
           medicalFlow: (updated.medicalFlow as any) || 'general',
           isActive: updated.isActive,
           createdAt: new Date(updated.createdAt),

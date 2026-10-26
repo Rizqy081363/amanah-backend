@@ -107,10 +107,10 @@ export const SHIFT_EXCEPTION_TYPE = {
 export type ShiftExceptionType =
   (typeof SHIFT_EXCEPTION_TYPE)[keyof typeof SHIFT_EXCEPTION_TYPE];
 
-export const STAFF_TYPE = {
-  DOCTOR: 'doctor',
-  MIDWIFE: 'midwife',
-  WORKER: 'worker',
-} as const;
+import {
+  STAFF_TYPES,
+  type StaffType,
+} from '../../../../common/constants/staff-types.constant';
 
-export type StaffType = (typeof STAFF_TYPE)[keyof typeof STAFF_TYPE];
+export const STAFF_TYPE = STAFF_TYPES;
+export type { StaffType };

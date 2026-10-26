@@ -71,7 +71,7 @@ function formatClock(minutes: number): string {
 }
 
 function formatSessionTiming(session: AdminDoctorDailySession): string {
-  return `${session.nama_sesi} (${session.jam_mulai} - ${session.jam_selesai})`;
+  return `${session.sessionName} (${session.startTime} - ${session.endTime})`;
 }
 
 export function getNextDate(dateStr: string): string {
@@ -79,14 +79,14 @@ export function getNextDate(dateStr: string): string {
 }
 
 function resolveTomorrowSchedule(
-  tomorrowSesiHarian: AdminDoctorDailySession[] | null | undefined,
+  tomorrowdailySessions: AdminDoctorDailySession[] | null | undefined,
 ): string {
-  if (!tomorrowSesiHarian || tomorrowSesiHarian.length === 0) {
+  if (!tomorrowdailySessions || tomorrowdailySessions.length === 0) {
     return 'Selesai';
   }
-  const openTomorrow = tomorrowSesiHarian
-    .filter((s) => s.status_sesi !== ScheduleOperationalStatus.CLOSED)
-    .sort((a, b) => toMinutes(a.jam_mulai) - toMinutes(b.jam_mulai));
+  const openTomorrow = tomorrowdailySessions
+    .filter((s) => s.sessionStatus !== ScheduleOperationalStatus.CLOSED)
+    .sort((a, b) => toMinutes(a.startTime) - toMinutes(b.startTime));
 
   if (openTomorrow.length === 0) {
     return 'Selesai';
@@ -97,17 +97,17 @@ function resolveTomorrowSchedule(
 export function computeUpcomingSchedule(
   targetDate: string,
   todayStr: string,
-  sesiHarian: AdminDoctorDailySession[],
+  dailySessions: AdminDoctorDailySession[],
   isOnLeave: boolean,
   _durationMinutes?: number,
-  tomorrowSesiHarian?: AdminDoctorDailySession[] | null,
+  tomorrowdailySessions?: AdminDoctorDailySession[] | null,
   refDate?: Date,
 ): string {
   if (isOnLeave) return 'Dokter Cuti';
-  if (!sesiHarian || sesiHarian.length === 0) return 'Tidak Ada Jadwal';
-  const openSessions = sesiHarian
-    .filter((s) => s.status_sesi !== ScheduleOperationalStatus.CLOSED)
-    .sort((a, b) => toMinutes(a.jam_mulai) - toMinutes(b.jam_mulai));
+  if (!dailySessions || dailySessions.length === 0) return 'Tidak Ada Jadwal';
+  const openSessions = dailySessions
+    .filter((s) => s.sessionStatus !== ScheduleOperationalStatus.CLOSED)
+    .sort((a, b) => toMinutes(a.startTime) - toMinutes(b.startTime));
 
   if (openSessions.length === 0) return 'Praktik Ditutup';
 
@@ -122,8 +122,8 @@ export function computeUpcomingSchedule(
   const { currentMinutes } = getClinicNow(refDate);
 
   const activeIndex = openSessions.findIndex((s) => {
-    const startM = toMinutes(s.jam_mulai);
-    const endM = toMinutes(s.jam_selesai);
+    const startM = toMinutes(s.startTime);
+    const endM = toMinutes(s.endTime);
     return startM <= currentMinutes && currentMinutes < endM;
   });
 
@@ -133,14 +133,14 @@ export function computeUpcomingSchedule(
   }
 
   const upcomingSession = openSessions.find(
-    (s) => toMinutes(s.jam_mulai) > currentMinutes,
+    (s) => toMinutes(s.startTime) > currentMinutes,
   );
 
   if (upcomingSession) {
     return formatSessionTiming(upcomingSession);
   }
 
-  return resolveTomorrowSchedule(tomorrowSesiHarian);
+  return resolveTomorrowSchedule(tomorrowdailySessions);
 }
 
 export function getClinicNow(

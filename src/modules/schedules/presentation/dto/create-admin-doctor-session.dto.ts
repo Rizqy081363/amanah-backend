@@ -17,7 +17,7 @@ export class CreateAdminDoctorSessionDto {
   })
   @IsNotEmpty()
   @IsString()
-  schedule_date: string;
+  scheduleDate: string;
 
   @ApiProperty({
     description:
@@ -26,7 +26,7 @@ export class CreateAdminDoctorSessionDto {
   })
   @IsNotEmpty()
   @IsString()
-  nama_sesi: string;
+  sessionName: string;
 
   @ApiProperty({
     description: 'Jam mulai sesi (format HH:mm)',
@@ -34,7 +34,7 @@ export class CreateAdminDoctorSessionDto {
   })
   @IsNotEmpty()
   @IsString()
-  jam_mulai: string;
+  startTime: string;
 
   @ApiProperty({
     description: 'Jam selesai sesi (format HH:mm)',
@@ -42,7 +42,7 @@ export class CreateAdminDoctorSessionDto {
   })
   @IsNotEmpty()
   @IsString()
-  jam_selesai: string;
+  endTime: string;
 
   @ApiPropertyOptional({
     description: 'Canonical session operating status',
@@ -52,7 +52,7 @@ export class CreateAdminDoctorSessionDto {
   })
   @IsOptional()
   @IsEnum(AdminScheduleStatusRequest)
-  status_sesi?: AdminScheduleStatusRequest = AdminScheduleStatusRequest.OPEN;
+  sessionStatus?: AdminScheduleStatusRequest = AdminScheduleStatusRequest.OPEN;
 
   @ApiPropertyOptional({
     description: 'Nama ruangan atau ID ruangan praktik',
@@ -60,5 +60,13 @@ export class CreateAdminDoctorSessionDto {
   })
   @IsOptional()
   @IsString()
-  ruang?: string;
+  roomId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Nama ruangan praktik',
+    example: 'Ruang Poli 1',
+  })
+  @IsOptional()
+  @IsString()
+  roomName?: string;
 }

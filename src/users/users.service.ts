@@ -8,7 +8,6 @@ import { AuthProvidersEnum } from '../auth/auth-providers.enum';
 import { FileType } from '../files/domain/file';
 import { FilesService } from '../files/files.service';
 import { Role } from '../roles/domain/role';
-import { RoleEnum } from '../roles/roles.enum';
 import { Status } from '../statuses/domain/status';
 import { StatusEnum } from '../statuses/statuses.enum';
 import { NullableType } from '../utils/types/nullable.type';
@@ -76,18 +75,6 @@ export class UsersService {
     let role: Role | undefined;
 
     if (createUserDto.role?.id) {
-      const roleObject = Object.values(RoleEnum)
-        .map(String)
-        .includes(String(createUserDto.role.id));
-      if (!roleObject) {
-        throw new UnprocessableEntityException({
-          status: HttpStatus.UNPROCESSABLE_ENTITY,
-          errors: {
-            role: 'roleNotExists',
-          },
-        });
-      }
-
       role = {
         id: createUserDto.role.id,
       };
@@ -230,18 +217,6 @@ export class UsersService {
     let role: Role | undefined;
 
     if (updateUserDto.role?.id) {
-      const roleObject = Object.values(RoleEnum)
-        .map(String)
-        .includes(String(updateUserDto.role.id));
-      if (!roleObject) {
-        throw new UnprocessableEntityException({
-          status: HttpStatus.UNPROCESSABLE_ENTITY,
-          errors: {
-            role: 'roleNotExists',
-          },
-        });
-      }
-
       role = {
         id: updateUserDto.role.id,
       };

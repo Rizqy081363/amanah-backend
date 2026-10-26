@@ -122,7 +122,7 @@ export class DrizzleRescheduleEligibilityEvaluator {
         'Sesi berstatus Cuti. Cuti dokter tidak dapat di-reschedule.';
     }
 
-    let roomName = 'Belum Ditentukan';
+    let roomName = '';
     const effectiveRoomId =
       assignment?.preferredRoomId || practitioner.defaultRoomId || null;
     if (effectiveRoomId) {

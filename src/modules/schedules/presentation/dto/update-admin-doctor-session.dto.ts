@@ -10,7 +10,7 @@ export class UpdateAdminDoctorSessionDto {
   })
   @IsOptional()
   @IsString()
-  nama_sesi?: string;
+  sessionName?: string;
 
   @ApiPropertyOptional({
     description: 'Jam mulai (format HH:mm)',
@@ -18,7 +18,7 @@ export class UpdateAdminDoctorSessionDto {
   })
   @IsOptional()
   @IsString()
-  jam_mulai?: string;
+  startTime?: string;
 
   @ApiPropertyOptional({
     description: 'Jam selesai (format HH:mm)',
@@ -26,7 +26,7 @@ export class UpdateAdminDoctorSessionDto {
   })
   @IsOptional()
   @IsString()
-  jam_selesai?: string;
+  endTime?: string;
 
   @ApiPropertyOptional({
     description: 'Canonical session operating status',
@@ -35,13 +35,21 @@ export class UpdateAdminDoctorSessionDto {
   })
   @IsOptional()
   @IsEnum(AdminScheduleStatusRequest)
-  status_sesi?: AdminScheduleStatusRequest;
+  sessionStatus?: AdminScheduleStatusRequest;
 
   @ApiPropertyOptional({
-    description: 'ID Ruangan klinik (UUID) atau nama ruangan',
-    example: 'Ruang Poli Umum 1',
+    description: 'ID Ruangan klinik (UUID)',
+    example: 'e3067341-a185-484d-91d6-84848fcff1ef',
   })
   @IsOptional()
   @IsString()
-  ruang?: string;
+  roomId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Nama ruangan praktik',
+    example: 'Ruang Poli 1',
+  })
+  @IsOptional()
+  @IsString()
+  roomName?: string;
 }

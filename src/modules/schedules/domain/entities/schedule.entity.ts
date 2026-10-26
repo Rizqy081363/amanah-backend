@@ -1,4 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  STAFF_TYPES,
+  type StaffType,
+} from '../../../../common/constants/staff-types.constant';
 
 export enum ScheduleOperationalStatus {
   OPEN = 'OPEN',
@@ -47,9 +51,7 @@ export class ScheduleEntity {
   doctorId?: string;
   practitionerId?: string;
   isRescheduleEligible?: boolean;
-  is_reschedule_eligible?: boolean;
   rescheduleIneligibilityReason?: string | null;
-  reschedule_ineligibility_reason?: string | null;
   sessionId?: string | null;
   version?: string;
 }
@@ -241,53 +243,45 @@ export class AdminDoctorDailySession {
   id: string;
 
   @ApiProperty({ description: 'Nama label shift praktik' })
-  nama_sesi: string;
+  sessionName: string;
 
   @ApiProperty({ description: 'Waktu mulai sesi (HH:mm)' })
-  jam_mulai: string;
+  startTime: string;
 
   @ApiProperty({ description: 'Waktu selesai sesi (HH:mm)' })
-  jam_selesai: string;
+  endTime: string;
 
   @ApiProperty({ description: 'Rentang jam waktu sesi' })
-  waktu: string;
+  timeRange: string;
 
   @ApiProperty({
     description:
       'Jumlah pasien terdaftar pada sesi ini (dihitung riil dari appointment aktif oleh backend)',
     example: 0,
   })
-  pasien_terdaftar: number;
+  bookedPatients: number;
 
   @ApiProperty({
     description: 'Canonical effective session status',
     enum: ScheduleOperationalStatus,
     example: 'OPEN',
   })
-  status_sesi: ScheduleOperationalStatus;
+  sessionStatus: ScheduleOperationalStatus;
 
   @ApiProperty({
-    description: 'Closure reason code if status_sesi is CLOSED',
+    description: 'Closure reason code if sessionStatus is CLOSED',
     enum: ScheduleClosureReason,
     nullable: true,
     required: false,
     example: null,
   })
-  closure_reason?: ScheduleClosureReason | null;
+  closureReason?: ScheduleClosureReason | null;
 
   @ApiProperty({ description: 'Nama dan lokasi ruangan praktik' })
-  ruang: string;
+  roomName: string;
 
   @ApiProperty({
     description: 'ID ruangan praktik',
-    nullable: true,
-    required: false,
-    example: null,
-  })
-  ruang_id?: string | null;
-
-  @ApiProperty({
-    description: 'ID ruangan praktik (alias)',
     nullable: true,
     required: false,
     example: null,
@@ -298,21 +292,21 @@ export class AdminDoctorDailySession {
     description: 'Flag apakah sesi ini memenuhi syarat untuk di-reschedule',
     example: true,
   })
-  is_reschedule_eligible: boolean;
+  isRescheduleEligible: boolean;
 
   @ApiProperty({
     description:
-      'Alasan penolakan reschedule jika is_reschedule_eligible bernilai false',
+      'Alasan penolakan reschedule jika isRescheduleEligible bernilai false',
     nullable: true,
     example: null,
   })
-  reschedule_ineligibility_reason?: string | null;
+  rescheduleIneligibilityReason?: string | null;
 
   @ApiPropertyOptional({
     description: 'Tanggal kalender spesifik untuk sesi ini (YYYY-MM-DD)',
     example: '2026-10-10',
   })
-  tanggal?: string;
+  date?: string;
 }
 
 export class AdminDoctorCardPatientPreviewItem {
@@ -342,29 +336,36 @@ export class AdminDoctorScheduleCardEntity {
   id: string;
 
   @ApiProperty({ description: 'ID praktisi' })
-  practitioner_id: string;
+  practitionerId: string;
 
   @ApiPropertyOptional({ description: 'ID profil staf dokter / bidan' })
-  staff_profile_id?: string | null;
+  staffProfileId?: string | null;
 
   @ApiPropertyOptional({ description: 'ID staf' })
-  staff_id?: string | null;
+  staffId?: string | null;
 
   @ApiPropertyOptional({ description: 'Kode unik staf (contoh: STF-DOK-3841)' })
-  staff_code?: string | null;
+  staffCode?: string | null;
+
+  @ApiPropertyOptional({
+    description: 'Tipe staf klinis (doctor, midwife, worker)',
+    enum: Object.values(STAFF_TYPES),
+    example: STAFF_TYPES.DOCTOR,
+  })
+  staffType?: StaffType;
 
   @ApiProperty({ description: 'Nama lengkap dokter beserta gelar' })
-  nama_dokter: string;
+  fullName: string;
 
   @ApiProperty({ description: 'Spesialisasi poli atau medis' })
-  spesialisasi: string;
+  specialty: string;
 
   @ApiProperty({
     description: 'Canonical effective doctor schedule status',
     enum: ScheduleOperationalStatus,
     example: 'OPEN',
   })
-  status_dokter: ScheduleOperationalStatus;
+  doctorStatus: ScheduleOperationalStatus;
 
   @ApiProperty({
     description: 'Alamat email dokter',
@@ -380,13 +381,13 @@ export class AdminDoctorScheduleCardEntity {
     type: String,
     example: null,
   })
-  nomor_telepon: string | null;
+  phone: string | null;
 
   @ApiProperty({ description: 'Nama ruangan praktik' })
-  ruang_praktik: string;
+  practiceRoom: string;
 
   @ApiProperty({ description: 'Tanggal praktik terformat' })
-  tanggal_praktik: string;
+  practiceDate: string;
 
   @ApiProperty({
     description:
@@ -397,27 +398,27 @@ export class AdminDoctorScheduleCardEntity {
   avatar: string;
 
   @ApiProperty({ description: 'Rentang jam praktik hari ini' })
-  jadwal_hari_ini: string;
+  todaySchedule: string;
 
   @ApiProperty({
     description:
       'Jadwal praktik mendatang yang dievaluasi dinamis dari waktu saat ini',
     example: 'Sesi Pagi (08:00 - 11:30)',
   })
-  jadwal_praktik_mendatang: string;
+  upcomingSchedule: string;
 
   @ApiProperty({
     description: 'Canonical effective schedule status',
     enum: ScheduleOperationalStatus,
     example: 'OPEN',
   })
-  status_jadwal: ScheduleOperationalStatus;
+  scheduleStatus: ScheduleOperationalStatus;
 
   @ApiProperty({ description: 'Bulan dan tahun jadwal' })
-  bulan_jadwal: string;
+  scheduleMonth: string;
 
   @ApiProperty({ description: 'Menandakan dokter sedang cuti' })
-  is_on_leave: boolean;
+  isOnLeave: boolean;
 
   @ApiProperty({
     description: 'Alasan cuti dokter',
@@ -425,7 +426,7 @@ export class AdminDoctorScheduleCardEntity {
     type: String,
     example: null,
   })
-  leave_reason: string | null;
+  leaveReason: string | null;
 
   @ApiProperty({
     description: 'Tanggal mulai cuti',
@@ -433,7 +434,7 @@ export class AdminDoctorScheduleCardEntity {
     type: String,
     example: null,
   })
-  leave_start: string | null;
+  leaveStart: string | null;
 
   @ApiProperty({
     description: 'Tanggal selesai cuti',
@@ -441,7 +442,7 @@ export class AdminDoctorScheduleCardEntity {
     type: String,
     example: null,
   })
-  leave_end: string | null;
+  leaveEnd: string | null;
 
   @ApiPropertyOptional({
     description: 'Jenis cuti dokter',
@@ -449,7 +450,7 @@ export class AdminDoctorScheduleCardEntity {
     type: String,
     example: 'annual_leave',
   })
-  leave_type?: string | null;
+  leaveType?: string | null;
 
   @ApiPropertyOptional({
     description: 'Nama dokter pengganti jika jadwal cuti telah digantikan',
@@ -457,7 +458,7 @@ export class AdminDoctorScheduleCardEntity {
     type: String,
     example: 'dr. Budi Santoso',
   })
-  substitute_doctor_name?: string | null;
+  substituteDoctorName?: string | null;
 
   @ApiPropertyOptional({
     description: 'Status peluang pengganti (open, claimed, completed)',
@@ -465,26 +466,26 @@ export class AdminDoctorScheduleCardEntity {
     type: String,
     example: 'claimed',
   })
-  replacement_status?: string | null;
+  replacementStatus?: string | null;
 
   @ApiProperty({
     description: 'Daftar sesi shift praktik hari ini',
     type: () => [AdminDoctorDailySession],
   })
-  sesi_harian: AdminDoctorDailySession[];
+  dailySessions: AdminDoctorDailySession[];
 
   @ApiProperty({
     description: 'Total pasien terdaftar pada tanggal aktif',
     example: 5,
   })
-  total_pasien: number;
+  totalPatients: number;
 
   @ApiProperty({
     description:
       'Daftar ringkas avatar pasien terdaftar untuk kartu dokter (maks 4)',
     type: () => [AdminDoctorCardPatientPreviewItem],
   })
-  pasien_preview: AdminDoctorCardPatientPreviewItem[];
+  patientPreviews: AdminDoctorCardPatientPreviewItem[];
 
   @ApiPropertyOptional({
     description:
@@ -492,7 +493,7 @@ export class AdminDoctorScheduleCardEntity {
     type: Boolean,
     example: true,
   })
-  is_accepting_appointments?: boolean;
+  isAcceptingAppointments?: boolean;
 }
 
 export class AdminDoctorScheduleListMeta {
@@ -503,10 +504,10 @@ export class AdminDoctorScheduleListMeta {
   limit: number;
 
   @ApiProperty({ example: 12 })
-  total_doctors: number;
+  totalDoctors: number;
 
   @ApiProperty({ example: 2 })
-  total_pages: number;
+  totalPages: number;
 }
 
 export class AdminDoctorScheduleListData {
@@ -570,45 +571,52 @@ export class AdminDoctorScheduleDetailData {
   id: string;
 
   @ApiProperty({ description: 'ID praktisi' })
-  practitioner_id: string;
+  practitionerId: string;
 
   @ApiPropertyOptional({ description: 'ID profil staf dokter / bidan' })
-  staff_profile_id?: string | null;
+  staffProfileId?: string | null;
 
   @ApiPropertyOptional({ description: 'ID staf' })
-  staff_id?: string | null;
+  staffId?: string | null;
 
   @ApiPropertyOptional({ description: 'Kode unik staf (contoh: STF-DOK-3841)' })
-  staff_code?: string | null;
+  staffCode?: string | null;
+
+  @ApiPropertyOptional({
+    description: 'Tipe staf klinis (doctor, midwife, worker)',
+    enum: Object.values(STAFF_TYPES),
+    example: STAFF_TYPES.DOCTOR,
+  })
+  staffType?: StaffType;
 
   @ApiProperty({ description: 'Nama dokter' })
-  nama_dokter: string;
+  fullName: string;
 
   @ApiProperty({ description: 'Spesialisasi' })
-  spesialisasi: string;
+  specialty: string;
 
   @ApiProperty({
     description: 'Canonical effective doctor schedule status',
     enum: ScheduleOperationalStatus,
     example: 'OPEN',
   })
-  status_dokter: ScheduleOperationalStatus;
+  doctorStatus: ScheduleOperationalStatus;
 
   @ApiProperty({
     description: 'Whether doctor is accepting appointments/verified',
     required: false,
     example: true,
   })
-  is_accepting_appointments?: boolean;
+  isAcceptingAppointments?: boolean;
 
   @ApiProperty({ nullable: true, type: String, example: null })
   email: string | null;
 
   @ApiProperty({ nullable: true, type: String, example: null })
-  nomor_telepon: string | null;
+  phone: string | null;
 
   @ApiProperty({ description: 'Ruangan praktik' })
-  ruang_praktik: string;
+  practiceRoom: string;
 
   @ApiProperty({
     description:
@@ -619,19 +627,19 @@ export class AdminDoctorScheduleDetailData {
   avatar: string;
 
   @ApiProperty({ description: 'Bulan jadwal' })
-  bulan_jadwal: string;
+  scheduleMonth: string;
 
   @ApiProperty({ description: 'Status cuti' })
-  is_on_leave: boolean;
+  isOnLeave: boolean;
 
   @ApiProperty({ nullable: true, type: String, example: null })
-  leave_reason: string | null;
+  leaveReason: string | null;
 
   @ApiProperty({ nullable: true, type: String, example: null })
-  leave_start: string | null;
+  leaveStart: string | null;
 
   @ApiProperty({ nullable: true, type: String, example: null })
-  leave_end: string | null;
+  leaveEnd: string | null;
 
   @ApiPropertyOptional({
     description: 'Jenis cuti dokter',
@@ -639,7 +647,7 @@ export class AdminDoctorScheduleDetailData {
     type: String,
     example: 'annual_leave',
   })
-  leave_type?: string | null;
+  leaveType?: string | null;
 
   @ApiPropertyOptional({
     description: 'Nama dokter pengganti jika jadwal cuti telah digantikan',
@@ -647,7 +655,7 @@ export class AdminDoctorScheduleDetailData {
     type: String,
     example: 'dr. Budi Santoso',
   })
-  substitute_doctor_name?: string | null;
+  substituteDoctorName?: string | null;
 
   @ApiPropertyOptional({
     description: 'Status peluang pengganti (open, claimed, completed)',
@@ -655,20 +663,20 @@ export class AdminDoctorScheduleDetailData {
     type: String,
     example: 'claimed',
   })
-  replacement_status?: string | null;
+  replacementStatus?: string | null;
 
   @ApiProperty({ type: () => [AdminDoctorMonthlyDayEntity] })
-  monthly_schedule: AdminDoctorMonthlyDayEntity[];
+  monthlySchedule: AdminDoctorMonthlyDayEntity[];
 
   @ApiProperty({ type: () => [AdminDoctorDailySession] })
-  sesi_harian: AdminDoctorDailySession[];
+  dailySessions: AdminDoctorDailySession[];
 
   @ApiProperty({
     description:
       'Interval backend-projected untuk timeline/Gantt admin detail sheet',
     type: () => [ScheduleProjectedIntervalEntity],
   })
-  timeline_intervals: ScheduleProjectedIntervalEntity[];
+  timelineIntervals: ScheduleProjectedIntervalEntity[];
 
   @ApiProperty({
     description:
@@ -681,7 +689,7 @@ export class AdminDoctorScheduleDetailData {
     description: 'Context projections with multi-dimensional states and counts',
     required: false,
   })
-  context_projections?: any[];
+  contextProjections?: any[];
 
   @ApiProperty({
     description: 'Whole-day aggregated projection metrics and dual indicators',

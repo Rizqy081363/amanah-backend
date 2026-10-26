@@ -171,8 +171,8 @@ export class DrizzleAdminDoctorScheduleListQuery {
       const doctorAppointments = allAppointments.filter((a) =>
         SchedulePatientEligibilityHelper.isEligibleForDoctorCard(a, p.id),
       );
-      const totalPasien = doctorAppointments.length;
-      const pasienPreview = doctorAppointments.slice(0, 4).map((a: any) => {
+      const totalPatients = doctorAppointments.length;
+      const patientPreviews = doctorAppointments.slice(0, 4).map((a: any) => {
         const rawName =
           a.patientProfile?.user?.name ||
           a.patientProfile?.fullName ||
@@ -261,9 +261,9 @@ export class DrizzleAdminDoctorScheduleListQuery {
 
       const defaultRoomName = p.clinicRoom
         ? `${p.clinicRoom.name}${p.clinicRoom.location ? `, ${p.clinicRoom.location}` : ''}`
-        : 'Belum Ditentukan';
+        : '';
 
-      const sesiHarian: AdminDoctorDailySession[] = sessions.map((s: any) => {
+      const dailySessions: AdminDoctorDailySession[] = sessions.map((s: any) => {
         const shiftDef = SHIFT_DEFINITIONS.find(
           (d) => d.shift === s.sessionShift,
         );
@@ -272,8 +272,8 @@ export class DrizzleAdminDoctorScheduleListQuery {
         const boundaryEnd =
           shiftDef?.boundaryEndTime || SHIFT_DEFINITIONS[1].boundaryEndTime;
 
-        const jamMulai = s.startTime ? s.startTime.slice(0, 5) : boundaryStart;
-        const jamSelesai = s.endTime ? s.endTime.slice(0, 5) : boundaryEnd;
+        const sessionStart = s.startTime ? s.startTime.slice(0, 5) : boundaryStart;
+        const sessionEnd = s.endTime ? s.endTime.slice(0, 5) : boundaryEnd;
         const sessStart = s.startTime
           ? s.startTime.length === 5
             ? `${s.startTime}:00`
@@ -300,8 +300,8 @@ export class DrizzleAdminDoctorScheduleListQuery {
           DEFAULT_CONSULTATION_DURATION_MINUTES;
 
         const metrics = ScheduleSessionFactory.calculateSessionMetrics({
-          startTime: jamMulai,
-          endTime: jamSelesai,
+          startTime: sessionStart,
+          endTime: sessionEnd,
           durationMinutes,
           bookedCount: matchingAppts.length,
           isOnLeave,
@@ -338,20 +338,22 @@ export class DrizzleAdminDoctorScheduleListQuery {
 
         return {
           id: s.id,
-          nama_sesi: s.sessionLabel || metrics.sessionLabel,
-          jam_mulai: jamMulai,
-          jam_selesai: jamSelesai,
-          waktu: `${jamMulai} - ${jamSelesai}`,
-          pasien_terdaftar: metrics.bookedCount,
-          status_sesi: sessionOpStatus,
-          closure_reason: closureReason,
-          ruang: roomName,
-          is_reschedule_eligible: isRescheduleEligible,
-          reschedule_ineligibility_reason: rescheduleIneligibilityReason,
+          sessionName: s.sessionLabel || metrics.sessionLabel,
+          startTime: sessionStart,
+          endTime: sessionEnd,
+          timeRange: `${sessionStart} - ${sessionEnd}`,
+          bookedPatients: metrics.bookedCount,
+          sessionStatus: sessionOpStatus,
+          closureReason: closureReason,
+          roomName: roomName,
+          roomId: s.roomId || null,
+          isRescheduleEligible: isRescheduleEligible,
+          rescheduleIneligibilityReason: rescheduleIneligibilityReason,
+          date: targetDate,
         };
       });
 
-      const sessionOpStatuses = sesiHarian.map((s) => s.status_sesi);
+      const sessionOpStatuses = dailySessions.map((s) => s.sessionStatus);
 
       const aggregateOpStatus = resolveAggregateOperationalStatus({
         isClosedForLeave: isOnLeave,
@@ -363,40 +365,40 @@ export class DrizzleAdminDoctorScheduleListQuery {
         ? ScheduleOperationalStatus.PENDING
         : aggregateOpStatus;
 
-      let jadwalHariIni = '-';
-      let jadwalPraktikMendatang = 'Tidak Ada Jadwal';
+      let todaySchedule = '-';
+      let upcomingSchedule = 'Tidak Ada Jadwal';
 
       if (isPending) {
-        jadwalHariIni = '-';
-        jadwalPraktikMendatang = 'Menunggu Verifikasi';
+        todaySchedule = '-';
+        upcomingSchedule = 'Menunggu Verifikasi';
       } else if (isOnLeave) {
-        jadwalPraktikMendatang = 'Dokter Cuti';
+        upcomingSchedule = 'Dokter Cuti';
       } else if (isClosed) {
-        jadwalPraktikMendatang =
-          sesiHarian.length === 0 ? 'Tidak Ada Jadwal' : 'Praktik Ditutup';
+        upcomingSchedule =
+          dailySessions.length === 0 ? 'Tidak Ada Jadwal' : 'Praktik Ditutup';
       } else {
-        jadwalPraktikMendatang = '-';
-        if (sesiHarian.length > 0) {
-          const starts = sesiHarian.map((s) => s.jam_mulai).sort();
-          const ends = sesiHarian.map((s) => s.jam_selesai).sort();
-          jadwalHariIni = `${starts[0]} - ${ends[ends.length - 1]}`;
+        upcomingSchedule = '-';
+        if (dailySessions.length > 0) {
+          const starts = dailySessions.map((s) => s.startTime).sort();
+          const ends = dailySessions.map((s) => s.endTime).sort();
+          todaySchedule = `${starts[0]} - ${ends[ends.length - 1]}`;
         }
       }
 
-      const ruangPraktik =
-        sesiHarian.length > 0 ? sesiHarian[0].ruang : defaultRoomName;
-      const spesialisasi =
+      const practiceRoom =
+        dailySessions.length > 0 ? dailySessions[0].roomName : defaultRoomName;
+      const specialty =
         p.medicalSpecialty?.name ||
         p.staffProfile?.clinicUnit?.name ||
         p.staffProfile?.positionTitle ||
         '';
-      const namaDokter = p.staffProfile?.fullName || p.displayName || '';
+      const doctorFullName = p.staffProfile?.fullName || p.displayName || '';
       if (query.search) {
         const q = query.search.toLowerCase();
         const matchSearch =
-          namaDokter.toLowerCase().includes(q) ||
-          spesialisasi.toLowerCase().includes(q) ||
-          ruangPraktik.toLowerCase().includes(q);
+          doctorFullName.toLowerCase().includes(q) ||
+          specialty.toLowerCase().includes(q) ||
+          practiceRoom.toLowerCase().includes(q);
         if (!matchSearch) continue;
       }
 
@@ -408,7 +410,7 @@ export class DrizzleAdminDoctorScheduleListQuery {
         if (poliList.length > 0) {
           const matchPoli = poliList.some(
             (item) =>
-              spesialisasi.toLowerCase().includes(item) ||
+              specialty.toLowerCase().includes(item) ||
               (p.staffProfile?.clinicUnit?.name || '')
                 .toLowerCase()
                 .includes(item),
@@ -418,7 +420,7 @@ export class DrizzleAdminDoctorScheduleListQuery {
       }
 
       if (query.session) {
-        if (isPending || sesiHarian.length === 0) continue;
+        if (isPending || dailySessions.length === 0) continue;
         const sessionFilters = query.session
           .split(',')
           .map((s) => s.trim().toLowerCase())
@@ -485,36 +487,37 @@ export class DrizzleAdminDoctorScheduleListQuery {
 
       cards.push({
         id: p.id,
-        practitioner_id: p.id,
-        staff_profile_id: p.staffProfileId,
-        staff_id: p.staffProfileId,
-        staff_code: p.staffProfile?.staffCode || null,
-        nama_dokter: namaDokter,
-        spesialisasi,
-        status_dokter: scheduleStatus,
+        practitionerId: p.id,
+        staffProfileId: p.staffProfileId,
+        staffId: p.staffProfileId,
+        staffCode: p.staffProfile?.staffCode || null,
+        staffType: p.staffProfile?.staffType,
+        fullName: doctorFullName,
+        specialty,
+        doctorStatus: scheduleStatus,
         email: p.staffProfile?.email || null,
-        nomor_telepon: p.staffProfile?.phone || null,
-        ruang_praktik: ruangPraktik,
-        tanggal_praktik: formatIndoDate(
+        phone: p.staffProfile?.phone || null,
+        practiceRoom,
+        practiceDate: formatIndoDate(
           targetDate,
           dateFormatStyle as DateDisplayFormatStyle,
         ),
         avatar: ScheduleRecordMapper.toAvatarUrl(p.staffProfile),
-        jadwal_hari_ini: jadwalHariIni,
-        jadwal_praktik_mendatang: jadwalPraktikMendatang,
-        status_jadwal: scheduleStatus,
-        bulan_jadwal: formatIndoMonthYear(targetYear, targetMonth),
-        is_on_leave: isOnLeave,
-        leave_reason: leaveReason,
-        leave_start: leaveStart,
-        leave_end: leaveEnd,
-        leave_type: leaveType,
-        substitute_doctor_name: substituteDoctorName,
-        replacement_status: replacementStatus,
-        sesi_harian: isPending ? [] : sesiHarian,
-        total_pasien: isPending ? 0 : totalPasien,
-        pasien_preview: isPending ? [] : pasienPreview,
-        is_accepting_appointments: p.isAcceptingAppointments,
+        todaySchedule,
+        upcomingSchedule,
+        scheduleStatus,
+        scheduleMonth: formatIndoMonthYear(targetYear, targetMonth),
+        isOnLeave,
+        leaveReason,
+        leaveStart,
+        leaveEnd,
+        leaveType,
+        substituteDoctorName,
+        replacementStatus,
+        dailySessions: isPending ? [] : dailySessions,
+        totalPatients: isPending ? 0 : totalPatients,
+        patientPreviews: isPending ? [] : patientPreviews,
+        isAcceptingAppointments: p.isAcceptingAppointments,
       });
     }
 
@@ -531,8 +534,8 @@ export class DrizzleAdminDoctorScheduleListQuery {
         meta: {
           page,
           limit,
-          total_doctors: totalDoctors,
-          total_pages: totalPages,
+          totalDoctors: totalDoctors,
+          totalPages: totalPages,
         },
       },
     };

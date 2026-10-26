@@ -50,8 +50,9 @@ export class DrizzleAdminSessionMutationRepository {
     const practitionerId = practitioner.id;
 
     let roomId: string | null = null;
-    if (body.ruang) {
-      roomId = await this.roomResolver.resolveByNameOrId(body.ruang);
+    const targetRoom = body.roomId || body.roomName;
+    if (targetRoom) {
+      roomId = await this.roomResolver.resolveByNameOrId(targetRoom);
     }
     if (!roomId) {
       roomId = practitioner.defaultRoomId || null;
@@ -64,30 +65,30 @@ export class DrizzleAdminSessionMutationRepository {
     }
 
     const startTimeFormatted =
-      body.jam_mulai.length === 5 ? `${body.jam_mulai}:00` : body.jam_mulai;
+      body.startTime.length === 5 ? `${body.startTime}:00` : body.startTime;
     const endTimeFormatted =
-      body.jam_selesai.length === 5
-        ? `${body.jam_selesai}:00`
-        : body.jam_selesai;
+      body.endTime.length === 5
+        ? `${body.endTime}:00`
+        : body.endTime;
 
     await this.conflictQuery.checkConflicts(
       practitionerId,
-      body.schedule_date,
+      body.scheduleDate,
       startTimeFormatted,
       endTimeFormatted,
       roomId,
     );
 
-    const { shift, label } = resolveCanonicalShift({ session: body.nama_sesi });
+    const { shift, label } = resolveCanonicalShift({ session: body.sessionName });
 
     const requestedStatus = toAdminScheduleStatusRequest(
-      body.status_sesi ?? AdminScheduleStatusRequest.OPEN,
+      body.sessionStatus ?? AdminScheduleStatusRequest.OPEN,
     );
     if (!requestedStatus) {
       throw new BadRequestException({
         code: 'INVALID_SESSION_STATUS',
-        message: 'status_sesi must use canonical values only: OPEN or CLOSED.',
-        metadata: { status_sesi: body.status_sesi },
+        message: 'sessionStatus must use canonical values only: OPEN or CLOSED.',
+        metadata: { sessionStatus: body.sessionStatus },
       });
     }
 
@@ -103,17 +104,17 @@ export class DrizzleAdminSessionMutationRepository {
       .insert(shiftExceptions)
       .values({
         doctorId: practitionerId,
-        serviceDate: body.schedule_date,
+        serviceDate: body.scheduleDate,
         sessionId: sessionDef?.id || null,
         type: exceptionType,
-        note: body.nama_sesi,
+        note: body.sessionName,
       })
       .returning();
 
     const sessionData = {
       id: createdException.id,
       practitionerId,
-      scheduleDate: body.schedule_date,
+      scheduleDate: body.scheduleDate,
       sessionLabel: label,
       sessionShift: shift,
       startTime: startTimeFormatted,
@@ -231,22 +232,23 @@ export class DrizzleAdminSessionMutationRepository {
       throw new NotFoundException(`Format ID sesi ${sessionId} tidak valid`);
     }
 
-    const startTimeFormatted = body.jam_mulai
-      ? body.jam_mulai.length === 5
-        ? `${body.jam_mulai}:00`
-        : body.jam_mulai
+    const startTimeFormatted = body.startTime
+      ? body.startTime.length === 5
+        ? `${body.startTime}:00`
+        : body.startTime
       : existingStartTime;
-    const endTimeFormatted = body.jam_selesai
-      ? body.jam_selesai.length === 5
-        ? `${body.jam_selesai}:00`
-        : body.jam_selesai
+    const endTimeFormatted = body.endTime
+      ? body.endTime.length === 5
+        ? `${body.endTime}:00`
+        : body.endTime
       : existingEndTime;
 
-    if (body.ruang) {
-      roomId = await this.roomResolver.resolveByNameOrId(body.ruang);
+    const targetRoom = body.roomId || body.roomName;
+    if (targetRoom) {
+      roomId = await this.roomResolver.resolveByNameOrId(targetRoom);
     }
 
-    if (body.jam_mulai || body.jam_selesai || body.ruang) {
+    if (body.startTime || body.endTime || targetRoom) {
       await this.conflictQuery.checkConflicts(
         practitioner.id,
         targetDate,
@@ -258,14 +260,14 @@ export class DrizzleAdminSessionMutationRepository {
     }
 
     let resolvedStatus = AdminScheduleStatusRequest.OPEN;
-    if (body.status_sesi) {
-      const requestedStatus = toAdminScheduleStatusRequest(body.status_sesi);
+    if (body.sessionStatus) {
+      const requestedStatus = toAdminScheduleStatusRequest(body.sessionStatus);
       if (!requestedStatus) {
         throw new BadRequestException({
           code: 'INVALID_SESSION_STATUS',
           message:
-            'status_sesi must use canonical values only: OPEN or CLOSED.',
-          metadata: { status_sesi: body.status_sesi },
+            'sessionStatus must use canonical values only: OPEN or CLOSED.',
+          metadata: { sessionStatus: body.sessionStatus },
         });
       }
       resolvedStatus = requestedStatus;

@@ -1,8 +1,8 @@
 export class PoliklinikEntity {
   id: string;
-  namaPoli: string;
-  kodePoli: string;
-  deskripsi?: string | null;
+  code: string;
+  name: string;
+  location?: string | null;
   isActive: boolean;
   createdAt: Date;
 }
@@ -10,8 +10,8 @@ export class PoliklinikEntity {
 export class LayananPoliEntity {
   id: string;
   poliklinikId: string;
-  namaLayanan: string;
-  deskripsi?: string | null;
+  name: string;
+  description?: string | null;
   medicalFlow: 'pregnancy' | 'immunization' | 'general';
   isActive: boolean;
   createdAt: Date;

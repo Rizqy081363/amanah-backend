@@ -275,8 +275,8 @@ export function buildDailySessions(
     );
     const defaultStart = descriptor?.defaultStartTime ?? '';
     const defaultEnd = descriptor?.defaultEndTime ?? '';
-    const jamMulai = s.startTime ? s.startTime.slice(0, 5) : defaultStart;
-    const jamSelesai = s.endTime ? s.endTime.slice(0, 5) : defaultEnd;
+    const sessionStart = s.startTime ? s.startTime.slice(0, 5) : defaultStart;
+    const sessionEnd = s.endTime ? s.endTime.slice(0, 5) : defaultEnd;
     const sessStart = s.startTime
       ? s.startTime.length === 5
         ? `${s.startTime}:00`
@@ -302,8 +302,8 @@ export function buildDailySessions(
     });
 
     const metrics = ScheduleSessionFactory.calculateSessionMetrics({
-      startTime: jamMulai,
-      endTime: jamSelesai,
+      startTime: sessionStart,
+      endTime: sessionEnd,
       durationMinutes: validDuration,
       bookedCount: matchingAppts.filter(
         (a) =>
@@ -347,35 +347,34 @@ export function buildDailySessions(
 
     return {
       id: s.id,
-      nama_sesi: sessionTitle,
-      jam_mulai: jamMulai,
-      jam_selesai: jamSelesai,
-      waktu: `${jamMulai} - ${jamSelesai}`,
-      pasien_terdaftar: metrics.bookedCount,
-      status_sesi: sessionOpStatus,
-      closure_reason: closureReason,
-      ruang: roomName,
-      ruang_id: s.roomId || null,
+      sessionName: sessionTitle,
+      startTime: sessionStart,
+      endTime: sessionEnd,
+      timeRange: `${sessionStart} - ${sessionEnd}`,
+      bookedPatients: metrics.bookedCount,
+      sessionStatus: sessionOpStatus,
+      closureReason: closureReason,
+      roomName: roomName,
       roomId: s.roomId || null,
-      is_reschedule_eligible: isRescheduleEligible,
-      reschedule_ineligibility_reason: rescheduleIneligibilityReason,
-      tanggal: s.scheduleDate || scheduleDate || curDate,
+      isRescheduleEligible: isRescheduleEligible,
+      rescheduleIneligibilityReason: rescheduleIneligibilityReason,
+      date: s.scheduleDate || scheduleDate || curDate,
     };
   });
 }
 
 export function buildTimelineAndMetrics(
   _contextProjections: any[] = [],
-  sesiHarian: any[] = [],
+  dailySessions: any[] = [],
 ) {
-  const totalBooked = sesiHarian.reduce(
+  const totalBooked = dailySessions.reduce(
     (acc, s) => acc + (s.pasien_terdaftar || 0),
     0,
   );
 
   const dayMetrics = {
     totalBookedPatients: totalBooked,
-    activeSessionsCount: sesiHarian.length,
+    activeSessionsCount: dailySessions.length,
     unscheduledNotice: 'Semua sesi telah terjadwal',
   };
 

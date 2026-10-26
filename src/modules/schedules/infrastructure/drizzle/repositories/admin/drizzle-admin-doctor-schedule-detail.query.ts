@@ -299,9 +299,9 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
 
     const defaultRoomName = prac.clinicRoom
       ? `${prac.clinicRoom.name}${prac.clinicRoom.location ? `, ${prac.clinicRoom.location}` : ''}`
-      : 'Belum Ditentukan';
+      : '';
 
-    const sesiHarian = buildDailySessions({
+    const dailySessions = buildDailySessions({
       evalSessions,
       evalAppts,
       consultationDurationMinutes: effectiveConsultationDuration,
@@ -310,7 +310,7 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
       scheduleDate: evalDate,
     });
 
-    const evalSessionOpStatuses = sesiHarian.map((s) => s.status_sesi);
+    const evalSessionOpStatuses = dailySessions.map((s) => s.sessionStatus);
 
     const evalAggregateOpStatus = resolveAggregateOperationalStatus({
       isClosedForLeave: isEvalOnLeave,
@@ -325,7 +325,7 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
 
     const { timelineIntervals, dayMetrics } = buildTimelineAndMetrics(
       [],
-      sesiHarian,
+      dailySessions,
     );
     const contextProjections: any[] = [];
 
@@ -333,36 +333,37 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
       success: true,
       data: {
         id: prac.id,
-        practitioner_id: prac.id,
-        staff_profile_id: prac.staffProfileId,
-        staff_id: prac.staffProfileId,
-        staff_code: prac.staffProfile?.staffCode || null,
-        nama_dokter: prac.staffProfile?.fullName || prac.displayName || '',
-        spesialisasi:
+        practitionerId: prac.id,
+        staffProfileId: prac.staffProfileId,
+        staffId: prac.staffProfileId,
+        staffCode: prac.staffProfile?.staffCode || null,
+        staffType: prac.staffProfile?.staffType,
+        fullName: prac.staffProfile?.fullName || prac.displayName || '',
+        specialty:
           prac.medicalSpecialty?.name ||
           prac.staffProfile?.clinicUnit?.name ||
           prac.staffProfile?.positionTitle ||
           '',
-        status_dokter: statusDokter,
-        is_accepting_appointments: prac.isAcceptingAppointments,
+        doctorStatus: statusDokter,
+        isAcceptingAppointments: prac.isAcceptingAppointments,
         email: prac.staffProfile?.email || null,
-        nomor_telepon: prac.staffProfile?.phone || null,
-        ruang_praktik:
-          sesiHarian.length > 0 ? sesiHarian[0].ruang : defaultRoomName,
+        phone: prac.staffProfile?.phone || null,
+        practiceRoom:
+          dailySessions.length > 0 ? dailySessions[0].roomName : defaultRoomName,
         avatar: ScheduleRecordMapper.toAvatarUrl(prac.staffProfile),
-        bulan_jadwal: formatIndoMonthYear(targetYear, targetMonth),
-        is_on_leave: isEvalOnLeave,
-        leave_reason: evalLeaveReason,
-        leave_start: evalLeaveStart,
-        leave_end: evalLeaveEnd,
-        leave_type: evalLeaveType,
-        substitute_doctor_name: substituteDoctorName,
-        replacement_status: replacementStatus,
-        monthly_schedule: monthlySchedule,
-        sesi_harian: sesiHarian,
-        timeline_intervals: timelineIntervals,
+        scheduleMonth: formatIndoMonthYear(targetYear, targetMonth),
+        isOnLeave: isEvalOnLeave,
+        leaveReason: evalLeaveReason,
+        leaveStart: evalLeaveStart,
+        leaveEnd: evalLeaveEnd,
+        leaveType: evalLeaveType,
+        substituteDoctorName: substituteDoctorName,
+        replacementStatus: replacementStatus,
+        monthlySchedule: monthlySchedule,
+        dailySessions: dailySessions,
+        timelineIntervals: timelineIntervals,
         shifts: contextProjections,
-        context_projections: contextProjections,
+        contextProjections: contextProjections,
         metrics: dayMetrics,
         summary: dayMetrics,
       },

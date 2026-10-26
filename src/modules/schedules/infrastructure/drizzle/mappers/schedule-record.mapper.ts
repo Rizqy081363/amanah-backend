@@ -163,11 +163,7 @@ export function mapScheduleRecordToEntity(
       record.practitionerId || record.practitioner?.staffProfileId || undefined,
     practitionerId: record.practitionerId,
     isRescheduleEligible: isAvailable,
-    is_reschedule_eligible: isAvailable,
     rescheduleIneligibilityReason: !isAvailable
-      ? RESCHEDULE_CLOSED_REASON
-      : null,
-    reschedule_ineligibility_reason: !isAvailable
       ? RESCHEDULE_CLOSED_REASON
       : null,
     version: generateEntityVersion(record.updatedAt),

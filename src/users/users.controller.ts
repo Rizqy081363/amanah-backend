@@ -26,9 +26,8 @@ import {
   ApiUnauthorizedResponse,
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
-import { Roles } from '../roles/roles.decorator';
-import { RoleEnum } from '../roles/roles.enum';
-import { RolesGuard } from '../roles/roles.guard';
+import { Roles } from '../common/auth';
+import { RolesGuard } from '../common/auth/roles.guard';
 import {
   InfinityPaginationResponse,
   InfinityPaginationResponseDto,
@@ -42,7 +41,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { UsersService } from './users.service';
 
 @ApiBearerAuth('access-token')
-@Roles(RoleEnum.admin)
+@Roles('ADMIN')
 @UseGuards(AuthGuard('jwt'), RolesGuard)
 @ApiTags('Users (Manajemen Pengguna Admin)')
 @ApiUnauthorizedResponse({

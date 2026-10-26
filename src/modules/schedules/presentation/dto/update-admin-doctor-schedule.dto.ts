@@ -17,7 +17,7 @@ export class UpdateAdminDoctorScheduleDto {
   })
   @IsOptional()
   @IsBoolean()
-  is_on_leave?: boolean;
+  isOnLeave?: boolean;
 
   @ApiPropertyOptional({
     description: 'Alasan dokter cuti',
@@ -25,7 +25,7 @@ export class UpdateAdminDoctorScheduleDto {
   })
   @IsOptional()
   @IsString()
-  leave_reason?: string;
+  leaveReason?: string;
 
   @ApiPropertyOptional({
     description: 'Tanggal mulai cuti (format YYYY-MM-DD)',
@@ -33,7 +33,7 @@ export class UpdateAdminDoctorScheduleDto {
   })
   @IsOptional()
   @IsString()
-  leave_start?: string;
+  leaveStart?: string;
 
   @ApiPropertyOptional({
     description: 'Tanggal selesai cuti (format YYYY-MM-DD)',
@@ -41,17 +41,17 @@ export class UpdateAdminDoctorScheduleDto {
   })
   @IsOptional()
   @IsString()
-  leave_end?: string;
+  leaveEnd?: string;
 
   @ApiPropertyOptional({
     description:
-      'Canonical schedule operating status. Doctor leave is controlled by is_on_leave, not this field.',
+      'Canonical schedule operating status. Doctor leave is controlled by isOnLeave, not this field.',
     enum: AdminScheduleStatusRequest,
     example: AdminScheduleStatusRequest.CLOSED,
   })
   @IsOptional()
   @IsEnum(AdminScheduleStatusRequest)
-  status_jadwal?: AdminScheduleStatusRequest;
+  scheduleStatus?: AdminScheduleStatusRequest;
 
   @ApiPropertyOptional({
     description: 'Ruang tempat praktik dokter',
@@ -59,7 +59,15 @@ export class UpdateAdminDoctorScheduleDto {
   })
   @IsOptional()
   @IsString()
-  ruang_praktik?: string;
+  practiceRoom?: string;
+
+  @ApiPropertyOptional({
+    description: 'ID Ruangan praktik (UUID)',
+    example: 'e3067341-a185-484d-91d6-84848fcff1ef',
+  })
+  @IsOptional()
+  @IsString()
+  roomId?: string;
 
   @ApiPropertyOptional({
     description: 'Tanggal target perubahan (format YYYY-MM-DD)',

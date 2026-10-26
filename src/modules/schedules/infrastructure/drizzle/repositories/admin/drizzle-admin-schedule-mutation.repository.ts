@@ -57,12 +57,13 @@ export class DrizzleAdminScheduleMutationRepository {
     const practitionerId = practitioner.id;
 
     const targetDate =
-      body.date || body.leave_start || new Date().toISOString().slice(0, 10);
+      body.date || body.leaveStart || new Date().toISOString().slice(0, 10);
 
     // 0. Ruang Praktik resolution & persistence
-    if (body.ruang_praktik) {
+    const targetRoom = body.roomId || body.practiceRoom;
+    if (targetRoom) {
       const resolvedRoomId = await this.roomResolver.resolveByNameOrId(
-        body.ruang_praktik,
+        targetRoom,
       );
 
       if (resolvedRoomId) {
@@ -85,7 +86,7 @@ export class DrizzleAdminScheduleMutationRepository {
     }
 
     // 1. Leave override via shiftExceptions
-    const isOnLeave = body.is_on_leave;
+    const isOnLeave = body.isOnLeave;
     if (isOnLeave !== undefined) {
       if (isOnLeave) {
         const existingLeave = await this.db.query.shiftExceptions.findFirst({
@@ -100,7 +101,7 @@ export class DrizzleAdminScheduleMutationRepository {
           await this.db
             .update(shiftExceptions)
             .set({
-              note: body.leave_reason || 'Dokter Cuti',
+              note: body.leaveReason || 'Dokter Cuti',
               updatedAt: new Date().toISOString(),
             })
             .where(eq(shiftExceptions.id, existingLeave.id));
@@ -109,7 +110,7 @@ export class DrizzleAdminScheduleMutationRepository {
             doctorId: practitionerId,
             serviceDate: targetDate,
             type: 'leave',
-            note: body.leave_reason || 'Dokter Cuti',
+            note: body.leaveReason || 'Dokter Cuti',
           });
         }
       } else {
@@ -126,14 +127,14 @@ export class DrizzleAdminScheduleMutationRepository {
     }
 
     // 2. Schedule status override via shiftExceptions
-    if (body.status_jadwal) {
-      const requestedStatus = toAdminScheduleStatusRequest(body.status_jadwal);
+    if (body.scheduleStatus) {
+      const requestedStatus = toAdminScheduleStatusRequest(body.scheduleStatus);
       if (!requestedStatus) {
         throw new BadRequestException({
           code: 'INVALID_SCHEDULE_STATUS',
           message:
-            'status_jadwal must use canonical values only: OPEN or CLOSED.',
-          metadata: { status_jadwal: body.status_jadwal },
+            'scheduleStatus must use canonical values only: OPEN or CLOSED.',
+          metadata: { scheduleStatus: body.scheduleStatus },
         });
       }
 
