@@ -82,6 +82,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       ...payload,
       id: user.id,
       email: user.email,
+      name: user.name,
       systemRole,
       roleCode,
       roles: userRoleCodes.length > 0 ? userRoleCodes : [roleCode],

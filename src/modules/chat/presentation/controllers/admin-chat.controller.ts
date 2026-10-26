@@ -21,6 +21,7 @@ import { CurrentUser } from '../../../../common/auth/current-user.decorator';
 import { HybridAuthGuard } from '../../../../common/auth/hybrid-auth.guard';
 import { Roles } from '../../../../common/auth/roles.decorator';
 import { RolesGuard } from '../../../../common/auth/roles.guard';
+import { SYSTEM_ROLES } from '../../../../auth/constants/auth.constants';
 import { ChatService } from '../../application/services/chat.service';
 import { AdminConversationQueryDto } from '../dto/conversation-query.dto';
 import { MessageQueryDto } from '../dto/message-query.dto';
@@ -29,7 +30,7 @@ import { SendMessageDto } from '../dto/send-message.dto';
 @ApiTags('Admin Chat (Inbox Admin & Staf)')
 @ApiBearerAuth('access-token')
 @UseGuards(HybridAuthGuard, RolesGuard)
-@Roles('ADMIN', 'STAF')
+@Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
 @ApiUnauthorizedResponse({
   description: 'Sesi autentikasi admin tidak valid atau token tidak disertakan',
 })
@@ -91,7 +92,7 @@ export class AdminChatController {
     @Body() body: SendMessageDto,
     @CurrentUser() user: any,
   ) {
-    const adminName = user.staff?.fullName || user.name || 'Admin Klinik';
+    const adminName = user.staff?.fullName ?? user.name;
     return this.chatService.sendAdminMessage(
       id,
       user.id,
