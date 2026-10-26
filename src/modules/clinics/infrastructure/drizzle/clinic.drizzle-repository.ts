@@ -335,6 +335,7 @@ export class ClinicDrizzleRepository implements ClinicRepository {
               name: srv.name,
               prefix: srv.codePrefix,
               description: srv.description || null,
+              imageUrl: srv.imageUrl || null,
               specialtyCode: srv.specialtyId || null,
               medicalFlow: (srv.medicalFlow as any) || null,
               displayOrder: srv.displayOrder,

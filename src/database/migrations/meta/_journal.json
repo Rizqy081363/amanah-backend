@@ -386,6 +386,13 @@
       "when": 1791338000000,
       "tag": "0054_sync_better_auth_avatar_url",
       "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1791339000000,
+      "tag": "0055_populate_clinic_services_image_url",
+      "breakpoints": true
     }
   ]
 }

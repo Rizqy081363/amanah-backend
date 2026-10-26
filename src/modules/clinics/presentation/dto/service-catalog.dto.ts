@@ -24,6 +24,13 @@ export class ServiceCatalogItemDto {
   description?: string | null;
 
   @ApiProperty({
+    description: 'URL gambar thumbnail layanan',
+    required: false,
+    nullable: true,
+  })
+  imageUrl?: string | null;
+
+  @ApiProperty({
     description: 'Kode spesialisasi',
     example: 'general_practitioner',
     nullable: true,
