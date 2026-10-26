@@ -89,7 +89,6 @@ export class AttendanceNotificationService {
         kategori: categoryLabel,
         tanggal_presensi: record.attendanceDate || '',
         waktu_presensi: formattedTime,
-        waktu: formattedTime,
         checkInAt: record.checkInAt ? record.checkInAt.toISOString() : null,
         checkOutAt: record.checkOutAt ? record.checkOutAt.toISOString() : null,
         status: statusLabel,
