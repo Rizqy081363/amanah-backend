@@ -8,6 +8,7 @@ import {
   IsString,
   IsUUID,
 } from 'class-validator';
+import { staffLeaveRequestType } from '../../../../database/schema';
 
 export class RequestLeaveDto {
   @ApiProperty({
@@ -64,18 +65,11 @@ export class RequestLeaveDto {
     example: 'annual_leave',
     description:
       'Jenis permohonan cuti: annual_leave, sick_leave, seminar_symposium, family_matter, external_assignment, other',
-    enum: [
-      'annual_leave',
-      'sick_leave',
-      'seminar_symposium',
-      'family_matter',
-      'external_assignment',
-      'other',
-    ],
+    enum: staffLeaveRequestType.enumValues,
   })
-  @IsString()
+  @IsIn(staffLeaveRequestType.enumValues)
   @IsOptional()
-  type?: string;
+  type?: (typeof staffLeaveRequestType.enumValues)[number];
 
   @ApiPropertyOptional({
     example: '550e8400-e29b-41d4-a716-446655440000',

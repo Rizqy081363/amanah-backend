@@ -2,13 +2,10 @@ import { createHash, randomBytes } from 'node:crypto';
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { REDIS_CLIENT } from '../../../../common/redis/redis.constants';
-
-export interface RealtimeTicketData {
-  userId: string;
-  role: string;
-  roles?: string[];
-  issuedAt: number;
-}
+import type {
+  RealtimePrincipal,
+  RealtimeTicketPayload,
+} from '../../contracts/realtime-session.contract';
 
 export interface RealtimeTicketResult {
   ticket: string;
@@ -24,7 +21,7 @@ export class RealtimeTicketService {
   // In-memory fallback if Redis is not configured or in unit test environment
   private readonly memoryTickets = new Map<
     string,
-    { data: RealtimeTicketData; expiresAt: number }
+    { data: RealtimeTicketPayload; expiresAt: number }
   >();
 
   constructor(
@@ -38,21 +35,16 @@ export class RealtimeTicketService {
    * Stores sha256(ticket) in Redis with 60s TTL.
    */
   async createTicket(
-    userId: string,
-    role = 'patient',
-    roles: string[] = [],
+    principal: RealtimePrincipal,
   ): Promise<RealtimeTicketResult> {
     const rawTicket = randomBytes(32).toString('base64url');
     const ticketHash = this.hashTicket(rawTicket);
     const key = `${RealtimeTicketService.KEY_PREFIX}${ticketHash}`;
 
-    const normalizedRoles =
-      Array.isArray(roles) && roles.length > 0 ? roles : [role];
-
-    const payload: RealtimeTicketData = {
-      userId,
-      role,
-      roles: normalizedRoles,
+    const payload: RealtimeTicketPayload = {
+      userId: principal.userId,
+      roleCode: principal.roleCode,
+      roles: principal.roles,
       issuedAt: Date.now(),
     };
 
@@ -66,7 +58,7 @@ export class RealtimeTicketService {
         );
       } catch (err) {
         this.logger.warn(
-          `Redis error setting realtime ticket for user ${userId}, falling back to memory: ${err}`,
+          `Redis error setting realtime ticket for user ${principal.userId}, falling back to memory: ${err}`,
         );
         this.memoryTickets.set(ticketHash, {
           data: payload,
@@ -91,9 +83,7 @@ export class RealtimeTicketService {
    * Atomically consumes a ticket via GETDEL (or Lua script).
    * Ensures single-use: once consumed, subsequent attempts return null.
    */
-  async consumeTicket(
-    ticket: string,
-  ): Promise<{ userId: string; role: string; roles?: string[] } | null> {
+  async consumeTicket(ticket: string): Promise<RealtimePrincipal | null> {
     if (!ticket || typeof ticket !== 'string') {
       return null;
     }
@@ -114,11 +104,11 @@ export class RealtimeTicketService {
         const result = await this.redisClient.eval(luaScript, 1, key);
 
         if (typeof result === 'string' && result.length > 0) {
-          const parsed = JSON.parse(result) as RealtimeTicketData;
+          const parsed = JSON.parse(result) as RealtimeTicketPayload;
           return {
             userId: parsed.userId,
-            role: parsed.role,
-            roles: parsed.roles || [parsed.role],
+            roleCode: parsed.roleCode,
+            roles: parsed.roles,
           };
         }
         return null;
@@ -142,8 +132,8 @@ export class RealtimeTicketService {
 
     return {
       userId: entry.data.userId,
-      role: entry.data.role,
-      roles: entry.data.roles || [entry.data.role],
+      roleCode: entry.data.roleCode,
+      roles: entry.data.roles,
     };
   }
 

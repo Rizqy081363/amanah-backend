@@ -19,11 +19,27 @@ export class GetAdminDoctorPatientsQueryDto {
 
   @ApiPropertyOptional({
     description: 'Filter status antrean pasien',
-    enum: ['waiting', 'booked', 'in_service', 'completed', 'cancelled', 'no_show', 'all'],
+    enum: [
+      'waiting',
+      'booked',
+      'in_service',
+      'completed',
+      'cancelled',
+      'no_show',
+      'all',
+    ],
     example: 'waiting',
   })
   @IsOptional()
-  @IsEnum(['waiting', 'booked', 'in_service', 'completed', 'cancelled', 'no_show', 'all'])
+  @IsEnum([
+    'waiting',
+    'booked',
+    'in_service',
+    'completed',
+    'cancelled',
+    'no_show',
+    'all',
+  ])
   status?: string;
 
   @ApiPropertyOptional({

@@ -13,8 +13,8 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../../common/auth/current-user.decorator';
 import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
 import {
-  type DeviceSubscriptionRepository,
   DEVICE_SUBSCRIPTION_REPOSITORY,
+  type DeviceSubscriptionRepository,
 } from '../domain/repositories/device-subscription.repository';
 import {
   PUSH_SUBSCRIPTION_REPOSITORY,
@@ -51,7 +51,7 @@ export class PushSubscriptionController {
     @Body() dto: SavePushSubscriptionDto,
     @CurrentUser() user: any,
   ): Promise<{ success: boolean; id: string }> {
-    const userId = user?.id || user?.sub;
+    const userId = user.id;
     const record = await this.pushSubscriptionRepo.upsert({
       userId,
       endpoint: dto.endpoint,
@@ -75,7 +75,7 @@ export class PushSubscriptionController {
     @Body('endpoint') endpoint: string,
     @CurrentUser() user: any,
   ): Promise<{ success: boolean }> {
-    const userId = user?.id || user?.sub;
+    const userId = user.id;
     if (endpoint) {
       await this.pushSubscriptionRepo.deleteByUserIdAndEndpoint(
         userId,
@@ -93,7 +93,7 @@ export class PushSubscriptionController {
     @Body() dto: RegisterDevicePushDto,
     @CurrentUser() user: any,
   ): Promise<{ success: boolean; id: string }> {
-    const userId = user?.id || user?.sub;
+    const userId = user.id;
     const result = await this.deviceSubscriptionRepo.upsertDeviceToken({
       userId,
       pushToken: dto.pushToken,
@@ -118,7 +118,7 @@ export class PushSubscriptionController {
     @Body() dto: UnregisterDevicePushDto,
     @CurrentUser() user: any,
   ): Promise<{ success: boolean }> {
-    const userId = user?.id || user?.sub;
+    const userId = user.id;
     await this.deviceSubscriptionRepo.revokeDeviceToken(userId, dto.pushToken);
     return { success: true };
   }

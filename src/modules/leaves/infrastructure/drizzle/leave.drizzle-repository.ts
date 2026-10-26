@@ -4,7 +4,6 @@ import {
   Inject,
   Injectable,
   Logger,
-  NotFoundException,
   Optional,
 } from '@nestjs/common';
 import { and, desc, eq, gte, inArray, lte } from 'drizzle-orm';
@@ -15,12 +14,11 @@ import {
   doctorAssignments,
   masterDays,
   practitioners,
-  sessionDefs,
-  shiftExceptions,
+  staffAttendanceRecords,
   staffLeaveRequests,
+  staffLeaveRequestType,
   staffProfiles,
   staffRosters,
-  staffAttendanceRecords,
 } from '../../../../database/schema';
 import {
   leavePolicies,
@@ -290,7 +288,11 @@ export class LeaveDrizzleRepository implements LeaveRepository {
     let totalEligibleSessionsAcrossRange = 0;
     let anyOperatingDayOpen = false;
 
-    for (let cur = new Date(startDt); cur <= endDt; cur.setDate(cur.getDate() + 1)) {
+    for (
+      let cur = new Date(startDt);
+      cur <= endDt;
+      cur.setDate(cur.getDate() + 1)
+    ) {
       const curDateStr = cur.toISOString().slice(0, 10);
       const curDow = cur.getDay();
 
@@ -301,7 +303,10 @@ export class LeaveDrizzleRepository implements LeaveRepository {
         anyOperatingDayOpen = true;
       }
 
-      const sessionsOnDate = await this.getEligibleSessions(data.staffId, curDateStr);
+      const sessionsOnDate = await this.getEligibleSessions(
+        data.staffId,
+        curDateStr,
+      );
       totalEligibleSessionsAcrossRange += sessionsOnDate.length;
     }
 
@@ -319,9 +324,14 @@ export class LeaveDrizzleRepository implements LeaveRepository {
 
     if (data.scope === 'session') {
       if (!data.sessionIds || data.sessionIds.length === 0) {
-        throw new BadRequestException('Sesi praktik harus dipilih untuk permohonan izin parsial.');
+        throw new BadRequestException(
+          'Sesi praktik harus dipilih untuk permohonan izin parsial.',
+        );
       }
-      const eligibleOnStart = await this.getEligibleSessions(data.staffId, data.startDate);
+      const eligibleOnStart = await this.getEligibleSessions(
+        data.staffId,
+        data.startDate,
+      );
       const eligibleSessIds = new Set(eligibleOnStart.map((s) => s.sessionId));
       for (const reqSessId of data.sessionIds) {
         if (!eligibleSessIds.has(reqSessId)) {
@@ -343,23 +353,9 @@ export class LeaveDrizzleRepository implements LeaveRepository {
       practitionerId = pract?.id || null;
     }
 
-    let reqType: any = 'other';
-    if (data.type) {
-      const lower = data.type.toLowerCase();
-      if (lower.includes('annual') || lower.includes('tahunan')) {
-        reqType = 'annual_leave';
-      } else if (lower.includes('sick') || lower.includes('sakit')) {
-        reqType = 'sick_leave';
-      } else if (lower.includes('seminar')) {
-        reqType = 'seminar_symposium';
-      } else if (lower.includes('family') || lower.includes('keluarga')) {
-        reqType = 'family_matter';
-      } else if (lower.includes('external') || lower.includes('tugas')) {
-        reqType = 'external_assignment';
-      } else {
-        reqType = 'other';
-      }
-    }
+    const reqType =
+      (data.type as (typeof staffLeaveRequestType.enumValues)[number]) ??
+      'other';
 
     const [record] = await this.db
       .insert(staffLeaveRequests)
@@ -375,7 +371,8 @@ export class LeaveDrizzleRepository implements LeaveRepository {
         decisionSource,
         substitutePractitionerId: data.substituteStaffId || null,
         status: initialStatus,
-        reviewedAt: initialStatus === 'approved' ? new Date().toISOString() : null,
+        reviewedAt:
+          initialStatus === 'approved' ? new Date().toISOString() : null,
       })
       .returning();
 
@@ -626,7 +623,10 @@ export class LeaveDrizzleRepository implements LeaveRepository {
     }));
   }
 
-  async findAll(filters?: { status?: string; staffType?: string }): Promise<any[]> {
+  async findAll(filters?: {
+    status?: string;
+    staffType?: string;
+  }): Promise<any[]> {
     const records = await this.db.query.staffLeaveRequests.findMany({
       with: {
         staffProfile: true,

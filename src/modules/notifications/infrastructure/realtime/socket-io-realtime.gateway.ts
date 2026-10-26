@@ -1,6 +1,4 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { JwtService } from '@nestjs/jwt';
 import {
   ConnectedSocket,
   MessageBody,
@@ -12,24 +10,18 @@ import {
   WebSocketServer,
 } from '@nestjs/websockets';
 import { createAdapter } from '@socket.io/redis-adapter';
-import { fromNodeHeaders } from 'better-auth/node';
 import type Redis from 'ioredis';
 import type { Server, Socket } from 'socket.io';
-import { auth as betterAuth } from '../../../../auth/better-auth/auth';
-import {
-  CANONICAL_ROLES,
-  CLINIC_STAFF_ROLES,
-} from '../../../../auth/constants/auth.constants';
-import { JwtPayloadType } from '../../../../auth/strategies/types/jwt-payload.type';
+import { CLINIC_STAFF_ROLES } from '../../../../auth/constants/auth.constants';
 import { REDIS_CLIENT } from '../../../../common/redis/redis.constants';
-import { AllConfigType } from '../../../../config/config.type';
 import {
   buildOriginPolicy,
   isOriginAllowed,
 } from '../../../../config/origin-policy';
-import { RealtimeGatewayPort } from '../../contracts/realtime-gateway.interface';
-import { REALTIME_ROOMS } from '../../notifications.constants';
 import { RealtimeTicketService } from '../../application/services/realtime-ticket.service';
+import { RealtimeGatewayPort } from '../../contracts/realtime-gateway.interface';
+import type { RealtimePrincipal } from '../../contracts/realtime-session.contract';
+import { REALTIME_ROOMS } from '../../notifications.constants';
 
 const wsDevOriginPatterns = (process.env.APP_DEV_ORIGIN_PATTERNS || '')
   .split(',')
@@ -81,8 +73,6 @@ export class SocketIoRealtimeGateway
   server!: Server;
 
   constructor(
-    private readonly jwtService: JwtService,
-    private readonly configService: ConfigService<AllConfigType>,
     @Optional()
     @Inject(REDIS_CLIENT)
     private readonly redisClient?: Redis,
@@ -107,7 +97,7 @@ export class SocketIoRealtimeGateway
       this.logger.log('Socket.IO initialized with default in-memory adapter.');
     }
 
-    // Middleware: Enforce handshake-level authentication before connection is admitted
+    // Middleware: Enforce handshake-level ticket authentication
     if (typeof server?.use === 'function') {
       server.use(async (socket, next) => {
         const rawTicket =
@@ -116,90 +106,40 @@ export class SocketIoRealtimeGateway
             ? socket.handshake.query.ticket
             : undefined);
 
-        if (rawTicket) {
-          if (!this.realtimeTicketService) {
-            this.logger.warn(
-              `realtime.reject reason=TICKET_SERVICE_UNAVAILABLE [id=${socket.id}]`,
-            );
-            return next(new Error('TICKET_SERVICE_UNAVAILABLE'));
-          }
-
-          const ticketData = await this.realtimeTicketService.consumeTicket(rawTicket);
-          if (ticketData?.userId) {
-            socket.data.userId = ticketData.userId;
-            socket.data.user = ticketData;
-            socket.data.role = ticketData.role || 'patient';
-            socket.data.roles = ticketData.roles || [socket.data.role];
-            return next();
-          }
-
+        if (!rawTicket) {
           this.logger.warn(
-            `realtime.reject reason=AUTH_TICKET_INVALID_OR_EXPIRED [id=${socket.id}]`,
+            `realtime.reject reason=AUTH_TICKET_MISSING [id=${socket.id}]`,
           );
-          return next(new Error('AUTH_TICKET_INVALID'));
+          return next(new Error('AUTH_TICKET_MISSING'));
         }
 
-        // Legacy fallback: check JWT
-        const token = this.extractToken(socket);
-        if (token) {
-          try {
-            const secret = this.configService.getOrThrow('auth.secret', {
-              infer: true,
-            });
-            const payload = await this.jwtService.verifyAsync<JwtPayloadType>(
-              token,
-              { secret },
-            );
-            if (payload?.id) {
-              socket.data.userId = payload.id;
-              socket.data.user = payload;
-              socket.data.role =
-                (payload as any).roleCode ||
-                payload.systemRole ||
-                payload.role?.name ||
-                (typeof payload.role === 'string' ? payload.role : 'patient');
-              socket.data.roles =
-                (payload as any).roles || [socket.data.role];
-              return next();
-            }
-          } catch {
-            // ignore error and proceed to better auth fallback
-          }
+        if (!this.realtimeTicketService) {
+          this.logger.warn(
+            `realtime.reject reason=TICKET_SERVICE_UNAVAILABLE [id=${socket.id}]`,
+          );
+          return next(new Error('TICKET_SERVICE_UNAVAILABLE'));
         }
 
-        // Legacy fallback: check Better Auth
-        if (socket.handshake.headers) {
-          try {
-            const session = await betterAuth.api.getSession({
-              headers: fromNodeHeaders(
-                socket.handshake.headers as Record<string, string | string[]>,
-              ),
-            });
-            if (session?.user?.id) {
-              socket.data.userId = session.user.id;
-              socket.data.user = session.user;
-              socket.data.role = (session.user as any).role || 'patient';
-              socket.data.roles = (session.user as any).roles || [socket.data.role];
-              return next();
-            }
-          } catch {
-            // ignore error
-          }
+        const principal =
+          await this.realtimeTicketService.consumeTicket(rawTicket);
+        if (principal) {
+          socket.data.user = principal;
+          return next();
         }
 
         this.logger.warn(
-          `realtime.reject reason=AUTH_TICKET_MISSING [id=${socket.id}]`,
+          `realtime.reject reason=AUTH_TICKET_INVALID_OR_EXPIRED [id=${socket.id}]`,
         );
-        return next(new Error('AUTH_TICKET_MISSING'));
+        return next(new Error('AUTH_TICKET_INVALID'));
       });
     }
   }
 
   async handleConnection(client: Socket): Promise<void> {
     const transport = client.conn?.transport?.name || 'unknown';
-    const userId = client.data.userId;
+    const principal: RealtimePrincipal | undefined = client.data?.user;
 
-    if (!userId) {
+    if (!principal) {
       this.logger.warn(
         `realtime.reject reason=AUTH_TICKET_MISSING [id=${client.id}]`,
       );
@@ -211,10 +151,7 @@ export class SocketIoRealtimeGateway
       return;
     }
 
-    const roles: string[] =
-      Array.isArray(client.data.roles) && client.data.roles.length > 0
-        ? client.data.roles
-        : [client.data.role || CANONICAL_ROLES.PATIENT];
+    const { userId, roles } = principal;
 
     // 1. Join private user room
     await client.join(REALTIME_ROOMS.user(userId));
@@ -242,7 +179,7 @@ export class SocketIoRealtimeGateway
   }
 
   handleDisconnect(client: Socket): void {
-    const userId = client.data?.userId as string | undefined;
+    const userId = client.data?.user?.userId;
     if (userId) {
       this.untrackSocket(userId, client.id);
       this.logger.debug(
@@ -302,9 +239,7 @@ export class SocketIoRealtimeGateway
 
   async broadcast(event: string, payload: unknown): Promise<boolean> {
     if (!this.server) {
-      this.logger.warn(
-        `Cannot broadcast event "${event}": server not ready`,
-      );
+      this.logger.warn(`Cannot broadcast event "${event}": server not ready`);
       return false;
     }
     this.server.emit(event, payload);
@@ -346,8 +281,8 @@ export class SocketIoRealtimeGateway
   ): void {
     if (!data?.conversationId) return;
     const room = `chat:${data.conversationId}`;
-    const senderId = client.data?.userId;
-    const senderRole = client.data?.role || 'customer';
+    const senderId = client.data?.user?.userId;
+    const senderRole = client.data?.user?.roleCode;
 
     // Broadcast to other sockets in the conversation room
     client.to(room).emit('chat:typing', {
@@ -357,12 +292,12 @@ export class SocketIoRealtimeGateway
       isTyping: Boolean(data.isTyping),
     });
 
-    // Also broadcast to role:admin room if sender is customer/guest
-    if (senderRole === 'customer' || senderRole === 'guest') {
+    // Also broadcast to role:admin room if sender is patient
+    if (senderRole === 'patient') {
       this.server.to('role:admin').emit('chat:typing', {
         conversationId: data.conversationId,
         senderId,
-        senderRole: 'customer',
+        senderRole: 'patient',
         isTyping: Boolean(data.isTyping),
       });
     }
@@ -383,36 +318,6 @@ export class SocketIoRealtimeGateway
 
   getConnectedUserCount(): number {
     return this.userSockets.size;
-  }
-
-  private extractToken(client: Socket): string | null {
-    const authHeader = client.handshake.headers?.authorization;
-    if (authHeader && typeof authHeader === 'string') {
-      return authHeader.startsWith('Bearer ')
-        ? authHeader.slice(7).trim()
-        : authHeader.trim();
-    }
-
-    const authToken = client.handshake.auth?.token;
-    if (authToken && typeof authToken === 'string') {
-      return authToken.trim();
-    }
-
-    const queryToken = client.handshake.query?.token;
-    if (queryToken && typeof queryToken === 'string') {
-      return queryToken.trim();
-    }
-
-    // Extract HttpOnly cookie (amanah_access_token) from web browser handshake
-    const cookieHeader = client.handshake.headers?.cookie;
-    if (cookieHeader && typeof cookieHeader === 'string') {
-      const match = cookieHeader.match(/amanah_access_token=([^;]+)/);
-      if (match?.[1]) {
-        return decodeURIComponent(match[1].trim());
-      }
-    }
-
-    return null;
   }
 
   private trackSocket(userId: string, socketId: string): void {

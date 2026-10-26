@@ -1,10 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { NotificationGatewayService } from '../../application/services/notification-gateway.service';
 import {
   DeliveryChannelAdapter,
   DeliveryResult,
 } from '../../contracts/delivery-channel.interface';
 import { NotificationEntity } from '../../domain/entities/notification.entity';
-import { NotificationGatewayService } from '../../application/services/notification-gateway.service';
 import { NotificationChannel } from '../../notifications.constants';
 
 @Injectable()
@@ -32,7 +32,8 @@ export class PushDeliveryChannel implements DeliveryChannelAdapter {
         content: {
           title: notification.title || 'Pemberitahuan Klinik Amanah',
           body: notification.body,
-          actionUrl: notification.metadata?.semanticAction?.params?.appointmentId
+          actionUrl: notification.metadata?.semanticAction?.params
+            ?.appointmentId
             ? `/dashboard/klinik/antrean?appointmentId=${notification.metadata.semanticAction.params.appointmentId}`
             : '/dashboard',
           data: {

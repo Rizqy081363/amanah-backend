@@ -72,7 +72,9 @@ export class InAppNotificationQueueWorker
             await this.processInAppCommand(content);
             channel.ack(msg);
           } catch (err) {
-            this.logger.error(`Error processing in-app message: ${String(err)}`);
+            this.logger.error(
+              `Error processing in-app message: ${String(err)}`,
+            );
             channel.nack(msg, false, false);
           }
         },
@@ -82,7 +84,9 @@ export class InAppNotificationQueueWorker
       this.isConsuming = true;
       this.logger.log('In-app notification queue consumer started');
     } catch (err) {
-      this.logger.error(`Failed to start in-app queue consumer: ${String(err)}`);
+      this.logger.error(
+        `Failed to start in-app queue consumer: ${String(err)}`,
+      );
     }
   }
 

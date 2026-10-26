@@ -241,9 +241,7 @@ export class PushNotificationQueueWorker
       for (const [key, value] of Object.entries(command.content.data)) {
         if (value !== undefined && value !== null) {
           dataPayload[key] =
-            typeof value === 'object'
-              ? JSON.stringify(value)
-              : String(value);
+            typeof value === 'object' ? JSON.stringify(value) : String(value);
         }
       }
     }

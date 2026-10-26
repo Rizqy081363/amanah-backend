@@ -65,8 +65,8 @@ function mapEnrichedPatient(
     birthPlace: p?.birthPlace || null,
     birthDate: p?.birthDate || null,
     motherName: p?.motherName || null,
-    address: p?.address || null,
-    alamatDetail: p?.alamatDetail || null,
+    address: p?.fullAddress || null,
+    alamatDetail: p?.line1 || null,
     provinsi: p?.provinsi || null,
     provinsiId: p?.provinsiId || null,
     kabupaten: p?.kabupaten || null,
@@ -75,7 +75,8 @@ function mapEnrichedPatient(
     kecamatanId: p?.kecamatanId || null,
     kelurahan: p?.kelurahan || null,
     kelurahanId: p?.kelurahanId || null,
-    phoneNumber: p?.phoneNumber || null,
+    phoneNumber: p?.phone || null,
+    phone: p?.phone || null,
     email: p?.email || null,
     relationship: aff.relationshipType,
     relationshipLabel:
@@ -176,7 +177,9 @@ export class PatientAffiliationsController {
         { value: 'relative', label: 'Kerabat' },
       ];
       if (hasExistingSelf) {
-        allowedRelationships = allowedRelationships.filter((r) => r.value !== 'self');
+        allowedRelationships = allowedRelationships.filter(
+          (r) => r.value !== 'self',
+        );
       }
 
       const validAffiliations = rawAffiliations.filter((aff) => {
@@ -240,7 +243,9 @@ export class PatientAffiliationsController {
       ];
 
       if (hasExistingSelf) {
-        allowedRelationships = allowedRelationships.filter((r) => r.value !== 'self');
+        allowedRelationships = allowedRelationships.filter(
+          (r) => r.value !== 'self',
+        );
       }
 
       enrichedPatients = rawAffiliations.map((aff) =>
@@ -293,7 +298,9 @@ export class PatientAffiliationsController {
     @Body() dto: CreatePatientAffiliationDto,
   ) {
     if (dto.relationshipType === 'self' || dto.isPrimary) {
-      const existingUserAffiliations = await this.affiliationRepo.findByUserId(user.id);
+      const existingUserAffiliations = await this.affiliationRepo.findByUserId(
+        user.id,
+      );
       const hasSelf = existingUserAffiliations.some(
         (aff) => aff.relationshipType === 'self' || aff.isPrimary,
       );
@@ -340,10 +347,7 @@ export class PatientAffiliationsController {
         if (!existingPatient.birthPlace && dto.birthPlace) {
           updates.birthPlace = dto.birthPlace.trim();
         }
-        if (
-          dto.phone?.trim() &&
-          dto.phone.trim() !== existingPatient.phoneNumber
-        ) {
+        if (dto.phone?.trim() && dto.phone.trim() !== existingPatient.phone) {
           updates.phone = dto.phone.trim();
         }
         if (dto.email?.trim() && dto.email.trim() !== existingPatient.email) {
@@ -374,7 +378,7 @@ export class PatientAffiliationsController {
         if (latestRecord?.mrn) {
           const parts = latestRecord.mrn.split('-');
           const lastSeq = parseInt(parts[parts.length - 1], 10);
-          if (!isNaN(lastSeq)) {
+          if (!Number.isNaN(lastSeq)) {
             nextSequence = lastSeq + 1;
           }
         }

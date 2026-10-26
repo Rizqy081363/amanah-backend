@@ -5,6 +5,7 @@ import { RolesGuard } from '@common/auth/roles.guard';
 import { HttpCache } from '@common/decorators/http-cache.decorator';
 import { RedisService } from '@common/redis/redis.service';
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -34,6 +35,7 @@ import {
   ApiUnauthorizedResponse,
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
+import { SYSTEM_ROLES } from '../../../auth/constants/auth.constants';
 import {
   STAFF_REPOSITORY,
   StaffRepository,
@@ -64,7 +66,7 @@ import { UpdateAdminDoctorSessionDto } from './dto/update-admin-doctor-session.d
 @ApiTags('Admin Doctor Schedules (Supervisi Jadwal Dokter)')
 @ApiBearerAuth('access-token')
 @UseGuards(HybridAuthGuard, RolesGuard)
-@Roles('ADMIN', 'STAF')
+@Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
 @ApiUnauthorizedResponse({
   description: 'Sesi autentikasi tidak valid atau token tidak disertakan',
 })
@@ -99,14 +101,12 @@ export class AdminDoctorSchedulesController {
     }
   }
 
-  private assertDoctorAccess(id: string, user?: any) {
-    if (!user || user.systemRole === 'ADMIN') return;
-    const userStaffId = user.staff?.practitionerId || user.staff?.id;
+  private assertDoctorAccess(targetPractitionerId: string, user?: any) {
+    if (!user || user.systemRole === SYSTEM_ROLES.ADMIN) return;
+    const doctorPractitionerId = user.staff?.practitionerId;
     if (
-      !userStaffId ||
-      (userStaffId !== id &&
-        user.staff?.id !== id &&
-        user.staff?.practitionerId !== id)
+      !doctorPractitionerId ||
+      doctorPractitionerId !== targetPractitionerId
     ) {
       throw new ForbiddenException(
         'Akses ditolak: Anda hanya berwenang mengakses data jadwal dokter Anda sendiri',
@@ -115,7 +115,7 @@ export class AdminDoctorSchedulesController {
   }
 
   @Get()
-  @Roles('ADMIN')
+  @Roles(SYSTEM_ROLES.ADMIN)
   @ApiOperation({
     summary: 'Mendapatkan daftar jadwal seluruh dokter untuk supervisi admin',
     description:
@@ -184,7 +184,8 @@ export class AdminDoctorSchedulesController {
 
   @Get(':id/profile')
   @ApiOperation({
-    summary: 'Mendapatkan data profil onboarding lengkap dokter / bidan (Admin)',
+    summary:
+      'Mendapatkan data profil onboarding lengkap dokter / bidan (Admin)',
     description:
       'Mengambil informasi profil, identitas KTP, kelahiran, domisili, poliklinik, dan kredensial SIP/STR dokter atau bidan.',
   })
@@ -199,21 +200,21 @@ export class AdminDoctorSchedulesController {
   @ApiNotFoundResponse({
     description: 'Dokter tidak ditemukan',
   })
-  async getDoctorProfile(
-    @Param('id') id: string,
-    @CurrentUser() user?: any,
-  ) {
+  async getDoctorProfile(@Param('id') id: string, @CurrentUser() user?: any) {
     this.assertDoctorAccess(id, user);
     const profile = await this.staffRepo.findById(id);
     if (!profile) {
-      throw new NotFoundException(`Profil dokter dengan ID ${id} tidak ditemukan`);
+      throw new NotFoundException(
+        `Profil dokter dengan ID ${id} tidak ditemukan`,
+      );
     }
     return profile;
   }
 
   @Patch(':id/profile')
   @ApiOperation({
-    summary: 'Memperbarui data profil dan status operasional dokter / bidan (Admin)',
+    summary:
+      'Memperbarui data profil dan status operasional dokter / bidan (Admin)',
     description:
       'Memperbarui data identitas, domisili, kredensial klinis, dan status aktif/non-aktif dokter atau bidan.',
   })
@@ -236,7 +237,9 @@ export class AdminDoctorSchedulesController {
     this.assertDoctorAccess(id, user);
     const updated = await this.staffRepo.update(id, body);
     if (!updated) {
-      throw new NotFoundException(`Gagal memperbarui profil dokter dengan ID ${id}`);
+      throw new NotFoundException(
+        `Gagal memperbarui profil dokter dengan ID ${id}`,
+      );
     }
     await this.invalidateScheduleCaches();
     return updated;
@@ -306,7 +309,7 @@ export class AdminDoctorSchedulesController {
   }
 
   @Patch(':id/days/:date')
-  @Roles('ADMIN', 'STAF')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
   @ApiOperation({
     summary: 'Menyesuaikan status praktik untuk tanggal kalender tertentu',
     description:
@@ -339,7 +342,7 @@ export class AdminDoctorSchedulesController {
       id,
       date,
       body.status,
-      body.notes,
+      body.reason,
     );
     await this.invalidateScheduleCaches();
     return result;
@@ -365,16 +368,18 @@ export class AdminDoctorSchedulesController {
   })
   async updateDayStatusByBody(
     @Param('id') id: string,
-    @Body() body: UpdateAdminDayStatusDto & { date?: string; reason?: string },
+    @Body() body: UpdateAdminDayStatusDto,
     @CurrentUser() user?: any,
   ) {
     this.assertDoctorAccess(id, user);
-    const targetDate = body.date || new Date().toISOString().slice(0, 10);
+    if (!body.date) {
+      throw new BadRequestException('Tanggal dinas (date) wajib disertakan');
+    }
     const result = await this.scheduleRepo.updateAdminDayStatus(
       id,
-      targetDate,
+      body.date,
       body.status,
-      body.notes || body.reason,
+      body.reason,
     );
     await this.invalidateScheduleCaches();
     return result;
@@ -453,7 +458,7 @@ export class AdminDoctorSchedulesController {
   }
 
   @Get(':id/sessions/:sessionId/reschedule-eligibility')
-  @Roles('ADMIN', 'STAF')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
   @ApiOperation({
     summary:
       'Pengecekan pra-syarat (eligibility pre-check) sebelum reschedule sesi dokter (Admin & Dokter)',
@@ -496,7 +501,7 @@ export class AdminDoctorSchedulesController {
   }
 
   @Post(':id/sessions/:sessionId/reschedule')
-  @Roles('ADMIN', 'STAF')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary:
@@ -538,7 +543,7 @@ export class AdminDoctorSchedulesController {
   }
 
   @Delete(':id/sessions/:sessionId')
-  @Roles('ADMIN')
+  @Roles(SYSTEM_ROLES.ADMIN)
   @ApiOperation({
     summary:
       'Penghapusan sesi jadwal dokter oleh Admin (Dinonaktifkan demi Integritas Data)',

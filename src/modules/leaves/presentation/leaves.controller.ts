@@ -27,6 +27,7 @@ import {
   ApiUnauthorizedResponse,
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
+import { SYSTEM_ROLES } from '../../../auth/constants/auth.constants';
 import { CurrentUser } from '../../../common/auth/current-user.decorator';
 import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
 import { Roles } from '../../../common/auth/roles.decorator';
@@ -56,9 +57,10 @@ export class LeavesController {
   ) {}
 
   @Get('eligible-sessions')
-  @Roles('STAF', 'ADMIN')
+  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
   @ApiOperation({
-    summary: 'Melihat sesi jadwal yang eligible untuk diajukan cuti (Mobile App & Web)',
+    summary:
+      'Melihat sesi jadwal yang eligible untuk diajukan cuti (Mobile App & Web)',
     description:
       'Mengambil sesi dinas aktif staf atau dokter pada tanggal tertentu berdasarkan roster resmi.',
   })
@@ -76,12 +78,14 @@ export class LeavesController {
     if (!user.staff?.id) {
       throw new ForbiddenException('User bukan staf terdaftar');
     }
-    const targetDate = date || new Date().toISOString().split('T')[0];
+    const targetDate = date
+      ? date.trim()
+      : new Date().toISOString().split('T')[0];
     return this.leaveRepo.getEligibleSessions(user.staff.id, targetDate);
   }
 
   @Post()
-  @Roles('STAF')
+  @Roles(SYSTEM_ROLES.STAF)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Staf mengajukan permohonan cuti / izin (Mobile App)',
@@ -101,7 +105,7 @@ export class LeavesController {
 
     return this.leaveRepo.create({
       staffId: user.staff.id,
-      practitionerId: user.staff?.practitionerId || user.doctor?.id || null,
+      practitionerId: user.staff.practitionerId ?? null,
       startDate: body.startDate,
       endDate: body.endDate,
       reason: body.reason,
@@ -114,7 +118,7 @@ export class LeavesController {
   }
 
   @Get('my-leaves')
-  @Roles('STAF')
+  @Roles(SYSTEM_ROLES.STAF)
   @ApiOperation({
     summary: 'Melihat riwayat pengajuan cuti staf login (Mobile App)',
     description:
@@ -132,7 +136,7 @@ export class LeavesController {
   }
 
   @Get('pending')
-  @Roles('ADMIN')
+  @Roles(SYSTEM_ROLES.ADMIN)
   @ApiOperation({
     summary:
       'Admin melihat daftar pengajuan cuti yang butuh persetujuan (Web Dashboard)',
@@ -148,7 +152,7 @@ export class LeavesController {
   }
 
   @Get('all')
-  @Roles('ADMIN')
+  @Roles(SYSTEM_ROLES.ADMIN)
   @ApiOperation({
     summary: 'Admin melihat seluruh data permohonan cuti (Web Dashboard)',
     description:
@@ -173,7 +177,7 @@ export class LeavesController {
   }
 
   @Patch(':id/status')
-  @Roles('ADMIN')
+  @Roles(SYSTEM_ROLES.ADMIN)
   @ApiOperation({
     summary: 'Admin menyetujui atau menolak cuti staf (Web Dashboard)',
     description:
@@ -192,13 +196,9 @@ export class LeavesController {
     @Body() body: ReviewLeaveDto,
     @CurrentUser() user: any,
   ) {
-    const normStatus: 'approved' | 'rejected' =
-      body.status === 'DISETUJUI' || body.status === 'approved'
-        ? 'approved'
-        : 'rejected';
     const updated = await this.leaveRepo.updateStatus(
       id,
-      normStatus,
+      body.status,
       user.id,
       body.approvalNotes,
     );
@@ -211,7 +211,7 @@ export class LeavesController {
   }
 
   @Patch(':id/cancel')
-  @Roles('STAF')
+  @Roles(SYSTEM_ROLES.STAF)
   @ApiOperation({
     summary:
       'Staf membatalkan pengajuan cuti sendiri yang masih pending (Mobile App)',

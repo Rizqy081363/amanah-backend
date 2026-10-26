@@ -7,14 +7,7 @@ import {
 import { AdminScheduleStatusRequest } from '@modules/schedules/domain/schedule-status';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import {
-  IsBoolean,
-  IsEnum,
-  IsNumber,
-  IsOptional,
-  IsString,
-  Min,
-} from 'class-validator';
+import { IsBoolean, IsEnum, IsOptional, IsString } from 'class-validator';
 
 export class UpdateScheduleDto {
   @ApiPropertyOptional({
@@ -89,20 +82,7 @@ export class UpdateScheduleDto {
   @ApiPropertyOptional({
     enum: AdminScheduleStatusRequest,
     example: AdminScheduleStatusRequest.OPEN,
-    description:
-      'Canonical schedule operating status (OPEN / CLOSED / Buka / Tutup)',
-  })
-  @Transform(({ value }) => {
-    if (typeof value === 'string') {
-      const normalized = value.trim().toUpperCase();
-      if (normalized === 'TUTUP' || normalized === 'CLOSED') {
-        return AdminScheduleStatusRequest.CLOSED;
-      }
-      if (normalized === 'BUKA' || normalized === 'OPEN') {
-        return AdminScheduleStatusRequest.OPEN;
-      }
-    }
-    return value;
+    description: 'Canonical schedule operating status',
   })
   @IsEnum(AdminScheduleStatusRequest)
   @IsOptional()

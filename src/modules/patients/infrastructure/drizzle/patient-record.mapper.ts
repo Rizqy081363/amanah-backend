@@ -47,11 +47,20 @@ export class PatientRecordMapper {
         : record.user.lastLoginAt.toISOString()
       : null;
 
+    const rawNik = record.nationalIdEncrypted || record.nationalIdHash || '';
+    let maskedNik: string | null = null;
+    if (rawNik && rawNik.length >= 8) {
+      maskedNik = `${rawNik.slice(0, 4)}********${rawNik.slice(-4)}`;
+    } else if (rawNik) {
+      maskedNik = '********';
+    }
+
     return {
       id: record.id,
       userId: record.userId || '',
       medicalRecordNumber: record.medicalRecordNumber,
-      nik: record.nationalIdEncrypted || record.nationalIdHash || '',
+      nik: rawNik,
+      maskedNik,
       fullName: record.fullName,
       gender: (record.gender as 'male' | 'female') || 'male',
       birthPlace: record.birthPlace || '',
@@ -62,9 +71,9 @@ export class PatientRecordMapper {
       bloodType: bloodTypeDisplay,
       motherName: record.motherName || null,
       occupation: record.occupation || null,
-      phoneNumber: resolvedPhone,
+      phone: resolvedPhone,
       email: resolvedEmail,
-      address: primaryAddress?.fullAddress || '',
+      fullAddress: primaryAddress?.fullAddress || '',
       line1: primaryAddress?.line1 || null,
       provinceName: primaryAddress?.provinceName || null,
       provinceCode: primaryAddress?.provinceCode || null,

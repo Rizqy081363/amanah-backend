@@ -71,7 +71,7 @@ export class PatientDrizzleRepository implements PatientRepository {
         birthPlace: data.birthPlace,
         birthDate: data.birthDate,
         bloodType: 'unknown',
-        phone: data.phoneNumber,
+        phone: data.phone || null,
         motherName: data.motherName || null,
         occupation: data.occupation || null,
         medicalHistorySummary: data.medicalHistory || null,
@@ -80,12 +80,12 @@ export class PatientDrizzleRepository implements PatientRepository {
       })
       .returning();
 
-    if (data.address) {
+    if (data.fullAddress && data.line1) {
       await this.db.insert(patientAddresses).values({
         patientId: record.id,
         type: 'domicile',
-        line1: data.line1 || data.address,
-        fullAddress: data.address,
+        line1: data.line1,
+        fullAddress: data.fullAddress,
         provinceCode: data.provinceCode || null,
         provinceName: data.provinceName || null,
         regencyCode: data.regencyCode || null,
@@ -146,7 +146,7 @@ export class PatientDrizzleRepository implements PatientRepository {
     if (latestRecord?.mrn) {
       const parts = latestRecord.mrn.split('-');
       const lastSeq = parseInt(parts[parts.length - 1], 10);
-      if (!isNaN(lastSeq)) {
+      if (!Number.isNaN(lastSeq)) {
         nextSequence = lastSeq + 1;
       }
     }
@@ -434,9 +434,11 @@ export class PatientDrizzleRepository implements PatientRepository {
     };
 
     if (d.fullName !== undefined) updateValues.fullName = d.fullName.trim();
-    if (d.phoneNumber !== undefined) updateValues.phone = d.phoneNumber.trim();
-    if (d.motherName !== undefined) updateValues.motherName = d.motherName.trim();
-    if (d.birthPlace !== undefined) updateValues.birthPlace = d.birthPlace.trim();
+    if (d.phone !== undefined) updateValues.phone = d.phone.trim();
+    if (d.motherName !== undefined)
+      updateValues.motherName = d.motherName.trim();
+    if (d.birthPlace !== undefined)
+      updateValues.birthPlace = d.birthPlace.trim();
     if (d.birthDate !== undefined) updateValues.birthDate = d.birthDate;
 
     if (d.gender !== undefined) {
@@ -447,7 +449,8 @@ export class PatientDrizzleRepository implements PatientRepository {
       updateValues.bloodType = normalizeBloodTypeToDb(d.bloodType);
     }
 
-    if (d.occupation !== undefined) updateValues.occupation = d.occupation.trim();
+    if (d.occupation !== undefined)
+      updateValues.occupation = d.occupation.trim();
     if (d.medicalHistory !== undefined)
       updateValues.medicalHistorySummary = d.medicalHistory;
     if (d.avatarUrl !== undefined) updateValues.avatarUrl = d.avatarUrl;
@@ -478,7 +481,7 @@ export class PatientDrizzleRepository implements PatientRepository {
         .where(eq(patientProfiles.id, id));
     }
 
-    // Address handling (aligned with public.patient_addresses schema)
+    // Address handling (Sudut Pandang 1: Alamat Terstruktur)
     const line1 = d.line1;
     const provinceName = d.provinceName;
     const provinceCode = d.provinceCode;
@@ -488,7 +491,7 @@ export class PatientDrizzleRepository implements PatientRepository {
     const districtCode = d.districtCode;
     const villageName = d.villageName;
     const villageCode = d.villageCode;
-    const address = d.fullAddress ?? d.address;
+    const fullAddress = d.fullAddress;
 
     const hasAddressUpdate =
       line1 !== undefined ||
@@ -500,30 +503,26 @@ export class PatientDrizzleRepository implements PatientRepository {
       districtCode !== undefined ||
       villageName !== undefined ||
       villageCode !== undefined ||
-      address !== undefined;
+      fullAddress !== undefined;
 
     if (hasAddressUpdate) {
       const existingAddress = await this.db.query.patientAddresses.findFirst({
         where: eq(patientAddresses.patientId, id),
       });
 
-      const line1ToUse = (
-        line1 ??
-        existingAddress?.line1 ??
-        address ??
-        ''
-      ).trim();
-
+      const line1ToUse = (line1 ?? existingAddress?.line1 ?? '').trim();
       const provNameToUse = provinceName ?? existingAddress?.provinceName ?? '';
-      const provCodeToUse = provinceCode ?? existingAddress?.provinceCode ?? null;
+      const provCodeToUse =
+        provinceCode ?? existingAddress?.provinceCode ?? null;
       const regNameToUse = regencyName ?? existingAddress?.regencyName ?? '';
       const regCodeToUse = regencyCode ?? existingAddress?.regencyCode ?? null;
       const distNameToUse = districtName ?? existingAddress?.districtName ?? '';
-      const distCodeToUse = districtCode ?? existingAddress?.districtCode ?? null;
+      const distCodeToUse =
+        districtCode ?? existingAddress?.districtCode ?? null;
       const villNameToUse = villageName ?? existingAddress?.villageName ?? '';
       const villCodeToUse = villageCode ?? existingAddress?.villageCode ?? null;
 
-      let fullAddressToUse = address?.trim() || '';
+      let fullAddressToUse = fullAddress?.trim() || '';
       if (!fullAddressToUse && (line1ToUse || provNameToUse || regNameToUse)) {
         const parts = [
           line1ToUse,
@@ -608,7 +607,7 @@ export class PatientDrizzleRepository implements PatientRepository {
             updatedAt: new Date().toISOString(),
           })
           .where(eq(patientEmergencyContacts.id, existingContact.id));
-      } else if (emergencyPhone && emergencyPhone.trim()) {
+      } else if (emergencyPhone?.trim()) {
         await this.db.insert(patientEmergencyContacts).values({
           patientId: id,
           name: emergencyName?.trim() || null,
@@ -907,7 +906,7 @@ export class PatientDrizzleRepository implements PatientRepository {
       ) {
         age--;
       }
-      if (isNaN(age) || age < 0) age = 0;
+      if (Number.isNaN(age) || age < 0) age = 0;
 
       const rawNik = r.nationalIdHash || r.nationalIdEncrypted || null;
       let maskedNik: string | null = null;

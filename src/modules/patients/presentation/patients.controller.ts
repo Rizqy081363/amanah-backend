@@ -14,7 +14,6 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
 import {
   ApiBearerAuth,
   ApiConflictResponse,
@@ -87,6 +86,16 @@ export class PatientsController {
       'Validasi identitas pasien gagal (format NIK salah, tanggal lahir tidak valid)',
   })
   async createPatient(@Body() body: CreatePatientDto) {
+    const fullAddress = [
+      body.line1,
+      body.villageName ? `Kel. ${body.villageName}` : '',
+      body.districtName ? `Kec. ${body.districtName}` : '',
+      body.regencyName,
+      body.provinceName ? `Prov. ${body.provinceName}` : '',
+    ]
+      .filter(Boolean)
+      .join(', ');
+
     return this.patientRepo.create({
       userId: body.userId || '',
       medicalRecordNumber: '',
@@ -98,8 +107,17 @@ export class PatientsController {
       bloodType: body.bloodType || 'unknown',
       motherName: body.motherName,
       occupation: body.occupation,
-      phoneNumber: body.phoneNumber,
-      address: body.address,
+      phone: body.phone,
+      line1: body.line1,
+      fullAddress,
+      provinceCode: body.provinceCode || null,
+      provinceName: body.provinceName || null,
+      regencyCode: body.regencyCode || null,
+      regencyName: body.regencyName || null,
+      districtCode: body.districtCode || null,
+      districtName: body.districtName || null,
+      villageCode: body.villageCode || null,
+      villageName: body.villageName || null,
       medicalHistory: body.medicalHistory,
       emergencyContactName: null,
       emergencyContactPhone: null,

@@ -79,10 +79,14 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
 
     // Date filtering
     if (filters?.startDate && filters?.endDate) {
-      conditions.push(gte(replacementOpportunities.workDate, filters.startDate));
+      conditions.push(
+        gte(replacementOpportunities.workDate, filters.startDate),
+      );
       conditions.push(lte(replacementOpportunities.workDate, filters.endDate));
     } else if (filters?.startDate) {
-      conditions.push(gte(replacementOpportunities.workDate, filters.startDate));
+      conditions.push(
+        gte(replacementOpportunities.workDate, filters.startDate),
+      );
     } else if (filters?.endDate) {
       conditions.push(lte(replacementOpportunities.workDate, filters.endDate));
     } else if (filters?.date && filters.date !== 'all') {
@@ -277,9 +281,7 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
     }
 
     if (existing.status === 'cancelled') {
-      throw new ConflictException(
-        'Sesi pengganti ini telah dibatalkan',
-      );
+      throw new ConflictException('Sesi pengganti ini telah dibatalkan');
     }
 
     let resolvedPractitionerId = practitionerId || null;

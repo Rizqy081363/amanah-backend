@@ -27,6 +27,7 @@ export class PatientEntity {
   userId: string;
   medicalRecordNumber: string;
   nik: string;
+  maskedNik?: string | null;
   fullName: string;
   gender: 'male' | 'female';
   birthPlace: string;
@@ -34,9 +35,9 @@ export class PatientEntity {
   bloodType: string;
   motherName?: string | null;
   occupation?: string | null;
-  phoneNumber: string;
+  phone: string;
   email?: string | null;
-  address: string;
+  fullAddress: string;
   line1?: string | null;
   provinceName?: string | null;
   provinceCode?: string | null;

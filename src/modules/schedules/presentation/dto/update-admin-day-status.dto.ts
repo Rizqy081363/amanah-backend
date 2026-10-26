@@ -1,8 +1,22 @@
 import { AdminScheduleStatusRequest } from '@modules/schedules/domain/schedule-status';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import {
+  IsDateString,
+  IsEnum,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 
 export class UpdateAdminDayStatusDto {
+  @ApiPropertyOptional({
+    description: 'Tanggal dinas yang diubah (YYYY-MM-DD)',
+    example: '2026-10-28',
+  })
+  @IsDateString()
+  @IsOptional()
+  date?: string;
+
   @ApiProperty({
     description: 'Canonical day operating status',
     enum: AdminScheduleStatusRequest,
@@ -13,10 +27,10 @@ export class UpdateAdminDayStatusDto {
   status: AdminScheduleStatusRequest;
 
   @ApiPropertyOptional({
-    description: 'Catatan operasional atau alasan cuti',
+    description: 'Alasan atau catatan perubahan status operasional',
     example: 'Izin Dinas Luar Kota',
   })
   @IsOptional()
   @IsString()
-  notes?: string;
+  reason?: string;
 }

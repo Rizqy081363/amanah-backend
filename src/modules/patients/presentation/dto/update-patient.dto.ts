@@ -12,21 +12,12 @@ import {
 export class UpdatePatientDto {
   @ApiPropertyOptional({
     example: 'Budi Santoso',
-    description: 'Nama lengkap pasien (camelCase)',
+    description: 'Nama lengkap pasien (canonical)',
   })
   @IsString()
   @IsOptional()
   @MinLength(3)
   fullName?: string;
-
-  @ApiPropertyOptional({
-    example: 'Budi Santoso',
-    description: 'Nama lengkap pasien (alias snake_case)',
-  })
-  @IsString()
-  @IsOptional()
-  @MinLength(3)
-  name?: string;
 
   @ApiPropertyOptional({
     example: '3201234567890001',
@@ -56,7 +47,7 @@ export class UpdatePatientDto {
 
   @ApiPropertyOptional({
     example: '1995-05-12',
-    description: 'Tanggal lahir format YYYY-MM-DD (camelCase)',
+    description: 'Tanggal lahir format YYYY-MM-DD (canonical)',
   })
   @IsString()
   @IsOptional()
@@ -65,18 +56,6 @@ export class UpdatePatientDto {
     message: 'Format tanggal lahir harus YYYY-MM-DD',
   })
   birthDate?: string;
-
-  @ApiPropertyOptional({
-    example: '1995-05-12',
-    description: 'Tanggal lahir format YYYY-MM-DD (alias snake_case)',
-  })
-  @IsString()
-  @IsOptional()
-  @ValidateIf((o, v) => Boolean(v && typeof v === 'string' && v.trim() !== ''))
-  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
-    message: 'Format tanggal lahir harus YYYY-MM-DD',
-  })
-  birth_date?: string;
 
   @ApiPropertyOptional({
     example: 'male',
@@ -91,31 +70,15 @@ export class UpdatePatientDto {
 
   @ApiPropertyOptional({
     example: 'O',
-    description: 'Golongan darah (camelCase)',
+    description: 'Golongan darah (canonical)',
   })
   @IsString()
   @IsOptional()
   bloodType?: string;
 
   @ApiPropertyOptional({
-    example: 'O',
-    description: 'Golongan darah (alias snake_case)',
-  })
-  @IsString()
-  @IsOptional()
-  blood_type?: string;
-
-  @ApiPropertyOptional({
     example: '081234567890',
-    description: 'Nomor telepon (camelCase)',
-  })
-  @IsString()
-  @IsOptional()
-  phoneNumber?: string;
-
-  @ApiPropertyOptional({
-    example: '081234567890',
-    description: 'Nomor telepon (alias)',
+    description: 'Nomor telepon (canonical)',
   })
   @IsString()
   @IsOptional()
@@ -128,14 +91,6 @@ export class UpdatePatientDto {
   @IsString()
   @IsOptional()
   occupation?: string;
-
-  @ApiPropertyOptional({
-    example: 'Jl. Dago Asri No. 10, Bandung',
-    description: 'Alamat lengkap string terpadu',
-  })
-  @IsString()
-  @IsOptional()
-  address?: string;
 
   @ApiPropertyOptional({
     example: 'Jl. Dago Asri No. 10, Bandung',

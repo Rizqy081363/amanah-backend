@@ -4,6 +4,7 @@ import { Public } from '@common/auth/public.decorator';
 import { Roles } from '@common/auth/roles.decorator';
 import { RolesGuard } from '@common/auth/roles.guard';
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -35,6 +36,7 @@ import {
   ApiUnauthorizedResponse,
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
+import { SYSTEM_ROLES } from '../../../auth/constants/auth.constants';
 import {
   DoctorRosterOverviewResponse,
   UpdateDoctorRosterDto,
@@ -86,14 +88,9 @@ export class SchedulesController {
   ) {}
 
   private assertScheduleOwnership(schedule: any, user: any) {
-    if (user.systemRole === 'ADMIN') return;
-    const userStaffId = user.staff?.practitionerId || user.staff?.id;
-    if (
-      !userStaffId ||
-      (schedule.staffId !== userStaffId &&
-        schedule.staffId !== user.staff?.id &&
-        schedule.staffId !== user.staff?.practitionerId)
-    ) {
+    if (user.systemRole === SYSTEM_ROLES.ADMIN) return;
+    const doctorPractitionerId = user.staff?.practitionerId;
+    if (!doctorPractitionerId || schedule.staffId !== doctorPractitionerId) {
       throw new ForbiddenException(
         'Akses ditolak: Anda hanya berwenang mengelola jadwal praktek Anda sendiri',
       );
@@ -101,34 +98,30 @@ export class SchedulesController {
   }
 
   private resolveTargetStaffId(user: any, requestedStaffId?: string): string {
-    const userStaffId = user.staff?.practitionerId || user.staff?.id;
-    if (user.systemRole === 'ADMIN') {
-      const targetId = requestedStaffId || userStaffId;
-      if (!targetId) {
-        throw new ForbiddenException(
+    if (user.systemRole === SYSTEM_ROLES.ADMIN) {
+      if (!requestedStaffId) {
+        throw new BadRequestException(
           'Parameter staffId wajib disertakan ketika diakses oleh akun Administrator non-praktisi',
         );
       }
-      return targetId;
+      return requestedStaffId;
     }
-    if (!userStaffId) {
-      throw new ForbiddenException('User bukan staf atau praktisi terdaftar');
+    const doctorPractitionerId = user.staff?.practitionerId;
+    if (!doctorPractitionerId) {
+      throw new ForbiddenException(
+        'User bukan praktisi medis dokter terdaftar',
+      );
     }
-    if (
-      requestedStaffId &&
-      requestedStaffId !== userStaffId &&
-      requestedStaffId !== user.staff?.id &&
-      requestedStaffId !== user.staff?.practitionerId
-    ) {
+    if (requestedStaffId && requestedStaffId !== doctorPractitionerId) {
       throw new ForbiddenException(
         'Akses ditolak: Staf hanya dapat mengakses jadwal untuk akun sendiri',
       );
     }
-    return userStaffId;
+    return doctorPractitionerId;
   }
 
   @Post()
-  @Roles('ADMIN', 'STAF')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Menambahkan jadwal jaga/praktek staf (Admin/Staf)',
@@ -146,25 +139,26 @@ export class SchedulesController {
     @CurrentUser() user: any,
   ) {
     let staffId: string;
-    if (user.systemRole === 'ADMIN') {
-      staffId = body.staffId || user.staff?.practitionerId || user.staff?.id;
+    if (user.systemRole === SYSTEM_ROLES.ADMIN) {
+      if (!body.staffId) {
+        throw new BadRequestException(
+          'Parameter staffId wajib disertakan oleh Administrator saat membuat jadwal',
+        );
+      }
+      staffId = body.staffId;
     } else {
-      staffId = user.staff?.practitionerId || user.staff?.id;
-      if (
-        body.staffId &&
-        body.staffId !== staffId &&
-        body.staffId !== user.staff?.id &&
-        body.staffId !== user.staff?.practitionerId
-      ) {
+      const doctorPractitionerId = user.staff?.practitionerId;
+      if (!doctorPractitionerId) {
+        throw new ForbiddenException(
+          'Akun Anda belum terhubung dengan profil praktisi medis klinik',
+        );
+      }
+      if (body.staffId && body.staffId !== doctorPractitionerId) {
         throw new ForbiddenException(
           'Akses ditolak: Staf hanya dapat membuat jadwal praktek untuk akun sendiri',
         );
       }
-    }
-    if (!staffId) {
-      throw new ForbiddenException(
-        'Akun Anda belum terhubung dengan profil staf atau praktisi medis klinik',
-      );
+      staffId = doctorPractitionerId;
     }
 
     const resolvedShift = resolveCanonicalShift({
@@ -193,7 +187,7 @@ export class SchedulesController {
   }
 
   @Get()
-  @Roles('ADMIN', 'STAF', 'PATIENT')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF, SYSTEM_ROLES.PATIENT)
   @ApiOperation({
     summary: 'Mendapatkan daftar seluruh jadwal praktek dengan filter',
     description:
@@ -215,7 +209,7 @@ export class SchedulesController {
   }
 
   @Get('my-schedules')
-  @Roles('STAF', 'ADMIN')
+  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
   @ApiOperation({
     summary: 'Melihat jadwal staf yang sedang login (Mobile App / Web)',
     description:
@@ -248,9 +242,11 @@ export class SchedulesController {
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
   ) {
-    const staffId = user.staff?.practitionerId || user.staff?.id;
+    const staffId = user.staff?.practitionerId;
     if (!staffId) {
-      throw new ForbiddenException('User bukan staf atau praktisi terdaftar');
+      throw new ForbiddenException(
+        'User bukan praktisi medis dokter terdaftar',
+      );
     }
     return this.scheduleRepo.findMySchedules(staffId, {
       date,
@@ -260,7 +256,7 @@ export class SchedulesController {
   }
 
   @Get('my-roster')
-  @Roles('STAF', 'ADMIN')
+  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
   @ApiOperation({
     summary:
       'Melihat matriks roster mingguan dokter yang sedang login (Mobile App / Web)',
@@ -280,7 +276,7 @@ export class SchedulesController {
   }
 
   @Put('my-roster')
-  @Roles('ADMIN')
+  @Roles(SYSTEM_ROLES.ADMIN)
   @ApiOperation({
     summary:
       'Memperbarui matriks roster mingguan dokter yang sedang login (Mobile App / Web)',
@@ -297,12 +293,12 @@ export class SchedulesController {
     @Query('staffId') staffIdQuery?: string,
   ): Promise<DoctorRosterOverviewResponse> {
     const staffId = this.resolveTargetStaffId(user, staffIdQuery);
-    const userId = user?.id || user?.sub;
+    const userId = user.id;
     return this.rosterRepo.updateDoctorRoster(staffId, dto, userId);
   }
 
   @Delete('my-roster')
-  @Roles('ADMIN')
+  @Roles(SYSTEM_ROLES.ADMIN)
   @ApiOperation({
     summary:
       'Mereset roster mingguan dokter kembali ke template klinik (Mobile App / Web)',
@@ -319,12 +315,12 @@ export class SchedulesController {
     @Query('staffId') staffIdQuery?: string,
   ): Promise<DoctorRosterOverviewResponse> {
     const staffId = this.resolveTargetStaffId(user, staffIdQuery);
-    const userId = user?.id || user?.sub;
+    const userId = user.id;
     return this.rosterRepo.resetDoctorRoster(staffId, userId);
   }
 
   @Get('calendar-summary')
-  @Roles('STAF', 'ADMIN')
+  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
   @ApiOperation({
     summary: 'Melihat ringkasan kalender bulanan jadwal dokter (Mobile App)',
     description:
@@ -337,15 +333,17 @@ export class SchedulesController {
     @Query() query: CalendarSummaryQueryDto,
     @CurrentUser() user: any,
   ) {
-    const staffId = user.staff?.practitionerId || user.staff?.id;
+    const staffId = user.staff?.practitionerId;
     if (!staffId) {
-      throw new ForbiddenException('User bukan staf atau praktisi terdaftar');
+      throw new ForbiddenException(
+        'User bukan praktisi medis dokter terdaftar',
+      );
     }
     return this.scheduleRepo.getCalendarSummary(staffId, query.month);
   }
 
   @Patch('days/:date')
-  @Roles('STAF', 'ADMIN')
+  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
   @ApiOperation({
     summary:
       'Menutup atau membuka seluruh jadwal pada hari/tanggal tertentu (Mobile & Web Staf)',
@@ -391,7 +389,7 @@ export class SchedulesController {
   }
 
   @Get('reference/rooms')
-  @Roles('ADMIN', 'STAF', 'PATIENT')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF, SYSTEM_ROLES.PATIENT)
   @ApiOperation({
     summary: 'Mendapatkan daftar ruang praktek klinik dan status okupansi',
     description:
@@ -459,7 +457,7 @@ export class SchedulesController {
   }
 
   @Get('contexts')
-  @Roles('STAF', 'ADMIN')
+  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
   @ApiOperation({
     summary: 'Mendapatkan konteks jadwal dan durasi efektif dokter',
     description:
@@ -476,12 +474,12 @@ export class SchedulesController {
     return this.scheduleRepo.getScheduleContexts(
       staffId,
       query.date,
-      user.systemRole === 'ADMIN',
+      user.systemRole === SYSTEM_ROLES.ADMIN,
     );
   }
 
   @Get('projection')
-  @Roles('STAF', 'ADMIN')
+  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
   @ApiOperation({
     summary: 'Preview proyeksi kapasitas dan durasi konsultasi shift',
     description:
@@ -498,12 +496,12 @@ export class SchedulesController {
     return this.scheduleRepo.projectAvailability(
       staffId,
       query,
-      user.systemRole === 'ADMIN',
+      user.systemRole === SYSTEM_ROLES.ADMIN,
     );
   }
 
   @Get('capacity-overview')
-  @Roles('STAF', 'ADMIN')
+  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
   @ApiOperation({
     summary: 'Ringkasan Kapasitas Lane dan Beban Antrean Layanan per Shift',
     description:
@@ -526,7 +524,7 @@ export class SchedulesController {
   }
 
   @Get('booked-patients')
-  @Roles('STAF', 'ADMIN')
+  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
   @ApiOperation({
     summary: 'Melihat daftar pasien terdaftar dokter berdasarkan tanggal',
     description:
@@ -539,15 +537,17 @@ export class SchedulesController {
     @Query() query: BookedPatientsQueryDto,
     @CurrentUser() user: any,
   ) {
-    const staffId = user.staff?.practitionerId || user.staff?.id;
+    const staffId = user.staff?.practitionerId;
     if (!staffId) {
-      throw new ForbiddenException('User bukan staf atau praktisi terdaftar');
+      throw new ForbiddenException(
+        'User bukan praktisi medis dokter terdaftar',
+      );
     }
     return this.scheduleRepo.getBookedPatients(undefined, query.date, staffId);
   }
 
   @Get('poli/:poliklinikId')
-  @Roles('ADMIN', 'STAF', 'PATIENT')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF, SYSTEM_ROLES.PATIENT)
   @ApiOperation({
     summary: 'Melihat jadwal dokter/bidan aktif di poliklinik tertentu',
     description:
@@ -571,12 +571,14 @@ export class SchedulesController {
     @Param('poliklinikId') poliklinikId: string,
     @Query('date') date: string,
   ) {
-    const targetDate = date || new Date().toISOString().split('T')[0];
+    const targetDate = date
+      ? date.trim()
+      : new Date().toISOString().split('T')[0];
     return this.scheduleRepo.findByPoliAndDate(poliklinikId, targetDate);
   }
 
   @Get('sessions/:sessionId/reschedule-eligibility')
-  @Roles('STAF', 'ADMIN')
+  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
   @ApiOperation({
     summary:
       'Pengecekan pra-syarat (eligibility pre-check) sebelum reschedule sesi dokter (Mobile & Admin)',
@@ -621,7 +623,7 @@ export class SchedulesController {
   }
 
   @Post('sessions/:sessionId/reschedule')
-  @Roles('STAF', 'ADMIN')
+  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary:
@@ -664,7 +666,7 @@ export class SchedulesController {
   }
 
   @Get('sessions/:sessionId/patients')
-  @Roles('STAF', 'ADMIN')
+  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
   @ApiOperation({
     summary:
       'Mendapatkan daftar pasien terdaftar pada sesi shift tertentu dokter (Mobile & Admin)',
@@ -688,10 +690,10 @@ export class SchedulesController {
     @Query() query: GetSessionPatientsQueryDto,
     @CurrentUser() user?: any,
   ) {
-    const userStaffId = user?.staff?.practitionerId || user?.staff?.id;
-    if (userStaffId) {
+    const doctorPractitionerId = user?.staff?.practitionerId;
+    if (doctorPractitionerId && user.systemRole !== SYSTEM_ROLES.ADMIN) {
       return this.scheduleRepo.getAdminSessionPatients(
-        userStaffId,
+        doctorPractitionerId,
         sessionId,
         query,
       );
@@ -714,7 +716,7 @@ export class SchedulesController {
   }
 
   @Get(':id/booked-patients')
-  @Roles('STAF', 'ADMIN')
+  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
   @ApiOperation({
     summary: 'Melihat daftar pasien yang terdaftar pada satu sesi jadwal',
     description:
@@ -761,7 +763,7 @@ export class SchedulesController {
   }
 
   @Get(':id')
-  @Roles('ADMIN', 'STAF', 'PATIENT')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF, SYSTEM_ROLES.PATIENT)
   @ApiOperation({
     summary: 'Mendapatkan detail jadwal berdasarkan ID',
     description: 'Mengambil informasi lengkap satu jadwal dinas staf.',
@@ -782,7 +784,7 @@ export class SchedulesController {
   }
 
   @Patch(':id/availability')
-  @Roles('ADMIN', 'STAF')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
   @ApiOperation({
     summary: 'Mengaktifkan / menonaktifkan ketersediaan jadwal staf',
     description:
@@ -829,7 +831,7 @@ export class SchedulesController {
   }
 
   @Patch(':id')
-  @Roles('ADMIN', 'STAF')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
   @ApiOperation({
     summary: 'Memperbarui informasi jadwal praktek',
     description:
@@ -875,7 +877,7 @@ export class SchedulesController {
   }
 
   @Delete(':id')
-  @Roles('ADMIN', 'STAF')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Menghapus jadwal staf (Admin / Staf Dokter)',

@@ -102,7 +102,9 @@ export class DeviceSubscriptionDrizzleRepository
       );
 
     return rows
-      .filter((r): r is typeof r & { pushToken: string } => Boolean(r.pushToken))
+      .filter((r): r is typeof r & { pushToken: string } =>
+        Boolean(r.pushToken),
+      )
       .map((r) => ({
         id: r.id,
         userId: r.userId,

@@ -41,7 +41,8 @@ export class UpdateSessionDefDto {
   sortOrder?: number;
 
   @ApiPropertyOptional({
-    description: 'Waktu mulai standar master shift operasional (HH:mm atau HH:mm:ss)',
+    description:
+      'Waktu mulai standar master shift operasional (HH:mm atau HH:mm:ss)',
     example: '06:00:00',
   })
   @IsOptional()
@@ -52,7 +53,8 @@ export class UpdateSessionDefDto {
   defaultStartsAt?: string;
 
   @ApiPropertyOptional({
-    description: 'Waktu selesai standar master shift operasional (HH:mm atau HH:mm:ss)',
+    description:
+      'Waktu selesai standar master shift operasional (HH:mm atau HH:mm:ss)',
     example: '12:00:00',
   })
   @IsOptional()

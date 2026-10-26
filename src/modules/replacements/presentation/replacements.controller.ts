@@ -23,6 +23,7 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import { SYSTEM_ROLES } from '../../../auth/constants/auth.constants';
 import { CurrentUser } from '../../../common/auth/current-user.decorator';
 import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
 import { Roles } from '../../../common/auth/roles.decorator';
@@ -54,7 +55,7 @@ export class ReplacementsController {
   ) {}
 
   @Get(['', 'opportunities'])
-  @Roles('STAF', 'ADMIN')
+  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
   @ApiOperation({
     summary: 'Melihat daftar peluang jadwal pengganti (Mobile App & Admin)',
     description:
@@ -100,7 +101,7 @@ export class ReplacementsController {
   }
 
   @Post(':id/claim')
-  @Roles('STAF')
+  @Roles(SYSTEM_ROLES.STAF)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Staf mengklaim peluang sesi dinas pengganti (Mobile App)',
@@ -125,12 +126,12 @@ export class ReplacementsController {
     return this.replacementRepo.claimOpportunity(
       id,
       user.staff.id,
-      user.staff.practitionerId || user.doctor?.id,
+      user.staff.practitionerId ?? null,
     );
   }
 
   @Post(':id/assign')
-  @Roles('ADMIN')
+  @Roles(SYSTEM_ROLES.ADMIN)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Admin menugaskan staf pengganti secara langsung (Web Admin)',
@@ -157,7 +158,7 @@ export class ReplacementsController {
   }
 
   @Post(':id/cancel')
-  @Roles('ADMIN')
+  @Roles(SYSTEM_ROLES.ADMIN)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Admin membatalkan peluang dinas pengganti (Web Admin)',

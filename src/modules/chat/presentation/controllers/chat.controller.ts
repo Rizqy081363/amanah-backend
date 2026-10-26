@@ -18,6 +18,7 @@ import {
 } from '@nestjs/swagger';
 import { CurrentUser } from '../../../../common/auth/current-user.decorator';
 import { RealtimeTicketService } from '../../../notifications/application/services/realtime-ticket.service';
+import { createRealtimePrincipal } from '../../../notifications/contracts/realtime-session.contract';
 import { ChatService } from '../../application/services/chat.service';
 import { ChatTicketDto } from '../dto/chat-ticket.dto';
 import { CreateConversationDto } from '../dto/create-conversation.dto';
@@ -119,7 +120,8 @@ export class ChatController {
   @HttpCode(HttpStatus.OK)
   @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({
-    summary: 'Mendapatkan ticket single-use untuk koneksi WebSocket realtime chat',
+    summary:
+      'Mendapatkan ticket single-use untuk koneksi WebSocket realtime chat',
     description:
       'Dapat digunakan oleh pengguna yang telah login atau tamu via guestId.',
   })
@@ -127,29 +129,22 @@ export class ChatController {
     @Body() body: ChatTicketDto,
     @CurrentUser() user?: any,
   ) {
-    const targetId = user?.id || body?.guestId;
-    if (!targetId) {
-      throw new BadRequestException(
-        'Either authenticated user or guestId is required',
+    if (user?.id) {
+      return this.realtimeTicketService.createTicket(
+        createRealtimePrincipal(user),
       );
     }
-    const primaryRole = user?.id
-      ? user?.roleCode ||
-        user?.role?.code ||
-        user?.systemRole ||
-        user?.role?.name ||
-        (typeof user?.role === 'string' ? user?.role : 'patient')
-      : 'guest';
 
-    const roles: string[] =
-      user?.id && Array.isArray(user?.roles) && user.roles.length > 0
-        ? user.roles
-        : [primaryRole];
+    if (body?.guestId) {
+      return this.realtimeTicketService.createTicket({
+        userId: body.guestId,
+        roleCode: 'guest',
+        roles: ['guest'],
+      });
+    }
 
-    return this.realtimeTicketService.createTicket(
-      targetId,
-      primaryRole,
-      roles,
+    throw new BadRequestException(
+      'Either authenticated user or guestId is required',
     );
   }
 

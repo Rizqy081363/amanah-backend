@@ -4,12 +4,12 @@ import { IsIn, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 export class ReviewLeaveDto {
   @ApiProperty({
     example: 'approved',
-    enum: ['approved', 'rejected', 'DISETUJUI', 'DITOLAK'],
+    enum: ['approved', 'rejected'],
     description: 'Status keputusan persetujuan cuti oleh Admin',
   })
-  @IsIn(['approved', 'rejected', 'DISETUJUI', 'DITOLAK'])
+  @IsIn(['approved', 'rejected'])
   @IsNotEmpty()
-  status: 'approved' | 'rejected' | 'DISETUJUI' | 'DITOLAK';
+  status: 'approved' | 'rejected';
 
   @ApiPropertyOptional({
     example: 'Disetujui untuk tanggal dinas terkait',

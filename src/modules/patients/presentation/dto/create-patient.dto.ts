@@ -42,15 +42,82 @@ export class CreatePatientDto {
   @IsOptional()
   bloodType?: string;
 
-  @ApiProperty({ example: '081234567890' })
+  @ApiProperty({ example: '081234567890', description: 'Nomor telepon pasien' })
   @IsString()
   @IsNotEmpty()
-  phoneNumber: string;
+  phone: string;
 
-  @ApiProperty({ example: 'Jl. Merdeka No. 45, Bandung' })
+  @ApiProperty({
+    example: 'Jl. Merdeka No. 45',
+    description: 'Baris alamat jalan (nama jalan, nomor rumah)',
+  })
   @IsString()
   @IsNotEmpty()
-  address: string;
+  line1: string;
+
+  @ApiPropertyOptional({
+    example: 'Jawa Barat',
+    description: 'Nama provinsi domisili',
+  })
+  @IsString()
+  @IsOptional()
+  provinceName?: string;
+
+  @ApiPropertyOptional({
+    example: '32',
+    description: 'Kode identifikasi provinsi',
+  })
+  @IsString()
+  @IsOptional()
+  provinceCode?: string;
+
+  @ApiPropertyOptional({
+    example: 'Kota Bandung',
+    description: 'Nama kota atau kabupaten domisili',
+  })
+  @IsString()
+  @IsOptional()
+  regencyName?: string;
+
+  @ApiPropertyOptional({
+    example: '3273',
+    description: 'Kode identifikasi kabupaten/kota',
+  })
+  @IsString()
+  @IsOptional()
+  regencyCode?: string;
+
+  @ApiPropertyOptional({
+    example: 'Coblong',
+    description: 'Nama kecamatan domisili',
+  })
+  @IsString()
+  @IsOptional()
+  districtName?: string;
+
+  @ApiPropertyOptional({
+    example: '327301',
+    description: 'Kode identifikasi kecamatan',
+  })
+  @IsString()
+  @IsOptional()
+  districtCode?: string;
+
+  @ApiPropertyOptional({
+    example: 'Dago',
+    description: 'Nama kelurahan atau desa domisili',
+  })
+  @IsString()
+  @IsOptional()
+  villageName?: string;
+
+  @ApiPropertyOptional({
+    example: '3273011001',
+    description: 'Kode identifikasi kelurahan/desa',
+  })
+  @IsString()
+  @IsOptional()
+  villageCode?: string;
 
   @ApiPropertyOptional({ example: 'Siti Aminah' })
   @IsString()

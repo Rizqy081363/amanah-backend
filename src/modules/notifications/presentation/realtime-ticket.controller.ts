@@ -3,7 +3,6 @@ import {
   HttpCode,
   HttpStatus,
   Post,
-  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -16,6 +15,7 @@ import {
 import { CurrentUser } from '../../../common/auth/current-user.decorator';
 import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
 import { RealtimeTicketService } from '../application/services/realtime-ticket.service';
+import { createRealtimePrincipal } from '../contracts/realtime-session.contract';
 
 @ApiTags('Realtime (WebSocket Ticket Auth)')
 @ApiBearerAuth('access-token')
@@ -46,23 +46,7 @@ export class RealtimeTicketController {
     },
   })
   async issueTicket(@CurrentUser() user: any) {
-    const userId = user?.id;
-    if (!userId) {
-      throw new UnauthorizedException('Identitas pengguna tidak ditemukan');
-    }
-
-    const primaryRole =
-      user?.roleCode ||
-      user?.role?.code ||
-      user?.systemRole ||
-      user?.role?.name ||
-      (typeof user?.role === 'string' ? user?.role : 'patient');
-
-    const roles: string[] =
-      Array.isArray(user?.roles) && user.roles.length > 0
-        ? user.roles
-        : [primaryRole];
-
-    return this.realtimeTicketService.createTicket(userId, primaryRole, roles);
+    const principal = createRealtimePrincipal(user);
+    return this.realtimeTicketService.createTicket(principal);
   }
 }

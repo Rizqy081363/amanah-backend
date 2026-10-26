@@ -60,10 +60,10 @@ import { NotificationRulesRegistry } from './registry/notification-rules-registr
     PushDeliveryChannel,
     {
       provide: DELIVERY_CHANNEL_ADAPTERS,
-      useFactory: (
-        inApp: InAppDeliveryChannel,
-        push: PushDeliveryChannel,
-      ) => [inApp, push],
+      useFactory: (inApp: InAppDeliveryChannel, push: PushDeliveryChannel) => [
+        inApp,
+        push,
+      ],
       inject: [InAppDeliveryChannel, PushDeliveryChannel],
     },
     NotificationRulesRegistry,

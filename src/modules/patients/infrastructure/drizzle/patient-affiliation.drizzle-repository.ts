@@ -2,10 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { and, desc, eq } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
-import {
-  patientAffiliations,
-  patientProfiles,
-} from '../../../../database/schema';
+import { patientAffiliations } from '../../../../database/schema';
 import {
   PatientAffiliationEntity,
   type PatientRelationshipType,
