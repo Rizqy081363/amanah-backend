@@ -238,7 +238,7 @@ export class KiaIntakeDrizzleRepository {
     const entriesAnswers: Record<string, any> = {};
     if (Array.isArray(record.entries)) {
       for (const entry of record.entries) {
-        const code = entry.vaccineCode || entry.vaccine_code;
+        const code = entry.vaccineCode;
         if (!code) continue;
         const status =
           entry.status === 'GIVEN'
@@ -247,7 +247,7 @@ export class KiaIntakeDrizzleRepository {
               ? 'Belum'
               : 'Tidak tahu';
         entriesAnswers[`vaccine_${code}_status`] = status;
-        const dateVal = entry.givenDate || entry.given_date;
+        const dateVal = entry.givenDate;
         if (dateVal) {
           entriesAnswers[`vaccine_${code}_date`] = dateVal;
         }
