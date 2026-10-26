@@ -30,6 +30,7 @@ import { CurrentUser } from '../../../common/auth/current-user.decorator';
 import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
 import { Roles } from '../../../common/auth/roles.decorator';
 import { RolesGuard } from '../../../common/auth/roles.guard';
+import { SYSTEM_ROLES } from '../../../auth/constants/auth.constants';
 import { Idempotent } from '../../../common/decorators/idempotent.decorator';
 import { DailyLeavePayrollService } from '../application/services/daily-leave-payroll.service';
 import {
@@ -57,7 +58,7 @@ export class PayrollController {
   ) {}
 
   @Post('reconcile-leave')
-  @Roles('ADMIN')
+  @Roles(SYSTEM_ROLES.ADMIN)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Admin memicu konsolidasi pemotongan cuti harian on-demand',
@@ -83,7 +84,7 @@ export class PayrollController {
   }
 
   @Get('filter-options')
-  @Roles('ADMIN')
+  @Roles(SYSTEM_ROLES.ADMIN)
   @ApiOperation({
     summary:
       'Admin mendapatkan opsi filter penggajian dinamis (Web Dashboard & Mobile)',
@@ -96,7 +97,7 @@ export class PayrollController {
   }
 
   @Get('periods')
-  @Roles('ADMIN', 'STAF')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
   @ApiOperation({
     summary: 'Admin melihat daftar seluruh periode penggajian (Web Dashboard)',
     description:
@@ -108,7 +109,7 @@ export class PayrollController {
   }
 
   @Get('periods/:id')
-  @Roles('ADMIN')
+  @Roles(SYSTEM_ROLES.ADMIN)
   @ApiOperation({
     summary: 'Admin melihat detail periode penggajian dan rekapitulasi staf',
     description:
@@ -133,7 +134,7 @@ export class PayrollController {
   }
 
   @Post('calculate')
-  @Roles('ADMIN')
+  @Roles(SYSTEM_ROLES.ADMIN)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Admin memicu kalkulasi payroll periode tertentu (Web Dashboard)',
@@ -155,7 +156,7 @@ export class PayrollController {
   }
 
   @Patch('periods/:id/finalize')
-  @Roles('ADMIN')
+  @Roles(SYSTEM_ROLES.ADMIN)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Admin menutup buku periode penggajian (Finalize / Lock Period)',
@@ -175,7 +176,7 @@ export class PayrollController {
   }
 
   @Get('staff/:staffId')
-  @Roles('ADMIN')
+  @Roles(SYSTEM_ROLES.ADMIN)
   @ApiOperation({
     summary:
       'Admin melihat rincian kalkulasi gaji seorang staf (Web Dashboard)',
@@ -205,7 +206,7 @@ export class PayrollController {
   }
 
   @Get('my-summary')
-  @Roles('STAF')
+  @Roles(SYSTEM_ROLES.STAF)
   @ApiOperation({
     summary: 'Staf / Dokter melihat rincian gaji pribadinya (Mobile App)',
     description:
@@ -251,7 +252,7 @@ export class PayrollController {
   }
 
   @Get('my-history')
-  @Roles('STAF')
+  @Roles(SYSTEM_ROLES.STAF)
   @ApiOperation({
     summary:
       'Staf / Dokter melihat riwayat penggajian buku besar per bulan (Mobile App Screen 2)',

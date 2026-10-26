@@ -31,6 +31,7 @@ import { SocketIoRealtimeGateway } from '../../../notifications/infrastructure/r
 import { NOTIFICATION_SOURCE_DOMAINS } from '../../../notifications/notifications.constants';
 import { REALTIME_GATEWAY_PORT } from '../../../notifications/notifications.constants';
 import { calculateSessionNetHours } from '../../../schedules/domain/services/shift-duration.helper';
+import { PAYROLL_PERIOD_STATUS } from '../../domain/constants/payroll.constants';
 
 export interface DailyLeaveProcessOptions {
   targetDate?: string;
@@ -462,7 +463,7 @@ export class DailyLeavePayrollService {
         and(
           lte(payrollPeriods.periodStart, targetDate),
           gte(payrollPeriods.periodEnd, targetDate),
-          ne(payrollPeriods.status, 'finalized'),
+          ne(payrollPeriods.status, PAYROLL_PERIOD_STATUS.FINALIZED),
         ),
       )
       .limit(1);
@@ -471,7 +472,7 @@ export class DailyLeavePayrollService {
       const [latestOpen] = await this.db
         .select()
         .from(payrollPeriods)
-        .where(ne(payrollPeriods.status, 'finalized'))
+        .where(ne(payrollPeriods.status, PAYROLL_PERIOD_STATUS.FINALIZED))
         .orderBy(desc(payrollPeriods.periodStart))
         .limit(1);
       activePeriod = latestOpen;
@@ -499,7 +500,7 @@ export class DailyLeavePayrollService {
           periodStart: startOfMonth,
           periodEnd: endOfMonth,
           periodName,
-          status: 'calculated',
+          status: PAYROLL_PERIOD_STATUS.CALCULATED,
           calculatedAt: new Date().toISOString(),
           notes: 'Periode aktif dibuat otomatis oleh sistem scheduler',
         })

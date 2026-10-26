@@ -1,3 +1,4 @@
+import { PayrollPeriodStatus } from '../constants/payroll.constants';
 import { PayrollEntryEntity } from '../entities/payroll-entry.entity';
 import { PayrollPeriodEntity } from '../entities/payroll-period.entity';
 
@@ -55,15 +56,15 @@ export interface MonthlyPayrollGroup {
 }
 
 export interface PayrollFilterOptions {
-  categories: Array<{ id: string; label: string }>;
+  categories: string[];
   periods: Array<{
     id: string;
     name: string;
-    status: string;
+    status: PayrollPeriodStatus;
     periodStart: string;
     periodEnd: string;
   }>;
-  statuses: Array<{ id: string; label: string }>;
+  statuses: PayrollPeriodStatus[];
 }
 
 export interface PayrollRepository {

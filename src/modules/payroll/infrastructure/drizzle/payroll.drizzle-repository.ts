@@ -23,6 +23,7 @@ import {
   payrollPeriods,
 } from '../../../../database/schema/leave-payroll.schema';
 import { calculateSessionNetHours } from '../../../schedules/domain/services/shift-duration.helper';
+import { PAYROLL_PERIOD_STATUS } from '../../domain/constants/payroll.constants';
 import { PayrollEntryEntity } from '../../domain/entities/payroll-entry.entity';
 import { PayrollPeriodEntity } from '../../domain/entities/payroll-period.entity';
 import {
@@ -310,7 +311,7 @@ export class PayrollDrizzleRepository implements PayrollRepository {
 
     let periodId = existingPeriod?.id;
     if (existingPeriod) {
-      if (existingPeriod.status === 'finalized') {
+      if (existingPeriod.status === PAYROLL_PERIOD_STATUS.FINALIZED) {
         throw new BadRequestException(
           'Periode penggajian ini sudah DITUTUP BUKU (FINALIZED) dan terkunci permanen. Nilai historis tidak dapat dihitung ulang.',
         );
@@ -326,7 +327,7 @@ export class PayrollDrizzleRepository implements PayrollRepository {
           periodName,
           periodStart,
           periodEnd,
-          status: 'calculated',
+          status: PAYROLL_PERIOD_STATUS.CALCULATED,
           calculatedBy: calculatedBy || null,
           calculatedAt: new Date().toISOString(),
         })
@@ -560,7 +561,7 @@ export class PayrollDrizzleRepository implements PayrollRepository {
         periodName,
         periodStart,
         periodEnd,
-        periodStatus: 'calculated',
+        periodStatus: PAYROLL_PERIOD_STATUS.CALCULATED,
         monthLabel: calculatedMonthLabel,
         calculatedAt: new Date(),
         baseHours: Number(baseHours.toFixed(2)),
@@ -825,14 +826,14 @@ export class PayrollDrizzleRepository implements PayrollRepository {
       );
     }
 
-    if (period.status === 'finalized') {
+    if (period.status === PAYROLL_PERIOD_STATUS.FINALIZED) {
       return this.mapPeriod(period);
     }
 
     const [updated] = await this.db
       .update(payrollPeriods)
       .set({
-        status: 'finalized',
+        status: PAYROLL_PERIOD_STATUS.FINALIZED,
         notes: period.notes
           ? `${period.notes} [Ditutup buku oleh ${finalizedBy}]`
           : `Ditutup buku oleh ${finalizedBy}`,
@@ -855,7 +856,7 @@ export class PayrollDrizzleRepository implements PayrollRepository {
         and(
           lte(payrollPeriods.periodStart, input.attendanceDate),
           gte(payrollPeriods.periodEnd, input.attendanceDate),
-          ne(payrollPeriods.status, 'finalized'),
+          ne(payrollPeriods.status, PAYROLL_PERIOD_STATUS.FINALIZED),
         ),
       )
       .limit(1);
@@ -865,7 +866,7 @@ export class PayrollDrizzleRepository implements PayrollRepository {
       const [latestOpen] = await this.db
         .select()
         .from(payrollPeriods)
-        .where(ne(payrollPeriods.status, 'finalized'))
+        .where(ne(payrollPeriods.status, PAYROLL_PERIOD_STATUS.FINALIZED))
         .orderBy(desc(payrollPeriods.periodStart))
         .limit(1);
       activePeriod = latestOpen;
@@ -894,7 +895,7 @@ export class PayrollDrizzleRepository implements PayrollRepository {
           periodStart: startOfMonth,
           periodEnd: endOfMonth,
           periodName,
-          status: 'calculated',
+          status: PAYROLL_PERIOD_STATUS.CALCULATED,
           calculatedAt: new Date().toISOString(),
           notes: 'Periode aktif dibuat otomatis oleh sistem presensi',
         })
@@ -978,16 +979,15 @@ export class PayrollDrizzleRepository implements PayrollRepository {
       .orderBy(desc(payrollPeriods.periodStart));
 
     return {
-      categories: [
-        { id: 'doctor', label: 'Dokter' },
-        { id: 'midwife', label: 'Bidan' },
-        { id: 'worker', label: 'Staf Operasional' },
-      ],
-      periods,
+      categories: ['doctor', 'midwife', 'worker'],
+      periods: periods.map((p) => ({
+        ...p,
+        status: p.status as any,
+      })),
       statuses: [
-        { id: 'draft', label: 'Draf' },
-        { id: 'calculated', label: 'Terkalkulasi' },
-        { id: 'finalized', label: 'Ditutup Buku' },
+        PAYROLL_PERIOD_STATUS.DRAFT,
+        PAYROLL_PERIOD_STATUS.CALCULATED,
+        PAYROLL_PERIOD_STATUS.FINALIZED,
       ],
     };
   }
