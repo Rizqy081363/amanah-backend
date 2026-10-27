@@ -74,9 +74,12 @@ DELETE FROM staff_leave_requests WHERE staff_profile_id IN (SELECT id FROM staff
     # 4. QR Session Rotation Mutation (Terminal / Admin)
     # --------------------------------------------------------------------------
     Write-Host "`n[Step 4] Rotating QR Session Code for Terminal Presensi..." -ForegroundColor Yellow
+    # Night shift has 5.5 net scheduled hours, allowing 4-hour elapsed duty validation
+    $testShift = "night"
+
     $rotatePayload = @{
         sessionType = "location_check_in"
-        shift = "morning"
+        shift = $testShift
         rotationSeconds = 30
         context = "Terminal Poli Umum E2E Mutation Test"
     } | ConvertTo-Json
@@ -94,7 +97,7 @@ DELETE FROM staff_leave_requests WHERE staff_profile_id IN (SELECT id FROM staff
     Write-Host "`n[Step 5] Doctor Checking In via QR Code Scan..." -ForegroundColor Yellow
     $scanPayload = @{
         qrToken = $activeQrToken
-        shift = "morning"
+        shift = $testShift
         deviceInfo = "E2E Automated Flutter Client Test"
     } | ConvertTo-Json
 
@@ -141,8 +144,8 @@ DELETE FROM staff_leave_requests WHERE staff_profile_id IN (SELECT id FROM staff
     $checkoutData = Get-ResponseData $checkoutRes
     Assert-Test "Doctor checkout recorded" ($null -ne $checkoutData.checkOutAt)
     Assert-Test "Validated duration hours computed" ($null -ne $checkoutData.validatedDurationHours)
-    Assert-Test "Validated duration is exactly 4 hours" ([double]$checkoutData.validatedDurationHours -eq 4.0)
     Write-Host "  >> CheckOut At: $($checkoutData.checkOutAt) | Duration: $($checkoutData.validatedDurationHours) jam" -ForegroundColor Green
+    Assert-Test "Validated duration is exactly 4 hours" ([double]$checkoutData.validatedDurationHours -eq 4.0)
 
     # --------------------------------------------------------------------------
     # 8. Doctor Personal History Query (Mobile API Contract)

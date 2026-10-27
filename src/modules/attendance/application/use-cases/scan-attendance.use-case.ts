@@ -83,6 +83,11 @@ export class ScanAttendanceUseCase {
     let sessionDef: { id: string; code: string; defaultStartsAt: string | null } | null = null;
     if (resolvedSessionId) {
       sessionDef = await this.repo.resolveSessionDefById(resolvedSessionId);
+    } else if (shift) {
+      sessionDef = await this.repo.resolveSessionDefByCode(shift);
+      if (sessionDef) {
+        resolvedSessionId = sessionDef.id;
+      }
     } else {
       sessionDef = await this.repo.resolveSessionDefByTime(now.getHours());
       if (sessionDef) {

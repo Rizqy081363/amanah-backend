@@ -19,7 +19,6 @@ import { AttendanceNotificationService } from '../services/attendance-notificati
 
 export interface CheckOutAttendanceInput {
   staffId: string;
-  staffIdOrCode?: string;
   attendanceDate?: string;
   qrToken?: string;
   method?: AttendanceMethod;
@@ -45,7 +44,7 @@ export class CheckOutAttendanceUseCase {
   ) {}
 
   async execute(input: CheckOutAttendanceInput): Promise<AttendanceEntity> {
-    const targetIdentifier = (input.staffIdOrCode || input.staffId || '').trim();
+    const targetIdentifier = input.staffId.trim();
     const staff = await this.repo.resolveStaffByIdOrCode(targetIdentifier);
     if (!staff) {
       throw new StaffNotFoundException(targetIdentifier);
@@ -78,7 +77,7 @@ export class CheckOutAttendanceUseCase {
       checkOutAt: checkOutDate.toISOString(),
       validatedDurationHours: timingEval.validatedDurationHours.toFixed(2),
       isEarlyDeparture: timingEval.isEarlyDeparture,
-      notes: notes || existingRecord.notes || null,
+      notes: notes ?? existingRecord.notes,
       updatedAt: checkOutDate.toISOString(),
     });
 
@@ -93,9 +92,7 @@ export class CheckOutAttendanceUseCase {
     let earnedAmount = 0;
     if (this.payrollRepo && timingEval.validatedDurationHours > 0) {
       try {
-        const isReplacementShift = Boolean(
-          existingRecord.isReplacement || existingRecord.replacementOpportunityId,
-        );
+        const isReplacementShift = existingRecord.isReplacement;
 
         const shiftEntry = await this.payrollRepo.recordAttendanceShift({
           attendanceRecordId: updated.id,

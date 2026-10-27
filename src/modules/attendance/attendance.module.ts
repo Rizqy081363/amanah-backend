@@ -13,13 +13,22 @@ import { AttendanceEligibilityService } from './domain/services/attendance-eligi
 import { AttendanceTimingService } from './domain/services/attendance-timing.service';
 import { CheckoutTicketService } from './domain/services/checkout-ticket.service';
 import { AttendanceDrizzleRepository } from './infrastructure/drizzle/attendance.drizzle-repository';
+import { AttendanceBffStatsDrizzleRepo } from './infrastructure/drizzle/repositories/attendance-bff-stats.drizzle-repo';
+import { AttendanceQrDrizzleRepo } from './infrastructure/drizzle/repositories/attendance-qr.drizzle-repo';
+import { AttendanceRecordsDrizzleRepo } from './infrastructure/drizzle/repositories/attendance-records.drizzle-repo';
+import { AttendanceRosterLookupDrizzleRepo } from './infrastructure/drizzle/repositories/attendance-roster-lookup.drizzle-repo';
 import { AttendanceController } from './presentation/attendance.controller';
 
 @Module({
   imports: [PayrollModule],
   controllers: [AttendanceController],
   providers: [
-    // Repository
+    // Sub-repositories
+    AttendanceRecordsDrizzleRepo,
+    AttendanceQrDrizzleRepo,
+    AttendanceRosterLookupDrizzleRepo,
+    AttendanceBffStatsDrizzleRepo,
+    // Repository Facade
     {
       provide: ATTENDANCE_REPOSITORY,
       useClass: AttendanceDrizzleRepository,

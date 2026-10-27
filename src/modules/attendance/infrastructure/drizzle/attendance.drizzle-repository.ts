@@ -1,43 +1,26 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, desc, eq, gte, ilike, lte, or, sql } from 'drizzle-orm';
-import { isUUID } from 'class-validator';
-import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
-import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
-import {
-  attendanceQrSessions,
-  doctorAssignments,
-  masterDays,
-  medicalSpecialties,
-  practitioners,
-  sessionDefs,
-  sessionSchedules,
-  staffAttendanceRecords,
-  staffLeaveRequests,
-  staffProfiles,
-  staffRosters,
-} from '../../../../database/schema';
-import { replacementOpportunities } from '../../../../database/schema/leave-payroll.schema';
+import { Injectable } from '@nestjs/common';
 import { AttendanceEntity } from '../../domain/entities/attendance.entity';
 import { QrSessionEntity } from '../../domain/entities/qr-session.entity';
-import {
-  CATEGORY_LABEL_MAP,
-  SHIFT_LABEL_MAP,
-  STATUS_LABEL_MAP,
-  ShiftCode,
-} from '../../domain/constants/attendance.constants';
 import {
   AttendanceExportCandidate,
   AttendanceHistoryResultDto,
   AttendanceRepository,
 } from '../../domain/repositories/attendance.repository';
-import { AttendanceMapper } from './mappers/attendance.mapper';
+import { AttendanceBffStatsDrizzleRepo } from './repositories/attendance-bff-stats.drizzle-repo';
+import { AttendanceQrDrizzleRepo } from './repositories/attendance-qr.drizzle-repo';
+import { AttendanceRecordsDrizzleRepo } from './repositories/attendance-records.drizzle-repo';
+import { AttendanceRosterLookupDrizzleRepo } from './repositories/attendance-roster-lookup.drizzle-repo';
 
 @Injectable()
 export class AttendanceDrizzleRepository implements AttendanceRepository {
   constructor(
-    @Inject(DRIZZLE_SOURCE)
-    private readonly db: DrizzleDatabase,
+    private readonly recordsRepo: AttendanceRecordsDrizzleRepo,
+    private readonly qrRepo: AttendanceQrDrizzleRepo,
+    private readonly rosterLookupRepo: AttendanceRosterLookupDrizzleRepo,
+    private readonly bffStatsRepo: AttendanceBffStatsDrizzleRepo,
   ) {}
+
+  // --- Records Operations ---
 
   async saveAttendanceRecord(data: {
     staffProfileId: string;
@@ -54,48 +37,7 @@ export class AttendanceDrizzleRepository implements AttendanceRepository {
     recordedBy?: string | null;
     notes?: string | null;
   }): Promise<AttendanceEntity> {
-    const [record] = await this.db
-      .insert(staffAttendanceRecords)
-      .values({
-        staffProfileId: data.staffProfileId,
-        attendanceDate: data.attendanceDate,
-        shift: data.shift as any,
-        status: data.status as any,
-        checkInAt: data.checkInAt,
-        lateMinutes: data.lateMinutes,
-        recordedMethod: data.recordedMethod as any,
-        sessionId: data.sessionId,
-        qrSessionId: data.qrSessionId,
-        isReplacement: data.isReplacement,
-        replacementOpportunityId: data.replacementOpportunityId,
-        recordedBy: data.recordedBy,
-        notes: data.notes,
-      })
-      .onConflictDoUpdate({
-        target: [
-          staffAttendanceRecords.staffProfileId,
-          staffAttendanceRecords.attendanceDate,
-          staffAttendanceRecords.shift,
-        ],
-        set: {
-          status: data.status as any,
-          checkInAt: data.checkInAt,
-          checkOutAt: null,
-          validatedDurationHours: '0.00',
-          lateMinutes: data.lateMinutes,
-          recordedMethod: data.recordedMethod as any,
-          sessionId: data.sessionId,
-          qrSessionId: data.qrSessionId || undefined,
-          isReplacement: data.isReplacement,
-          replacementOpportunityId: data.replacementOpportunityId,
-          recordedBy: data.recordedBy,
-          notes: data.notes,
-          updatedAt: data.checkInAt,
-        },
-      })
-      .returning();
-
-    return AttendanceMapper.toAttendanceEntity(record);
+    return this.recordsRepo.saveAttendanceRecord(data);
   }
 
   async updateAttendanceRecord(
@@ -108,127 +50,35 @@ export class AttendanceDrizzleRepository implements AttendanceRepository {
       updatedAt?: string;
     },
   ): Promise<AttendanceEntity> {
-    const updateValues: Record<string, any> = {
-      checkOutAt: data.checkOutAt,
-      validatedDurationHours: data.validatedDurationHours,
-      updatedAt: data.updatedAt || new Date().toISOString(),
-    };
-    if (data.notes !== undefined) {
-      updateValues.notes = data.notes;
-    }
-    if (data.isEarlyDeparture !== undefined) {
-      updateValues.isEarlyDeparture = data.isEarlyDeparture;
-    }
-
-    const [updated] = await this.db
-      .update(staffAttendanceRecords)
-      .set(updateValues)
-      .where(eq(staffAttendanceRecords.id, id))
-      .returning();
-
-    return AttendanceMapper.toAttendanceEntity(updated);
+    return this.recordsRepo.updateAttendanceRecord(id, data);
   }
 
   async findStaffAttendanceForDate(
     staffId: string,
     attendanceDate: string,
   ): Promise<AttendanceEntity | null> {
-    const records = await this.db
-      .select()
-      .from(staffAttendanceRecords)
-      .where(
-        and(
-          eq(staffAttendanceRecords.staffProfileId, staffId),
-          eq(staffAttendanceRecords.attendanceDate, attendanceDate),
-        ),
-      )
-      .orderBy(desc(staffAttendanceRecords.checkInAt))
-      .limit(1);
-
-    return records.length > 0
-      ? AttendanceMapper.toAttendanceEntity(records[0])
-      : null;
+    return this.recordsRepo.findStaffAttendanceForDate(staffId, attendanceDate);
   }
 
   async findByStaffId(
     staffId: string,
-    limit: number = 30,
+    limit?: number,
   ): Promise<AttendanceEntity[]> {
-    const records = await this.db.query.staffAttendanceRecords.findMany({
-      where: eq(staffAttendanceRecords.staffProfileId, staffId),
-      orderBy: [desc(staffAttendanceRecords.attendanceDate)],
-      limit,
-    });
-
-    return records.map((r) => AttendanceMapper.toAttendanceEntity(r));
+    return this.recordsRepo.findByStaffId(staffId, limit);
   }
 
   async findHistoryWithSummaryByStaffId(
     staffId: string,
-    limit: number = 30,
+    limit?: number,
   ): Promise<AttendanceHistoryResultDto> {
-    const records = await this.db.query.staffAttendanceRecords.findMany({
-      where: eq(staffAttendanceRecords.staffProfileId, staffId),
-      orderBy: [desc(staffAttendanceRecords.attendanceDate)],
-      limit,
-    });
-
-    const entities = records.map((r) => AttendanceMapper.toAttendanceEntity(r));
-
-    let totalWorkHours = 0;
-    const distinctDates = new Set<string>();
-    let hadirCount = 0;
-    let telatCount = 0;
-    let missedCount = 0;
-    let cutiCount = 0;
-
-    for (const r of records) {
-      if (r.attendanceDate) {
-        distinctDates.add(r.attendanceDate);
-      }
-      if (r.validatedDurationHours) {
-        const val = parseFloat(r.validatedDurationHours);
-        if (!isNaN(val)) totalWorkHours += val;
-      }
-      const st = (r.status || '').toLowerCase();
-      if (st === 'present') {
-        hadirCount++;
-      } else if (st === 'late') {
-        telatCount++;
-      } else if (st === 'leave') {
-        cutiCount++;
-      } else if (st === 'absent' || st === 'missed') {
-        missedCount++;
-      }
-    }
-
-    totalWorkHours = Math.round(totalWorkHours * 10) / 10;
-
-    return {
-      records: entities,
-      summary: {
-        totalWorkHours,
-        totalDays: distinctDates.size || entities.length,
-        periodLabel: 'Periode Ini',
-        facets: [
-          { status: 'hadir', label: 'Hadir', count: hadirCount, color: '#10B981' },
-          { status: 'telat', label: 'Telat', count: telatCount, color: '#F59E0B' },
-          { status: 'missed', label: 'Missed', count: missedCount, color: '#EF4444' },
-          { status: 'cuti', label: 'Cuti', count: cutiCount, color: '#8B5CF6' },
-        ],
-      },
-    };
+    return this.recordsRepo.findHistoryWithSummaryByStaffId(staffId, limit);
   }
 
   async findDailyWithStaff(date: string): Promise<any[]> {
-    return this.db.query.staffAttendanceRecords.findMany({
-      where: eq(staffAttendanceRecords.attendanceDate, date),
-      with: {
-        staffProfile: true,
-      },
-      orderBy: [desc(staffAttendanceRecords.checkInAt)],
-    });
+    return this.recordsRepo.findDailyWithStaff(date);
   }
+
+  // --- QR Session Operations ---
 
   async createQrSession(data: {
     codeHash: string;
@@ -240,465 +90,88 @@ export class AttendanceDrizzleRepository implements AttendanceRepository {
     validUntil: string;
     createdBy?: string | null;
   }): Promise<QrSessionEntity> {
-    // Invalidate previous active sessions for this sessionType upon rotation
-    await this.db
-      .update(attendanceQrSessions)
-      .set({ isActive: false })
-      .where(
-        and(
-          eq(attendanceQrSessions.sessionType, data.sessionType),
-          eq(attendanceQrSessions.isActive, true),
-        ),
-      );
-
-    const [created] = await this.db
-      .insert(attendanceQrSessions)
-      .values({
-        codeHash: data.codeHash,
-        manualPinHash: data.codeHash,
-        sessionType: data.sessionType,
-        shift: data.shift as any,
-        rotationSeconds: data.rotationSeconds,
-        context: data.context,
-        validFrom: data.validFrom,
-        validUntil: data.validUntil,
-        isActive: true,
-        createdBy: data.createdBy || null,
-      })
-      .returning();
-
-    return AttendanceMapper.toQrSessionEntity(created);
+    return this.qrRepo.createQrSession(data);
   }
 
   async findActiveQrSession(
-    sessionType: string = 'location_check_in',
+    sessionType?: string,
   ): Promise<QrSessionEntity | null> {
-    const nowIso = new Date().toISOString();
-    const active = await this.db
-      .select()
-      .from(attendanceQrSessions)
-      .where(
-        and(
-          eq(
-            attendanceQrSessions.sessionType,
-            sessionType as 'location_check_in' | 'staff_identity',
-          ),
-          eq(attendanceQrSessions.isActive, true),
-          gte(attendanceQrSessions.validUntil, nowIso),
-        ),
-      )
-      .orderBy(desc(attendanceQrSessions.validUntil))
-      .limit(1);
-
-    return active.length > 0
-      ? AttendanceMapper.toQrSessionEntity(active[0])
-      : null;
+    return this.qrRepo.findActiveQrSession(sessionType);
   }
 
   async findQrSessionByToken(token: string): Promise<QrSessionEntity | null> {
-    const trimmed = token.trim().toUpperCase();
-    const nowIso = new Date().toISOString();
-    const sessions = await this.db
-      .select()
-      .from(attendanceQrSessions)
-      .where(
-        and(
-          or(
-            eq(attendanceQrSessions.codeHash, trimmed),
-            eq(attendanceQrSessions.manualPinHash, trimmed),
-          ),
-          eq(attendanceQrSessions.isActive, true),
-          gte(attendanceQrSessions.validUntil, nowIso),
-        ),
-      )
-      .orderBy(desc(attendanceQrSessions.validUntil))
-      .limit(1);
-
-    return sessions.length > 0
-      ? AttendanceMapper.toQrSessionEntity(sessions[0])
-      : null;
+    return this.qrRepo.findQrSessionByToken(token);
   }
 
-  async findApprovedLeave(staffId: string, dateStr: string): Promise<boolean> {
-    const onLeave = await this.db
-      .select({ id: staffLeaveRequests.id })
-      .from(staffLeaveRequests)
-      .where(
-        and(
-          eq(staffLeaveRequests.staffProfileId, staffId),
-          eq(staffLeaveRequests.status, 'approved'),
-          lte(staffLeaveRequests.startDate, dateStr),
-          gte(staffLeaveRequests.endDate, dateStr),
-        ),
-      )
-      .limit(1);
+  // --- Roster, Schedule & Resolution Operations ---
 
-    return onLeave.length > 0;
+  async findApprovedLeave(staffId: string, dateStr: string): Promise<boolean> {
+    return this.rosterLookupRepo.findApprovedLeave(staffId, dateStr);
   }
 
   async findClaimedReplacement(
     staffId: string,
     dateStr: string,
   ): Promise<{ id: string } | null> {
-    const claimed = await this.db
-      .select({ id: replacementOpportunities.id })
-      .from(replacementOpportunities)
-      .where(
-        and(
-          eq(replacementOpportunities.claimedByStaffProfileId, staffId),
-          eq(replacementOpportunities.workDate, dateStr),
-          eq(replacementOpportunities.status, 'claimed'),
-        ),
-      )
-      .limit(1);
-
-    return claimed.length > 0 ? { id: claimed[0].id } : null;
+    return this.rosterLookupRepo.findClaimedReplacement(staffId, dateStr);
   }
 
   async markReplacementCompleted(opportunityId: string): Promise<void> {
-    await this.db
-      .update(replacementOpportunities)
-      .set({
-        status: 'completed',
-        updatedAt: new Date().toISOString(),
-      })
-      .where(eq(replacementOpportunities.id, opportunityId));
+    return this.rosterLookupRepo.markReplacementCompleted(opportunityId);
   }
 
   async findStaffRostersForDow(
     staffId: string,
     dow: number,
   ): Promise<Array<{ id: string; sessionId: string }>> {
-    return this.db
-      .select({
-        id: staffRosters.id,
-        sessionId: staffRosters.sessionId,
-      })
-      .from(staffRosters)
-      .where(
-        and(
-          eq(staffRosters.staffProfileId, staffId),
-          eq(staffRosters.dow, dow),
-          eq(staffRosters.isActive, true),
-        ),
-      );
+    return this.rosterLookupRepo.findStaffRostersForDow(staffId, dow);
   }
 
   async findDoctorAssignmentsForDow(
     staffId: string,
     dow: number,
   ): Promise<Array<{ id: string; sessionId: string }>> {
-    return this.db
-      .select({
-        id: doctorAssignments.id,
-        sessionId: doctorAssignments.sessionId,
-      })
-      .from(doctorAssignments)
-      .innerJoin(
-        practitioners,
-        eq(doctorAssignments.doctorId, practitioners.id),
-      )
-      .leftJoin(
-        sessionSchedules,
-        and(
-          eq(sessionSchedules.sessionId, doctorAssignments.sessionId),
-          eq(sessionSchedules.dow, dow),
-          eq(sessionSchedules.isActive, true),
-        ),
-      )
-      .where(
-        and(
-          eq(practitioners.staffProfileId, staffId),
-          eq(doctorAssignments.isActive, true),
-          or(
-            eq(doctorAssignments.dow, dow),
-            and(
-              sql`${doctorAssignments.dow} IS NULL`,
-              sql`${sessionSchedules.id} IS NOT NULL`,
-            ),
-          ),
-        ),
-      );
+    return this.rosterLookupRepo.findDoctorAssignmentsForDow(staffId, dow);
   }
 
   async findScheduledStaffCountByDow(dow: number): Promise<number> {
-    const [doctorRosterStaff, regularStaffRoster] = await Promise.all([
-      this.db
-        .selectDistinct({ staffProfileId: practitioners.staffProfileId })
-        .from(doctorAssignments)
-        .innerJoin(
-          practitioners,
-          eq(doctorAssignments.doctorId, practitioners.id),
-        )
-        .leftJoin(
-          sessionSchedules,
-          and(
-            eq(sessionSchedules.sessionId, doctorAssignments.sessionId),
-            eq(sessionSchedules.dow, dow),
-            eq(sessionSchedules.isActive, true),
-          ),
-        )
-        .where(
-          and(
-            eq(doctorAssignments.isActive, true),
-            or(
-              eq(doctorAssignments.dow, dow),
-              and(
-                sql`${doctorAssignments.dow} IS NULL`,
-                sql`${sessionSchedules.id} IS NOT NULL`,
-              ),
-            ),
-          ),
-        ),
-      this.db
-        .selectDistinct({ staffProfileId: staffRosters.staffProfileId })
-        .from(staffRosters)
-        .where(
-          and(
-            eq(staffRosters.dow, dow),
-            eq(staffRosters.isActive, true),
-          ),
-        ),
-    ]);
-
-    const scheduledStaffIds = new Set<string>([
-      ...doctorRosterStaff.map((d) => d.staffProfileId),
-      ...regularStaffRoster.map((s) => s.staffProfileId),
-    ]);
-
-    return scheduledStaffIds.size;
+    return this.rosterLookupRepo.findScheduledStaffCountByDow(dow);
   }
 
-  async resolveStaffByIdOrCode(
-    query: string,
-  ): Promise<{
-    id: string;
-    staffCode: string;
-    fullName: string;
-    userId: string | null;
-    staffType?: string | null;
-    avatarUrl?: string | null;
-  } | null> {
-    const q = query.trim();
-    const profiles = await this.db
-      .select({
-        id: staffProfiles.id,
-        staffCode: staffProfiles.staffCode,
-        fullName: staffProfiles.fullName,
-        userId: staffProfiles.userId,
-        staffType: staffProfiles.staffType,
-        positionTitle: staffProfiles.positionTitle,
-        avatarUrl: staffProfiles.avatarUrl,
-      })
-      .from(staffProfiles)
-      .where(
-        isUUID(q)
-          ? or(
-              eq(staffProfiles.id, q),
-              ilike(staffProfiles.staffCode, q),
-              ilike(staffProfiles.fullName, q),
-            )
-          : or(
-              ilike(staffProfiles.staffCode, q),
-              ilike(staffProfiles.fullName, q),
-            ),
-      )
-      .limit(1);
-
-    return profiles.length > 0 ? profiles[0] : null;
+  async resolveStaffByIdOrCode(query: string) {
+    return this.rosterLookupRepo.resolveStaffByIdOrCode(query);
   }
 
-  async resolveSessionDefByTime(
-    hour: number,
-  ): Promise<{ id: string; code: string; defaultStartsAt: string | null; defaultEndsAt?: string | null } | null> {
-    const sessionCode =
-      hour < 6
-        ? 'early_morning'
-        : hour < 12
-          ? 'morning'
-          : hour < 18
-            ? 'afternoon'
-            : 'night';
-
-    return this.resolveSessionDefByCode(sessionCode);
+  async resolveSessionDefByTime(hour: number) {
+    return this.rosterLookupRepo.resolveSessionDefByTime(hour);
   }
 
-  async resolveSessionDefByCode(
-    sessionCode: string,
-  ): Promise<{ id: string; code: string; defaultStartsAt: string | null; defaultEndsAt?: string | null } | null> {
-    const defs = await this.db
-      .select({
-        id: sessionDefs.id,
-        code: sessionDefs.code,
-        defaultStartsAt: sessionDefs.defaultStartsAt,
-        defaultEndsAt: sessionDefs.defaultEndsAt,
-      })
-      .from(sessionDefs)
-      .where(eq(sessionDefs.code, sessionCode))
-      .limit(1);
-
-    return defs.length > 0 ? defs[0] : null;
+  async resolveSessionDefByCode(sessionCode: string) {
+    return this.rosterLookupRepo.resolveSessionDefByCode(sessionCode);
   }
 
-  async resolveSessionDefById(
-    sessionId: string,
-  ): Promise<{ id: string; code: string; defaultStartsAt: string | null; defaultEndsAt?: string | null } | null> {
-    const defs = await this.db
-      .select({
-        id: sessionDefs.id,
-        code: sessionDefs.code,
-        defaultStartsAt: sessionDefs.defaultStartsAt,
-        defaultEndsAt: sessionDefs.defaultEndsAt,
-      })
-      .from(sessionDefs)
-      .where(eq(sessionDefs.id, sessionId))
-      .limit(1);
-
-    return defs.length > 0 ? defs[0] : null;
+  async resolveSessionDefById(sessionId: string) {
+    return this.rosterLookupRepo.resolveSessionDefById(sessionId);
   }
 
-  async getMasterDays(): Promise<Array<{
-    dow: number;
-    code: string;
-    nameId: string;
-    shortNameId: string;
-    sortOrder: number;
-  }>> {
-    const rows = await this.db
-      .select({
-        dow: masterDays.dow,
-        code: masterDays.code,
-        nameId: masterDays.nameId,
-        shortNameId: masterDays.shortNameId,
-        sortOrder: masterDays.sortOrder,
-      })
-      .from(masterDays)
-      .where(eq(masterDays.isActive, true))
-      .orderBy(masterDays.sortOrder);
+  // --- BFF Stats & Analytics Operations ---
 
-    return rows;
+  async getMasterDays() {
+    return this.bffStatsRepo.getMasterDays();
   }
 
-  async findWeeklyAttendanceCounts(
-    startDate: string,
-    endDate: string,
-  ): Promise<Map<string, { presentCount: number; lateCount: number }>> {
-    const records = await this.db
-      .select({
-        attendanceDate: staffAttendanceRecords.attendanceDate,
-        status: staffAttendanceRecords.status,
-      })
-      .from(staffAttendanceRecords)
-      .where(
-        and(
-          gte(staffAttendanceRecords.attendanceDate, startDate),
-          lte(staffAttendanceRecords.attendanceDate, endDate),
-        ),
-      );
-
-    const map = new Map<string, { presentCount: number; lateCount: number }>();
-    for (const r of records) {
-      const entry = map.get(r.attendanceDate) || {
-        presentCount: 0,
-        lateCount: 0,
-      };
-      if (r.status === 'present') entry.presentCount++;
-      else if (r.status === 'late') entry.lateCount++;
-      map.set(r.attendanceDate, entry);
-    }
-
-    return map;
+  async findWeeklyAttendanceCounts(startDate: string, endDate: string) {
+    return this.bffStatsRepo.findWeeklyAttendanceCounts(startDate, endDate);
   }
 
-  async getAvailableFilterOptions(): Promise<{
-    shifts: Array<{ label: string; value: string }>;
-    statuses: Array<{ label: string; value: string }>;
-    categories: Array<{ label: string; value: string }>;
-  }> {
-    // 1. Database-driven active shifts from session_def
-    const activeSessions = await this.db
-      .select({
-        code: sessionDefs.code,
-        labelKey: sessionDefs.labelKey,
-        sortOrder: sessionDefs.sortOrder,
-      })
-      .from(sessionDefs)
-      .where(eq(sessionDefs.isActive, true))
-      .orderBy(sessionDefs.sortOrder);
-
-    const shifts = activeSessions.map((s) => ({
-      label: SHIFT_LABEL_MAP[s.code as ShiftCode] ?? s.code,
-      value: s.code,
-    }));
-
-    // 2. Database-driven distinct staff categories from staff_profiles
-    const staffTypeRows = await this.db
-      .selectDistinct({ staffType: staffProfiles.staffType })
-      .from(staffProfiles);
-
-    const categories = staffTypeRows.map((r) => ({
-      label: CATEGORY_LABEL_MAP[r.staffType] ?? r.staffType,
-      value: r.staffType,
-    }));
-
-    // 3. Database & System-driven canonical attendance statuses
-    const statuses = [
-      { label: STATUS_LABEL_MAP.present, value: 'present' },
-      { label: STATUS_LABEL_MAP.late, value: 'late' },
-      { label: STATUS_LABEL_MAP.leave, value: 'leave' },
-      { label: STATUS_LABEL_MAP.absent, value: 'absent' },
-    ];
-
-    return { shifts, statuses, categories };
+  async getAvailableFilterOptions() {
+    return this.bffStatsRepo.getAvailableFilterOptions();
   }
 
   async getExportCandidates(
     startDate: string,
     endDate: string,
   ): Promise<AttendanceExportCandidate[]> {
-    const rows = await this.db
-      .select({
-        id: staffProfiles.id,
-        staffCode: staffProfiles.staffCode,
-        fullName: staffProfiles.fullName,
-        avatarUrl: staffProfiles.avatarUrl,
-        staffType: staffProfiles.staffType,
-        positionTitle: staffProfiles.positionTitle,
-        specialtyName: medicalSpecialties.name,
-        totalAttendance: sql<number>`COALESCE(COUNT(DISTINCT ${staffAttendanceRecords.attendanceDate}), 0)::int`,
-      })
-      .from(staffProfiles)
-      .leftJoin(practitioners, eq(practitioners.staffProfileId, staffProfiles.id))
-      .leftJoin(medicalSpecialties, eq(medicalSpecialties.id, practitioners.specialtyId))
-      .leftJoin(
-        staffAttendanceRecords,
-        and(
-          eq(staffAttendanceRecords.staffProfileId, staffProfiles.id),
-          gte(staffAttendanceRecords.attendanceDate, startDate),
-          lte(staffAttendanceRecords.attendanceDate, endDate),
-        ),
-      )
-      .where(eq(staffProfiles.status, 'active'))
-      .groupBy(
-        staffProfiles.id,
-        staffProfiles.staffCode,
-        staffProfiles.fullName,
-        staffProfiles.avatarUrl,
-        staffProfiles.staffType,
-        staffProfiles.positionTitle,
-        medicalSpecialties.name,
-      )
-      .orderBy(asc(staffProfiles.fullName));
-
-    return rows.map((r) => ({
-      id: r.id,
-      staffCode: r.staffCode,
-      fullName: r.fullName,
-      avatarUrl: r.avatarUrl,
-      staffType: r.staffType,
-      positionTitle: r.positionTitle,
-      specialtyName: r.specialtyName,
-      totalAttendance: Number(r.totalAttendance) || 0,
-    }));
+    return this.bffStatsRepo.getExportCandidates(startDate, endDate);
   }
 }

@@ -73,6 +73,7 @@
     "format:check": "biome format .",
     "lint": "biome lint .",
     "lint:fix": "biome lint . --write",
+    "lint:speculative": "bun ./scripts/tools/check-speculative-patterns.ts",
     "check": "biome check .",
     "check:write": "biome check . --write",
     "deadcode": "knip",

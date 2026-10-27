@@ -29,7 +29,7 @@ export class AttendanceMapper {
     return {
       id: r.id,
       qrCodeIdentifier: r.codeHash,
-      shift: r.shift || 'morning',
+      shift: r.shift,
       rotationSeconds: r.rotationSeconds,
       validFrom: new Date(r.validFrom),
       validUntil: new Date(r.validUntil),

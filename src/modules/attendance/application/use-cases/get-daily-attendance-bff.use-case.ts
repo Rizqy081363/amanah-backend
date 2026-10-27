@@ -1,6 +1,7 @@
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import { ClinicTimeService } from '../../../../common/time/clinic-time.service';
 import {
+  CATEGORY_LABEL_MAP,
   SHIFT_LABEL_MAP,
   STATUS_LABEL_MAP,
   ShiftCode,
@@ -57,11 +58,11 @@ export class GetDailyAttendanceBffUseCase {
     // 3. Map Table Records strictly from actual attendanceList (No Dummy Padding)
     let tableRecords = attendanceList.map((rec) => {
       const staff = rec.staffProfile;
-      const shiftKey = (rec.shift || 'morning') as ShiftCode;
-      const shiftLabel = SHIFT_LABEL_MAP[shiftKey] || 'Pagi';
+      const shiftKey = rec.shift as ShiftCode;
+      const shiftLabel = SHIFT_LABEL_MAP[shiftKey] || shiftKey;
 
-      const statusKey = (rec.status || 'present') as keyof typeof STATUS_LABEL_MAP;
-      const statusLabel = STATUS_LABEL_MAP[statusKey] || 'Hadir';
+      const statusKey = rec.status as keyof typeof STATUS_LABEL_MAP;
+      const statusLabel = STATUS_LABEL_MAP[statusKey] || statusKey;
 
       let checkInFormatted = '-';
       if (rec.checkInAt) {
@@ -76,12 +77,17 @@ export class GetDailyAttendanceBffUseCase {
         }
       }
 
-      const categoryLabel = staff?.positionTitle || '';
+      let categoryLabel = '';
+      if (staff?.staffType && CATEGORY_LABEL_MAP[staff.staffType]) {
+        categoryLabel = CATEGORY_LABEL_MAP[staff.staffType];
+      } else if (staff?.positionTitle) {
+        categoryLabel = staff.positionTitle;
+      }
 
       return {
         id: rec.id,
         id_staf: staff?.staffCode || '-',
-        staffProfileId: staff?.id || rec.staffProfileId || undefined,
+        staffProfileId: rec.staffProfileId,
         nama_staf: staff?.fullName || '',
         avatar:
           staff?.avatarUrl ||

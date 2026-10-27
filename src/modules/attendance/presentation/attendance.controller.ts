@@ -1,7 +1,6 @@
 import {
   Body,
   Controller,
-  ForbiddenException,
   Get,
   HttpCode,
   HttpStatus,
@@ -24,11 +23,15 @@ import {
   type AuthenticatedUser,
   CurrentUser,
   HybridAuthGuard,
+  isAdminUser,
   isStaffUser,
   Roles,
   RolesGuard,
 } from '../../../common/auth';
-import { DomainForbiddenException } from '../../../common/exceptions';
+import {
+  DomainForbiddenException,
+} from '../../../common/exceptions';
+import { zodPipe } from '../../../common/validation';
 import { CheckOutAttendanceUseCase } from '../application/use-cases/checkout-attendance.use-case';
 import { GetAttendanceExportCandidatesUseCase } from '../application/use-cases/get-attendance-export-candidates.use-case';
 import { GetDailyAttendanceBffUseCase } from '../application/use-cases/get-daily-attendance-bff.use-case';
@@ -39,11 +42,26 @@ import {
   ATTENDANCE_REPOSITORY,
   AttendanceRepository,
 } from '../domain/repositories/attendance.repository';
-import { AttendanceQueryDto } from './dto/attendance-query.dto';
-import { CheckOutDto } from './dto/checkout.dto';
-import { ManualAttendanceDto } from './dto/manual-attendance.dto';
-import { RotateQrDto } from './dto/rotate-qr.dto';
-import { ScanQrDto } from './dto/scan-qr.dto';
+import {
+  type AttendanceQueryInput,
+  AttendanceQuerySchema,
+} from './dto/attendance-query.schema';
+import {
+  type CheckOutInput,
+  CheckOutSchema,
+} from './dto/checkout.schema';
+import {
+  type ManualAttendanceInput,
+  ManualAttendanceSchema,
+} from './dto/manual-attendance.schema';
+import {
+  type RotateQrInput,
+  RotateQrSchema,
+} from './dto/rotate-qr.schema';
+import {
+  type ScanQrInput,
+  ScanQrSchema,
+} from './dto/scan-qr.schema';
 
 @ApiTags('Attendance (Presensi QR & Manual Staf)')
 @ApiBearerAuth('access-token')
@@ -81,7 +99,7 @@ export class AttendanceController {
     description: 'Format token QR atau sesi shift tidak valid',
   })
   async scanQr(
-    @Body() body: ScanQrDto,
+    @Body(zodPipe(ScanQrSchema)) body: ScanQrInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
     if (!isStaffUser(user)) {
@@ -93,7 +111,7 @@ export class AttendanceController {
     return this.scanAttendanceUseCase.execute({
       staffId: user.staff.id,
       qrToken: body.qrToken,
-      method: body.method,
+      method: body.method as any,
       shift: body.shift,
       sessionId: body.sessionId,
       deviceInfo: body.deviceInfo,
@@ -110,8 +128,8 @@ export class AttendanceController {
   })
   @ApiCreatedResponse({ description: 'Presensi manual berhasil dicatat' })
   async recordManual(
-    @Body() body: ManualAttendanceDto,
-    @CurrentUser() user: any,
+    @Body(zodPipe(ManualAttendanceSchema)) body: ManualAttendanceInput,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.manualAttendanceUseCase.execute({
       staffIdOrCode: body.staffIdOrCode,
@@ -119,7 +137,7 @@ export class AttendanceController {
       status: body.status,
       attendanceDate: body.attendanceDate,
       notes: body.notes,
-      recordedBy: user?.id,
+      recordedBy: user.id,
     });
   }
 
@@ -133,23 +151,35 @@ export class AttendanceController {
   })
   @ApiOkResponse({ description: 'Presensi pulang dinas berhasil dicatat' })
   @ApiForbiddenResponse({ description: 'User bukan staf terdaftar' })
-  async checkOut(@CurrentUser() user: any, @Body() body?: CheckOutDto) {
-    const targetStaffId = body?.staffIdOrCode || body?.staffId || user.staff?.id;
-    if (!targetStaffId) {
-      throw new ForbiddenException(
-        'User bukan staf terdaftar atau staffId tidak disertakan',
+  async checkOut(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body(zodPipe(CheckOutSchema)) body: CheckOutInput,
+  ) {
+    const isAdmin = isAdminUser(user);
+    const isStaff = isStaffUser(user);
+
+    let targetStaffId: string;
+    let isAdministrativeEntry = false;
+
+    if (isAdmin && body.staffId) {
+      targetStaffId = body.staffId;
+      isAdministrativeEntry = true;
+    } else if (isStaff) {
+      targetStaffId = user.staff.id;
+      isAdministrativeEntry = false;
+    } else {
+      throw new DomainForbiddenException(
+        'User bukan staf terdaftar atau staffId target wajib disertakan untuk admin.',
       );
     }
 
-    const isAdministrativeEntry = user.systemRole === 'ADMIN';
-
     return this.checkOutAttendanceUseCase.execute({
       staffId: targetStaffId,
-      attendanceDate: body?.attendanceDate,
-      qrToken: body?.qrToken,
-      method: body?.method,
-      notes: body?.notes,
-      checkoutTicket: body?.checkoutTicket,
+      attendanceDate: body.attendanceDate,
+      qrToken: body.qrToken,
+      method: body.method as any,
+      notes: body.notes,
+      checkoutTicket: body.checkoutTicket,
       isAdministrativeEntry,
     });
   }
@@ -163,13 +193,16 @@ export class AttendanceController {
       'Menghasilkan token kode presensi 6-karakter acak dan menyimpannya di database.',
   })
   @ApiOkResponse({ description: 'Token QR baru berhasil dibuat' })
-  async rotateQr(@Body() body: RotateQrDto, @CurrentUser() user: any) {
+  async rotateQr(
+    @Body(zodPipe(RotateQrSchema)) body: RotateQrInput,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return this.rotateQrSessionUseCase.execute({
       sessionType: body.sessionType,
       shift: body.shift,
       rotationSeconds: body.rotationSeconds,
       context: body.context,
-      createdBy: user?.id,
+      createdBy: user.id,
     });
   }
 
@@ -194,9 +227,9 @@ export class AttendanceController {
     description: 'Riwayat presensi staf dan ringkasan metrik berhasil diambil',
   })
   @ApiForbiddenResponse({ description: 'User bukan staf terdaftar' })
-  async getMyHistory(@CurrentUser() user: any) {
-    if (!user.staff?.id) {
-      throw new ForbiddenException('User bukan staf terdaftar');
+  async getMyHistory(@CurrentUser() user: AuthenticatedUser) {
+    if (!isStaffUser(user)) {
+      throw new DomainForbiddenException('User bukan staf terdaftar');
     }
     return this.attendanceRepo.findHistoryWithSummaryByStaffId(user.staff.id);
   }
@@ -212,7 +245,9 @@ export class AttendanceController {
     description:
       'Daftar presensi harian staf dan ringkasan metrik berhasil diambil',
   })
-  async getDailyAttendance(@Query() query: AttendanceQueryDto) {
+  async getDailyAttendance(
+    @Query(zodPipe(AttendanceQuerySchema)) query: AttendanceQueryInput,
+  ) {
     return this.getDailyAttendanceBffUseCase.execute(query);
   }
 

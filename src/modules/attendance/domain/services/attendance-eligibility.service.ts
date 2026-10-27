@@ -133,7 +133,7 @@ export class AttendanceEligibilityService {
     const hasRosterToday =
       staffRosters.length > 0 || doctorAssignments.length > 0;
 
-    if (!hasRosterToday) {
+    if (!isAdministrativeEntry && !hasRosterToday) {
       throw new StaffNotRosteredException();
     }
 
@@ -281,11 +281,20 @@ export class AttendanceEligibilityService {
     }
 
     if (!scheduledEndTime && existing.shift) {
-      const shiftLower = existing.shift.toLowerCase();
-      if (shiftLower === 'morning') scheduledEndTime = '12:00';
-      else if (shiftLower === 'afternoon') scheduledEndTime = '18:00';
-      else if (shiftLower === 'night') scheduledEndTime = '00:00';
-      else if (shiftLower === 'early_morning') scheduledEndTime = '06:00';
+      const sessionDef = await this.repo.resolveSessionDefByCode(existing.shift);
+      if (sessionDef?.defaultEndsAt) {
+        scheduledEndTime = sessionDef.defaultEndsAt;
+      }
+      if (sessionDef?.defaultStartsAt && sessionDef?.defaultEndsAt) {
+        const breakConfig =
+          await this.clinicConfigService?.getRosterBreakConfig();
+        scheduledShiftDurationHours = calculateSessionNetHours({
+          startsAt: sessionDef.defaultStartsAt,
+          endsAt: sessionDef.defaultEndsAt,
+          breakMinutes: breakConfig?.breakDurationMinutes ?? 30,
+          isBreakPaid: breakConfig?.isBreakPaid ?? false,
+        });
+      }
     }
 
     const checkOutDate = this.clinicTimeService?.nowDate() ?? new Date();
@@ -299,9 +308,9 @@ export class AttendanceEligibilityService {
       scheduledShiftDurationHours,
     });
 
-    // 6. Enforce Notes Requirement for Early Departure
+    // 6. Enforce Notes Requirement for Early Departure (Mobile self-service only)
     const notesTrimmed = notes?.trim() || null;
-    if (timingEval.requiresNotes && !notesTrimmed) {
+    if (!isAdministrativeEntry && timingEval.requiresNotes && !notesTrimmed) {
       const ticket = this.ticketService.issueTicket(
         staffId,
         existing.id,

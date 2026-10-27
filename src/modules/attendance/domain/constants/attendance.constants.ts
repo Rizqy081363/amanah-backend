@@ -1,6 +1,13 @@
 import { attendanceMethod } from '../../../../database/schema/amanah.schema';
 
-export type ShiftCode = 'early_morning' | 'morning' | 'afternoon' | 'night';
+export const CANONICAL_STAFF_SHIFTS = [
+  'early_morning',
+  'morning',
+  'afternoon',
+  'night',
+] as const;
+
+export type ShiftCode = (typeof CANONICAL_STAFF_SHIFTS)[number];
 
 export const ATTENDANCE_ACTIONS = {
   CHECK_IN: 'check_in',
@@ -14,12 +21,15 @@ export type AttendanceAction =
 export type AttendanceMethod = (typeof attendanceMethod.enumValues)[number];
 export const ATTENDANCE_METHODS = attendanceMethod.enumValues;
 
-export type AttendanceStatus =
-  | 'present'
-  | 'late'
-  | 'leave'
-  | 'absent'
-  | 'missed';
+export const ATTENDANCE_STATUSES = [
+  'present',
+  'late',
+  'leave',
+  'absent',
+  'missed',
+] as const;
+
+export type AttendanceStatus = (typeof ATTENDANCE_STATUSES)[number];
 
 export const SHIFT_LABEL_MAP: Record<ShiftCode, string> = {
   early_morning: 'Dini Hari',
@@ -42,22 +52,22 @@ export const CATEGORY_LABEL_MAP: Record<string, string> = {
   worker: 'Staf',
 };
 
-export function normalizeShift(rawShift?: string): ShiftCode {
-  if (!rawShift) return 'morning';
-  const s = rawShift.toLowerCase();
-  if (s === 'pagi' || s === 'morning') return 'morning';
-  if (s === 'siang' || s === 'afternoon') return 'afternoon';
-  if (s === 'malam' || s === 'night') return 'night';
-  if (s === 'dini' || s === 'early_morning') return 'early_morning';
+export function normalizeShift(rawShift?: string | null): ShiftCode {
+  if (rawShift) {
+    const s = rawShift.trim().toLowerCase();
+    if ((CANONICAL_STAFF_SHIFTS as readonly string[]).includes(s)) {
+      return s as ShiftCode;
+    }
+  }
   return 'morning';
 }
 
-export function normalizeStatus(rawStatus?: string): AttendanceStatus {
-  if (!rawStatus) return 'present';
-  const s = rawStatus.toLowerCase();
-  if (s === 'hadir' || s === 'present') return 'present';
-  if (s === 'terlambat' || s === 'telat' || s === 'late') return 'late';
-  if (s === 'cuti' || s === 'izin' || s === 'leave') return 'leave';
-  if (s === 'missed') return 'missed';
-  return 'absent';
+export function normalizeStatus(rawStatus?: string | null): AttendanceStatus {
+  if (rawStatus) {
+    const s = rawStatus.trim().toLowerCase();
+    if ((ATTENDANCE_STATUSES as readonly string[]).includes(s)) {
+      return s as AttendanceStatus;
+    }
+  }
+  return 'present';
 }

@@ -29,10 +29,13 @@ export class CheckoutTicketService {
   private readonly secret: string;
 
   constructor() {
-    this.secret =
-      process.env.AUTH_JWT_SECRET ||
-      process.env.APP_KEY ||
-      'amanah-checkout-ticket-hmac-secret-salt';
+    const secret = process.env.AUTH_JWT_SECRET;
+    if (!secret) {
+      throw new Error(
+        'AUTH_JWT_SECRET is required to initialize CheckoutTicketService',
+      );
+    }
+    this.secret = secret;
   }
 
   /**
