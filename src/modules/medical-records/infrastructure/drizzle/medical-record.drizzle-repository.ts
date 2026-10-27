@@ -757,6 +757,10 @@ export class MedicalRecordDrizzleRepository implements MedicalRecordRepository {
     return this.kiaIntakeRepo.createMaternalIntake(dto, submittedByUserId);
   }
 
+  async updateMaternalIntake(id: string, dto: any) {
+    return this.kiaIntakeRepo.updateMaternalIntake(id, dto);
+  }
+
   async findMaternalIntakeById(id: string) {
     return this.kiaIntakeRepo.findMaternalIntakeById(id);
   }
@@ -767,6 +771,14 @@ export class MedicalRecordDrizzleRepository implements MedicalRecordRepository {
 
   async createImmunizationIntake(dto: any, submittedByUserId?: string) {
     return this.kiaIntakeRepo.createImmunizationIntake(dto, submittedByUserId);
+  }
+
+  async updateImmunizationIntake(id: string, dto: any) {
+    return this.kiaIntakeRepo.updateImmunizationIntake(id, dto);
+  }
+
+  async updateIntakeSubmission(id: string, answers: Record<string, any>) {
+    return this.kiaIntakeRepo.updateIntakeSubmission(id, answers);
   }
 
   async findImmunizationIntakeById(id: string) {

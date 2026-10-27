@@ -14,6 +14,8 @@ import { AppointmentsService } from '../../../appointments/application/appointme
 import { formatBloodTypeDisplay } from '../../../patients/domain/data/patient-reference.data';
 import { CreateChildImmunizationIntakeDto } from '../../presentation/dto/create-child-immunization-intake.dto';
 import { CreateMaternityIntakeDto } from '../../presentation/dto/create-maternity-intake.dto';
+import { UpdateChildImmunizationIntakeDto } from '../../presentation/dto/update-child-immunization-intake.dto';
+import { UpdateMaternityIntakeDto } from '../../presentation/dto/update-maternity-intake.dto';
 import { MaternalIntakeDrizzleRepository } from './maternal-intake.drizzle-repository';
 
 @Injectable()
@@ -32,6 +34,13 @@ export class KiaIntakeDrizzleRepository {
     submittedByUserId?: string,
   ): Promise<any> {
     return this.maternalRepo.create(dto, submittedByUserId);
+  }
+
+  async updateMaternalIntake(
+    id: string,
+    dto: UpdateMaternityIntakeDto,
+  ): Promise<any> {
+    return this.maternalRepo.update(id, dto);
   }
 
   async findMaternalIntakeById(id: string): Promise<any | null> {
@@ -209,6 +218,142 @@ export class KiaIntakeDrizzleRepository {
         automatic: submission.automatic,
       };
     });
+  }
+
+  async updateImmunizationIntake(
+    id: string,
+    dto: UpdateChildImmunizationIntakeDto,
+  ): Promise<any> {
+    let targetIntakeId: string | null = null;
+    await this.db.transaction(async (tx) => {
+      const existing = await tx.query.childImmunizationIntakes.findFirst({
+        where: or(
+          eq(childImmunizationIntakes.id, id),
+          eq(childImmunizationIntakes.intakeSubmissionId, id),
+        ),
+      });
+
+      if (!existing) {
+        return;
+      }
+
+      const intakeId = existing.id;
+      targetIntakeId = intakeId;
+      const updateData: Record<string, any> = {
+        updatedAt: new Date().toISOString(),
+      };
+
+      if (dto.childName !== undefined) updateData.childName = dto.childName;
+      if (dto.childNik !== undefined) updateData.childNik = dto.childNik;
+      if (dto.childBirthDate !== undefined)
+        updateData.childBirthDate = dto.childBirthDate;
+      if (dto.childSex !== undefined) updateData.childSex = dto.childSex;
+      if (dto.childAgeFormatted !== undefined)
+        updateData.childAgeFormatted = dto.childAgeFormatted;
+      if (dto.parentPhone !== undefined) updateData.parentPhone = dto.parentPhone;
+      if (dto.fatherName !== undefined) updateData.fatherName = dto.fatherName;
+      if (dto.motherName !== undefined) updateData.motherName = dto.motherName;
+      if (dto.childAddress !== undefined)
+        updateData.childAddress = dto.childAddress;
+      if (dto.previousVaccineHistory !== undefined)
+        updateData.previousVaccineHistory = dto.previousVaccineHistory;
+      if (dto.childAllergyHistory !== undefined)
+        updateData.childAllergyHistory = dto.childAllergyHistory;
+
+      await tx
+        .update(childImmunizationIntakes)
+        .set(updateData)
+        .where(eq(childImmunizationIntakes.id, intakeId));
+
+      if (Array.isArray(dto.entries)) {
+        await tx
+          .delete(childImmunizationEntries)
+          .where(eq(childImmunizationEntries.intakeId, intakeId));
+
+        if (dto.entries.length > 0) {
+          await tx.insert(childImmunizationEntries).values(
+            dto.entries.map((entry) => ({
+              intakeId,
+              patientId: existing.patientId,
+              vaccineCode: entry.vaccineCode,
+              status: entry.status,
+              givenDate: entry.givenDate || null,
+              givenMonth: entry.givenMonth || null,
+              ageEstimateMonths: entry.ageEstimateMonths || null,
+              datePrecision: entry.datePrecision || null,
+              reviewReasons: entry.reviewReasons || null,
+              notes: entry.notes || null,
+            })),
+          );
+        }
+      }
+
+      if (existing.intakeSubmissionId) {
+        const sub = await tx.query.medicalIntakeSubmissions.findFirst({
+          where: eq(medicalIntakeSubmissions.id, existing.intakeSubmissionId),
+        });
+        if (sub) {
+          const mergedAnswers = {
+            ...(sub.answers as Record<string, any>),
+            ...(dto.answers || {}),
+          };
+          if (dto.hasVaccineHistory !== undefined)
+            mergedAnswers.hasVaccineHistory = dto.hasVaccineHistory;
+          if (dto.hasAllergyHistory !== undefined)
+            mergedAnswers.hasAllergyHistory = dto.hasAllergyHistory;
+          if (dto.childName !== undefined) mergedAnswers.childName = dto.childName;
+          if (dto.childNik !== undefined) mergedAnswers.childNik = dto.childNik;
+          if (dto.childBirthDate !== undefined)
+            mergedAnswers.childBirthDate = dto.childBirthDate;
+          if (dto.childSex !== undefined) mergedAnswers.childSex = dto.childSex;
+          if (dto.parentPhone !== undefined)
+            mergedAnswers.parentPhone = dto.parentPhone;
+          if (dto.fatherName !== undefined)
+            mergedAnswers.fatherName = dto.fatherName;
+          if (dto.motherName !== undefined)
+            mergedAnswers.motherName = dto.motherName;
+          if (dto.childAddress !== undefined)
+            mergedAnswers.childAddress = dto.childAddress;
+          if (dto.previousVaccineHistory !== undefined)
+            mergedAnswers.previousVaccineHistory = dto.previousVaccineHistory;
+          if (dto.childAllergyHistory !== undefined)
+            mergedAnswers.childAllergyHistory = dto.childAllergyHistory;
+
+          await tx
+            .update(medicalIntakeSubmissions)
+            .set({ answers: mergedAnswers, updatedAt: new Date().toISOString() })
+            .where(eq(medicalIntakeSubmissions.id, existing.intakeSubmissionId));
+        }
+      }
+    });
+
+    if (!targetIntakeId) {
+      return null;
+    }
+
+    return await this.findImmunizationIntakeById(targetIntakeId);
+  }
+
+  async updateIntakeSubmission(
+    id: string,
+    answers: Record<string, any>,
+  ): Promise<any> {
+    const existing = await this.db.query.medicalIntakeSubmissions.findFirst({
+      where: eq(medicalIntakeSubmissions.id, id),
+    });
+    if (!existing) {
+      return null;
+    }
+    const merged = {
+      ...(existing.answers as Record<string, any>),
+      ...answers,
+    };
+    const [updated] = await this.db
+      .update(medicalIntakeSubmissions)
+      .set({ answers: merged, updatedAt: new Date().toISOString() })
+      .where(eq(medicalIntakeSubmissions.id, id))
+      .returning();
+    return updated;
   }
 
   private mapImmunizationRecord(record: any) {

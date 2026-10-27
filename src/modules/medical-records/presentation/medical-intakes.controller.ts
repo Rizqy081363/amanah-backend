@@ -8,6 +8,7 @@ import {
   Inject,
   NotFoundException,
   Param,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -48,6 +49,9 @@ import { CreateMaternityIntakeDto } from './dto/create-maternity-intake.dto';
 import { CreateMedicalIntakeDto } from './dto/create-medical-intake.dto';
 import { GetImmunizationHistoryQueryDto } from './dto/get-immunization-history-query.dto';
 import { GetMaternalHistoryQueryDto } from './dto/get-maternal-history-query.dto';
+import { UpdateChildImmunizationIntakeDto } from './dto/update-child-immunization-intake.dto';
+import { UpdateMaternityIntakeDto } from './dto/update-maternity-intake.dto';
+import { UpdateMedicalIntakeDto } from './dto/update-medical-intake.dto';
 
 @ApiTags('Medical Intakes (Formulir Skrining, Imunisasi & Kehamilan)')
 @ApiBearerAuth('access-token')
@@ -334,6 +338,25 @@ export class MedicalIntakesController {
     return intake;
   }
 
+  @Patch('maternity/:id')
+  @Roles('STAF', 'ADMIN')
+  @ApiOperation({
+    summary:
+      'Update formulir intake maternal kehamilan by ID (Admin / Staf Dokter/Bidan)',
+  })
+  async updateMaternalIntakeById(
+    @Param('id') id: string,
+    @Body() body: UpdateMaternityIntakeDto,
+  ) {
+    const updated = await this.medicalRecordRepo.updateMaternalIntake(id, body);
+    if (!updated) {
+      throw new NotFoundException(
+        'Data intake maternal tidak ditemukan untuk diperbarui',
+      );
+    }
+    return updated;
+  }
+
   @Get('immunization/:id')
   @Roles('STAF', 'ADMIN', 'PATIENT')
   @ApiOperation({
@@ -363,6 +386,28 @@ export class MedicalIntakesController {
     }
 
     return intake;
+  }
+
+  @Patch('immunization/:id')
+  @Roles('STAF', 'ADMIN')
+  @ApiOperation({
+    summary:
+      'Update formulir intake imunisasi anak by ID (Admin / Staf Dokter/Bidan)',
+  })
+  async updateImmunizationIntakeById(
+    @Param('id') id: string,
+    @Body() body: UpdateChildImmunizationIntakeDto,
+  ) {
+    const updated = await this.medicalRecordRepo.updateImmunizationIntake(
+      id,
+      body,
+    );
+    if (!updated) {
+      throw new NotFoundException(
+        'Data intake imunisasi tidak ditemukan untuk diperbarui',
+      );
+    }
+    return updated;
   }
 
   @Get('patient/:patientId')
@@ -398,5 +443,31 @@ export class MedicalIntakesController {
       throw new NotFoundException('Data intake medis tidak ditemukan');
     }
     return intake;
+  }
+
+  @Patch(':id')
+  @Roles('STAF', 'ADMIN')
+  @ApiOperation({
+    summary:
+      'Update formulir intake medis (jawaban kuesioner) by ID (Admin / Staf Dokter/Bidan)',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID unik formulir intake submission',
+  })
+  async updateIntakeById(
+    @Param('id') id: string,
+    @Body() body: UpdateMedicalIntakeDto,
+  ) {
+    const updated = await this.medicalRecordRepo.updateIntakeSubmission(
+      id,
+      body.answers,
+    );
+    if (!updated) {
+      throw new NotFoundException(
+        'Data intake medis tidak ditemukan untuk diperbarui',
+      );
+    }
+    return updated;
   }
 }

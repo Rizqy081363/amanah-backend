@@ -93,11 +93,20 @@ export interface MedicalRecordRepository {
 
   createMaternalIntake(dto: any, submittedByUserId?: string): Promise<any>;
 
+  updateMaternalIntake(id: string, dto: any): Promise<any | null>;
+
   findMaternalIntakeById(id: string): Promise<any | null>;
 
   findMaternalIntakeByAppointmentId(appointmentId: string): Promise<any | null>;
 
   createImmunizationIntake(dto: any, submittedByUserId?: string): Promise<any>;
+
+  updateImmunizationIntake(id: string, dto: any): Promise<any | null>;
+
+  updateIntakeSubmission(
+    id: string,
+    answers: Record<string, any>,
+  ): Promise<any | null>;
 
   findImmunizationIntakeById(id: string): Promise<any | null>;
 
