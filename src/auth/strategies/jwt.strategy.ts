@@ -7,8 +7,12 @@ import { AllConfigType } from '../../config/config.type';
 import { DRIZZLE_SOURCE } from '../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../database/drizzle/drizzle.provider';
 import { users } from '../../database/schema';
-import { STAFF_ROLE_CODES } from '../../modules/staffs/domain/constants/staff-invitation.constants';
-import { SYSTEM_ROLES, type SystemRole } from '../constants/auth.constants';
+import {
+  CANONICAL_ROLES,
+  resolveSystemRole,
+  SYSTEM_ROLES,
+  type SystemRole,
+} from '../constants/auth.constants';
 import { JwtPayloadType } from './types/jwt-payload.type';
 
 @Injectable()
@@ -52,17 +56,13 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     }
 
     const primaryRole = user.userRoles_userId?.[0]?.role;
-    let systemRole: SystemRole = SYSTEM_ROLES.PATIENT;
-    if (primaryRole?.code === 'admin') {
-      systemRole = SYSTEM_ROLES.ADMIN;
-    } else if (
-      primaryRole?.code === STAFF_ROLE_CODES.DOCTOR ||
-      primaryRole?.code === STAFF_ROLE_CODES.MIDWIFE ||
-      primaryRole?.code === STAFF_ROLE_CODES.WORKER ||
-      (user.staffProfiles && user.staffProfiles.length > 0)
-    ) {
-      systemRole = SYSTEM_ROLES.STAF;
-    }
+    const hasStaffProfiles = Boolean(
+      user.staffProfiles && user.staffProfiles.length > 0,
+    );
+    const systemRole: SystemRole = resolveSystemRole(
+      primaryRole?.code,
+      hasStaffProfiles,
+    );
 
     const userRoleCodes = (user.userRoles_userId || [])
       .map((ur) => ur.role?.code)
@@ -70,10 +70,10 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     const roleCode =
       primaryRole?.code ||
       (systemRole === SYSTEM_ROLES.ADMIN
-        ? 'admin'
+        ? CANONICAL_ROLES.ADMIN
         : systemRole === SYSTEM_ROLES.STAF
-          ? 'staff_worker'
-          : 'patient');
+          ? CANONICAL_ROLES.STAFF_WORKER
+          : CANONICAL_ROLES.PATIENT);
 
     const staffProfile = user.staffProfiles?.[0];
     const patientProfile = user.patientProfiles?.[0];
@@ -111,10 +111,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
             id: patientProfile.id,
             userId: user.id,
             medicalRecordNumber: patientProfile.medicalRecordNumber,
-            nik:
-              patientProfile.nationalIdEncrypted ||
-              patientProfile.nationalIdHash ||
-              '',
+            nik: patientProfile.nationalIdEncrypted || null,
             fullName: patientProfile.fullName,
             gender: patientProfile.gender || null,
             birthPlace: patientProfile.birthPlace,

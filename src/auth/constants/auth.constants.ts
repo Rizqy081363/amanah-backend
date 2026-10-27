@@ -50,6 +50,28 @@ export const CHAT_SUPPORT_ROLES = [
   CANONICAL_ROLES.STAFF_WORKER,
 ] as const;
 
+const CANONICAL_STAFF_ROLE_CODES = new Set<string>([
+  CANONICAL_ROLES.STAFF_DOCTOR,
+  CANONICAL_ROLES.STAFF_MIDWIFE,
+  CANONICAL_ROLES.STAFF_WORKER,
+]);
+
+export function resolveSystemRole(
+  roleCode?: string | null,
+  hasStaffProfile = false,
+): SystemRole {
+  if (roleCode === CANONICAL_ROLES.ADMIN) {
+    return SYSTEM_ROLES.ADMIN;
+  }
+  if (
+    (roleCode && CANONICAL_STAFF_ROLE_CODES.has(roleCode)) ||
+    hasStaffProfile
+  ) {
+    return SYSTEM_ROLES.STAF;
+  }
+  return SYSTEM_ROLES.PATIENT;
+}
+
 export const USER_STATUS = {
   ACTIVE: 'active',
   INACTIVE: 'inactive',

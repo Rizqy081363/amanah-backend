@@ -63,11 +63,7 @@ const devOriginPatterns = (env.APP_DEV_ORIGIN_PATTERNS || '')
   .map((p) => p.trim())
   .filter(Boolean);
 
-const rawCorsOrigins = (
-  env.APP_CORS_ORIGINS ||
-  env.FRONTEND_DOMAIN ||
-  ''
-)
+const rawCorsOrigins = (env.APP_CORS_ORIGINS || '')
   .split(',')
   .map((origin) => origin.trim())
   .filter(Boolean);

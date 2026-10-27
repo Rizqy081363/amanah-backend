@@ -92,19 +92,32 @@ const ALLOWED_MAGIC_NUMBERS = new Set([-1, 0, 1, 2, 10, 100, 1000]);
 
 const DOM_KEYBOARD_MODIFIERS = new Set(['metaKey', 'ctrlKey', 'altKey', 'shiftKey']);
 
+function isFallbackOperator(kind: ts.SyntaxKind): boolean {
+  return (
+    kind === ts.SyntaxKind.BarBarToken ||
+    kind === ts.SyntaxKind.QuestionQuestionToken
+  );
+}
+
 /**
  * Meratakan pohon BinaryExpression untuk operator tertentu (misal: '||' atau '??')
  */
 function flattenBinaryTree(node: ts.Node, op: ts.SyntaxKind): ts.Node[] {
   const list: ts.Node[] = [];
+  const treatAsFallback = isFallbackOperator(op);
   function walk(n: ts.Node) {
     let target = n;
     while (ts.isParenthesizedExpression(target)) {
       target = target.expression;
     }
-    if (ts.isBinaryExpression(target) && target.operatorToken.kind === op) {
-      walk(target.left);
-      walk(target.right);
+    const matchesOp = treatAsFallback
+      ? ts.isBinaryExpression(target) &&
+        isFallbackOperator(target.operatorToken.kind)
+      : ts.isBinaryExpression(target) && target.operatorToken.kind === op;
+
+    if (matchesOp) {
+      walk((target as ts.BinaryExpression).left);
+      walk((target as ts.BinaryExpression).right);
     } else {
       list.push(target);
     }
@@ -203,7 +216,11 @@ function extractPropertyAccess(
   sourceFile: ts.SourceFile
 ): { receiver: string; property: string } | null {
   let target = node;
-  while (ts.isParenthesizedExpression(target) || ts.isNonNullExpression(target)) {
+  while (
+    ts.isParenthesizedExpression(target) ||
+    ts.isNonNullExpression(target) ||
+    ts.isCallExpression(target)
+  ) {
     target = target.expression;
   }
 

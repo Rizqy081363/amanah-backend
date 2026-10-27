@@ -30,6 +30,7 @@ import {
 } from '@nestjs/swagger';
 import { CurrentUser, HybridAuthGuard } from '../common/auth';
 import { RateLimit } from '../common/throttling';
+import { zodPipe } from '../common/validation';
 import { AvatarService } from '../modules/avatar/avatar.service';
 import { User } from '../users/domain/user';
 import { NullableType } from '../utils/types/nullable.type';
@@ -53,6 +54,20 @@ import { AuthVerifyOtpDto } from './dto/auth-verify-otp.dto';
 import { DeleteAccountResponseDto } from './dto/delete-account-response.dto';
 import { LoginResponseDto } from './dto/login-response.dto';
 import { RefreshResponseDto } from './dto/refresh-response.dto';
+import {
+  AuthConfirmEmailSchema,
+  AuthEmailLoginSchema,
+  AuthForgotPasswordSchema,
+  AuthGoogleLoginSchema,
+  AuthRegisterSchema,
+  AuthResendOtpSchema,
+  AuthResendVerificationSchema,
+  AuthResetPasswordOtpSchema,
+  AuthResetPasswordSchema,
+  AuthStaffOnboardingSchema,
+  AuthUpdateSchema,
+  AuthVerifyOtpSchema,
+} from './presentation/schemas';
 import type { JwtPayloadType } from './strategies/types/jwt-payload.type';
 import type { JwtRefreshPayloadType } from './strategies/types/jwt-refresh-payload.type';
 
@@ -85,7 +100,9 @@ export class AuthController {
     description: 'Email tidak ditemukan atau kata sandi tidak cocok',
   })
   @HttpCode(HttpStatus.OK)
-  public login(@Body() loginDto: AuthEmailLoginDto): Promise<LoginResponseDto> {
+  public login(
+    @Body(zodPipe(AuthEmailLoginSchema)) loginDto: AuthEmailLoginDto,
+  ): Promise<LoginResponseDto> {
     return this.service.validateLogin(loginDto);
   }
 
@@ -109,7 +126,7 @@ export class AuthController {
   })
   @HttpCode(HttpStatus.OK)
   public googleLogin(
-    @Body() dto: AuthGoogleLoginDto,
+    @Body(zodPipe(AuthGoogleLoginSchema)) dto: AuthGoogleLoginDto,
   ): Promise<LoginResponseDto> {
     return this.service.validateGoogleLogin(dto);
   }
@@ -127,7 +144,9 @@ export class AuthController {
     description: 'Validasi form registrasi gagal atau email telah terdaftar',
   })
   @HttpCode(HttpStatus.NO_CONTENT)
-  async register(@Body() createUserDto: AuthRegisterLoginDto): Promise<void> {
+  async register(
+    @Body(zodPipe(AuthRegisterSchema)) createUserDto: AuthRegisterLoginDto,
+  ): Promise<void> {
     return this.service.register(createUserDto);
   }
 
@@ -145,7 +164,8 @@ export class AuthController {
   })
   @HttpCode(HttpStatus.NO_CONTENT)
   async confirmEmail(
-    @Body() confirmEmailDto: AuthConfirmEmailDto,
+    @Body(zodPipe(AuthConfirmEmailSchema))
+    confirmEmailDto: AuthConfirmEmailDto,
   ): Promise<void> {
     return this.service.confirmEmail(confirmEmailDto.hash);
   }
@@ -164,7 +184,8 @@ export class AuthController {
   })
   @HttpCode(HttpStatus.NO_CONTENT)
   async confirmNewEmail(
-    @Body() confirmEmailDto: AuthConfirmEmailDto,
+    @Body(zodPipe(AuthConfirmEmailSchema))
+    confirmEmailDto: AuthConfirmEmailDto,
   ): Promise<void> {
     return this.service.confirmNewEmail(confirmEmailDto.hash);
   }
@@ -182,7 +203,8 @@ export class AuthController {
   })
   @HttpCode(HttpStatus.NO_CONTENT)
   async forgotPassword(
-    @Body() forgotPasswordDto: AuthForgotPasswordDto,
+    @Body(zodPipe(AuthForgotPasswordSchema))
+    forgotPasswordDto: AuthForgotPasswordDto,
   ): Promise<void> {
     return this.service.forgotPassword(forgotPasswordDto.email);
   }
@@ -200,7 +222,10 @@ export class AuthController {
     description: 'Token reset tidak valid atau kedaluwarsa',
   })
   @HttpCode(HttpStatus.NO_CONTENT)
-  resetPassword(@Body() resetPasswordDto: AuthResetPasswordDto): Promise<void> {
+  resetPassword(
+    @Body(zodPipe(AuthResetPasswordSchema))
+    resetPasswordDto: AuthResetPasswordDto,
+  ): Promise<void> {
     return this.service.resetPassword(
       resetPasswordDto.hash,
       resetPasswordDto.password,
@@ -220,7 +245,7 @@ export class AuthController {
   })
   @HttpCode(HttpStatus.OK)
   async resendOtp(
-    @Body() dto: AuthResendOtpDto,
+    @Body(zodPipe(AuthResendOtpSchema)) dto: AuthResendOtpDto,
   ): Promise<ResendOtpResponseDto> {
     return this.service.resendOtp(dto);
   }
@@ -238,7 +263,8 @@ export class AuthController {
   })
   @HttpCode(HttpStatus.OK)
   async resendEmailVerification(
-    @Body() dto: AuthResendVerificationDto,
+    @Body(zodPipe(AuthResendVerificationSchema))
+    dto: AuthResendVerificationDto,
   ): Promise<ResendOtpResponseDto> {
     return this.service.resendOtp({
       email: dto.email,
@@ -261,7 +287,7 @@ export class AuthController {
   })
   @HttpCode(HttpStatus.OK)
   async verifyEmailOtp(
-    @Body() dto: AuthVerifyOtpDto,
+    @Body(zodPipe(AuthVerifyOtpSchema)) dto: AuthVerifyOtpDto,
   ): Promise<{ success: boolean; message: string }> {
     return this.service.verifyEmailOtp(dto);
   }
@@ -281,7 +307,7 @@ export class AuthController {
   })
   @HttpCode(HttpStatus.NO_CONTENT)
   async resetPasswordWithOtp(
-    @Body() dto: AuthResetPasswordOtpDto,
+    @Body(zodPipe(AuthResetPasswordOtpSchema)) dto: AuthResetPasswordOtpDto,
   ): Promise<void> {
     return this.service.resetPasswordWithOtp(dto);
   }
@@ -393,7 +419,7 @@ export class AuthController {
   })
   public update(
     @Request() request: RequestWithUser<JwtPayloadType>,
-    @Body() userDto: AuthUpdateDto,
+    @Body(zodPipe(AuthUpdateSchema)) userDto: AuthUpdateDto,
   ): Promise<NullableType<User>> {
     return this.service.update(request.user, userDto);
   }
@@ -419,7 +445,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   public completeStaffOnboarding(
     @Request() request: RequestWithUser<JwtPayloadType>,
-    @Body() dto: AuthStaffOnboardingDto,
+    @Body(zodPipe(AuthStaffOnboardingSchema)) dto: AuthStaffOnboardingDto,
   ): Promise<NullableType<User>> {
     return this.service.completeStaffOnboarding(request.user, dto);
   }

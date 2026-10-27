@@ -39,7 +39,7 @@ export class BetterAuthRbacGuard implements CanActivate {
 
     const userRole = (
       typeof user.role === 'object' && user.role !== null
-        ? user.role.code || user.role.name
+        ? user.role.code
         : user.role
     ) as RoleName | undefined;
 
