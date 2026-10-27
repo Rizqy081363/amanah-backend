@@ -33,10 +33,6 @@ import {
   sessionDefs,
 } from '../../../../database/schema';
 import type { QueuePositionRecalculationService } from '../../../queue-engine/application/services/queue-position-recalculation.service';
-import {
-  ScheduleShiftRegistry,
-  SHIFT_TIMING_CONFIGS,
-} from '../../../schedules/domain/constants/schedule-shift.constants';
 import { MEDICAL_SPECIALTY_CODES } from '../../../clinics/domain/constants/medical-specialty.constants';
 import {
   DB_APPOINTMENT_STATUS,
@@ -84,16 +80,20 @@ export class AppointmentCreationHandler {
       Math.random() * 1000,
     )}`;
 
-    const targetShift = ScheduleShiftRegistry.resolve(data.session).shift;
+    const targetShift = data.session;
+    const sessionRecord = await db.query.sessionDefs.findFirst({
+      where: eq(sessionDefs.code, targetShift),
+    });
+    if (!sessionRecord) {
+      throw new BadRequestException(`Sesi jadwal tidak valid: ${targetShift}`);
+    }
 
     const policy = clinicConfig
       ? await clinicConfig.getSchedulePolicy().catch(() => null)
       : null;
 
-    const shiftConfig =
-      SHIFT_TIMING_CONFIGS[targetShift] || SHIFT_TIMING_CONFIGS.morning;
-    let defaultStart = `${shiftConfig.defaultStartTime}:00`;
-    let defaultEnd = `${shiftConfig.defaultEndTime}:00`;
+    let defaultStart = sessionRecord.defaultStartsAt;
+    let defaultEnd = sessionRecord.defaultEndsAt;
 
     if (policy) {
       if (targetShift === 'early_morning') {
@@ -284,19 +284,8 @@ export class AppointmentCreationHandler {
       unitPrefix ||
       'A';
 
-    const normalizedSession = (data.session || '').trim().toLowerCase();
-    const sessionRecord = await db.query.sessionDefs.findFirst({
-      where: or(
-        eq(sessionDefs.code, targetShift),
-        ilike(sessionDefs.code, `%${normalizedSession}%`),
-        ilike(sessionDefs.labelKey, `%${normalizedSession}%`),
-      ),
-    });
-    const sessionId = sessionRecord?.id || null;
-
-    const sessionPrefix = sessionRecord?.codePrefix
-      ? `${sessionRecord.codePrefix}`
-      : '';
+    const sessionId = sessionRecord.id;
+    const sessionPrefix = sessionRecord.codePrefix;
 
     // Calculate queue sequence based on active appointments under the assigned doctor
     // or partitioned by category for unassigned appointments
@@ -377,12 +366,10 @@ export class AppointmentCreationHandler {
       formattedTicketNumber = `${categoryPrefix}-${sessionPrefix}${String(ticketIndex).padStart(3, '0')}`;
     }
 
-    const [startH, startM] = (startTime || '08:00')
+    const [startH, startM] = startTime
       .split(':')
       .map((v) => parseInt(v, 10));
-    const h = Number.isNaN(startH) ? 8 : startH;
-    const m = Number.isNaN(startM) ? 0 : startM;
-    const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
+    const timeStr = `${String(startH).padStart(2, '0')}:${String(startM).padStart(2, '0')}:00`;
     const tz =
       clinicTimeService?.getTimezone() ||
       (clinicConfig ? await clinicConfig.getTimezone() : 'Asia/Jakarta');
@@ -412,8 +399,7 @@ export class AppointmentCreationHandler {
         practitionerId: practitionerId || null,
         serviceId: data.layananId,
         roomId: null,
-        visitType:
-          data.visitType === 'Kontrol Ulang' ? 'follow_up' : 'new_visit',
+        visitType: data.visitType,
         status: DB_APPOINTMENT_STATUS.BOOKED,
         scheduledDate: data.appointmentDate,
         scheduledStartTime: startTime,

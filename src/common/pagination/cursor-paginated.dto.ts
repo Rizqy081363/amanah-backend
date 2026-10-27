@@ -1,7 +1,7 @@
 import { Type } from '@nestjs/common';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
-export class CursorPaginationMetaDto {
+class CursorPaginationMetaDto {
   @ApiPropertyOptional({
     description:
       'Opaque cursor untuk mengambil halaman berikutnya (null jika sudah di halaman terakhir per API-089)',
@@ -30,7 +30,7 @@ export class CursorPaginationMetaDto {
   total?: number;
 }
 
-export class CursorPaginatedResponseDto<T> {
+class CursorPaginatedResponseDto<T> {
   @ApiProperty({ isArray: true })
   data: T[];
 
@@ -38,7 +38,7 @@ export class CursorPaginatedResponseDto<T> {
   meta: CursorPaginationMetaDto;
 }
 
-export function ApiCursorPaginatedResponse<T>(itemType: Type<T>) {
+function ApiCursorPaginatedResponse<T>(itemType: Type<T>) {
   abstract class GenericCursorPaginatedResponse {
     @ApiProperty({ type: [itemType] })
     data!: T[];

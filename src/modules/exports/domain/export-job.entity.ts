@@ -1,4 +1,4 @@
-export type ExportJobStatus =
+type ExportJobStatus =
   | 'queued'
   | 'running'
   | 'completed'
@@ -8,7 +8,7 @@ export type ExportJobStatus =
 
 export type ExportFormat = 'csv' | 'xlsx' | 'pdf';
 
-export class ExportJobEntity {
+class ExportJobEntity {
   id: string;
   requestedBy: string;
   exportType: string;

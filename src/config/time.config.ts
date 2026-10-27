@@ -1,7 +1,7 @@
 import { registerAs } from '@nestjs/config';
 import { TimeConfig } from './time-config.type';
 
-export function assertIanaTimezone(name: string, label: string): string {
+function assertIanaTimezone(name: string, label: string): string {
   const looksIana =
     /^[A-Za-z]+(?:\/[A-Za-z0-9_+-]+)+$/.test(name) || name === 'UTC';
   let resolvable = false;

@@ -1,6 +1,6 @@
 import { bloodType } from '../../../../database/schema';
 
-export const UNKNOWN_BLOOD_TYPE = 'unknown' as const;
+const UNKNOWN_BLOOD_TYPE = 'unknown' as const;
 
 export interface ReferenceOption {
   label: string;
@@ -32,7 +32,7 @@ export function formatBloodTypeDisplay(raw?: string | null): string {
  * Deskripsi klinis standar untuk golongan darah.
  * Dihasilkan secara deterministik berdasarkan ada tidaknya rhesus dan simbol.
  */
-export function getBloodTypeDescription(val: string): string {
+function getBloodTypeDescription(val: string): string {
   if (!val || val.trim().toLowerCase() === UNKNOWN_BLOOD_TYPE) {
     return 'Belum diperiksa / Tidak tahu';
   }

@@ -4,7 +4,7 @@ import { Pool } from 'pg';
 import { AllConfigType } from '../../config/config.type';
 import { POSTGRES_POOL } from '../../database/drizzle/drizzle.constants';
 
-export function sameZoneNow(a: string, b: string): boolean {
+function sameZoneNow(a: string, b: string): boolean {
   if (a === b) {
     return true;
   }

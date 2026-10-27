@@ -3,7 +3,7 @@ import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import { practitioners, staffProfiles } from '@database/schema';
 import { isUuid } from '@modules/schedules/domain/constants/schedule.constants';
 import { Inject, Injectable } from '@nestjs/common';
-import { eq, ilike, or } from 'drizzle-orm';
+import { eq, or } from 'drizzle-orm';
 
 @Injectable()
 export class PractitionerResolver {
@@ -30,22 +30,10 @@ export class PractitionerResolver {
       });
     }
 
-    const decoded = decodeURIComponent(staffOrPractitionerId).trim();
-
-    const byName = await this.db.query.practitioners.findFirst({
-      where: ilike(practitioners.displayName, `%${decoded}%`),
-      with: {
-        staffProfile: true,
-        medicalSpecialty: true,
-      },
-    });
-
-    if (byName) {
-      return byName;
-    }
+    const code = decodeURIComponent(staffOrPractitionerId).trim();
 
     const matchedStaff = await this.db.query.staffProfiles.findFirst({
-      where: ilike(staffProfiles.fullName, `%${decoded}%`),
+      where: eq(staffProfiles.staffCode, code),
     });
 
     if (matchedStaff) {

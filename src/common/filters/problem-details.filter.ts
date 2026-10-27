@@ -16,7 +16,7 @@ export interface InvalidParam {
   code?: string;
 }
 
-export interface ProblemDetails {
+interface ProblemDetails {
   type: string;
   title: string;
   status: number;

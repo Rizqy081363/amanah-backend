@@ -2,7 +2,6 @@ import {
   DEFAULT_CONSULTATION_DURATION_MINUTES,
   INACTIVE_APPOINTMENT_STATUSES,
 } from '@modules/schedules/domain/constants/schedule.constants';
-import { ScheduleShiftRegistry } from '@modules/schedules/domain/constants/schedule-shift.constants';
 import {
   type AdminDoctorDailySession,
   type AdminDoctorMonthlyDayEntity,
@@ -116,23 +115,16 @@ export function buildMonthlySchedule(
     let dayNotes: string | null = null;
 
     const daySessionStatuses = daySessions.map((s) => {
-      const descriptor = ScheduleShiftRegistry.find(
-        s.sessionShift || s.sessionLabel,
-      );
-      const defaultStart = descriptor
-        ? `${descriptor.defaultStartTime}:00`
-        : '';
-      const defaultEnd = descriptor ? `${descriptor.defaultEndTime}:00` : '';
       const sessStart = s.startTime
         ? s.startTime.length === 5
           ? `${s.startTime}:00`
           : s.startTime
-        : defaultStart;
+        : '';
       const sessEnd = s.endTime
         ? s.endTime.length === 5
           ? `${s.endTime}:00`
           : s.endTime
-        : defaultEnd;
+        : '';
 
       const matchingAppts = dayAppts.filter((a) => {
         if (a.practitionerId !== s.practitionerId) return false;
@@ -180,52 +172,19 @@ export function buildMonthlySchedule(
       sessionStatuses: daySessionStatuses,
     });
 
-    let dayStatus: 'OPEN' | 'CLOSED' | 'LEAVE' | 'EMPTY';
-    let statusLabel: string;
-    let badgeVariant: 'success' | 'danger' | 'warning' | 'neutral';
-
     if (isOnLeave) {
-      dayStatus = 'LEAVE';
-      statusLabel = 'Cuti';
-      badgeVariant = 'warning';
       dayNotes = daySetting?.leaveReason || leave?.reason || null;
     } else if (daySessions.length === 0) {
-      dayStatus = 'EMPTY';
-      statusLabel = 'Kosong';
-      badgeVariant = 'neutral';
       dayNotes = null;
     } else if (dayOpStatus === ScheduleOperationalStatus.CLOSED) {
-      dayStatus = 'CLOSED';
-      statusLabel = 'Tutup';
-      badgeVariant = 'danger';
       dayNotes = daySetting?.leaveReason || null;
-    } else {
-      dayStatus = 'OPEN';
-      statusLabel = 'Buka';
-      badgeVariant = 'success';
     }
-
-    const dayActiveSessions = daySessions.filter(
-      (s) => s.status !== 'closed',
-    ).length;
-    const dayBookedPatients = dayAppts.filter(
-      (a) =>
-        !INACTIVE_APPOINTMENT_STATUSES.includes(
-          (a.status?.toLowerCase() || '') as any,
-        ),
-    ).length;
 
     monthlySchedule.push({
       day: d,
       date: dateStr,
       status: dayOpStatus,
       notes: dayNotes,
-      dayStatus,
-      statusLabel,
-      badgeVariant,
-      activeSessions: dayActiveSessions,
-      bookedPatients: dayBookedPatients,
-      isClickable: true,
     });
   }
 
@@ -270,35 +229,15 @@ export function buildDailySessions(
     consultationDurationMinutes || DEFAULT_CONSULTATION_DURATION_MINUTES;
 
   return evalSessions.map((s) => {
-    const descriptor = ScheduleShiftRegistry.find(
-      s.sessionShift || s.sessionLabel,
-    );
-    const defaultStart = descriptor?.defaultStartTime ?? '';
-    const defaultEnd = descriptor?.defaultEndTime ?? '';
-    const sessionStart = s.startTime ? s.startTime.slice(0, 5) : defaultStart;
-    const sessionEnd = s.endTime ? s.endTime.slice(0, 5) : defaultEnd;
-    const sessStart = s.startTime
-      ? s.startTime.length === 5
-        ? `${s.startTime}:00`
-        : s.startTime
-      : defaultStart
-        ? `${defaultStart}:00`
-        : '';
-    const sessEnd = s.endTime
-      ? s.endTime.length === 5
-        ? `${s.endTime}:00`
-        : s.endTime
-      : defaultEnd
-        ? `${defaultEnd}:00`
-        : '';
+    const sessionStart = s.startTime;
+    const sessionEnd = s.endTime;
 
     const matchingAppts = evalAppts.filter((a) => {
       if (a.practitionerId !== s.practitionerId) return false;
-      const aStart =
-        a.scheduledStartTime?.length === 5
-          ? `${a.scheduledStartTime}:00`
-          : a.scheduledStartTime || sessStart;
-      return aStart >= sessStart && aStart < sessEnd;
+      return (
+        a.scheduledStartTime >= sessionStart &&
+        a.scheduledStartTime < sessionEnd
+      );
     });
 
     const metrics = ScheduleSessionFactory.calculateSessionMetrics({
@@ -331,8 +270,7 @@ export function buildDailySessions(
       : sessionOpStatus === ScheduleOperationalStatus.CLOSED
         ? 'Sesi berstatus Tutup. Sesi yang sudah ditutup tidak dapat di-reschedule. Silakan gunakan menu Edit Jadwal untuk membuka sesi.'
         : null;
-    const sessionTitle =
-      descriptor?.label || s.sessionLabel || metrics.sessionLabel;
+    const sessionTitle = s.sessionLabel;
 
     let closureReason: ScheduleClosureReason | null = null;
     if (sessionOpStatus === ScheduleOperationalStatus.CLOSED) {
@@ -368,7 +306,7 @@ export function buildTimelineAndMetrics(
   dailySessions: any[] = [],
 ) {
   const totalBooked = dailySessions.reduce(
-    (acc, s) => acc + (s.pasien_terdaftar || 0),
+    (acc, s) => acc + (s.bookedPatients || 0),
     0,
   );
 

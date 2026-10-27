@@ -6,7 +6,7 @@ export interface OriginPolicy {
 /**
  * Memeriksa apakah suatu origin cocok dengan pola wildcard (misal: https://*.devtunnels.ms).
  */
-export function matchesOriginPattern(origin: string, pattern: string): boolean {
+function matchesOriginPattern(origin: string, pattern: string): boolean {
   if (pattern === origin) return true;
   if (!pattern.includes('*')) return false;
 

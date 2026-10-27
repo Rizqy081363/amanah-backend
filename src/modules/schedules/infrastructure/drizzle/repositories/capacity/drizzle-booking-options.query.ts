@@ -25,17 +25,7 @@ import {
 } from '@nestjs/common';
 import { and, asc, eq, isNull, or, sql } from 'drizzle-orm';
 
-const CANONICAL_SESSION_NAME_MAP: Record<
-  string,
-  { session: string; label: string }
-> = {
-  early_morning: { session: 'DINI_HARI', label: 'Shift Dini Hari' },
-  morning: { session: 'PAGI', label: 'Shift Pagi' },
-  afternoon: { session: 'SIANG', label: 'Shift Siang' },
-  night: { session: 'MALAM', label: 'Shift Malam' },
-};
-
-export interface BookingPractitionerItem {
+interface BookingPractitionerItem {
   id: string;
   staffProfileId?: string;
   sessionId: string;
@@ -47,7 +37,7 @@ export interface BookingPractitionerItem {
   endTime: string;
 }
 
-export interface BookingOptionSessionItem {
+interface BookingOptionSessionItem {
   session: string;
   shift: string;
   label: string;
@@ -238,12 +228,6 @@ export class DrizzleBookingOptionsQuery {
     const currentClockTime = `${String(nowInTz.getHours()).padStart(2, '0')}:${String(nowInTz.getMinutes()).padStart(2, '0')}`;
 
     const mappedSessions: BookingOptionSessionItem[] = activeDefs.map((def) => {
-      const shiftKey = def.code.toLowerCase();
-      const canonicalInfo = CANONICAL_SESSION_NAME_MAP[shiftKey] || {
-        session: def.code.toUpperCase(),
-        label: `Shift ${def.code}`,
-      };
-
       // Operating time: template schedule > def default
       const sched = activeSchedules.find((s) => s.sessionId === def.id);
       const startTimeRaw = sched?.startsAt || def.defaultStartsAt || '';
@@ -309,9 +293,9 @@ export class DrizzleBookingOptionsQuery {
       const capacity = Math.max(practitioners.length, sched ? 1 : 0);
 
       return {
-        session: canonicalInfo.session,
+        session: def.code,
         shift: def.code,
-        label: canonicalInfo.label,
+        label: def.labelKey,
         startTime,
         endTime,
         capacity,

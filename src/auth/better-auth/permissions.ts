@@ -71,7 +71,7 @@ export const patient = ac.newRole({
   medicalRecord: ['read'],
 });
 
-export const roles = {
+const roles = {
   admin,
   staffDoctor,
   staffMidwife,

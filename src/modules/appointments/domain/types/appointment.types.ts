@@ -28,7 +28,7 @@ export type AppointmentAction =
   | 'ASSIGN_ROOM'
   | 'NO_SHOW';
 
-export const ALLOWED_TRANSITIONS: Record<
+const ALLOWED_TRANSITIONS: Record<
   AppointmentStatus,
   readonly AppointmentStatus[]
 > = {

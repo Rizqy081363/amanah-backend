@@ -26,7 +26,6 @@ import {
   replacementOpportunities,
 } from '../../../../database/schema/leave-payroll.schema';
 import { NotificationGatewayService } from '../../../notifications/application/services/notification-gateway.service';
-import { formatSessionTitle } from '../../../schedules/domain/constants/schedule-shift.constants';
 import { LeaveEntity } from '../../domain/entities/leave.entity';
 import { LeaveRepository } from '../../domain/repositories/leave.repository';
 
@@ -82,7 +81,7 @@ export class LeaveDrizzleRepository implements LeaveRepository {
         id: s.id,
         sessionId: s.sessionId,
         sessionCode: s.sessionDef?.code,
-        sessionLabel: formatSessionTitle(s.sessionDef?.code),
+        sessionLabel: s.sessionDef?.labelKey,
         workDate: s.workDate,
       })),
       createdAt: new Date(r.createdAt),
@@ -122,7 +121,7 @@ export class LeaveDrizzleRepository implements LeaveRepository {
       eligibleSessions = assignments.map((a) => ({
         sessionId: a.sessionId,
         sessionCode: a.sessionDef.code,
-        sessionLabel: formatSessionTitle(a.sessionDef.code),
+        sessionLabel: a.sessionDef.labelKey,
         startsAt: a.sessionDef.defaultStartsAt,
         endsAt: a.sessionDef.defaultEndsAt,
         workDate: date,
@@ -143,7 +142,7 @@ export class LeaveDrizzleRepository implements LeaveRepository {
       eligibleSessions = rosters.map((r) => ({
         sessionId: r.sessionId,
         sessionCode: r.sessionDef.code,
-        sessionLabel: formatSessionTitle(r.sessionDef.code),
+        sessionLabel: r.sessionDef.labelKey,
         startsAt: r.sessionDef.defaultStartsAt,
         endsAt: r.sessionDef.defaultEndsAt,
         workDate: date,

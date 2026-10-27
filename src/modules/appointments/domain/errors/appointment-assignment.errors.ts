@@ -33,7 +33,7 @@ export class DoctorCollisionException extends ConflictException {
   }
 }
 
-export class RoomOccupiedException extends ConflictException {
+class RoomOccupiedException extends ConflictException {
   constructor(roomName: string, scheduledTime: string) {
     super({
       code: 'ROOM_OCCUPIED',

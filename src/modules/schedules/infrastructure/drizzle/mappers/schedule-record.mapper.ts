@@ -1,9 +1,5 @@
 import { generateEntityVersion } from '@common/occ';
-import {
-  type CanonicalStaffShift,
-  SHIFT_DISPLAY_LABELS,
-  SHIFT_TO_SESSION_MAP,
-} from '@modules/schedules/domain/constants/schedule-shift.constants';
+import type { CanonicalStaffShift } from '@modules/schedules/domain/constants/schedule-shift.constants';
 import {
   type ScheduleEntity,
   ScheduleOperationalStatus,
@@ -67,14 +63,14 @@ export type ScheduleRecordMapperInput = {
 const RESCHEDULE_CLOSED_REASON =
   'Sesi ini berstatus Tutup. Silakan aktifkan sesi terlebih dahulu melalui menu Ubah Sesi sebelum melakukan reschedule.';
 
-export function mapScheduleRecordToEntity(
+function mapScheduleRecordToEntity(
   record: ScheduleRecordMapperInput,
 ): ScheduleEntity {
-  const shift = record.sessionShift as CanonicalStaffShift;
-  const sessionName = shift ? SHIFT_TO_SESSION_MAP[shift] || 'PAGI' : 'PAGI';
-  const sessionLabel =
-    record.sessionLabel ||
-    (shift ? SHIFT_DISPLAY_LABELS[shift] || 'Pagi' : 'Pagi');
+  const shift = record.sessionShift
+    ? (record.sessionShift as CanonicalStaffShift)
+    : null;
+  const sessionName = (shift ?? '') as CanonicalStaffShift;
+  const sessionLabel = record.sessionLabel || undefined;
 
   const startTimeFormatted = record.startTime
     ? record.startTime.slice(0, 5)

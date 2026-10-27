@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 
-export interface CursorPayload {
+interface CursorPayload {
   t: string; // ISO 8601 string for createdAt
   id: string; // Unique identifier for tiebreaking
 }

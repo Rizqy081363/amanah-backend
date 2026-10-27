@@ -16,7 +16,7 @@ import type { SocketIoRealtimeGateway } from '../../../notifications/infrastruct
 import { REALTIME_GATEWAY_PORT } from '../../../notifications/notifications.constants';
 import { QueueRecalculationService } from './queue-recalculation.service';
 
-export interface CompactedQueueItem {
+interface CompactedQueueItem {
   appointmentId: string;
   ticketId: string | null;
   queueNumber: number;

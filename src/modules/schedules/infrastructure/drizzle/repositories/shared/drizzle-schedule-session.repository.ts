@@ -12,10 +12,6 @@ import type { ScheduleEntity } from '@modules/schedules/domain/entities/schedule
 import { SchedulePersistenceStatus } from '@modules/schedules/domain/schedule-status';
 import { ScheduleRecordMapper } from '@modules/schedules/infrastructure/drizzle/mappers/schedule-record.mapper';
 import { ScheduleConflictQuery } from '@modules/schedules/infrastructure/drizzle/queries/schedule-conflict.query';
-import {
-  resolveDefaultSessionTimes,
-  resolveSessionShift,
-} from '@modules/schedules/infrastructure/drizzle/queries/session-query-relations';
 import { PractitionerResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/practitioner.resolver';
 import {
   BadRequestException,
@@ -51,20 +47,18 @@ export class DrizzleScheduleSessionRepository {
     }
     const practitionerId = practitioner.id;
 
-    const { shift, defaultLabel } = resolveSessionShift({
-      session: data.session,
-      sessionShift: data.sessionShift,
+    const shift = data.session;
+    const sessionDef = await this.db.query.sessionDefs.findFirst({
+      where: eq(sessionDefs.code, shift),
     });
-    const sessionLabel = data.sessionLabel || defaultLabel;
-    const defaultTimes = resolveDefaultSessionTimes(shift);
+    if (!sessionDef) {
+      throw new BadRequestException(`Sesi dinas tidak valid: ${shift}`);
+    }
 
-    const targetDate =
-      data.scheduleDate ||
-      data.specificDate ||
-      new Date().toISOString().split('T')[0];
-
-    const defaultStartTime = data.startTime || defaultTimes.startTime;
-    const defaultEndTime = data.endTime || defaultTimes.endTime;
+    const sessionLabel = sessionDef.labelKey;
+    const targetDate = data.scheduleDate || data.specificDate || '';
+    const defaultStartTime = data.startTime || sessionDef.defaultStartsAt;
+    const defaultEndTime = data.endTime || sessionDef.defaultEndsAt;
 
     let roomId = data.roomId || null;
     if (!roomId && data.poliklinikId) {
@@ -82,18 +76,13 @@ export class DrizzleScheduleSessionRepository {
       roomId,
     );
 
-    const sessionDef =
-      (await this.db.query.sessionDefs.findFirst({
-        where: eq(sessionDefs.code, shift),
-      })) || (await this.db.query.sessionDefs.findFirst());
-
     const isAvailable = data.isAvailable ?? true;
     const [exception] = await this.db
       .insert(shiftExceptions)
       .values({
         doctorId: practitionerId,
         serviceDate: targetDate,
-        sessionId: sessionDef?.id || null,
+        sessionId: sessionDef.id,
         type: isAvailable ? 'extra' : 'leave',
         note: data.notes || sessionLabel,
       })
@@ -219,8 +208,8 @@ export class DrizzleScheduleSessionRepository {
         id: exception.id,
         practitionerId: exception.doctorId,
         scheduleDate: exception.serviceDate,
-        sessionLabel: sDef?.labelKey || 'Sesi Praktik',
-        sessionShift: (sDef?.code as any) || 'morning',
+        sessionLabel: sDef?.labelKey ?? null,
+        sessionShift: (sDef?.code as any) ?? null,
         startTime,
         endTime,
         roomId: exception.practitioner?.defaultRoomId || null,

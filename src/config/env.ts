@@ -17,13 +17,11 @@ import {
 export enum NodeEnvironment {
   Development = 'development',
   Production = 'production',
-  Test = 'test',
-}
+  }
 
 export enum AppRuntime {
   Container = 'container',
-  Host = 'host',
-}
+  }
 
 export class EnvironmentVariables {
   @IsEnum(NodeEnvironment)
@@ -439,7 +437,7 @@ export function validateEnvironment(
 // Single door export: validated environment instance
 let cachedEnv: EnvironmentVariables | null = null;
 
-export function getEnv(): EnvironmentVariables {
+function getEnv(): EnvironmentVariables {
   if (!cachedEnv) {
     cachedEnv = validateEnvironment(process.env);
   }

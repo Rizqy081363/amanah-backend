@@ -1,36 +1,21 @@
 import {
-  CANONICAL_SESSION_NAMES,
-  type CanonicalSessionName,
-  SESSION_TO_SHIFT_MAP,
-  SHIFT_TO_SESSION_MAP,
+  CANONICAL_STAFF_SHIFTS,
+  type CanonicalStaffShift,
 } from '@modules/schedules/domain/constants/schedule-shift.constants';
 import { AdminScheduleStatusRequest } from '@modules/schedules/domain/schedule-status';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
-import { IsBoolean, IsEnum, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsEnum, IsIn, IsOptional, IsString } from 'class-validator';
 
 export class UpdateScheduleDto {
   @ApiPropertyOptional({
-    enum: CANONICAL_SESSION_NAMES,
-    example: 'SIANG',
+    enum: CANONICAL_STAFF_SHIFTS,
+    example: 'afternoon',
     description:
-      'Sesi giliran praktek dokter (DINI_HARI / PAGI / SIANG / MALAM)',
+      'Sesi giliran praktek dokter (early_morning / morning / afternoon / night)',
   })
-  @Transform(({ value }) => {
-    if (typeof value === 'string') {
-      const trimmed = value.trim();
-      const shift =
-        SESSION_TO_SHIFT_MAP[trimmed] ||
-        SESSION_TO_SHIFT_MAP[trimmed.toUpperCase()];
-      if (shift) {
-        return SHIFT_TO_SESSION_MAP[shift];
-      }
-    }
-    return value;
-  })
-  @IsString()
+  @IsIn(CANONICAL_STAFF_SHIFTS)
   @IsOptional()
-  session?: CanonicalSessionName;
+  session?: CanonicalStaffShift;
 
   @ApiPropertyOptional({
     example: 'Siang',

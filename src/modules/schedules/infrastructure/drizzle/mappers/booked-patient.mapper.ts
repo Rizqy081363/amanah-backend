@@ -1,7 +1,6 @@
 import { ClinicTimeService } from '@common/time/clinic-time.service';
 import { AppointmentTemporalStatusHelper } from '@modules/appointments/domain/helpers/appointment-temporal-status.helper';
 import { computeConsultationMetrics } from '@modules/appointments/domain/helpers/consultation-duration.helper';
-import { APPOINTMENT_STATUS_BADGE_MAP } from '@modules/schedules/domain/constants/schedule.constants';
 import type { BookedPatientEntity } from '@modules/schedules/domain/entities/schedule.entity';
 
 export class BookedPatientMapper {
@@ -63,7 +62,7 @@ export class BookedPatientMapper {
       apt.status,
       isElapsed,
     );
-    const statusBadge = APPOINTMENT_STATUS_BADGE_MAP[status] || status;
+    const statusBadge = status;
 
     const actualStartedAt = apt.actualStartedAt
       ? new Date(apt.actualStartedAt)

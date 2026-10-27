@@ -4,9 +4,8 @@ import {
   type SessionShiftType,
   SHIFT_DEFINITIONS,
 } from '../factories/schedule-session.factory';
-import { formatSessionTitle } from '../constants/schedule-shift.constants';
 
-export interface DoctorSessionAssignmentContext {
+interface DoctorSessionAssignmentContext {
   id: string;
   doctorId: string;
   sessionId: string;
@@ -30,7 +29,7 @@ export interface DoctorSessionAssignmentContext {
   } | null;
 }
 
-export interface DoctorSessionShiftExceptionContext {
+interface DoctorSessionShiftExceptionContext {
   doctorId: string;
   serviceDate: string;
   sessionId?: string | null;
@@ -55,7 +54,7 @@ export interface DoctorSessionOperabilityResult {
   startTime: string;
   endTime: string;
   sessionShift: SessionShiftType;
-  sessionLabel: string;
+  sessionLabel?: string | null;
 }
 
 /**
@@ -127,7 +126,7 @@ export function resolveDoctorSessionOperability(
   const endTime = rawEndTime.slice(0, 5);
 
   // Label resolution
-  const sessionLabel = formatSessionTitle(shiftCode);
+  const sessionLabel = sessionDef?.labelKey;
 
   // 1. Master definition inactive: Shift does not operate anywhere in the clinic
   if (!isMasterDefActive) {

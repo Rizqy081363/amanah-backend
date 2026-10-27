@@ -36,12 +36,7 @@ import {
   filterEffectiveDoctorAssignments,
   resolveDoctorSessionOperability,
 } from '@modules/schedules/domain/services/doctor-session-operational.resolver';
-import {
-  type DateDisplayFormatStyle,
-  formatIndoDate,
-  formatIndoMonthYear,
-  getClinicNow,
-} from '@modules/schedules/domain/services/schedule-date.formatter';
+import { getClinicNow } from '@modules/schedules/domain/services/schedule-date.formatter';
 import { ScheduleRecordMapper } from '@modules/schedules/infrastructure/drizzle/mappers/schedule-record.mapper';
 import { SchedulePolicyReader } from '@modules/schedules/infrastructure/drizzle/queries/schedule-policy.reader';
 import type { AdminDoctorSchedulesQueryDto } from '@modules/schedules/presentation/dto/admin-doctor-schedules-query.dto';
@@ -82,7 +77,6 @@ export class DrizzleAdminDoctorScheduleListQuery {
       clinicPolicy,
       allDoctorAssignments,
       allShiftExceptions,
-      dateFormatStyle,
       dayRecord,
       activeSessionDefs,
       pendingInvitations,
@@ -128,7 +122,6 @@ export class DrizzleAdminDoctorScheduleListQuery {
       this.db.query.shiftExceptions.findMany({
         where: eq(shiftExceptions.serviceDate, targetDate),
       }),
-      this.policyReader.getDateFormatStyle().catch(() => 'human_full'),
       this.db.query.masterDays.findFirst({
         where: eq(masterDays.dow, targetDow),
       }),
@@ -498,15 +491,12 @@ export class DrizzleAdminDoctorScheduleListQuery {
         email: p.staffProfile?.email || null,
         phone: p.staffProfile?.phone || null,
         practiceRoom,
-        practiceDate: formatIndoDate(
-          targetDate,
-          dateFormatStyle as DateDisplayFormatStyle,
-        ),
+        practiceDate: targetDate,
         avatar: ScheduleRecordMapper.toAvatarUrl(p.staffProfile),
         todaySchedule,
         upcomingSchedule,
         scheduleStatus,
-        scheduleMonth: formatIndoMonthYear(targetYear, targetMonth),
+        scheduleMonth: `${targetYear}-${String(targetMonth).padStart(2, '0')}`,
         isOnLeave,
         leaveReason,
         leaveStart,

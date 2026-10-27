@@ -7,7 +7,7 @@ export const PAYROLL_PERIOD_STATUS = {
 export type PayrollPeriodStatus =
   (typeof PAYROLL_PERIOD_STATUS)[keyof typeof PAYROLL_PERIOD_STATUS];
 
-export const PAYROLL_ENTRY_TYPE = {
+const PAYROLL_ENTRY_TYPE = {
   BASE_SCHEDULED: 'base_scheduled',
   LEAVE_DEDUCTION: 'leave_deduction',
   REPLACEMENT_ADDITION: 'replacement_addition',
@@ -17,7 +17,7 @@ export const PAYROLL_ENTRY_TYPE = {
 export type PayrollEntryType =
   (typeof PAYROLL_ENTRY_TYPE)[keyof typeof PAYROLL_ENTRY_TYPE];
 
-export const PAYROLL_SOURCE_TYPE = {
+const PAYROLL_SOURCE_TYPE = {
   ROSTER: 'roster',
   LEAVE_REQUEST: 'leave_request',
   REPLACEMENT_CLAIM: 'replacement_claim',

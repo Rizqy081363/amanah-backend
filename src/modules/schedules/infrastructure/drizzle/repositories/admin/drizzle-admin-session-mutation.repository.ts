@@ -9,7 +9,6 @@ import {
   sessionDefs,
   shiftExceptions,
 } from '@database/schema';
-import { resolveCanonicalShift } from '@modules/schedules/domain/constants/schedule-shift.constants';
 import {
   AdminScheduleStatusRequest,
   toAdminScheduleStatusRequest,
@@ -79,7 +78,15 @@ export class DrizzleAdminSessionMutationRepository {
       roomId,
     );
 
-    const { shift, label } = resolveCanonicalShift({ session: body.sessionName });
+    const sessionDef = await this.db.query.sessionDefs.findFirst({
+      where: eq(sessionDefs.code, body.sessionName),
+    });
+    if (!sessionDef) {
+      throw new BadRequestException({
+        code: 'INVALID_SESSION_CODE',
+        message: `Sesi dinas tidak valid: ${body.sessionName}`,
+      });
+    }
 
     const requestedStatus = toAdminScheduleStatusRequest(
       body.sessionStatus ?? AdminScheduleStatusRequest.OPEN,
@@ -91,11 +98,6 @@ export class DrizzleAdminSessionMutationRepository {
         metadata: { sessionStatus: body.sessionStatus },
       });
     }
-
-    const sessionDef =
-      (await this.db.query.sessionDefs.findFirst({
-        where: eq(sessionDefs.code, shift),
-      })) || (await this.db.query.sessionDefs.findFirst());
 
     const exceptionType =
       requestedStatus === AdminScheduleStatusRequest.CLOSED ? 'leave' : 'extra';
@@ -115,8 +117,8 @@ export class DrizzleAdminSessionMutationRepository {
       id: createdException.id,
       practitionerId,
       scheduleDate: body.scheduleDate,
-      sessionLabel: label,
-      sessionShift: shift,
+      sessionLabel: sessionDef.labelKey,
+      sessionShift: sessionDef.code,
       startTime: startTimeFormatted,
       endTime: endTimeFormatted,
       roomId,

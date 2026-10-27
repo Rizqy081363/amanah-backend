@@ -4,7 +4,6 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
-import { isUUID } from 'class-validator';
 import { and, asc, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm';
 import type { ClinicConfigService } from '../../../../common/clinic-config/clinic-config.service';
 import type { ClinicTimeService } from '../../../../common/time/clinic-time.service';
@@ -19,20 +18,17 @@ import {
   patientAffiliations,
   patientProfiles,
   queueTickets,
-  roles,
   sessionDefs,
-  userRoles,
 } from '../../../../database/schema';
 import type { QueuePositionRecalculationService } from '../../../queue-engine/application/services/queue-position-recalculation.service';
 import { QUEUE_PRIORITY } from '../../../queue-engine/domain/constants/queue-engine.constants';
 import { resolveQueueLoadStatus } from '../../../queue-engine/domain/constants/queue-load.constants';
-import { ScheduleShiftRegistry } from '../../../schedules/domain/constants/schedule-shift.constants';
 import {
-  CLINIC_ADMIN_STAFF_ROLE_CODES,
   DB_APPOINTMENT_STATUS,
   QUEUE_TICKET_STATUS,
 } from '../../domain/constants/appointment-lifecycle.constants';
 import type { AppointmentEntity } from '../../domain/entities/appointment.entity';
+import { SYSTEM_ROLES } from '../../../../auth/constants/auth.constants';
 import { ActiveTicketPolicyService } from '../../domain/services/active-ticket-policy.service';
 import { RescheduleAppointmentDto } from '../../presentation/dto/reschedule-appointment.dto';
 
@@ -139,7 +135,7 @@ export class AppointmentRescheduleHandler {
       currentEndTime: apt.scheduledEndTime?.slice(0, 5) || null,
       patient: {
         id: apt.patientId,
-        name: apt.patientProfile?.fullName || 'Pasien',
+        name: apt.patientProfile?.fullName,
       },
       doctor: {
         id: apt.practitionerId,
@@ -155,7 +151,7 @@ export class AppointmentRescheduleHandler {
       },
       service: {
         id: apt.serviceId,
-        name: apt.clinicService?.name || 'Layanan',
+        name: apt.clinicService?.name,
       },
       availableDates,
     };
@@ -172,12 +168,7 @@ export class AppointmentRescheduleHandler {
     clinicConfig?: ClinicConfigService,
     clinicTimeService?: ClinicTimeService,
   ): Promise<AppointmentEntity> {
-    const rawSession =
-      dto.session ||
-      dto.target_session ||
-      dto.target_session_id ||
-      dto.newSessionId;
-    const targetDate = dto.target_date || dto.newDate;
+    const targetDate = dto.target_date;
 
     if (!targetDate) {
       throw new BadRequestException('Target tanggal reschedule wajib diisi');
@@ -210,59 +201,34 @@ export class AppointmentRescheduleHandler {
       await validateAppointmentStateForReschedule(tx, apt, isAdmin);
 
       let targetSessionDef: any = null;
-      if (rawSession) {
-        const trimmed = rawSession.trim();
-
-        if (isUUID(trimmed)) {
-          targetSessionDef = await tx.query.sessionDefs.findFirst({
-            where: eq(sessionDefs.id, trimmed),
-          });
-          if (!targetSessionDef) {
-            const assignment = await tx.query.doctorAssignments.findFirst({
-              where: eq(doctorAssignments.id, trimmed),
-            });
-            if (assignment?.sessionId) {
-              targetSessionDef = await tx.query.sessionDefs.findFirst({
-                where: eq(sessionDefs.id, assignment.sessionId),
-              });
-            }
-          }
-        } else if (trimmed.startsWith('session-')) {
-          const parts = trimmed.split('-');
-          const possibleUuid = parts[1];
-          if (possibleUuid && isUUID(possibleUuid)) {
-            const assignment = await tx.query.doctorAssignments.findFirst({
-              where: eq(doctorAssignments.id, possibleUuid),
-            });
-            if (assignment?.sessionId) {
-              targetSessionDef = await tx.query.sessionDefs.findFirst({
-                where: eq(sessionDefs.id, assignment.sessionId),
-              });
-            }
-          }
-        }
-
-        if (!targetSessionDef) {
-          const targetShift = ScheduleShiftRegistry.resolve(trimmed).shift;
-          const normalizedSession = trimmed.toLowerCase();
-          targetSessionDef = await tx.query.sessionDefs.findFirst({
-            where: or(
-              eq(sessionDefs.code, targetShift),
-              ilike(sessionDefs.code, `%${normalizedSession}%`),
-              ilike(sessionDefs.labelKey, `%${normalizedSession}%`),
-            ),
-          });
-        }
-      }
-
-      if (!targetSessionDef) {
+      if (dto.target_session_id) {
+        const sessionId = dto.target_session_id.trim();
         targetSessionDef = await tx.query.sessionDefs.findFirst({
-          where: eq(sessionDefs.code, 'morning'),
+          where: eq(sessionDefs.id, sessionId),
+        });
+        if (!targetSessionDef) {
+          const assignment = await tx.query.doctorAssignments.findFirst({
+            where: eq(doctorAssignments.id, sessionId),
+          });
+          if (assignment?.sessionId) {
+            targetSessionDef = await tx.query.sessionDefs.findFirst({
+              where: eq(sessionDefs.id, assignment.sessionId),
+            });
+          }
+        }
+      } else if (dto.session) {
+        const normalizedSession = dto.session.trim().toLowerCase();
+        targetSessionDef = await tx.query.sessionDefs.findFirst({
+          where: eq(sessionDefs.code, normalizedSession),
         });
       }
 
-      const sTime = targetSessionDef?.defaultStartsAt?.slice(0, 5) || '08:00';
-      const eTime = targetSessionDef?.defaultEndsAt?.slice(0, 5) || '12:00';
+      if (!targetSessionDef) {
+        throw new BadRequestException('Sesi target reschedule tidak valid');
+      }
+
+      const sTime = targetSessionDef.defaultStartsAt.slice(0, 5);
+      const eTime = targetSessionDef.defaultEndsAt.slice(0, 5);
       const nowIso = new Date().toISOString();
 
       const service = await tx.query.clinicServices.findFirst({
@@ -271,7 +237,7 @@ export class AppointmentRescheduleHandler {
       const categoryPrefix = service?.codePrefix || 'U';
       const categoryId = service?.serviceCategoryId || null;
       appointmentCategoryId = categoryId;
-      const sessionPrefix = targetSessionDef?.codePrefix || '';
+      const sessionPrefix = targetSessionDef.codePrefix;
 
       let activeCountRow: { count: number } | undefined;
       if (apt.practitionerId) {
@@ -406,7 +372,7 @@ export class AppointmentRescheduleHandler {
           .update(queueTickets)
           .set({
             queueDate: targetDate,
-            sessionId: targetSessionDef?.id || null,
+            sessionId: targetSessionDef.id,
             queueNumber: formattedTicketNumber,
             status: QUEUE_TICKET_STATUS.WAITING,
             priority: QUEUE_PRIORITY.REGULAR,
@@ -423,7 +389,7 @@ export class AppointmentRescheduleHandler {
           appointmentId: apt.id,
           serviceId: apt.serviceId,
           categoryId,
-          sessionId: targetSessionDef?.id || null,
+          sessionId: targetSessionDef.id,
           patientId: apt.patientId || null,
           doctorId: apt.practitionerId || null,
           roomId: null,
@@ -508,46 +474,10 @@ async function validateRescheduleAuthorization(
   userId: string,
   user?: any,
 ): Promise<{ isAdmin: boolean }> {
-  const rawRole =
-    typeof user?.role === 'object'
-      ? user?.role?.name || user?.role?.code
-      : user?.role || user?.systemRole;
-  const userRole = (rawRole || '').toString().toLowerCase();
-
-  const allowedRoles = [
-    ...CLINIC_ADMIN_STAFF_ROLE_CODES.map((c) => c.toLowerCase()),
-    'admin',
-    'staff',
-    'staf',
-    'superadmin',
-    'doctor',
-    'practitioner',
-  ];
-
-  if (allowedRoles.includes(userRole)) {
-    return { isAdmin: true };
-  }
-
-  const staffRole = await db
-    .select({ code: roles.code })
-    .from(userRoles)
-    .innerJoin(roles, eq(userRoles.roleId, roles.id))
-    .where(
-      and(
-        eq(userRoles.userId, userId),
-        inArray(sql`lower(${roles.code})`, [
-          'admin',
-          'staff',
-          'staf',
-          'superadmin',
-          'doctor',
-          'practitioner',
-        ]),
-      ),
-    )
-    .limit(1);
-
-  if (staffRole.length > 0) {
+  if (
+    user?.systemRole === SYSTEM_ROLES.ADMIN ||
+    user?.systemRole === SYSTEM_ROLES.STAF
+  ) {
     return { isAdmin: true };
   }
 

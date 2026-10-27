@@ -1,7 +1,7 @@
 import { PayrollReportAggregation } from './payroll-report.contract';
 
-export type ColumnAlignment = 'left' | 'center' | 'right';
-export type ColumnFormat = 'text' | 'number' | 'currency' | 'date' | 'time' | 'decimal';
+type ColumnAlignment = 'left' | 'center' | 'right';
+type ColumnFormat = 'text' | 'number' | 'currency' | 'date' | 'time' | 'decimal';
 
 export interface ExportColumnDef {
   header: string;

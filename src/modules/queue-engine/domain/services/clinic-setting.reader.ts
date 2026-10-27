@@ -5,7 +5,7 @@ export interface ScopeQuery {
   categoryId?: string;
 }
 
-export { MissingConfigKeyError };
+;
 
 export interface IClinicSettingReader {
   get<T = any>(key: string, scope?: ScopeQuery): Promise<T>;

@@ -3,11 +3,7 @@
  */
 export enum OutboxStatus {
   PENDING = 'pending',
-  PROCESSING = 'processing',
-  PUBLISHED = 'published',
-  FAILED = 'failed',
-  DEAD_LETTER = 'dead_letter',
-}
+  }
 
 export const DEFAULT_OUTBOX_BATCH_SIZE = 20;
 export const MAX_OUTBOX_BATCH_SIZE = 100;

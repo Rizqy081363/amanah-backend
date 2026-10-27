@@ -1,10 +1,6 @@
 import { generateEntityVersion } from '../../../../common/occ';
 import { ClinicTimeService } from '../../../../common/time/clinic-time.service';
-import {
-  type CanonicalSessionName,
-  resolveCanonicalShift,
-  resolveSessionFromTime,
-} from '../../../schedules/domain/constants/schedule-shift.constants';
+import { type CanonicalStaffShift } from '../../../schedules/domain/constants/schedule-shift.constants';
 import { formatIndoDate } from '../../../schedules/domain/services/schedule-date.formatter';
 import {
   DB_APPOINTMENT_STATUS,
@@ -20,11 +16,13 @@ import {
 } from '../../domain/types/appointment.types';
 
 export class AppointmentRecordMapper {
-  static resolveSession(apt: any): CanonicalSessionName {
-    if (apt.session) {
-      return resolveCanonicalShift({ session: apt.session }).session;
-    }
-    return resolveSessionFromTime(apt.scheduledStartTime);
+  static resolveSession(apt: any, ticket?: any | null): CanonicalStaffShift {
+    const sessionDef =
+      ticket?.sessionDef ??
+      apt?.queueTickets?.[0]?.sessionDef ??
+      apt?.sessionDef;
+    const sessionCode = sessionDef?.code ?? apt?.session;
+    return sessionCode as CanonicalStaffShift;
   }
 
   static toEntity(
@@ -56,7 +54,12 @@ export class AppointmentRecordMapper {
       }
     }
 
-    const session = AppointmentRecordMapper.resolveSession(apt);
+    const sessionDef =
+      ticket?.sessionDef ??
+      apt?.queueTickets?.[0]?.sessionDef ??
+      apt?.sessionDef;
+    const session = AppointmentRecordMapper.resolveSession(apt, ticket);
+    const sessionName = sessionDef?.labelKey ?? null;
 
     const primaryAffiliation = apt.patientProfile?.patientAffiliations?.[0];
     const isAffiliated =
@@ -93,17 +96,13 @@ export class AppointmentRecordMapper {
       ? new Date(apt.actualStartedAt)
       : apt.startedAt
         ? new Date(apt.startedAt)
-        : ticket?.startedAt
-          ? new Date(ticket.startedAt)
-          : null;
+        : null;
 
     const actualCompletedAt = apt.actualCompletedAt
       ? new Date(apt.actualCompletedAt)
       : apt.completedAt
         ? new Date(apt.completedAt)
-        : ticket?.completedAt
-          ? new Date(ticket.completedAt)
-          : null;
+        : null;
 
     const { elapsedSeconds, formattedDuration } = computeConsultationMetrics(
       actualStartedAt,
@@ -168,29 +167,20 @@ export class AppointmentRecordMapper {
         ? Math.max(0, effectivePosition - 1)
         : 0;
 
-    const overrideObj =
+    const resolvedUnit =
       typeof poliklinikIdOverride === 'object' && poliklinikIdOverride !== null
-        ? (poliklinikIdOverride as {
-            poliklinikId: string;
-            poliklinikName: string;
-          })
+        ? poliklinikIdOverride
         : null;
 
     const poliId =
-      overrideObj?.poliklinikId ||
-      apt.clinicRoom?.unitId ||
-      apt.clinicRoom?.clinicUnit?.id ||
-      apt.practitioner?.clinicRoom?.unitId ||
-      apt.practitioner?.clinicRoom?.clinicUnit?.id ||
-      apt.practitioner?.staffProfile?.primaryUnitId ||
-      apt.practitioner?.staffProfile?.clinicUnit?.id ||
-      (typeof poliklinikIdOverride === 'string' ? poliklinikIdOverride : '');
+      resolvedUnit?.poliklinikId ??
+      (typeof poliklinikIdOverride === 'string'
+        ? poliklinikIdOverride
+        : apt.clinicRoom?.clinicUnit?.id ?? '');
 
     const resolvedPoliName =
-      overrideObj?.poliklinikName ||
-      apt.clinicRoom?.clinicUnit?.name ||
-      apt.practitioner?.clinicRoom?.clinicUnit?.name ||
-      apt.practitioner?.staffProfile?.clinicUnit?.name ||
+      resolvedUnit?.poliklinikName ??
+      apt.clinicRoom?.clinicUnit?.name ??
       '';
 
     const hasDoctor = Boolean(apt.practitionerId || apt.practitioner);
@@ -230,7 +220,7 @@ export class AppointmentRecordMapper {
       estimatedDurationMinutes:
         apt.practitioner?.consultationDurationMinutes ?? 30,
       session,
-      sessionName: `Sesi ${session}`,
+      sessionName,
       queueNumber:
         ticket?.queueNumber ||
         (apt.clinicRoom?.clinicUnit?.queuePrefix && apt.queueNumber
@@ -247,16 +237,11 @@ export class AppointmentRecordMapper {
         aheadCount,
         isDoctorServing,
       }),
-      visitType:
-        apt.visitType === 'follow_up' ? 'Kontrol Ulang' : 'Pemeriksaan Baru',
+      visitType: apt.visitType,
       complaint: apt.complaint || null,
       cancellationReason: apt.cancelReason || null,
       calledAt: ticket?.calledAt ? new Date(ticket.calledAt) : null,
-      lastCalledAt: apt.lastCalledAt
-        ? new Date(apt.lastCalledAt)
-        : ticket?.calledAt
-          ? new Date(ticket.calledAt)
-          : null,
+      lastCalledAt: apt.lastCalledAt ? new Date(apt.lastCalledAt) : null,
       checkedInAt: apt.checkedInAt ? new Date(apt.checkedInAt) : null,
       actualStartedAt,
       actualCompletedAt,

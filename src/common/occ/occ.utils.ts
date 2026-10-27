@@ -15,7 +15,7 @@ export function generateEntityVersion(
 /**
  * Normalizes an ETag or If-Match header value by stripping quotes and weak entity prefixes (W/).
  */
-export function normalizeVersion(val: string | undefined | null): string {
+function normalizeVersion(val: string | undefined | null): string {
   if (!val) {
     return '';
   }

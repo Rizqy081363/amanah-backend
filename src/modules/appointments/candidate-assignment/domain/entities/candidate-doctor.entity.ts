@@ -3,7 +3,7 @@ import {
   type DoctorAvailability,
 } from '../../../domain/constants/appointment-lifecycle.constants';
 
-export { DOCTOR_AVAILABILITY, type DoctorAvailability };
+export { DOCTOR_AVAILABILITY,  };
 
 export interface DoctorCandidateItem {
   id: string;

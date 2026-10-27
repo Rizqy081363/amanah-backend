@@ -1,14 +1,4 @@
 import { Temporal } from '@js-temporal/polyfill';
-import {
-  INDO_DAYS,
-  INDO_MONTHS,
-  INDO_MONTHS_SHORT,
-} from '../constants/schedule.constants';
-import { SHIFT_DISPLAY_LABELS } from '../constants/schedule-shift.constants';
-import {
-  type AdminDoctorDailySession,
-  ScheduleOperationalStatus,
-} from '../entities/schedule.entity';
 
 export type DateDisplayFormatStyle =
   | 'human_full'
@@ -49,98 +39,6 @@ export function formatIndoDate(
     month: 'long',
     year: 'numeric',
   });
-}
-
-export function formatIndoMonthYear(
-  year: number,
-  month1Indexed: number,
-): string {
-  const mName = INDO_MONTHS[month1Indexed - 1] || '';
-  return `${mName} ${year}`;
-}
-
-function toMinutes(timeStr: string): number {
-  const [h, m] = timeStr.split(':').map(Number);
-  return h * 60 + m;
-}
-
-function formatClock(minutes: number): string {
-  const h = String(Math.floor(minutes / 60) % 24).padStart(2, '0');
-  const m = String(minutes % 60).padStart(2, '0');
-  return `${h}:${m}`;
-}
-
-function formatSessionTiming(session: AdminDoctorDailySession): string {
-  return `${session.sessionName} (${session.startTime} - ${session.endTime})`;
-}
-
-export function getNextDate(dateStr: string): string {
-  return Temporal.PlainDate.from(dateStr).add({ days: 1 }).toString();
-}
-
-function resolveTomorrowSchedule(
-  tomorrowdailySessions: AdminDoctorDailySession[] | null | undefined,
-): string {
-  if (!tomorrowdailySessions || tomorrowdailySessions.length === 0) {
-    return 'Selesai';
-  }
-  const openTomorrow = tomorrowdailySessions
-    .filter((s) => s.sessionStatus !== ScheduleOperationalStatus.CLOSED)
-    .sort((a, b) => toMinutes(a.startTime) - toMinutes(b.startTime));
-
-  if (openTomorrow.length === 0) {
-    return 'Selesai';
-  }
-  return `Besok, ${formatSessionTiming(openTomorrow[0])}`;
-}
-
-export function computeUpcomingSchedule(
-  targetDate: string,
-  todayStr: string,
-  dailySessions: AdminDoctorDailySession[],
-  isOnLeave: boolean,
-  _durationMinutes?: number,
-  tomorrowdailySessions?: AdminDoctorDailySession[] | null,
-  refDate?: Date,
-): string {
-  if (isOnLeave) return 'Dokter Cuti';
-  if (!dailySessions || dailySessions.length === 0) return 'Tidak Ada Jadwal';
-  const openSessions = dailySessions
-    .filter((s) => s.sessionStatus !== ScheduleOperationalStatus.CLOSED)
-    .sort((a, b) => toMinutes(a.startTime) - toMinutes(b.startTime));
-
-  if (openSessions.length === 0) return 'Praktik Ditutup';
-
-  if (targetDate > todayStr) {
-    return formatSessionTiming(openSessions[0]);
-  }
-
-  if (targetDate < todayStr) {
-    return 'Selesai';
-  }
-
-  const { currentMinutes } = getClinicNow(refDate);
-
-  const activeIndex = openSessions.findIndex((s) => {
-    const startM = toMinutes(s.startTime);
-    const endM = toMinutes(s.endTime);
-    return startM <= currentMinutes && currentMinutes < endM;
-  });
-
-  if (activeIndex !== -1) {
-    const activeSession = openSessions[activeIndex];
-    return formatSessionTiming(activeSession);
-  }
-
-  const upcomingSession = openSessions.find(
-    (s) => toMinutes(s.startTime) > currentMinutes,
-  );
-
-  if (upcomingSession) {
-    return formatSessionTiming(upcomingSession);
-  }
-
-  return resolveTomorrowSchedule(tomorrowdailySessions);
 }
 
 export function getClinicNow(

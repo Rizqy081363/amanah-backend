@@ -1,10 +1,10 @@
-export interface ScreeningQuestionSeedOption {
+interface ScreeningQuestionSeedOption {
   optionCode: string;
   label: string;
   displayOrder: number;
 }
 
-export interface ScreeningQuestionSeed {
+interface ScreeningQuestionSeed {
   code: string;
   category: string;
   questionText: string;
@@ -15,7 +15,7 @@ export interface ScreeningQuestionSeed {
   options?: ScreeningQuestionSeedOption[];
 }
 
-export interface HealthConditionSeed {
+interface HealthConditionSeed {
   code: string;
   name: string;
   questionPrompt: string;
@@ -172,7 +172,7 @@ export const OCCUPATION_OPTIONS: readonly ReferenceOptionItem[] = [
   { code: 'lainnya', label: 'Lainnya', displayOrder: 13 },
 ] as const;
 
-export const DEFAULT_SCREENING_QUESTIONS: readonly ScreeningQuestionSeed[] = [
+const DEFAULT_SCREENING_QUESTIONS: readonly ScreeningQuestionSeed[] = [
   {
     code: 'SMOKING_HABIT',
     category: 'lifestyle',
@@ -321,7 +321,7 @@ export const DEFAULT_SCREENING_QUESTIONS: readonly ScreeningQuestionSeed[] = [
   },
 ] as const;
 
-export const DEFAULT_HEALTH_CONDITIONS: readonly HealthConditionSeed[] = [
+const DEFAULT_HEALTH_CONDITIONS: readonly HealthConditionSeed[] = [
   {
     code: 'HYPERTENSION',
     name: 'Tekanan Darah Tinggi / Hipertensi',

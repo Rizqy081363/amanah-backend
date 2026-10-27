@@ -17,8 +17,6 @@ import {
   resolveAllowedActions,
   toDomainStatus,
 } from '@modules/appointments/domain/types/appointment.types';
-import { APPOINTMENT_STATUS_BADGE_MAP } from '@modules/schedules/domain/constants/schedule.constants';
-import { resolveCanonicalShift } from '@modules/schedules/domain/constants/schedule-shift.constants';
 import type {
   AdminDoctorAccumulatedPatientsResponse,
   AdminSessionPatientItem,
@@ -214,8 +212,8 @@ export class DrizzleSchedulePatientRepository {
       scheduleDate: sessDate,
       startTime: sessStartTime,
       endTime: sessEndTime,
-      sessionLabel: effectiveSessionDef.labelKey || 'Sesi Praktik',
-      sessionShift: effectiveSessionDef.code || 'morning',
+      sessionLabel: effectiveSessionDef.labelKey,
+      sessionShift: effectiveSessionDef.code,
       clinicRoom: effectiveRoom,
     };
 
@@ -311,8 +309,7 @@ export class DrizzleSchedulePatientRepository {
         isElapsed,
       );
 
-      const statusBadge =
-        APPOINTMENT_STATUS_BADGE_MAP[effectiveStatus] || effectiveStatus;
+      const statusBadge = effectiveStatus;
 
       const isCancellable =
         !isElapsed &&
@@ -455,18 +452,12 @@ export class DrizzleSchedulePatientRepository {
       (a) => a.status !== DB_APPOINTMENT_STATUS.CANCELLED,
     ).length;
 
-    const resolvedShift = resolveCanonicalShift({
-      session: session.sessionLabel,
-      sessionShift: session.sessionShift,
-    });
-    const shiftLabel = session.sessionLabel || resolvedShift.label;
-
     return {
       success: true,
       data: {
         sessionId: session.id,
-        sessionLabel: shiftLabel,
-        shift: shiftLabel,
+        sessionLabel: session.sessionLabel,
+        shift: session.sessionShift,
         scheduleDate: session.scheduleDate,
         startTime: session.startTime.slice(0, 5),
         endTime: session.endTime.slice(0, 5),
@@ -523,10 +514,7 @@ export class DrizzleSchedulePatientRepository {
       .filter((da) => da.sessionDef && da.sessionDef.isActive)
       .filter((da) => {
         if (!query.sessionShift) return true;
-        const resolved = resolveCanonicalShift({
-          sessionShift: query.sessionShift,
-        });
-        return da.sessionDef.code === resolved.shift;
+        return da.sessionDef.code === query.sessionShift;
       })
       .map((da) => ({
         id: da.sessionDef.id,

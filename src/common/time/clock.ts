@@ -12,7 +12,7 @@ export class SystemClock extends Clock {
   }
 }
 
-export class FixedClock extends Clock {
+class FixedClock extends Clock {
   constructor(private readonly instant: Temporal.Instant) {
     super();
   }

@@ -31,7 +31,7 @@ const ADMIN_DAY_STATUS_RESPONSE_LABEL: Record<
   [AdminScheduleStatusRequest.CLOSED]: AdminScheduleStatusRequest.CLOSED,
 };
 
-export function toSchedulePersistenceStatus(
+function toSchedulePersistenceStatus(
   value?: string | null,
 ): SchedulePersistenceStatus | null {
   const statusKey = value?.trim();
@@ -57,16 +57,6 @@ export function toAdminDayStatusResponseLabel(
   status: AdminScheduleStatusRequest,
 ): string {
   return ADMIN_DAY_STATUS_RESPONSE_LABEL[status];
-}
-
-export function toDaySessionPersistenceStatus(
-  status: AdminScheduleStatusRequest,
-): SchedulePersistenceStatus {
-  if (status === AdminScheduleStatusRequest.CLOSED) {
-    return SchedulePersistenceStatus.CLOSED;
-  }
-
-  return SchedulePersistenceStatus.OPEN;
 }
 
 export function isClosedScheduleStatus(value?: string | null): boolean {

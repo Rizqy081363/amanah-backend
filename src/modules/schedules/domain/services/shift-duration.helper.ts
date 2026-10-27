@@ -11,19 +11,13 @@
  * Batas minimum rasional durasi shift bersih (0.5 jam = 30 menit).
  * Mencegah hasil nol atau negatif apabila durasi istirahat melampaui jam dinas kotor.
  */
-export const MINIMUM_SESSION_NET_HOURS = 0.5;
+const MINIMUM_SESSION_NET_HOURS = 0.5;
 
-/**
- * Durasi default jam kotor shift standar klinik apabila penanda waktu tidak lengkap.
- */
-export const DEFAULT_SHIFT_GROSS_HOURS = 6.0;
+const DEFAULT_SHIFT_GROSS_HOURS = 6.0;
 
-/**
- * Konstanta rasio waktu untuk konversi menit ke jam.
- */
-export const MINUTES_IN_AN_HOUR = 60;
-export const MIDDAY_MINUTES = 12 * MINUTES_IN_AN_HOUR;
-export const MIDNIGHT_MINUTES = 24 * MINUTES_IN_AN_HOUR;
+const MINUTES_IN_AN_HOUR = 60;
+const MIDDAY_MINUTES = 12 * MINUTES_IN_AN_HOUR;
+const MIDNIGHT_MINUTES = 24 * MINUTES_IN_AN_HOUR;
 
 export interface SessionNetHoursParams {
   startsAt: string;
@@ -47,7 +41,7 @@ export function parseTimeToMinutes(timeStr: string): number {
  * Menghitung durasi kotor (gross hours) dari dua penanda waktu shift.
  * Menangani kasus pergantian hari (midnight crossing) dan format 24:00.
  */
-export function calculateGrossHours(startsAt: string, endsAt: string): number {
+function calculateGrossHours(startsAt: string, endsAt: string): number {
   if (!startsAt || !endsAt) {
     return DEFAULT_SHIFT_GROSS_HOURS;
   }

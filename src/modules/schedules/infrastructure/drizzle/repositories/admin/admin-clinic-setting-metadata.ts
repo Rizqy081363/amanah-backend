@@ -28,7 +28,7 @@ export interface ClinicSettingMetadataDescriptor {
   options?: ClinicSettingOptionDescriptor[];
 }
 
-export const CLINIC_SETTING_METADATA_REGISTRY: Record<
+const CLINIC_SETTING_METADATA_REGISTRY: Record<
   string,
   ClinicSettingMetadataDescriptor
 > = {

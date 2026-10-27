@@ -1,4 +1,4 @@
-export type ScheduledTaskHandler = () => Promise<void> | void;
+type ScheduledTaskHandler = () => Promise<void> | void;
 
 export interface RegisterJobOptions {
   jobId: string;

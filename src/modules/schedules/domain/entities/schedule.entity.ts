@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import type { CanonicalStaffShift } from '../constants/schedule-shift.constants';
 import {
   STAFF_TYPES,
   type StaffType,
@@ -30,9 +31,9 @@ export class ScheduleEntity {
   serviceName?: string | null;
   dayOfWeek?: number | null;
   specificDate?: string | null;
-  session: 'DINI_HARI' | 'PAGI' | 'SIANG' | 'MALAM';
+  session: CanonicalStaffShift;
   sessionLabel?: string;
-  sessionShift?: 'early_morning' | 'morning' | 'afternoon' | 'night' | null;
+  sessionShift?: CanonicalStaffShift | null;
   startTime?: string | null;
   endTime?: string | null;
   timeRange?: string;
@@ -251,8 +252,8 @@ export class AdminDoctorDailySession {
   @ApiProperty({ description: 'Waktu selesai sesi (HH:mm)' })
   endTime: string;
 
-  @ApiProperty({ description: 'Rentang jam waktu sesi' })
-  timeRange: string;
+  @ApiPropertyOptional({ description: 'Rentang jam waktu sesi' })
+  timeRange?: string;
 
   @ApiProperty({
     description:
@@ -386,8 +387,8 @@ export class AdminDoctorScheduleCardEntity {
   @ApiProperty({ description: 'Nama ruangan praktik' })
   practiceRoom: string;
 
-  @ApiProperty({ description: 'Tanggal praktik terformat' })
-  practiceDate: string;
+  @ApiPropertyOptional({ description: 'Tanggal praktik (YYYY-MM-DD)' })
+  practiceDate?: string;
 
   @ApiProperty({
     description:
@@ -414,8 +415,8 @@ export class AdminDoctorScheduleCardEntity {
   })
   scheduleStatus: ScheduleOperationalStatus;
 
-  @ApiProperty({ description: 'Bulan dan tahun jadwal' })
-  scheduleMonth: string;
+  @ApiPropertyOptional({ description: 'Bulan dan tahun jadwal (YYYY-MM)' })
+  scheduleMonth?: string;
 
   @ApiProperty({ description: 'Menandakan dokter sedang cuti' })
   isOnLeave: boolean;
@@ -626,8 +627,8 @@ export class AdminDoctorScheduleDetailData {
   })
   avatar: string;
 
-  @ApiProperty({ description: 'Bulan jadwal' })
-  scheduleMonth: string;
+  @ApiPropertyOptional({ description: 'Bulan jadwal (YYYY-MM)' })
+  scheduleMonth?: string;
 
   @ApiProperty({ description: 'Status cuti' })
   isOnLeave: boolean;
@@ -671,35 +672,31 @@ export class AdminDoctorScheduleDetailData {
   @ApiProperty({ type: () => [AdminDoctorDailySession] })
   dailySessions: AdminDoctorDailySession[];
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     description:
       'Interval backend-projected untuk timeline/Gantt admin detail sheet',
     type: () => [ScheduleProjectedIntervalEntity],
   })
-  timelineIntervals: ScheduleProjectedIntervalEntity[];
+  timelineIntervals?: ScheduleProjectedIntervalEntity[];
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     description:
       '4-shift 24-hour cycle projections with multi-dimensional states and counts',
-    required: false,
   })
   shifts?: any[];
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     description: 'Context projections with multi-dimensional states and counts',
-    required: false,
   })
   contextProjections?: any[];
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     description: 'Whole-day aggregated projection metrics and dual indicators',
-    required: false,
   })
   metrics?: any;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     description: 'Whole-day aggregated projection metrics and dual indicators',
-    required: false,
   })
   summary?: any;
 }
@@ -729,14 +726,6 @@ export class ClinicalPractitionerEntity {
   attendance_status?: 'checked_in' | 'not_checked_in' | 'late' | 'on_leave' | 'absent';
   check_in_at?: string | null;
   attendance_warning?: string | null;
-}
-
-export class ClinicalPractitionersResponse {
-  @ApiProperty({ example: true })
-  success: boolean;
-
-  @ApiProperty({ type: () => [ClinicalPractitionerEntity] })
-  data: ClinicalPractitionerEntity[];
 }
 
 export class ScheduleShiftCapacityEntity {
@@ -960,8 +949,8 @@ export class AdminPatientDemographicEntity {
   @ApiProperty({ example: '1994-05-14' })
   birthDate: string;
 
-  @ApiProperty({ example: '32 Thn' })
-  age: string;
+  @ApiPropertyOptional({ example: '32 Thn' })
+  age?: string;
 
   @ApiProperty({ nullable: true, example: '081234567890' })
   phoneNumber: string | null;
@@ -1006,6 +995,9 @@ export class AdminSessionPatientItem {
   @ApiProperty({ example: '6d3a26e2-77fb-466d-9096-d3b2400c443d' })
   appointmentId: string;
 
+  @ApiPropertyOptional({ example: '6d3a26e2-77fb-466d-9096-d3b2400c443d' })
+  id?: string;
+
   @ApiProperty({ example: '2026-10-04' })
   appointmentDate: string;
 
@@ -1040,8 +1032,8 @@ export class AdminSessionPatientItem {
   })
   status: string;
 
-  @ApiProperty({ example: 'Menunggu' })
-  statusBadge: string;
+  @ApiPropertyOptional({ example: 'Menunggu' })
+  statusBadge?: string;
 
   @ApiProperty({
     nullable: true,
@@ -1049,8 +1041,8 @@ export class AdminSessionPatientItem {
   })
   chiefComplaint: string | null;
 
-  @ApiProperty({ example: 'Ruang Poli Umum 1' })
-  clinicRoomName: string;
+  @ApiPropertyOptional({ example: 'Ruang Poli Umum 1' })
+  clinicRoomName?: string;
 
   @ApiProperty({ nullable: true, example: 'Ruang Poli Umum 1' })
   roomName: string | null;

@@ -4,10 +4,10 @@ import {
   SENSITIVE_KEY_PATTERNS,
 } from '../logging.constants';
 
-export const REDACTED_VALUE = '[REDACTED]';
-export const BINARY_BODY_OMITTED = '[BINARY_BODY_OMITTED]';
+const REDACTED_VALUE = '[REDACTED]';
+const BINARY_BODY_OMITTED = '[BINARY_BODY_OMITTED]';
 
-export function isSensitiveKey(key: string): boolean {
+function isSensitiveKey(key: string): boolean {
   const normalizedKey = key.trim().toLowerCase();
   if (SENSITIVE_HEADER_NAMES.has(normalizedKey)) {
     return true;
@@ -15,7 +15,7 @@ export function isSensitiveKey(key: string): boolean {
   return SENSITIVE_KEY_PATTERNS.some((pattern) => pattern.test(key));
 }
 
-export function isBufferOrBinary(value: unknown): boolean {
+function isBufferOrBinary(value: unknown): boolean {
   if (!value) return false;
   if (typeof Buffer !== 'undefined' && Buffer.isBuffer(value)) {
     return true;
@@ -26,14 +26,14 @@ export function isBufferOrBinary(value: unknown): boolean {
   return false;
 }
 
-export interface MulterFileLike {
+interface MulterFileLike {
   fieldname: string;
   originalname: string;
   mimetype: string;
   size: number;
 }
 
-export function isMulterFile(value: unknown): value is MulterFileLike {
+function isMulterFile(value: unknown): value is MulterFileLike {
   return (
     typeof value === 'object' &&
     value !== null &&

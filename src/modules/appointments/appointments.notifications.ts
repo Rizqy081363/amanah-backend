@@ -1,4 +1,5 @@
 import { Injectable, OnModuleInit, Optional } from '@nestjs/common';
+import { SYSTEM_ROLES } from '../../auth/constants/auth.constants';
 import { NotificationIntent } from '../notifications/domain/entities/notification-rule.entity';
 import { NotificationRulesRegistry } from '../notifications/registry/notification-rules-registry';
 import { AppointmentNotificationMessageBuilder } from './application/appointment-notification-message.builder';
@@ -257,15 +258,9 @@ export class AppointmentsNotificationRules implements OnModuleInit {
         actor?: any,
       ): Promise<NotificationIntent[]> => {
         const intents: NotificationIntent[] = [];
-        const rawRole =
-          typeof actor?.roleCode === 'string'
-            ? actor.roleCode
-            : typeof actor?.role === 'object' && actor?.role
-              ? actor.role.name || actor.role.code
-              : typeof actor?.role === 'string'
-                ? actor.role
-                : '';
-        const isAdminActor = (rawRole || '').toUpperCase() === 'ADMIN';
+        const isAdminActor =
+          actor?.systemRole === SYSTEM_ROLES.ADMIN ||
+          actor?.roleCode === SYSTEM_ROLES.ADMIN;
 
         const messages = isAdminActor
           ? AppointmentNotificationMessageBuilder.buildAdminStatusChangedMessages(

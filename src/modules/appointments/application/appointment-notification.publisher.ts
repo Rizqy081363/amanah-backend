@@ -5,6 +5,7 @@ import {
   type NotificationPublisher,
 } from '../../notifications/contracts/domain-event.interface';
 import { NOTIFICATION_PUBLISHER } from '../../notifications/notifications.constants';
+import { SYSTEM_ROLES } from '../../../auth/constants/auth.constants';
 import { APPOINTMENT_EVENTS } from '../domain/constants/appointment-lifecycle.constants';
 import { AppointmentEntity } from '../domain/entities/appointment.entity';
 
@@ -22,18 +23,8 @@ export class AppointmentNotificationPublisher {
     );
   }
 
-  private extractRoleCode(user?: any, fallback = 'STAF'): string {
-    if (!user) return fallback;
-    const rawRole =
-      user.roleCode ||
-      user.role?.code ||
-      user.systemRole ||
-      user.role?.name ||
-      (typeof user.role === 'string' ? user.role : fallback);
-    if (typeof rawRole === 'string' && rawRole.trim() !== '') {
-      return rawRole.toUpperCase();
-    }
-    return fallback;
+  private extractRoleCode(user?: any, fallback: string = SYSTEM_ROLES.STAF): string {
+    return user?.systemRole ?? fallback;
   }
 
   async publishCreated(created: AppointmentEntity, user?: any): Promise<void> {

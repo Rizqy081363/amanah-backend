@@ -3,9 +3,9 @@ import {
   NotificationChannel,
 } from '../../notifications.constants';
 
-export type NotificationAudience = 'patient' | 'clinic';
+type NotificationAudience = 'patient' | 'clinic';
 
-export interface NotificationSemanticAction {
+interface NotificationSemanticAction {
   type: string;
   params: Record<string, string>;
   label?: string;

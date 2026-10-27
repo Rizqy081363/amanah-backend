@@ -27,4 +27,4 @@ export interface OutboxProcessResult {
   metrics: OutboxMetrics;
 }
 
-export type OutboxEventItem = OutboxEventSelect;
+type OutboxEventItem = OutboxEventSelect;

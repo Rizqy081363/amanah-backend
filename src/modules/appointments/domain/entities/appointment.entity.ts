@@ -1,4 +1,4 @@
-import type { CanonicalSessionName } from '../../../schedules/domain/constants/schedule-shift.constants';
+import type { CanonicalStaffShift } from '../../../schedules/domain/constants/schedule-shift.constants';
 import type {
   AppointmentAction,
   AppointmentStatus,
@@ -33,12 +33,12 @@ export class AppointmentEntity {
   scheduledStartTime?: string | null;
   scheduledEndTime?: string | null;
   estimatedDurationMinutes?: number;
-  session: CanonicalSessionName;
+  session: CanonicalStaffShift;
   sessionName?: string | null;
   queueNumber: string;
   ticketStatus?: string;
   status: AppointmentStatus;
-  visitType: 'Pemeriksaan Baru' | 'Kontrol Ulang';
+  visitType: 'new_visit' | 'follow_up';
   complaint?: string | null;
   sourceIntakeId?: string | null;
   cancellationReason?: string | null;

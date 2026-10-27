@@ -25,7 +25,7 @@ import {
 } from '../../../common/time/clinic-time.service';
 import { QueueEventPublisher } from '../../queue-engine/application/services/queue-event-publisher.service';
 import {
-  APPOINTMENT_LIFECYCLE_EVENTS,
+  APPOINTMENT_EVENTS,
   DB_APPOINTMENT_STATUS,
 } from '../domain/constants/appointment-lifecycle.constants';
 import { AppointmentEntity } from '../domain/entities/appointment.entity';
@@ -102,6 +102,10 @@ export class AppointmentsService {
     );
     const queueNumber = String(nextIndex);
 
+    if (!body.visitType) {
+      throw new BadRequestException('Tipe kunjungan (visitType) wajib diisi');
+    }
+
     const created = await this.appointmentRepo.create({
       patientId,
       poliklinikId: body.poliklinikId,
@@ -111,7 +115,7 @@ export class AppointmentsService {
       session: body.session,
       queueNumber,
       status: 'WAITING',
-      visitType: body.visitType || 'Pemeriksaan Baru',
+      visitType: body.visitType,
       complaint: body.complaint || null,
       sourceIntakeId: body.sourceIntakeId || null,
     });
@@ -231,10 +235,10 @@ export class AppointmentsService {
       user,
     );
     await this.eventEmitter.emitAsync(
-      APPOINTMENT_LIFECYCLE_EVENTS.RESCHEDULED,
+      APPOINTMENT_EVENTS.RESCHEDULED,
       {
         appointmentId,
-        newDate: dto.target_date || dto.newDate || '',
+        newDate: dto.target_date,
         userId,
         reason: dto.reason,
       },
@@ -243,7 +247,7 @@ export class AppointmentsService {
       await this.notificationPublisher.publishRescheduled(
         updated,
         {
-          targetDate: dto.target_date || dto.newDate || updated.appointmentDate,
+          targetDate: dto.target_date,
           targetStartTime: updated.scheduledStartTime,
           targetEndTime: updated.scheduledEndTime,
           reason: dto.reason,

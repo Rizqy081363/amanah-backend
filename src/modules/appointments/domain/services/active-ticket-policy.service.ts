@@ -32,7 +32,7 @@ export interface ActiveTicketSummary {
   projectedEnd: string | null;
 }
 
-export const ACTIVE_TICKET_STATUSES = [
+const ACTIVE_TICKET_STATUSES = [
   QUEUE_TICKET_STATUS.WAITING,
   QUEUE_TICKET_STATUS.CALLED,
   QUEUE_TICKET_STATUS.IN_SERVICE,

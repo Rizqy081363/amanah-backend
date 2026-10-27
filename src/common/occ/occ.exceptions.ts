@@ -35,7 +35,7 @@ export class ConcurrentModificationConflictException extends HttpException {
   }
 }
 
-export class PreconditionRequiredException extends HttpException {
+class PreconditionRequiredException extends HttpException {
   constructor(
     message = 'Precondition required: This operation requires an If-Match header.',
   ) {

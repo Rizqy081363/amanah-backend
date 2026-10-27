@@ -21,7 +21,7 @@ import {
   ReportTotals,
 } from '../../domain/payroll-report.contract';
 
-export const PAYROLL_COMPONENT_MAP: Record<string, string> = {
+const PAYROLL_COMPONENT_MAP: Record<string, string> = {
   attendance: 'Kehadiran',
   leave_request: 'Pengajuan Cuti',
   replacement_claim: 'Klaim Penggantian',
@@ -29,14 +29,14 @@ export const PAYROLL_COMPONENT_MAP: Record<string, string> = {
   manual: 'Penyesuaian Manual',
 };
 
-export const PAYROLL_ENTRY_TYPE_MAP: Record<string, string> = {
+const PAYROLL_ENTRY_TYPE_MAP: Record<string, string> = {
   base_scheduled: 'Upah Pelayanan',
   replacement_addition: 'Insentif Dinas Pengganti',
   overtime_addition: 'Upah Lembur',
   leave_deduction: 'Potongan Cuti',
 };
 
-export const LEAVE_REQUEST_TYPE_MAP: Record<string, string> = {
+const LEAVE_REQUEST_TYPE_MAP: Record<string, string> = {
   annual_leave: 'Cuti Tahunan',
   sick_leave: 'Izin Sakit',
   maternity_leave: 'Cuti Melahirkan',

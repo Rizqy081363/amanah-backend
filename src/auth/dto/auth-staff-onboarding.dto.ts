@@ -4,9 +4,7 @@ import { IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 export enum StaffOnboardingRole {
   DOCTOR = 'doctor',
   MIDWIFE = 'midwife',
-  WORKER = 'worker',
-  STAFF = 'staff',
-}
+  }
 
 export class AuthStaffOnboardingDto {
   @ApiPropertyOptional({

@@ -6,5 +6,5 @@ export const MEDICAL_SPECIALTY_CODES = {
   MATERNAL_CHILD_HEALTH: 'maternal_child_health',
 } as const;
 
-export type MedicalSpecialtyCode =
+type MedicalSpecialtyCode =
   (typeof MEDICAL_SPECIALTY_CODES)[keyof typeof MEDICAL_SPECIALTY_CODES];

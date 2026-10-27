@@ -17,7 +17,7 @@ import { V2AdminQueueController } from './presentation/controllers/v2-admin-queu
 import { V2CatalogController } from './presentation/controllers/v2-catalog.controller';
 import { V2TicketsController } from './presentation/controllers/v2-tickets.controller';
 
-export { QUEUE_ENGINE_REPOSITORY };
+;
 
 @Module({
   imports: [ClinicConfigModule, RabbitMQModule],

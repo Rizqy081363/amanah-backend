@@ -45,7 +45,6 @@ import {
   DOCTOR_ROSTER_REPOSITORY,
   DoctorRosterRepository,
 } from '../doctor-roster/domain/doctor-roster.repository';
-import { resolveCanonicalShift } from '../domain/constants/schedule-shift.constants';
 import {
   AdminSessionPatientsResponse,
   RescheduleEligibilityResponse,
@@ -161,13 +160,9 @@ export class SchedulesController {
       staffId = doctorPractitionerId;
     }
 
-    const resolvedShift = resolveCanonicalShift({
-      session: body.session,
-      sessionShift: body.sessionType,
-    });
-    const sessionValue = resolvedShift.session;
-    const sessionLabel =
-      body.sessionType || body.session || resolvedShift.label;
+    if (!body.session) {
+      throw new BadRequestException('Sesi jadwal (session) wajib diisi');
+    }
 
     return this.scheduleRepo.create({
       staffId,
@@ -177,8 +172,8 @@ export class SchedulesController {
       dayOfWeek: null,
       specificDate: body.date || body.specificDate,
       scheduleDate: body.date || body.specificDate,
-      session: sessionValue,
-      sessionLabel,
+      session: body.session,
+      sessionLabel: body.session,
       startTime: body.startTime,
       endTime: body.endTime,
       isAvailable: body.isAvailable ?? true,

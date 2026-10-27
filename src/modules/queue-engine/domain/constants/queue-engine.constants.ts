@@ -24,7 +24,7 @@ export const QUEUE_TICKET_EVENTS = {
   NO_SHOW: 'ticket.no_show',
 } as const;
 
-export type QueueTicketEventType =
+type QueueTicketEventType =
   (typeof QUEUE_TICKET_EVENTS)[keyof typeof QUEUE_TICKET_EVENTS];
 
 export const QUEUE_OUTBOX_KINDS = {
@@ -34,7 +34,7 @@ export const QUEUE_OUTBOX_KINDS = {
   TICKET_CANCELLED: 'queue.ticket.cancelled',
 } as const;
 
-export type QueueOutboxKindType =
+type QueueOutboxKindType =
   (typeof QUEUE_OUTBOX_KINDS)[keyof typeof QUEUE_OUTBOX_KINDS];
 
 export const QUEUE_TICKET_SOURCE = {
@@ -42,7 +42,7 @@ export const QUEUE_TICKET_SOURCE = {
   WALK_IN: 'walk_in',
 } as const;
 
-export type QueueTicketSourceType =
+type QueueTicketSourceType =
   (typeof QUEUE_TICKET_SOURCE)[keyof typeof QUEUE_TICKET_SOURCE];
 
 export const QUEUE_PRIORITY = {
@@ -51,7 +51,7 @@ export const QUEUE_PRIORITY = {
   EMERGENCY: 'emergency',
 } as const;
 
-export type QueuePriorityType =
+type QueuePriorityType =
   (typeof QUEUE_PRIORITY)[keyof typeof QUEUE_PRIORITY];
 
 export const QUEUE_CONFIG_KEYS = {

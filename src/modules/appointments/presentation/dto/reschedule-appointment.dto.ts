@@ -1,54 +1,30 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class RescheduleAppointmentDto {
   @ApiPropertyOptional({
-    example: 'MALAM',
-    description: 'Nama sesi kunjungan baru (PAGI, SIANG, MALAM, DINI_HARI)',
+    example: 'morning',
+    description: 'Nama shift sesi kunjungan baru (early_morning, morning, afternoon, night)',
   })
   @IsString()
   @IsOptional()
   session?: string;
 
   @ApiPropertyOptional({
-    example: 'MALAM',
-    description: 'Nama sesi tujuan (snake_case alias)',
-  })
-  @IsString()
-  @IsOptional()
-  target_session?: string;
-
-  @ApiPropertyOptional({
     example: '550e8400-e29b-41d4-a716-446655440000',
-    description: 'ID sesi jadwal dokter tujuan (snake_case)',
+    description: 'ID sesi definisi tujuan',
   })
   @IsString()
   @IsOptional()
   target_session_id?: string;
 
-  @ApiPropertyOptional({
-    example: '550e8400-e29b-41d4-a716-446655440000',
-    description: 'ID sesi jadwal dokter tujuan (camelCase)',
-  })
-  @IsString()
-  @IsOptional()
-  newSessionId?: string;
-
-  @ApiPropertyOptional({
+  @ApiProperty({
     example: '2026-09-29',
-    description: 'Tanggal janji temu baru (format YYYY-MM-DD, snake_case)',
+    description: 'Tanggal janji temu baru (format YYYY-MM-DD)',
   })
   @IsString()
-  @IsOptional()
-  target_date?: string;
-
-  @ApiPropertyOptional({
-    example: '2026-09-29',
-    description: 'Tanggal janji temu baru (format YYYY-MM-DD, camelCase)',
-  })
-  @IsString()
-  @IsOptional()
-  newDate?: string;
+  @IsNotEmpty()
+  target_date: string;
 
   @ApiPropertyOptional({
     example: '08:00:00',
@@ -67,7 +43,7 @@ export class RescheduleAppointmentDto {
   target_end_time?: string;
 
   @ApiPropertyOptional({
-    example: 'Ada keperluan mendadak di pagi hari',
+    example: 'Ada keperluan mendadak',
     description: 'Alasan pengajuan reschedule',
   })
   @IsString()

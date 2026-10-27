@@ -7,8 +7,8 @@ import {
   IsString,
 } from 'class-validator';
 import {
-  CANONICAL_SESSION_NAMES,
-  type CanonicalSessionName,
+  CANONICAL_STAFF_SHIFTS,
+  type CanonicalStaffShift,
 } from '../../../schedules/domain/constants/schedule-shift.constants';
 
 export class CreateAppointmentDto {
@@ -53,22 +53,22 @@ export class CreateAppointmentDto {
   appointmentDate: string;
 
   @ApiProperty({
-    enum: CANONICAL_SESSION_NAMES,
-    example: 'PAGI',
-    description: 'Sesi giliran kunjungan (DINI_HARI, PAGI, SIANG, MALAM)',
+    enum: CANONICAL_STAFF_SHIFTS,
+    example: 'morning',
+    description: 'Sesi giliran kunjungan (early_morning, morning, afternoon, night)',
   })
-  @IsIn(CANONICAL_SESSION_NAMES)
+  @IsIn(CANONICAL_STAFF_SHIFTS)
   @IsNotEmpty()
-  session: CanonicalSessionName;
+  session: CanonicalStaffShift;
 
-  @ApiPropertyOptional({
-    enum: ['Pemeriksaan Baru', 'Kontrol Ulang'],
-    default: 'Pemeriksaan Baru',
-    example: 'Pemeriksaan Baru',
+  @ApiProperty({
+    enum: ['new_visit', 'follow_up'],
+    example: 'new_visit',
+    description: 'Tipe kunjungan (new_visit / follow_up)',
   })
-  @IsEnum(['Pemeriksaan Baru', 'Kontrol Ulang'])
-  @IsOptional()
-  visitType?: 'Pemeriksaan Baru' | 'Kontrol Ulang' = 'Pemeriksaan Baru';
+  @IsEnum(['new_visit', 'follow_up'])
+  @IsNotEmpty()
+  visitType: 'new_visit' | 'follow_up';
 
   @ApiPropertyOptional({
     example: 'Demam tinggi selama 3 hari disertai batuk pilek',

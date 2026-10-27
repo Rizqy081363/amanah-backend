@@ -6,7 +6,7 @@ import { DomainQueueTicket } from '../types/queue.types';
 import { CalendarService } from './calendar.service';
 import { ScopeQuery } from './clinic-setting.reader';
 
-export interface TicketShiftPlan {
+interface TicketShiftPlan {
   ticket: DomainQueueTicket;
   newProjectedStart: Date;
   newProjectedEnd: Date;

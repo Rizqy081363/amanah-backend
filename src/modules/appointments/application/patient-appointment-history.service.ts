@@ -13,7 +13,7 @@ import {
 } from '../../../database/schema';
 import { PatientAppointmentHistoryQueryDto } from '../presentation/dto/patient-appointment-history-query.dto';
 
-export interface HistoricalAppointmentItem {
+interface HistoricalAppointmentItem {
   id: string;
   bookingCode: string;
   status: string;

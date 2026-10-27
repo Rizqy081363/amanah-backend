@@ -1,6 +1,6 @@
-export const DEFAULT_FALLBACK_CAPACITY = 20;
+const DEFAULT_FALLBACK_CAPACITY = 20;
 
-export const QUEUE_LOAD_STATUS = {
+const QUEUE_LOAD_STATUS = {
   SMOOTH: 'Lancar',
   BUSY: 'Ramai',
   OVERLOADED: 'Melebihi Kapasitas',
@@ -14,7 +14,7 @@ export interface LoadRatioThresholds {
   busyMax: number;
 }
 
-export const DEFAULT_LOAD_RATIO_THRESHOLDS: LoadRatioThresholds = {
+const DEFAULT_LOAD_RATIO_THRESHOLDS: LoadRatioThresholds = {
   okMax: 0.9,
   busyMax: 1.1,
 };

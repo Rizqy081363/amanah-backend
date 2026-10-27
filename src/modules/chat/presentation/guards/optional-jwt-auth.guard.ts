@@ -3,4 +3,4 @@ import { OptionalHybridAuthGuard } from '../../../../common/auth/optional-hybrid
 
 @Injectable()
 export class OptionalJwtAuthGuard extends OptionalHybridAuthGuard {}
-export { OptionalHybridAuthGuard };
+;

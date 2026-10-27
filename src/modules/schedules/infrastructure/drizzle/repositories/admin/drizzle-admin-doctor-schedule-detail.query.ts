@@ -19,7 +19,6 @@ import {
   filterEffectiveDoctorAssignments,
   resolveDoctorSessionOperability,
 } from '@modules/schedules/domain/services/doctor-session-operational.resolver';
-import { formatIndoMonthYear } from '@modules/schedules/domain/services/schedule-date.formatter';
 import { ScheduleRecordMapper } from '@modules/schedules/infrastructure/drizzle/mappers/schedule-record.mapper';
 import {
   buildDailySessions,
@@ -323,11 +322,10 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
       ? ScheduleOperationalStatus.PENDING
       : evalAggregateOpStatus;
 
-    const { timelineIntervals, dayMetrics } = buildTimelineAndMetrics(
+    const { dayMetrics } = buildTimelineAndMetrics(
       [],
       dailySessions,
     );
-    const contextProjections: any[] = [];
 
     return {
       success: true,
@@ -351,7 +349,7 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
         practiceRoom:
           dailySessions.length > 0 ? dailySessions[0].roomName : defaultRoomName,
         avatar: ScheduleRecordMapper.toAvatarUrl(prac.staffProfile),
-        scheduleMonth: formatIndoMonthYear(targetYear, targetMonth),
+        scheduleMonth: `${targetYear}-${String(targetMonth).padStart(2, '0')}`,
         isOnLeave: isEvalOnLeave,
         leaveReason: evalLeaveReason,
         leaveStart: evalLeaveStart,
@@ -361,9 +359,6 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
         replacementStatus: replacementStatus,
         monthlySchedule: monthlySchedule,
         dailySessions: dailySessions,
-        timelineIntervals: timelineIntervals,
-        shifts: contextProjections,
-        contextProjections: contextProjections,
         metrics: dayMetrics,
         summary: dayMetrics,
       },

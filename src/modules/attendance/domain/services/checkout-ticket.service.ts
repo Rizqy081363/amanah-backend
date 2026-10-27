@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import * as crypto from 'node:crypto';
 
-export interface CheckoutTicketPayload {
+interface CheckoutTicketPayload {
   staffId: string;
   attendanceId: string;
   scannedAt: number;

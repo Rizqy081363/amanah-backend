@@ -10,7 +10,6 @@ import {
   sessionDefs,
   sessionSchedules,
 } from '@database/schema';
-import { ScheduleShiftRegistry } from '@modules/schedules/domain/constants/schedule-shift.constants';
 import {
   EvaluateScheduleImpactDto,
   ScheduleConfigurationImpactResultDto,
@@ -39,13 +38,13 @@ import {
 } from './admin-clinic-setting-metadata';
 import { DrizzleScheduleConfigurationImpactEvaluator } from './drizzle-schedule-configuration-impact.evaluator';
 
-export interface CanonicalDayInfo {
+interface CanonicalDayInfo {
   dow: number;
   label: string;
   isActive: boolean;
 }
 
-export interface CanonicalSessionDefConfig {
+interface CanonicalSessionDefConfig {
   id: string;
   code: string;
   labelKey: string;
@@ -60,7 +59,7 @@ export interface CanonicalSessionDefConfig {
   canonicalEndsAt?: string;
 }
 
-export interface CanonicalWeeklyTemplateConfig {
+interface CanonicalWeeklyTemplateConfig {
   id: string;
   sessionId: string;
   sessionCode: string;
@@ -73,7 +72,7 @@ export interface CanonicalWeeklyTemplateConfig {
   isMasterActive: boolean;
 }
 
-export interface CanonicalClinicSettingConfig {
+interface CanonicalClinicSettingConfig {
   key: string;
   scopeType: string;
   value: any;
@@ -166,18 +165,17 @@ export class DrizzleAdminScheduleConfigurationRepository {
 
     const sessionDefsConfig: CanonicalSessionDefConfig[] = rawSessionDefs.map(
       (sd) => {
-        const descriptor = ScheduleShiftRegistry.find(sd.code);
         const startTimeStr = sd.defaultStartsAt
           ? sd.defaultStartsAt.slice(0, 5)
-          : (descriptor?.defaultStartTime ?? '');
+          : '';
         const endTimeStr = sd.defaultEndsAt
           ? sd.defaultEndsAt.slice(0, 5)
-          : (descriptor?.defaultEndTime ?? '');
+          : '';
         return {
           id: sd.id,
           code: sd.code,
           labelKey: sd.labelKey,
-          label: descriptor?.label ?? sd.code,
+          label: sd.labelKey,
           timeRange:
             startTimeStr && endTimeStr ? `${startTimeStr} - ${endTimeStr}` : '',
           codePrefix: sd.codePrefix,
@@ -185,12 +183,8 @@ export class DrizzleAdminScheduleConfigurationRepository {
           isActive: sd.isActive,
           defaultStartsAt: sd.defaultStartsAt,
           defaultEndsAt: sd.defaultEndsAt,
-          canonicalStartsAt: descriptor?.defaultStartTime
-            ? `${descriptor.defaultStartTime}:00`
-            : sd.defaultStartsAt,
-          canonicalEndsAt: descriptor?.defaultEndTime
-            ? `${descriptor.defaultEndTime}:00`
-            : sd.defaultEndsAt,
+          canonicalStartsAt: sd.defaultStartsAt,
+          canonicalEndsAt: sd.defaultEndsAt,
         };
       },
     );
@@ -199,7 +193,6 @@ export class DrizzleAdminScheduleConfigurationRepository {
 
     for (const day of days) {
       for (const def of rawSessionDefs) {
-        const descriptor = ScheduleShiftRegistry.find(def.code);
         const found = rawWeeklySchedules.find(
           (ws) => ws.dow === day.dow && ws.sessionId === def.id,
         );
@@ -209,7 +202,7 @@ export class DrizzleAdminScheduleConfigurationRepository {
             id: found.id,
             sessionId: found.sessionId,
             sessionCode: found.sessionCode,
-            sessionLabel: descriptor?.label ?? found.sessionCode,
+            sessionLabel: def.labelKey,
             dow: found.dow,
             dowLabel: day.label,
             startsAt: found.startsAt,
@@ -222,7 +215,7 @@ export class DrizzleAdminScheduleConfigurationRepository {
             id: '',
             sessionId: def.id,
             sessionCode: def.code,
-            sessionLabel: descriptor?.label ?? def.code,
+            sessionLabel: def.labelKey,
             dow: day.dow,
             dowLabel: day.label,
             startsAt: def.defaultStartsAt,
@@ -286,12 +279,11 @@ export class DrizzleAdminScheduleConfigurationRepository {
 
     const mergedDefs = existingDefs.map((ed: any) => {
       const incoming = defs.find((d) => d.id === ed.id);
-      const descriptor = ScheduleShiftRegistry.find(ed.code);
       if (!incoming) {
         return {
           id: ed.id,
           code: ed.code,
-          label: descriptor?.label ?? ed.code,
+          label: ed.labelKey,
           sortOrder: ed.sortOrder,
           isActive: ed.isActive,
           startsAt: ed.defaultStartsAt,
@@ -301,7 +293,7 @@ export class DrizzleAdminScheduleConfigurationRepository {
       return {
         id: ed.id,
         code: ed.code,
-        label: descriptor?.label ?? ed.code,
+        label: ed.labelKey,
         sortOrder:
           typeof incoming.sortOrder === 'number'
             ? incoming.sortOrder

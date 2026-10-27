@@ -7,7 +7,7 @@ import { TimeInterval } from '../types/calendar.types';
 
 export type LoadStatus = QueueLoadStatus;
 
-export interface TicketProjection {
+interface TicketProjection {
   ticketId: string;
   projectedStart: Date;
   projectedEnd: Date;

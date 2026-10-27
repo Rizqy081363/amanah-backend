@@ -6,7 +6,7 @@ export const APPOINTMENT_CALL_STATUS = {
   NO_RESPONSE: 'no_response',
 } as const;
 
-export type AppointmentCallStatus =
+type AppointmentCallStatus =
   (typeof APPOINTMENT_CALL_STATUS)[keyof typeof APPOINTMENT_CALL_STATUS];
 
 export const DB_APPOINTMENT_STATUS = {
@@ -47,7 +47,7 @@ export const QUEUE_TICKET_STATUS = {
   CANCELLED: 'cancelled',
 } as const;
 
-export type QueueTicketStatusValue =
+type QueueTicketStatusValue =
   (typeof QUEUE_TICKET_STATUS)[keyof typeof QUEUE_TICKET_STATUS];
 
 export const DOMAIN_APPOINTMENT_STATUS = {
@@ -59,7 +59,7 @@ export const DOMAIN_APPOINTMENT_STATUS = {
   LATE: 'LATE',
 } as const;
 
-export type DomainAppointmentStatusValue =
+type DomainAppointmentStatusValue =
   (typeof DOMAIN_APPOINTMENT_STATUS)[keyof typeof DOMAIN_APPOINTMENT_STATUS];
 
 export const APPOINTMENT_EVENTS = {
@@ -75,8 +75,6 @@ export const APPOINTMENT_EVENTS = {
   RESCHEDULED: 'appointment.rescheduled.v1',
   ASSIGNMENT_UPDATED: 'appointment.assignment_updated.v1',
 } as const;
-
-export const APPOINTMENT_LIFECYCLE_EVENTS = APPOINTMENT_EVENTS;
 
 export const APPOINTMENT_CALL_REPOSITORY = Symbol(
   'APPOINTMENT_CALL_REPOSITORY',
@@ -104,7 +102,7 @@ export const SHIFT_EXCEPTION_TYPE = {
   EXTRA: 'extra',
 } as const;
 
-export type ShiftExceptionType =
+type ShiftExceptionType =
   (typeof SHIFT_EXCEPTION_TYPE)[keyof typeof SHIFT_EXCEPTION_TYPE];
 
 import {
@@ -113,4 +111,4 @@ import {
 } from '../../../../common/constants/staff-types.constant';
 
 export const STAFF_TYPE = STAFF_TYPES;
-export type { StaffType };
+;

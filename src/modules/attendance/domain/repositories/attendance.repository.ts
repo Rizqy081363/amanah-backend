@@ -4,9 +4,9 @@ import type { StaffType } from '../../../staffs/domain/constants/staff-invitatio
 
 export const ATTENDANCE_REPOSITORY = 'ATTENDANCE_REPOSITORY';
 
-export type QRSessionInfo = QrSessionEntity;
+type QRSessionInfo = QrSessionEntity;
 
-export interface AttendanceHistorySummaryDto {
+interface AttendanceHistorySummaryDto {
   totalWorkHours: number;
   totalDays: number;
   periodLabel: string;

@@ -3,16 +3,16 @@ import {
   NotificationSourceDomain,
 } from '../notifications.constants';
 
-export type NotificationTargetType = 'user' | 'role' | 'broadcast';
+type NotificationTargetType = 'user' | 'role' | 'broadcast';
 
-export interface NotificationTarget {
+interface NotificationTarget {
   type: NotificationTargetType;
   recipientUserIds?: string[];
   roles?: string[];
   excludedUserIds?: string[];
 }
 
-export interface NotificationContent {
+interface NotificationContent {
   title: string;
   body: string;
   actionUrl?: string;

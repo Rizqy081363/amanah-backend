@@ -6,7 +6,6 @@ import {
   masterDays,
   sessionDefs,
 } from '@database/schema';
-import { ScheduleShiftRegistry } from '@modules/schedules/domain/constants/schedule-shift.constants';
 import {
   EvaluateScheduleImpactDto,
   ScheduleConfigurationImpactResultDto,
@@ -82,8 +81,7 @@ export class DrizzleScheduleConfigurationImpactEvaluator {
         }
         affectedAppointmentsCount += apptCount;
 
-        const shiftDesc = ScheduleShiftRegistry.find(dbDef.code);
-        const shiftName = shiftDesc?.label ?? dbDef.code;
+        const shiftName = dbDef.labelKey;
 
         if (assignedDocs.length > 0 || apptCount > 0) {
           warnings.push(
@@ -113,8 +111,7 @@ export class DrizzleScheduleConfigurationImpactEvaluator {
           .limit(1);
 
         const dayLabel = dayInfo?.nameId ?? `Hari ${targetTpl.dow}`;
-        const shiftDesc = dbDef ? ScheduleShiftRegistry.find(dbDef.code) : null;
-        const shiftLabel = shiftDesc?.label ?? dbDef?.code ?? 'Shift';
+        const shiftLabel = dbDef?.labelKey;
 
         // Hitung dokter yang terikat pada jadwal hari dan shift ini
         const assignedDayDocs = await this.db

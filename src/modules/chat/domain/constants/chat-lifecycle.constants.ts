@@ -3,7 +3,7 @@ export const CHAT_EVENTS = {
   CONVERSATION_CLOSED: 'chat.conversation.closed.v1',
 } as const;
 
-export type ChatEventType =
+type ChatEventType =
   (typeof CHAT_EVENTS)[keyof typeof CHAT_EVENTS];
 
 /**

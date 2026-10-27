@@ -1,5 +1,3 @@
-export type ScheduleIntervalStatus = 'OPEN' | 'CLOSED';
-
 export type ScheduleClosedReason =
   | 'LEAVE'
   | 'SCHEDULE_CLOSED'
@@ -22,23 +20,6 @@ export interface ScheduleProjectionInput {
   closedReason?: ScheduleClosedReason;
 }
 
-export interface ScheduleAppointmentRef {
-  appointmentId: string;
-  queueNumber: string | null;
-  status: string | null;
-}
-
-export interface ScheduleProjectedInterval {
-  intervalId: string;
-  intervalIndex: number;
-  startTime: string;
-  endTime: string;
-  status: ScheduleIntervalStatus;
-  displayLabel: 'Buka' | 'Tutup';
-  appointmentRef?: ScheduleAppointmentRef;
-  closedReason?: ScheduleClosedReason;
-}
-
 export interface ScheduleProjectionResult {
   projectedEndTime: string;
   nominalCapacity: number;
@@ -46,10 +27,9 @@ export interface ScheduleProjectionResult {
   isClosed: boolean;
   closedReason?: ScheduleClosedReason;
   /**
-   * @deprecated Artificial 30-minute intervals are eliminated in accordance with Queue Paradigm.
-   * Kept empty for graceful backward-compatibility.
+   * @deprecated Artificial intervals are eliminated in accordance with Queue Paradigm.
    */
-  intervals: ScheduleProjectedInterval[];
+  intervals: any[];
 }
 
 export function projectScheduleProjection(

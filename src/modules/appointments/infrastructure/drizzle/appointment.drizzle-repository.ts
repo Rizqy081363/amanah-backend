@@ -47,25 +47,7 @@ import { AppointmentCreationHandler } from './appointment-creation.handler';
 import { AppointmentRecordMapper } from './appointment-record.mapper';
 import { AppointmentRescheduleHandler } from './appointment-reschedule.handler';
 import { AppointmentStatusHandler } from './appointment-status.handler';
-
-const APPOINTMENT_RELATIONS = {
-  queueTickets: true,
-  patientProfile: {
-    with: {
-      user: true,
-      patientAffiliations: { with: { user: true } },
-    },
-  },
-  clinicService: true,
-  clinicRoom: { with: { clinicUnit: true } },
-  practitioner: {
-    with: {
-      clinicRoom: { with: { clinicUnit: true } },
-      staffProfile: { with: { user: true, clinicUnit: true } },
-      medicalSpecialty: true,
-    },
-  },
-} as const;
+import { APPOINTMENT_RELATIONS } from './appointment-relations.constant';
 
 @Injectable()
 export class AppointmentDrizzleRepository implements AppointmentRepository {

@@ -30,10 +30,6 @@ import {
   DoctorRosterRepository,
   RecordScheduleHistoryParams,
 } from '../domain/doctor-roster.repository';
-import {
-  formatSessionTitle,
-  SHIFT_DISPLAY_LABELS,
-} from '@modules/schedules/domain/constants/schedule-shift.constants';
 
 @Injectable()
 export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
@@ -158,7 +154,7 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
           ? roomMap.get(preferredRoomId) || null
           : null;
 
-        const sessionLabel = formatSessionTitle(def.code);
+        const sessionLabel = def.labelKey;
 
         const isTemplateActive = d.isActive && Boolean(sched);
 
@@ -354,11 +350,7 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
     const total = totalResult[0]?.value ?? 0;
 
     const items: DoctorScheduleHistoryItemEntity[] = rows.map((r) => {
-      const sessionLabel = r.sessionDef
-        ? SHIFT_DISPLAY_LABELS[
-            r.sessionDef.code as keyof typeof SHIFT_DISPLAY_LABELS
-          ] || r.sessionDef.code
-        : null;
+      const sessionLabel = r.sessionDef?.labelKey ?? null;
 
       return {
         id: r.id,

@@ -18,7 +18,7 @@ export const MS_PER_DAY = 86_400_000;
  * USG EDD replaces LMP EDD only when discrepancy exceeds these values.
  * Keys are maximum gestational age in total days for that threshold.
  */
-export const ACOG_REDATING_THRESHOLDS = [
+const ACOG_REDATING_THRESHOLDS = [
   { maxGaDays: 8 * 7 + 6, thresholdDays: 5 }, // ≤ 8w6d
   { maxGaDays: 13 * 7 + 6, thresholdDays: 7 }, // ≤ 13w6d (T1)
   { maxGaDays: 15 * 7 + 6, thresholdDays: 7 }, // ≤ 15w6d (T2 early)
@@ -28,7 +28,7 @@ export const ACOG_REDATING_THRESHOLDS = [
 ] as const;
 
 /** ART embryo offsets: days subtracted from gestational period to get days added to transfer date. */
-export const ART_EMBRYO_OFFSETS = {
+const ART_EMBRYO_OFFSETS = {
   DAY_5: GESTATION_DAYS_LMP - 19, // 261
   DAY_3: GESTATION_DAYS_LMP - 17, // 263
 } as const;

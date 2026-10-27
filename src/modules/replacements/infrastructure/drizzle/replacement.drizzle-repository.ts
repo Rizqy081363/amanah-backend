@@ -17,7 +17,6 @@ import {
 } from '../../../../database/schema';
 import { replacementOpportunities } from '../../../../database/schema/leave-payroll.schema';
 import { NotificationGatewayService } from '../../../notifications/application/services/notification-gateway.service';
-import { formatSessionTitle } from '../../../schedules/domain/constants/schedule-shift.constants';
 import { ReplacementOpportunityEntity } from '../../domain/entities/replacement-opportunity.entity';
 import {
   type ReplacementOpportunityFilter,
@@ -41,7 +40,7 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
       leaveRequestId: r.leaveRequestId,
       sessionId: r.sessionId,
       sessionCode: r.sessionDef?.code || undefined,
-      sessionLabel: formatSessionTitle(r.sessionDef?.code),
+      sessionLabel: r.sessionDef?.labelKey,
       startTime: r.sessionDef?.defaultStartsAt || null,
       endTime: r.sessionDef?.defaultEndsAt || null,
       workDate: r.workDate,
@@ -452,7 +451,7 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
       const originalStaffName = opp.originalStaffProfile?.fullName || '';
       const claimedByStaffUserId = opp.claimedByStaffProfile?.userId;
       const claimedByName = opp.claimedByStaffProfile?.fullName || '';
-      const sessionName = formatSessionTitle(opp.sessionDef?.code);
+      const sessionName = opp.sessionDef?.labelKey;
       const dateStr = opp.workDate;
 
       // 1. Notify Original Staff (whose shift was covered)

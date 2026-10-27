@@ -1,6 +1,6 @@
-export const IF_MATCH_HEADER = 'if-match';
-export const IF_NONE_MATCH_HEADER = 'if-none-match';
-export const ETAG_HEADER = 'etag';
+const IF_MATCH_HEADER = 'if-match';
+const IF_NONE_MATCH_HEADER = 'if-none-match';
+const ETAG_HEADER = 'etag';
 
 export const OCC_ERROR_CODES = {
   PRECONDITION_FAILED: 'PRECONDITION_FAILED',

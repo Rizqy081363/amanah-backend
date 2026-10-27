@@ -14,7 +14,7 @@ export const DELIVERY_CHANNEL_ADAPTERS = Symbol.for(
 export const REDIS_STREAM_NOTIFICATIONS = 'notifications:events';
 export const REDIS_CONSUMER_GROUP_NOTIFICATIONS = 'notification-service';
 
-export const NOTIFICATION_CHANNELS = ['in_app', 'push', 'email'] as const;
+const NOTIFICATION_CHANNELS = ['in_app', 'push', 'email'] as const;
 export type NotificationChannel = (typeof NOTIFICATION_CHANNELS)[number];
 
 export const NOTIFICATION_SOURCE_DOMAINS = {
@@ -29,7 +29,7 @@ export const NOTIFICATION_SOURCE_DOMAINS = {
 export type NotificationSourceDomain =
   (typeof NOTIFICATION_SOURCE_DOMAINS)[keyof typeof NOTIFICATION_SOURCE_DOMAINS];
 
-export const NOTIFICATION_CATEGORIES = [
+const NOTIFICATION_CATEGORIES = [
   'appointment',
   'promotion',
   'lab_result',

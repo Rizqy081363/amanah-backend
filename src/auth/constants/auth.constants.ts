@@ -4,7 +4,7 @@ export const AUTH_SURFACES = {
   WEB_PATIENT: 'web-patient',
 } as const;
 
-export type AuthSurface = (typeof AUTH_SURFACES)[keyof typeof AUTH_SURFACES];
+type AuthSurface = (typeof AUTH_SURFACES)[keyof typeof AUTH_SURFACES];
 
 export const AUTH_ERROR_CODES = {
   NOT_AUTHORIZED: 'NOT_AUTHORIZED',
@@ -14,7 +14,7 @@ export const AUTH_ERROR_CODES = {
   ACCOUNT_INACTIVE: 'ACCOUNT_INACTIVE',
 } as const;
 
-export type AuthErrorCode =
+type AuthErrorCode =
   (typeof AUTH_ERROR_CODES)[keyof typeof AUTH_ERROR_CODES];
 
 export const SYSTEM_ROLES = {
@@ -55,7 +55,7 @@ export const CHAT_SUPPORT_ROLES = [
   CANONICAL_ROLES.STAFF_WORKER,
 ] as const;
 
-export const CLINICAL_PRACTITIONER_ROLES = [
+const CLINICAL_PRACTITIONER_ROLES = [
   CANONICAL_ROLES.STAFF_DOCTOR,
   CANONICAL_ROLES.STAFF_MIDWIFE,
 ] as const;
@@ -67,5 +67,5 @@ export const USER_STATUS = {
   SUSPENDED: 'suspended',
 } as const;
 
-export type UserStatus = (typeof USER_STATUS)[keyof typeof USER_STATUS];
+type UserStatus = (typeof USER_STATUS)[keyof typeof USER_STATUS];
 

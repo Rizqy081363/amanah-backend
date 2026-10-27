@@ -7,7 +7,7 @@ import {
   MIN_PAGE_SIZE,
 } from '../constants/pagination.constants';
 
-export class CursorPaginationDto {
+class CursorPaginationDto {
   @ApiPropertyOptional({
     description:
       'Opaque cursor base64url untuk keyset pagination (API-089, ARC-081). Client tidak boleh merekayasa token ini.',

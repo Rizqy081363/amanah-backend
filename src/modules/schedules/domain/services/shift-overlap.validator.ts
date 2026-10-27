@@ -15,7 +15,7 @@ export interface ShiftTimeInterval {
  * Mengonversi waktu selesai shift ke menit sejak 00:00.
  * Menangani format 24:00 atau 00:00 (tengah malam pergantian hari) sebagai 1440 menit.
  */
-export function parseTimeEndToMinutes(endsAt: string, startsAtMinutes = 0): number {
+function parseTimeEndToMinutes(endsAt: string, startsAtMinutes = 0): number {
   if (!endsAt) return 0;
   const trimmed = endsAt.trim();
   if (trimmed.startsWith('24:')) {

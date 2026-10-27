@@ -8,12 +8,7 @@ import type {
 import type { RoomCandidateItem } from '../../candidate-assignment/domain/entities/candidate-room.entity';
 import { CandidateResolverService } from '../../candidate-assignment/services/candidate-resolver.service';
 
-export type {
-  DoctorCandidateGroup,
-  DoctorCandidateItem,
-  DoctorCandidatesResult,
-  RoomCandidateItem,
-};
+export type { DoctorCandidatesResult, RoomCandidateItem };
 
 @Injectable()
 export class AppointmentCandidateResolver implements ICandidateResolverPort {

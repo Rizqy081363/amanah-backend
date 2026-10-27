@@ -16,7 +16,7 @@ import {
 } from '../decorators/http-cache.decorator';
 import { RedisService } from '../redis/redis.service';
 
-export interface CachedHttpResponse {
+interface CachedHttpResponse {
   body: unknown;
   etag: string;
   statusCode: number;

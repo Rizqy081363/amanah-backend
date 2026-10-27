@@ -1,6 +1,6 @@
 import { DOMAIN_APPOINTMENT_STATUS } from '../constants/appointment-lifecycle.constants';
 
-export function formatConsultationDuration(elapsedSeconds: number): string {
+function formatConsultationDuration(elapsedSeconds: number): string {
   if (elapsedSeconds <= 0) return '0 Menit';
 
   const days = Math.floor(elapsedSeconds / 86400);

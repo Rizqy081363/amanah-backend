@@ -8,7 +8,6 @@ import {
   shiftExceptions,
 } from '@database/schema';
 import { ACTIVE_APPOINTMENT_STATUSES } from '@modules/schedules/domain/constants/schedule.constants';
-import { formatSessionTitle } from '@modules/schedules/domain/constants/schedule-shift.constants';
 import {
   type RescheduleEligibilityEntity,
   type RescheduleSourceSessionInfo,
@@ -142,7 +141,7 @@ export class DrizzleRescheduleEligibilityEvaluator {
       timeRange: `${effectiveSessionDef.defaultStartsAt.slice(0, 5)} - ${effectiveSessionDef.defaultEndsAt.slice(0, 5)} WIB`,
       status: 'open',
       statusLabel: sourceStatus,
-      sessionLabel: formatSessionTitle(effectiveSessionDef.code),
+      sessionLabel: effectiveSessionDef.labelKey,
       sessionShift: effectiveSessionDef.code,
       roomName,
       activeAppointmentsCount: activeAppts.length,
