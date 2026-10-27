@@ -1,4 +1,4 @@
-import { and, eq, gte, inArray, lte } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import {
   clinicRooms,
@@ -6,10 +6,6 @@ import {
   compensationRates,
   doctorAssignments,
   leaveRequestSessions,
-  masterDays,
-  payrollEntries,
-  payrollPeriods,
-  practitioners,
   replacementOpportunities,
   serviceCategories,
   sessionDefs,

@@ -1,11 +1,14 @@
 import { Temporal } from '@js-temporal/polyfill';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
-import { and, asc, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import type { AuthenticatedUser } from '../../../../common/auth/authenticated-user.interface';
+import { isAdminUser } from '../../../../common/auth/authenticated-user.interface';
 import type { ClinicConfigService } from '../../../../common/clinic-config/clinic-config.service';
+import {
+  DomainForbiddenException,
+  DomainValidationException,
+  EntityNotFoundException,
+  InvalidStateTransitionException,
+} from '../../../../common/exceptions/domain.exceptions';
 import type { ClinicTimeService } from '../../../../common/time/clinic-time.service';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
@@ -37,7 +40,7 @@ export class AppointmentRescheduleHandler {
     db: DrizzleDatabase,
     appointmentId: string,
     userId: string,
-    user?: any,
+    user?: AuthenticatedUser,
   ): Promise<any> {
     const apt = await db.query.appointments.findFirst({
       where: eq(appointments.id, appointmentId),
@@ -50,7 +53,7 @@ export class AppointmentRescheduleHandler {
     });
 
     if (!apt) {
-      throw new NotFoundException('Janji temu tidak ditemukan');
+      throw new EntityNotFoundException('Janji temu', appointmentId);
     }
 
     const { isAdmin } = await validateRescheduleAuthorization(
@@ -163,7 +166,7 @@ export class AppointmentRescheduleHandler {
     dto: RescheduleAppointmentDto,
     userId: string,
     findById: (id: string) => Promise<AppointmentEntity | null>,
-    user?: any,
+    user?: AuthenticatedUser,
     queuePositionRecalculationService?: QueuePositionRecalculationService,
     clinicConfig?: ClinicConfigService,
     clinicTimeService?: ClinicTimeService,
@@ -171,7 +174,9 @@ export class AppointmentRescheduleHandler {
     const targetDate = dto.target_date;
 
     if (!targetDate) {
-      throw new BadRequestException('Target tanggal reschedule wajib diisi');
+      throw new DomainValidationException(
+        'Target tanggal reschedule wajib diisi',
+      );
     }
 
     let oldDate: string | null = null;
@@ -186,7 +191,7 @@ export class AppointmentRescheduleHandler {
         .for('update');
 
       if (!apt) {
-        throw new NotFoundException('Janji temu tidak ditemukan');
+        throw new EntityNotFoundException('Janji temu', appointmentId);
       }
 
       oldDate = apt.scheduledDate;
@@ -224,7 +229,10 @@ export class AppointmentRescheduleHandler {
       }
 
       if (!targetSessionDef) {
-        throw new BadRequestException('Sesi target reschedule tidak valid');
+        throw new EntityNotFoundException(
+          'Sesi jadwal',
+          dto.target_session_id || dto.session || 'unknown',
+        );
       }
 
       const sTime = targetSessionDef.defaultStartsAt.slice(0, 5);
@@ -460,9 +468,7 @@ export class AppointmentRescheduleHandler {
 
     const updated = await findById(appointmentId);
     if (!updated) {
-      throw new NotFoundException(
-        'Janji temu tidak ditemukan setelah pembaruan',
-      );
+      throw new EntityNotFoundException('Janji temu', appointmentId);
     }
     return updated;
   }
@@ -472,12 +478,9 @@ async function validateRescheduleAuthorization(
   db: DrizzleDatabase,
   apt: typeof appointments.$inferSelect,
   userId: string,
-  user?: any,
+  user?: AuthenticatedUser,
 ): Promise<{ isAdmin: boolean }> {
-  if (
-    user?.systemRole === SYSTEM_ROLES.ADMIN ||
-    user?.systemRole === SYSTEM_ROLES.STAF
-  ) {
+  if (user && (isAdminUser(user) || user.systemRole === SYSTEM_ROLES.STAF)) {
     return { isAdmin: true };
   }
 
@@ -505,7 +508,7 @@ async function validateRescheduleAuthorization(
     return { isAdmin: false };
   }
 
-  throw new ForbiddenException(
+  throw new DomainForbiddenException(
     'Anda tidak berhak menjadwalkan ulang janji temu ini',
   );
 }
@@ -521,14 +524,16 @@ async function validateAppointmentStateForReschedule(
     apt.status === DB_APPOINTMENT_STATUS.CANCELLED ||
     apt.status === DB_APPOINTMENT_STATUS.NO_SHOW
   ) {
-    throw new BadRequestException(
-      `Janji temu tidak dapat dijadwalkan ulang pada status '${apt.status}'`,
+    throw new InvalidStateTransitionException(
+      'Janji temu',
+      apt.status,
+      DB_APPOINTMENT_STATUS.BOOKED,
     );
   }
 
   if (!isAdmin) {
     if (apt.checkedInAt) {
-      throw new BadRequestException(
+      throw new DomainForbiddenException(
         'Pasien sudah melakukan check-in di klinik. Perubahan jadwal hanya dapat dilakukan oleh petugas klinik.',
       );
     }
@@ -540,7 +545,7 @@ async function validateAppointmentStateForReschedule(
       .limit(1);
 
     if (activeTicket && activeTicket.status === QUEUE_TICKET_STATUS.CALLED) {
-      throw new BadRequestException(
+      throw new DomainForbiddenException(
         'Nomor antrean sedang dipanggil oleh petugas klinik. Silakan hubungi meja admisi klinik.',
       );
     }
@@ -558,7 +563,7 @@ async function validateAppointmentStateForReschedule(
       sessionEnd.setHours(endH, endM + bufferMinutes, 0, 0);
 
       if (new Date() > sessionEnd) {
-        throw new BadRequestException(
+        throw new DomainForbiddenException(
           'Sesi praktik ini telah berakhir. Silakan hubungi petugas klinik untuk bantuan reschedule.',
         );
       }

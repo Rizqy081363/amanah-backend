@@ -34,17 +34,3 @@ export class ConcurrentModificationConflictException extends HttpException {
     );
   }
 }
-
-class PreconditionRequiredException extends HttpException {
-  constructor(
-    message = 'Precondition required: This operation requires an If-Match header.',
-  ) {
-    super(
-      {
-        code: OCC_ERROR_CODES.PRECONDITION_REQUIRED,
-        message,
-      },
-      HttpStatus.PRECONDITION_REQUIRED,
-    );
-  }
-}

@@ -60,7 +60,7 @@ Assert-Test "Schedule booking options returned for target date" ($null -ne $book
 
 $openSession = $bookingOptions.sessions | Where-Object { $_.isDisabled -ne $true } | Select-Object -First 1
 if (-not $openSession) { $openSession = $bookingOptions.sessions[0] }
-$sessionCode = if ($openSession.session) { $openSession.session } else { "PAGI" }
+$sessionCode = if ($openSession.session) { $openSession.session } else { "morning" }
 Write-Host " Selected Open Session: $sessionCode ($($openSession.startTime) - $($openSession.endTime))" -ForegroundColor Cyan
 
 # 6. Execute Booking Request via API
@@ -71,7 +71,7 @@ $bookPayload = @{
     layananId = $serviceId
     appointmentDate = $bookingDate
     session = $sessionCode
-    visitType = "Pemeriksaan Baru"
+    visitType = "new_visit"
     complaint = "Pemeriksaan kesehatan rutin berkala (E2E Test)"
 } | ConvertTo-Json
 

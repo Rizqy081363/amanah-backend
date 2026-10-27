@@ -1,3 +1,4 @@
+import { SYSTEM_ROLES } from '@/auth/constants/auth.constants';
 import { HybridAuthGuard } from '@common/auth/hybrid-auth.guard';
 import { Roles } from '@common/auth/roles.decorator';
 import { RolesGuard } from '@common/auth/roles.guard';
@@ -37,7 +38,7 @@ import {
 )
 @ApiBearerAuth('access-token')
 @UseGuards(HybridAuthGuard, RolesGuard)
-@Roles('ADMIN')
+@Roles(SYSTEM_ROLES.ADMIN)
 @ApiUnauthorizedResponse({
   description: 'Sesi autentikasi tidak valid atau token tidak disertakan',
 })

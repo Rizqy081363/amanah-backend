@@ -25,7 +25,7 @@ export class UpdatePatientDto {
   })
   @IsString()
   @IsOptional()
-  @ValidateIf((o, v) => Boolean(v && typeof v === 'string' && v.trim() !== ''))
+  @ValidateIf((_o, v) => Boolean(v && typeof v === 'string' && v.trim() !== ''))
   @Matches(/^\d{16}$/, { message: 'NIK harus berupa 16 digit angka' })
   nik?: string;
 
@@ -51,7 +51,7 @@ export class UpdatePatientDto {
   })
   @IsString()
   @IsOptional()
-  @ValidateIf((o, v) => Boolean(v && typeof v === 'string' && v.trim() !== ''))
+  @ValidateIf((_o, v) => Boolean(v && typeof v === 'string' && v.trim() !== ''))
   @Matches(/^\d{4}-\d{2}-\d{2}$/, {
     message: 'Format tanggal lahir harus YYYY-MM-DD',
   })

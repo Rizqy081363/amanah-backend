@@ -70,7 +70,7 @@ export class AppointmentNotificationMessageBuilder {
 
   static buildDoctorStartedMessages(
     payload: AppointmentNotificationPayloadContext,
-    actor?: NotificationActorContext,
+    _actor?: NotificationActorContext,
   ): FormattedNotificationMessages {
     const queueNum = this.formatQueueNumber(
       payload.ticketNumber,
@@ -102,7 +102,7 @@ export class AppointmentNotificationMessageBuilder {
   static buildAdminStatusChangedMessages(
     payload: AppointmentNotificationPayloadContext,
     targetStatus: string,
-    actor?: NotificationActorContext,
+    _actor?: NotificationActorContext,
   ): FormattedNotificationMessages {
     const queueNum = this.formatQueueNumber(
       payload.ticketNumber,
@@ -125,7 +125,7 @@ export class AppointmentNotificationMessageBuilder {
 
   static buildPatientCalledMessages(
     payload: AppointmentNotificationPayloadContext,
-    actor?: NotificationActorContext,
+    _actor?: NotificationActorContext,
   ): {
     clinicTitle: string;
     clinicBody: string;

@@ -1,4 +1,5 @@
 import { ClinicConfigService } from '@common/clinic-config';
+import type { AuthenticatedUser } from '../../../../common/auth';
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import {
   and,
@@ -471,7 +472,7 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
   async getRescheduleOptions(
     appointmentId: string,
     userId: string,
-    user?: any,
+    user?: AuthenticatedUser,
   ): Promise<any> {
     return AppointmentRescheduleHandler.getRescheduleOptions(
       this.db,
@@ -485,7 +486,7 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
     appointmentId: string,
     dto: RescheduleAppointmentDto,
     userId: string,
-    user?: any,
+    user?: AuthenticatedUser,
   ): Promise<AppointmentEntity> {
     return AppointmentRescheduleHandler.reschedule(
       this.db,

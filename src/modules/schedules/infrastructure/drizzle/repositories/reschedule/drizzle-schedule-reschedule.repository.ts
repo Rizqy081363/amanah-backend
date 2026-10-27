@@ -7,7 +7,6 @@ import {
   doctorAssignments,
   queueTickets,
   sessionDefs,
-  shiftExceptions,
 } from '@database/schema';
 import { type NotificationPublisher } from '@modules/notifications/contracts/domain-event.interface';
 import { NOTIFICATION_PUBLISHER } from '@modules/notifications/notifications.constants';
@@ -28,7 +27,6 @@ import {
   ConflictException,
   Inject,
   Injectable,
-  Logger,
   NotFoundException,
   Optional,
 } from '@nestjs/common';
@@ -40,9 +38,6 @@ import { mutateRescheduleSessionRecords } from './reschedule-session-mutation.he
 
 @Injectable()
 export class DrizzleScheduleRescheduleRepository {
-  private readonly logger = new Logger(
-    DrizzleScheduleRescheduleRepository.name,
-  );
   private readonly practitionerResolver: PractitionerResolver;
   private readonly conflictQuery: ScheduleConflictQuery;
   private readonly availabilityRepo: DrizzleScheduleAvailabilityRepository;

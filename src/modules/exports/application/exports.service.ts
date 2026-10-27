@@ -1,9 +1,7 @@
 import {
   ConflictException,
-  ForbiddenException,
   Inject,
   Injectable,
-  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { and, desc, eq } from 'drizzle-orm';
@@ -22,8 +20,6 @@ import { CreateExportDto } from '../presentation/dto/create-export.dto';
 
 @Injectable()
 export class ExportsService {
-  private readonly logger = new Logger(ExportsService.name);
-
   constructor(
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,

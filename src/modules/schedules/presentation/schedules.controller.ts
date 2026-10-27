@@ -1,19 +1,25 @@
+import {
+  type AuthenticatedUser,
+  isAdminUser,
+} from '@common/auth';
 import { CurrentUser } from '@common/auth/current-user.decorator';
 import { HybridAuthGuard } from '@common/auth/hybrid-auth.guard';
 import { Public } from '@common/auth/public.decorator';
 import { Roles } from '@common/auth/roles.decorator';
 import { RolesGuard } from '@common/auth/roles.guard';
 import {
-  BadRequestException,
+  DomainForbiddenException,
+  DomainValidationException,
+  EntityNotFoundException,
+} from '@common/exceptions';
+import {
   Body,
   Controller,
   Delete,
-  ForbiddenException,
   Get,
   HttpCode,
   HttpStatus,
   Inject,
-  NotFoundException,
   Param,
   Patch,
   Post,
@@ -86,20 +92,23 @@ export class SchedulesController {
     private readonly rosterRepo: DoctorRosterRepository,
   ) {}
 
-  private assertScheduleOwnership(schedule: any, user: any) {
-    if (user.systemRole === SYSTEM_ROLES.ADMIN) return;
+  private assertScheduleOwnership(schedule: any, user: AuthenticatedUser) {
+    if (isAdminUser(user)) return;
     const doctorPractitionerId = user.staff?.practitionerId;
     if (!doctorPractitionerId || schedule.staffId !== doctorPractitionerId) {
-      throw new ForbiddenException(
+      throw new DomainForbiddenException(
         'Akses ditolak: Anda hanya berwenang mengelola jadwal praktek Anda sendiri',
       );
     }
   }
 
-  private resolveTargetStaffId(user: any, requestedStaffId?: string): string {
-    if (user.systemRole === SYSTEM_ROLES.ADMIN) {
+  private resolveTargetStaffId(
+    user: AuthenticatedUser,
+    requestedStaffId?: string,
+  ): string {
+    if (isAdminUser(user)) {
       if (!requestedStaffId) {
-        throw new BadRequestException(
+        throw new DomainValidationException(
           'Parameter staffId wajib disertakan ketika diakses oleh akun Administrator non-praktisi',
         );
       }
@@ -107,12 +116,12 @@ export class SchedulesController {
     }
     const doctorPractitionerId = user.staff?.practitionerId;
     if (!doctorPractitionerId) {
-      throw new ForbiddenException(
+      throw new DomainForbiddenException(
         'User bukan praktisi medis dokter terdaftar',
       );
     }
     if (requestedStaffId && requestedStaffId !== doctorPractitionerId) {
-      throw new ForbiddenException(
+      throw new DomainForbiddenException(
         'Akses ditolak: Staf hanya dapat mengakses jadwal untuk akun sendiri',
       );
     }
@@ -135,12 +144,12 @@ export class SchedulesController {
   })
   async createSchedule(
     @Body() body: CreateScheduleDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
     let staffId: string;
-    if (user.systemRole === SYSTEM_ROLES.ADMIN) {
+    if (isAdminUser(user)) {
       if (!body.staffId) {
-        throw new BadRequestException(
+        throw new DomainValidationException(
           'Parameter staffId wajib disertakan oleh Administrator saat membuat jadwal',
         );
       }
@@ -148,12 +157,12 @@ export class SchedulesController {
     } else {
       const doctorPractitionerId = user.staff?.practitionerId;
       if (!doctorPractitionerId) {
-        throw new ForbiddenException(
+        throw new DomainForbiddenException(
           'Akun Anda belum terhubung dengan profil praktisi medis klinik',
         );
       }
       if (body.staffId && body.staffId !== doctorPractitionerId) {
-        throw new ForbiddenException(
+        throw new DomainForbiddenException(
           'Akses ditolak: Staf hanya dapat membuat jadwal praktek untuk akun sendiri',
         );
       }
@@ -161,7 +170,7 @@ export class SchedulesController {
     }
 
     if (!body.session) {
-      throw new BadRequestException('Sesi jadwal (session) wajib diisi');
+      throw new DomainValidationException('Sesi jadwal (session) wajib diisi');
     }
 
     return this.scheduleRepo.create({
@@ -232,14 +241,14 @@ export class SchedulesController {
     description: 'Daftar jadwal dinas staf login berhasil diambil',
   })
   async getMySchedules(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
     @Query('date') date?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
   ) {
     const staffId = user.staff?.practitionerId;
     if (!staffId) {
-      throw new ForbiddenException(
+      throw new DomainForbiddenException(
         'User bukan praktisi medis dokter terdaftar',
       );
     }
@@ -263,7 +272,7 @@ export class SchedulesController {
     description: 'Matriks roster mingguan dokter berhasil diambil',
   })
   async getMyRoster(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
     @Query('staffId') staffIdQuery?: string,
   ): Promise<DoctorRosterOverviewResponse> {
     const staffId = this.resolveTargetStaffId(user, staffIdQuery);
@@ -284,7 +293,7 @@ export class SchedulesController {
   })
   async updateMyRoster(
     @Body() dto: UpdateDoctorRosterDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
     @Query('staffId') staffIdQuery?: string,
   ): Promise<DoctorRosterOverviewResponse> {
     const staffId = this.resolveTargetStaffId(user, staffIdQuery);
@@ -306,7 +315,7 @@ export class SchedulesController {
       'Roster dokter berhasil dikembalikan ke template mingguan klinik',
   })
   async resetMyRoster(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
     @Query('staffId') staffIdQuery?: string,
   ): Promise<DoctorRosterOverviewResponse> {
     const staffId = this.resolveTargetStaffId(user, staffIdQuery);
@@ -326,11 +335,11 @@ export class SchedulesController {
   })
   async getCalendarSummary(
     @Query() query: CalendarSummaryQueryDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
     const staffId = user.staff?.practitionerId;
     if (!staffId) {
-      throw new ForbiddenException(
+      throw new DomainForbiddenException(
         'User bukan praktisi medis dokter terdaftar',
       );
     }
@@ -377,7 +386,7 @@ export class SchedulesController {
     @Param('date') date: string,
     @Body('status') status: string,
     @Body('notes') notes: string,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
     const staffId = this.resolveTargetStaffId(user);
     return this.scheduleRepo.updateAdminDayStatus(staffId, date, status, notes);
@@ -463,13 +472,13 @@ export class SchedulesController {
   })
   async getScheduleContexts(
     @Query() query: ScheduleContextQueryDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
     const staffId = this.resolveTargetStaffId(user, query.staffId);
     return this.scheduleRepo.getScheduleContexts(
       staffId,
       query.date,
-      user.systemRole === SYSTEM_ROLES.ADMIN,
+      isAdminUser(user),
     );
   }
 
@@ -485,13 +494,13 @@ export class SchedulesController {
   })
   async previewScheduleProjection(
     @Query() query: ScheduleProjectionQueryDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
     const staffId = this.resolveTargetStaffId(user, query.staffId);
     return this.scheduleRepo.projectAvailability(
       staffId,
       query,
-      user.systemRole === SYSTEM_ROLES.ADMIN,
+      isAdminUser(user),
     );
   }
 
@@ -508,7 +517,7 @@ export class SchedulesController {
   })
   async getCapacityOverview(
     @Query() query: ScheduleCapacityQueryDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
     const staffId = this.resolveTargetStaffId(user, query.staffId);
     const data = await this.scheduleRepo.getCapacityOverview(staffId, query);
@@ -530,11 +539,11 @@ export class SchedulesController {
   })
   async getBookedPatientsByDate(
     @Query() query: BookedPatientsQueryDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
     const staffId = user.staff?.practitionerId;
     if (!staffId) {
-      throw new ForbiddenException(
+      throw new DomainForbiddenException(
         'User bukan praktisi medis dokter terdaftar',
       );
     }
@@ -595,13 +604,11 @@ export class SchedulesController {
   async checkRescheduleEligibility(
     @Param('sessionId') sessionId: string,
     @Query() query: CheckRescheduleEligibilityQueryDto,
-    @CurrentUser() user?: any,
+    @CurrentUser() user?: AuthenticatedUser,
   ) {
     const session = await this.scheduleRepo.findById(sessionId);
     if (!session) {
-      throw new NotFoundException(
-        `Sesi jadwal dengan ID ${sessionId} tidak ditemukan`,
-      );
+      throw new EntityNotFoundException('Jadwal', sessionId);
     }
     if (user) {
       this.assertScheduleOwnership(session, user);
@@ -642,13 +649,11 @@ export class SchedulesController {
   async rescheduleSession(
     @Param('sessionId') sessionId: string,
     @Body() body: RescheduleAdminDoctorSessionDto,
-    @CurrentUser() user?: any,
+    @CurrentUser() user?: AuthenticatedUser,
   ) {
     const session = await this.scheduleRepo.findById(sessionId);
     if (!session) {
-      throw new NotFoundException(
-        `Sesi jadwal dengan ID ${sessionId} tidak ditemukan`,
-      );
+      throw new EntityNotFoundException('Jadwal', sessionId);
     }
     if (user) {
       this.assertScheduleOwnership(session, user);
@@ -683,10 +688,10 @@ export class SchedulesController {
   async getSessionPatients(
     @Param('sessionId') sessionId: string,
     @Query() query: GetSessionPatientsQueryDto,
-    @CurrentUser() user?: any,
+    @CurrentUser() user?: AuthenticatedUser,
   ) {
     const doctorPractitionerId = user?.staff?.practitionerId;
-    if (doctorPractitionerId && user.systemRole !== SYSTEM_ROLES.ADMIN) {
+    if (doctorPractitionerId && user && !isAdminUser(user)) {
       return this.scheduleRepo.getAdminSessionPatients(
         doctorPractitionerId,
         sessionId,
@@ -696,9 +701,7 @@ export class SchedulesController {
 
     const session = await this.scheduleRepo.findById(sessionId);
     if (!session) {
-      throw new NotFoundException(
-        `Sesi jadwal dengan ID ${sessionId} tidak ditemukan`,
-      );
+      throw new EntityNotFoundException('Jadwal', sessionId);
     }
     if (user) {
       this.assertScheduleOwnership(session, user);
@@ -727,11 +730,11 @@ export class SchedulesController {
   })
   async getBookedPatientsForSession(
     @Param('id') id: string,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
     const schedule = await this.scheduleRepo.findById(id);
     if (!schedule) {
-      throw new NotFoundException(`Jadwal dengan ID ${id} tidak ditemukan`);
+      throw new EntityNotFoundException('Jadwal', id);
     }
     this.assertScheduleOwnership(schedule, user);
     return this.scheduleRepo.getBookedPatients(id);
@@ -773,7 +776,7 @@ export class SchedulesController {
   async getScheduleById(@Param('id') id: string) {
     const schedule = await this.scheduleRepo.findById(id);
     if (!schedule) {
-      throw new NotFoundException(`Jadwal dengan ID ${id} tidak ditemukan`);
+      throw new EntityNotFoundException('Jadwal', id);
     }
     return schedule;
   }
@@ -810,17 +813,17 @@ export class SchedulesController {
   async toggleAvailability(
     @Param('id') id: string,
     @Body('isAvailable') isAvailable: boolean,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
     const existing = await this.scheduleRepo.findById(id);
     if (!existing) {
-      throw new NotFoundException(`Jadwal dengan ID ${id} tidak ditemukan`);
+      throw new EntityNotFoundException('Jadwal', id);
     }
     this.assertScheduleOwnership(existing, user);
 
     const updated = await this.scheduleRepo.toggleAvailability(id, isAvailable);
     if (!updated) {
-      throw new NotFoundException(`Jadwal dengan ID ${id} tidak ditemukan`);
+      throw new EntityNotFoundException('Jadwal', id);
     }
     return updated;
   }
@@ -845,11 +848,11 @@ export class SchedulesController {
   async updateSchedule(
     @Param('id') id: string,
     @Body() body: UpdateScheduleDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
     const existing = await this.scheduleRepo.findById(id);
     if (!existing) {
-      throw new NotFoundException(`Jadwal dengan ID ${id} tidak ditemukan`);
+      throw new EntityNotFoundException('Jadwal', id);
     }
     this.assertScheduleOwnership(existing, user);
 
@@ -866,7 +869,7 @@ export class SchedulesController {
       notes: body.notes,
     });
     if (!updated) {
-      throw new NotFoundException(`Jadwal dengan ID ${id} tidak ditemukan`);
+      throw new EntityNotFoundException('Jadwal', id);
     }
     return updated;
   }
@@ -886,16 +889,19 @@ export class SchedulesController {
   })
   @ApiNoContentResponse({ description: 'Jadwal berhasil dihapus' })
   @ApiNotFoundResponse({ description: 'Jadwal tidak ditemukan' })
-  async deleteSchedule(@Param('id') id: string, @CurrentUser() user: any) {
+  async deleteSchedule(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     const existing = await this.scheduleRepo.findById(id);
     if (!existing) {
-      throw new NotFoundException(`Jadwal dengan ID ${id} tidak ditemukan`);
+      throw new EntityNotFoundException('Jadwal', id);
     }
     this.assertScheduleOwnership(existing, user);
 
     const success = await this.scheduleRepo.delete(id);
     if (!success) {
-      throw new NotFoundException(`Jadwal dengan ID ${id} tidak ditemukan`);
+      throw new EntityNotFoundException('Jadwal', id);
     }
   }
 }

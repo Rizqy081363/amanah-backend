@@ -1,10 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { ICandidateResolverPort } from '../../candidate-assignment/contracts/candidate-resolver.contract';
-import type {
-  DoctorCandidateGroup,
-  DoctorCandidateItem,
-  DoctorCandidatesResult,
-} from '../../candidate-assignment/domain/entities/candidate-doctor.entity';
+import type { DoctorCandidatesResult } from '../../candidate-assignment/domain/entities/candidate-doctor.entity';
 import type { RoomCandidateItem } from '../../candidate-assignment/domain/entities/candidate-room.entity';
 import { CandidateResolverService } from '../../candidate-assignment/services/candidate-resolver.service';
 

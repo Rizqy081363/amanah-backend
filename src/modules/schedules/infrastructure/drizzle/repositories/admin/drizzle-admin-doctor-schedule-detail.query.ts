@@ -4,7 +4,6 @@ import {
   appointments,
   doctorAssignments,
   practitioners,
-  sessionDefs,
   shiftExceptions,
   staffLeaveRequests,
 } from '@database/schema';
@@ -108,7 +107,6 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
       monthAppointments,
       clinicPolicy,
       masterDaysList,
-      activeSessionDefs,
       monthApprovedLeaves,
       monthReplacementOpportunities,
     ] = await Promise.all([
@@ -146,12 +144,6 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
       }),
       this.policyReader.getClinicSchedulePolicy(),
       this.db.query.masterDays.findMany(),
-      this.db.query.sessionDefs.findMany({
-        where: eq(sessionDefs.isActive, true),
-        with: {
-          schedules: true,
-        },
-      }),
       this.db.query.staffLeaveRequests.findMany({
         where: and(
           or(

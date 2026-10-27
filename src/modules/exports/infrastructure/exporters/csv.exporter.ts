@@ -1,5 +1,5 @@
 import { Writable } from 'node:stream';
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import * as csv from 'fast-csv';
 import { ExportFormat } from '../../domain/export-job.entity';
 import { ExportSource } from '../../domain/export-source.interface';
@@ -14,7 +14,6 @@ export class CsvExporter implements Exporter {
   readonly format: ExportFormat = 'csv';
   readonly contentType = 'text/csv; charset=utf-8';
   readonly extension = 'csv';
-  private readonly logger = new Logger(CsvExporter.name);
 
   async run(
     ctx: ExportContext,

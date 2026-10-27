@@ -9,13 +9,10 @@ import { ClinicConfigService } from '../../../../common/clinic-config/clinic-con
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
-  doctorAssignments,
-  practitioners,
   sessionDefs,
   staffAttendanceRecords,
   staffLeaveRequests,
   staffProfiles,
-  staffRosters,
 } from '../../../../database/schema';
 import {
   compensationRates,
@@ -368,17 +365,6 @@ export class PayrollDrizzleRepository implements PayrollRepository {
 
     const summaries: PayrollSummary[] = [];
     let totalClinicPayout = 0;
-
-    // Estimate days in period (e.g. 30 days = ~4.3 weeks)
-    const startDate = new Date(periodStart);
-    const endDate = new Date(periodEnd);
-    const dayDiff = Math.max(
-      1,
-      Math.round(
-        (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24),
-      ) + 1,
-    );
-    const weeksInPeriod = Math.max(1, dayDiff / 7);
 
     const locale = this.clinicConfigService
       ? await this.clinicConfigService.getLocale().catch(() => 'id-ID')

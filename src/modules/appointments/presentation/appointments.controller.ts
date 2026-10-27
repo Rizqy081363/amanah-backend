@@ -32,11 +32,12 @@ import {
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
 import type { Response } from 'express';
+import type { AuthenticatedUser } from '../../../common/auth';
 import { CurrentUser } from '../../../common/auth/current-user.decorator';
 import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
-import { Public } from '../../../common/auth/public.decorator';
 import { Roles } from '../../../common/auth/roles.decorator';
 import { RolesGuard } from '../../../common/auth/roles.guard';
+import { zodPipe } from '../../../common/validation';
 import { HttpCache } from '../../../common/decorators/http-cache.decorator';
 import { Idempotent } from '../../../common/decorators/idempotent.decorator';
 import { formatETag } from '../../../common/occ';
@@ -48,11 +49,13 @@ import { AppointmentsService } from '../application/appointments.service';
 import { GenerateCheckInQrUseCase } from '../application/use-cases/generate-check-in-qr.use-case';
 import { PerformCheckInUseCase } from '../application/use-cases/perform-check-in.use-case';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
+import { CreateAppointmentSchema } from './dto/create-appointment.schema';
 import { PerformCheckInDto } from './dto/perform-check-in.dto';
 import { QueryAppointmentDto } from './dto/query-appointment.dto';
 import { QueryQueueNavigationDto } from './dto/query-queue-navigation.dto';
 import { QueueNavigationResponseDto } from './dto/queue-navigation-response.dto';
 import { RescheduleAppointmentDto } from './dto/reschedule-appointment.dto';
+import { RescheduleAppointmentSchema } from './dto/reschedule-appointment.schema';
 import { UpdateAppointmentStatusDto } from './dto/update-appointment-status.dto';
 import { AppointmentDomainExceptionFilter } from './filters/appointment-domain-exception.filter';
 
@@ -92,8 +95,8 @@ export class AppointmentsController {
   })
   @Idempotent()
   async createAppointment(
-    @Body() body: CreateAppointmentDto,
-    @CurrentUser() user: any,
+    @Body(zodPipe(CreateAppointmentSchema)) body: CreateAppointmentDto,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.appointmentsService.createAppointment(body, user);
   }
@@ -147,12 +150,8 @@ export class AppointmentsController {
   @ApiUnauthorizedResponse({ description: 'Sesi token tidak valid' })
   @Header('Cache-Control', 'no-store, no-cache, must-revalidate')
   @Header('Pragma', 'no-cache')
-  async getMyAppointments(@CurrentUser() user: any) {
-    const userId = user?.id || user?.sub;
-    if (!userId) {
-      return [];
-    }
-    return this.appointmentsService.findByUserId(userId);
+  async getMyAppointments(@CurrentUser() user: AuthenticatedUser) {
+    return this.appointmentsService.findByUserId(user.id);
   }
 
   @ApiBearerAuth('access-token')
@@ -532,11 +531,11 @@ export class AppointmentsController {
   @ApiUnauthorizedResponse({ description: 'Sesi token tidak valid' })
   async getRescheduleOptions(
     @Param('id') id: string,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.appointmentsService.getRescheduleOptions(
       id,
-      user?.id || user?.sub,
+      user.id,
       user,
     );
   }
@@ -562,13 +561,13 @@ export class AppointmentsController {
   @Idempotent()
   async rescheduleAppointment(
     @Param('id') id: string,
-    @Body() dto: RescheduleAppointmentDto,
-    @CurrentUser() user: any,
+    @Body(zodPipe(RescheduleAppointmentSchema)) dto: RescheduleAppointmentDto,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.appointmentsService.reschedule(
       id,
       dto,
-      user?.id || user?.sub,
+      user.id,
       user,
     );
   }

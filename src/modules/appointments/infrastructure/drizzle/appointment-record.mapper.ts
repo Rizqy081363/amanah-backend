@@ -86,11 +86,7 @@ export class AppointmentRecordMapper {
       directPatientAvatar ||
       (patientUserId ? `/api/v1/users/${patientUserId}/avatar` : null);
 
-    const doctorUserId = apt.practitioner?.staffProfile?.userId || null;
-    const directDoctorAvatar =
-      apt.practitioner?.staffProfile?.avatarUrl ||
-      apt.practitioner?.staffProfile?.user?.avatarUrl ||
-      null;
+
 
     const actualStartedAt = apt.actualStartedAt
       ? new Date(apt.actualStartedAt)

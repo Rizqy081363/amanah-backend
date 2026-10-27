@@ -1,3 +1,4 @@
+import type { AuthenticatedUser } from '../../../../common/auth';
 import { AdminUpdateAppointmentStatusDto } from '../../presentation/dto/admin-update-appointment-status.dto';
 import { CancelAppointmentDto } from '../../presentation/dto/cancel-appointment.dto';
 import { RescheduleAppointmentDto } from '../../presentation/dto/reschedule-appointment.dto';
@@ -49,13 +50,13 @@ export abstract class AppointmentRepository {
   abstract getRescheduleOptions(
     appointmentId: string,
     userId: string,
-    user?: any,
+    user?: AuthenticatedUser,
   ): Promise<any>;
   abstract reschedule(
     appointmentId: string,
     dto: RescheduleAppointmentDto,
     userId: string,
-    user?: any,
+    user?: AuthenticatedUser,
   ): Promise<AppointmentEntity>;
   abstract findDailyQueue(
     poliklinikId: string,

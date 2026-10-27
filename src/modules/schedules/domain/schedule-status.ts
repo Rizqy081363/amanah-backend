@@ -59,12 +59,6 @@ export function toAdminDayStatusResponseLabel(
   return ADMIN_DAY_STATUS_RESPONSE_LABEL[status];
 }
 
-export function isClosedScheduleStatus(value?: string | null): boolean {
-  return (
-    toSchedulePersistenceStatus(value) === SchedulePersistenceStatus.CLOSED
-  );
-}
-
 export function resolveSessionOperationalStatus(params: {
   isClosedForLeave: boolean;
   persistedStatus: string;

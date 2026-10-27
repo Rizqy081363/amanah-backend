@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import type { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
@@ -8,7 +8,6 @@ import { files } from '../../../../database/schema/amanah.schema';
 
 @Injectable()
 export class ExportStorageService {
-  private readonly logger = new Logger(ExportStorageService.name);
   private readonly exportsDir = path.resolve(process.cwd(), 'files', 'exports');
 
   constructor(

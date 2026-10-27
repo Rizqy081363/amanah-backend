@@ -33,7 +33,7 @@ import { FilesS3PresignedService } from './files.service';
         });
 
         return {
-          fileFilter: (request, file, callback) => {
+          fileFilter: (_request, file, callback) => {
             if (!file.originalname.match(/\.(jpg|jpeg|png|gif)$/i)) {
               return callback(
                 new UnprocessableEntityException({
@@ -53,7 +53,7 @@ import { FilesS3PresignedService } from './files.service';
             bucket: '',
             acl: 'public-read',
             contentType: multerS3.AUTO_CONTENT_TYPE,
-            key: (request, file, callback) => {
+            key: (_request, file, callback) => {
               callback(
                 null,
                 `${randomStringGenerator()}.${file.originalname

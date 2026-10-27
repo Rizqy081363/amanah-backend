@@ -25,8 +25,6 @@ export const STAFF_STATUS = {
   ON_LEAVE: 'on_leave',
 } as const;
 
-type StaffStatus = (typeof STAFF_STATUS)[keyof typeof STAFF_STATUS];
-
 export const BETTER_AUTH_STAFF_ROLES = {
   DOCTOR: 'staffDoctor',
   MIDWIFE: 'staffMidwife',

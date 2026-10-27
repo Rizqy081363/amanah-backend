@@ -1,6 +1,3 @@
-const RABBITMQ_CONNECTION = Symbol('RABBITMQ_CONNECTION');
-const RABBITMQ_CHANNEL = Symbol('RABBITMQ_CHANNEL');
-
 export const NOTIFICATIONS_EXCHANGE = 'notifications.exchange';
 export const NOTIFICATIONS_DLX_EXCHANGE = 'notifications.dlx';
 

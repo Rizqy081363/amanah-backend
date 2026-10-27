@@ -3,9 +3,7 @@ import { RedisService } from '@common/redis/redis.service';
 import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
-  appointments,
   clinicSettings,
-  doctorAssignments,
   masterDays,
   sessionDefs,
   sessionSchedules,
@@ -22,14 +20,13 @@ import {
   BadRequestException,
   Inject,
   Injectable,
-  Logger,
   Optional,
 } from '@nestjs/common';
 import {
   validateSessionDefsNonOverlap,
   validateWeeklyTemplatesNonOverlap,
 } from '@modules/schedules/domain/services/shift-overlap.validator';
-import { and, asc, eq, gte, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import {
   ClinicSettingCategory,
   ClinicSettingControlType,
@@ -97,10 +94,6 @@ export interface ScheduleConfigurationData {
 
 @Injectable()
 export class DrizzleAdminScheduleConfigurationRepository {
-  private readonly logger = new Logger(
-    DrizzleAdminScheduleConfigurationRepository.name,
-  );
-
   constructor(
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,

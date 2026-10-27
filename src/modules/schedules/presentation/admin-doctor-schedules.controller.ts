@@ -1,20 +1,26 @@
+import {
+  type AuthenticatedUser,
+  isAdminUser,
+} from '@common/auth';
 import { CurrentUser } from '@common/auth/current-user.decorator';
 import { HybridAuthGuard } from '@common/auth/hybrid-auth.guard';
 import { Roles } from '@common/auth/roles.decorator';
 import { RolesGuard } from '@common/auth/roles.guard';
 import { HttpCache } from '@common/decorators/http-cache.decorator';
+import {
+  DomainForbiddenException,
+  DomainValidationException,
+  EntityNotFoundException,
+} from '@common/exceptions';
 import { RedisService } from '@common/redis/redis.service';
 import {
-  BadRequestException,
   Body,
   Controller,
   Delete,
-  ForbiddenException,
   Get,
   HttpCode,
   HttpStatus,
   Inject,
-  NotFoundException,
   Optional,
   Param,
   Patch,
@@ -101,14 +107,18 @@ export class AdminDoctorSchedulesController {
     }
   }
 
-  private assertDoctorAccess(targetPractitionerId: string, user?: any) {
-    if (!user || user.systemRole === SYSTEM_ROLES.ADMIN) return;
+  private assertDoctorAccess(
+    targetPractitionerId: string,
+    user?: AuthenticatedUser,
+  ) {
+    if (!user || isAdminUser(user)) return;
     const doctorPractitionerId = user.staff?.practitionerId;
+    const staffId = user.staff?.id;
     if (
-      !doctorPractitionerId ||
-      doctorPractitionerId !== targetPractitionerId
+      (!doctorPractitionerId || doctorPractitionerId !== targetPractitionerId) &&
+      (!staffId || staffId !== targetPractitionerId)
     ) {
-      throw new ForbiddenException(
+      throw new DomainForbiddenException(
         'Akses ditolak: Anda hanya berwenang mengakses data jadwal dokter Anda sendiri',
       );
     }
@@ -176,7 +186,7 @@ export class AdminDoctorSchedulesController {
   async getDoctorScheduleDetail(
     @Param('id') id: string,
     @Query() query: AdminDoctorScheduleDetailQueryDto,
-    @CurrentUser() user?: any,
+    @CurrentUser() user?: AuthenticatedUser,
   ) {
     this.assertDoctorAccess(id, user);
     return this.scheduleRepo.findAdminDoctorScheduleDetail(id, query);
@@ -200,13 +210,14 @@ export class AdminDoctorSchedulesController {
   @ApiNotFoundResponse({
     description: 'Dokter tidak ditemukan',
   })
-  async getDoctorProfile(@Param('id') id: string, @CurrentUser() user?: any) {
+  async getDoctorProfile(
+    @Param('id') id: string,
+    @CurrentUser() user?: AuthenticatedUser,
+  ) {
     this.assertDoctorAccess(id, user);
     const profile = await this.staffRepo.findById(id);
     if (!profile) {
-      throw new NotFoundException(
-        `Profil dokter dengan ID ${id} tidak ditemukan`,
-      );
+      throw new EntityNotFoundException('Dokter', id);
     }
     return profile;
   }
@@ -232,14 +243,12 @@ export class AdminDoctorSchedulesController {
   async updateDoctorProfile(
     @Param('id') id: string,
     @Body() body: UpdateStaffDto,
-    @CurrentUser() user?: any,
+    @CurrentUser() user?: AuthenticatedUser,
   ) {
     this.assertDoctorAccess(id, user);
     const updated = await this.staffRepo.update(id, body);
     if (!updated) {
-      throw new NotFoundException(
-        `Gagal memperbarui profil dokter dengan ID ${id}`,
-      );
+      throw new EntityNotFoundException('Dokter', id);
     }
     await this.invalidateScheduleCaches();
     return updated;
@@ -268,7 +277,7 @@ export class AdminDoctorSchedulesController {
   async updateDoctorSchedule(
     @Param('id') id: string,
     @Body() body: UpdateAdminDoctorScheduleDto,
-    @CurrentUser() user?: any,
+    @CurrentUser() user?: AuthenticatedUser,
   ) {
     this.assertDoctorAccess(id, user);
     const result = await this.scheduleRepo.updateAdminDoctorSchedule(id, body);
@@ -300,7 +309,7 @@ export class AdminDoctorSchedulesController {
   async updateDoctorSchedulePut(
     @Param('id') id: string,
     @Body() body: UpdateAdminDoctorScheduleDto,
-    @CurrentUser() user?: any,
+    @CurrentUser() user?: AuthenticatedUser,
   ) {
     this.assertDoctorAccess(id, user);
     const result = await this.scheduleRepo.updateAdminDoctorSchedule(id, body);
@@ -335,7 +344,7 @@ export class AdminDoctorSchedulesController {
     @Param('id') id: string,
     @Param('date') date: string,
     @Body() body: UpdateAdminDayStatusDto,
-    @CurrentUser() user?: any,
+    @CurrentUser() user?: AuthenticatedUser,
   ) {
     this.assertDoctorAccess(id, user);
     const result = await this.scheduleRepo.updateAdminDayStatus(
@@ -369,11 +378,13 @@ export class AdminDoctorSchedulesController {
   async updateDayStatusByBody(
     @Param('id') id: string,
     @Body() body: UpdateAdminDayStatusDto,
-    @CurrentUser() user?: any,
+    @CurrentUser() user?: AuthenticatedUser,
   ) {
     this.assertDoctorAccess(id, user);
     if (!body.date) {
-      throw new BadRequestException('Tanggal dinas (date) wajib disertakan');
+      throw new DomainValidationException(
+        'Tanggal dinas (date) wajib disertakan',
+      );
     }
     const result = await this.scheduleRepo.updateAdminDayStatus(
       id,
@@ -410,7 +421,7 @@ export class AdminDoctorSchedulesController {
   async createSession(
     @Param('id') id: string,
     @Body() body: CreateAdminDoctorSessionDto,
-    @CurrentUser() user?: any,
+    @CurrentUser() user?: AuthenticatedUser,
   ) {
     this.assertDoctorAccess(id, user);
     const result = await this.scheduleRepo.createAdminDoctorSession(id, body);
@@ -445,7 +456,7 @@ export class AdminDoctorSchedulesController {
     @Param('id') id: string,
     @Param('sessionId') sessionId: string,
     @Body() body: UpdateAdminDoctorSessionDto,
-    @CurrentUser() user?: any,
+    @CurrentUser() user?: AuthenticatedUser,
   ) {
     this.assertDoctorAccess(id, user);
     const result = await this.scheduleRepo.updateAdminDoctorSession(
@@ -486,7 +497,7 @@ export class AdminDoctorSchedulesController {
     @Param('id') id: string,
     @Param('sessionId') sessionId: string,
     @Query() query: CheckRescheduleEligibilityQueryDto,
-    @CurrentUser() user?: any,
+    @CurrentUser() user?: AuthenticatedUser,
   ) {
     this.assertDoctorAccess(id, user);
     const result = await this.scheduleRepo.checkRescheduleEligibility(
@@ -530,7 +541,7 @@ export class AdminDoctorSchedulesController {
     @Param('id') id: string,
     @Param('sessionId') sessionId: string,
     @Body() body: RescheduleAdminDoctorSessionDto,
-    @CurrentUser() user?: any,
+    @CurrentUser() user?: AuthenticatedUser,
   ) {
     this.assertDoctorAccess(id, user);
     const result = await this.scheduleRepo.rescheduleAdminDoctorSession(
@@ -602,7 +613,7 @@ export class AdminDoctorSchedulesController {
     @Param('id') id: string,
     @Param('sessionId') sessionId: string,
     @Query() query: GetSessionPatientsQueryDto,
-    @CurrentUser() user?: any,
+    @CurrentUser() user?: AuthenticatedUser,
   ) {
     this.assertDoctorAccess(id, user);
     return this.scheduleRepo.getAdminSessionPatients(id, sessionId, query);
@@ -635,7 +646,7 @@ export class AdminDoctorSchedulesController {
   async getDoctorPatientsByDate(
     @Param('id') id: string,
     @Query() query: GetAdminDoctorPatientsQueryDto,
-    @CurrentUser() user?: any,
+    @CurrentUser() user?: AuthenticatedUser,
   ) {
     this.assertDoctorAccess(id, user);
     return this.scheduleRepo.getAdminDoctorPatientsByDate(

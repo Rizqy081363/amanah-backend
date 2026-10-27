@@ -1,5 +1,3 @@
-const DEFAULT_FALLBACK_CAPACITY = 20;
-
 const QUEUE_LOAD_STATUS = {
   SMOOTH: 'Lancar',
   BUSY: 'Ramai',

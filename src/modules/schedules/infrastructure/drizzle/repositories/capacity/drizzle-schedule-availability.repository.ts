@@ -2,19 +2,13 @@ import { generateEntityVersion } from '@common/occ';
 import { ClinicTimeService } from '@common/time/clinic-time.service';
 import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
-import {
-  doctorAssignments,
-  practitioners,
-  sessionDefs,
-} from '@database/schema';
+import { sessionDefs } from '@database/schema';
 import {
   SCHEDULE_CONTEXT_DEFINITIONS,
   type ScheduleContextDefinition,
 } from '@modules/schedules/domain/constants/schedule-context.constants';
 import {
-  type ScheduleAvailabilityMutationResponse,
   type ScheduleContextEntity,
-  type ScheduleEntity,
   type ScheduleProjectionEntity,
 } from '@modules/schedules/domain/entities/schedule.entity';
 import { ScheduleSessionFactory } from '@modules/schedules/domain/factories/schedule-session.factory';
@@ -23,27 +17,19 @@ import {
   projectScheduleProjection,
   type ScheduleClosedReason,
 } from '@modules/schedules/domain/schedule-projection';
-import {
-  isClosedScheduleStatus,
-  SchedulePersistenceStatus,
-} from '@modules/schedules/domain/schedule-status';
 import { ScheduleContextResolver } from '@modules/schedules/domain/services/schedule-context-resolver';
-import { ScheduleRecordMapper } from '@modules/schedules/infrastructure/drizzle/mappers/schedule-record.mapper';
 import { AppointmentOccupationQuery } from '@modules/schedules/infrastructure/drizzle/queries/appointment-occupation.query';
-import { ScheduleConflictQuery } from '@modules/schedules/infrastructure/drizzle/queries/schedule-conflict.query';
 import { SchedulePolicyReader } from '@modules/schedules/infrastructure/drizzle/queries/schedule-policy.reader';
 import { PractitionerResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/practitioner.resolver';
-import { RoomResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/room.resolver';
 import type { ScheduleProjectionQueryDto } from '@modules/schedules/presentation/dto/schedule-projection-query.dto';
 import {
-  ConflictException,
   Inject,
   Injectable,
   NotFoundException,
   Optional,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 
 @Injectable()
 export class DrizzleScheduleAvailabilityRepository {
@@ -51,9 +37,7 @@ export class DrizzleScheduleAvailabilityRepository {
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,
     private readonly practitionerResolver: PractitionerResolver,
-    private readonly roomResolver: RoomResolver,
     private readonly policyReader: SchedulePolicyReader,
-    private readonly conflictQuery: ScheduleConflictQuery,
     private readonly occupationQuery: AppointmentOccupationQuery,
     @Optional()
     private readonly clinicTimeService?: ClinicTimeService,

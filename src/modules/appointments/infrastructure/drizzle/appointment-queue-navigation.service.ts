@@ -1,6 +1,5 @@
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
-import { ClinicTimeService } from '../../../../common/time/clinic-time.service';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
@@ -26,8 +25,6 @@ export class AppointmentQueueNavigationService {
     private readonly db: DrizzleDatabase,
     @Optional()
     private readonly poliklinikResolver?: AppointmentPoliklinikResolver,
-    @Optional()
-    private readonly clinicTimeService?: ClinicTimeService,
   ) {}
 
   async getNavigation(

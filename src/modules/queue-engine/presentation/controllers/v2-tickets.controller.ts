@@ -10,7 +10,7 @@ import {
   Post,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import { and, eq, or } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import {
   clinicRooms,
@@ -25,7 +25,6 @@ import {
 import { ActiveTicketPolicyService } from '../../../appointments/domain/services/active-ticket-policy.service';
 import {
   OutboxStatus,
-  QUEUE_CONFIG_KEYS,
   QUEUE_OUTBOX_KINDS,
   QUEUE_PRIORITY,
   QUEUE_TICKET_EVENTS,
@@ -35,7 +34,6 @@ import {
 import { EstimatorService } from '../../domain/services/estimator.service';
 import { QueueEngineService } from '../../domain/services/queue-engine.service';
 import { SimulatorService } from '../../domain/services/simulator.service';
-import { ClinicSettingService } from '../../infrastructure/config/clinic-setting.service';
 import { DrizzleQueueEngineRepository } from '../../infrastructure/drizzle/drizzle-queue-engine.repository';
 import {
   CreateQueueTicketDto,
@@ -51,7 +49,6 @@ export class V2TicketsController {
     private readonly queueEngine: QueueEngineService,
     private readonly estimator: EstimatorService,
     private readonly simulator: SimulatorService,
-    private readonly clinicSetting: ClinicSettingService,
     private readonly clinicConfig: ClinicConfigService,
   ) {}
 

@@ -42,10 +42,3 @@ export interface PatientTicketView {
   roomName: string | null; // NULL if status === 'waiting'
   doctorName: string | null; // NULL if status === 'waiting'
 }
-
-interface StaffTicketView extends DomainQueueTicket {
-  patientName: string;
-  patientNik?: string | null;
-  roomName?: string | null;
-  doctorName?: string | null;
-}

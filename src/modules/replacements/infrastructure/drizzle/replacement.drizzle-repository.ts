@@ -7,14 +7,10 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
-import { and, desc, eq, gte, inArray, lte } from 'drizzle-orm';
+import { and, desc, eq, gte, lte } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
-import {
-  practitioners,
-  sessionDefs,
-  staffProfiles,
-} from '../../../../database/schema';
+import { practitioners } from '../../../../database/schema';
 import { replacementOpportunities } from '../../../../database/schema/leave-payroll.schema';
 import { NotificationGatewayService } from '../../../notifications/application/services/notification-gateway.service';
 import { ReplacementOpportunityEntity } from '../../domain/entities/replacement-opportunity.entity';

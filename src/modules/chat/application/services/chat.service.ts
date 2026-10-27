@@ -9,7 +9,6 @@ import {
   Optional,
 } from '@nestjs/common';
 import {
-  CANONICAL_ROLES,
   CHAT_SUPPORT_ROLES,
 } from '../../../../auth/constants/auth.constants';
 import { RealtimeGatewayPort } from '../../../notifications/contracts/realtime-gateway.interface';

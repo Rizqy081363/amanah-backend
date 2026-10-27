@@ -1,7 +1,6 @@
 import { forwardRef, Inject, Injectable, Logger } from '@nestjs/common';
 import {
   QUEUE_EVENTS_EXCHANGE,
-  ROUTING_KEY_QUEUE_PROGRESSION,
 } from '../../../../common/rabbitmq/rabbitmq.constants';
 import { RabbitMQService } from '../../../../common/rabbitmq/rabbitmq.service';
 import {

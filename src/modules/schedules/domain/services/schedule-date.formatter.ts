@@ -1,5 +1,3 @@
-import { Temporal } from '@js-temporal/polyfill';
-
 export type DateDisplayFormatStyle =
   | 'human_full'
   | 'human_medium'

@@ -12,9 +12,7 @@ import type {
   CalendarSummaryResponse,
   ClinicalPractitionerEntity,
   ClinicRoomReferenceEntity,
-  DayScheduleSettingEntity,
   RescheduleEligibilityEntity,
-  ScheduleAvailabilityMutationResponse,
   ScheduleCapacityOverviewData,
   ScheduleContextEntity,
   ScheduleEntity,
@@ -95,14 +93,15 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
     @Optional() adminMutationRepo?: DrizzleAdminScheduleMutationRepository,
     @Optional() clinicConfigService?: ClinicConfigService,
   ) {
+    const resolvedConfig = clinicConfigService ?? new ClinicConfigService(db);
     const resolvedPractitioner =
       practitionerResolver ?? new PractitionerResolver(db);
     const resolvedRoom = roomResolver ?? new RoomResolver(db);
-    const resolvedPolicy = policyReader ?? new SchedulePolicyReader(db);
+    const resolvedPolicy =
+      policyReader ?? new SchedulePolicyReader(resolvedConfig);
     const resolvedConflict = conflictQuery ?? new ScheduleConflictQuery(db);
     const resolvedOccupation =
       occupationQuery ?? new AppointmentOccupationQuery(db);
-    const resolvedConfig = clinicConfigService ?? new ClinicConfigService(db);
 
     this.sessionRepo =
       sessionRepo ??
@@ -121,9 +120,7 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
       new DrizzleScheduleAvailabilityRepository(
         db,
         resolvedPractitioner,
-        resolvedRoom,
         resolvedPolicy,
-        resolvedConflict,
         resolvedOccupation,
       );
     this.capacityRepo =

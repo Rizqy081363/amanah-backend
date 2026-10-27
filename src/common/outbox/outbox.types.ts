@@ -1,5 +1,3 @@
-import { OutboxEventSelect } from '../../database/schema/outbox.schema';
-
 export interface OutboxEventRecord {
   aggregateType: string;
   aggregateId: string;
@@ -26,5 +24,3 @@ export interface OutboxProcessResult {
   failedCount: number;
   metrics: OutboxMetrics;
 }
-
-type OutboxEventItem = OutboxEventSelect;

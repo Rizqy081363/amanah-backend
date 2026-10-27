@@ -20,10 +20,15 @@ import {
   ApiUnauthorizedResponse,
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
-import { CurrentUser } from '../../../common/auth/current-user.decorator';
-import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
-import { Roles } from '../../../common/auth/roles.decorator';
-import { RolesGuard } from '../../../common/auth/roles.guard';
+import {
+  type AuthenticatedUser,
+  CurrentUser,
+  HybridAuthGuard,
+  isStaffUser,
+  Roles,
+  RolesGuard,
+} from '../../../common/auth';
+import { DomainForbiddenException } from '../../../common/exceptions';
 import { CheckOutAttendanceUseCase } from '../application/use-cases/checkout-attendance.use-case';
 import { GetAttendanceExportCandidatesUseCase } from '../application/use-cases/get-attendance-export-candidates.use-case';
 import { GetDailyAttendanceBffUseCase } from '../application/use-cases/get-daily-attendance-bff.use-case';
@@ -75,9 +80,12 @@ export class AttendanceController {
   @ApiUnprocessableEntityResponse({
     description: 'Format token QR atau sesi shift tidak valid',
   })
-  async scanQr(@Body() body: ScanQrDto, @CurrentUser() user: any) {
-    if (!user.staff?.id) {
-      throw new ForbiddenException(
+  async scanQr(
+    @Body() body: ScanQrDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    if (!isStaffUser(user)) {
+      throw new DomainForbiddenException(
         'User bukan staf atau tenaga medis terdaftar',
       );
     }

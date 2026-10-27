@@ -1,11 +1,7 @@
-import {
-  ConflictException,
-  Inject,
-  Injectable,
-  Optional,
-} from '@nestjs/common';
-import { and, eq, inArray, not, sql } from 'drizzle-orm';
+import { Inject, Injectable, Optional } from '@nestjs/common';
+import { and, eq, inArray, not } from 'drizzle-orm';
 import type { ClinicConfigService } from '../../../../common/clinic-config/clinic-config.service';
+import { DomainConflictException } from '../../../../common/exceptions';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import type { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import { queueTickets } from '../../../../database/schema';
@@ -117,11 +113,11 @@ export class ActiveTicketPolicyService {
 
     if (activeTickets.length >= maxAllowed) {
       const existingTicket = activeTickets[0];
-      throw new ConflictException({
-        code: 'ACTIVE_TICKET_CONFLICT',
-        message: `Pasien sudah memiliki tiket antrean aktif (${existingTicket.queueNumber}) untuk kategori ini pada tanggal ${params.queueDate}. Silakan gunakan tiket yang sudah ada atau selesaikan antrean terlebih dahulu.`,
-        activeTicket: existingTicket,
-      });
+      throw new DomainConflictException(
+        'ACTIVE_TICKET_CONFLICT',
+        `Pasien sudah memiliki tiket antrean aktif (${existingTicket.queueNumber}) untuk kategori ini pada tanggal ${params.queueDate}. Silakan gunakan tiket yang sudah ada atau selesaikan antrean terlebih dahulu.`,
+        { activeTicket: existingTicket },
+      );
     }
   }
 

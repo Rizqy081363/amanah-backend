@@ -50,6 +50,9 @@ export class InAppNotificationQueueWorker
   }
 
   private async startConsumer(): Promise<void> {
+    if (this.isConsuming) {
+      return;
+    }
     const channel = this.rabbitmqService.getChannel();
     if (!channel) {
       this.logger.warn(

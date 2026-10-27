@@ -1,5 +1,5 @@
 import { Writable } from 'node:stream';
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import pdfmake from 'pdfmake';
 import { ExportFormat } from '../../domain/export-job.entity';
 import { ExportSource } from '../../domain/export-source.interface';
@@ -22,7 +22,6 @@ export class PdfExporter implements Exporter {
   readonly format: ExportFormat = 'pdf';
   readonly contentType = 'application/pdf';
   readonly extension = 'pdf';
-  private readonly logger = new Logger(PdfExporter.name);
 
   constructor() {
     pdfmake.setFonts({

@@ -11,13 +11,3 @@ export class SystemClock extends Clock {
     return Temporal.Now.instant();
   }
 }
-
-class FixedClock extends Clock {
-  constructor(private readonly instant: Temporal.Instant) {
-    super();
-  }
-
-  now(): Temporal.Instant {
-    return this.instant;
-  }
-}

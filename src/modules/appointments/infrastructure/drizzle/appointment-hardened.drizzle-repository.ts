@@ -590,12 +590,6 @@ export class AppointmentHardenedDrizzleRepository
       directPatientAvatar ||
       (patientUserId ? `/api/v1/users/${patientUserId}/avatar` : null);
 
-    const doctorUserId = apt.practitioner?.staffProfile?.userId || null;
-    const directDoctorAvatar =
-      apt.practitioner?.staffProfile?.avatarUrl ||
-      apt.practitioner?.staffProfile?.user?.avatarUrl ||
-      null;
-
     return {
       id: apt.id,
       bookingCode: apt.bookingCode || '',

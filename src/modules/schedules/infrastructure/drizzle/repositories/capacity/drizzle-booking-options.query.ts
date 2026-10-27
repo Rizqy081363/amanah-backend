@@ -4,7 +4,6 @@ import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
   clinicClosures,
-  clinicRooms,
   clinicUnits,
   doctorAssignments,
   masterDays,
@@ -23,7 +22,7 @@ import {
   Injectable,
   Optional,
 } from '@nestjs/common';
-import { and, asc, eq, isNull, or, sql } from 'drizzle-orm';
+import { and, asc, eq, isNull, or } from 'drizzle-orm';
 
 interface BookingPractitionerItem {
   id: string;

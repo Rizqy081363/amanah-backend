@@ -1,13 +1,10 @@
 import { AdminScheduleStatusRequest } from '@modules/schedules/domain/schedule-status';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
 import {
   IsBoolean,
   IsEnum,
-  IsInt,
   IsOptional,
   IsString,
-  Min,
 } from 'class-validator';
 
 export class UpdateAdminDoctorScheduleDto {

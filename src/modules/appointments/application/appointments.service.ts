@@ -1,3 +1,8 @@
+import type { AuthenticatedUser } from '../../../common/auth';
+import {
+  DomainForbiddenException,
+  DomainValidationException,
+} from '../../../common/exceptions';
 import {
   BadRequestException,
   ForbiddenException,
@@ -86,12 +91,13 @@ export class AppointmentsService {
 
   async createAppointment(
     body: CreateAppointmentDto,
-    user: any,
+    user: AuthenticatedUser,
   ): Promise<AppointmentEntity> {
     const patientId = body.patientId || user.patient?.id;
     if (!patientId) {
-      throw new ForbiddenException(
+      throw new DomainForbiddenException(
         'Patient ID wajib disertakan atau akun harus terhubung ke data pasien',
+        'PATIENT_IDENTIFIER_REQUIRED',
       );
     }
 
@@ -103,7 +109,9 @@ export class AppointmentsService {
     const queueNumber = String(nextIndex);
 
     if (!body.visitType) {
-      throw new BadRequestException('Tipe kunjungan (visitType) wajib diisi');
+      throw new DomainValidationException(
+        'Tipe kunjungan (visitType) wajib diisi',
+      );
     }
 
     const created = await this.appointmentRepo.create({
@@ -118,9 +126,10 @@ export class AppointmentsService {
       visitType: body.visitType,
       complaint: body.complaint || null,
       sourceIntakeId: body.sourceIntakeId || null,
+      createdBy: user.id,
     });
 
-    const actor = { userId: user?.id || user?.sub, roleCode: user?.role };
+    const actor = { userId: user.id, roleCode: user.roleCode };
     await this.dispatchDomainEvent(
       {
         aggregateType: 'appointment',
@@ -213,7 +222,7 @@ export class AppointmentsService {
   async getRescheduleOptions(
     appointmentId: string,
     userId: string,
-    user?: any,
+    user?: AuthenticatedUser,
   ): Promise<any> {
     return this.appointmentRepo.getRescheduleOptions(
       appointmentId,
@@ -226,7 +235,7 @@ export class AppointmentsService {
     appointmentId: string,
     dto: RescheduleAppointmentDto,
     userId: string,
-    user?: any,
+    user?: AuthenticatedUser,
   ): Promise<AppointmentEntity> {
     const updated = await this.appointmentRepo.reschedule(
       appointmentId,
@@ -289,7 +298,7 @@ export class AppointmentsService {
   }
 
   async findMyQueue(
-    patientIdOrUserId: string,
+    _patientIdOrUserId: string,
     today: BusinessDate,
     poliklinikId?: string,
   ): Promise<QueueResponseEnvelope<AppointmentEntity[]>> {

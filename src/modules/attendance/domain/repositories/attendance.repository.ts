@@ -1,10 +1,8 @@
 import { AttendanceEntity } from '../entities/attendance.entity';
-import { QrSessionEntity } from '../entities/qr-session.entity';
+import type { QrSessionEntity } from '../entities/qr-session.entity';
 import type { StaffType } from '../../../staffs/domain/constants/staff-invitation.constants';
 
 export const ATTENDANCE_REPOSITORY = 'ATTENDANCE_REPOSITORY';
-
-type QRSessionInfo = QrSessionEntity;
 
 interface AttendanceHistorySummaryDto {
   totalWorkHours: number;

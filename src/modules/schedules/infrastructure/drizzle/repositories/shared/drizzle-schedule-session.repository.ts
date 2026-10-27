@@ -23,7 +23,7 @@ import {
 } from '@nestjs/common';
 import { ClinicConfigService } from '@common/clinic-config/clinic-config.service';
 import { isUUID } from 'class-validator';
-import { and, asc, desc, eq, gte, inArray, lte, or, sql } from 'drizzle-orm';
+import { and, eq, gte, inArray, lte, or, sql } from 'drizzle-orm';
 
 @Injectable()
 export class DrizzleScheduleSessionRepository {

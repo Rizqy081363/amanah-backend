@@ -145,7 +145,6 @@ export class StaffInvitationService {
     const betterAuthRole: BetterAuthStaffRole = isMidwife
       ? BETTER_AUTH_STAFF_ROLES.MIDWIFE
       : BETTER_AUTH_STAFF_ROLES.DOCTOR;
-    const roleTitle = isMidwife ? 'Bidan' : 'Dokter';
     const prefix = isMidwife ? 'BDN' : 'DOC';
 
     // 1. Create or update user account

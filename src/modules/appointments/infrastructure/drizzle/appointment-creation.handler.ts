@@ -1,17 +1,14 @@
 import { Temporal } from '@js-temporal/polyfill';
 import {
-  BadRequestException,
-  NotFoundException,
-  UnprocessableEntityException,
-} from '@nestjs/common';
+  DomainConflictException,
+  DomainForbiddenException,
+  EntityNotFoundException,
+} from '../../../../common/exceptions';
 import {
   and,
-  asc,
   eq,
-  ilike,
   inArray,
   isNull,
-  not,
   or,
   sql,
 } from 'drizzle-orm';
@@ -22,7 +19,6 @@ import {
   appointments,
   childImmunizationIntakes,
   clinicClosures,
-  clinicRooms,
   clinicServices,
   clinicUnits,
   maternalHealthIntakes,
@@ -62,17 +58,13 @@ export class AppointmentCreationHandler {
         },
       });
       if (!patient) {
-        throw new NotFoundException({
-          code: 'PATIENT_NOT_FOUND',
-          message: 'Data profil pasien tidak ditemukan.',
-        });
+        throw new EntityNotFoundException('Pasien', data.patientId);
       }
       if (patient.status === 'inactive') {
-        throw new BadRequestException({
-          code: 'PATIENT_INACTIVE',
-          message:
-            'Pasien dalam status nonaktif tidak dapat membuat janji temu baru.',
-        });
+        throw new DomainForbiddenException(
+          'Pasien dalam status nonaktif tidak dapat membuat janji temu baru.',
+          'PATIENT_INACTIVE',
+        );
       }
     }
 
@@ -85,7 +77,7 @@ export class AppointmentCreationHandler {
       where: eq(sessionDefs.code, targetShift),
     });
     if (!sessionRecord) {
-      throw new BadRequestException(`Sesi jadwal tidak valid: ${targetShift}`);
+      throw new EntityNotFoundException('Sesi jadwal', targetShift);
     }
 
     const policy = clinicConfig
@@ -122,7 +114,6 @@ export class AppointmentCreationHandler {
       practitionerId = prac ? prac.id : data.staffId;
     }
 
-    let isLayananKebidanan = false;
     let clinicServiceRecord: any = null;
     if (data.layananId) {
       clinicServiceRecord = await db.query.clinicServices.findFirst({
@@ -139,12 +130,8 @@ export class AppointmentCreationHandler {
           clinicServiceRecord.medicalFlow === 'pregnancy' ||
           clinicServiceRecord.medicalFlow === 'immunization')
       ) {
-        isLayananKebidanan = true;
         const kiaUnit = await db.query.clinicUnits.findFirst({
-          where: or(
-            eq(clinicUnits.code, 'poli_kia'),
-            ilike(clinicUnits.name, '%kia%'),
-          ),
+          where: eq(clinicUnits.code, 'poli_kia'),
         });
         if (kiaUnit) {
           data.poliklinikId = kiaUnit.id;
@@ -163,8 +150,9 @@ export class AppointmentCreationHandler {
             prac?.medicalSpecialty?.code ===
             MEDICAL_SPECIALTY_CODES.MATERNAL_CHILD_HEALTH;
           if (!isMidwife && !isKiaSpecialty) {
-            throw new UnprocessableEntityException(
+            throw new DomainForbiddenException(
               'Layanan KIA hanya dapat ditangani oleh Bidan atau Dokter Spesialis KIA',
+              'KIA_SPECIALTY_REQUIRED',
             );
           }
         }
@@ -231,7 +219,8 @@ export class AppointmentCreationHandler {
       }
 
       if (!foundOpenDate) {
-        throw new UnprocessableEntityException(
+        throw new DomainConflictException(
+          'CLINIC_CLOSED',
           `Layanan sedang tutup (${activeClosure.reason || 'Penutupan operasional'}). Tidak ada jadwal buka yang tersedia dalam 14 hari ke depan. Silakan hubungi admin klinik (Rule R19).`,
         );
       }
@@ -258,14 +247,7 @@ export class AppointmentCreationHandler {
     }
 
     const effectiveMedicalFlow =
-      (clinicServiceRecord?.medicalFlow as any) ||
-      (data as any).medicalFlow ||
-      (clinicServiceRecord?.name?.toLowerCase().includes('imunisasi')
-        ? 'immunization'
-        : clinicServiceRecord?.name?.toLowerCase().includes('kebidanan') ||
-            clinicServiceRecord?.name?.toLowerCase().includes('persalinan')
-          ? 'pregnancy'
-          : null);
+      clinicServiceRecord?.medicalFlow || data.medicalFlow || null;
 
     const targetUnitId = data.poliklinikId;
     let unitPrefix: string | null = null;
@@ -409,8 +391,7 @@ export class AppointmentCreationHandler {
         estimatedEndAt: estimatedEnd.toISOString(),
         complaint: data.complaint || null,
         medicalFlow: effectiveMedicalFlow,
-        createdBy:
-          (data as any).createdBy || (data as any).patientUserId || null,
+        createdBy: data.createdBy || null,
       })
       .returning();
 

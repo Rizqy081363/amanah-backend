@@ -8,6 +8,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
+import { DomainException } from '../exceptions/domain.exceptions';
 import { CORRELATION_ID_HEADER } from '../middleware/correlation-id.middleware';
 
 export interface InvalidParam {
@@ -55,7 +56,18 @@ export class ProblemDetailsFilter implements ExceptionFilter {
     let invalidParams: InvalidParam[] | undefined;
     const extraFields: Record<string, any> = {};
 
-    if (exception instanceof HttpException) {
+    if (exception instanceof DomainException) {
+      status = exception.getStatus();
+      title = this.getStatusTitle(status);
+      code = exception.code;
+      detail = exception.message;
+      if (exception.invalidParams && exception.invalidParams.length > 0) {
+        invalidParams = exception.invalidParams;
+      }
+      if (exception.details) {
+        extraFields.details = exception.details;
+      }
+    } else if (exception instanceof HttpException) {
       status = exception.getStatus();
       title = this.getStatusTitle(status);
       const res = exception.getResponse();
@@ -91,6 +103,12 @@ export class ProblemDetailsFilter implements ExceptionFilter {
           invalidParams = this.extractValidationErrors(resObj.errors);
           detail = 'Form validation failed for one or more fields.';
           code = 'VALIDATION_FAILED';
+        } else if (Array.isArray(resObj.invalidParams)) {
+          invalidParams = resObj.invalidParams;
+        }
+
+        if (resObj.details && typeof resObj.details === 'object') {
+          extraFields.details = resObj.details;
         }
 
         if (typeof resObj.currentVersion === 'string') {

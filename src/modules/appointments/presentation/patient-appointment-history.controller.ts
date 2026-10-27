@@ -19,10 +19,14 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { eq } from 'drizzle-orm';
-import { CurrentUser } from '../../../common/auth/current-user.decorator';
-import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
-import { Roles } from '../../../common/auth/roles.decorator';
-import { RolesGuard } from '../../../common/auth/roles.guard';
+import {
+  type AuthenticatedUser,
+  CurrentUser,
+  HybridAuthGuard,
+  isPatientUser,
+  Roles,
+  RolesGuard,
+} from '../../../common/auth';
 import { DRIZZLE_SOURCE } from '../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../database/drizzle/drizzle.provider';
 import { patientProfiles } from '../../../database/schema';
@@ -55,11 +59,13 @@ export class PatientAppointmentHistoryController {
   })
   async getMyHistory(
     @Query() query: PatientAppointmentHistoryQueryDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    const patient = await this.db.query.patientProfiles.findFirst({
-      where: eq(patientProfiles.userId, user.id),
-    });
+    const patient =
+      (isPatientUser(user) && user.patient) ||
+      (await this.db.query.patientProfiles.findFirst({
+        where: eq(patientProfiles.userId, user.id),
+      }));
 
     if (!patient) {
       return {

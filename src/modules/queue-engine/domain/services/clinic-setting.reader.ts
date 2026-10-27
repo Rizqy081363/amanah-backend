@@ -1,11 +1,7 @@
-import { MissingConfigKeyError } from '@common/clinic-config';
-
 export interface ScopeQuery {
   doctorId?: string;
   categoryId?: string;
 }
-
-;
 
 export interface IClinicSettingReader {
   get<T = any>(key: string, scope?: ScopeQuery): Promise<T>;

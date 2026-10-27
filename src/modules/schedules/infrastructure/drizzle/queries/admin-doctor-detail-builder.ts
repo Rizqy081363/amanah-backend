@@ -10,9 +10,7 @@ import {
 } from '@modules/schedules/domain/entities/schedule.entity';
 import {
   ScheduleSessionFactory,
-  SHIFT_DEFINITIONS,
 } from '@modules/schedules/domain/factories/schedule-session.factory';
-import { parseClockTime } from '@modules/schedules/domain/schedule-projection';
 import {
   resolveAggregateOperationalStatus,
   resolveSessionOperationalStatus,
@@ -47,11 +45,8 @@ export function buildMonthlySchedule(
     monthSettings,
     monthLeaves,
     monthSessions,
-    monthAppointments,
-    consultationDurationMinutes,
     doctorAssignments,
     shiftExceptions,
-    clinicPolicy,
   } = ctx;
 
   const monthlySchedule: AdminDoctorMonthlyDayEntity[] = [];
@@ -107,60 +102,10 @@ export function buildMonthlySchedule(
         });
     }
 
-    const dayAppts = monthAppointments.filter(
-      (a) => a.scheduledDate === dateStr,
-    );
-
     const isOnLeave = Boolean(daySetting?.isLeave || leave);
     let dayNotes: string | null = null;
 
     const daySessionStatuses = daySessions.map((s) => {
-      const sessStart = s.startTime
-        ? s.startTime.length === 5
-          ? `${s.startTime}:00`
-          : s.startTime
-        : '';
-      const sessEnd = s.endTime
-        ? s.endTime.length === 5
-          ? `${s.endTime}:00`
-          : s.endTime
-        : '';
-
-      const matchingAppts = dayAppts.filter((a) => {
-        if (a.practitionerId !== s.practitionerId) return false;
-        const aStart =
-          a.scheduledStartTime?.length === 5
-            ? `${a.scheduledStartTime}:00`
-            : a.scheduledStartTime || sessStart;
-        return aStart >= sessStart && aStart < sessEnd;
-      });
-
-      // Only active appointments counted for booked metrics
-      const activeMatchingAppts = matchingAppts.filter(
-        (a) =>
-          !INACTIVE_APPOINTMENT_STATUSES.includes(
-            (a.status?.toLowerCase() || '') as any,
-          ),
-      );
-
-      const shiftDef = SHIFT_DEFINITIONS.find(
-        (d) => d.shift === s.sessionShift,
-      );
-      const boundaryStart =
-        shiftDef?.boundaryStartTime || SHIFT_DEFINITIONS[1].boundaryStartTime;
-      const boundaryEnd =
-        shiftDef?.boundaryEndTime || SHIFT_DEFINITIONS[1].boundaryEndTime;
-
-      const metrics = ScheduleSessionFactory.calculateSessionMetrics({
-        startTime: s.startTime ? s.startTime.slice(0, 5) : boundaryStart,
-        endTime: s.endTime ? s.endTime.slice(0, 5) : boundaryEnd,
-        durationMinutes:
-          consultationDurationMinutes || DEFAULT_CONSULTATION_DURATION_MINUTES,
-        bookedCount: activeMatchingAppts.length,
-        isOnLeave,
-        isClosed: s.status === 'closed',
-      });
-
       return resolveSessionOperationalStatus({
         isClosedForLeave: isOnLeave,
         persistedStatus: s.status,
@@ -213,18 +158,8 @@ export function buildDailySessions(
     defaultRoomName,
     scheduleDate,
     currentDate,
-    currentTime,
   } = ctx;
   const isEvalOnLeave = ctx.isEvalOnLeave ?? ctx.isOnLeave ?? false;
-
-  const now = new Date();
-  const curDate = currentDate || now.toISOString().slice(0, 10);
-  const curTime =
-    currentTime ||
-    `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-  const curMinutes = parseClockTime(curTime);
-  const isPastDate = scheduleDate ? scheduleDate < curDate : false;
-  const isToday = scheduleDate ? scheduleDate === curDate : true;
   const validDuration =
     consultationDurationMinutes || DEFAULT_CONSULTATION_DURATION_MINUTES;
 
@@ -296,7 +231,7 @@ export function buildDailySessions(
       roomId: s.roomId || null,
       isRescheduleEligible: isRescheduleEligible,
       rescheduleIneligibilityReason: rescheduleIneligibilityReason,
-      date: s.scheduleDate || scheduleDate || curDate,
+      date: s.scheduleDate || scheduleDate || currentDate || '',
     };
   });
 }

@@ -10,15 +10,11 @@ import {
   EvaluateScheduleImpactDto,
   ScheduleConfigurationImpactResultDto,
 } from '@modules/schedules/presentation/dto/admin-schedule-configuration.dto';
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { and, eq, gte, inArray, lt, sql } from 'drizzle-orm';
 
 @Injectable()
 export class DrizzleScheduleConfigurationImpactEvaluator {
-  private readonly logger = new Logger(
-    DrizzleScheduleConfigurationImpactEvaluator.name,
-  );
-
   constructor(@Inject(DRIZZLE_SOURCE) private readonly db: DrizzleDatabase) {}
 
   async evaluate(

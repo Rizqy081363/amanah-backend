@@ -6,7 +6,6 @@ import {
   appointments,
   clinicRooms,
   doctorAssignments,
-  medicalSpecialties,
   practitioners,
   queueTickets,
   replacementOpportunities,
@@ -14,9 +13,8 @@ import {
   shiftExceptions,
   staffAttendanceRecords,
   staffLeaveRequests,
-  staffProfiles,
 } from '@database/schema';
-import { Inject, Injectable, Optional } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { and, eq, gte, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 import {
   QUEUE_TICKET_STATUS,

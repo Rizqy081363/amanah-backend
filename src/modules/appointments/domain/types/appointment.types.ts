@@ -28,18 +28,6 @@ export type AppointmentAction =
   | 'ASSIGN_ROOM'
   | 'NO_SHOW';
 
-const ALLOWED_TRANSITIONS: Record<
-  AppointmentStatus,
-  readonly AppointmentStatus[]
-> = {
-  BOOKED: ['WAITING', 'CANCELLED', 'LATE'],
-  WAITING: ['IN_SERVICE', 'CANCELLED', 'LATE'],
-  IN_SERVICE: ['COMPLETED'],
-  COMPLETED: [],
-  CANCELLED: [],
-  LATE: [],
-};
-
 export function toDomainStatus(
   dbStatus: DbAppointmentStatus | string | null | undefined,
 ): AppointmentStatus {
@@ -99,8 +87,6 @@ export function resolveAllowedActions(
   const {
     hasDoctor = false,
     hasRoom = false,
-    aheadCount = 0,
-    isDoctorServing = false,
   } = context;
   const isFullyAssigned = Boolean(hasDoctor && hasRoom);
 

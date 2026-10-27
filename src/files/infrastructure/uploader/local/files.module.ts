@@ -20,7 +20,7 @@ import { FilesLocalService } from './files.service';
       inject: [ConfigService],
       useFactory: (configService: ConfigService<AllConfigType>) => {
         return {
-          fileFilter: (request, file, callback) => {
+          fileFilter: (_request, file, callback) => {
             if (!file.originalname.match(/\.(jpg|jpeg|png|gif)$/i)) {
               return callback(
                 new UnprocessableEntityException({
@@ -37,7 +37,7 @@ import { FilesLocalService } from './files.service';
           },
           storage: diskStorage({
             destination: './files',
-            filename: (request, file, callback) => {
+            filename: (_request, file, callback) => {
               callback(
                 null,
                 `${randomStringGenerator()}.${file.originalname

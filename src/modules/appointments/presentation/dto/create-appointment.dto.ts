@@ -5,19 +5,22 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  IsUUID,
+  Matches,
 } from 'class-validator';
 import {
   CANONICAL_STAFF_SHIFTS,
   type CanonicalStaffShift,
 } from '../../../schedules/domain/constants/schedule-shift.constants';
+import type { CreateAppointmentInput } from './create-appointment.schema';
 
-export class CreateAppointmentDto {
+export class CreateAppointmentDto implements CreateAppointmentInput {
   @ApiPropertyOptional({
     description:
       'ID Pasien. Jika tidak diisi, otomatis menggunakan ID pasien dari user yang sedang login',
     example: '123e4567-e89b-12d3-a456-426614174000',
   })
-  @IsString()
+  @IsUUID()
   @IsOptional()
   patientId?: string;
 
@@ -25,7 +28,7 @@ export class CreateAppointmentDto {
     description: 'ID Poliklinik tujuan (Poli Umum / Poli KIA)',
     example: '123e4567-e89b-12d3-a456-426614174001',
   })
-  @IsString()
+  @IsUUID()
   @IsNotEmpty()
   poliklinikId: string;
 
@@ -33,14 +36,14 @@ export class CreateAppointmentDto {
     description: 'ID Layanan/Tindakan yang dipilih',
     example: '123e4567-e89b-12d3-a456-426614174002',
   })
-  @IsString()
+  @IsUUID()
   @IsNotEmpty()
   layananId: string;
 
   @ApiPropertyOptional({
     description: 'ID Staf Dokter tertentu jika memilih dokter spesifik',
   })
-  @IsString()
+  @IsUUID()
   @IsOptional()
   staffId?: string;
 
@@ -48,7 +51,9 @@ export class CreateAppointmentDto {
     description: 'Tanggal rencana kunjungan (YYYY-MM-DD)',
     example: '2026-09-18',
   })
-  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'appointmentDate harus berformat YYYY-MM-DD',
+  })
   @IsNotEmpty()
   appointmentDate: string;
 
@@ -83,7 +88,7 @@ export class CreateAppointmentDto {
       'ID submission intake medis terkait (misal maternal intake persalinan)',
     example: '123e4567-e89b-12d3-a456-426614174000',
   })
-  @IsString()
+  @IsUUID()
   @IsOptional()
   sourceIntakeId?: string;
 }

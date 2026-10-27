@@ -3,9 +3,9 @@ import {
   type DoctorAvailability,
 } from '../../../domain/constants/appointment-lifecycle.constants';
 
-export { DOCTOR_AVAILABILITY,  };
+export { DOCTOR_AVAILABILITY };
 
-export interface DoctorCandidateItem {
+interface DoctorCandidateItem {
   id: string;
   name: string;
   avatarUrl?: string | null;

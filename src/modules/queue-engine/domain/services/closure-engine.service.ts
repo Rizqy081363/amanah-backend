@@ -3,7 +3,6 @@ import { ClinicSettingService } from '../../infrastructure/config/clinic-setting
 import { QUEUE_TICKET_STATUS } from '../constants/queue-engine.constants';
 import { TimeInterval } from '../types/calendar.types';
 import { DomainQueueTicket } from '../types/queue.types';
-import { CalendarService } from './calendar.service';
 import { ScopeQuery } from './clinic-setting.reader';
 
 interface TicketShiftPlan {
@@ -24,7 +23,6 @@ export interface ClosureImpactEvaluation {
 @Injectable()
 export class ClosureEngineService {
   constructor(
-    private readonly calendarService: CalendarService,
     @Optional() private readonly settingReader?: ClinicSettingService,
   ) {}
 

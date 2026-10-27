@@ -3,7 +3,7 @@ import { RedisService } from '@common/redis/redis.service';
 import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import { masterDays } from '@database/schema';
-import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { asc, eq } from 'drizzle-orm';
 import { OperatingDayEntity } from '../domain/entities/operating-day.entity';
 import {
@@ -13,8 +13,6 @@ import {
 
 @Injectable()
 export class DrizzleOperatingDaysRepository implements OperatingDaysRepository {
-  private readonly logger = new Logger(DrizzleOperatingDaysRepository.name);
-
   constructor(
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,

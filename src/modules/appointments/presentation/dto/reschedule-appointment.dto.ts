@@ -1,14 +1,21 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import {
+  CANONICAL_STAFF_SHIFTS,
+  type CanonicalStaffShift,
+} from '../../../schedules/domain/constants/schedule-shift.constants';
+import type { RescheduleAppointmentInput } from './reschedule-appointment.schema';
 
-export class RescheduleAppointmentDto {
+export class RescheduleAppointmentDto implements RescheduleAppointmentInput {
   @ApiPropertyOptional({
+    enum: CANONICAL_STAFF_SHIFTS,
     example: 'morning',
-    description: 'Nama shift sesi kunjungan baru (early_morning, morning, afternoon, night)',
+    description:
+      'Nama shift sesi kunjungan baru (early_morning, morning, afternoon, night)',
   })
   @IsString()
   @IsOptional()
-  session?: string;
+  session?: CanonicalStaffShift;
 
   @ApiPropertyOptional({
     example: '550e8400-e29b-41d4-a716-446655440000',

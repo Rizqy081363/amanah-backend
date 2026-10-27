@@ -2,14 +2,12 @@ import { RedisService } from '@common/redis/redis.service';
 import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
-  clinicRooms,
   doctorAssignments,
   doctorScheduleStatusHistory,
   masterDays,
   practitioners,
   sessionDefs,
   sessionSchedules,
-  users,
 } from '@database/schema';
 import {
   Inject,
@@ -17,7 +15,7 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
-import { and, asc, count, desc, eq, inArray, or } from 'drizzle-orm';
+import { asc, count, desc, eq, or } from 'drizzle-orm';
 import {
   DoctorRosterDayDto,
   DoctorRosterOverviewResponse,
@@ -113,9 +111,6 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
 
     const days: DoctorRosterDayDto[] = allDays.map((d) => {
       const isOperatingDay = d.isActive;
-      const explicitForDay = existingAssignments.filter(
-        (da) => da.dow === d.dow,
-      );
       const hasOverride = hasAnyCustomRoster;
 
       const daySessions: DoctorRosterSessionDto[] = allDefs.map((def) => {

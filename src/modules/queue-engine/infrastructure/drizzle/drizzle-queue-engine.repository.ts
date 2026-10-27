@@ -1,13 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, desc, eq, isNull, or, sql } from 'drizzle-orm';
+import { and, eq, isNull, or, sql } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import {
   appointments,
   doctorAssignments,
-  queueCounters,
   queueTickets,
-  serviceCategories,
-  sessionDefs,
 } from '../../../../database/schema';
 import {
   QUEUE_TICKET_SOURCE,

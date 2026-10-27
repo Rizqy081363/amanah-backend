@@ -1,5 +1,6 @@
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import type { AuthenticatedUser } from './authenticated-user.interface';
 import { IS_PUBLIC_KEY } from './public.decorator';
 import { AppRole, ROLES_KEY } from './roles.decorator';
 
@@ -25,13 +26,14 @@ export class RolesGuard implements CanActivate {
       return true;
     }
 
-    const { user } = context.switchToHttp().getRequest();
+    const user = context.switchToHttp().getRequest().user as
+      | AuthenticatedUser
+      | undefined;
     if (!user) {
       return false;
     }
 
-    const userRole =
-      user.systemRole || (user.role?.name?.toUpperCase() as AppRole);
+    const userRole = user.systemRole as AppRole;
     return requiredRoles.includes(userRole);
   }
 }

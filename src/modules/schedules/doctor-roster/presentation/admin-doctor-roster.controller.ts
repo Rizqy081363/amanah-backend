@@ -1,12 +1,17 @@
+import {
+  type AuthenticatedUser,
+  isAdminUser,
+} from '@common/auth';
 import { CurrentUser } from '@common/auth/current-user.decorator';
 import { HybridAuthGuard } from '@common/auth/hybrid-auth.guard';
 import { Roles } from '@common/auth/roles.decorator';
 import { RolesGuard } from '@common/auth/roles.guard';
+import { DomainForbiddenException } from '@common/exceptions';
+import { SYSTEM_ROLES } from '@/auth/constants/auth.constants';
 import {
   Body,
   Controller,
   Delete,
-  ForbiddenException,
   Get,
   Inject,
   Param,
@@ -36,7 +41,7 @@ import {
 @ApiTags('Admin Doctor Schedules - Roster & History')
 @ApiBearerAuth('access-token')
 @UseGuards(HybridAuthGuard, RolesGuard)
-@Roles('ADMIN', 'STAF')
+@Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
 @Controller({ path: 'admin/doctor-schedules', version: '1' })
 export class AdminDoctorRosterController {
   constructor(
@@ -44,16 +49,12 @@ export class AdminDoctorRosterController {
     private readonly rosterRepo: DoctorRosterRepository,
   ) {}
 
-  private assertDoctorAccess(id: string, user?: any) {
-    if (!user || user.systemRole === 'ADMIN') return;
-    const userStaffId = user.staff?.practitionerId || user.staff?.id;
-    if (
-      !userStaffId ||
-      (userStaffId !== id &&
-        user.staff?.id !== id &&
-        user.staff?.practitionerId !== id)
-    ) {
-      throw new ForbiddenException(
+  private assertDoctorAccess(id: string, user?: AuthenticatedUser) {
+    if (!user || isAdminUser(user)) return;
+    const isOwner =
+      user.staff?.practitionerId === id || user.staff?.id === id;
+    if (!isOwner) {
+      throw new DomainForbiddenException(
         'Akses ditolak: Anda hanya berwenang mengakses data jadwal dokter Anda sendiri',
       );
     }
@@ -68,14 +69,14 @@ export class AdminDoctorRosterController {
   @ApiOkResponse({ type: DoctorRosterOverviewResponse })
   async getDoctorAssignments(
     @Param('id') id: string,
-    @CurrentUser() user?: any,
+    @CurrentUser() user?: AuthenticatedUser,
   ): Promise<DoctorRosterOverviewResponse> {
     this.assertDoctorAccess(id, user);
     return this.rosterRepo.getDoctorRoster(id);
   }
 
   @Put(':id/assignments')
-  @Roles('ADMIN')
+  @Roles(SYSTEM_ROLES.ADMIN)
   @ApiOperation({
     summary:
       'Menyimpan konfigurasi hari dan shift kerja dokter (Roster Mingguan)',
@@ -85,15 +86,15 @@ export class AdminDoctorRosterController {
   async updateDoctorAssignments(
     @Param('id') id: string,
     @Body() dto: UpdateDoctorRosterDto,
-    @CurrentUser() user?: any,
+    @CurrentUser() user?: AuthenticatedUser,
   ): Promise<DoctorRosterOverviewResponse> {
     this.assertDoctorAccess(id, user);
-    const userId = user?.id || user?.sub;
+    const userId = user?.id;
     return this.rosterRepo.updateDoctorRoster(id, dto, userId);
   }
 
   @Delete(':id/assignments')
-  @Roles('ADMIN')
+  @Roles(SYSTEM_ROLES.ADMIN)
   @ApiOperation({
     summary:
       'Mereset roster kerja dokter kembali ke template mingguan default klinik',
@@ -102,15 +103,15 @@ export class AdminDoctorRosterController {
   @ApiOkResponse({ type: DoctorRosterOverviewResponse })
   async resetDoctorAssignments(
     @Param('id') id: string,
-    @CurrentUser() user?: any,
+    @CurrentUser() user?: AuthenticatedUser,
   ): Promise<DoctorRosterOverviewResponse> {
     this.assertDoctorAccess(id, user);
-    const userId = user?.id || user?.sub;
+    const userId = user?.id;
     return this.rosterRepo.resetDoctorRoster(id, userId);
   }
 
   @Post(':id/assignments/reset')
-  @Roles('ADMIN')
+  @Roles(SYSTEM_ROLES.ADMIN)
   @ApiOperation({
     summary:
       'Mereset roster kerja dokter kembali ke template mingguan default klinik',
@@ -119,10 +120,10 @@ export class AdminDoctorRosterController {
   @ApiOkResponse({ type: DoctorRosterOverviewResponse })
   async resetDoctorAssignmentsPost(
     @Param('id') id: string,
-    @CurrentUser() user?: any,
+    @CurrentUser() user?: AuthenticatedUser,
   ): Promise<DoctorRosterOverviewResponse> {
     this.assertDoctorAccess(id, user);
-    const userId = user?.id || user?.sub;
+    const userId = user?.id;
     return this.rosterRepo.resetDoctorRoster(id, userId);
   }
 
@@ -139,7 +140,7 @@ export class AdminDoctorRosterController {
     @Param('id') id: string,
     @Query('limit') limit?: number,
     @Query('offset') offset?: number,
-    @CurrentUser() user?: any,
+    @CurrentUser() user?: AuthenticatedUser,
   ): Promise<DoctorScheduleHistoryResponse> {
     this.assertDoctorAccess(id, user);
     const parsedLimit = limit ? Number(limit) : 20;

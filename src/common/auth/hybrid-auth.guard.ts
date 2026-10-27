@@ -18,7 +18,9 @@ import { DrizzleDatabase } from '../../database/drizzle/drizzle.provider';
 import { users } from '../../database/schema';
 import { formatBloodTypeDisplay } from '../../modules/patients/domain/data/patient-reference.data';
 import { STAFF_ROLE_CODES } from '../../modules/staffs/domain/constants/staff-invitation.constants';
+import { DomainUnauthorizedException } from '../exceptions';
 import { RedisService } from '../redis/redis.service';
+import type { AuthenticatedUser } from './authenticated-user.interface';
 import { IS_PUBLIC_KEY } from './public.decorator';
 
 @Injectable()
@@ -51,7 +53,7 @@ export class HybridAuthGuard extends AuthGuard('jwt') implements CanActivate {
           `blacklist:token:${token}`,
         );
         if (isBlacklisted) {
-          throw new UnauthorizedException(
+          throw new DomainUnauthorizedException(
             'Sesi autentikasi telah berakhir atau token telah dicabut',
           );
         }
@@ -71,7 +73,7 @@ export class HybridAuthGuard extends AuthGuard('jwt') implements CanActivate {
       });
 
       if (!session || !session.user || !session.user.id) {
-        throw new UnauthorizedException(
+        throw new DomainUnauthorizedException(
           'Sesi autentikasi tidak valid atau token tidak disertakan',
         );
       }
@@ -100,7 +102,9 @@ export class HybridAuthGuard extends AuthGuard('jwt') implements CanActivate {
       });
 
       if (!userRecord) {
-        throw new UnauthorizedException('Pengguna tidak ditemukan di database');
+        throw new DomainUnauthorizedException(
+          'Pengguna tidak ditemukan di database',
+        );
       }
 
       const primaryRole = userRecord.userRoles_userId?.[0]?.role;
@@ -130,7 +134,7 @@ export class HybridAuthGuard extends AuthGuard('jwt') implements CanActivate {
       const staffProfile = userRecord.staffProfiles?.[0];
       const patientProfile = userRecord.patientProfiles?.[0];
 
-      (request as any).user = {
+      const authenticatedUser: AuthenticatedUser = {
         id: userRecord.id,
         email: userRecord.email,
         name: userRecord.name,
@@ -183,6 +187,7 @@ export class HybridAuthGuard extends AuthGuard('jwt') implements CanActivate {
           : null,
       };
 
+      (request as any).user = authenticatedUser;
       (request as any).session = session.session;
       return true;
     } catch (err: unknown) {

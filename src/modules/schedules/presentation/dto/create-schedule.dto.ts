@@ -6,10 +6,8 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsBoolean,
   IsIn,
-  IsNumber,
   IsOptional,
   IsString,
-  Min,
 } from 'class-validator';
 
 export class CreateScheduleDto {

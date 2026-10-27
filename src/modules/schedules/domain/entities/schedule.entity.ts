@@ -57,15 +57,6 @@ export class ScheduleEntity {
   version?: string;
 }
 
-export class DayScheduleSettingEntity {
-  id?: string;
-  practitionerId: string;
-  scheduleDate: string;
-  isOnLeave: boolean;
-  leaveReason?: string | null;
-  totalBookedPatients?: number;
-}
-
 export class CalendarDaySummaryEntity {
   date: string;
   hasSchedule: boolean;
@@ -232,11 +223,6 @@ export class ScheduleProjectionEntity {
   intervals?: ScheduleProjectedIntervalEntity[];
   version?: string;
   updatedAt?: string | null;
-}
-
-export class ScheduleAvailabilityMutationResponse {
-  schedule: ScheduleEntity;
-  projection: ScheduleProjectionEntity;
 }
 
 export class AdminDoctorDailySession {

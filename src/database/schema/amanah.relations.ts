@@ -409,7 +409,7 @@ export const practitionerAvailabilityRelations = relations(
 
 export const practitionerScheduleDaySettingsRelations = relations(
   practitionerScheduleDaySettings,
-  ({ one, many }) => ({
+  ({ one }) => ({
     user: one(users, {
       fields: [practitionerScheduleDaySettings.createdBy],
       references: [users.id],

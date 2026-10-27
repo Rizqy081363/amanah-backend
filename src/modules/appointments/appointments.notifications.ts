@@ -239,7 +239,7 @@ export class AppointmentsNotificationRules implements OnModuleInit {
         sourceType: 'appointment',
         sourceId: payload.appointmentId,
       }),
-      resolveActions: (payload: any) => [
+      resolveActions: () => [
         {
           label: 'Lihat Antrean',
           actionKey: 'view_appointment',
@@ -365,7 +365,7 @@ export class AppointmentsNotificationRules implements OnModuleInit {
         sourceType: 'appointment',
         sourceId: payload.appointmentId,
       }),
-      resolveActions: (payload: any) => [
+      resolveActions: () => [
         {
           label: 'Lihat Antrean',
           actionKey: 'view_appointment',
@@ -858,7 +858,7 @@ export class AppointmentsNotificationRules implements OnModuleInit {
         sourceType: 'appointment',
         sourceId: payload.appointmentId,
       }),
-      resolveActions: (payload: any) => [
+      resolveActions: () => [
         {
           label: 'Lihat Jadwal',
           actionKey: 'view_schedule',

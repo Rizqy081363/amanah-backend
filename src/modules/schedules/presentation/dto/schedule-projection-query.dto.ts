@@ -1,12 +1,10 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform, Type } from 'class-transformer';
+import { Transform } from 'class-transformer';
 import {
   IsBoolean,
-  IsInt,
   IsOptional,
   IsString,
   Matches,
-  Min,
 } from 'class-validator';
 
 export class ScheduleProjectionQueryDto {

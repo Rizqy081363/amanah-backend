@@ -4,7 +4,7 @@ import {
 } from '@common/time/clinic-time.service';
 import { Temporal } from '@js-temporal/polyfill';
 import { filterEffectiveDoctorAssignments } from '@modules/schedules/domain/services/doctor-session-operational.resolver';
-import { Injectable, Optional } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import {
   isTerminalAppointmentStatus,
   STAFF_TYPE,
@@ -17,7 +17,6 @@ import type { ICandidateResolverPort } from '../contracts/candidate-resolver.con
 import {
   DOCTOR_AVAILABILITY,
   type DoctorCandidateGroup,
-  type DoctorCandidateItem,
   type DoctorCandidatesResult,
 } from '../domain/entities/candidate-doctor.entity';
 import type { RoomCandidateItem } from '../domain/entities/candidate-room.entity';

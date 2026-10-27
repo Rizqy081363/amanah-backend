@@ -5,7 +5,6 @@ import { ClinicTimeService } from '../../../../common/time/clinic-time.service';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import type { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
-  appointments,
   patientProfiles,
   queueTickets,
   sessionDefs,

@@ -134,7 +134,7 @@ export class DrizzleAdminSessionMutationRepository {
     };
   }
 
-  async deleteAdminDoctorSession(id: string, sessionId: string): Promise<any> {
+  async deleteAdminDoctorSession(_id: string, _sessionId: string): Promise<any> {
     throw new ForbiddenException({
       code: 'ADMIN_SCHEDULE_DELETION_PROHIBITED',
       message:

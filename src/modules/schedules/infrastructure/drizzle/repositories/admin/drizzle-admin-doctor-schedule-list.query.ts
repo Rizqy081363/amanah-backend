@@ -3,10 +3,8 @@ import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
   appointments,
-  doctorAssignments,
   masterDays,
   practitioners,
-  sessionDefs,
   shiftExceptions,
   staffInvitations,
   staffLeaveRequests,
@@ -78,7 +76,6 @@ export class DrizzleAdminDoctorScheduleListQuery {
       allDoctorAssignments,
       allShiftExceptions,
       dayRecord,
-      activeSessionDefs,
       pendingInvitations,
       allApprovedLeaves,
       allReplacementOpportunities,
@@ -124,12 +121,6 @@ export class DrizzleAdminDoctorScheduleListQuery {
       }),
       this.db.query.masterDays.findFirst({
         where: eq(masterDays.dow, targetDow),
-      }),
-      this.db.query.sessionDefs.findMany({
-        where: eq(sessionDefs.isActive, true),
-        with: {
-          schedules: true,
-        },
       }),
       this.db.query.staffInvitations.findMany({
         where: eq(staffInvitations.status, 'pending'),

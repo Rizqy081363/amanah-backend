@@ -1,4 +1,4 @@
-import { forwardRef, Module } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { ClinicConfigModule } from '../../common/clinic-config/clinic-config.module';
 import { RabbitMQModule } from '../../common/rabbitmq/rabbitmq.module';
 import { QueueEventPublisher } from './application/services/queue-event-publisher.service';
@@ -17,8 +17,6 @@ import { V2AdminQueueController } from './presentation/controllers/v2-admin-queu
 import { V2CatalogController } from './presentation/controllers/v2-catalog.controller';
 import { V2TicketsController } from './presentation/controllers/v2-tickets.controller';
 
-;
-
 @Module({
   imports: [ClinicConfigModule, RabbitMQModule],
   controllers: [
@@ -35,12 +33,7 @@ import { V2TicketsController } from './presentation/controllers/v2-tickets.contr
     QueuePositionRecalculationService,
     QueueEventPublisher,
     QueueRecalculationWorker,
-    {
-      provide: ClosureEngineService,
-      useFactory: (calendar: CalendarService, settings: ClinicSettingService) =>
-        new ClosureEngineService(calendar, settings),
-      inject: [CalendarService, ClinicSettingService],
-    },
+    ClosureEngineService,
     ClinicSettingService,
     DrizzleQueueEngineRepository,
     {

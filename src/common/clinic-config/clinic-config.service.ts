@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { DRIZZLE_SOURCE } from '../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../database/drizzle/drizzle.provider';
-import { clinicProfiles, clinicSettings } from '../../database/schema';
+import { clinicSettings } from '../../database/schema';
 import {
   ClinicProfileData,
   ClinicSchedulePolicyData,
@@ -18,7 +18,7 @@ interface SettingCacheEntry {
   value: any;
 }
 
-export class MissingConfigKeyError extends Error {
+class MissingConfigKeyError extends Error {
   constructor(public readonly key: string) {
     super(
       `Missing required configuration key: '${key}'. All clinic settings must be defined in database table clinic_setting.`,

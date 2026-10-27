@@ -3,9 +3,6 @@ export const CHAT_EVENTS = {
   CONVERSATION_CLOSED: 'chat.conversation.closed.v1',
 } as const;
 
-type ChatEventType =
-  (typeof CHAT_EVENTS)[keyof typeof CHAT_EVENTS];
-
 /**
  * Roles responsible for handling live chat & online consultations.
  * Excludes clinical practitioners (doctors & midwives) who operate on clinical queues.
