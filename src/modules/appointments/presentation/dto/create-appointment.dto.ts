@@ -71,7 +71,7 @@ export class CreateAppointmentDto implements CreateAppointmentInput {
     example: 'new_visit',
     description: 'Tipe kunjungan (new_visit / follow_up)',
   })
-  @IsEnum(['new_visit', 'follow_up'])
+  @IsIn(['new_visit', 'follow_up'])
   @IsNotEmpty()
   visitType: 'new_visit' | 'follow_up';
 

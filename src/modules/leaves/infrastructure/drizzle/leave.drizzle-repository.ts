@@ -81,7 +81,7 @@ export class LeaveDrizzleRepository implements LeaveRepository {
         id: s.id,
         sessionId: s.sessionId,
         sessionCode: s.sessionDef?.code,
-        sessionLabel: s.sessionDef?.labelKey,
+        sessionLabel: s.sessionDef?.code,
         workDate: s.workDate,
       })),
       createdAt: new Date(r.createdAt),
@@ -121,7 +121,7 @@ export class LeaveDrizzleRepository implements LeaveRepository {
       eligibleSessions = assignments.map((a) => ({
         sessionId: a.sessionId,
         sessionCode: a.sessionDef.code,
-        sessionLabel: a.sessionDef.labelKey,
+        sessionLabel: a.sessionDef.code,
         startsAt: a.sessionDef.defaultStartsAt,
         endsAt: a.sessionDef.defaultEndsAt,
         workDate: date,
@@ -142,7 +142,7 @@ export class LeaveDrizzleRepository implements LeaveRepository {
       eligibleSessions = rosters.map((r) => ({
         sessionId: r.sessionId,
         sessionCode: r.sessionDef.code,
-        sessionLabel: r.sessionDef.labelKey,
+        sessionLabel: r.sessionDef.code,
         startsAt: r.sessionDef.defaultStartsAt,
         endsAt: r.sessionDef.defaultEndsAt,
         workDate: date,

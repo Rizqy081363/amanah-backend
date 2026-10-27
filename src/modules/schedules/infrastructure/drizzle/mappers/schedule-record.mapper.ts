@@ -47,8 +47,8 @@ export type ScheduleRecordMapperInput = {
   scheduleDate: string;
   sessionLabel?: string | null;
   sessionShift: SessionShiftType | null;
-  startTime: string;
-  endTime: string;
+  startTime?: string | null;
+  endTime?: string | null;
   roomId?: string | null;
   serviceId?: string | null;
   status: string;

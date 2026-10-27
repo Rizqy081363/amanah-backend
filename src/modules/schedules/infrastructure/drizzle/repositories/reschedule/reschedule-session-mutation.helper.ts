@@ -69,10 +69,7 @@ export async function mutateRescheduleSessionRecords(
     sessionShift: context.sessionShift,
     status: 'open',
     roomId: targetRoomId,
-    notes:
-      body.notes || body.reason
-        ? `[RESCHEDULED] ${body.notes || body.reason}`
-        : (session.notes ?? null),
+    notes: body.notes ? `[RESCHEDULED] ${body.notes}` : (session.notes ?? null),
     updatedAt: new Date().toISOString(),
   };
 }

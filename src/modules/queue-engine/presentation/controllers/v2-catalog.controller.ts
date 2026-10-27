@@ -50,7 +50,6 @@ export class V2CatalogController {
         sessions: sessions.map((s: any) => ({
           id: s.id,
           code: s.code,
-          labelKey: s.labelKey,
           codePrefix: s.codePrefix,
           sortOrder: s.sortOrder,
         })),

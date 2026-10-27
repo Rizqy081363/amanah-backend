@@ -29,9 +29,9 @@ export class StaffRosterDrizzleRepository implements StaffRosterRepository {
       session: r.sessionDef
         ? {
             id: r.sessionDef.id,
-            name: (r.sessionDef as any).name || r.sessionDef.labelKey || r.sessionDef.code || '',
-            startTime: (r.sessionDef as any).startTime || r.sessionDef.defaultStartsAt || '',
-            endTime: (r.sessionDef as any).endTime || r.sessionDef.defaultEndsAt || '',
+            name: r.sessionDef.code,
+            startTime: r.sessionDef.defaultStartsAt,
+            endTime: r.sessionDef.defaultEndsAt,
           }
         : undefined,
       day: r.masterDay
@@ -85,9 +85,9 @@ export class StaffRosterDrizzleRepository implements StaffRosterRepository {
       session: s.sessionDef
         ? {
             id: s.sessionDef.id,
-            name: (s.sessionDef as any).name || s.sessionDef.labelKey || s.sessionDef.code || '',
-            startTime: s.startsAt || (s.sessionDef as any).startTime || s.sessionDef.defaultStartsAt || '',
-            endTime: s.endsAt || (s.sessionDef as any).endTime || s.sessionDef.defaultEndsAt || '',
+            name: s.sessionDef.code,
+            startTime: s.startsAt || s.sessionDef.defaultStartsAt,
+            endTime: s.endsAt || s.sessionDef.defaultEndsAt,
           }
         : undefined,
       day: s.masterDay

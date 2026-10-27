@@ -116,14 +116,11 @@ export class DrizzleScheduleRescheduleRepository {
 
     const session = {
       id: effectiveSessionDef.id,
-      scheduleDate:
-        (body as any).sourceDate ||
-        body.targetDate ||
-        new Date().toISOString().split('T')[0],
+      scheduleDate: body.sourceDate,
       startTime: effectiveSessionDef.defaultStartsAt.slice(0, 5),
       endTime: effectiveSessionDef.defaultEndsAt.slice(0, 5),
       sessionShift: effectiveSessionDef.code,
-      sessionLabel: effectiveSessionDef.labelKey,
+      sessionLabel: effectiveSessionDef.code,
       roomId: assignment?.preferredRoomId || practitioner.defaultRoomId || null,
       notes: null as string | null,
     };
@@ -308,7 +305,7 @@ export class DrizzleScheduleRescheduleRepository {
         startsAt: `${session.scheduleDate}T${formatClockTime(sourceRangeStartMin)}:00Z`,
         endsAt: `${session.scheduleDate}T${formatClockTime(sourceRangeEndMin)}:00Z`,
         inputKind: 'session',
-        reason: body.notes || body.reason || 'Reschedule jadwal dokter',
+        reason: body.notes ? body.notes : 'Reschedule',
       });
 
       return targetSessionRecord;

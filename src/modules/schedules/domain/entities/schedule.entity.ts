@@ -24,7 +24,7 @@ export class ScheduleEntity {
   staffId: string;
   staffName?: string;
   profession?: string;
-  scheduleDate?: string;
+  scheduleDate: string;
   poliklinikId?: string | null;
   poliklinikName?: string | null;
   serviceId?: string | null;
@@ -926,8 +926,8 @@ export class AdminPatientDemographicEntity {
   @ApiProperty({ example: 'RM-2026-00891' })
   medicalRecordNumber: string;
 
-  @ApiProperty({ example: '3201234567890001' })
-  nik: string;
+  @ApiProperty({ nullable: true, example: '3201234567890001' })
+  nik: string | null;
 
   @ApiProperty({ example: 'Laki-laki' })
   gender: string;

@@ -55,8 +55,11 @@ export class DrizzleScheduleSessionRepository {
       throw new BadRequestException(`Sesi dinas tidak valid: ${shift}`);
     }
 
-    const sessionLabel = sessionDef.labelKey;
-    const targetDate = data.scheduleDate || data.specificDate || '';
+    const sessionLabel = sessionDef.code;
+    const targetDate = data.scheduleDate;
+    if (!targetDate) {
+      throw new BadRequestException('Tanggal jadwal (scheduleDate) wajib diisi');
+    }
     const defaultStartTime = data.startTime || sessionDef.defaultStartsAt;
     const defaultEndTime = data.endTime || sessionDef.defaultEndsAt;
 
@@ -92,9 +95,9 @@ export class DrizzleScheduleSessionRepository {
       (await this.findById(exception.id)) ||
       ({
         id: exception.id,
-        staffId: practitioner.staffProfileId || practitioner.id,
+        staffId: practitioner.staffProfileId,
         scheduleDate: targetDate,
-        session: data.session || 'PAGI',
+        session: shift,
         sessionShift: shift,
         sessionLabel,
         startTime: defaultStartTime.slice(0, 5),
@@ -161,7 +164,7 @@ export class DrizzleScheduleSessionRepository {
         id,
         practitionerId: da.doctorId,
         scheduleDate: targetDate,
-        sessionLabel: da.sessionDef.labelKey,
+        sessionLabel: da.sessionDef.code,
         sessionShift: da.sessionDef.code as any,
         startTime: `${startTime}:00`,
         endTime: `${endTime}:00`,
@@ -200,15 +203,15 @@ export class DrizzleScheduleSessionRepository {
 
     if (exception) {
       const sDef = exception.sessionDef;
-      const startTime = sDef?.defaultStartsAt || '08:00:00';
-      const endTime = sDef?.defaultEndsAt || '12:00:00';
+      const startTime = sDef ? sDef.defaultStartsAt : null;
+      const endTime = sDef ? sDef.defaultEndsAt : null;
       const isLeave = exception.type === 'leave';
 
       return ScheduleRecordMapper.toEntity({
         id: exception.id,
         practitionerId: exception.doctorId,
         scheduleDate: exception.serviceDate,
-        sessionLabel: sDef?.labelKey ?? null,
+        sessionLabel: sDef?.code ?? null,
         sessionShift: (sDef?.code as any) ?? null,
         startTime,
         endTime,
@@ -245,14 +248,14 @@ export class DrizzleScheduleSessionRepository {
 
     if (da && da.sessionDef) {
       const today = new Date().toISOString().slice(0, 10);
-      const startTime = da.sessionDef.defaultStartsAt || '08:00:00';
-      const endTime = da.sessionDef.defaultEndsAt || '12:00:00';
+      const startTime = da.sessionDef.defaultStartsAt;
+      const endTime = da.sessionDef.defaultEndsAt;
 
       return ScheduleRecordMapper.toEntity({
         id: da.id,
         practitionerId: da.doctorId,
         scheduleDate: today,
-        sessionLabel: da.sessionDef.labelKey,
+        sessionLabel: da.sessionDef.code,
         sessionShift: da.sessionDef.code as any,
         startTime,
         endTime,
@@ -297,10 +300,10 @@ export class DrizzleScheduleSessionRepository {
         sessionId: sDef.id,
         practitionerId: da?.doctorId || '',
         scheduleDate: today,
-        sessionLabel: sDef.labelKey,
+        sessionLabel: sDef.code,
         sessionShift: sDef.code as any,
-        startTime: sDef.defaultStartsAt || '08:00:00',
-        endTime: sDef.defaultEndsAt || '12:00:00',
+        startTime: sDef.defaultStartsAt,
+        endTime: sDef.defaultEndsAt,
         roomId: da?.preferredRoomId || null,
         serviceId: da?.categoryId || null,
         status: SchedulePersistenceStatus.OPEN,
@@ -397,7 +400,7 @@ export class DrizzleScheduleSessionRepository {
         sessionId: da.sessionId,
         practitionerId: da.doctorId,
         scheduleDate: targetDate,
-        sessionLabel: da.sessionDef.labelKey,
+        sessionLabel: da.sessionDef.code,
         sessionShift: da.sessionDef.code as any,
         startTime,
         endTime,
@@ -433,7 +436,6 @@ export class DrizzleScheduleSessionRepository {
   async findMySchedules(
     staffId: string,
     filters?: {
-      date?: string;
       startDate?: string;
       endDate?: string;
     },
@@ -444,11 +446,8 @@ export class DrizzleScheduleSessionRepository {
     }
     const targetId = practitioner.id;
 
-    const startDate =
-      filters?.date ||
-      filters?.startDate ||
-      new Date().toISOString().slice(0, 10);
-    const endDate = filters?.date || filters?.endDate || startDate;
+    const startDate = filters?.startDate ?? new Date().toISOString().slice(0, 10);
+    const endDate = filters?.endDate ?? startDate;
 
     const [assignments, exceptions] = await Promise.all([
       this.db.query.doctorAssignments.findMany({
@@ -515,7 +514,7 @@ export class DrizzleScheduleSessionRepository {
             sessionId: da.sessionId,
             practitionerId: da.doctorId,
             scheduleDate: curDateStr,
-            sessionLabel: da.sessionDef.labelKey,
+            sessionLabel: da.sessionDef.code,
             sessionShift: da.sessionDef.code as any,
             startTime,
             endTime,
@@ -570,7 +569,7 @@ export class DrizzleScheduleSessionRepository {
       };
 
       const calculateScore = (s: ScheduleEntity): number => {
-        const schedDate = s.scheduleDate || s.specificDate || '';
+        const schedDate = s.scheduleDate;
         const startMin = parseTimeToMinutes(s.startTime);
         let endMin = parseTimeToMinutes(s.endTime);
         if (endMin <= startMin) endMin = 1440;
@@ -620,9 +619,9 @@ export class DrizzleScheduleSessionRepository {
     const existing = await this.findById(id);
     if (!existing) return null;
 
-    let targetDate = existing.scheduleDate || existing.specificDate!;
-    if (data.scheduleDate || data.specificDate) {
-      targetDate = (data.scheduleDate || data.specificDate)!;
+    let targetDate = existing.scheduleDate ?? '';
+    if (data.scheduleDate) {
+      targetDate = data.scheduleDate;
     }
 
     const practitioner = await this.practitionerResolver.resolve(
@@ -706,7 +705,7 @@ export class DrizzleScheduleSessionRepository {
       existing.staffId,
     );
     const practitionerId = practitioner ? practitioner.id : existing.staffId;
-    const targetDate = existing.scheduleDate || existing.specificDate!;
+    const targetDate = existing.scheduleDate ?? '';
 
     const activeAppointments = await this.db.query.appointments.findMany({
       where: and(

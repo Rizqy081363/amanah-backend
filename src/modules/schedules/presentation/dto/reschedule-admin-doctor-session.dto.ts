@@ -11,6 +11,14 @@ import {
 
 export class RescheduleAdminDoctorSessionDto {
   @ApiProperty({
+    description: 'Tanggal asal jadwal yang di-reschedule (format: YYYY-MM-DD)',
+    example: '2026-10-14',
+  })
+  @IsNotEmpty({ message: 'sourceDate wajib diisi' })
+  @IsDateString({}, { message: 'sourceDate harus berformat YYYY-MM-DD' })
+  sourceDate: string;
+
+  @ApiProperty({
     description:
       'Tanggal target baru untuk jadwal yang di-reschedule (format: YYYY-MM-DD)',
     example: '2026-10-15',

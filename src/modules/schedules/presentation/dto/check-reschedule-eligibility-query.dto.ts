@@ -1,7 +1,15 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsDateString, IsOptional, IsUUID, Matches } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsDateString, IsNotEmpty, IsOptional, IsUUID, Matches } from 'class-validator';
 
 export class CheckRescheduleEligibilityQueryDto {
+  @ApiProperty({
+    description: 'Tanggal asal sesi yang divalidasi (format: YYYY-MM-DD)',
+    example: '2026-10-14',
+  })
+  @IsNotEmpty({ message: 'sourceDate wajib diisi' })
+  @IsDateString({}, { message: 'sourceDate harus berformat YYYY-MM-DD' })
+  sourceDate: string;
+
   @ApiPropertyOptional({
     description:
       'Tanggal target baru yang ingin divalidasi (opsional, format: YYYY-MM-DD)',

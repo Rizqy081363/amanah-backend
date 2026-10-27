@@ -36,7 +36,7 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
       leaveRequestId: r.leaveRequestId,
       sessionId: r.sessionId,
       sessionCode: r.sessionDef?.code || undefined,
-      sessionLabel: r.sessionDef?.labelKey,
+      sessionLabel: r.sessionDef?.code,
       startTime: r.sessionDef?.defaultStartsAt || null,
       endTime: r.sessionDef?.defaultEndsAt || null,
       workDate: r.workDate,
@@ -447,7 +447,7 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
       const originalStaffName = opp.originalStaffProfile?.fullName || '';
       const claimedByStaffUserId = opp.claimedByStaffProfile?.userId;
       const claimedByName = opp.claimedByStaffProfile?.fullName || '';
-      const sessionName = opp.sessionDef?.labelKey;
+      const sessionName = opp.sessionDef?.code;
       const dateStr = opp.workDate;
 
       // 1. Notify Original Staff (whose shift was covered)

@@ -149,7 +149,7 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
           ? roomMap.get(preferredRoomId) || null
           : null;
 
-        const sessionLabel = def.labelKey;
+        const sessionLabel = def.code;
 
         const isTemplateActive = d.isActive && Boolean(sched);
 
@@ -345,7 +345,7 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
     const total = totalResult[0]?.value ?? 0;
 
     const items: DoctorScheduleHistoryItemEntity[] = rows.map((r) => {
-      const sessionLabel = r.sessionDef?.labelKey ?? null;
+      const sessionLabel = r.sessionDef?.code ?? null;
 
       return {
         id: r.id,

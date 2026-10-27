@@ -134,7 +134,7 @@ export class DrizzleAdminScheduleConfigurationRepository {
           id: sessionSchedules.id,
           sessionId: sessionSchedules.sessionId,
           sessionCode: sessionDefs.code,
-          sessionLabelKey: sessionDefs.labelKey,
+          sessionLabelKey: sessionDefs.code,
           dow: sessionSchedules.dow,
           startsAt: sessionSchedules.startsAt,
           endsAt: sessionSchedules.endsAt,
@@ -167,8 +167,8 @@ export class DrizzleAdminScheduleConfigurationRepository {
         return {
           id: sd.id,
           code: sd.code,
-          labelKey: sd.labelKey,
-          label: sd.labelKey,
+          labelKey: sd.code,
+          label: sd.code,
           timeRange:
             startTimeStr && endTimeStr ? `${startTimeStr} - ${endTimeStr}` : '',
           codePrefix: sd.codePrefix,
@@ -195,7 +195,7 @@ export class DrizzleAdminScheduleConfigurationRepository {
             id: found.id,
             sessionId: found.sessionId,
             sessionCode: found.sessionCode,
-            sessionLabel: def.labelKey,
+            sessionLabel: def.code,
             dow: found.dow,
             dowLabel: day.label,
             startsAt: found.startsAt,
@@ -208,7 +208,7 @@ export class DrizzleAdminScheduleConfigurationRepository {
             id: '',
             sessionId: def.id,
             sessionCode: def.code,
-            sessionLabel: def.labelKey,
+            sessionLabel: def.code,
             dow: day.dow,
             dowLabel: day.label,
             startsAt: def.defaultStartsAt,
@@ -262,7 +262,7 @@ export class DrizzleAdminScheduleConfigurationRepository {
       .select({
         id: sessionDefs.id,
         code: sessionDefs.code,
-        labelKey: sessionDefs.labelKey,
+        labelKey: sessionDefs.code,
         sortOrder: sessionDefs.sortOrder,
         isActive: sessionDefs.isActive,
         defaultStartsAt: sessionDefs.defaultStartsAt,
@@ -276,7 +276,7 @@ export class DrizzleAdminScheduleConfigurationRepository {
         return {
           id: ed.id,
           code: ed.code,
-          label: ed.labelKey,
+          label: ed.code,
           sortOrder: ed.sortOrder,
           isActive: ed.isActive,
           startsAt: ed.defaultStartsAt,
@@ -286,7 +286,7 @@ export class DrizzleAdminScheduleConfigurationRepository {
       return {
         id: ed.id,
         code: ed.code,
-        label: ed.labelKey,
+        label: ed.code,
         sortOrder:
           typeof incoming.sortOrder === 'number'
             ? incoming.sortOrder
@@ -319,7 +319,8 @@ export class DrizzleAdminScheduleConfigurationRepository {
         .where(eq(sessionDefs.id, def.id));
 
       // Cascade perubahan jam baku master ke seluruh jadwal mingguan (session_schedule)
-      if (def.defaultStartsAt || def.defaultEndsAt) {
+      const hasTimeUpdate = Boolean(def.defaultStartsAt) || Boolean(def.defaultEndsAt);
+      if (hasTimeUpdate) {
         await executor
           .update(sessionSchedules)
           .set({

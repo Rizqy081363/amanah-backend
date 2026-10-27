@@ -56,14 +56,15 @@ export class DrizzleAdminScheduleMutationRepository {
     }
     const practitionerId = practitioner.id;
 
-    const targetDate =
-      body.date || body.leaveStart || new Date().toISOString().slice(0, 10);
+    if (!body.date) {
+      throw new BadRequestException('Parameter date wajib disertakan');
+    }
+    const targetDate = body.date;
 
     // 0. Ruang Praktik resolution & persistence
-    const targetRoom = body.roomId || body.practiceRoom;
-    if (targetRoom) {
+    if (body.roomId) {
       const resolvedRoomId = await this.roomResolver.resolveByNameOrId(
-        targetRoom,
+        body.roomId,
       );
 
       if (resolvedRoomId) {

@@ -87,7 +87,6 @@ export class AttendanceBffStatsDrizzleRepo {
     const activeSessions = await this.db
       .select({
         code: sessionDefs.code,
-        labelKey: sessionDefs.labelKey,
         sortOrder: sessionDefs.sortOrder,
       })
       .from(sessionDefs)

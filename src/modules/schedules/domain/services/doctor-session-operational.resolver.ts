@@ -126,7 +126,7 @@ export function resolveDoctorSessionOperability(
   const endTime = rawEndTime.slice(0, 5);
 
   // Label resolution
-  const sessionLabel = sessionDef?.labelKey;
+  const sessionLabel = sessionDef?.code;
 
   // 1. Master definition inactive: Shift does not operate anywhere in the clinic
   if (!isMasterDefActive) {

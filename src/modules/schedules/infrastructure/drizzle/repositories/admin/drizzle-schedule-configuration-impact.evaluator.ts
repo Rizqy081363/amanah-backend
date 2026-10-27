@@ -77,7 +77,7 @@ export class DrizzleScheduleConfigurationImpactEvaluator {
         }
         affectedAppointmentsCount += apptCount;
 
-        const shiftName = dbDef.labelKey;
+        const shiftName = dbDef.code;
 
         if (assignedDocs.length > 0 || apptCount > 0) {
           warnings.push(
@@ -107,7 +107,7 @@ export class DrizzleScheduleConfigurationImpactEvaluator {
           .limit(1);
 
         const dayLabel = dayInfo?.nameId ?? `Hari ${targetTpl.dow}`;
-        const shiftLabel = dbDef?.labelKey;
+        const shiftLabel = dbDef?.code;
 
         // Hitung dokter yang terikat pada jadwal hari dan shift ini
         const assignedDayDocs = await this.db

@@ -141,7 +141,6 @@ export interface DailySessionBuildContext {
   evalAppts: any[];
   consultationDurationMinutes: number;
   isOnLeave?: boolean;
-  isEvalOnLeave?: boolean;
   defaultRoomName: string;
   scheduleDate?: string;
   currentDate?: string;
@@ -158,8 +157,8 @@ export function buildDailySessions(
     defaultRoomName,
     scheduleDate,
     currentDate,
+    isOnLeave = false,
   } = ctx;
-  const isEvalOnLeave = ctx.isEvalOnLeave ?? ctx.isOnLeave ?? false;
   const validDuration =
     consultationDurationMinutes || DEFAULT_CONSULTATION_DURATION_MINUTES;
 
@@ -185,7 +184,7 @@ export function buildDailySessions(
             (a.status?.toLowerCase() || '') as any,
           ),
       ).length,
-      isOnLeave: isEvalOnLeave,
+      isOnLeave,
       isClosed: s.status === 'closed',
     });
 
@@ -194,13 +193,13 @@ export function buildDailySessions(
       : defaultRoomName;
 
     const sessionOpStatus = resolveSessionOperationalStatus({
-      isClosedForLeave: isEvalOnLeave,
+      isClosedForLeave: isOnLeave,
       persistedStatus: s.status,
     });
 
     const isRescheduleEligible =
-      !isEvalOnLeave && sessionOpStatus !== ScheduleOperationalStatus.CLOSED;
-    const rescheduleIneligibilityReason = isEvalOnLeave
+      !isOnLeave && sessionOpStatus !== ScheduleOperationalStatus.CLOSED;
+    const rescheduleIneligibilityReason = isOnLeave
       ? 'Sesi tidak dapat di-reschedule karena dokter sedang cuti.'
       : sessionOpStatus === ScheduleOperationalStatus.CLOSED
         ? 'Sesi berstatus Tutup. Sesi yang sudah ditutup tidak dapat di-reschedule. Silakan gunakan menu Edit Jadwal untuk membuka sesi.'
@@ -209,13 +208,9 @@ export function buildDailySessions(
 
     let closureReason: ScheduleClosureReason | null = null;
     if (sessionOpStatus === ScheduleOperationalStatus.CLOSED) {
-      if (isEvalOnLeave || s.isLeave) {
-        closureReason = ScheduleClosureReason.DOCTOR_LEAVE;
-      } else if (s.closureReason) {
-        closureReason = s.closureReason;
-      } else {
-        closureReason = ScheduleClosureReason.ADMIN_OVERRIDE;
-      }
+      closureReason = isOnLeave
+        ? ScheduleClosureReason.DOCTOR_LEAVE
+        : (s.closureReason ?? ScheduleClosureReason.ADMIN_OVERRIDE);
     }
 
     return {

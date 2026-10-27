@@ -115,7 +115,7 @@ export class AppointmentRescheduleHandler {
             sessionId: sess.id,
             startTime: sTime,
             endTime: eTime,
-            shift: sess.labelKey,
+            shift: sess.code,
             sessionShift: sess.code,
             loadStatus: resolveQueueLoadStatus(0),
             isAvailable: true,

@@ -49,18 +49,11 @@ export class DrizzleAdminSessionMutationRepository {
     const practitionerId = practitioner.id;
 
     let roomId: string | null = null;
-    const targetRoom = body.roomId || body.roomName;
-    if (targetRoom) {
-      roomId = await this.roomResolver.resolveByNameOrId(targetRoom);
+    if (body.roomId) {
+      roomId = await this.roomResolver.resolveByNameOrId(body.roomId);
     }
     if (!roomId) {
-      roomId = practitioner.defaultRoomId || null;
-    }
-    if (!roomId) {
-      const defaultRoom = await this.db.query.clinicRooms.findFirst({
-        where: eq(clinicRooms.isActive, true),
-      });
-      if (defaultRoom) roomId = defaultRoom.id;
+      roomId = practitioner.defaultRoomId ?? null;
     }
 
     const startTimeFormatted =
@@ -117,7 +110,7 @@ export class DrizzleAdminSessionMutationRepository {
       id: createdException.id,
       practitionerId,
       scheduleDate: body.scheduleDate,
-      sessionLabel: sessionDef.labelKey,
+      sessionLabel: sessionDef.code,
       sessionShift: sessionDef.code,
       startTime: startTimeFormatted,
       endTime: endTimeFormatted,
@@ -245,12 +238,13 @@ export class DrizzleAdminSessionMutationRepository {
         : body.endTime
       : existingEndTime;
 
-    const targetRoom = body.roomId || body.roomName;
-    if (targetRoom) {
-      roomId = await this.roomResolver.resolveByNameOrId(targetRoom);
+    if (body.roomId) {
+      roomId = await this.roomResolver.resolveByNameOrId(body.roomId);
     }
 
-    if (body.startTime || body.endTime || targetRoom) {
+    const hasTimingOrRoomChange =
+      Boolean(body.startTime) || Boolean(body.endTime) || Boolean(body.roomId);
+    if (hasTimingOrRoomChange) {
       await this.conflictQuery.checkConflicts(
         practitioner.id,
         targetDate,

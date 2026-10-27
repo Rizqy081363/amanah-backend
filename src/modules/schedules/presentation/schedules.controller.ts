@@ -43,6 +43,20 @@ import {
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
 import { SYSTEM_ROLES } from '../../../auth/constants/auth.constants';
+import { zodPipe } from '../../../common/validation/zod-validation.pipe';
+import {
+  CreateScheduleUseCase,
+  GetSchedulesUseCase,
+  UpdateScheduleUseCase,
+} from '../application/use-cases';
+import {
+  CreateScheduleSchema,
+  type CreateScheduleInput,
+  QueryScheduleSchema,
+  type QueryScheduleInput,
+  UpdateScheduleSchema,
+  type UpdateScheduleInput,
+} from './schemas';
 import {
   DoctorRosterOverviewResponse,
   UpdateDoctorRosterDto,
@@ -90,6 +104,9 @@ export class SchedulesController {
     private readonly scheduleRepo: ScheduleRepository,
     @Inject(DOCTOR_ROSTER_REPOSITORY)
     private readonly rosterRepo: DoctorRosterRepository,
+    private readonly createScheduleUseCase: CreateScheduleUseCase,
+    private readonly getSchedulesUseCase: GetSchedulesUseCase,
+    private readonly updateScheduleUseCase: UpdateScheduleUseCase,
   ) {}
 
   private assertScheduleOwnership(schedule: any, user: AuthenticatedUser) {
@@ -143,51 +160,10 @@ export class SchedulesController {
     description: 'Validasi waktu atau jadwal gagal',
   })
   async createSchedule(
-    @Body() body: CreateScheduleDto,
+    @Body(zodPipe(CreateScheduleSchema)) body: CreateScheduleInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    let staffId: string;
-    if (isAdminUser(user)) {
-      if (!body.staffId) {
-        throw new DomainValidationException(
-          'Parameter staffId wajib disertakan oleh Administrator saat membuat jadwal',
-        );
-      }
-      staffId = body.staffId;
-    } else {
-      const doctorPractitionerId = user.staff?.practitionerId;
-      if (!doctorPractitionerId) {
-        throw new DomainForbiddenException(
-          'Akun Anda belum terhubung dengan profil praktisi medis klinik',
-        );
-      }
-      if (body.staffId && body.staffId !== doctorPractitionerId) {
-        throw new DomainForbiddenException(
-          'Akses ditolak: Staf hanya dapat membuat jadwal praktek untuk akun sendiri',
-        );
-      }
-      staffId = doctorPractitionerId;
-    }
-
-    if (!body.session) {
-      throw new DomainValidationException('Sesi jadwal (session) wajib diisi');
-    }
-
-    return this.scheduleRepo.create({
-      staffId,
-      poliklinikId: body.poliklinikId,
-      roomId: body.roomId,
-      serviceId: body.serviceId,
-      dayOfWeek: null,
-      specificDate: body.date || body.specificDate,
-      scheduleDate: body.date || body.specificDate,
-      session: body.session,
-      sessionLabel: body.session,
-      startTime: body.startTime,
-      endTime: body.endTime,
-      isAvailable: body.isAvailable ?? true,
-      notes: body.notes,
-    });
+    return this.createScheduleUseCase.execute(body, user);
   }
 
   @Get()
@@ -200,16 +176,10 @@ export class SchedulesController {
   @ApiOkResponse({
     description: 'Daftar jadwal praktek berhasil diambil',
   })
-  async getSchedules(@Query() query: QueryScheduleDto) {
-    const page = query.page || 1;
-    const limit = query.limit || 20;
-    const offset = (page - 1) * limit;
-
-    return this.scheduleRepo.findAll(limit, offset, {
-      poliklinikId: query.poliklinikId,
-      staffId: query.staffId,
-      date: query.date,
-    });
+  async getSchedules(
+    @Query(zodPipe(QueryScheduleSchema)) query: QueryScheduleInput,
+  ) {
+    return this.getSchedulesUseCase.execute(query);
   }
 
   @Get('my-schedules')
@@ -847,31 +817,10 @@ export class SchedulesController {
   })
   async updateSchedule(
     @Param('id') id: string,
-    @Body() body: UpdateScheduleDto,
+    @Body(zodPipe(UpdateScheduleSchema)) body: UpdateScheduleInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    const existing = await this.scheduleRepo.findById(id);
-    if (!existing) {
-      throw new EntityNotFoundException('Jadwal', id);
-    }
-    this.assertScheduleOwnership(existing, user);
-
-    const updated = await this.scheduleRepo.update(id, {
-      session: body.session,
-      sessionLabel: body.sessionType || body.session,
-      startTime: body.startTime,
-      endTime: body.endTime,
-      roomId: body.roomId,
-      poliklinikId: body.poliklinikId,
-      serviceId: body.serviceId,
-      status: body.status,
-      isAvailable: body.isAvailable,
-      notes: body.notes,
-    });
-    if (!updated) {
-      throw new EntityNotFoundException('Jadwal', id);
-    }
-    return updated;
+    return this.updateScheduleUseCase.execute(id, body, user);
   }
 
   @Delete(':id')

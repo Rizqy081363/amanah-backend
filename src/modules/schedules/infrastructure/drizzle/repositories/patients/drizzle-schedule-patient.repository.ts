@@ -212,7 +212,7 @@ export class DrizzleSchedulePatientRepository {
       scheduleDate: sessDate,
       startTime: sessStartTime,
       endTime: sessEndTime,
-      sessionLabel: effectiveSessionDef.labelKey,
+      sessionLabel: effectiveSessionDef.code,
       sessionShift: effectiveSessionDef.code,
       clinicRoom: effectiveRoom,
     };
@@ -338,11 +338,9 @@ export class DrizzleSchedulePatientRepository {
       });
 
       const primaryAddress =
-        apt.patientProfile?.patientAddresses?.find((a: any) => a.isPrimary) ||
+        apt.patientProfile?.patientAddresses?.find((a: any) => a.isPrimary) ??
         apt.patientProfile?.patientAddresses?.[0];
-      const addressStr = primaryAddress
-        ? primaryAddress.fullAddress || primaryAddress.line1 || null
-        : null;
+      const addressStr = primaryAddress?.fullAddress ?? null;
 
       const emergencyContact =
         apt.patientProfile?.patientEmergencyContacts?.[0];
@@ -414,10 +412,7 @@ export class DrizzleSchedulePatientRepository {
           fullName: apt.patientProfile?.fullName || 'Pasien',
           medicalRecordNumber:
             apt.patientProfile?.medicalRecordNumber || 'RM-UNKNOWN',
-          nik:
-            apt.patientProfile?.nationalIdEncrypted ||
-            apt.patientProfile?.nationalIdHash ||
-            '',
+          nik: apt.patientProfile?.nationalIdEncrypted ?? null,
           gender: apt.patientProfile?.gender || null,
           birthDate: apt.patientProfile?.birthDate || '',
           age: ageStr,
@@ -519,7 +514,7 @@ export class DrizzleSchedulePatientRepository {
       .map((da) => ({
         id: da.sessionDef.id,
         sessionShift: da.sessionDef.code,
-        sessionLabel: da.sessionDef.labelKey,
+        sessionLabel: da.sessionDef.code,
         startTime: da.sessionDef.defaultStartsAt,
         endTime: da.sessionDef.defaultEndsAt,
         clinicRoom: da.preferredRoom || null,

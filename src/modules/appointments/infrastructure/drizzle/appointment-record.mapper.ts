@@ -59,7 +59,7 @@ export class AppointmentRecordMapper {
       apt?.queueTickets?.[0]?.sessionDef ??
       apt?.sessionDef;
     const session = AppointmentRecordMapper.resolveSession(apt, ticket);
-    const sessionName = sessionDef?.labelKey ?? null;
+    const sessionName = sessionDef?.code ?? null;
 
     const primaryAffiliation = apt.patientProfile?.patientAffiliations?.[0];
     const isAffiliated =

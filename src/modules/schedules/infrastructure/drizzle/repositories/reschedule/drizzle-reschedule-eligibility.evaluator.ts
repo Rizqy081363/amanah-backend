@@ -19,6 +19,7 @@ import { ScheduleConflictQuery } from '@modules/schedules/infrastructure/drizzle
 import { PractitionerResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/practitioner.resolver';
 import type { CheckRescheduleEligibilityQueryDto } from '@modules/schedules/presentation/dto/check-reschedule-eligibility-query.dto';
 import {
+  BadRequestException,
   Inject,
   Injectable,
   NotFoundException,
@@ -75,10 +76,10 @@ export class DrizzleRescheduleEligibilityEvaluator {
       );
     }
 
-    const sourceDate =
-      (query as any).sourceDate ||
-      query.targetDate ||
-      new Date().toISOString().split('T')[0];
+    const sourceDate = query.sourceDate;
+    if (!sourceDate) {
+      throw new BadRequestException('Parameter sourceDate wajib disertakan');
+    }
     const sessStart = `${effectiveSessionDef.defaultStartsAt.slice(0, 5)}:00`;
     const sessEnd = `${effectiveSessionDef.defaultEndsAt.slice(0, 5)}:00`;
 
@@ -141,7 +142,7 @@ export class DrizzleRescheduleEligibilityEvaluator {
       timeRange: `${effectiveSessionDef.defaultStartsAt.slice(0, 5)} - ${effectiveSessionDef.defaultEndsAt.slice(0, 5)} WIB`,
       status: 'open',
       statusLabel: sourceStatus,
-      sessionLabel: effectiveSessionDef.labelKey,
+      sessionLabel: effectiveSessionDef.code,
       sessionShift: effectiveSessionDef.code,
       roomName,
       activeAppointmentsCount: activeAppts.length,

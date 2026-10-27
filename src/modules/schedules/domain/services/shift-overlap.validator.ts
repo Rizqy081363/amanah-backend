@@ -2,9 +2,8 @@ import { BadRequestException } from '@nestjs/common';
 import { parseTimeToMinutes } from './shift-duration.helper';
 
 export interface ShiftTimeInterval {
-  id?: string;
-  code?: string;
-  label?: string;
+  id: string;
+  code: string;
   startsAt: string;
   endsAt: string;
   isActive: boolean;
@@ -46,7 +45,7 @@ export function validateSessionDefsNonOverlap(defs: ShiftTimeInterval[]): void {
   for (const def of activeDefs) {
     const startMin = parseTimeToMinutes(def.startsAt);
     const endMin = parseTimeEndToMinutes(def.endsAt, startMin);
-    const shiftLabel = def.label || def.code || 'Shift Operasional';
+    const shiftLabel = def.code;
 
     if (startMin >= endMin) {
       throw new BadRequestException({
@@ -81,8 +80,8 @@ export function validateSessionDefsNonOverlap(defs: ShiftTimeInterval[]): void {
 
       if (overlapStart < overlapEnd) {
         const overlapMinutes = overlapEnd - overlapStart;
-        const labelA = a.label || a.code || 'Shift A';
-        const labelB = b.label || b.code || 'Shift B';
+        const labelA = a.code;
+        const labelB = b.code;
 
         throw new BadRequestException({
           code: 'SHIFT_OVERLAP_CONFLICT',
