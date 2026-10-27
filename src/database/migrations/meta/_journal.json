@@ -393,6 +393,13 @@
       "when": 1791339000000,
       "tag": "0055_populate_clinic_services_image_url",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1791340000000,
+      "tag": "0056_normalize_clinic_services_image_url",
+      "breakpoints": true
     }
   ]
 }
