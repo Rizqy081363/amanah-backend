@@ -55,8 +55,16 @@ export class ChatNotificationRules implements OnModuleInit {
                 params: {
                   conversationId: payload.conversationId || '',
                 },
-                label: 'Buka Chat',
+                label: 'Balas',
               },
+              actions: [
+                {
+                  label: 'Balas',
+                  actionKey: 'view_chat',
+                  actionType: 'primary',
+                  url: `/dashboard/chat?conversationId=${payload.conversationId || ''}`,
+                },
+              ],
               badgeIcon: 'message-square',
               senderName: payload.senderName || 'Pasien',
               senderRole: 'Pasien / Tamu',
@@ -85,8 +93,16 @@ export class ChatNotificationRules implements OnModuleInit {
                 params: {
                   conversationId: payload.conversationId || '',
                 },
-                label: 'Buka Chat',
+                label: 'Balas',
               },
+              actions: [
+                {
+                  label: 'Balas',
+                  actionKey: 'view_chat',
+                  actionType: 'primary',
+                  url: '/dashboard/klinik/chat',
+                },
+              ],
               badgeIcon: 'message-square',
               senderName: payload.senderName || 'Admin Klinik',
               senderRole: 'Klinik Amanah',

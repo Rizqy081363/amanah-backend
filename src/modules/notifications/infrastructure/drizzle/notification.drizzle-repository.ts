@@ -72,6 +72,7 @@ export class NotificationDrizzleRepository implements NotificationRepository {
         return {
           id: notif.id,
           category: notif.category,
+          audience: notif.audience as any,
           title: notif.title,
           senderName: notif.senderName,
           senderRole: notif.senderRole,

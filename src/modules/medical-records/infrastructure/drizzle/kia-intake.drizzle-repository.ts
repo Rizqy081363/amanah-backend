@@ -1,4 +1,4 @@
-import { forwardRef, Inject, Injectable, Optional } from '@nestjs/common';
+import { ForbiddenException, forwardRef, Inject, Injectable, Optional } from '@nestjs/common';
 import { isUUID } from 'class-validator';
 import { and, count, desc, eq, gte, ilike, inArray, lte, or } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
@@ -237,6 +237,22 @@ export class KiaIntakeDrizzleRepository {
         return;
       }
 
+      if (existing.intakeSubmissionId) {
+        const sub = await tx.query.medicalIntakeSubmissions.findFirst({
+          where: eq(medicalIntakeSubmissions.id, existing.intakeSubmissionId),
+        });
+        if (sub?.appointmentId) {
+          const app = await tx.query.appointments.findFirst({
+            where: eq(appointments.id, sub.appointmentId),
+          });
+          if (app?.status === 'completed') {
+            throw new ForbiddenException(
+              'Rekam medis pada janji temu yang telah selesai bersifat terkunci dan tidak dapat diubah.',
+            );
+          }
+        }
+      }
+
       const intakeId = existing.id;
       targetIntakeId = intakeId;
       const updateData: Record<string, any> = {
@@ -343,6 +359,16 @@ export class KiaIntakeDrizzleRepository {
     });
     if (!existing) {
       return null;
+    }
+    if (existing.appointmentId) {
+      const app = await this.db.query.appointments.findFirst({
+        where: eq(appointments.id, existing.appointmentId),
+      });
+      if (app?.status === 'completed') {
+        throw new ForbiddenException(
+          'Rekam medis pada janji temu yang telah selesai bersifat terkunci dan tidak dapat diubah.',
+        );
+      }
     }
     const merged = {
       ...(existing.answers as Record<string, any>),
