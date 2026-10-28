@@ -150,6 +150,11 @@ export interface AttendanceRepository {
 
   hasCustomDoctorRoster(staffId: string): Promise<boolean>;
 
+  findInactiveDoctorAssignmentSessionIds(
+    staffId: string,
+    dow: number,
+  ): Promise<string[]>;
+
   findDoctorShiftExceptions(
     staffId: string,
     dateStr: string,
@@ -238,6 +243,7 @@ export interface AttendanceRepository {
 
   resolveSessionDefByTime(
     hourOrTime: number | string | Date,
+    windowMinutesBefore?: number,
   ): Promise<{ id: string; code: string; defaultStartsAt: string | null; defaultEndsAt?: string | null } | null>;
 
   resolveSessionDefByCode(
@@ -267,6 +273,8 @@ export interface AttendanceRepository {
     statuses: Array<{ label: string; value: string }>;
     categories: Array<{ label: string; value: string }>;
   }>;
+
+  getAllShiftLabelsMap(): Promise<Map<string, string>>;
 
   getExportCandidates(
     startDate: string,

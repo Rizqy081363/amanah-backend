@@ -120,7 +120,7 @@ export class DrizzleScheduleRescheduleRepository {
       startTime: effectiveSessionDef.defaultStartsAt.slice(0, 5),
       endTime: effectiveSessionDef.defaultEndsAt.slice(0, 5),
       sessionShift: effectiveSessionDef.code,
-      sessionLabel: effectiveSessionDef.code,
+      sessionLabel: effectiveSessionDef.label,
       roomId: assignment?.preferredRoomId || practitioner.defaultRoomId || null,
       notes: null as string | null,
     };

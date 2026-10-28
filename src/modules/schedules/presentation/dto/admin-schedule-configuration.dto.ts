@@ -212,17 +212,6 @@ export class UpdateSingleSessionDefDto {
   isActive?: boolean;
 }
 
-export class ApplySchedulePresetDto {
-  @ApiProperty({
-    description: 'Nama preset jadwal operasional klinik',
-    enum: ['2-shifts', '3-shifts', '4-shifts', 'custom'],
-    example: '2-shifts',
-  })
-  @IsNotEmpty()
-  @IsString()
-  preset: string;
-}
-
 export class UpdateWeeklyTemplateItemDto {
   @ApiPropertyOptional({
     description: 'Identifier baris template jadwal mingguan jika sudah ada',
@@ -403,3 +392,150 @@ export class ScheduleConfigurationImpactResultDto {
   })
   warnings: string[];
 }
+
+export class DeleteSessionDefDto {
+  @ApiPropertyOptional({
+    description:
+      'Paksa penghapusan berantai jika terdapat penugasan dokter atau template terkait',
+    example: true,
+  })
+  @IsOptional()
+  @IsBoolean()
+  cascade?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'Teks konfirmasi (harus cocok persis dengan label atau kode shift)',
+    example: 'halo',
+  })
+  @IsOptional()
+  @IsString()
+  confirmText?: string;
+}
+
+export class SessionDefImpactDoctorDayDto {
+  @ApiProperty({
+    description: 'Hari praktik dalam sepekan (0 = Minggu, 1 = Senin, ..., 6 = Sabtu)',
+    example: 3,
+  })
+  @IsInt()
+  @Min(0)
+  @Max(6)
+  dow: number;
+
+  @ApiProperty({
+    description: 'Nama hari dalam Bahasa Indonesia',
+    example: 'Rabu',
+  })
+  @IsString()
+  dayName: string;
+
+  @ApiPropertyOptional({
+    description: 'Nama ruangan praktik preferensi',
+    example: 'Ruang Poli Umum 1',
+  })
+  @IsOptional()
+  @IsString()
+  roomName?: string | null;
+}
+
+export class SessionDefImpactDoctorDto {
+  @ApiProperty({
+    description: 'Identifier dokter / praktisi',
+    example: 'd403922c-2da2-4191-a04b-c9d6ce0e513a',
+  })
+  @IsUUID()
+  id: string;
+
+  @ApiProperty({
+    description: 'Nama tampilan dokter praktisi',
+    example: 'Dr. Zikri Fadhiilah Ahmad',
+  })
+  @IsString()
+  displayName: string;
+
+  @ApiPropertyOptional({
+    description: 'Spesialisasi medis dokter',
+    example: 'Dokter Umum',
+  })
+  @IsOptional()
+  @IsString()
+  specialty?: string | null;
+
+  @ApiProperty({
+    description: 'Daftar hari dan ruangan penugasan pada shift ini',
+    type: [SessionDefImpactDoctorDayDto],
+  })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => SessionDefImpactDoctorDayDto)
+  activeDays: SessionDefImpactDoctorDayDto[];
+}
+
+export class SessionDefImpactResultDto {
+  @ApiProperty({
+    description: 'Identifier unik shift operasional',
+    example: 'a57ad2ca-084a-479f-8ff5-05bbccb3701c',
+  })
+  @IsUUID()
+  shiftId: string;
+
+  @ApiProperty({
+    description: 'Label tampilan manusiawi shift operasional',
+    example: 'halo',
+  })
+  @IsString()
+  shiftLabel: string;
+
+  @ApiProperty({
+    description: 'Kode internal shift operasional',
+    example: 'halo',
+  })
+  @IsString()
+  shiftCode: string;
+
+  @ApiProperty({
+    description: 'Total baris penugasan dokter yang terikat pada shift ini',
+    example: 7,
+  })
+  @IsInt()
+  totalAssignmentsCount: number;
+
+  @ApiProperty({
+    description: 'Jumlah individu dokter aktif yang terdampak',
+    example: 1,
+  })
+  @IsInt()
+  affectedDoctorsCount: number;
+
+  @ApiProperty({
+    description: 'Daftar detail kartu dokter yang terdampak beserta jadwalnya',
+    type: [SessionDefImpactDoctorDto],
+  })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => SessionDefImpactDoctorDto)
+  affectedDoctors: SessionDefImpactDoctorDto[];
+
+  @ApiProperty({
+    description: 'Jumlah template mingguan operasional klinik yang terikat',
+    example: 7,
+  })
+  @IsInt()
+  weeklyTemplatesCount: number;
+
+  @ApiProperty({
+    description: 'Apakah terdapat tiket antrean pasien yang terikat pada shift ini',
+    example: false,
+  })
+  @IsBoolean()
+  hasActiveTickets: boolean;
+
+  @ApiProperty({
+    description: 'Jumlah tiket antrean pasien yang terikat',
+    example: 0,
+  })
+  @IsInt()
+  activeTicketsCount: number;
+}
+

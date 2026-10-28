@@ -212,7 +212,7 @@ export class DrizzleSchedulePatientRepository {
       scheduleDate: sessDate,
       startTime: sessStartTime,
       endTime: sessEndTime,
-      sessionLabel: effectiveSessionDef.code,
+      sessionLabel: effectiveSessionDef.label,
       sessionShift: effectiveSessionDef.code,
       clinicRoom: effectiveRoom,
     };
@@ -514,7 +514,7 @@ export class DrizzleSchedulePatientRepository {
       .map((da) => ({
         id: da.sessionDef.id,
         sessionShift: da.sessionDef.code,
-        sessionLabel: da.sessionDef.code,
+        sessionLabel: da.sessionDef.label,
         startTime: da.sessionDef.defaultStartsAt,
         endTime: da.sessionDef.defaultEndsAt,
         clinicRoom: da.preferredRoom || null,

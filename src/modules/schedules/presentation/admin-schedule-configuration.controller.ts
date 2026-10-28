@@ -13,6 +13,7 @@ import {
   ParseUUIDPipe,
   Post,
   Put,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -28,10 +29,11 @@ import {
   ScheduleConfigurationData,
 } from '../infrastructure/drizzle/repositories/admin/drizzle-admin-schedule-configuration.repository';
 import {
-  ApplySchedulePresetDto,
   CreateSessionDefDto,
+  DeleteSessionDefDto,
   EvaluateScheduleImpactDto,
   ScheduleConfigurationImpactResultDto,
+  SessionDefImpactResultDto,
   UpdateClinicSettingsBatchDto,
   UpdateScheduleConfigurationBatchDto,
   UpdateSessionDefsBatchDto,
@@ -178,6 +180,32 @@ export class AdminScheduleConfigurationController {
     };
   }
 
+  @Get('session-defs/:id')
+  @ApiOperation({
+    summary: 'Ambil detail satu definisi shift operasional berdasarkan ID',
+  })
+  @ApiOkResponse({
+    description: 'Detail definisi shift operasional berhasil diambil',
+  })
+  async getSessionDefById(@Param('id', ParseUUIDPipe) id: string) {
+    return this.configRepo.getSessionDefById(id);
+  }
+
+  @Get('session-defs/:id/impact')
+  @ApiOperation({
+    summary:
+      'Evaluasi dampak penghapusan/penonaktifan shift operasional terhadap dokter dan template',
+  })
+  @ApiOkResponse({
+    description: 'Daftar dokter dan dependensi yang terdampak oleh shift ini',
+    type: SessionDefImpactResultDto,
+  })
+  async getSessionDefImpact(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<SessionDefImpactResultDto> {
+    return this.configRepo.getSessionDefImpact(id);
+  }
+
   @Put('session-defs/:id')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -201,29 +229,27 @@ export class AdminScheduleConfigurationController {
   @Delete('session-defs/:id')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Hapus definisi shift operasional (dengan validasi relasi jadwal & antrean)',
+    summary:
+      'Hapus definisi shift operasional (dengan opsi cascade dan friction guard ala GitHub)',
   })
   @ApiOkResponse({
     description: 'Shift operasional berhasil dihapus',
   })
-  async deleteSessionDef(@Param('id', ParseUUIDPipe) id: string) {
-    return this.configRepo.deleteSessionDef(id);
-  }
+  async deleteSessionDef(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() bodyDto?: DeleteSessionDefDto,
+    @Query('cascade') cascadeQuery?: string,
+    @Query('confirmText') confirmTextQuery?: string,
+  ) {
+    const isCascade =
+      bodyDto?.cascade === true ||
+      cascadeQuery === 'true' ||
+      cascadeQuery === '1';
+    const confirmText = bodyDto?.confirmText ?? confirmTextQuery;
 
-  @Post('presets')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'Terapkan preset shift operasional klinik (2-shifts, 3-shifts, 4-shifts, custom)',
-  })
-  @ApiOkResponse({
-    description: 'Preset shift operasional klinik berhasil diterapkan',
-  })
-  async applyPreset(@Body() dto: ApplySchedulePresetDto) {
-    const config = await this.configRepo.applyPreset(dto.preset);
-    return {
-      success: true,
-      message: `Preset '${dto.preset}' berhasil diterapkan`,
-      data: config,
-    };
+    return this.configRepo.deleteSessionDef(id, {
+      cascade: isCascade,
+      confirmText,
+    });
   }
 }

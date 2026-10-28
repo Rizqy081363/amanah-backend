@@ -20,6 +20,7 @@ export interface ResolveActiveSessionParams {
   candidateSessions: CandidateScheduledSession[];
   currentTime: Date;
   checkInWindowMinutesBefore: number;
+  checkInWindowMinutesAfter?: number;
   requestedShift?: string | null;
   requestedSessionId?: string | null;
   shiftHint?: string | null;
@@ -58,6 +59,7 @@ export function resolveActiveSessionForCheckIn(
     candidateSessions,
     currentTime,
     checkInWindowMinutesBefore,
+    checkInWindowMinutesAfter,
     requestedShift,
     requestedSessionId,
     shiftHint,
@@ -71,6 +73,30 @@ export function resolveActiveSessionForCheckIn(
   }
 
   const nowMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
+
+  // Helper to determine whether a given session is currently open for check-in
+  const evaluateSessionWindow = (session: CandidateScheduledSession) => {
+    const startMinutes = timeStringToMinutes(session.startsAt);
+    const rawEndMinutes = timeStringToMinutes(session.endsAt);
+    const endMinutes = rawEndMinutes === 0 ? 1440 : rawEndMinutes;
+    const windowStart = (startMinutes - checkInWindowMinutesBefore + 1440) % 1440;
+
+    const isOvernight = endMinutes < startMinutes;
+    const isWindowPreMidnight = windowStart > startMinutes;
+
+    let isWithinWindow = false;
+    let hasEnded = false;
+
+    if (isOvernight || isWindowPreMidnight) {
+      isWithinWindow = nowMinutes >= windowStart || nowMinutes <= endMinutes;
+      hasEnded = !isWithinWindow && (nowMinutes > endMinutes && nowMinutes < windowStart);
+    } else {
+      isWithinWindow = nowMinutes >= windowStart && nowMinutes <= endMinutes;
+      hasEnded = nowMinutes > endMinutes;
+    }
+
+    return { isWithinWindow, hasEnded, windowStart, endMinutes, startMinutes };
+  };
 
   // 1. If client explicitly requested a shift or sessionId, validate against scheduled candidates
   if (requestedShift || requestedSessionId) {
@@ -86,18 +112,15 @@ export function resolveActiveSessionForCheckIn(
 
     // Administrative entry allows recording presence for scheduled shift regardless of current time
     if (!isAdministrativeEntry) {
-      const startMinutes = timeStringToMinutes(matched.startsAt);
-      const rawEndMinutes = timeStringToMinutes(matched.endsAt);
-      const endMinutes = rawEndMinutes === 0 ? 1440 : rawEndMinutes;
-      const windowStart = Math.max(0, startMinutes - checkInWindowMinutesBefore);
+      const { isWithinWindow, hasEnded } = evaluateSessionWindow(matched);
 
-      if (nowMinutes > endMinutes) {
+      if (hasEnded) {
         throw new SessionExpiredException(
           `Sesi dinas '${matched.shift}' telah berakhir. Presensi masuk tidak dapat dilakukan setelah jam dinas selesai.`,
         );
       }
 
-      if (nowMinutes < windowStart) {
+      if (!isWithinWindow) {
         throw new NoActiveSessionException(
           `Jendela presensi masuk untuk sesi '${matched.shift}' belum dibuka. Jam masuk dinas: ${matched.startsAt?.slice(0, 5)}.`,
         );
@@ -112,14 +135,7 @@ export function resolveActiveSessionForCheckIn(
   }
 
   // 2. Dynamic Progressive Resolution: Check which candidate sessions have an open check-in window right now
-  const openSessions = candidateSessions.filter((s) => {
-    const startMinutes = timeStringToMinutes(s.startsAt);
-    const rawEndMinutes = timeStringToMinutes(s.endsAt);
-    const endMinutes = rawEndMinutes === 0 ? 1440 : rawEndMinutes;
-    const windowStart = Math.max(0, startMinutes - checkInWindowMinutesBefore);
-
-    return nowMinutes >= windowStart && nowMinutes <= endMinutes;
-  });
+  const openSessions = candidateSessions.filter((s) => evaluateSessionWindow(s).isWithinWindow);
 
   if (openSessions.length > 0) {
     // If shiftHint is provided and matches one of the open sessions, prioritize that session
@@ -158,11 +174,7 @@ export function resolveActiveSessionForCheckIn(
   }
 
   // 3. No session currently open: Determine if all scheduled sessions for today have expired
-  const allExpired = candidateSessions.every((s) => {
-    const rawEndMinutes = timeStringToMinutes(s.endsAt);
-    const endMinutes = rawEndMinutes === 0 ? 1440 : rawEndMinutes;
-    return nowMinutes > endMinutes;
-  });
+  const allExpired = candidateSessions.every((s) => evaluateSessionWindow(s).hasEnded);
 
   if (allExpired) {
     throw new SessionExpiredException(

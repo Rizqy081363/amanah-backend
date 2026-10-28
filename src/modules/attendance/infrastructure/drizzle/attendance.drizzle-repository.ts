@@ -154,6 +154,13 @@ export class AttendanceDrizzleRepository implements AttendanceRepository {
     return this.rosterLookupRepo.hasCustomDoctorRoster(staffId);
   }
 
+  async findInactiveDoctorAssignmentSessionIds(staffId: string, dow: number) {
+    return this.rosterLookupRepo.findInactiveDoctorAssignmentSessionIds(
+      staffId,
+      dow,
+    );
+  }
+
   async findStaffRostersForDowDetailed(staffId: string, dow: number) {
     return this.rosterLookupRepo.findStaffRostersForDowDetailed(staffId, dow);
   }
@@ -195,8 +202,14 @@ export class AttendanceDrizzleRepository implements AttendanceRepository {
     return this.rosterLookupRepo.resolveStaffByIdOrCode(query);
   }
 
-  async resolveSessionDefByTime(hourOrTime: number | string | Date) {
-    return this.rosterLookupRepo.resolveSessionDefByTime(hourOrTime);
+  async resolveSessionDefByTime(
+    hourOrTime: number | string | Date,
+    windowMinutesBefore?: number,
+  ) {
+    return this.rosterLookupRepo.resolveSessionDefByTime(
+      hourOrTime,
+      windowMinutesBefore,
+    );
   }
 
   async resolveSessionDefByCode(sessionCode: string) {
@@ -219,6 +232,10 @@ export class AttendanceDrizzleRepository implements AttendanceRepository {
 
   async getAvailableFilterOptions() {
     return this.bffStatsRepo.getAvailableFilterOptions();
+  }
+
+  async getAllShiftLabelsMap(): Promise<Map<string, string>> {
+    return this.bffStatsRepo.getAllShiftLabelsMap();
   }
 
   async getExportCandidates(

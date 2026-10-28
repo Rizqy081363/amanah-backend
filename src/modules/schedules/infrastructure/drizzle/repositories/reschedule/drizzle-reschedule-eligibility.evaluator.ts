@@ -142,7 +142,7 @@ export class DrizzleRescheduleEligibilityEvaluator {
       timeRange: `${effectiveSessionDef.defaultStartsAt.slice(0, 5)} - ${effectiveSessionDef.defaultEndsAt.slice(0, 5)} WIB`,
       status: 'open',
       statusLabel: sourceStatus,
-      sessionLabel: effectiveSessionDef.code,
+      sessionLabel: effectiveSessionDef.label,
       sessionShift: effectiveSessionDef.code,
       roomName,
       activeAppointmentsCount: activeAppts.length,

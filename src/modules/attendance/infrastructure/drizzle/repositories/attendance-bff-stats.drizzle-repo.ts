@@ -84,6 +84,7 @@ export class AttendanceBffStatsDrizzleRepo {
     const activeSessions = await this.db
       .select({
         code: sessionDefs.code,
+        label: sessionDefs.label,
         sortOrder: sessionDefs.sortOrder,
       })
       .from(sessionDefs)
@@ -91,7 +92,7 @@ export class AttendanceBffStatsDrizzleRepo {
       .orderBy(sessionDefs.sortOrder);
 
     const shifts = activeSessions.map((s: any) => ({
-      label: s.code,
+      label: s.label || s.code,
       value: s.code,
     }));
 
@@ -114,6 +115,25 @@ export class AttendanceBffStatsDrizzleRepo {
     }));
 
     return { shifts, statuses, categories };
+  }
+
+  async getAllShiftLabelsMap(): Promise<Map<string, string>> {
+    const allSessions = await this.db
+      .select({
+        id: sessionDefs.id,
+        code: sessionDefs.code,
+        label: sessionDefs.label,
+      })
+      .from(sessionDefs);
+
+    const map = new Map<string, string>();
+    for (const s of allSessions) {
+      if (s.label) {
+        map.set(s.code, s.label);
+        map.set(s.id, s.label);
+      }
+    }
+    return map;
   }
 
   async getExportCandidates(

@@ -5,6 +5,7 @@ import {
   appointments,
   masterDays,
   practitioners,
+  sessionDefs,
   shiftExceptions,
   staffInvitations,
   staffLeaveRequests,
@@ -48,7 +49,7 @@ export class DrizzleAdminDoctorScheduleListQuery {
   async execute(
     query: AdminDoctorSchedulesQueryDto,
   ): Promise<AdminDoctorScheduleListResponse> {
-    const { date: clinicTodayStr } = getClinicNow();
+    const { date: clinicTodayStr, time: clinicNowTimeStr } = getClinicNow();
     let targetDate = clinicTodayStr;
 
     if (query.date) {
@@ -70,6 +71,7 @@ export class DrizzleAdminDoctorScheduleListQuery {
       allAppointments,
       clinicPolicy,
       allDoctorAssignments,
+      allActiveSessionDefs,
       allShiftExceptions,
       dayRecord,
       pendingInvitations,
@@ -110,6 +112,12 @@ export class DrizzleAdminDoctorScheduleListQuery {
             },
           },
           preferredRoom: true,
+        },
+      }),
+      this.db.query.sessionDefs.findMany({
+        where: eq(sessionDefs.isActive, true),
+        with: {
+          schedules: true,
         },
       }),
       this.db.query.shiftExceptions.findMany({
@@ -190,8 +198,21 @@ export class DrizzleAdminDoctorScheduleListQuery {
         (da) => da.doctorId === p.id,
       );
 
+      const effectiveDoctorAssignments =
+        doctorAssignmentsForP.length > 0
+          ? doctorAssignmentsForP
+          : allActiveSessionDefs.map((def) => ({
+              doctorId: p.id,
+              sessionId: def.id,
+              dow: null,
+              isActive: true,
+              preferredRoomId: p.defaultRoomId || null,
+              preferredRoom: p.clinicRoom,
+              sessionDef: def,
+            }));
+
       const assignments: any[] = filterEffectiveDoctorAssignments<any>(
-        doctorAssignmentsForP as any,
+        effectiveDoctorAssignments as any,
         targetDow,
       );
 
@@ -204,6 +225,8 @@ export class DrizzleAdminDoctorScheduleListQuery {
             doctorAssignment: da,
             shiftExceptions: allShiftExceptions,
             isDayActive: dayRecord?.isActive ?? true,
+            clinicTodayStr,
+            clinicNowTimeStr,
           });
 
           return {
@@ -227,10 +250,7 @@ export class DrizzleAdminDoctorScheduleListQuery {
         (l) => l.practitionerId === p.id || l.staffProfileId === p.staffProfileId,
       );
       const isOnLeave = Boolean(approvedLeave || activeLeave);
-      const leaveReason =
-        approvedLeave?.reason ||
-        activeLeave?.note ||
-        (isOnLeave ? 'Dokter Cuti' : null);
+      const leaveReason = approvedLeave?.reason || activeLeave?.note || null;
       const leaveStart =
         approvedLeave?.startDate || (isOnLeave ? targetDate : null);
       const leaveEnd = approvedLeave?.endDate || (isOnLeave ? targetDate : null);
@@ -283,14 +303,6 @@ export class DrizzleAdminDoctorScheduleListQuery {
           persistedStatus: s.status,
         });
 
-        const isRescheduleEligible =
-          !isOnLeave && sessionOpStatus !== ScheduleOperationalStatus.CLOSED;
-        const rescheduleIneligibilityReason = isOnLeave
-          ? 'Sesi tidak dapat di-reschedule karena dokter sedang cuti.'
-          : sessionOpStatus === ScheduleOperationalStatus.CLOSED
-            ? 'Sesi berstatus Tutup. Sesi yang sudah ditutup tidak dapat di-reschedule. Silakan gunakan menu Edit Jadwal untuk membuka sesi.'
-            : null;
-
         let closureReason: ScheduleClosureReason | null = null;
         if (sessionOpStatus === ScheduleOperationalStatus.CLOSED) {
           if (isOnLeave) {
@@ -301,6 +313,19 @@ export class DrizzleAdminDoctorScheduleListQuery {
             closureReason = ScheduleClosureReason.ADMIN_OVERRIDE;
           }
         }
+
+        const isRescheduleEligible =
+          !isOnLeave &&
+          closureReason !== ScheduleClosureReason.SHIFT_ENDED &&
+          closureReason !== ScheduleClosureReason.DOCTOR_LEAVE &&
+          closureReason !== ScheduleClosureReason.ADMIN_OVERRIDE;
+        const rescheduleIneligibilityReason = isOnLeave
+          ? 'Sesi tidak dapat di-reschedule karena dokter sedang cuti.'
+          : closureReason === ScheduleClosureReason.SHIFT_ENDED
+            ? 'Sesi praktik telah berakhir untuk hari ini.'
+            : closureReason === ScheduleClosureReason.ADMIN_OVERRIDE
+              ? 'Sesi berstatus Tutup. Sesi yang sudah ditutup tidak dapat di-reschedule. Silakan gunakan menu Edit Jadwal untuk membuka sesi.'
+              : null;
 
         return {
           id: s.id,
@@ -326,28 +351,58 @@ export class DrizzleAdminDoctorScheduleListQuery {
         sessionStatuses: sessionOpStatuses,
       });
 
-      const isClosed = aggregateOpStatus === ScheduleOperationalStatus.CLOSED;
+      const isToday = targetDate === clinicTodayStr;
+      let effectiveOpStatus = aggregateOpStatus;
+      if (isToday) {
+        const liveSession = dailySessions.find(
+          (s) =>
+            clinicNowTimeStr >= s.startTime &&
+            clinicNowTimeStr < s.endTime &&
+            s.sessionStatus === ScheduleOperationalStatus.OPEN,
+        );
+        effectiveOpStatus = liveSession
+          ? ScheduleOperationalStatus.OPEN
+          : ScheduleOperationalStatus.CLOSED;
+      }
+
+      const isClosed = effectiveOpStatus === ScheduleOperationalStatus.CLOSED;
       const scheduleStatus = isPending
         ? ScheduleOperationalStatus.PENDING
-        : aggregateOpStatus;
+        : isOnLeave
+          ? ScheduleOperationalStatus.ON_LEAVE
+          : effectiveOpStatus;
 
-      let todaySchedule = '-';
-      let upcomingSchedule = 'Tidak Ada Jadwal';
+      let todaySchedule: string | null = null;
+      let upcomingSchedule: string | null = null;
 
-      if (isPending) {
-        todaySchedule = '-';
-        upcomingSchedule = 'Menunggu Verifikasi';
-      } else if (isOnLeave) {
-        upcomingSchedule = 'Dokter Cuti';
-      } else if (isClosed) {
-        upcomingSchedule =
-          dailySessions.length === 0 ? 'Tidak Ada Jadwal' : 'Praktik Ditutup';
+      if (dailySessions.length > 0) {
+        const starts = dailySessions.map((s) => s.startTime).sort();
+        const ends = dailySessions.map((s) => s.endTime).sort();
+        todaySchedule = `${starts[0]} - ${ends[ends.length - 1]}`;
+      }
+
+      if (isPending || isOnLeave) {
+        todaySchedule = null;
+        upcomingSchedule = null;
       } else {
-        upcomingSchedule = '-';
-        if (dailySessions.length > 0) {
-          const starts = dailySessions.map((s) => s.startTime).sort();
-          const ends = dailySessions.map((s) => s.endTime).sort();
-          todaySchedule = `${starts[0]} - ${ends[ends.length - 1]}`;
+        if (isToday) {
+          const liveSession = dailySessions.find(
+            (s) =>
+              clinicNowTimeStr >= s.startTime &&
+              clinicNowTimeStr < s.endTime,
+          );
+          const nextSession = dailySessions.find(
+            (s) =>
+              clinicNowTimeStr < s.startTime,
+          );
+
+          upcomingSchedule =
+            liveSession?.timeRange ||
+            nextSession?.timeRange ||
+            todaySchedule ||
+            null;
+        } else {
+          upcomingSchedule = todaySchedule || null;
         }
       }
 

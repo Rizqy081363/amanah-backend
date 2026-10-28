@@ -98,18 +98,14 @@ function mapScheduleRecordToEntity(
   const endMinutes = endTimeFormatted ? parseClockTime(endTimeFormatted) : 1440;
   const isPast = isPastDate || (isToday && endMinutes <= currentMinutes);
 
-  let statusBadge = 'Buka';
-  let badgeVariant = 'success';
   let effectiveStatus = ScheduleOperationalStatus.OPEN;
+  let statusBadge = ScheduleOperationalStatus.OPEN;
+  let badgeVariant = 'success';
 
-  if (!isAvailable) {
-    statusBadge = 'Tutup';
-    badgeVariant = 'warning';
+  if (!isAvailable || isPast) {
     effectiveStatus = ScheduleOperationalStatus.CLOSED;
-  } else if (isPast) {
-    statusBadge = 'Selesai';
+    statusBadge = ScheduleOperationalStatus.CLOSED;
     badgeVariant = 'warning';
-    effectiveStatus = ScheduleOperationalStatus.CLOSED;
   }
 
   return {

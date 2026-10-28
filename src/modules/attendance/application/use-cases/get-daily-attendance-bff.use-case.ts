@@ -49,11 +49,19 @@ export class GetDailyAttendanceBffUseCase {
       attendanceList,
     });
 
-    // 3. Map Table Records strictly from actual attendanceList (No Dummy Padding)
+    // 3. DB-Driven Filter Options & Authoritative Historical Shift Definitions (SSOT)
+    const availableFilters = await this.repo.getAvailableFilterOptions();
+    const shiftLabelMap = await this.repo.getAllShiftLabelsMap();
+
+    // 4. Map Table Records strictly from actual attendanceList (No Dummy Padding)
     let tableRecords = attendanceList.map((rec) => {
       const staff = rec.staffProfile;
       const shift = rec.shift;
       const status = rec.status;
+      const canonicalShiftLabel =
+        (rec.sessionId && shiftLabelMap.get(rec.sessionId)) ||
+        (shift && shiftLabelMap.get(shift)) ||
+        '-';
 
       let checkInFormatted = '-';
       if (rec.checkInAt) {
@@ -85,7 +93,8 @@ export class GetDailyAttendanceBffUseCase {
         checkOutAt: rec.checkOutAt ? new Date(rec.checkOutAt).toISOString() : null,
         status: status,
         shift: shift,
-        sessionName: shift,
+        shiftLabel: canonicalShiftLabel,
+        sessionName: canonicalShiftLabel,
         validatedDurationHours: rec.validatedDurationHours
           ? Number(rec.validatedDurationHours)
           : 0,
@@ -101,7 +110,7 @@ export class GetDailyAttendanceBffUseCase {
       };
     });
 
-    // 4. Apply in-memory filters
+    // 5. Apply in-memory filters
     if (query.search) {
       const q = query.search.toLowerCase();
       tableRecords = tableRecords.filter(
@@ -132,11 +141,8 @@ export class GetDailyAttendanceBffUseCase {
       );
     }
 
-    // 5. Active QR Session config for Terminal
-    const activeQr = await this.rotateQrUseCase.getActiveSession();
-
-    // 6. DB-Driven Filter Options (Zero Hardcoding, Scalable SSOT)
-    const availableFilters = await this.repo.getAvailableFilterOptions();
+    // 6. Active QR Session config for Terminal (Decoupled read-model: outside shift hours returns dormant standby terminal)
+    const activeQr = await this.rotateQrUseCase.getActiveSessionOrNull();
 
     return {
       records: tableRecords,
@@ -156,13 +162,18 @@ export class GetDailyAttendanceBffUseCase {
         sparkline_tingkat_kehadiran: metrics.sparklineRate,
       },
       qrConfig: {
-        status: activeQr.isActive ? 'active' : 'inactive',
-        isActive: activeQr.isActive,
-        qr_code_identifier: activeQr.qrCodeIdentifier,
-        qr_context: activeQr.context ?? '',
-        qr_validity: activeQr.validUntil.toLocaleTimeString('id-ID'),
-        validUntil: activeQr.validUntil.toISOString(),
-        rotation_seconds: activeQr.rotationSeconds,
+        status: activeQr && activeQr.isActive ? 'active' : 'inactive',
+        isActive: Boolean(activeQr && activeQr.isActive),
+        qr_code_identifier: activeQr?.qrCodeIdentifier ?? '',
+        qr_context:
+          activeQr?.context ?? 'Terminal Standby (Di Luar Jam Operasional)',
+        qr_validity: activeQr?.validUntil
+          ? activeQr.validUntil.toLocaleTimeString('id-ID')
+          : '-',
+        validUntil: activeQr?.validUntil
+          ? activeQr.validUntil.toISOString()
+          : undefined,
+        rotation_seconds: activeQr?.rotationSeconds ?? 0,
       },
       availableFilters,
     };

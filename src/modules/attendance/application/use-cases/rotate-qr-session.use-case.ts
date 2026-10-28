@@ -31,9 +31,15 @@ export class RotateQrSessionUseCase {
         ? 'staff_identity'
         : 'location_check_in';
     const now = new Date();
+    // SSOT: Authoritative configurations from clinic_setting
+    const attendanceConfig = await this.clinicConfig.getAttendanceConfig();
+
     let shift = normalizeShift(input.shift);
     if (!shift) {
-      const activeDef = await this.repo.resolveSessionDefByTime(now);
+      const activeDef = await this.repo.resolveSessionDefByTime(
+        now,
+        attendanceConfig.checkInWindowMinutesBefore,
+      );
       if (activeDef?.code) {
         shift = normalizeShift(activeDef.code);
       }
@@ -44,9 +50,7 @@ export class RotateQrSessionUseCase {
       );
     }
     const finalShift = shift;
-    // SSOT: Authoritative rotation interval from clinic_setting
-    const rotationSeconds =
-      (await this.clinicConfig.getAttendanceConfig()).qrRotationSeconds;
+    const rotationSeconds = attendanceConfig.qrRotationSeconds;
 
     // Cryptographically secure 6-character alphanumeric token
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -79,5 +83,31 @@ export class RotateQrSessionUseCase {
       return active;
     }
     return this.execute({ sessionType });
+  }
+
+  async getActiveSessionOrNull(
+    sessionType: string = 'location_check_in',
+  ): Promise<QrSessionEntity | null> {
+    const active = await this.repo.findActiveQrSession(sessionType);
+    if (active) {
+      return active;
+    }
+
+    const now = new Date();
+    const attendanceConfig = await this.clinicConfig.getAttendanceConfig();
+    const activeDef = await this.repo.resolveSessionDefByTime(
+      now,
+      attendanceConfig.checkInWindowMinutesBefore,
+    );
+    if (!activeDef?.code) {
+      // Clinic is closed or outside active operational shift hours
+      return null;
+    }
+
+    try {
+      return await this.execute({ sessionType });
+    } catch {
+      return null;
+    }
   }
 }

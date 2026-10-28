@@ -1,29 +1,21 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { isUUID } from 'class-validator';
-import { and, asc, desc, eq, gte, lte, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, lte, or, sql } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import type { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
   roles,
+  sessionDefs,
   staffAttendanceRecords,
   staffProfiles,
   userRoles,
   users,
-} from '../../../../database/schema/amanah.schema';
+} from '../../../../database/schema';
 import { ExportColumnDef, ExportSource } from '../../domain/export-source.interface';
 import {
   AttendanceStatus,
-  ShiftCode,
-  normalizeShift,
   normalizeStatus,
 } from '../../../attendance/domain/constants/attendance.constants';
-
-const EXPORT_SHIFT_LABELS: Record<ShiftCode, string> = {
-  early_morning: 'Dini Hari',
-  morning: 'Pagi',
-  afternoon: 'Siang',
-  night: 'Malam',
-};
 
 const EXPORT_STATUS_LABELS: Record<AttendanceStatus, string> = {
   present: 'Hadir',
@@ -218,6 +210,8 @@ export class AttendanceExportSource implements ExportSource {
           id: staffAttendanceRecords.id,
           attendanceDate: staffAttendanceRecords.attendanceDate,
           shift: staffAttendanceRecords.shift,
+          sessionId: staffAttendanceRecords.sessionId,
+          sessionDefLabel: sessionDefs.label,
           status: staffAttendanceRecords.status,
           checkInAt: staffAttendanceRecords.checkInAt,
           checkOutAt: staffAttendanceRecords.checkOutAt,
@@ -229,6 +223,13 @@ export class AttendanceExportSource implements ExportSource {
         })
         .from(staffAttendanceRecords)
         .leftJoin(staffProfiles, eq(staffAttendanceRecords.staffProfileId, staffProfiles.id))
+        .leftJoin(
+          sessionDefs,
+          or(
+            eq(staffAttendanceRecords.sessionId, sessionDefs.id),
+            eq(staffAttendanceRecords.shift, sessionDefs.code),
+          ),
+        )
         .where(conditions.length > 0 ? and(...conditions) : undefined)
         .orderBy(desc(staffAttendanceRecords.attendanceDate), asc(staffAttendanceRecords.id))
         .limit(batchSize)
@@ -249,8 +250,8 @@ export class AttendanceExportSource implements ExportSource {
         : d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false });
     };
 
-    const shiftCode = normalizeShift(row.shift);
-    const shiftLabel = shiftCode ? EXPORT_SHIFT_LABELS[shiftCode] : (row.shift || '-');
+    // Database-driven canonical shift label
+    const shiftLabel = row.sessionDefLabel || (row.shift ? row.shift : '-');
 
     const statusCode = normalizeStatus(row.status);
     const statusLabel = statusCode ? EXPORT_STATUS_LABELS[statusCode] : (row.status || '-');
@@ -263,7 +264,7 @@ export class AttendanceExportSource implements ExportSource {
       shiftLabel,
       formatTime(row.checkInAt),
       formatTime(row.checkOutAt),
-      row.lateMinutes ?? 0,
+      row.lateMinutes ? Number(row.lateMinutes) : 0,
       Number(row.validatedDurationHours ?? 0),
       statusLabel,
       row.locationLabel ?? 'Klinik Utama',

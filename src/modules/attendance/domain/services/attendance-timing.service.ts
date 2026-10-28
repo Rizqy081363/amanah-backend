@@ -67,6 +67,7 @@ export class AttendanceTimingService {
     const windowMinutesBefore = config.checkOutWindowMinutesBefore ?? 30;
     const minBillableShiftMinutes = config.minBillableShiftMinutes ?? 30;
     const roundingIncrementMinutes = config.roundingIncrementMinutes ?? 15;
+    const overtimeEnabled = config.overtimeEnabled ?? true;
 
     let isEarlyDeparture = false;
     let earlyMinutes = 0;
@@ -118,8 +119,13 @@ export class AttendanceTimingService {
             minBillableShiftMinutes,
             scheduledShiftDurationHours * 60 - windowMinutesBefore,
           );
+        const creditedHours =
+          overtimeEnabled && calculatedBillableHours > scheduledShiftDurationHours
+            ? calculatedBillableHours
+            : scheduledShiftDurationHours;
+
         validatedDurationHours = isFullShiftSatisfied
-          ? scheduledShiftDurationHours
+          ? creditedHours
           : Math.min(scheduledShiftDurationHours, calculatedBillableHours);
       }
     } else {
@@ -134,7 +140,11 @@ export class AttendanceTimingService {
           calculatedBillableHours,
         );
       } else {
-        validatedDurationHours = scheduledShiftDurationHours;
+        const creditedHours =
+          overtimeEnabled && calculatedBillableHours > scheduledShiftDurationHours
+            ? calculatedBillableHours
+            : scheduledShiftDurationHours;
+        validatedDurationHours = creditedHours;
       }
     }
 

@@ -33,6 +33,8 @@ export interface MonthlyScheduleBuildContext {
   shiftExceptions?: any[];
   clinicPolicy?: any;
   masterDays?: Array<{ dow: number; isActive: boolean }>;
+  currentDate?: string;
+  currentTime?: string;
 }
 
 export function buildMonthlySchedule(
@@ -84,6 +86,8 @@ export function buildMonthlySchedule(
             doctorAssignment: da,
             shiftExceptions: shiftExceptions || [],
             isDayActive: dayActive,
+            clinicTodayStr: ctx.currentDate,
+            clinicNowTimeStr: ctx.currentTime,
           });
 
           return {

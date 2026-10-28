@@ -4,6 +4,7 @@ import {
   appointments,
   doctorAssignments,
   practitioners,
+  sessionDefs,
   shiftExceptions,
   staffLeaveRequests,
 } from '@database/schema';
@@ -18,6 +19,7 @@ import {
   filterEffectiveDoctorAssignments,
   resolveDoctorSessionOperability,
 } from '@modules/schedules/domain/services/doctor-session-operational.resolver';
+import { getClinicNow } from '@modules/schedules/domain/services/schedule-date.formatter';
 import { ScheduleRecordMapper } from '@modules/schedules/infrastructure/drizzle/mappers/schedule-record.mapper';
 import {
   buildDailySessions,
@@ -65,6 +67,7 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
       throw new NotFoundException(`Dokter dengan ID ${id} tidak ditemukan`);
     }
 
+    const { date: clinicTodayStr, time: clinicNowTimeStr } = getClinicNow();
     const now = new Date();
     let targetYear = now.getFullYear();
     let targetMonth = now.getMonth() + 1;
@@ -104,6 +107,7 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
     const [
       monthExceptions,
       assignments,
+      allActiveSessionDefs,
       monthAppointments,
       clinicPolicy,
       masterDaysList,
@@ -129,6 +133,12 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
             },
           },
           preferredRoom: true,
+        },
+      }),
+      this.db.query.sessionDefs.findMany({
+        where: eq(sessionDefs.isActive, true),
+        with: {
+          schedules: true,
         },
       }),
       this.db.query.appointments.findMany({
@@ -175,7 +185,18 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
 
     const dayMap = new Map(masterDaysList.map((m) => [m.dow, m.isActive]));
 
-    const effectiveAssignments = assignments;
+    const effectiveAssignments =
+      assignments.length > 0
+        ? assignments
+        : allActiveSessionDefs.map((def) => ({
+            doctorId: prac.id,
+            sessionId: def.id,
+            dow: null,
+            isActive: true,
+            preferredRoomId: prac.defaultRoomId || null,
+            preferredRoom: prac.clinicRoom,
+            sessionDef: def,
+          }));
 
     const monthSessions: any[] = [];
     for (let day = 1; day <= daysInMonth; day++) {
@@ -200,6 +221,8 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
           doctorAssignment: da,
           shiftExceptions: monthExceptions,
           isDayActive,
+          clinicTodayStr,
+          clinicNowTimeStr,
         });
 
         monthSessions.push({
@@ -246,15 +269,16 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
       monthAppointments,
       consultationDurationMinutes: effectiveConsultationDuration,
       masterDays: masterDaysList,
+      currentDate: clinicTodayStr,
+      currentTime: clinicNowTimeStr,
     });
 
-    const todayStr = now.toISOString().slice(0, 10);
     const evalDate =
       query.date ||
-      (todayStr.startsWith(
+      (clinicTodayStr.startsWith(
         `${targetYear}-${String(targetMonth).padStart(2, '0')}`,
       )
-        ? todayStr
+        ? clinicTodayStr
         : startDate);
 
     const evalLeave = monthExceptions.find((e) => e.serviceDate === evalDate);
@@ -272,7 +296,7 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
     const evalLeaveReason =
       evalApprovedLeave?.reason ||
       evalLeave?.note ||
-      (isEvalOnLeave ? 'Dokter Cuti' : null);
+      null;
     const evalLeaveStart =
       evalApprovedLeave?.startDate || (isEvalOnLeave ? evalDate : null);
     const evalLeaveEnd =

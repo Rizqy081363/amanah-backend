@@ -96,6 +96,31 @@ export class AttendanceRosterLookupDrizzleRepo {
     return records.length > 0;
   }
 
+  async findInactiveDoctorAssignmentSessionIds(
+    staffId: string,
+    dow: number,
+  ): Promise<string[]> {
+    const rows = await this.db
+      .select({ sessionId: doctorAssignments.sessionId })
+      .from(doctorAssignments)
+      .innerJoin(
+        practitioners,
+        eq(doctorAssignments.doctorId, practitioners.id),
+      )
+      .where(
+        and(
+          eq(practitioners.staffProfileId, staffId),
+          eq(doctorAssignments.isActive, false),
+          or(
+            eq(doctorAssignments.dow, dow),
+            sql`${doctorAssignments.dow} IS NULL`,
+          ),
+        ),
+      );
+
+    return rows.map((r) => r.sessionId);
+  }
+
   async findStaffRostersForDow(
     staffId: string,
     dow: number,
@@ -360,49 +385,122 @@ export class AttendanceRosterLookupDrizzleRepo {
   }
 
   async findScheduledStaffCountByDow(dow: number): Promise<number> {
-    const [doctorRosterStaff, regularStaffRoster] = await Promise.all([
+    // 1. Check if the clinic operates any active session on this day of week
+    const activeClinicSessions = await this.db
+      .select({ id: sessionSchedules.id })
+      .from(sessionSchedules)
+      .innerJoin(sessionDefs, eq(sessionSchedules.sessionId, sessionDefs.id))
+      .where(
+        and(
+          eq(sessionSchedules.dow, dow),
+          eq(sessionSchedules.isActive, true),
+          eq(sessionDefs.isActive, true),
+        ),
+      )
+      .limit(1);
+
+    if (activeClinicSessions.length === 0) {
+      // Clinic is closed on this DOW
+      return 0;
+    }
+
+    // 2. Fetch all active staff profiles
+    const allActiveStaff = await this.db
+      .select({
+        id: staffProfiles.id,
+        practitionerId: practitioners.id,
+      })
+      .from(staffProfiles)
+      .leftJoin(
+        practitioners,
+        eq(practitioners.staffProfileId, staffProfiles.id),
+      )
+      .where(eq(staffProfiles.status, 'active'));
+
+    if (allActiveStaff.length === 0) {
+      return 0;
+    }
+
+    // 3. Fetch custom overrides for staff and doctors
+    const [staffOverrides, doctorOverrides] = await Promise.all([
       this.db
-        .selectDistinct({ staffProfileId: practitioners.staffProfileId })
+        .select({
+          staffProfileId: staffRosters.staffProfileId,
+          dow: staffRosters.dow,
+          isActive: staffRosters.isActive,
+        })
+        .from(staffRosters)
+        .innerJoin(sessionDefs, eq(staffRosters.sessionId, sessionDefs.id))
+        .where(eq(sessionDefs.isActive, true)),
+      this.db
+        .select({
+          staffProfileId: practitioners.staffProfileId,
+          dow: doctorAssignments.dow,
+          isActive: doctorAssignments.isActive,
+        })
         .from(doctorAssignments)
         .innerJoin(
           practitioners,
           eq(doctorAssignments.doctorId, practitioners.id),
         )
-        .leftJoin(
-          sessionSchedules,
-          and(
-            eq(sessionSchedules.sessionId, doctorAssignments.sessionId),
-            eq(sessionSchedules.dow, dow),
-            eq(sessionSchedules.isActive, true),
-          ),
-        )
+        .innerJoin(sessionDefs, eq(doctorAssignments.sessionId, sessionDefs.id))
         .where(
           and(
+            eq(sessionDefs.isActive, true),
             eq(doctorAssignments.isActive, true),
-            or(
-              eq(doctorAssignments.dow, dow),
-              and(
-                sql`${doctorAssignments.dow} IS NULL`,
-                sql`${sessionSchedules.id} IS NOT NULL`,
-              ),
-            ),
-          ),
-        ),
-      this.db
-        .selectDistinct({ staffProfileId: staffRosters.staffProfileId })
-        .from(staffRosters)
-        .where(
-          and(
-            eq(staffRosters.dow, dow),
-            eq(staffRosters.isActive, true),
           ),
         ),
     ]);
 
-    const scheduledStaffIds = new Set<string>([
-      ...doctorRosterStaff.map((d: any) => d.staffProfileId),
-      ...regularStaffRoster.map((s: any) => s.staffProfileId),
-    ]);
+    // Group overrides by staffProfileId
+    const staffWithCustomRoster = new Set<string>();
+    const staffScheduledOnDow = new Set<string>();
+
+    for (const r of staffOverrides) {
+      staffWithCustomRoster.add(r.staffProfileId);
+      if (r.dow === dow && r.isActive) {
+        staffScheduledOnDow.add(r.staffProfileId);
+      }
+    }
+
+    const doctorsWithExplicitRoster = new Set<string>();
+    const doctorsScheduledOnDow = new Set<string>();
+
+    for (const d of doctorOverrides) {
+      if (!d.staffProfileId) continue;
+      if (d.dow !== null) {
+        doctorsWithExplicitRoster.add(d.staffProfileId);
+        if (d.dow === dow && d.isActive) {
+          doctorsScheduledOnDow.add(d.staffProfileId);
+        }
+      }
+    }
+
+    const scheduledStaffIds = new Set<string>();
+
+    for (const staff of allActiveStaff) {
+      if (staff.practitionerId) {
+        // Doctor: check explicit roster override
+        if (doctorsWithExplicitRoster.has(staff.id)) {
+          if (doctorsScheduledOnDow.has(staff.id)) {
+            scheduledStaffIds.add(staff.id);
+          }
+        } else {
+          // No explicit override: doctor inherits clinic weekly template
+          scheduledStaffIds.add(staff.id);
+        }
+      } else {
+        // Regular staff: check staff_rosters override
+        if (staffWithCustomRoster.has(staff.id)) {
+          if (staffScheduledOnDow.has(staff.id)) {
+            scheduledStaffIds.add(staff.id);
+          }
+        } else {
+          // No explicit override: staff inherits clinic weekly template
+          scheduledStaffIds.add(staff.id);
+        }
+      }
+    }
 
     return scheduledStaffIds.size;
   }
@@ -455,6 +553,7 @@ export class AttendanceRosterLookupDrizzleRepo {
 
   async resolveSessionDefByTime(
     hourOrTime: number | string | Date,
+    windowMinutesBefore = 30,
   ): Promise<{ id: string; code: string; defaultStartsAt: string | null; defaultEndsAt?: string | null } | null> {
     let timeStr: string;
     if (hourOrTime instanceof Date) {
@@ -471,6 +570,9 @@ export class AttendanceRosterLookupDrizzleRepo {
       }
     }
 
+    const safeMinutes = Math.max(0, Number(windowMinutesBefore) || 0);
+    const bufferInterval = `${safeMinutes} minutes`;
+
     const defs = await this.db
       .select({
         id: sessionDefs.id,
@@ -482,8 +584,14 @@ export class AttendanceRosterLookupDrizzleRepo {
       .where(
         and(
           eq(sessionDefs.isActive, true),
-          sql`(${sessionDefs.defaultStartsAt} - interval '30 minutes') <= ${timeStr}::time`,
-          sql`(${sessionDefs.defaultEndsAt} >= ${timeStr}::time OR ${sessionDefs.defaultEndsAt} = '24:00:00'::time OR ${sessionDefs.defaultEndsAt} = '00:00:00'::time)`,
+          sql`CASE 
+            WHEN (${sessionDefs.defaultStartsAt} - (${bufferInterval})::interval) > ${sessionDefs.defaultStartsAt} THEN 
+              (${timeStr}::time >= (${sessionDefs.defaultStartsAt} - (${bufferInterval})::interval) OR ${timeStr}::time <= ${sessionDefs.defaultEndsAt})
+            WHEN ${sessionDefs.defaultStartsAt} > ${sessionDefs.defaultEndsAt} THEN 
+              (${timeStr}::time >= (${sessionDefs.defaultStartsAt} - (${bufferInterval})::interval) OR ${timeStr}::time <= ${sessionDefs.defaultEndsAt})
+            ELSE 
+              (${timeStr}::time >= (${sessionDefs.defaultStartsAt} - (${bufferInterval})::interval) AND ${timeStr}::time <= ${sessionDefs.defaultEndsAt})
+          END`,
         ),
       )
       .orderBy(sessionDefs.sortOrder)

@@ -133,6 +133,8 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
           (da) => da.sessionId === def.id && da.dow === null,
         );
 
+        const isTemplateActive = d.isActive && Boolean(sched);
+
         let isActive = false;
         let assignment = explicitAssignment;
 
@@ -140,8 +142,12 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
           isActive = Boolean(explicitAssignment && explicitAssignment.isActive);
           assignment = explicitAssignment;
         } else if (genericAssignment) {
-          isActive = d.isActive && Boolean(sched);
-          assignment = d.isActive && sched ? genericAssignment : undefined;
+          isActive = isTemplateActive;
+          assignment = isTemplateActive ? genericAssignment : undefined;
+        } else {
+          // Virtual Baseline: Doctor has no custom assignments, so they inherit the clinic master weekly template
+          isActive = isTemplateActive;
+          assignment = undefined;
         }
 
         const preferredRoomId = assignment?.preferredRoomId || null;
@@ -149,11 +155,10 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
           ? roomMap.get(preferredRoomId) || null
           : null;
 
-        const isTemplateActive = d.isActive && Boolean(sched);
-
         return {
           sessionId: def.id,
           sessionCode: def.code,
+          sessionLabel: def.label || def.code,
           timeRange,
           isActive,
           isTemplateActive,
@@ -230,25 +235,23 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
         );
       }
 
-      const activeCount = validItems.filter((a) => a.isActive).length;
-
-      await tx.insert(doctorScheduleStatusHistory).values({
-        doctorId: prac.id,
-        action: 'assign_roster',
-        newStatus: 'OPEN',
-        reason: dto.reason || 'Pembaruan roster operasional mingguan dokter',
-        metadata: {
-          totalSlots: validItems.length,
-          activeSessionsCount: activeCount,
-          assignedSessions: validItems
-            .filter((a) => a.isActive)
-            .map((a) => ({
-              dow: a.dow,
-              sessionId: a.sessionId,
-            })),
-        },
-        changedBy: userId || null,
-      });
+      if (validItems.length > 0) {
+        await tx.insert(doctorScheduleStatusHistory).values(
+          validItems.map((item) => ({
+            doctorId: prac.id,
+            sessionId: item.sessionId,
+            dow: item.dow,
+            action: 'assign_roster' as const,
+            newStatus: item.isActive ? 'OPEN' : 'CLOSED',
+            reason: dto.reason || 'Pembaruan roster operasional mingguan dokter',
+            metadata: {
+              isActive: item.isActive,
+              preferredRoomId: item.preferredRoomId || null,
+            },
+            changedBy: userId || null,
+          })),
+        );
+      }
     });
 
     await this.invalidateScheduleCaches();
@@ -298,17 +301,22 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
       }
 
       // 4. Record audit history
-      await tx.insert(doctorScheduleStatusHistory).values({
-        doctorId: prac.id,
-        action: 'remove_roster',
-        newStatus: 'OPEN',
-        reason: 'Roster direset ke template mingguan klinik',
-        metadata: {
-          action: 'reset_to_weekly_template',
-          restoredGenericSessionCount: activeSessionDefs.length,
-        },
-        changedBy: userId || null,
-      });
+      if (activeSessionDefs.length > 0) {
+        await tx.insert(doctorScheduleStatusHistory).values(
+          activeSessionDefs.map((def: any) => ({
+            doctorId: prac.id,
+            sessionId: def.id,
+            dow: null,
+            action: 'remove_roster' as const,
+            newStatus: 'OPEN',
+            reason: 'Roster direset ke template mingguan klinik',
+            metadata: {
+              action: 'reset_to_weekly_template',
+            },
+            changedBy: userId || null,
+          })),
+        );
+      }
     });
 
     await this.invalidateScheduleCaches();
@@ -342,7 +350,7 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
     const total = totalResult[0]?.value ?? 0;
 
     const items: DoctorScheduleHistoryItemEntity[] = rows.map((r) => {
-      const sessionLabel = r.sessionDef?.code ?? null;
+      const sessionLabel = r.sessionDef?.label || r.sessionDef?.code || null;
 
       return {
         id: r.id,

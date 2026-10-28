@@ -5,6 +5,7 @@ import {
   clinicRooms,
   doctorAssignments,
   sessionDefs,
+  sessionSchedules,
   shiftExceptions,
 } from '@database/schema';
 import { ACTIVE_APPOINTMENT_STATUSES } from '@modules/schedules/domain/constants/schedule.constants';
@@ -164,7 +165,7 @@ export class DrizzleScheduleSessionRepository {
         id,
         practitionerId: da.doctorId,
         scheduleDate: targetDate,
-        sessionLabel: da.sessionDef.code,
+        sessionLabel: da.sessionDef.label,
         sessionShift: da.sessionDef.code as any,
         startTime: `${startTime}:00`,
         endTime: `${endTime}:00`,
@@ -211,7 +212,7 @@ export class DrizzleScheduleSessionRepository {
         id: exception.id,
         practitionerId: exception.doctorId,
         scheduleDate: exception.serviceDate,
-        sessionLabel: sDef?.code ?? null,
+        sessionLabel: sDef?.label ?? null,
         sessionShift: (sDef?.code as any) ?? null,
         startTime,
         endTime,
@@ -255,7 +256,7 @@ export class DrizzleScheduleSessionRepository {
         id: da.id,
         practitionerId: da.doctorId,
         scheduleDate: today,
-        sessionLabel: da.sessionDef.code,
+        sessionLabel: da.sessionDef.label,
         sessionShift: da.sessionDef.code as any,
         startTime,
         endTime,
@@ -300,7 +301,7 @@ export class DrizzleScheduleSessionRepository {
         sessionId: sDef.id,
         practitionerId: da?.doctorId || '',
         scheduleDate: today,
-        sessionLabel: sDef.code,
+        sessionLabel: sDef.label,
         sessionShift: sDef.code as any,
         startTime: sDef.defaultStartsAt,
         endTime: sDef.defaultEndsAt,
@@ -400,7 +401,7 @@ export class DrizzleScheduleSessionRepository {
         sessionId: da.sessionId,
         practitionerId: da.doctorId,
         scheduleDate: targetDate,
-        sessionLabel: da.sessionDef.code,
+        sessionLabel: da.sessionDef.label,
         sessionShift: da.sessionDef.code as any,
         startTime,
         endTime,
@@ -436,6 +437,7 @@ export class DrizzleScheduleSessionRepository {
   async findMySchedules(
     staffId: string,
     filters?: {
+      date?: string;
       startDate?: string;
       endDate?: string;
     },
@@ -446,15 +448,12 @@ export class DrizzleScheduleSessionRepository {
     }
     const targetId = practitioner.id;
 
-    const startDate = filters?.startDate ?? new Date().toISOString().slice(0, 10);
-    const endDate = filters?.endDate ?? startDate;
+    const startDate = filters?.date || filters?.startDate || new Date().toISOString().slice(0, 10);
+    const endDate = filters?.date || filters?.endDate || startDate;
 
-    const [assignments, exceptions] = await Promise.all([
+    const [assignments, exceptions, templateSchedules] = await Promise.all([
       this.db.query.doctorAssignments.findMany({
-        where: and(
-          eq(doctorAssignments.doctorId, targetId),
-          eq(doctorAssignments.isActive, true),
-        ),
+        where: eq(doctorAssignments.doctorId, targetId),
         with: {
           sessionDef: {
             with: { schedules: true },
@@ -478,6 +477,12 @@ export class DrizzleScheduleSessionRepository {
           lte(shiftExceptions.serviceDate, endDate),
         ),
       }),
+      this.db.query.sessionSchedules.findMany({
+        where: eq(sessionSchedules.isActive, true),
+        with: {
+          sessionDef: true,
+        },
+      }),
     ]);
 
     const results: ScheduleEntity[] = [];
@@ -492,8 +497,13 @@ export class DrizzleScheduleSessionRepository {
         (da) => da.dow === null || da.dow === curDow,
       );
 
+      // 1. Process explicit doctor assignments for this day
+      const processedSessionIds = new Set<string>();
+
       for (const da of dayAssignments) {
         if (!da.sessionDef || !da.sessionDef.isActive) continue;
+        processedSessionIds.add(da.sessionId);
+        if (!da.isActive) continue; // explicitly deactivated by doctor
 
         const ex = exceptions.find(
           (e) =>
@@ -514,7 +524,7 @@ export class DrizzleScheduleSessionRepository {
             sessionId: da.sessionId,
             practitionerId: da.doctorId,
             scheduleDate: curDateStr,
-            sessionLabel: da.sessionDef.code,
+            sessionLabel: da.sessionDef.label,
             sessionShift: da.sessionDef.code as any,
             startTime,
             endTime,
@@ -528,6 +538,49 @@ export class DrizzleScheduleSessionRepository {
             updatedAt: da.updatedAt,
             practitioner: da.practitioner,
             clinicRoom: da.preferredRoom,
+            clinicService: null,
+          }),
+        );
+      }
+
+      // 2. Virtual Baseline: inherit active clinic weekly template for unassigned sessions
+      const dayTemplates = templateSchedules.filter(
+        (ts) => ts.dow === curDow && ts.sessionDef?.isActive,
+      );
+
+      for (const ts of dayTemplates) {
+        if (!ts.sessionDef || processedSessionIds.has(ts.sessionId)) continue;
+
+        const ex = exceptions.find(
+          (e) =>
+            e.serviceDate === curDateStr &&
+            (!e.sessionId || e.sessionId === ts.sessionId),
+        );
+        const isLeave = ex?.type === 'leave';
+
+        const startTime = ts.startsAt || ts.sessionDef.defaultStartsAt;
+        const endTime = ts.endsAt || ts.sessionDef.defaultEndsAt;
+
+        results.push(
+          ScheduleRecordMapper.toEntity({
+            id: `template-${ts.id}`,
+            sessionId: ts.sessionId,
+            practitionerId: targetId,
+            scheduleDate: curDateStr,
+            sessionLabel: ts.sessionDef.label,
+            sessionShift: ts.sessionDef.code as any,
+            startTime,
+            endTime,
+            roomId: practitioner.defaultRoomId || null,
+            serviceId: null,
+            status: isLeave
+              ? SchedulePersistenceStatus.CLOSED
+              : SchedulePersistenceStatus.OPEN,
+            notes: ex?.note || null,
+            createdAt: ts.sessionDef.createdAt,
+            updatedAt: ts.sessionDef.updatedAt,
+            practitioner: practitioner as any,
+            clinicRoom: null,
             clinicService: null,
           }),
         );

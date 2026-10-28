@@ -105,7 +105,7 @@ export class DrizzleScheduleDayRepository {
       const leaveReason =
         approvedLeave?.reason ||
         leaveException?.note ||
-        (isOnLeave ? 'Dokter Cuti' : null);
+        null;
       const sessionCount = dayAssignments.length;
       const bookedPatientCount = dayAppointments.length;
 
@@ -121,11 +121,11 @@ export class DrizzleScheduleDayRepository {
       const isClosed = dayOpStatus === ScheduleOperationalStatus.CLOSED;
       let dayNotes: string | null = null;
       if (isOnLeave) {
-        dayNotes = leaveReason || 'Dokter Cuti';
+        dayNotes = leaveReason || null;
       } else if (!hasSchedule) {
         dayNotes = null;
       } else if (dayOpStatus === ScheduleOperationalStatus.CLOSED) {
-        dayNotes = 'Jadwal ditutup oleh dokter/admin';
+        dayNotes = null;
       }
 
       days.push({

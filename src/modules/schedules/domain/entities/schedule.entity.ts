@@ -17,6 +17,7 @@ export enum ScheduleClosureReason {
   NOT_ROSTERED = 'NOT_ROSTERED',
   DOCTOR_LEAVE = 'DOCTOR_LEAVE',
   ADMIN_OVERRIDE = 'ADMIN_OVERRIDE',
+  SHIFT_ENDED = 'SHIFT_ENDED',
 }
 
 export class ScheduleEntity {
@@ -384,15 +385,22 @@ export class AdminDoctorScheduleCardEntity {
   })
   avatar: string;
 
-  @ApiProperty({ description: 'Rentang jam praktik hari ini' })
-  todaySchedule: string;
-
-  @ApiProperty({
-    description:
-      'Jadwal praktik mendatang yang dievaluasi dinamis dari waktu saat ini',
-    example: 'Sesi Pagi (08:00 - 11:30)',
+  @ApiPropertyOptional({
+    description: 'Rentang jam praktik hari ini (format HH:mm - HH:mm)',
+    nullable: true,
+    type: String,
+    example: '08:00 - 12:00',
   })
-  upcomingSchedule: string;
+  todaySchedule?: string | null;
+
+  @ApiPropertyOptional({
+    description:
+      'Rentang jam praktik mendatang yang dievaluasi dinamis dari waktu saat ini',
+    nullable: true,
+    type: String,
+    example: '08:00 - 12:00',
+  })
+  upcomingSchedule?: string | null;
 
   @ApiProperty({
     description: 'Canonical effective schedule status',

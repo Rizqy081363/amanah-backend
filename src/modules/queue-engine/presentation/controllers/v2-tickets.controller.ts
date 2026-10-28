@@ -240,7 +240,7 @@ export class V2TicketsController {
         source: QUEUE_TICKET_SOURCE.ONLINE,
       },
       categoryName: category.name,
-      sessionLabel: session.code,
+      sessionLabel: session.label,
       aheadCount,
       etaRange: etaWindow.displayRange,
     });
@@ -269,7 +269,7 @@ export class V2TicketsController {
         patientId: dto.patientId,
         queueNumber: formatted,
         categoryName: category.name,
-        sessionLabel: session.code,
+        sessionLabel: session.label,
         etaRange: etaWindow.displayRange,
       },
       status: OutboxStatus.PENDING,

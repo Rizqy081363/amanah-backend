@@ -125,7 +125,7 @@ export class DrizzleClinicalPractitionerRepository {
       const leaveReason =
         approvedLeave?.reason ||
         activeLeave?.note ||
-        (isOnLeave ? 'Dokter Cuti' : null);
+        null;
       const isReplacement = Boolean(claimedByMe);
       const replacingPractitionerName =
         claimedByMe?.originalStaffProfile?.fullName || null;

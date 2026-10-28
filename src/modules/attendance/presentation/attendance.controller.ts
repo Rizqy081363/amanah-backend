@@ -200,7 +200,15 @@ export class AttendanceController {
   })
   @ApiOkResponse({ description: 'Sesi QR aktif berhasil diambil' })
   async getActiveQr() {
-    return this.rotateQrSessionUseCase.getActiveSession();
+    const active = await this.rotateQrSessionUseCase.getActiveSessionOrNull();
+    if (!active) {
+      return {
+        isActive: false,
+        status: 'inactive',
+        message: 'Tidak ada sesi operasional klinik yang aktif saat ini',
+      };
+    }
+    return active;
   }
 
   @Get('my-history')

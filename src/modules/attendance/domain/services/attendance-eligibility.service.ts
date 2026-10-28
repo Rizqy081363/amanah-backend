@@ -164,6 +164,8 @@ export class AttendanceEligibilityService {
     const config = await this.clinicConfigService?.getAttendanceConfig();
     const checkInWindowMinutesBefore =
       config?.checkInWindowMinutesBefore ?? 30;
+    const checkInWindowMinutesAfter =
+      config?.checkInWindowMinutesAfter ?? 60;
 
     const activeResolution = resolveActiveSessionForCheckIn({
       candidateSessions,
@@ -171,6 +173,9 @@ export class AttendanceEligibilityService {
       checkInWindowMinutesBefore: isAdministrativeEntry
         ? 1440 // Admin entry tidak dibatasi jendela jam
         : checkInWindowMinutesBefore,
+      checkInWindowMinutesAfter: isAdministrativeEntry
+        ? 1440
+        : checkInWindowMinutesAfter,
       requestedShift,
       requestedSessionId: resolvedSessionId,
       shiftHint: tokenShift,

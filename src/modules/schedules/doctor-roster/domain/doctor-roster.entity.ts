@@ -21,6 +21,10 @@ export class DoctorRosterSessionDto {
   @IsString()
   sessionCode: string;
 
+  @ApiProperty({ example: 'Pagi', description: 'Label manusiawi sesi operasional' })
+  @IsString()
+  sessionLabel: string;
+
   @ApiProperty({ example: '08:00 - 12:00' })
   @IsString()
   timeRange: string;

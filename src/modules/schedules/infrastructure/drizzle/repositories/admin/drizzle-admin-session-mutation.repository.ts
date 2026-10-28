@@ -110,7 +110,7 @@ export class DrizzleAdminSessionMutationRepository {
       id: createdException.id,
       practitionerId,
       scheduleDate: body.scheduleDate,
-      sessionLabel: sessionDef.code,
+      sessionLabel: sessionDef.label,
       sessionShift: sessionDef.code,
       startTime: startTimeFormatted,
       endTime: endTimeFormatted,

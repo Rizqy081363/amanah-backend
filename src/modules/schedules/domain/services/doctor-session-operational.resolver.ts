@@ -3,7 +3,7 @@ import { ScheduleClosureReason } from '../entities/schedule.entity';
 import { type SessionShiftType } from '../factories/schedule-session.factory';
 
 interface DoctorSessionAssignmentContext {
-  id: string;
+  id?: string;
   doctorId: string;
   sessionId: string;
   dow: number | null;
@@ -40,6 +40,8 @@ export interface ResolveDoctorSessionOperabilityParams {
   doctorAssignment: DoctorSessionAssignmentContext;
   shiftExceptions?: DoctorSessionShiftExceptionContext[];
   isDayActive?: boolean;
+  clinicTodayStr?: string;
+  clinicNowTimeStr?: string;
 }
 
 export interface DoctorSessionOperabilityResult {
@@ -100,6 +102,8 @@ export function resolveDoctorSessionOperability(
     doctorAssignment: da,
     shiftExceptions = [],
     isDayActive = true,
+    clinicTodayStr,
+    clinicNowTimeStr,
   } = params;
 
   const sessionDef = da.sessionDef;
@@ -127,7 +131,7 @@ export function resolveDoctorSessionOperability(
       isOpen: false,
       status: 'closed',
       closureReason: ScheduleClosureReason.CLINIC_CLOSED,
-      notes: 'Klinik Tutup',
+      notes: null,
       startTime,
       endTime,
       sessionShift: shiftCode,
@@ -158,29 +162,84 @@ export function resolveDoctorSessionOperability(
     };
   }
 
+  const resolveActiveSessionWithTemporalCheck = (): DoctorSessionOperabilityResult => {
+    if (clinicTodayStr) {
+      const isPastDate = targetDate < clinicTodayStr;
+      const isToday = targetDate === clinicTodayStr;
+
+      if (isPastDate) {
+        return {
+          isOperable: true,
+          isOpen: false,
+          status: 'closed',
+          closureReason: ScheduleClosureReason.SHIFT_ENDED,
+          notes: null,
+          startTime,
+          endTime,
+          sessionShift: shiftCode,
+          sessionLabel,
+        };
+      }
+
+      if (isToday && clinicNowTimeStr) {
+        const hasEnded = clinicNowTimeStr >= endTime;
+        if (hasEnded) {
+          return {
+            isOperable: true,
+            isOpen: false,
+            status: 'closed',
+            closureReason: ScheduleClosureReason.SHIFT_ENDED,
+            notes: null,
+            startTime,
+            endTime,
+            sessionShift: shiftCode,
+            sessionLabel,
+          };
+        }
+
+        const notStarted = clinicNowTimeStr < startTime;
+        if (notStarted) {
+          return {
+            isOperable: true,
+            isOpen: false,
+            status: 'closed',
+            closureReason: ScheduleClosureReason.CLINIC_CLOSED,
+            notes: null,
+            startTime,
+            endTime,
+            sessionShift: shiftCode,
+            sessionLabel,
+          };
+        }
+      }
+    }
+
+    return {
+      isOperable: true,
+      isOpen: true,
+      status: 'open',
+      closureReason: null,
+      notes: null,
+      startTime,
+      endTime,
+      sessionShift: shiftCode,
+      sessionLabel,
+    };
+  };
+
   // 3. Priority Resolution: Explicit Doctor Roster Override
   // If doctor has explicit assignment for this day of week (da.dow === targetDow),
   // the roster assignment OVERRIDES global day deactivation and weekly template!
   if (da.dow !== null && da.dow === targetDow) {
     if (da.isActive) {
-      return {
-        isOperable: true,
-        isOpen: true,
-        status: 'open',
-        closureReason: null,
-        notes: null,
-        startTime,
-        endTime,
-        sessionShift: shiftCode,
-        sessionLabel,
-      };
+      return resolveActiveSessionWithTemporalCheck();
     } else {
       return {
         isOperable: true,
         isOpen: false,
         status: 'closed',
         closureReason: ScheduleClosureReason.ADMIN_OVERRIDE,
-        notes: 'Tidak Bertugas',
+        notes: null,
         startTime,
         endTime,
         sessionShift: shiftCode,
@@ -197,7 +256,7 @@ export function resolveDoctorSessionOperability(
       isOpen: false,
       status: 'closed',
       closureReason: ScheduleClosureReason.CLINIC_CLOSED,
-      notes: 'Hari Operasional Tutup',
+      notes: null,
       startTime,
       endTime,
       sessionShift: shiftCode,
@@ -208,17 +267,7 @@ export function resolveDoctorSessionOperability(
   // 5. Fallback to clinic weekly template for generic assignment (da.dow === null)
   const isTemplateActive = Boolean(sched && sched.isActive);
   if (isTemplateActive) {
-    return {
-      isOperable: true,
-      isOpen: true,
-      status: 'open',
-      closureReason: null,
-      notes: null,
-      startTime,
-      endTime,
-      sessionShift: shiftCode,
-      sessionLabel,
-    };
+    return resolveActiveSessionWithTemporalCheck();
   }
 
   // Template is inactive (clinic closed for this shift on this day)
@@ -227,7 +276,7 @@ export function resolveDoctorSessionOperability(
     isOpen: false,
     status: 'closed',
     closureReason: ScheduleClosureReason.CLINIC_CLOSED,
-    notes: 'Klinik Tutup',
+    notes: null,
     startTime,
     endTime,
     sessionShift: shiftCode,

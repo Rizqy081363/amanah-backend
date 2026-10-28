@@ -73,6 +73,20 @@ export class AttendanceRosterCandidateResolver {
           candidateSessions.push(s);
         }
       }
+
+      // Also inherit active clinic weekly template sessions unless explicitly deactivated by doctor
+      const inactiveSessionIds =
+        await repo.findInactiveDoctorAssignmentSessionIds(staffId, dow);
+      const weeklyTemplateSessions =
+        await repo.findClinicWeeklyTemplateForDow(dow);
+      for (const s of weeklyTemplateSessions) {
+        if (
+          !inactiveSessionIds.includes(s.sessionId) &&
+          !candidateSessions.some((c) => c.sessionId === s.sessionId)
+        ) {
+          candidateSessions.push(s);
+        }
+      }
     } else {
       const hasCustomStaffRoster = await repo.hasCustomStaffRoster(staffId);
       if (hasCustomStaffRoster) {

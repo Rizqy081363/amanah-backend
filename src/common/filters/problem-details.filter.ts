@@ -157,7 +157,7 @@ export class ProblemDetailsFilter implements ExceptionFilter {
       statusCode: status,
       detail,
       message: detail,
-      instance: request.originalUrl || request.url,
+      instance: request.originalUrl,
       code,
       traceId,
       timestamp: new Date().toISOString(),
@@ -170,7 +170,7 @@ export class ProblemDetailsFilter implements ExceptionFilter {
     response.setHeader(CORRELATION_ID_HEADER, traceId);
     if (status >= 400 && status < 500) {
       this.logger.warn(
-        `[${traceId}] ${request.method} ${request.originalUrl || request.url} -> ${status} ${code}: ${detail}`,
+        `[${traceId}] ${request.method} ${request.originalUrl} -> ${status} ${code}: ${detail}`,
       );
     }
 
