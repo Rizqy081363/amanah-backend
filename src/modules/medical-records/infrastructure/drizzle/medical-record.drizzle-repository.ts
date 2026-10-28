@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { ForbiddenException, Inject, Injectable } from '@nestjs/common';
 import { and, count, desc, eq, gte, ilike, lt, lte, or } from 'drizzle-orm';
 import {
   ConcurrentModificationConflictException,
@@ -458,6 +458,17 @@ export class MedicalRecordDrizzleRepository implements MedicalRecordRepository {
     });
     if (!existing) return null;
 
+    if (existing.appointmentId) {
+      const app = await this.db.query.appointments.findFirst({
+        where: eq(appointments.id, existing.appointmentId),
+      });
+      if (app?.status === 'completed') {
+        throw new ForbiddenException(
+          'Rekam medis pada janji temu yang telah selesai bersifat terkunci dan tidak dapat diubah.',
+        );
+      }
+    }
+
     if (
       expectedVersion !== undefined &&
       expectedVersion !== null &&
@@ -595,6 +606,17 @@ export class MedicalRecordDrizzleRepository implements MedicalRecordRepository {
       where: eq(clinicalEncounters.id, id),
     });
     if (!existing) return null;
+
+    if (existing.appointmentId) {
+      const app = await this.db.query.appointments.findFirst({
+        where: eq(appointments.id, existing.appointmentId),
+      });
+      if (app?.status === 'completed') {
+        throw new ForbiddenException(
+          'Rekam medis pada janji temu yang telah selesai bersifat terkunci dan tidak dapat diubah.',
+        );
+      }
+    }
 
     if (
       expectedVersion !== undefined &&

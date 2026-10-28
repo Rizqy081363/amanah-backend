@@ -1,8 +1,9 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { and, count, desc, eq, gte, ilike, inArray, lte, or } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
+  appointments,
   maternalAnamnesisResponses,
   maternalContraceptiveHistories,
   maternalHealthConditionCatalog,
@@ -385,6 +386,22 @@ export class MaternalIntakeDrizzleRepository {
 
     if (!existing) {
       throw new NotFoundException(`Maternal intake with ID '${id}' not found`);
+    }
+
+    if (existing.intakeSubmissionId) {
+      const sub = await this.db.query.medicalIntakeSubmissions.findFirst({
+        where: eq(medicalIntakeSubmissions.id, existing.intakeSubmissionId),
+      });
+      if (sub?.appointmentId) {
+        const app = await this.db.query.appointments.findFirst({
+          where: eq(appointments.id, sub.appointmentId),
+        });
+        if (app?.status === 'completed') {
+          throw new ForbiddenException(
+            'Rekam medis pada janji temu yang telah selesai bersifat terkunci dan tidak dapat diubah.',
+          );
+        }
+      }
     }
 
     const maternalIntakeId = existing.id;
