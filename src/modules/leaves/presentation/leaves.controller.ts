@@ -1,12 +1,9 @@
 import {
   Body,
   Controller,
-  ForbiddenException,
   Get,
   HttpCode,
   HttpStatus,
-  Inject,
-  NotFoundException,
   Param,
   Patch,
   Post,
@@ -28,17 +25,34 @@ import {
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
 import { SYSTEM_ROLES } from '../../../auth/constants/auth.constants';
+import type { AuthenticatedUser } from '../../../common/auth';
 import { CurrentUser } from '../../../common/auth/current-user.decorator';
 import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
 import { Roles } from '../../../common/auth/roles.decorator';
 import { RolesGuard } from '../../../common/auth/roles.guard';
 import { Idempotent } from '../../../common/decorators/idempotent.decorator';
+import { zodPipe } from '../../../common/validation';
 import {
-  LEAVE_REPOSITORY,
-  LeaveRepository,
-} from '../domain/repositories/leave.repository';
-import { RequestLeaveDto } from './dto/request-leave.dto';
-import { ReviewLeaveDto } from './dto/review-leave.dto';
+  CancelLeaveUseCase,
+  GetAllLeavesUseCase,
+  GetEligibleSessionsUseCase,
+  GetMyLeavesUseCase,
+  GetPendingLeavesUseCase,
+  RequestLeaveUseCase,
+  ReviewLeaveUseCase,
+} from '../application/use-cases';
+import {
+  EligibleSessionsQueryInput,
+  EligibleSessionsQuerySchema,
+  LeaveParamInput,
+  LeaveParamSchema,
+  QueryLeavesInput,
+  QueryLeavesSchema,
+  RequestLeaveInput,
+  RequestLeaveSchema,
+  ReviewLeaveInput,
+  ReviewLeaveSchema,
+} from './schemas';
 
 @ApiTags('Staff Leaves (Perizinan Cuti Staf)')
 @ApiBearerAuth('access-token')
@@ -52,8 +66,13 @@ import { ReviewLeaveDto } from './dto/review-leave.dto';
 @Controller({ path: 'leaves', version: '1' })
 export class LeavesController {
   constructor(
-    @Inject(LEAVE_REPOSITORY)
-    private readonly leaveRepo: LeaveRepository,
+    private readonly requestLeaveUseCase: RequestLeaveUseCase,
+    private readonly reviewLeaveUseCase: ReviewLeaveUseCase,
+    private readonly cancelLeaveUseCase: CancelLeaveUseCase,
+    private readonly getMyLeavesUseCase: GetMyLeavesUseCase,
+    private readonly getEligibleSessionsUseCase: GetEligibleSessionsUseCase,
+    private readonly getAllLeavesUseCase: GetAllLeavesUseCase,
+    private readonly getPendingLeavesUseCase: GetPendingLeavesUseCase,
   ) {}
 
   @Get('eligible-sessions')
@@ -66,22 +85,17 @@ export class LeavesController {
   })
   @ApiQuery({
     name: 'date',
-    required: true,
+    required: false,
     description: 'Tanggal yang ingin diperiksa sesi dinasnya (YYYY-MM-DD)',
     example: '2026-10-20',
   })
   @ApiOkResponse({ description: 'Daftar sesi eligible berhasil diambil' })
   async getEligibleSessions(
-    @Query('date') date: string,
-    @CurrentUser() user: any,
+    @Query(zodPipe(EligibleSessionsQuerySchema))
+    query: EligibleSessionsQueryInput,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    if (!user.staff?.id) {
-      throw new ForbiddenException('User bukan staf terdaftar');
-    }
-    const targetDate = date
-      ? date.trim()
-      : new Date().toISOString().split('T')[0];
-    return this.leaveRepo.getEligibleSessions(user.staff.id, targetDate);
+    return this.getEligibleSessionsUseCase.execute(query?.date, user);
   }
 
   @Post()
@@ -98,23 +112,11 @@ export class LeavesController {
     description: 'Validasi rentang tanggal atau alasan cuti gagal',
   })
   @Idempotent()
-  async requestLeave(@Body() body: RequestLeaveDto, @CurrentUser() user: any) {
-    if (!user.staff?.id) {
-      throw new ForbiddenException('User bukan staf terdaftar');
-    }
-
-    return this.leaveRepo.create({
-      staffId: user.staff.id,
-      practitionerId: user.staff.practitionerId ?? null,
-      startDate: body.startDate,
-      endDate: body.endDate,
-      reason: body.reason,
-      type: body.type,
-      scope: body.scope,
-      sessionIds: body.sessionIds,
-      substituteStaffId: body.substituteStaffId,
-      documentUrl: body.documentUrl,
-    });
+  async requestLeave(
+    @Body(zodPipe(RequestLeaveSchema)) body: RequestLeaveInput,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.requestLeaveUseCase.execute(body, user);
   }
 
   @Get('my-leaves')
@@ -128,11 +130,8 @@ export class LeavesController {
     description: 'Daftar permohonan cuti staf berhasil diambil',
   })
   @ApiForbiddenResponse({ description: 'User bukan staf terdaftar' })
-  async getMyLeaves(@CurrentUser() user: any) {
-    if (!user.staff?.id) {
-      throw new ForbiddenException('User bukan staf terdaftar');
-    }
-    return this.leaveRepo.findByStaffId(user.staff.id);
+  async getMyLeaves(@CurrentUser() user: AuthenticatedUser) {
+    return this.getMyLeavesUseCase.execute(user);
   }
 
   @Get('pending')
@@ -148,7 +147,7 @@ export class LeavesController {
   })
   @ApiForbiddenResponse({ description: 'Hanya Admin yang diizinkan' })
   async getPendingLeaves() {
-    return this.leaveRepo.findAllPending();
+    return this.getPendingLeavesUseCase.execute();
   }
 
   @Get('all')
@@ -170,10 +169,9 @@ export class LeavesController {
   })
   @ApiOkResponse({ description: 'Daftar seluruh cuti staf berhasil diambil' })
   async getAllLeaves(
-    @Query('status') status?: string,
-    @Query('staffType') staffType?: string,
+    @Query(zodPipe(QueryLeavesSchema)) query: QueryLeavesInput,
   ) {
-    return this.leaveRepo.findAll({ status, staffType });
+    return this.getAllLeavesUseCase.execute(query);
   }
 
   @Patch(':id/status')
@@ -192,22 +190,11 @@ export class LeavesController {
   @ApiNotFoundResponse({ description: 'Permohonan cuti tidak ditemukan' })
   @ApiForbiddenResponse({ description: 'Hanya Admin yang diizinkan' })
   async reviewLeave(
-    @Param('id') id: string,
-    @Body() body: ReviewLeaveDto,
-    @CurrentUser() user: any,
+    @Param(zodPipe(LeaveParamSchema)) param: LeaveParamInput,
+    @Body(zodPipe(ReviewLeaveSchema)) body: ReviewLeaveInput,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    const updated = await this.leaveRepo.updateStatus(
-      id,
-      body.status,
-      user.id,
-      body.approvalNotes,
-    );
-    if (!updated) {
-      throw new NotFoundException(
-        `Pengajuan cuti dengan ID ${id} tidak ditemukan`,
-      );
-    }
-    return updated;
+    return this.reviewLeaveUseCase.execute(param.id, body, user);
   }
 
   @Patch(':id/cancel')
@@ -231,17 +218,10 @@ export class LeavesController {
   @ApiBadRequestResponse({
     description: 'Hanya pengajuan cuti berstatus pending yang dapat dibatalkan',
   })
-  async cancelLeave(@Param('id') id: string, @CurrentUser() user: any) {
-    if (!user.staff?.id) {
-      throw new ForbiddenException('User bukan staf terdaftar');
-    }
-
-    const updated = await this.leaveRepo.cancel(id, user.staff.id);
-    if (!updated) {
-      throw new NotFoundException(
-        `Pengajuan cuti dengan ID ${id} tidak ditemukan`,
-      );
-    }
-    return updated;
+  async cancelLeave(
+    @Param(zodPipe(LeaveParamSchema)) param: LeaveParamInput,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.cancelLeaveUseCase.execute(param.id, user);
   }
 }

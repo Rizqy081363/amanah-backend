@@ -27,7 +27,11 @@ import {
 } from '../../../../database/schema/leave-payroll.schema';
 import { NotificationGatewayService } from '../../../notifications/application/services/notification-gateway.service';
 import { LeaveEntity } from '../../domain/entities/leave.entity';
-import { LeaveRepository } from '../../domain/repositories/leave.repository';
+import {
+  CreateLeaveData,
+  LeaveFilterOptions,
+  LeaveRepository,
+} from '../../domain/repositories/leave.repository';
 
 @Injectable()
 export class LeaveDrizzleRepository implements LeaveRepository {
@@ -202,18 +206,7 @@ export class LeaveDrizzleRepository implements LeaveRepository {
     return eligibleSessions;
   }
 
-  async create(data: {
-    staffId: string;
-    practitionerId?: string | null;
-    startDate: string;
-    endDate: string;
-    reason: string;
-    type?: string;
-    scope?: 'session' | 'full_day';
-    sessionIds?: string[];
-    substituteStaffId?: string | null;
-    documentUrl?: string | null;
-  }): Promise<LeaveEntity> {
+  async create(data: CreateLeaveData): Promise<LeaveEntity> {
     const start = new Date(data.startDate).getTime();
     const end = new Date(data.endDate).getTime();
     const durationDays = Math.max(
@@ -352,9 +345,7 @@ export class LeaveDrizzleRepository implements LeaveRepository {
       practitionerId = pract?.id || null;
     }
 
-    const reqType =
-      (data.type as (typeof staffLeaveRequestType.enumValues)[number]) ??
-      'other';
+    const reqType = data.type;
 
     const [record] = await this.db
       .insert(staffLeaveRequests)
@@ -622,10 +613,7 @@ export class LeaveDrizzleRepository implements LeaveRepository {
     }));
   }
 
-  async findAll(filters?: {
-    status?: string;
-    staffType?: string;
-  }): Promise<any[]> {
+  async findAll(filters?: LeaveFilterOptions): Promise<any[]> {
     const records = await this.db.query.staffLeaveRequests.findMany({
       with: {
         staffProfile: true,

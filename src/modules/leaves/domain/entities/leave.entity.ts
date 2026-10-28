@@ -1,3 +1,9 @@
+import type {
+  CanonicalLeaveScope,
+  CanonicalLeaveStatus,
+  CanonicalLeaveType,
+} from '../constants/leave.constants';
+
 export class LeaveEntity {
   id: string;
   staffId: string;
@@ -6,12 +12,12 @@ export class LeaveEntity {
   endDate: string;
   durationDays: number;
   reason: string;
-  type?: string;
-  scope: 'session' | 'full_day';
+  type: CanonicalLeaveType;
+  scope: CanonicalLeaveScope;
   decisionSource?: 'admin' | 'auto';
   substituteStaffId?: string | null;
   documentUrl?: string | null;
-  status: 'pending' | 'approved' | 'rejected' | 'cancelled';
+  status: CanonicalLeaveStatus;
   approvedBy?: string | null;
   approvalNotes?: string | null;
   cancelledAt?: Date | null;

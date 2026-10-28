@@ -65,7 +65,7 @@ try {
         startDate = $startDate
         endDate = $endDate
         reason = "Keperluan keluarga mendesak dan cuti tahunan"
-        type = "annual"
+        type = "annual_leave"
         scope = "full_day"
     } | ConvertTo-Json
 
