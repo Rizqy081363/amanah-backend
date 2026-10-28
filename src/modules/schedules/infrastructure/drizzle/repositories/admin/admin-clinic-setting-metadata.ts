@@ -430,6 +430,30 @@ const CLINIC_SETTING_METADATA_REGISTRY: Record<
       'Mengaktifkan pencatatan durasi dinas yang melebihi batas jam shift normal untuk payroll.',
     controlType: 'boolean',
   },
+  'attendance.min_billable_shift_minutes': {
+    isAdminFacing: true,
+    category: 'attendance',
+    label: 'Batas Minimum Durasi Kerja Berbayar',
+    description:
+      'Durasi kerja minimal (menit) agar kehadiran staf diperhitungkan dalam pembayaran upah/payroll. Durasi di bawah batas ini dianggap 0 jam berbayar.',
+    controlType: 'number',
+    unit: 'menit',
+    min: 0,
+    max: 120,
+    step: 5,
+  },
+  'attendance.rounding_increment_minutes': {
+    isAdminFacing: true,
+    category: 'attendance',
+    label: 'Interval Pembulatan Jam Kerja',
+    description:
+      'Faktor pembulatan durasi kerja ke interval terdekat (contoh 15 menit = 0.25 jam) untuk standardisasi payroll.',
+    controlType: 'number',
+    unit: 'menit',
+    min: 1,
+    max: 60,
+    step: 5,
+  },
   'roster.break_duration_minutes': {
     isAdminFacing: true,
     category: 'attendance',

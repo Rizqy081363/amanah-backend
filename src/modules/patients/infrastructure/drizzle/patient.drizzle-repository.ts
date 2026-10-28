@@ -441,6 +441,23 @@ export class PatientDrizzleRepository implements PatientRepository {
       updateValues.birthPlace = d.birthPlace.trim();
     if (d.birthDate !== undefined) updateValues.birthDate = d.birthDate;
 
+    if (
+      d.medicalRecordNumber !== undefined &&
+      d.medicalRecordNumber.trim() !== ''
+    ) {
+      const cleanRm = d.medicalRecordNumber.trim();
+      if (cleanRm !== existing.medicalRecordNumber) {
+        const duplicateRm = await this.findByRecordNumber(cleanRm);
+        if (duplicateRm && duplicateRm.id !== id) {
+          throw new ConflictException({
+            code: 'DUPLICATE_MRN',
+            message: 'Nomor Rekam Medis ini sudah terdaftar pada pasien lain.',
+          });
+        }
+        updateValues.medicalRecordNumber = cleanRm;
+      }
+    }
+
     if (d.gender !== undefined) {
       updateValues.gender = d.gender;
     }

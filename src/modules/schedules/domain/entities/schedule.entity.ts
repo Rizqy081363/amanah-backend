@@ -481,6 +481,13 @@ export class AdminDoctorScheduleCardEntity {
     example: true,
   })
   isAcceptingAppointments?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Waktu pembuatan data praktisi atau riwayat undangan',
+    type: String,
+    example: '2026-10-28T08:00:00.000Z',
+  })
+  createdAt?: string | null;
 }
 
 export class AdminDoctorScheduleListMeta {

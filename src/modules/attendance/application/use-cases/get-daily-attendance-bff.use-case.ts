@@ -89,7 +89,13 @@ export class GetDailyAttendanceBffUseCase {
         validatedDurationHours: rec.validatedDurationHours
           ? Number(rec.validatedDurationHours)
           : 0,
+        lateMinutes: rec.lateMinutes ?? 0,
         isReplacement: Boolean(rec.isReplacement),
+        replacementOpportunityId: rec.replacementOpportunityId || null,
+        replacedStaffName:
+          rec.replacementOpportunity?.originalStaffProfile?.fullName || null,
+        replacedStaffCode:
+          rec.replacementOpportunity?.originalStaffProfile?.staffCode || null,
         isEarlyDeparture: Boolean(rec.isEarlyDeparture),
         notes: rec.notes || null,
       };

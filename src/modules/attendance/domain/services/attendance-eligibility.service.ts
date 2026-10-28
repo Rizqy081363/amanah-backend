@@ -355,9 +355,9 @@ export class AttendanceEligibilityService {
       scheduledShiftDurationHours,
     });
 
-    // 4. Layer 4: Penegakan Kewajiban Catatan Alasan untuk Kepulangan Lebih Awal (Mobile Saja)
+    // 4. Layer 4: Penegakan Kewajiban Catatan Alasan untuk Kepulangan Lebih Awal (Semua Aktor)
     const notesTrimmed = notes?.trim() || null;
-    if (!isAdministrativeEntry && timingEval.requiresNotes && !notesTrimmed) {
+    if (timingEval.requiresNotes && !notesTrimmed) {
       const ticket = this.ticketService.issueTicket(
         staffId,
         existing.id,

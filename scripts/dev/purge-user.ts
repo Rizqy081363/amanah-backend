@@ -29,6 +29,22 @@ import {
   executePurgeTodayForStaff,
   resolveStaff,
 } from './purge/attendance-purge.service';
+import {
+  runPayrollPurgeInteractive,
+  executePurgeAllPayrollPeriodsAndEntries,
+} from './purge/payroll-purge.service';
+import {
+  runLeavePurgeInteractive,
+  executePurgeAllLeaves,
+} from './purge/leave-purge.service';
+import {
+  runReplacementPurgeInteractive,
+  executePurgeAllReplacements,
+} from './purge/replacement-purge.service';
+import {
+  runNuclearResetInteractive,
+  executeNuclearDevReset,
+} from './purge/dev-reset-purge.service';
 
 async function runMainMenu(): Promise<void> {
   const pool = createDbPool();
@@ -50,9 +66,13 @@ async function runMainMenu(): Promise<void> {
       console.log(' [4] Doctor Schedule Purge (Purge ALL schedules or by Doctor)');
       console.log(' [5] Doctor / Practitioner Purge (Purge ALL doctors or single Doctor profile)');
       console.log(' [6] Attendance Purge (Flush today\'s attendance, by Staff/Doctor, or 100% flush)');
+      console.log(' [7] Payroll Purge (Flush entries, periods, or staff payroll)');
+      console.log(' [8] Leave / Cuti Purge (Flush all leaves, today leaves, or staff leaves)');
+      console.log(' [9] Replacement Purge (Flush replacement opportunities & reset attendance links)');
+      console.log(' [10] Nuclear Dev Reset (Cascade flush Attendance + Leave + Replacement + Payroll)');
       console.log(' [q] Quit CLI\n');
 
-      const choice = await askSafeQuestion(rl, 'Enter choice [1-6 or q]: ');
+      const choice = await askSafeQuestion(rl, 'Enter choice [1-10 or q]: ');
       if (!choice || choice.toLowerCase() === 'q' || choice.toLowerCase() === 'exit') {
         console.log('\n[INFO] Exiting CLI. No further actions taken.\n');
         break;
@@ -70,8 +90,16 @@ async function runMainMenu(): Promise<void> {
         await runDoctorPurgeInteractive(pool, redisClient, rl);
       } else if (choice === '6') {
         await runAttendancePurgeInteractive(pool, redisClient, rl);
+      } else if (choice === '7') {
+        await runPayrollPurgeInteractive(pool, redisClient, rl);
+      } else if (choice === '8') {
+        await runLeavePurgeInteractive(pool, redisClient, rl);
+      } else if (choice === '9') {
+        await runReplacementPurgeInteractive(pool, redisClient, rl);
+      } else if (choice === '10') {
+        await runNuclearResetInteractive(pool, redisClient, rl);
       } else {
-        console.log('[WARN] Invalid choice. Please enter 1, 2, 3, 4, 5, 6, or q.');
+        console.log('[WARN] Invalid choice. Please enter 1-10 or q.');
       }
     }
   } finally {
@@ -102,6 +130,13 @@ Usage:
   bun ./scripts/dev/purge-user.ts --attendance        Launch attendance purge menu
   bun ./scripts/dev/purge-user.ts --attendance-today  Flush all today's attendance records
   bun ./scripts/dev/purge-user.ts --attendance-user=<email_or_uuid> Flush attendance for staff
+  bun ./scripts/dev/purge-user.ts --payroll           Launch payroll purge menu
+  bun ./scripts/dev/purge-user.ts --payroll-flush-all 100% Flush all payroll periods and entries
+  bun ./scripts/dev/purge-user.ts --leave             Launch leave/cuti purge menu
+  bun ./scripts/dev/purge-user.ts --leave-flush-all   100% Flush all leave requests and cascaded deductions
+  bun ./scripts/dev/purge-user.ts --replacement       Launch replacement purge menu
+  bun ./scripts/dev/purge-user.ts --replacement-flush-all 100% Flush all replacement opportunities
+  bun ./scripts/dev/purge-user.ts --nuclear-reset     100% Flush attendance, leaves, replacements, and payroll
 
 Options:
   --yes, -y       Skip confirmation prompt (for non-interactive batch runs)
@@ -258,6 +293,130 @@ Options:
         console.log(`[SUCCESS] Purged ${res.deletedCount} attendance record(s) for ${staff.fullName}.`);
       } else {
         console.error(`[ERROR] Purge failed: ${res.error}`);
+        process.exit(1);
+      }
+      return;
+    }
+
+    if (args.includes('--payroll')) {
+      const rl = readline.createInterface({ input, output });
+      try {
+        await runPayrollPurgeInteractive(pool, redisClient, rl);
+      } finally {
+        rl.close();
+      }
+      return;
+    }
+
+    if (args.includes('--payroll-flush-all')) {
+      const skipConfirm = args.includes('--yes') || args.includes('-y');
+      if (!skipConfirm) {
+        const rl = readline.createInterface({ input, output });
+        const confirm = (await rl.question('\nFlush ALL payroll periods & entries? [y/N]: ')).trim().toLowerCase();
+        rl.close();
+        if (confirm !== 'y') {
+          console.log('[INFO] Purge aborted.');
+          return;
+        }
+      }
+      console.log('\n[INFO] Flushing all payroll periods & entries...');
+      const res = await executePurgeAllPayrollPeriodsAndEntries(pool, redisClient);
+      if (res.success) {
+        console.log(`[SUCCESS] Purged ${res.deletedCount} payroll period(s) and all cascaded entries.`);
+      } else {
+        console.error(`[ERROR] Purge failed: ${res.error}`);
+        process.exit(1);
+      }
+      return;
+    }
+
+    if (args.includes('--leave')) {
+      const rl = readline.createInterface({ input, output });
+      try {
+        await runLeavePurgeInteractive(pool, redisClient, rl);
+      } finally {
+        rl.close();
+      }
+      return;
+    }
+
+    if (args.includes('--leave-flush-all')) {
+      const skipConfirm = args.includes('--yes') || args.includes('-y');
+      if (!skipConfirm) {
+        const rl = readline.createInterface({ input, output });
+        const confirm = (await rl.question('\nFlush ALL staff leave requests & cascaded deductions? [y/N]: ')).trim().toLowerCase();
+        rl.close();
+        if (confirm !== 'y') {
+          console.log('[INFO] Purge aborted.');
+          return;
+        }
+      }
+      console.log('\n[INFO] Flushing all staff leave requests...');
+      const res = await executePurgeAllLeaves(pool, redisClient);
+      if (res.success) {
+        console.log(`[SUCCESS] Purged ${res.deletedCount} leave request(s).`);
+      } else {
+        console.error(`[ERROR] Purge failed: ${res.error}`);
+        process.exit(1);
+      }
+      return;
+    }
+
+    if (args.includes('--replacement')) {
+      const rl = readline.createInterface({ input, output });
+      try {
+        await runReplacementPurgeInteractive(pool, redisClient, rl);
+      } finally {
+        rl.close();
+      }
+      return;
+    }
+
+    if (args.includes('--replacement-flush-all')) {
+      const skipConfirm = args.includes('--yes') || args.includes('-y');
+      if (!skipConfirm) {
+        const rl = readline.createInterface({ input, output });
+        const confirm = (await rl.question('\nFlush ALL replacement opportunities? [y/N]: ')).trim().toLowerCase();
+        rl.close();
+        if (confirm !== 'y') {
+          console.log('[INFO] Purge aborted.');
+          return;
+        }
+      }
+      console.log('\n[INFO] Flushing all replacement opportunities...');
+      const res = await executePurgeAllReplacements(pool, redisClient);
+      if (res.success) {
+        console.log(`[SUCCESS] Purged ${res.deletedCount} replacement opportunity/opportunities.`);
+      } else {
+        console.error(`[ERROR] Purge failed: ${res.error}`);
+        process.exit(1);
+      }
+      return;
+    }
+
+    if (args.includes('--nuclear-reset')) {
+      const skipConfirm = args.includes('--yes') || args.includes('-y');
+      if (!skipConfirm) {
+        const rl = readline.createInterface({ input, output });
+        const confirm = (await rl.question('\nExecute NUCLEAR DEV RESET (flush attendance, leaves, replacements, payroll)? [y/N]: ')).trim().toLowerCase();
+        rl.close();
+        if (confirm !== 'y') {
+          console.log('[INFO] Nuclear reset aborted.');
+          return;
+        }
+      }
+      console.log('\n[INFO] Executing transactional nuclear reset...');
+      const res = await executeNuclearDevReset(pool, redisClient);
+      if (res.success) {
+        console.log(`[SUCCESS] Nuclear Dev Reset completed!`);
+        console.log(` - Attendance Records Purged : ${res.purgedCounts.attendance}`);
+        console.log(` - QR Kiosk Sessions Purged  : ${res.purgedCounts.qrSessions}`);
+        console.log(` - Leave Requests Purged     : ${res.purgedCounts.leaves}`);
+        console.log(` - Replacements Purged       : ${res.purgedCounts.replacements}`);
+        console.log(` - Payroll Periods Purged    : ${res.purgedCounts.payrollPeriods}`);
+        console.log(` - Payroll Entries Purged    : ${res.purgedCounts.payrollEntries}`);
+      } else {
+        console.error(`[ERROR] Nuclear reset failed: ${res.error}`);
         process.exit(1);
       }
       return;

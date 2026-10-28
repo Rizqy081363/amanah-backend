@@ -25,6 +25,7 @@ import {
   WORK_POLICY_REPOSITORY,
   WorkPolicyRepository,
 } from '../domain/repositories/work-policy.repository';
+import { UpdateAttendanceTimingDto } from './dto/update-attendance-timing.dto';
 import { UpdateCompensationRatesDto } from './dto/update-compensation-rates.dto';
 import { UpdateLeavePolicyDto } from './dto/update-leave-policy.dto';
 
@@ -49,20 +50,22 @@ export class WorkPoliciesController {
   @ApiOperation({
     summary: 'Mendapatkan kebijakan cuti dan tarif kompensasi aktif saat ini',
     description:
-      'Menampilkan leave_policy aktif dan daftar tarif per jam dokter, bidan, dan staf operasional.',
+      'Menampilkan leave_policy aktif, daftar tarif per jam dokter, bidan, staf operasional, dan parameter batas waktu presensi.',
   })
   @ApiOkResponse({
-    description: 'Kebijakan dan tarif aktif berhasil diambil',
+    description: 'Kebijakan, tarif, dan parameter presensi aktif berhasil diambil',
   })
   async getCurrent() {
-    const [policy, rates] = await Promise.all([
+    const [policy, rates, timing] = await Promise.all([
       this.policyRepo.getActiveLeavePolicy(),
       this.policyRepo.getActiveCompensationRates(),
+      this.policyRepo.getAttendanceTiming(),
     ]);
 
     return {
       policy,
       rates,
+      timing,
     };
   }
 
@@ -96,5 +99,24 @@ export class WorkPoliciesController {
     @CurrentUser() user: any,
   ) {
     return this.policyRepo.updateCompensationRates(body.rates, user.id);
+  }
+
+  @Put('attendance-timing')
+  @Roles('ADMIN')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Admin memperbarui batas minimum durasi kerja berbayar dan interval pembulatan',
+    description:
+      'Mengatur batas menit minimal agar shift dihitung payroll dan faktor pembulatan durasi (contoh 15 menit).',
+  })
+  @ApiOkResponse({
+    description: 'Konfigurasi batas waktu presensi berhasil diperbarui',
+  })
+  async updateAttendanceTiming(
+    @Body() body: UpdateAttendanceTimingDto,
+    @CurrentUser() user: any,
+  ) {
+    return this.policyRepo.updateAttendanceTiming(body, user.id);
   }
 }

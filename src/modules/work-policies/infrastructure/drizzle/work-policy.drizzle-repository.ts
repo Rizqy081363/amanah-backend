@@ -1,7 +1,9 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { and, desc, eq } from 'drizzle-orm';
+import { ClinicConfigService } from '../../../../common/clinic-config/clinic-config.service';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
+import { clinicSettings } from '../../../../database/schema';
 import {
   compensationRates,
   leavePolicies,
@@ -15,6 +17,7 @@ export class WorkPolicyDrizzleRepository implements WorkPolicyRepository {
   constructor(
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,
+    private readonly clinicConfigService: ClinicConfigService,
   ) {}
 
   private mapLeavePolicy(r: any): LeavePolicyEntity {
@@ -166,5 +169,68 @@ export class WorkPolicyDrizzleRepository implements WorkPolicyRepository {
     }
 
     return this.getActiveCompensationRates();
+  }
+
+  async getAttendanceTiming(): Promise<{
+    minBillableShiftMinutes: number;
+    roundingIncrementMinutes: number;
+  }> {
+    const config = await this.clinicConfigService.getAttendanceConfig();
+    return {
+      minBillableShiftMinutes: config.minBillableShiftMinutes,
+      roundingIncrementMinutes: config.roundingIncrementMinutes,
+    };
+  }
+
+  async updateAttendanceTiming(
+    data: {
+      minBillableShiftMinutes: number;
+      roundingIncrementMinutes: number;
+    },
+    _updatedBy: string,
+  ): Promise<{
+    minBillableShiftMinutes: number;
+    roundingIncrementMinutes: number;
+  }> {
+    const now = new Date().toISOString();
+
+    await this.db
+      .insert(clinicSettings)
+      .values({
+        key: 'attendance.min_billable_shift_minutes',
+        scopeType: 'global',
+        value: data.minBillableShiftMinutes,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: clinicSettings.key,
+        set: {
+          value: data.minBillableShiftMinutes,
+          updatedAt: now,
+        },
+      });
+
+    await this.db
+      .insert(clinicSettings)
+      .values({
+        key: 'attendance.rounding_increment_minutes',
+        scopeType: 'global',
+        value: data.roundingIncrementMinutes,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: clinicSettings.key,
+        set: {
+          value: data.roundingIncrementMinutes,
+          updatedAt: now,
+        },
+      });
+
+    this.clinicConfigService.invalidateCache();
+
+    return {
+      minBillableShiftMinutes: data.minBillableShiftMinutes,
+      roundingIncrementMinutes: data.roundingIncrementMinutes,
+    };
   }
 }

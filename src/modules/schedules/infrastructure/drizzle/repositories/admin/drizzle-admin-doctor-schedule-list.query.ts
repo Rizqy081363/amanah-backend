@@ -174,13 +174,21 @@ export class DrizzleAdminDoctorScheduleListQuery {
       });
 
       const doctorEmail = (p.staffProfile?.email || '').toLowerCase().trim();
-      const hasPendingInvitation = Boolean(
-        doctorEmail && pendingInvitationEmails.has(doctorEmail),
+      const matchedInvitation = pendingInvitations.find(
+        (inv) =>
+          Boolean(doctorEmail) &&
+          inv.email?.toLowerCase().trim() === doctorEmail,
       );
+      const hasPendingInvitation = Boolean(matchedInvitation);
       const isPending =
         !p.isAcceptingAppointments ||
         p.staffProfile?.status === 'inactive' ||
         hasPendingInvitation;
+      const effectiveCreatedAt =
+        matchedInvitation?.createdAt ||
+        p.createdAt ||
+        p.staffProfile?.createdAt ||
+        null;
 
       const doctorAssignmentsForP = allDoctorAssignments.filter(
         (da) => da.doctorId === p.id,
@@ -499,8 +507,28 @@ export class DrizzleAdminDoctorScheduleListQuery {
         totalPatients: isPending ? 0 : totalPatients,
         patientPreviews: isPending ? [] : patientPreviews,
         isAcceptingAppointments: p.isAcceptingAppointments,
+        createdAt: effectiveCreatedAt,
       });
     }
+
+    const getDoctorSchedulePriority = (
+      status: ScheduleOperationalStatus,
+    ): number => {
+      if (status === ScheduleOperationalStatus.PENDING) return 1;
+      if (status === ScheduleOperationalStatus.OPEN) return 2;
+      if (status === ScheduleOperationalStatus.CLOSED) return 3;
+      return 4;
+    };
+
+    cards.sort((a, b) => {
+      const prioA = getDoctorSchedulePriority(a.scheduleStatus);
+      const prioB = getDoctorSchedulePriority(b.scheduleStatus);
+      if (prioA !== prioB) return prioA - prioB;
+      const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      if (timeA !== timeB) return timeB - timeA;
+      return a.fullName.localeCompare(b.fullName);
+    });
 
     const page = query.page || 1;
     const limit = query.limit || 20;

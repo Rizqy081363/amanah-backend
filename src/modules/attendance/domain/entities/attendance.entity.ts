@@ -9,6 +9,8 @@ export class AttendanceEntity {
   isReplacement: boolean;
   isEarlyDeparture?: boolean;
   replacementOpportunityId?: string | null;
+  replacedStaffName?: string | null;
+  replacedStaffCode?: string | null;
   sessionId?: string | null;
   deviceInfo?: string | null;
   attendanceDate?: string;

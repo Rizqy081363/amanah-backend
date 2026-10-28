@@ -100,6 +100,7 @@ export class AdminDoctorSchedulesController {
         'schedule:list',
         'schedule:detail',
         'schedule:patients',
+        'schedule:doctor-profile',
         'booking',
       );
     } catch {
@@ -209,6 +210,11 @@ export class AdminDoctorSchedulesController {
   })
   @ApiNotFoundResponse({
     description: 'Dokter tidak ditemukan',
+  })
+  @HttpCache({
+    ttlSeconds: 120,
+    isPrivate: false,
+    tags: ['schedule', 'schedule:doctor-profile'],
   })
   async getDoctorProfile(
     @Param('id') id: string,

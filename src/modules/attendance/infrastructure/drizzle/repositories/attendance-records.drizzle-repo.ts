@@ -246,6 +246,11 @@ export class AttendanceRecordsDrizzleRepo {
       where: eq(staffAttendanceRecords.attendanceDate, date),
       with: {
         staffProfile: true,
+        replacementOpportunity: {
+          with: {
+            originalStaffProfile: true,
+          },
+        },
       },
       orderBy: [desc(staffAttendanceRecords.checkInAt)],
     });

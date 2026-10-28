@@ -286,6 +286,8 @@ export class AttendanceRosterLookupDrizzleRepo {
     shift: string;
     startsAt: string | null;
     endsAt: string | null;
+    originalStaffName?: string | null;
+    originalStaffCode?: string | null;
   } | null> {
     const records = await this.db
       .select({
@@ -294,11 +296,17 @@ export class AttendanceRosterLookupDrizzleRepo {
         shift: sessionDefs.code,
         startsAt: sql<string | null>`COALESCE(${sessionSchedules.startsAt}, ${sessionDefs.defaultStartsAt})`,
         endsAt: sql<string | null>`COALESCE(${sessionSchedules.endsAt}, ${sessionDefs.defaultEndsAt})`,
+        originalStaffName: staffProfiles.fullName,
+        originalStaffCode: staffProfiles.staffCode,
       })
       .from(replacementOpportunities)
       .innerJoin(
         sessionDefs,
         eq(replacementOpportunities.sessionId, sessionDefs.id),
+      )
+      .innerJoin(
+        staffProfiles,
+        eq(replacementOpportunities.originalStaffProfileId, staffProfiles.id),
       )
       .leftJoin(
         sessionSchedules,

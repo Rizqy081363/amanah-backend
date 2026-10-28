@@ -80,6 +80,11 @@ export class ScanAttendanceUseCase {
       notes: input.deviceInfo || null,
     });
 
+    if (eligibility.isReplacement && eligibility.resolvedSession.originalStaffName) {
+      record.replacedStaffName = eligibility.resolvedSession.originalStaffName;
+      record.replacedStaffCode = eligibility.resolvedSession.originalStaffCode;
+    }
+
     // 4. Asynchronously Dispatch Realtime Socket & In-App Notification (Role-Scoped)
     const staff = await this.repo.resolveStaffByIdOrCode(input.staffId);
     if (staff) {

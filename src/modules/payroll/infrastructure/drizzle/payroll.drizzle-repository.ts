@@ -411,7 +411,7 @@ export class PayrollDrizzleRepository implements PayrollRepository {
             quantityHours: validatedHours.toFixed(2),
             hourlyRate: rates.hourly.toString(),
             amount: shiftEarnings.toFixed(2),
-            description: `Pelayanan Klinis Terjadwal (${formatHours(validatedHours)} jam @ Rp${rates.hourly.toLocaleString('id-ID')}/jam)`,
+            description: `Pelayanan Klinis Terjadwal (${formatHours(validatedHours)} @ Rp${rates.hourly.toLocaleString('id-ID')}/jam)`,
           });
         }
       }
@@ -891,8 +891,8 @@ export class PayrollDrizzleRepository implements PayrollRepository {
     const validatedHours = Number(input.validatedDurationHours || 0);
     const amount = Number((validatedHours * effectiveHourlyRate).toFixed(2));
     const description = isReplacement
-      ? `Pelayanan Dinas Pengganti (${formatHours(validatedHours)} jam @ Rp${effectiveHourlyRate.toLocaleString('id-ID')}/jam)`
-      : `Pelayanan Klinis Terjadwal (${formatHours(validatedHours)} jam @ Rp${standardHourlyRate.toLocaleString('id-ID')}/jam)`;
+      ? `Pelayanan Dinas Pengganti (${formatHours(validatedHours)} @ Rp${effectiveHourlyRate.toLocaleString('id-ID')}/jam)`
+      : `Pelayanan Klinis Terjadwal (${formatHours(validatedHours)} @ Rp${standardHourlyRate.toLocaleString('id-ID')}/jam)`;
 
     // 3. Delete existing entry for this attendance record (idempotency)
     await this.db
@@ -903,6 +903,28 @@ export class PayrollDrizzleRepository implements PayrollRepository {
           eq(payrollEntries.sourceId, input.attendanceRecordId),
         ),
       );
+
+    // If validated hours is 0, do not insert a 0-value entry (below minimum billable threshold)
+    if (validatedHours <= 0) {
+      return {
+        id: 'zero-billable-shift',
+        payrollPeriodId: activePeriod.id,
+        staffProfileId: input.staffProfileId,
+        practitionerId: input.practitionerId || null,
+        entryType,
+        sourceType: 'attendance',
+        sourceId: input.attendanceRecordId,
+        quantityHours: 0,
+        hourlyRate: effectiveHourlyRate,
+        amount: 0,
+        description: null,
+        checkInAt: null,
+        checkOutAt: null,
+        isEarlyDeparture: Boolean(input.isEarlyDeparture),
+        notes: null,
+        createdAt: new Date(),
+      };
+    }
 
     // 4. Insert shift earnings entry (Zero double-penalty: Early checkout paid strictly pro-rata for actual hours worked)
     const [insertedEntry] = await this.db

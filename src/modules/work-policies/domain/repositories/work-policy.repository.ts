@@ -27,4 +27,18 @@ export interface WorkPolicyRepository {
     }>,
     updatedBy: string,
   ): Promise<CompensationRateEntity[]>;
+  getAttendanceTiming(): Promise<{
+    minBillableShiftMinutes: number;
+    roundingIncrementMinutes: number;
+  }>;
+  updateAttendanceTiming(
+    data: {
+      minBillableShiftMinutes: number;
+      roundingIncrementMinutes: number;
+    },
+    updatedBy: string,
+  ): Promise<{
+    minBillableShiftMinutes: number;
+    roundingIncrementMinutes: number;
+  }>;
 }

@@ -85,6 +85,13 @@ interface CanonicalClinicSettingConfig {
   isAdminFacing: boolean;
 }
 
+const CANONICAL_SESSION_LABEL_MAP: Record<string, string> = {
+  early_morning: 'Sesi Dini Hari',
+  morning: 'Sesi Pagi',
+  afternoon: 'Sesi Siang',
+  night: 'Sesi Malam',
+};
+
 export interface ScheduleConfigurationData {
   days: CanonicalDayInfo[];
   sessionDefs: CanonicalSessionDefConfig[];
@@ -164,11 +171,12 @@ export class DrizzleAdminScheduleConfigurationRepository {
         const endTimeStr = sd.defaultEndsAt
           ? sd.defaultEndsAt.slice(0, 5)
           : '';
+        const canonicalLabel = CANONICAL_SESSION_LABEL_MAP[sd.code] || sd.code;
         return {
           id: sd.id,
           code: sd.code,
           labelKey: sd.code,
-          label: sd.code,
+          label: canonicalLabel,
           timeRange:
             startTimeStr && endTimeStr ? `${startTimeStr} - ${endTimeStr}` : '',
           codePrefix: sd.codePrefix,
@@ -190,12 +198,14 @@ export class DrizzleAdminScheduleConfigurationRepository {
           (ws) => ws.dow === day.dow && ws.sessionId === def.id,
         );
 
+        const sessionLabel = CANONICAL_SESSION_LABEL_MAP[def.code] || def.code;
+
         if (found) {
           weeklyTemplates.push({
             id: found.id,
             sessionId: found.sessionId,
             sessionCode: found.sessionCode,
-            sessionLabel: def.code,
+            sessionLabel: sessionLabel,
             dow: found.dow,
             dowLabel: day.label,
             startsAt: found.startsAt,
@@ -208,7 +218,7 @@ export class DrizzleAdminScheduleConfigurationRepository {
             id: '',
             sessionId: def.id,
             sessionCode: def.code,
-            sessionLabel: def.code,
+            sessionLabel: sessionLabel,
             dow: day.dow,
             dowLabel: day.label,
             startsAt: def.defaultStartsAt,

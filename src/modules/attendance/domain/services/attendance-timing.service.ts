@@ -65,13 +65,25 @@ export class AttendanceTimingService {
 
     const config = await this.clinicConfig.getAttendanceConfig();
     const windowMinutesBefore = config.checkOutWindowMinutesBefore ?? 30;
+    const minBillableShiftMinutes = config.minBillableShiftMinutes ?? 30;
+    const roundingIncrementMinutes = config.roundingIncrementMinutes ?? 15;
 
     let isEarlyDeparture = false;
     let earlyMinutes = 0;
     let validatedDurationHours = scheduledShiftDurationHours;
 
     const elapsedMs = Math.max(0, checkOutTime.getTime() - checkInTime.getTime());
-    const rawHours = Number((elapsedMs / (1000 * 60 * 60)).toFixed(2));
+    const elapsedMinutes = Math.floor(elapsedMs / (1000 * 60));
+
+    // Standardized billable duration calculation
+    let calculatedBillableHours = 0;
+    if (elapsedMinutes >= minBillableShiftMinutes) {
+      const roundedMinutes =
+        roundingIncrementMinutes > 0
+          ? Math.floor(elapsedMinutes / roundingIncrementMinutes) * roundingIncrementMinutes
+          : elapsedMinutes;
+      calculatedBillableHours = Number((roundedMinutes / 60).toFixed(2));
+    }
 
     if (scheduledEndTime) {
       let [endH, endM] = scheduledEndTime.split(':').map(Number);
@@ -95,24 +107,32 @@ export class AttendanceTimingService {
         );
         validatedDurationHours = Math.min(
           scheduledShiftDurationHours,
-          rawHours,
+          calculatedBillableHours,
         );
       } else {
         // Within or after normal window: Fair Credit Rounding grants full scheduled hours
         // ONLY if the employee actually served the full shift (not arriving 5 minutes before checkout)
         const isFullShiftSatisfied =
-          rawHours >= scheduledShiftDurationHours - windowMinutesBefore / 60;
+          elapsedMinutes >=
+          Math.max(
+            minBillableShiftMinutes,
+            scheduledShiftDurationHours * 60 - windowMinutesBefore,
+          );
         validatedDurationHours = isFullShiftSatisfied
           ? scheduledShiftDurationHours
-          : Math.min(scheduledShiftDurationHours, rawHours);
+          : Math.min(scheduledShiftDurationHours, calculatedBillableHours);
       }
     } else {
-      const thresholdHours = scheduledShiftDurationHours - windowMinutesBefore / 60;
+      const thresholdMinutes =
+        scheduledShiftDurationHours * 60 - windowMinutesBefore;
 
-      if (rawHours < thresholdHours) {
+      if (elapsedMinutes < thresholdMinutes) {
         isEarlyDeparture = true;
-        earlyMinutes = Math.round((thresholdHours - rawHours) * 60);
-        validatedDurationHours = Math.min(scheduledShiftDurationHours, rawHours);
+        earlyMinutes = Math.round(thresholdMinutes - elapsedMinutes);
+        validatedDurationHours = Math.min(
+          scheduledShiftDurationHours,
+          calculatedBillableHours,
+        );
       } else {
         validatedDurationHours = scheduledShiftDurationHours;
       }
@@ -121,7 +141,8 @@ export class AttendanceTimingService {
     return {
       isEarlyDeparture,
       validatedDurationHours,
-      requiresNotes: isEarlyDeparture && (config.earlyCheckoutRequiresNotes ?? true),
+      requiresNotes:
+        isEarlyDeparture && (config.earlyCheckoutRequiresNotes ?? true),
       earlyMinutes,
     };
   }

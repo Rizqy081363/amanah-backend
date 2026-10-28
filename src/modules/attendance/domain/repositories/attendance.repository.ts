@@ -212,6 +212,8 @@ export interface AttendanceRepository {
     shift: string;
     startsAt: string | null;
     endsAt: string | null;
+    originalStaffName?: string | null;
+    originalStaffCode?: string | null;
   } | null>;
 
   findDoctorAssignmentsForDow(

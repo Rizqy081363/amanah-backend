@@ -11,6 +11,14 @@ import {
 
 export class UpdatePatientDto {
   @ApiPropertyOptional({
+    example: 'RM-2026-0001',
+    description: 'Nomor rekam medis (MRN)',
+  })
+  @IsString()
+  @IsOptional()
+  medicalRecordNumber?: string;
+
+  @ApiPropertyOptional({
     example: 'Budi Santoso',
     description: 'Nama lengkap pasien (canonical)',
   })

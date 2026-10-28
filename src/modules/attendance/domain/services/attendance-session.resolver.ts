@@ -12,6 +12,8 @@ export interface CandidateScheduledSession {
   endsAt: string | null;
   isReplacement?: boolean;
   replacementOpportunityId?: string | null;
+  originalStaffName?: string | null;
+  originalStaffCode?: string | null;
 }
 
 export interface ResolveActiveSessionParams {
