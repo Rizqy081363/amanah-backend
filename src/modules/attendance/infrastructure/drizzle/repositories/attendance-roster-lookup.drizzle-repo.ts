@@ -8,6 +8,7 @@ import {
   practitioners,
   sessionDefs,
   sessionSchedules,
+  shiftExceptions,
   staffLeaveRequests,
   staffProfiles,
   staffRosters,
@@ -67,6 +68,34 @@ export class AttendanceRosterLookupDrizzleRepo {
       .where(eq(replacementOpportunities.id, opportunityId));
   }
 
+  async hasCustomStaffRoster(staffId: string): Promise<boolean> {
+    const records = await this.db
+      .select({ id: staffRosters.id })
+      .from(staffRosters)
+      .where(eq(staffRosters.staffProfileId, staffId))
+      .limit(1);
+    return records.length > 0;
+  }
+
+  async hasCustomDoctorRoster(staffId: string): Promise<boolean> {
+    const records = await this.db
+      .select({ id: doctorAssignments.id })
+      .from(doctorAssignments)
+      .innerJoin(
+        practitioners,
+        eq(doctorAssignments.doctorId, practitioners.id),
+      )
+      .where(
+        and(
+          eq(practitioners.staffProfileId, staffId),
+          eq(doctorAssignments.isActive, true),
+        ),
+      )
+      .limit(1);
+
+    return records.length > 0;
+  }
+
   async findStaffRostersForDow(
     staffId: string,
     dow: number,
@@ -84,6 +113,205 @@ export class AttendanceRosterLookupDrizzleRepo {
           eq(staffRosters.isActive, true),
         ),
       );
+  }
+
+  async findStaffRostersForDowDetailed(
+    staffId: string,
+    dow: number,
+  ): Promise<
+    Array<{
+      id: string;
+      sessionId: string;
+      shift: string;
+      startsAt: string | null;
+      endsAt: string | null;
+    }>
+  > {
+    return this.db
+      .select({
+        id: staffRosters.id,
+        sessionId: staffRosters.sessionId,
+        shift: sessionDefs.code,
+        startsAt: sql<string | null>`COALESCE(${sessionSchedules.startsAt}, ${sessionDefs.defaultStartsAt})`,
+        endsAt: sql<string | null>`COALESCE(${sessionSchedules.endsAt}, ${sessionDefs.defaultEndsAt})`,
+      })
+      .from(staffRosters)
+      .innerJoin(sessionDefs, eq(staffRosters.sessionId, sessionDefs.id))
+      .leftJoin(
+        sessionSchedules,
+        and(
+          eq(sessionSchedules.sessionId, staffRosters.sessionId),
+          eq(sessionSchedules.dow, dow),
+          eq(sessionSchedules.isActive, true),
+        ),
+      )
+      .where(
+        and(
+          eq(staffRosters.staffProfileId, staffId),
+          eq(staffRosters.dow, dow),
+          eq(staffRosters.isActive, true),
+          eq(sessionDefs.isActive, true),
+        ),
+      );
+  }
+
+  async findDoctorAssignmentsForDowDetailed(
+    staffId: string,
+    dow: number,
+  ): Promise<
+    Array<{
+      id: string;
+      sessionId: string;
+      shift: string;
+      startsAt: string | null;
+      endsAt: string | null;
+    }>
+  > {
+    return this.db
+      .select({
+        id: doctorAssignments.id,
+        sessionId: doctorAssignments.sessionId,
+        shift: sessionDefs.code,
+        startsAt: sql<string | null>`COALESCE(${sessionSchedules.startsAt}, ${sessionDefs.defaultStartsAt})`,
+        endsAt: sql<string | null>`COALESCE(${sessionSchedules.endsAt}, ${sessionDefs.defaultEndsAt})`,
+      })
+      .from(doctorAssignments)
+      .innerJoin(
+        practitioners,
+        eq(doctorAssignments.doctorId, practitioners.id),
+      )
+      .innerJoin(sessionDefs, eq(doctorAssignments.sessionId, sessionDefs.id))
+      .leftJoin(
+        sessionSchedules,
+        and(
+          eq(sessionSchedules.sessionId, doctorAssignments.sessionId),
+          eq(sessionSchedules.dow, dow),
+          eq(sessionSchedules.isActive, true),
+        ),
+      )
+      .where(
+        and(
+          eq(practitioners.staffProfileId, staffId),
+          eq(doctorAssignments.isActive, true),
+          eq(sessionDefs.isActive, true),
+          or(
+            eq(doctorAssignments.dow, dow),
+            and(
+              sql`${doctorAssignments.dow} IS NULL`,
+              sql`${sessionSchedules.id} IS NOT NULL`,
+            ),
+          ),
+        ),
+      );
+  }
+
+  async findDoctorShiftExceptions(
+    staffId: string,
+    dateStr: string,
+  ): Promise<
+    Array<{
+      id: string;
+      sessionId: string | null;
+      type: string;
+      note: string | null;
+      shift: string | null;
+      startsAt?: string | null;
+      endsAt?: string | null;
+    }>
+  > {
+    const prac = await this.db
+      .select({ id: practitioners.id })
+      .from(practitioners)
+      .where(eq(practitioners.staffProfileId, staffId))
+      .limit(1);
+
+    if (prac.length === 0) return [];
+
+    return this.db
+      .select({
+        id: shiftExceptions.id,
+        sessionId: shiftExceptions.sessionId,
+        type: shiftExceptions.type,
+        note: shiftExceptions.note,
+        shift: sessionDefs.code,
+        startsAt: sessionDefs.defaultStartsAt,
+        endsAt: sessionDefs.defaultEndsAt,
+      })
+      .from(shiftExceptions)
+      .leftJoin(sessionDefs, eq(shiftExceptions.sessionId, sessionDefs.id))
+      .where(
+        and(
+          eq(shiftExceptions.doctorId, prac[0].id),
+          eq(shiftExceptions.serviceDate, dateStr),
+        ),
+      );
+  }
+
+  async findClinicWeeklyTemplateForDow(
+    dow: number,
+  ): Promise<
+    Array<{
+      id: string;
+      sessionId: string;
+      shift: string;
+      startsAt: string | null;
+      endsAt: string | null;
+    }>
+  > {
+    return this.db
+      .select({
+        id: sessionSchedules.id,
+        sessionId: sessionSchedules.sessionId,
+        shift: sessionDefs.code,
+        startsAt: sql<string | null>`COALESCE(${sessionSchedules.startsAt}, ${sessionDefs.defaultStartsAt})`,
+        endsAt: sql<string | null>`COALESCE(${sessionSchedules.endsAt}, ${sessionDefs.defaultEndsAt})`,
+      })
+      .from(sessionSchedules)
+      .innerJoin(sessionDefs, eq(sessionSchedules.sessionId, sessionDefs.id))
+      .where(
+        and(
+          eq(sessionSchedules.dow, dow),
+          eq(sessionSchedules.isActive, true),
+          eq(sessionDefs.isActive, true),
+        ),
+      );
+  }
+
+  async findClaimedReplacementSession(
+    opportunityId: string,
+    dow: number,
+  ): Promise<{
+    id: string;
+    sessionId: string;
+    shift: string;
+    startsAt: string | null;
+    endsAt: string | null;
+  } | null> {
+    const records = await this.db
+      .select({
+        id: replacementOpportunities.id,
+        sessionId: replacementOpportunities.sessionId,
+        shift: sessionDefs.code,
+        startsAt: sql<string | null>`COALESCE(${sessionSchedules.startsAt}, ${sessionDefs.defaultStartsAt})`,
+        endsAt: sql<string | null>`COALESCE(${sessionSchedules.endsAt}, ${sessionDefs.defaultEndsAt})`,
+      })
+      .from(replacementOpportunities)
+      .innerJoin(
+        sessionDefs,
+        eq(replacementOpportunities.sessionId, sessionDefs.id),
+      )
+      .leftJoin(
+        sessionSchedules,
+        and(
+          eq(sessionSchedules.sessionId, sessionDefs.id),
+          eq(sessionSchedules.dow, dow),
+          eq(sessionSchedules.isActive, true),
+        ),
+      )
+      .where(eq(replacementOpportunities.id, opportunityId))
+      .limit(1);
+
+    return records.length > 0 ? records[0] : null;
   }
 
   async findDoctorAssignmentsForDow(
@@ -181,6 +409,7 @@ export class AttendanceRosterLookupDrizzleRepo {
     staffType?: string | null;
     positionTitle?: string | null;
     avatarUrl?: string | null;
+    practitionerId?: string | null;
   } | null> {
     const q = query.trim();
     const profiles = await this.db
@@ -192,8 +421,13 @@ export class AttendanceRosterLookupDrizzleRepo {
         staffType: staffProfiles.staffType,
         positionTitle: staffProfiles.positionTitle,
         avatarUrl: staffProfiles.avatarUrl,
+        practitionerId: practitioners.id,
       })
       .from(staffProfiles)
+      .leftJoin(
+        practitioners,
+        eq(practitioners.staffProfileId, staffProfiles.id),
+      )
       .where(
         isUUID(q)
           ? or(
@@ -212,18 +446,47 @@ export class AttendanceRosterLookupDrizzleRepo {
   }
 
   async resolveSessionDefByTime(
-    hour: number,
+    hourOrTime: number | string | Date,
   ): Promise<{ id: string; code: string; defaultStartsAt: string | null; defaultEndsAt?: string | null } | null> {
-    const sessionCode =
-      hour < 6
-        ? 'early_morning'
-        : hour < 12
-          ? 'morning'
-          : hour < 18
-            ? 'afternoon'
-            : 'night';
+    let timeStr: string;
+    if (hourOrTime instanceof Date) {
+      const h = String(hourOrTime.getHours()).padStart(2, '0');
+      const m = String(hourOrTime.getMinutes()).padStart(2, '0');
+      const s = String(hourOrTime.getSeconds()).padStart(2, '0');
+      timeStr = `${h}:${m}:${s}`;
+    } else if (typeof hourOrTime === 'number') {
+      timeStr = `${hourOrTime.toString().padStart(2, '0')}:00:00`;
+    } else {
+      timeStr = hourOrTime.trim();
+      if (timeStr.length === 5) {
+        timeStr = `${timeStr}:00`;
+      }
+    }
 
-    return this.resolveSessionDefByCode(sessionCode);
+    const defs = await this.db
+      .select({
+        id: sessionDefs.id,
+        code: sessionDefs.code,
+        defaultStartsAt: sessionDefs.defaultStartsAt,
+        defaultEndsAt: sessionDefs.defaultEndsAt,
+      })
+      .from(sessionDefs)
+      .where(
+        and(
+          eq(sessionDefs.isActive, true),
+          sql`(${sessionDefs.defaultStartsAt} - interval '30 minutes') <= ${timeStr}::time`,
+          sql`(${sessionDefs.defaultEndsAt} >= ${timeStr}::time OR ${sessionDefs.defaultEndsAt} = '24:00:00'::time OR ${sessionDefs.defaultEndsAt} = '00:00:00'::time)`,
+        ),
+      )
+      .orderBy(sessionDefs.sortOrder)
+      .limit(1);
+
+    if (defs.length > 0) {
+      return defs[0];
+    }
+
+    // Zero fabricated fallback. Honest null return when no session is active.
+    return null;
   }
 
   async resolveSessionDefByCode(

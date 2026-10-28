@@ -9,6 +9,11 @@ export const CANONICAL_STAFF_SHIFTS = [
 
 export type ShiftCode = (typeof CANONICAL_STAFF_SHIFTS)[number];
 
+export const CANONICAL_STAFF_SHIFT_VALUES = CANONICAL_STAFF_SHIFTS as unknown as [
+  ShiftCode,
+  ...ShiftCode[],
+];
+
 export const ATTENDANCE_ACTIONS = {
   CHECK_IN: 'check_in',
   MANUAL_CHECK_IN: 'manual_check_in',
@@ -19,7 +24,10 @@ export type AttendanceAction =
   (typeof ATTENDANCE_ACTIONS)[keyof typeof ATTENDANCE_ACTIONS];
 
 export type AttendanceMethod = (typeof attendanceMethod.enumValues)[number];
-export const ATTENDANCE_METHODS = attendanceMethod.enumValues;
+export const ATTENDANCE_METHODS = attendanceMethod.enumValues as unknown as [
+  AttendanceMethod,
+  ...AttendanceMethod[],
+];
 
 export const ATTENDANCE_STATUSES = [
   'present',
@@ -31,43 +39,42 @@ export const ATTENDANCE_STATUSES = [
 
 export type AttendanceStatus = (typeof ATTENDANCE_STATUSES)[number];
 
-export const SHIFT_LABEL_MAP: Record<ShiftCode, string> = {
-  early_morning: 'Dini Hari',
-  morning: 'Pagi',
-  afternoon: 'Siang',
-  night: 'Malam',
-};
+export const ATTENDANCE_STATUS_VALUES = ATTENDANCE_STATUSES as unknown as [
+  AttendanceStatus,
+  ...AttendanceStatus[],
+];
 
-export const STATUS_LABEL_MAP: Record<AttendanceStatus, string> = {
-  present: 'Hadir',
-  late: 'Terlambat',
-  leave: 'Izin / Cuti',
-  absent: 'Tidak Hadir',
-  missed: 'Tidak Hadir',
-};
 
-export const CATEGORY_LABEL_MAP: Record<string, string> = {
-  doctor: 'Dokter',
-  midwife: 'Bidan',
-  worker: 'Staf',
-};
-
-export function normalizeShift(rawShift?: string | null): ShiftCode {
-  if (rawShift) {
-    const s = rawShift.trim().toLowerCase();
-    if ((CANONICAL_STAFF_SHIFTS as readonly string[]).includes(s)) {
-      return s as ShiftCode;
-    }
-  }
-  return 'morning';
+export function isValidShift(shift: string): shift is ShiftCode {
+  return (CANONICAL_STAFF_SHIFTS as readonly string[]).includes(shift);
 }
 
-export function normalizeStatus(rawStatus?: string | null): AttendanceStatus {
-  if (rawStatus) {
-    const s = rawStatus.trim().toLowerCase();
-    if ((ATTENDANCE_STATUSES as readonly string[]).includes(s)) {
-      return s as AttendanceStatus;
+export function isValidStatus(status: string): status is AttendanceStatus {
+  return (ATTENDANCE_STATUSES as readonly string[]).includes(status);
+}
+
+/**
+ * Normalizes shift string safely, preserving domain validity without inventing values.
+ */
+export function normalizeShift(rawShift?: string | null): ShiftCode | undefined {
+  if (rawShift) {
+    const s = rawShift.trim().toLowerCase();
+    if (isValidShift(s)) {
+      return s;
     }
   }
-  return 'present';
+  return undefined;
+}
+
+/**
+ * Normalizes status string safely, preserving domain validity without inventing values.
+ */
+export function normalizeStatus(rawStatus?: string | null): AttendanceStatus | undefined {
+  if (rawStatus) {
+    const s = rawStatus.trim().toLowerCase();
+    if (isValidStatus(s)) {
+      return s;
+    }
+  }
+  return undefined;
 }

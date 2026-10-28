@@ -95,6 +95,17 @@ export interface AttendanceRepository {
     attendanceDate: string,
   ): Promise<AttendanceEntity | null>;
 
+  findStaffAttendanceForDateAndShift(
+    staffId: string,
+    attendanceDate: string,
+    shift: string,
+  ): Promise<AttendanceEntity | null>;
+
+  findOpenAttendanceRecord(
+    staffId: string,
+    attendanceDate: string,
+  ): Promise<AttendanceEntity | null>;
+
   findByStaffId(staffId: string, limit?: number): Promise<AttendanceEntity[]>;
 
   findHistoryWithSummaryByStaffId(
@@ -135,6 +146,74 @@ export interface AttendanceRepository {
     dow: number,
   ): Promise<Array<{ id: string; sessionId: string }>>;
 
+  hasCustomStaffRoster(staffId: string): Promise<boolean>;
+
+  hasCustomDoctorRoster(staffId: string): Promise<boolean>;
+
+  findDoctorShiftExceptions(
+    staffId: string,
+    dateStr: string,
+  ): Promise<
+    Array<{
+      id: string;
+      sessionId: string | null;
+      type: string;
+      note: string | null;
+      shift?: string | null;
+      startsAt?: string | null;
+      endsAt?: string | null;
+    }>
+  >;
+
+  findStaffRostersForDowDetailed(
+    staffId: string,
+    dow: number,
+  ): Promise<
+    Array<{
+      id: string;
+      sessionId: string;
+      shift: string;
+      startsAt: string | null;
+      endsAt: string | null;
+    }>
+  >;
+
+  findDoctorAssignmentsForDowDetailed(
+    staffId: string,
+    dow: number,
+  ): Promise<
+    Array<{
+      id: string;
+      sessionId: string;
+      shift: string;
+      startsAt: string | null;
+      endsAt: string | null;
+    }>
+  >;
+
+  findClinicWeeklyTemplateForDow(
+    dow: number,
+  ): Promise<
+    Array<{
+      id: string;
+      sessionId: string;
+      shift: string;
+      startsAt: string | null;
+      endsAt: string | null;
+    }>
+  >;
+
+  findClaimedReplacementSession(
+    opportunityId: string,
+    dow: number,
+  ): Promise<{
+    id: string;
+    sessionId: string;
+    shift: string;
+    startsAt: string | null;
+    endsAt: string | null;
+  } | null>;
+
   findDoctorAssignmentsForDow(
     staffId: string,
     dow: number,
@@ -152,10 +231,11 @@ export interface AttendanceRepository {
     staffType?: string | null;
     positionTitle?: string | null;
     avatarUrl?: string | null;
+    practitionerId?: string | null;
   } | null>;
 
   resolveSessionDefByTime(
-    hour: number,
+    hourOrTime: number | string | Date,
   ): Promise<{ id: string; code: string; defaultStartsAt: string | null; defaultEndsAt?: string | null } | null>;
 
   resolveSessionDefByCode(

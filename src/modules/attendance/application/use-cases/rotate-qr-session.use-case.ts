@@ -3,6 +3,7 @@ import * as crypto from 'crypto';
 import { ClinicConfigService } from '../../../../common/clinic-config/clinic-config.service';
 import { normalizeShift } from '../../domain/constants/attendance.constants';
 import { QrSessionEntity } from '../../domain/entities/qr-session.entity';
+import { NoActiveSessionException } from '../../domain/errors/attendance-domain.errors';
 import {
   ATTENDANCE_REPOSITORY,
   AttendanceRepository,
@@ -29,7 +30,20 @@ export class RotateQrSessionUseCase {
       input.sessionType === 'staff_identity'
         ? 'staff_identity'
         : 'location_check_in';
-    const shift = normalizeShift(input.shift);
+    const now = new Date();
+    let shift = normalizeShift(input.shift);
+    if (!shift) {
+      const activeDef = await this.repo.resolveSessionDefByTime(now);
+      if (activeDef?.code) {
+        shift = normalizeShift(activeDef.code);
+      }
+    }
+    if (!shift) {
+      throw new NoActiveSessionException(
+        'Tidak ada sesi operasional klinik yang terkonfigurasi di database untuk jam ini.',
+      );
+    }
+    const finalShift = shift;
     // SSOT: Authoritative rotation interval from clinic_setting
     const rotationSeconds =
       (await this.clinicConfig.getAttendanceConfig()).qrRotationSeconds;
@@ -42,14 +56,13 @@ export class RotateQrSessionUseCase {
       code += chars.charAt(randomBytes[i] % chars.length);
     }
 
-    const now = new Date();
     // Valid for rotation duration + 15 seconds grace buffer
     const validUntil = new Date(now.getTime() + (rotationSeconds + 15) * 1000);
 
     return this.repo.createQrSession({
       codeHash: code,
       sessionType,
-      shift,
+      shift: finalShift,
       rotationSeconds,
       context: input.context || 'Terminal Utama Presensi Klinik',
       validFrom: now.toISOString(),

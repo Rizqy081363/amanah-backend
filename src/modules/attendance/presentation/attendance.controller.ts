@@ -4,7 +4,6 @@ import {
   Get,
   HttpCode,
   HttpStatus,
-  Inject,
   Post,
   Query,
   UseGuards,
@@ -28,40 +27,29 @@ import {
   Roles,
   RolesGuard,
 } from '../../../common/auth';
-import {
-  DomainForbiddenException,
-} from '../../../common/exceptions';
+import { DomainForbiddenException } from '../../../common/exceptions';
 import { zodPipe } from '../../../common/validation';
-import { CheckOutAttendanceUseCase } from '../application/use-cases/checkout-attendance.use-case';
-import { GetAttendanceExportCandidatesUseCase } from '../application/use-cases/get-attendance-export-candidates.use-case';
-import { GetDailyAttendanceBffUseCase } from '../application/use-cases/get-daily-attendance-bff.use-case';
-import { ManualAttendanceUseCase } from '../application/use-cases/manual-attendance.use-case';
-import { RotateQrSessionUseCase } from '../application/use-cases/rotate-qr-session.use-case';
-import { ScanAttendanceUseCase } from '../application/use-cases/scan-attendance.use-case';
 import {
-  ATTENDANCE_REPOSITORY,
-  AttendanceRepository,
-} from '../domain/repositories/attendance.repository';
+  CheckOutAttendanceUseCase,
+  GetAttendanceExportCandidatesUseCase,
+  GetDailyAttendanceBffUseCase,
+  GetMyAttendanceHistoryUseCase,
+  ManualAttendanceUseCase,
+  RotateQrSessionUseCase,
+  ScanAttendanceUseCase,
+} from '../application/use-cases';
 import {
   type AttendanceQueryInput,
   AttendanceQuerySchema,
-} from './dto/attendance-query.schema';
-import {
   type CheckOutInput,
   CheckOutSchema,
-} from './dto/checkout.schema';
-import {
   type ManualAttendanceInput,
   ManualAttendanceSchema,
-} from './dto/manual-attendance.schema';
-import {
   type RotateQrInput,
   RotateQrSchema,
-} from './dto/rotate-qr.schema';
-import {
   type ScanQrInput,
   ScanQrSchema,
-} from './dto/scan-qr.schema';
+} from './schemas';
 
 @ApiTags('Attendance (Presensi QR & Manual Staf)')
 @ApiBearerAuth('access-token')
@@ -79,10 +67,9 @@ export class AttendanceController {
     private readonly manualAttendanceUseCase: ManualAttendanceUseCase,
     private readonly checkOutAttendanceUseCase: CheckOutAttendanceUseCase,
     private readonly rotateQrSessionUseCase: RotateQrSessionUseCase,
+    private readonly getMyAttendanceHistoryUseCase: GetMyAttendanceHistoryUseCase,
     private readonly getDailyAttendanceBffUseCase: GetDailyAttendanceBffUseCase,
     private readonly getAttendanceExportCandidatesUseCase: GetAttendanceExportCandidatesUseCase,
-    @Inject(ATTENDANCE_REPOSITORY)
-    private readonly attendanceRepo: AttendanceRepository,
   ) {}
 
   @Post('scan')
@@ -111,7 +98,7 @@ export class AttendanceController {
     return this.scanAttendanceUseCase.execute({
       staffId: user.staff.id,
       qrToken: body.qrToken,
-      method: body.method as any,
+      method: body.method,
       shift: body.shift,
       sessionId: body.sessionId,
       deviceInfo: body.deviceInfo,
@@ -177,7 +164,7 @@ export class AttendanceController {
       staffId: targetStaffId,
       attendanceDate: body.attendanceDate,
       qrToken: body.qrToken,
-      method: body.method as any,
+      method: body.method,
       notes: body.notes,
       checkoutTicket: body.checkoutTicket,
       isAdministrativeEntry,
@@ -231,7 +218,7 @@ export class AttendanceController {
     if (!isStaffUser(user)) {
       throw new DomainForbiddenException('User bukan staf terdaftar');
     }
-    return this.attendanceRepo.findHistoryWithSummaryByStaffId(user.staff.id);
+    return this.getMyAttendanceHistoryUseCase.execute(user.staff.id);
   }
 
   @Get('daily')

@@ -11,7 +11,6 @@ import {
   EarlyDepartureNotesRequiredException,
   InvalidManualCodeException,
   InvalidQrTokenException,
-  SessionMismatchException,
   StaffNotRosteredException,
   StaffOnLeaveException,
 } from '../errors/attendance-domain.errors';
@@ -19,6 +18,12 @@ import {
   ATTENDANCE_REPOSITORY,
   AttendanceRepository,
 } from '../repositories/attendance.repository';
+import { AttendanceCredentialValidator } from './attendance-credential.validator';
+import { AttendanceRosterCandidateResolver } from './attendance-roster-candidate.resolver';
+import {
+  CandidateScheduledSession,
+  resolveActiveSessionForCheckIn,
+} from './attendance-session.resolver';
 import { AttendanceTimingService } from './attendance-timing.service';
 import { CheckoutTicketService } from './checkout-ticket.service';
 
@@ -28,6 +33,8 @@ export interface CheckInEligibilityParams {
   dow: number;
   resolvedSessionId?: string | null;
   shift?: string;
+  qrToken?: string;
+  method?: AttendanceMethod;
   isAdministrativeEntry?: boolean;
 }
 
@@ -35,6 +42,8 @@ export interface CheckInEligibilityResult {
   isEligible: boolean;
   isReplacement: boolean;
   replacementOpportunityId: string | null;
+  resolvedSession: CandidateScheduledSession;
+  qrSessionId: string | null;
 }
 
 export interface CheckOutEligibilityParams {
@@ -58,6 +67,10 @@ export interface CheckOutEligibilityResult {
   notes: string | null;
 }
 
+/**
+ * Single Source of Truth for Check-In and Check-Out eligibility orchestration.
+ * Enforces the strict 5-layer defense hierarchy across mobile and web entry points.
+ */
 @Injectable()
 export class AttendanceEligibilityService {
   constructor(
@@ -65,6 +78,8 @@ export class AttendanceEligibilityService {
     private readonly repo: AttendanceRepository,
     private readonly timingService: AttendanceTimingService,
     private readonly ticketService: CheckoutTicketService,
+    private readonly credentialValidator: AttendanceCredentialValidator,
+    private readonly candidateResolver: AttendanceRosterCandidateResolver,
     @Optional()
     private readonly clinicTimeService?: ClinicTimeService,
     @Optional()
@@ -73,7 +88,13 @@ export class AttendanceEligibilityService {
 
   /**
    * Single Source of Truth for Check-In eligibility and state verification.
-   * Enforced equally across Mobile QR Scanning and Admin Web Manual Entry.
+   *
+   * Hierarki Pertahanan:
+   * 1. Validasi Kredensial / Bukti Kehadiran Fisik (QR Token / PIN Manual)
+   * 2. Validasi Cuti / Izin Resmi Aktif
+   * 3. Resolusi Kandidat Sesi Terjadwal (Replacement > Staf > Dokter > Template)
+   * 4. Resolusi Sesi Dinamis & Jendela Waktu Dinas
+   * 5. Validasi State Machine Presensi (Shift-Aware)
    */
   async verifyCheckInEligibility(
     params: CheckInEligibilityParams,
@@ -83,75 +104,117 @@ export class AttendanceEligibilityService {
       targetDate,
       dow,
       resolvedSessionId,
+      shift,
+      qrToken,
+      method,
       isAdministrativeEntry = false,
     } = params;
 
-    // 1. Leave Check: Staff must not be on an approved leave
+    let qrSessionId: string | null = null;
+    let tokenShift: string | undefined;
+
+    // 1. Layer 1: Validasi Kredensial / Token QR / PIN Manual
+    if (!isAdministrativeEntry && qrToken) {
+      const verified = await this.credentialValidator.verifyProximityToken(
+        this.repo,
+        qrToken,
+        method,
+      );
+      qrSessionId = verified.qrSessionId;
+      tokenShift = verified.shift;
+    } else if (!isAdministrativeEntry && !qrToken) {
+      if (method === 'manual_pin') {
+        throw new InvalidManualCodeException(
+          'Kode presensi dinas klinik wajib disertakan.',
+        );
+      }
+      throw new InvalidQrTokenException(
+        'Token QR presensi wajib disertakan.',
+      );
+    }
+
+    // 2. Layer 2: Validasi Cuti / Izin Resmi
     const onLeave = await this.repo.findApprovedLeave(staffId, targetDate);
     if (onLeave) {
       throw new StaffOnLeaveException();
     }
 
-    // 2. State Machine Check: Must not already be checked in or checked out today
-    const existing = await this.repo.findStaffAttendanceForDate(
+    // 3. Layer 3: Kumpulkan Sesi Terjadwal Berdasarkan Prioritas Roster
+    const now = this.clinicTimeService?.nowDate() ?? new Date();
+    // Only explicit user request (e.g. from admin body) sets requestedShift.
+    // tokenShift from QR terminal is physical proof & hint, not an explicit restriction.
+    const requestedShift = shift;
+
+    const { candidateSessions, claimedReplacementId } =
+      await this.candidateResolver.resolveCandidates(this.repo, {
+        staffId,
+        targetDate,
+        dow,
+        isAdministrativeEntry,
+        requestedShift,
+        requestedSessionId: resolvedSessionId,
+        nowTime: now,
+      });
+
+    if (!isAdministrativeEntry && candidateSessions.length === 0) {
+      throw new StaffNotRosteredException();
+    }
+
+    // 4. Layer 4: Resolusi Sesi Dinamis & Jendela Waktu
+    const config = await this.clinicConfigService?.getAttendanceConfig();
+    const checkInWindowMinutesBefore =
+      config?.checkInWindowMinutesBefore ?? 30;
+
+    const activeResolution = resolveActiveSessionForCheckIn({
+      candidateSessions,
+      currentTime: now,
+      checkInWindowMinutesBefore: isAdministrativeEntry
+        ? 1440 // Admin entry tidak dibatasi jendela jam
+        : checkInWindowMinutesBefore,
+      requestedShift,
+      requestedSessionId: resolvedSessionId,
+      shiftHint: tokenShift,
+      isAdministrativeEntry,
+    });
+
+    const targetShift = activeResolution.session.shift;
+
+    // 5. Layer 5: Validasi State Machine Presensi (Shift-Aware)
+    const existing = await this.repo.findStaffAttendanceForDateAndShift(
       staffId,
       targetDate,
+      targetShift,
     );
+
     if (existing) {
       if (existing.checkOutAt) {
         throw new AttendanceAlreadyCheckedOutException(
-          'Staf sudah melakukan presensi pulang (checkout) pada hari ini. Tidak dapat melakukan presensi masuk kembali.',
+          `Staf sudah melakukan presensi pulang (checkout) pada sesi shift '${targetShift}' hari ini.`,
         );
       }
       if (existing.checkInAt) {
         throw new DuplicateAttendanceException(
-          'Staf sudah melakukan presensi masuk untuk tanggal ini.',
+          `Staf sudah melakukan presensi masuk untuk sesi shift '${targetShift}' tanggal ini.`,
         );
       }
     }
 
-    // 3. Replacement Check: Check if staff claimed an approved replacement shift for today
-    const claimedReplacement = await this.repo.findClaimedReplacement(
-      staffId,
-      targetDate,
+    const isReplacement = Boolean(
+      activeResolution.session.isReplacement ||
+        (claimedReplacementId &&
+          activeResolution.session.id === claimedReplacementId),
     );
 
-    if (claimedReplacement) {
-      return {
-        isEligible: true,
-        isReplacement: true,
-        replacementOpportunityId: claimedReplacement.id,
-      };
-    }
-
-    // 4. Regular Roster Schedule Check
-    const [staffRosters, doctorAssignments] = await Promise.all([
-      this.repo.findStaffRostersForDow(staffId, dow),
-      this.repo.findDoctorAssignmentsForDow(staffId, dow),
-    ]);
-
-    const hasRosterToday =
-      staffRosters.length > 0 || doctorAssignments.length > 0;
-
-    if (!isAdministrativeEntry && !hasRosterToday) {
-      throw new StaffNotRosteredException();
-    }
-
-    // 5. Session Def Match (if session is resolved)
-    if (resolvedSessionId && !isAdministrativeEntry) {
-      const matchesSession =
-        staffRosters.some((r) => r.sessionId === resolvedSessionId) ||
-        doctorAssignments.some((d) => d.sessionId === resolvedSessionId);
-
-      if (!matchesSession) {
-        throw new SessionMismatchException();
-      }
-    }
+    const replacementOpportunityId = isReplacement
+      ? activeResolution.session.replacementOpportunityId || claimedReplacementId
+      : null;
 
     return {
       isEligible: true,
-      isReplacement: false,
-      replacementOpportunityId: null,
+      isReplacement,
+      replacementOpportunityId: isReplacement ? claimedReplacementId : null,
+      resolvedSession: activeResolution.session,
+      qrSessionId,
     };
   }
 
@@ -166,7 +229,12 @@ export class AttendanceEligibilityService {
 
   /**
    * Single Source of Truth for Check-Out eligibility and proximity verification.
-   * Handles Mobile QR scans, Bounded Tickets, and Administrative Panel checkouts.
+   *
+   * Hierarki Pertahanan:
+   * 1. Validasi Kredensial / Bukti Kehadiran Pulang (QR Token / PIN Manual / Ticket / Admin)
+   * 2. Validasi State Machine (Harus ada catatan masuk terbuka yang belum checkout)
+   * 3. Evaluasi Timing & Kepulangan Lebih Awal (Early Departure)
+   * 4. Validasi Catatan Alasan Kepulangan Lebih Awal (Wajib jika early departure pada mobile)
    */
   async verifyCheckOutEligibility(
     params: CheckOutEligibilityParams,
@@ -180,71 +248,30 @@ export class AttendanceEligibilityService {
       notes,
     } = params;
 
-    // 1. Record Existence Check
-    const existing = await this.repo.findStaffAttendanceForDate(
-      staffId,
-      targetDate,
-    );
-
-    if (!existing || !existing.checkInAt) {
-      throw new AttendanceRecordNotFoundException(
-        'Data presensi masuk untuk tanggal ini tidak ditemukan. Silakan lakukan check-in terlebih dahulu.',
-      );
-    }
-
-    // 2. Duplicate Check-Out Guard
-    if (existing.checkOutAt) {
-      throw new AttendanceAlreadyCheckedOutException(
-        'Presensi pulang dinas sudah tercatat sebelumnya pada tanggal ini.',
-      );
-    }
-
-    // 3. Proximity Proof Verification (Bypassed ONLY for authenticated administrative entry)
+    // 1. Layer 1: Validasi Kredensial / Bukti Kehadiran Pulang (PRIORITAS PERTAMA)
     let proximityVerified = Boolean(isAdministrativeEntry);
 
     if (!proximityVerified && checkoutTicket) {
-      const ticketCheck = this.ticketService.verifyTicket(
+      const openRecord = await this.repo.findOpenAttendanceRecord(
+        staffId,
+        targetDate,
+      );
+      const targetRecordId = openRecord?.id || 'pending';
+      const ticketResult = this.credentialValidator.verifyCheckoutTicket(
         checkoutTicket,
         staffId,
-        existing.id,
+        targetRecordId,
       );
-
-      if (ticketCheck.isExpired) {
-        throw new InvalidQrTokenException(
-          'Tiket presensi pulang kedaluwarsa (melebihi 3 menit). Silakan scan ulang QR code di terminal klinik.',
-        );
-      }
-
-      if (!ticketCheck.isValid) {
-        throw new InvalidQrTokenException(
-          'Tiket presensi pulang tidak valid.',
-        );
-      }
-
-      proximityVerified = true;
+      proximityVerified = ticketResult.proximityVerified;
     }
 
     if (!proximityVerified && qrToken) {
-      let tokenToVerify = qrToken.trim();
-      if (tokenToVerify.startsWith('{') && tokenToVerify.endsWith('}')) {
-        try {
-          const parsed = JSON.parse(tokenToVerify);
-          if (parsed && typeof parsed.token === 'string') {
-            tokenToVerify = parsed.token.trim();
-          }
-        } catch {
-          // Keep raw token
-        }
-      }
-
-      const qrSession = await this.repo.findQrSessionByToken(tokenToVerify);
-      if (!qrSession) {
-        if (params.method === 'manual_pin') {
-          throw new InvalidManualCodeException();
-        }
-        throw new InvalidQrTokenException();
-      }
-      proximityVerified = true;
+      const verified = await this.credentialValidator.verifyProximityToken(
+        this.repo,
+        qrToken,
+        params.method,
+      );
+      proximityVerified = verified.proximityVerified;
     }
 
     if (!proximityVerified) {
@@ -258,7 +285,28 @@ export class AttendanceEligibilityService {
       );
     }
 
-    // 4. Resolve Scheduled End Time & Net Hours
+    // 2. Layer 2: Validasi State Machine (Cari Catatan Terbuka)
+    const existing = await this.repo.findOpenAttendanceRecord(
+      staffId,
+      targetDate,
+    );
+
+    if (!existing || !existing.checkInAt) {
+      const anyRecordToday = await this.repo.findStaffAttendanceForDate(
+        staffId,
+        targetDate,
+      );
+      if (anyRecordToday && anyRecordToday.checkOutAt) {
+        throw new AttendanceAlreadyCheckedOutException(
+          'Presensi pulang dinas sudah tercatat sebelumnya pada tanggal ini. Tidak ada sesi dinas terbuka yang perlu ditutup.',
+        );
+      }
+      throw new AttendanceRecordNotFoundException(
+        'Data presensi masuk untuk tanggal ini tidak ditemukan. Silakan lakukan check-in terlebih dahulu.',
+      );
+    }
+
+    // 3. Layer 3: Resolusi Jam Selesai Terjadwal & Evaluasi Timing
     let scheduledEndTime: string | null = null;
     let scheduledShiftDurationHours = 6;
     if (existing.sessionId) {
@@ -300,7 +348,6 @@ export class AttendanceEligibilityService {
     const checkOutDate = this.clinicTimeService?.nowDate() ?? new Date();
     const checkInDate = existing.checkInAt ?? checkOutDate;
 
-    // 5. Timing & Early Departure Evaluation
     const timingEval = await this.timingService.evaluateCheckOutTiming({
       checkInTime: checkInDate,
       checkOutTime: checkOutDate,
@@ -308,7 +355,7 @@ export class AttendanceEligibilityService {
       scheduledShiftDurationHours,
     });
 
-    // 6. Enforce Notes Requirement for Early Departure (Mobile self-service only)
+    // 4. Layer 4: Penegakan Kewajiban Catatan Alasan untuk Kepulangan Lebih Awal (Mobile Saja)
     const notesTrimmed = notes?.trim() || null;
     if (!isAdministrativeEntry && timingEval.requiresNotes && !notesTrimmed) {
       const ticket = this.ticketService.issueTicket(

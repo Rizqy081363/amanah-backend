@@ -60,6 +60,25 @@ export class AttendanceDrizzleRepository implements AttendanceRepository {
     return this.recordsRepo.findStaffAttendanceForDate(staffId, attendanceDate);
   }
 
+  async findStaffAttendanceForDateAndShift(
+    staffId: string,
+    attendanceDate: string,
+    shift: string,
+  ): Promise<AttendanceEntity | null> {
+    return this.recordsRepo.findStaffAttendanceForDateAndShift(
+      staffId,
+      attendanceDate,
+      shift,
+    );
+  }
+
+  async findOpenAttendanceRecord(
+    staffId: string,
+    attendanceDate: string,
+  ): Promise<AttendanceEntity | null> {
+    return this.recordsRepo.findOpenAttendanceRecord(staffId, attendanceDate);
+  }
+
   async findByStaffId(
     staffId: string,
     limit?: number,
@@ -127,6 +146,40 @@ export class AttendanceDrizzleRepository implements AttendanceRepository {
     return this.rosterLookupRepo.findStaffRostersForDow(staffId, dow);
   }
 
+  async hasCustomStaffRoster(staffId: string): Promise<boolean> {
+    return this.rosterLookupRepo.hasCustomStaffRoster(staffId);
+  }
+
+  async hasCustomDoctorRoster(staffId: string): Promise<boolean> {
+    return this.rosterLookupRepo.hasCustomDoctorRoster(staffId);
+  }
+
+  async findStaffRostersForDowDetailed(staffId: string, dow: number) {
+    return this.rosterLookupRepo.findStaffRostersForDowDetailed(staffId, dow);
+  }
+
+  async findDoctorAssignmentsForDowDetailed(staffId: string, dow: number) {
+    return this.rosterLookupRepo.findDoctorAssignmentsForDowDetailed(
+      staffId,
+      dow,
+    );
+  }
+
+  async findDoctorShiftExceptions(staffId: string, dateStr: string) {
+    return this.rosterLookupRepo.findDoctorShiftExceptions(staffId, dateStr);
+  }
+
+  async findClinicWeeklyTemplateForDow(dow: number) {
+    return this.rosterLookupRepo.findClinicWeeklyTemplateForDow(dow);
+  }
+
+  async findClaimedReplacementSession(opportunityId: string, dow: number) {
+    return this.rosterLookupRepo.findClaimedReplacementSession(
+      opportunityId,
+      dow,
+    );
+  }
+
   async findDoctorAssignmentsForDow(
     staffId: string,
     dow: number,
@@ -142,8 +195,8 @@ export class AttendanceDrizzleRepository implements AttendanceRepository {
     return this.rosterLookupRepo.resolveStaffByIdOrCode(query);
   }
 
-  async resolveSessionDefByTime(hour: number) {
-    return this.rosterLookupRepo.resolveSessionDefByTime(hour);
+  async resolveSessionDefByTime(hourOrTime: number | string | Date) {
+    return this.rosterLookupRepo.resolveSessionDefByTime(hourOrTime);
   }
 
   async resolveSessionDefByCode(sessionCode: string) {

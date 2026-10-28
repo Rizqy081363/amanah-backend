@@ -97,7 +97,7 @@ export class CheckOutAttendanceUseCase {
         const shiftEntry = await this.payrollRepo.recordAttendanceShift({
           attendanceRecordId: updated.id,
           staffProfileId: resolvedStaffId,
-          practitionerId: (staff as any)?.practitioners?.[0]?.id || null,
+          practitionerId: staff.practitionerId ?? null,
           attendanceDate: todayStr,
           validatedDurationHours: timingEval.validatedDurationHours,
           isEarlyDeparture: timingEval.isEarlyDeparture,

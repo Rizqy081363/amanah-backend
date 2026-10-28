@@ -2,14 +2,19 @@ import { Module } from '@nestjs/common';
 import { PayrollModule } from '../payroll/payroll.module';
 import { AttendanceMetricsCalculator } from './application/services/attendance-metrics.calculator';
 import { AttendanceNotificationService } from './application/services/attendance-notification.service';
-import { CheckOutAttendanceUseCase } from './application/use-cases/checkout-attendance.use-case';
-import { GetAttendanceExportCandidatesUseCase } from './application/use-cases/get-attendance-export-candidates.use-case';
-import { GetDailyAttendanceBffUseCase } from './application/use-cases/get-daily-attendance-bff.use-case';
-import { ManualAttendanceUseCase } from './application/use-cases/manual-attendance.use-case';
-import { RotateQrSessionUseCase } from './application/use-cases/rotate-qr-session.use-case';
-import { ScanAttendanceUseCase } from './application/use-cases/scan-attendance.use-case';
+import {
+  CheckOutAttendanceUseCase,
+  GetAttendanceExportCandidatesUseCase,
+  GetDailyAttendanceBffUseCase,
+  GetMyAttendanceHistoryUseCase,
+  ManualAttendanceUseCase,
+  RotateQrSessionUseCase,
+  ScanAttendanceUseCase,
+} from './application/use-cases';
 import { ATTENDANCE_REPOSITORY } from './domain/repositories/attendance.repository';
+import { AttendanceCredentialValidator } from './domain/services/attendance-credential.validator';
 import { AttendanceEligibilityService } from './domain/services/attendance-eligibility.service';
+import { AttendanceRosterCandidateResolver } from './domain/services/attendance-roster-candidate.resolver';
 import { AttendanceTimingService } from './domain/services/attendance-timing.service';
 import { CheckoutTicketService } from './domain/services/checkout-ticket.service';
 import { AttendanceDrizzleRepository } from './infrastructure/drizzle/attendance.drizzle-repository';
@@ -34,6 +39,8 @@ import { AttendanceController } from './presentation/attendance.controller';
       useClass: AttendanceDrizzleRepository,
     },
     // Domain Services
+    AttendanceCredentialValidator,
+    AttendanceRosterCandidateResolver,
     AttendanceEligibilityService,
     AttendanceTimingService,
     CheckoutTicketService,
@@ -45,6 +52,7 @@ import { AttendanceController } from './presentation/attendance.controller';
     ManualAttendanceUseCase,
     CheckOutAttendanceUseCase,
     RotateQrSessionUseCase,
+    GetMyAttendanceHistoryUseCase,
     GetDailyAttendanceBffUseCase,
     GetAttendanceExportCandidatesUseCase,
   ],
@@ -55,6 +63,7 @@ import { AttendanceController } from './presentation/attendance.controller';
     ManualAttendanceUseCase,
     CheckOutAttendanceUseCase,
     RotateQrSessionUseCase,
+    GetMyAttendanceHistoryUseCase,
     GetDailyAttendanceBffUseCase,
     GetAttendanceExportCandidatesUseCase,
   ],

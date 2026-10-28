@@ -9,9 +9,6 @@ import {
 import {
   ATTENDANCE_ACTIONS,
   AttendanceAction,
-  SHIFT_LABEL_MAP,
-  STATUS_LABEL_MAP,
-  ShiftCode,
 } from '../../domain/constants/attendance.constants';
 import { AttendanceEntity } from '../../domain/entities/attendance.entity';
 
@@ -51,12 +48,6 @@ export class AttendanceNotificationService {
       const staffType = staffInfo.staffType || '';
       const categoryLabel = staffInfo.positionTitle || staffType;
 
-      const shiftKey = (record.shift || 'morning') as ShiftCode;
-      const shiftLabel = SHIFT_LABEL_MAP[shiftKey] || 'Pagi';
-
-      const statusKey = (record.status || 'present') as keyof typeof STATUS_LABEL_MAP;
-      const statusLabel = STATUS_LABEL_MAP[statusKey] || 'Hadir';
-
       // Determine the canonical event timestamp based on the recorded action:
       // For checkout, the event timestamp is checkOutAt; for checkin, it is checkInAt.
       const isCheckoutAction = action === ATTENDANCE_ACTIONS.CHECK_OUT;
@@ -91,8 +82,8 @@ export class AttendanceNotificationService {
         waktu_presensi: formattedTime,
         checkInAt: record.checkInAt ? record.checkInAt.toISOString() : null,
         checkOutAt: record.checkOutAt ? record.checkOutAt.toISOString() : null,
-        status: statusLabel,
-        shift: shiftLabel,
+        status: record.status,
+        shift: record.shift,
         validatedDurationHours: record.validatedDurationHours ? Number(record.validatedDurationHours) : 0,
         isReplacement: Boolean(record.isReplacement),
         isEarlyDeparture: Boolean(record.isEarlyDeparture),
@@ -129,7 +120,7 @@ export class AttendanceNotificationService {
         }
 
         this.logger.log(
-          `[AttendanceEDA] Dispatched realtime event: attendance:recorded (staff=${staffName}, action=${action}, status=${statusLabel}${record.isEarlyDeparture ? ', earlyDeparture=true' : ''})`,
+          `[AttendanceEDA] Dispatched realtime event: attendance:recorded (staff=${staffName}, action=${action}, status=${record.status}${record.isEarlyDeparture ? ', earlyDeparture=true' : ''})`,
         );
       }
 

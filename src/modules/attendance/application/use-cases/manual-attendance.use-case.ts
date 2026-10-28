@@ -2,8 +2,7 @@ import { Inject, Injectable, Optional } from '@nestjs/common';
 import { ClinicTimeService } from '../../../../common/time/clinic-time.service';
 import {
   ATTENDANCE_ACTIONS,
-  normalizeShift,
-  normalizeStatus,
+  AttendanceStatus,
 } from '../../domain/constants/attendance.constants';
 import { AttendanceEntity } from '../../domain/entities/attendance.entity';
 import { StaffNotFoundException } from '../../domain/errors/attendance-domain.errors';
@@ -17,7 +16,7 @@ import { AttendanceNotificationService } from '../services/attendance-notificati
 export interface ManualAttendanceInput {
   staffIdOrCode: string;
   shift?: string;
-  status?: string;
+  status?: AttendanceStatus;
   attendanceDate?: string;
   notes?: string;
   recordedBy?: string;
@@ -53,54 +52,34 @@ export class ManualAttendanceUseCase {
     const targetDateObj = new Date(todayStr + 'T12:00:00Z');
     const dow = targetDateObj.getDay();
 
-    // 1. Resolve Session Definition & Shift from current time if not explicitly provided
-    let shift = input.shift ? normalizeShift(input.shift) : null;
-    let resolvedSessionId: string | null = null;
-
-    if (!shift) {
-      const sessionDef = await this.repo.resolveSessionDefByTime(now.getHours());
-      if (sessionDef) {
-        resolvedSessionId = sessionDef.id;
-        shift = normalizeShift(sessionDef.code);
-      } else {
-        shift = 'morning';
-      }
-    } else {
-      const sessionDef = await this.repo.resolveSessionDefByCode(shift);
-      if (sessionDef) {
-        resolvedSessionId = sessionDef.id;
-      }
-    }
-
-    const status = normalizeStatus(input.status);
-
-    // 2. Authoritative Core Eligibility & State Check (SSOT)
-    // Strictly enforces that staff cannot check in again if already checked out or already checked in today
+    // 1. Authoritative Core Eligibility & State Check (SSOT)
+    // Enforces Defense Hierarchy: Leave -> Roster Priority / Weekly Template -> State Machine
     const eligibility = await this.eligibilityService.verifyCheckInEligibility({
       staffId: staff.id,
       targetDate: todayStr,
       dow,
-      resolvedSessionId,
-      shift,
+      shift: input.shift,
       isAdministrativeEntry: true,
     });
 
-    // 3. Persist Attendance Record
+    const status: AttendanceStatus = input.status ?? 'present';
+
+    // 2. Persist Attendance Record
     const record = await this.repo.saveAttendanceRecord({
       staffProfileId: staff.id,
       attendanceDate: todayStr,
-      shift,
+      shift: eligibility.resolvedSession.shift,
       status,
       checkInAt: nowIso,
       recordedMethod: 'manual_pin',
       recordedBy: input.recordedBy || null,
-      sessionId: resolvedSessionId,
+      sessionId: eligibility.resolvedSession.sessionId,
       isReplacement: eligibility.isReplacement,
       replacementOpportunityId: eligibility.replacementOpportunityId,
-      notes: input.notes || 'Presensi manual dicatat oleh sistem / staf',
+      notes: input.notes || 'Presensi manual dicatat oleh admin / staf',
     });
 
-    // 4. Asynchronously Dispatch Realtime Socket & In-App Notification (Role-Scoped)
+    // 3. Asynchronously Dispatch Realtime Socket & In-App Notification (Role-Scoped)
     void this.notificationService.dispatchNotification(
       record,
       ATTENDANCE_ACTIONS.MANUAL_CHECK_IN,

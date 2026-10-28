@@ -11,10 +11,7 @@ import {
   staffProfiles,
 } from '../../../../../database/schema';
 import {
-  CATEGORY_LABEL_MAP,
-  SHIFT_LABEL_MAP,
-  STATUS_LABEL_MAP,
-  ShiftCode,
+  ATTENDANCE_STATUSES,
 } from '../../../domain/constants/attendance.constants';
 import { AttendanceExportCandidate } from '../../../domain/repositories/attendance.repository';
 
@@ -94,7 +91,7 @@ export class AttendanceBffStatsDrizzleRepo {
       .orderBy(sessionDefs.sortOrder);
 
     const shifts = activeSessions.map((s: any) => ({
-      label: SHIFT_LABEL_MAP[s.code as ShiftCode] ?? s.code,
+      label: s.code,
       value: s.code,
     }));
 
@@ -103,18 +100,18 @@ export class AttendanceBffStatsDrizzleRepo {
       .selectDistinct({ staffType: staffProfiles.staffType })
       .from(staffProfiles);
 
-    const categories = staffTypeRows.map((r: any) => ({
-      label: CATEGORY_LABEL_MAP[r.staffType] ?? r.staffType,
-      value: r.staffType,
-    }));
+    const categories = staffTypeRows
+      .filter((r: any) => Boolean(r.staffType))
+      .map((r: any) => ({
+        label: r.staffType,
+        value: r.staffType,
+      }));
 
     // 3. Database & System-driven canonical attendance statuses
-    const statuses = [
-      { label: STATUS_LABEL_MAP.present, value: 'present' },
-      { label: STATUS_LABEL_MAP.late, value: 'late' },
-      { label: STATUS_LABEL_MAP.leave, value: 'leave' },
-      { label: STATUS_LABEL_MAP.absent, value: 'absent' },
-    ];
+    const statuses = ATTENDANCE_STATUSES.map((st) => ({
+      label: st,
+      value: st,
+    }));
 
     return { shifts, statuses, categories };
   }

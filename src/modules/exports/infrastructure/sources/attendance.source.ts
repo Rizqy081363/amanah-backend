@@ -12,11 +12,26 @@ import {
 } from '../../../../database/schema/amanah.schema';
 import { ExportColumnDef, ExportSource } from '../../domain/export-source.interface';
 import {
-  SHIFT_LABEL_MAP,
-  STATUS_LABEL_MAP,
+  AttendanceStatus,
+  ShiftCode,
   normalizeShift,
   normalizeStatus,
 } from '../../../attendance/domain/constants/attendance.constants';
+
+const EXPORT_SHIFT_LABELS: Record<ShiftCode, string> = {
+  early_morning: 'Dini Hari',
+  morning: 'Pagi',
+  afternoon: 'Siang',
+  night: 'Malam',
+};
+
+const EXPORT_STATUS_LABELS: Record<AttendanceStatus, string> = {
+  present: 'Hadir',
+  late: 'Terlambat',
+  leave: 'Izin / Cuti',
+  absent: 'Tidak Hadir',
+  missed: 'Tidak Hadir',
+};
 
 @Injectable()
 export class AttendanceExportSource implements ExportSource {
@@ -235,10 +250,10 @@ export class AttendanceExportSource implements ExportSource {
     };
 
     const shiftCode = normalizeShift(row.shift);
-    const shiftLabel = SHIFT_LABEL_MAP[shiftCode] || row.shift || '-';
+    const shiftLabel = shiftCode ? EXPORT_SHIFT_LABELS[shiftCode] : (row.shift || '-');
 
     const statusCode = normalizeStatus(row.status);
-    const statusLabel = STATUS_LABEL_MAP[statusCode] || row.status || '-';
+    const statusLabel = statusCode ? EXPORT_STATUS_LABELS[statusCode] : (row.status || '-');
 
     return [
       index,

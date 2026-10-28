@@ -34,6 +34,22 @@ export class SessionMismatchException extends DomainForbiddenException {
   }
 }
 
+export class NoActiveSessionException extends DomainForbiddenException {
+  constructor(
+    message: string = 'Tidak ada sesi dinas yang aktif pada jam ini untuk staf tersebut.',
+  ) {
+    super(message, 'NO_ACTIVE_SESSION');
+  }
+}
+
+export class SessionExpiredException extends DomainForbiddenException {
+  constructor(
+    message: string = 'Sesi dinas telah berakhir. Presensi masuk tidak dapat dilakukan setelah jam dinas selesai.',
+  ) {
+    super(message, 'SESSION_EXPIRED');
+  }
+}
+
 export class InvalidQrTokenException extends DomainValidationException {
   constructor(message: string = 'Token QR tidak valid atau sudah kedaluwarsa') {
     super(message, [

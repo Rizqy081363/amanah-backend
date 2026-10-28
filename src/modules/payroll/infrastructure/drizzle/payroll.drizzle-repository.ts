@@ -447,31 +447,6 @@ export class PayrollDrizzleRepository implements PayrollRepository {
         });
       }
 
-      // B.2 Calculate Early Departure Attendance Deductions
-      const earlyDepartures = attendances.filter(
-        (a) => !a.isReplacement && a.isEarlyDeparture,
-      );
-      for (const ed of earlyDepartures) {
-        const validated = Number(ed.validatedDurationHours) || 0;
-        const expectedHours = getSessionNet(ed.sessionId);
-        const deficit = Math.max(0, expectedHours - validated);
-        if (deficit > 0) {
-          const deductionAmount = deficit * rates.hourly;
-          entriesToInsert.push({
-            payrollPeriodId: periodId,
-            staffProfileId: staff.id,
-            practitionerId,
-            entryType: 'leave_deduction',
-            sourceType: 'attendance',
-            sourceId: ed.id,
-            quantityHours: deficit.toFixed(2),
-            hourlyRate: rates.hourly.toString(),
-            amount: deductionAmount.toFixed(2),
-            description: `Gaji di potong - Pulang lebih awal (${formatHours(deficit)})`,
-          });
-        }
-      }
-
       // C. Calculate Replacement / Overtime Additions
       const replacements = attendances.filter((a) => a.isReplacement);
       for (const rep of replacements) {

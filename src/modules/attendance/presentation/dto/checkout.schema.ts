@@ -12,7 +12,7 @@ export const CheckOutSchema = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/, 'Format attendanceDate harus YYYY-MM-DD')
     .optional(),
   qrToken: z.string().trim().min(1).optional(),
-  method: z.enum(ATTENDANCE_METHODS as unknown as [string, ...string[]]).optional(),
+  method: z.enum(ATTENDANCE_METHODS).optional(),
   notes: z.string().trim().max(500).optional(),
   checkoutTicket: z.string().trim().min(1).optional(),
 });

@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, isNotNull, isNull } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../../database/drizzle/drizzle.provider';
 import { staffAttendanceRecords } from '../../../../../database/schema';
@@ -115,6 +115,52 @@ export class AttendanceRecordsDrizzleRepo {
         and(
           eq(staffAttendanceRecords.staffProfileId, staffId),
           eq(staffAttendanceRecords.attendanceDate, attendanceDate),
+        ),
+      )
+      .orderBy(desc(staffAttendanceRecords.checkInAt))
+      .limit(1);
+
+    return records.length > 0
+      ? AttendanceMapper.toAttendanceEntity(records[0])
+      : null;
+  }
+
+  async findStaffAttendanceForDateAndShift(
+    staffId: string,
+    attendanceDate: string,
+    shift: string,
+  ): Promise<AttendanceEntity | null> {
+    const records = await this.db
+      .select()
+      .from(staffAttendanceRecords)
+      .where(
+        and(
+          eq(staffAttendanceRecords.staffProfileId, staffId),
+          eq(staffAttendanceRecords.attendanceDate, attendanceDate),
+          eq(staffAttendanceRecords.shift, shift as any),
+        ),
+      )
+      .orderBy(desc(staffAttendanceRecords.checkInAt))
+      .limit(1);
+
+    return records.length > 0
+      ? AttendanceMapper.toAttendanceEntity(records[0])
+      : null;
+  }
+
+  async findOpenAttendanceRecord(
+    staffId: string,
+    attendanceDate: string,
+  ): Promise<AttendanceEntity | null> {
+    const records = await this.db
+      .select()
+      .from(staffAttendanceRecords)
+      .where(
+        and(
+          eq(staffAttendanceRecords.staffProfileId, staffId),
+          eq(staffAttendanceRecords.attendanceDate, attendanceDate),
+          isNotNull(staffAttendanceRecords.checkInAt),
+          isNull(staffAttendanceRecords.checkOutAt),
         ),
       )
       .orderBy(desc(staffAttendanceRecords.checkInAt))

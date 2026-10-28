@@ -17,7 +17,9 @@ export class AttendanceTimingService {
 
     if (explicitStatus) {
       const explicit = normalizeStatus(explicitStatus);
-      return { status: explicit, lateMinutes: 0 };
+      if (explicit) {
+        return { status: explicit, lateMinutes: 0 };
+      }
     }
 
     const lateThresholdMinutes =
@@ -68,6 +70,9 @@ export class AttendanceTimingService {
     let earlyMinutes = 0;
     let validatedDurationHours = scheduledShiftDurationHours;
 
+    const elapsedMs = Math.max(0, checkOutTime.getTime() - checkInTime.getTime());
+    const rawHours = Number((elapsedMs / (1000 * 60 * 60)).toFixed(2));
+
     if (scheduledEndTime) {
       let [endH, endM] = scheduledEndTime.split(':').map(Number);
       if (endH === 24) endH = 0;
@@ -88,25 +93,26 @@ export class AttendanceTimingService {
         earlyMinutes = Math.round(
           (scheduledEndDate.getTime() - checkOutTime.getTime()) / (1000 * 60),
         );
-        const elapsedMs = Math.max(0, checkOutTime.getTime() - checkInTime.getTime());
-        const rawHours = Number((elapsedMs / (1000 * 60 * 60)).toFixed(2));
         validatedDurationHours = Math.min(
           scheduledShiftDurationHours,
-          Math.max(0.5, rawHours),
+          rawHours,
         );
       } else {
         // Within or after normal window: Fair Credit Rounding grants full scheduled hours
-        validatedDurationHours = scheduledShiftDurationHours;
+        // ONLY if the employee actually served the full shift (not arriving 5 minutes before checkout)
+        const isFullShiftSatisfied =
+          rawHours >= scheduledShiftDurationHours - windowMinutesBefore / 60;
+        validatedDurationHours = isFullShiftSatisfied
+          ? scheduledShiftDurationHours
+          : Math.min(scheduledShiftDurationHours, rawHours);
       }
     } else {
-      const elapsedMs = Math.max(0, checkOutTime.getTime() - checkInTime.getTime());
-      const rawHours = Number((elapsedMs / (1000 * 60 * 60)).toFixed(2));
       const thresholdHours = scheduledShiftDurationHours - windowMinutesBefore / 60;
 
       if (rawHours < thresholdHours) {
         isEarlyDeparture = true;
         earlyMinutes = Math.round((thresholdHours - rawHours) * 60);
-        validatedDurationHours = Math.max(0.5, rawHours);
+        validatedDurationHours = Math.min(scheduledShiftDurationHours, rawHours);
       } else {
         validatedDurationHours = scheduledShiftDurationHours;
       }

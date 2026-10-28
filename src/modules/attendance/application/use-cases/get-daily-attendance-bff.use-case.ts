@@ -1,12 +1,6 @@
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import { ClinicTimeService } from '../../../../common/time/clinic-time.service';
 import {
-  CATEGORY_LABEL_MAP,
-  SHIFT_LABEL_MAP,
-  STATUS_LABEL_MAP,
-  ShiftCode,
-} from '../../domain/constants/attendance.constants';
-import {
   ATTENDANCE_REPOSITORY,
   AttendanceBFFResponse,
   AttendanceRepository,
@@ -58,11 +52,8 @@ export class GetDailyAttendanceBffUseCase {
     // 3. Map Table Records strictly from actual attendanceList (No Dummy Padding)
     let tableRecords = attendanceList.map((rec) => {
       const staff = rec.staffProfile;
-      const shiftKey = rec.shift as ShiftCode;
-      const shiftLabel = SHIFT_LABEL_MAP[shiftKey] || shiftKey;
-
-      const statusKey = rec.status as keyof typeof STATUS_LABEL_MAP;
-      const statusLabel = STATUS_LABEL_MAP[statusKey] || statusKey;
+      const shift = rec.shift;
+      const status = rec.status;
 
       let checkInFormatted = '-';
       if (rec.checkInAt) {
@@ -77,12 +68,7 @@ export class GetDailyAttendanceBffUseCase {
         }
       }
 
-      let categoryLabel = '';
-      if (staff?.staffType && CATEGORY_LABEL_MAP[staff.staffType]) {
-        categoryLabel = CATEGORY_LABEL_MAP[staff.staffType];
-      } else if (staff?.positionTitle) {
-        categoryLabel = staff.positionTitle;
-      }
+      const category = staff?.staffType || staff?.positionTitle || '';
 
       return {
         id: rec.id,
@@ -92,17 +78,14 @@ export class GetDailyAttendanceBffUseCase {
         avatar:
           staff?.avatarUrl ||
           (staff?.userId ? `/api/v1/users/${staff.userId}/avatar` : undefined),
-        kategori: categoryLabel,
+        kategori: category,
         tanggal_presensi: rec.attendanceDate,
         waktu_presensi: checkInFormatted,
         checkInAt: rec.checkInAt ? new Date(rec.checkInAt).toISOString() : null,
         checkOutAt: rec.checkOutAt ? new Date(rec.checkOutAt).toISOString() : null,
-        status: statusLabel,
-        shift: shiftLabel,
-        sessionName: shiftLabel,
-        rawStatus: rec.status,
-        rawShift: rec.shift,
-        rawCategory: staff?.staffType || '',
+        status: status,
+        shift: shift,
+        sessionName: shift,
         validatedDurationHours: rec.validatedDurationHours
           ? Number(rec.validatedDurationHours)
           : 0,
@@ -125,27 +108,21 @@ export class GetDailyAttendanceBffUseCase {
     if (query.category && query.category !== 'all') {
       const cat = query.category.toLowerCase();
       tableRecords = tableRecords.filter(
-        (r) =>
-          r.kategori.toLowerCase() === cat ||
-          r.rawCategory?.toLowerCase() === cat,
+        (r) => r.kategori.toLowerCase() === cat,
       );
     }
 
     if (query.status && query.status !== 'all') {
       const st = query.status.toLowerCase();
       tableRecords = tableRecords.filter(
-        (r) =>
-          r.status.toLowerCase() === st ||
-          r.rawStatus.toLowerCase() === st,
+        (r) => r.status.toLowerCase() === st,
       );
     }
 
     if (query.shift && query.shift !== 'all') {
       const sh = query.shift.toLowerCase();
       tableRecords = tableRecords.filter(
-        (r) =>
-          r.shift.toLowerCase() === sh ||
-          r.rawShift.toLowerCase() === sh,
+        (r) => r.shift.toLowerCase() === sh,
       );
     }
 
@@ -179,7 +156,7 @@ export class GetDailyAttendanceBffUseCase {
         qr_context: activeQr.context ?? '',
         qr_validity: activeQr.validUntil.toLocaleTimeString('id-ID'),
         validUntil: activeQr.validUntil.toISOString(),
-        rotation_seconds: activeQr.rotationSeconds || 30,
+        rotation_seconds: activeQr.rotationSeconds,
       },
       availableFilters,
     };
