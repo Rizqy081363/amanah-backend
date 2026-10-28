@@ -294,7 +294,7 @@ export class DrizzleBookingOptionsQuery {
       return {
         session: def.code,
         shift: def.code,
-        label: def.code,
+        label: def.label,
         startTime,
         endTime,
         capacity,

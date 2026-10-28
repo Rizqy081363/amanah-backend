@@ -280,7 +280,7 @@ export class DrizzleAdminScheduleConfigurationRepository {
       .select({
         id: sessionDefs.id,
         code: sessionDefs.code,
-        labelKey: sessionDefs.code,
+        label: sessionDefs.label,
         sortOrder: sessionDefs.sortOrder,
         isActive: sessionDefs.isActive,
         defaultStartsAt: sessionDefs.defaultStartsAt,
@@ -294,7 +294,7 @@ export class DrizzleAdminScheduleConfigurationRepository {
         return {
           id: ed.id,
           code: ed.code,
-          label: ed.code,
+          label: ed.label,
           sortOrder: ed.sortOrder,
           isActive: ed.isActive,
           startsAt: ed.defaultStartsAt,
@@ -304,7 +304,7 @@ export class DrizzleAdminScheduleConfigurationRepository {
       return {
         id: ed.id,
         code: ed.code,
-        label: ed.code,
+        label: incoming.label || ed.label,
         sortOrder:
           typeof incoming.sortOrder === 'number'
             ? incoming.sortOrder
