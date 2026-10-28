@@ -5,9 +5,12 @@ import { RolesGuard } from '@common/auth/roles.guard';
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
+  Param,
+  ParseUUIDPipe,
   Post,
   Put,
   UseGuards,
@@ -25,11 +28,14 @@ import {
   ScheduleConfigurationData,
 } from '../infrastructure/drizzle/repositories/admin/drizzle-admin-schedule-configuration.repository';
 import {
+  ApplySchedulePresetDto,
+  CreateSessionDefDto,
   EvaluateScheduleImpactDto,
   ScheduleConfigurationImpactResultDto,
   UpdateClinicSettingsBatchDto,
   UpdateScheduleConfigurationBatchDto,
   UpdateSessionDefsBatchDto,
+  UpdateSingleSessionDefDto,
   UpdateWeeklyTemplatesBatchDto,
 } from './dto/admin-schedule-configuration.dto';
 
@@ -152,6 +158,72 @@ export class AdminScheduleConfigurationController {
     return {
       success: true,
       message: 'Parameter konfigurasi klinik berhasil diperbarui',
+    };
+  }
+
+  @Post('session-defs')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Buat definisi shift operasional baru secara dinamis',
+  })
+  @ApiOkResponse({
+    description: 'Definisi shift operasional baru berhasil dibuat',
+  })
+  async createSessionDef(@Body() dto: CreateSessionDefDto) {
+    const created = await this.configRepo.createSessionDef(dto);
+    return {
+      success: true,
+      message: `Shift '${created.label}' berhasil dibuat`,
+      data: created,
+    };
+  }
+
+  @Put('session-defs/:id')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Perbarui satu definisi shift operasional secara mandiri',
+  })
+  @ApiOkResponse({
+    description: 'Definisi shift operasional berhasil diperbarui',
+  })
+  async updateSingleSessionDef(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateSingleSessionDefDto,
+  ) {
+    const updated = await this.configRepo.updateSingleSessionDef(id, dto);
+    return {
+      success: true,
+      message: `Shift '${updated.label}' berhasil diperbarui`,
+      data: updated,
+    };
+  }
+
+  @Delete('session-defs/:id')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Hapus definisi shift operasional (dengan validasi relasi jadwal & antrean)',
+  })
+  @ApiOkResponse({
+    description: 'Shift operasional berhasil dihapus',
+  })
+  async deleteSessionDef(@Param('id', ParseUUIDPipe) id: string) {
+    return this.configRepo.deleteSessionDef(id);
+  }
+
+  @Post('presets')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Terapkan preset shift operasional klinik (2-shifts, 3-shifts, 4-shifts, custom)',
+  })
+  @ApiOkResponse({
+    description: 'Preset shift operasional klinik berhasil diterapkan',
+  })
+  async applyPreset(@Body() dto: ApplySchedulePresetDto) {
+    const config = await this.configRepo.applyPreset(dto.preset);
+    return {
+      success: true,
+      message: `Preset '${dto.preset}' berhasil diterapkan`,
+      data: config,
     };
   }
 }

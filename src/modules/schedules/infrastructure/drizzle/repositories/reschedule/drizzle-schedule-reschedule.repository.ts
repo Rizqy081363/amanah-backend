@@ -125,14 +125,38 @@ export class DrizzleScheduleRescheduleRepository {
       notes: null as string | null,
     };
 
+    const allDefs = await this.db.query.sessionDefs.findMany({
+      where: eq(sessionDefs.isActive, true),
+      orderBy: [asc(sessionDefs.sortOrder)],
+    });
+
+    const shiftDefs = allDefs.map((sd) => {
+      const boundaryStartTime = (sd.defaultStartsAt || '00:00').slice(0, 5);
+      const boundaryEndTime = (sd.defaultEndsAt || '24:00').slice(0, 5);
+      const label = sd.label || sd.code;
+      return {
+        shift: sd.code,
+        sessionShift: sd.code,
+        contextId: sd.id,
+        label,
+        contextLabel: label,
+        boundaryStartTime,
+        boundaryEndTime,
+        boundaryStartMinutes: parseClockTime(boundaryStartTime),
+        boundaryEndMinutes: parseClockTime(boundaryEndTime),
+        aliases: [sd.code],
+      };
+    });
+
     let targetContextId = body.targetScheduleContextId;
     if (!targetContextId) {
       targetContextId = ScheduleSessionFactory.resolveShiftFromClockTime(
         body.targetStartTime,
+        shiftDefs,
       ).contextId;
     }
 
-    const context = ScheduleContextResolver.resolve(targetContextId);
+    const context = ScheduleContextResolver.resolve(targetContextId, shiftDefs);
     const targetRoomId =
       body.targetRoomId || session.roomId || practitioner.defaultRoomId || null;
 

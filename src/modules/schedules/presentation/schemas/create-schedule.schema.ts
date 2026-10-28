@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { CANONICAL_STAFF_SHIFTS } from '../../domain/constants/schedule-shift.constants';
 
 export const CreateScheduleSchema = z.object({
   staffId: z.string().uuid('staffId harus berformat UUID').optional(),
@@ -9,9 +8,7 @@ export const CreateScheduleSchema = z.object({
   scheduleDate: z
     .string({ message: 'scheduleDate wajib diisi' })
     .regex(/^\d{4}-\d{2}-\d{2}$/, 'Format scheduleDate harus YYYY-MM-DD'),
-  session: z.enum(CANONICAL_STAFF_SHIFTS, {
-    message: 'Sesi harus salah satu dari: early_morning, morning, afternoon, night',
-  }),
+  session: z.string().min(1, 'Sesi wajib diisi'),
   startTime: z
     .string()
     .regex(/^\d{2}:\d{2}(:\d{2})?$/, 'Format startTime harus HH:mm atau HH:mm:ss')

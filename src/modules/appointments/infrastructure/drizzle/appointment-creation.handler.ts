@@ -80,28 +80,14 @@ export class AppointmentCreationHandler {
       throw new EntityNotFoundException('Sesi jadwal', targetShift);
     }
 
-    const policy = clinicConfig
-      ? await clinicConfig.getSchedulePolicy().catch(() => null)
-      : null;
-
-    let defaultStart = sessionRecord.defaultStartsAt;
-    let defaultEnd = sessionRecord.defaultEndsAt;
-
-    if (policy) {
-      if (targetShift === 'early_morning') {
-        defaultStart = `${policy.earlyMorningStart}:00`;
-        defaultEnd = `${policy.earlyMorningEnd}:00`;
-      } else if (targetShift === 'morning') {
-        defaultStart = `${policy.morningStart}:00`;
-        defaultEnd = `${policy.morningEnd}:00`;
-      } else if (targetShift === 'afternoon') {
-        defaultStart = `${policy.afternoonStart}:00`;
-        defaultEnd = `${policy.afternoonEnd}:00`;
-      } else if (targetShift === 'night') {
-        defaultStart = `${policy.nightStart}:00`;
-        defaultEnd = `${policy.nightEnd}:00`;
-      }
-    }
+    const defaultStart =
+      sessionRecord.defaultStartsAt.length === 5
+        ? `${sessionRecord.defaultStartsAt}:00`
+        : sessionRecord.defaultStartsAt;
+    const defaultEnd =
+      sessionRecord.defaultEndsAt.length === 5
+        ? `${sessionRecord.defaultEndsAt}:00`
+        : sessionRecord.defaultEndsAt;
 
     let practitionerId: string | null = null;
     if (data.staffId) {
@@ -362,8 +348,10 @@ export class AppointmentCreationHandler {
         .toInstant().epochMilliseconds,
     );
 
-    const consultationMinutes =
-      policy?.defaultConsultationDurationMinutes ?? 20;
+    const durationPriors = clinicConfig
+      ? await clinicConfig.getDurationPriors().catch(() => null)
+      : null;
+    const consultationMinutes = durationPriors?.priorMinutes ?? 20;
     const queueOffsetMinutes =
       Math.max(0, numericQueueNumber - 1) * consultationMinutes;
     const estimatedStart = new Date(

@@ -1,19 +1,16 @@
 import {
-  CANONICAL_STAFF_SHIFTS,
   type CanonicalStaffShift,
 } from '@modules/schedules/domain/constants/schedule-shift.constants';
 import { AdminScheduleStatusRequest } from '@modules/schedules/domain/schedule-status';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsEnum, IsIn, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsEnum, IsOptional, IsString } from 'class-validator';
 
 export class UpdateScheduleDto {
   @ApiPropertyOptional({
-    enum: CANONICAL_STAFF_SHIFTS,
     example: 'afternoon',
-    description:
-      'Sesi giliran praktek dokter (early_morning / morning / afternoon / night)',
+    description: 'Kode shift atau sesi praktek dokter',
   })
-  @IsIn(CANONICAL_STAFF_SHIFTS)
+  @IsString()
   @IsOptional()
   session?: CanonicalStaffShift;
 

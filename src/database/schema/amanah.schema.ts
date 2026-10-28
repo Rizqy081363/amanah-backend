@@ -229,12 +229,6 @@ export const staffLeaveRequestType = pgEnum('staff_leave_request_type', [
   'external_assignment',
   'other',
 ]);
-export const staffShift = pgEnum('staff_shift', [
-  'early_morning',
-  'morning',
-  'afternoon',
-  'night',
-]);
 export const staffStatus = pgEnum('staff_status', [
   'active',
   'inactive',
@@ -2064,7 +2058,7 @@ export const attendanceQrSessions = pgTable(
     roomId: uuid('room_id'),
     unitId: uuid('unit_id'),
     context: text(),
-    shift: staffShift(),
+    shift: varchar('shift', { length: 50 }),
     manualPinHash: text('manual_pin_hash'),
     validFrom: timestamp('valid_from', {
       withTimezone: true,
@@ -2154,7 +2148,7 @@ export const staffAttendanceRecords = pgTable(
     roomId: uuid('room_id'),
     deviceId: uuid('device_id'),
     attendanceDate: date('attendance_date').notNull(),
-    shift: staffShift().notNull(),
+    shift: varchar('shift', { length: 50 }),
     status: attendanceStatus().default('absent').notNull(),
     expectedCheckInAt: timestamp('expected_check_in_at', {
       withTimezone: true,
@@ -3218,52 +3212,6 @@ export const supportTicketAttachments = pgTable(
       columns: [table.messageId, table.fileId],
       name: 'support_ticket_attachments_pkey',
     }),
-  ],
-);
-
-export const clinicSchedulePolicies = pgTable(
-  'clinic_schedule_policies',
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    code: text().default('default').notNull(),
-    defaultConsultationDurationMinutes: integer(
-      'default_consultation_duration_minutes',
-    )
-      .default(30)
-      .notNull(),
-    defaultStartPrecisionMinutes: integer('default_start_precision_minutes')
-      .default(1)
-      .notNull(),
-    checkInWindowHours: integer('check_in_window_hours').default(24).notNull(),
-    earlyMorningStart: text('early_morning_start').default('00:00').notNull(),
-    earlyMorningEnd: text('early_morning_end').default('06:00').notNull(),
-    morningStart: text('morning_start').default('06:00').notNull(),
-    morningEnd: text('morning_end').default('12:00').notNull(),
-    afternoonStart: text('afternoon_start').default('12:00').notNull(),
-    afternoonEnd: text('afternoon_end').default('18:00').notNull(),
-    nightStart: text('night_start').default('18:00').notNull(),
-    nightEnd: text('night_end').default('24:00').notNull(),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
-      .defaultNow()
-      .notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
-      .defaultNow()
-      .notNull(),
-  },
-  (table) => [
-    unique('clinic_schedule_policies_code_key').on(table.code),
-    check(
-      'clinic_schedule_policies_duration_positive',
-      sql`default_consultation_duration_minutes > 0`,
-    ),
-    check(
-      'clinic_schedule_policies_precision_positive',
-      sql`default_start_precision_minutes > 0`,
-    ),
-    check(
-      'clinic_schedule_policies_check_in_window_positive',
-      sql`check_in_window_hours > 0`,
-    ),
   ],
 );
 

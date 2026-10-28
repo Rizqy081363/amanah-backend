@@ -121,9 +121,9 @@ export class ClinicRoomReferenceEntity {
 
 export class ScheduleOptionsReferenceEntity {
   shifts: {
-    id: 'DINI_HARI' | 'PAGI' | 'SIANG' | 'MALAM' | string;
+    id: string;
     label: string;
-    shift: 'early_morning' | 'morning' | 'afternoon' | 'night' | string;
+    shift: string;
     startTime: string;
     endTime: string;
     timeRange?: string;
@@ -149,7 +149,7 @@ export class ScheduleOptionsReferenceEntity {
 export class ScheduleContextEntity {
   contextId: string;
   contextLabel: string;
-  sessionShift: 'early_morning' | 'morning' | 'afternoon' | 'night';
+  sessionShift: string;
   date: string;
   practitionerId: string;
   boundaryStartTime: string;
@@ -722,17 +722,16 @@ export class ClinicalPractitionerEntity {
 }
 
 export class ScheduleShiftCapacityEntity {
-  @ApiProperty({ example: 'early_morning' })
+  @ApiProperty({ example: 'morning' })
   contextId: string;
 
-  @ApiProperty({ example: 'Dini Hari' })
+  @ApiProperty({ example: 'Pagi' })
   contextLabel: string;
 
   @ApiProperty({
-    enum: ['early_morning', 'morning', 'afternoon', 'night'],
-    example: 'early_morning',
+    example: 'morning',
   })
-  sessionShift: 'early_morning' | 'morning' | 'afternoon' | 'night';
+  sessionShift: string;
 
   @ApiProperty({ example: '00:00 - 06:00 WIB' })
   timeRange: string;
@@ -838,10 +837,10 @@ export class RescheduleSourceSessionInfo {
   @ApiProperty({ enum: ScheduleOperationalStatus, example: 'OPEN' })
   statusLabel: ScheduleOperationalStatus;
 
-  @ApiProperty({ example: 'Dini Hari' })
+  @ApiProperty({ example: 'Pagi' })
   sessionLabel: string;
 
-  @ApiProperty({ example: 'early_morning' })
+  @ApiProperty({ example: 'morning' })
   sessionShift: string;
 
   @ApiProperty({ example: 'Ruang Poli 1' })

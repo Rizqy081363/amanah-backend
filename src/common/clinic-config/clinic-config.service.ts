@@ -1,7 +1,8 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { DRIZZLE_SOURCE } from '../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../database/drizzle/drizzle.provider';
-import { clinicSettings } from '../../database/schema';
+import { clinicSettings, sessionDefs } from '../../database/schema';
+import { eq } from 'drizzle-orm';
 import {
   ClinicProfileData,
   ClinicSchedulePolicyData,
@@ -32,14 +33,6 @@ const DEFAULT_SCHEDULE_POLICY: ClinicSchedulePolicyData = Object.freeze({
   code: 'default',
   defaultConsultationDurationMinutes: 30,
   defaultStartPrecisionMinutes: 1,
-  earlyMorningStart: '00:00',
-  earlyMorningEnd: '06:00',
-  morningStart: '06:00',
-  morningEnd: '12:00',
-  afternoonStart: '12:00',
-  afternoonEnd: '18:00',
-  nightStart: '18:00',
-  nightEnd: '24:00',
   checkInWindowHours: 24,
 });
 
@@ -156,8 +149,30 @@ export class ClinicConfigService {
   }
 
   async getOperationalHours(): Promise<string> {
-    const policy = await this.getSchedulePolicy();
-    return `${policy.morningStart} - ${policy.nightEnd}`;
+    try {
+      const activeDefs = await this.db
+        .select({
+          startsAt: sessionDefs.defaultStartsAt,
+          endsAt: sessionDefs.defaultEndsAt,
+        })
+        .from(sessionDefs)
+        .where(eq(sessionDefs.isActive, true));
+
+      if (activeDefs && activeDefs.length > 0) {
+        let minStart = activeDefs[0].startsAt.slice(0, 5);
+        let maxEnd = activeDefs[0].endsAt.slice(0, 5);
+        for (const def of activeDefs) {
+          const s = def.startsAt.slice(0, 5);
+          const e = def.endsAt.slice(0, 5);
+          if (s < minStart) minStart = s;
+          if (e > maxEnd) maxEnd = e;
+        }
+        return `${minStart} - ${maxEnd}`;
+      }
+    } catch {
+      // Safe fallback when database is not yet migrated or sessionDefs is empty
+    }
+    return '08:00 - 20:00';
   }
 
   // --- Clinic Profile Getter ---

@@ -21,10 +21,6 @@ import {
   ScheduleClosureReason,
   ScheduleOperationalStatus,
 } from '@modules/schedules/domain/entities/schedule.entity';
-import {
-  ScheduleSessionFactory,
-  SHIFT_DEFINITIONS,
-} from '@modules/schedules/domain/factories/schedule-session.factory';
 import { SchedulePatientEligibilityHelper } from '@modules/schedules/domain/helpers/schedule-patient-eligibility.helper';
 import {
   resolveAggregateOperationalStatus,
@@ -256,26 +252,18 @@ export class DrizzleAdminDoctorScheduleListQuery {
         : '';
 
       const dailySessions: AdminDoctorDailySession[] = sessions.map((s: any) => {
-        const shiftDef = SHIFT_DEFINITIONS.find(
-          (d) => d.shift === s.sessionShift,
-        );
-        const boundaryStart =
-          shiftDef?.boundaryStartTime || SHIFT_DEFINITIONS[1].boundaryStartTime;
-        const boundaryEnd =
-          shiftDef?.boundaryEndTime || SHIFT_DEFINITIONS[1].boundaryEndTime;
-
-        const sessionStart = s.startTime ? s.startTime.slice(0, 5) : boundaryStart;
-        const sessionEnd = s.endTime ? s.endTime.slice(0, 5) : boundaryEnd;
+        const sessionStart = s.startTime ? s.startTime.slice(0, 5) : '00:00';
+        const sessionEnd = s.endTime ? s.endTime.slice(0, 5) : '24:00';
         const sessStart = s.startTime
           ? s.startTime.length === 5
             ? `${s.startTime}:00`
             : s.startTime
-          : `${boundaryStart}:00`;
+          : '00:00:00';
         const sessEnd = s.endTime
           ? s.endTime.length === 5
             ? `${s.endTime}:00`
             : s.endTime
-          : `${boundaryEnd}:00`;
+          : '24:00:00';
 
         const matchingAppts = allAppointments.filter((a) =>
           SchedulePatientEligibilityHelper.isEligibleForDoctorSession(
@@ -285,20 +273,6 @@ export class DrizzleAdminDoctorScheduleListQuery {
             sessEnd,
           ),
         );
-
-        const durationMinutes =
-          p.consultationDurationMinutes ||
-          clinicPolicy.durationMinutes ||
-          DEFAULT_CONSULTATION_DURATION_MINUTES;
-
-        const metrics = ScheduleSessionFactory.calculateSessionMetrics({
-          startTime: sessionStart,
-          endTime: sessionEnd,
-          durationMinutes,
-          bookedCount: matchingAppts.length,
-          isOnLeave,
-          isClosed: s.status === 'closed',
-        });
 
         const roomName = s.clinicRoom
           ? `${s.clinicRoom.name}${s.clinicRoom.location ? `, ${s.clinicRoom.location}` : ''}`
@@ -330,11 +304,11 @@ export class DrizzleAdminDoctorScheduleListQuery {
 
         return {
           id: s.id,
-          sessionName: s.sessionLabel || metrics.sessionLabel,
+          sessionName: s.sessionLabel || s.sessionCode || 'Sesi',
           startTime: sessionStart,
           endTime: sessionEnd,
           timeRange: `${sessionStart} - ${sessionEnd}`,
-          bookedPatients: metrics.bookedCount,
+          bookedPatients: matchingAppts.length,
           sessionStatus: sessionOpStatus,
           closureReason: closureReason,
           roomName: roomName,

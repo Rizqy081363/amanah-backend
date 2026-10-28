@@ -9,7 +9,6 @@ import {
   shiftExceptions,
 } from '@database/schema';
 import { SimulatorService } from '@modules/queue-engine/domain/services/simulator.service';
-import { SCHEDULE_CONTEXT_DEFINITIONS } from '@modules/schedules/domain/constants/schedule-context.constants';
 import {
   type ScheduleCapacityOverviewData,
   type ScheduleShiftCapacityEntity,
@@ -121,33 +120,25 @@ export class DrizzleScheduleCapacityRepository {
     // 4. Construct shifts with authoritative lane capacity & queue load
     const shifts: ScheduleShiftCapacityEntity[] = [];
 
-    for (const ctxDef of SCHEDULE_CONTEXT_DEFINITIONS) {
-      const matchingSessionDef = allSessionDefs.find(
-        (def) => def.code === ctxDef.sessionShift,
+    for (const sDef of allSessionDefs) {
+      const assignedToSession = allDoctorAssignments.filter(
+        (a) => a.sessionId === sDef.id,
+      );
+      const workingDoctors = assignedToSession.filter(
+        (a) => !doctorsOnLeaveIds.has(a.doctorId),
       );
 
-      // Determine lanes: min(doctors on duty, clinic rooms)
       let laneCapacity = 0;
-      if (matchingSessionDef) {
-        const assignedToSession = allDoctorAssignments.filter(
-          (a) => a.sessionId === matchingSessionDef.id,
-        );
-        const workingDoctors = assignedToSession.filter(
-          (a) => !doctorsOnLeaveIds.has(a.doctorId),
-        );
-
-        if (workingDoctors.length > 0) {
-          laneCapacity = Math.min(workingDoctors.length, totalClinicRooms);
-        } else if (!isOnLeave) {
-          laneCapacity = 1;
-        }
+      if (workingDoctors.length > 0) {
+        laneCapacity = Math.min(workingDoctors.length, totalClinicRooms);
       } else if (!isOnLeave) {
         laneCapacity = 1;
       }
 
-      // Calculate shift time window
-      const startMin = parseClockTime(ctxDef.boundaryStartTime);
-      let endMin = parseClockTime(ctxDef.boundaryEndTime);
+      const boundaryStartTime = (sDef.defaultStartsAt || '00:00').slice(0, 5);
+      const boundaryEndTime = (sDef.defaultEndsAt || '24:00').slice(0, 5);
+      const startMin = parseClockTime(boundaryStartTime);
+      let endMin = parseClockTime(boundaryEndTime);
       if (endMin <= startMin) {
         endMin += 1440;
       }
@@ -161,20 +152,17 @@ export class DrizzleScheduleCapacityRepository {
         },
       ];
 
-      // Calculate nominal capacity using Queue Engine Simulator
       const nominalCapacity = this.simulatorService.calculateNominalCapacity({
         lanes: Math.max(1, laneCapacity),
         effectiveSegments,
         estimatedDurationMinutes: durationMinutes,
       });
 
-      // Count active tickets for this session
       const sessionTickets = activeQueueTickets.filter(
-        (t) => matchingSessionDef && t.sessionId === matchingSessionDef.id,
+        (t) => t.sessionId === sDef.id,
       );
       const activeTicketsCount = sessionTickets.length;
 
-      // Calculate load status and load ratio dynamically using thresholds
       const loadStatus = this.simulatorService.resolveLoadStatus(
         activeTicketsCount,
         nominalCapacity,
@@ -185,13 +173,15 @@ export class DrizzleScheduleCapacityRepository {
           ? Number((activeTicketsCount / nominalCapacity).toFixed(2))
           : 0;
 
+      const label = sDef.label || sDef.code;
+
       shifts.push({
-        contextId: ctxDef.contextId,
-        contextLabel: ctxDef.contextLabel,
-        sessionShift: ctxDef.sessionShift,
-        timeRange: `${ctxDef.boundaryStartTime} - ${ctxDef.boundaryEndTime} WIB`,
-        boundaryStartTime: ctxDef.boundaryStartTime,
-        boundaryEndTime: ctxDef.boundaryEndTime,
+        contextId: sDef.id,
+        contextLabel: label,
+        sessionShift: sDef.code,
+        timeRange: `${boundaryStartTime} - ${boundaryEndTime} WIB`,
+        boundaryStartTime,
+        boundaryEndTime,
         laneCapacity,
         activeTickets: activeTicketsCount,
         nominalCapacity,

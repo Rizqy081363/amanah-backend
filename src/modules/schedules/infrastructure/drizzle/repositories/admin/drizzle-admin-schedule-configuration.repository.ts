@@ -4,16 +4,20 @@ import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
   clinicSettings,
+  doctorAssignments,
   masterDays,
+  queueTickets,
   sessionDefs,
   sessionSchedules,
 } from '@database/schema';
 import {
+  CreateSessionDefDto,
   EvaluateScheduleImpactDto,
   ScheduleConfigurationImpactResultDto,
   UpdateClinicSettingItemDto,
   UpdateScheduleConfigurationBatchDto,
   UpdateSessionDefDto,
+  UpdateSingleSessionDefDto,
   UpdateWeeklyTemplateItemDto,
 } from '@modules/schedules/presentation/dto/admin-schedule-configuration.dto';
 import {
@@ -84,13 +88,6 @@ interface CanonicalClinicSettingConfig {
   options?: ClinicSettingOptionDescriptor[];
   isAdminFacing: boolean;
 }
-
-const CANONICAL_SESSION_LABEL_MAP: Record<string, string> = {
-  early_morning: 'Sesi Dini Hari',
-  morning: 'Sesi Pagi',
-  afternoon: 'Sesi Siang',
-  night: 'Sesi Malam',
-};
 
 export interface ScheduleConfigurationData {
   days: CanonicalDayInfo[];
@@ -171,7 +168,7 @@ export class DrizzleAdminScheduleConfigurationRepository {
         const endTimeStr = sd.defaultEndsAt
           ? sd.defaultEndsAt.slice(0, 5)
           : '';
-        const canonicalLabel = CANONICAL_SESSION_LABEL_MAP[sd.code] || sd.code;
+        const canonicalLabel = sd.label || sd.code;
         return {
           id: sd.id,
           code: sd.code,
@@ -198,7 +195,7 @@ export class DrizzleAdminScheduleConfigurationRepository {
           (ws) => ws.dow === day.dow && ws.sessionId === def.id,
         );
 
-        const sessionLabel = CANONICAL_SESSION_LABEL_MAP[def.code] || def.code;
+        const sessionLabel = def.label || def.code;
 
         if (found) {
           weeklyTemplates.push({
@@ -491,5 +488,509 @@ export class DrizzleAdminScheduleConfigurationRepository {
     dto: EvaluateScheduleImpactDto,
   ): Promise<ScheduleConfigurationImpactResultDto> {
     return this.impactEvaluator.evaluate(dto);
+  }
+
+  async createSessionDef(
+    dto: CreateSessionDefDto,
+  ): Promise<CanonicalSessionDefConfig> {
+    const rawCode =
+      dto.code && dto.code.trim() !== ''
+        ? dto.code.trim().toLowerCase()
+        : dto.label
+            .trim()
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '_')
+            .replace(/^_+|_+$/g, '');
+
+    // Check duplicate code
+    const existing = await this.db
+      .select({ id: sessionDefs.id })
+      .from(sessionDefs)
+      .where(eq(sessionDefs.code, rawCode))
+      .limit(1);
+
+    if (existing && existing.length > 0) {
+      throw new BadRequestException({
+        code: 'DUPLICATE_SESSION_CODE',
+        message: `Shift dengan kode '${rawCode}' sudah ada. Silakan gunakan nama atau kode lain.`,
+      });
+    }
+
+    // Determine sort order
+    let sortOrder = dto.sortOrder;
+    if (typeof sortOrder !== 'number') {
+      const allSorted = await this.db
+        .select({ sortOrder: sessionDefs.sortOrder })
+        .from(sessionDefs)
+        .orderBy(asc(sessionDefs.sortOrder));
+      const maxSort =
+        allSorted.length > 0
+          ? Math.max(...allSorted.map((s) => s.sortOrder))
+          : 0;
+      sortOrder = maxSort + 1;
+    }
+
+    const isActive = dto.isActive ?? true;
+
+    // Validate non-overlap with active shifts
+    const existingActive = await this.db
+      .select({
+        id: sessionDefs.id,
+        code: sessionDefs.code,
+        label: sessionDefs.label,
+        sortOrder: sessionDefs.sortOrder,
+        isActive: sessionDefs.isActive,
+        defaultStartsAt: sessionDefs.defaultStartsAt,
+        defaultEndsAt: sessionDefs.defaultEndsAt,
+      })
+      .from(sessionDefs)
+      .where(eq(sessionDefs.isActive, true));
+
+    const checkList = [
+      ...existingActive.map((e) => ({
+        id: e.id,
+        code: e.code,
+        label: e.label || e.code,
+        sortOrder: e.sortOrder,
+        isActive: e.isActive,
+        startsAt: e.defaultStartsAt,
+        endsAt: e.defaultEndsAt,
+      })),
+      {
+        id: 'new-shift',
+        code: rawCode,
+        label: dto.label,
+        sortOrder,
+        isActive,
+        startsAt: dto.defaultStartsAt,
+        endsAt: dto.defaultEndsAt,
+      },
+    ];
+
+    validateSessionDefsNonOverlap(checkList);
+
+    const now = new Date().toISOString();
+    let createdId = '';
+
+    await this.db.transaction(async (tx) => {
+      const insertRes = await tx
+        .insert(sessionDefs)
+        .values({
+          code: rawCode,
+          label: dto.label,
+          labelKey: `session.${rawCode}`,
+          codePrefix: dto.codePrefix.toUpperCase(),
+          sortOrder,
+          isActive,
+          defaultStartsAt: dto.defaultStartsAt,
+          defaultEndsAt: dto.defaultEndsAt,
+          createdAt: now,
+          updatedAt: now,
+        })
+        .returning({ id: sessionDefs.id });
+
+      createdId = insertRes[0].id;
+
+      // Populate weekly template (session_schedule) for active days
+      const days = await tx
+        .select({ dow: masterDays.dow })
+        .from(masterDays)
+        .where(eq(masterDays.isActive, true));
+
+      for (const day of days) {
+        await tx.insert(sessionSchedules).values({
+          sessionId: createdId,
+          dow: day.dow,
+          startsAt: dto.defaultStartsAt,
+          endsAt: dto.defaultEndsAt,
+          isActive: true,
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+    });
+
+    await this.invalidateCaches();
+
+    const startTimeStr = dto.defaultStartsAt
+      ? dto.defaultStartsAt.slice(0, 5)
+      : '';
+    const endTimeStr = dto.defaultEndsAt
+      ? dto.defaultEndsAt.slice(0, 5)
+      : '';
+
+    return {
+      id: createdId,
+      code: rawCode,
+      labelKey: rawCode,
+      label: dto.label,
+      timeRange:
+        startTimeStr && endTimeStr ? `${startTimeStr} - ${endTimeStr}` : '',
+      codePrefix: dto.codePrefix.toUpperCase(),
+      sortOrder,
+      isActive,
+      defaultStartsAt: dto.defaultStartsAt,
+      defaultEndsAt: dto.defaultEndsAt,
+      canonicalStartsAt: dto.defaultStartsAt,
+      canonicalEndsAt: dto.defaultEndsAt,
+    };
+  }
+
+  async updateSingleSessionDef(
+    id: string,
+    dto: UpdateSingleSessionDefDto,
+  ): Promise<CanonicalSessionDefConfig> {
+    const existing = await this.db
+      .select()
+      .from(sessionDefs)
+      .where(eq(sessionDefs.id, id))
+      .limit(1);
+
+    if (!existing || existing.length === 0) {
+      throw new BadRequestException({
+        code: 'SESSION_DEF_NOT_FOUND',
+        message: 'Definisi shift tidak ditemukan.',
+      });
+    }
+
+    const current = existing[0];
+    const newStartsAt = dto.defaultStartsAt || current.defaultStartsAt;
+    const newEndsAt = dto.defaultEndsAt || current.defaultEndsAt;
+    const newIsActive =
+      typeof dto.isActive === 'boolean' ? dto.isActive : current.isActive;
+    const newSortOrder =
+      typeof dto.sortOrder === 'number' ? dto.sortOrder : current.sortOrder;
+    const newLabel = dto.label || current.label || current.code;
+    const newPrefix = (dto.codePrefix || current.codePrefix).toUpperCase();
+
+    // Check overlap if active
+    if (newIsActive) {
+      const allActive = await this.db
+        .select()
+        .from(sessionDefs)
+        .where(eq(sessionDefs.isActive, true));
+
+      const merged = allActive
+        .filter((d) => d.id !== id)
+        .map((d) => ({
+          id: d.id,
+          code: d.code,
+          label: d.label || d.code,
+          sortOrder: d.sortOrder,
+          isActive: true,
+          startsAt: d.defaultStartsAt,
+          endsAt: d.defaultEndsAt,
+        }));
+
+      merged.push({
+        id,
+        code: current.code,
+        label: newLabel,
+        sortOrder: newSortOrder,
+        isActive: true,
+        startsAt: newStartsAt,
+        endsAt: newEndsAt,
+      });
+
+      validateSessionDefsNonOverlap(merged);
+    }
+
+    const now = new Date().toISOString();
+
+    await this.db.transaction(async (tx) => {
+      await tx
+        .update(sessionDefs)
+        .set({
+          label: newLabel,
+          codePrefix: newPrefix,
+          defaultStartsAt: newStartsAt,
+          defaultEndsAt: newEndsAt,
+          sortOrder: newSortOrder,
+          isActive: newIsActive,
+          updatedAt: now,
+        })
+        .where(eq(sessionDefs.id, id));
+
+      const timeChanged =
+        newStartsAt !== current.defaultStartsAt ||
+        newEndsAt !== current.defaultEndsAt;
+
+      if (timeChanged) {
+        await tx
+          .update(sessionSchedules)
+          .set({
+            startsAt: newStartsAt,
+            endsAt: newEndsAt,
+            updatedAt: now,
+          })
+          .where(eq(sessionSchedules.sessionId, id));
+      }
+    });
+
+    await this.invalidateCaches();
+
+    const startTimeStr = newStartsAt ? newStartsAt.slice(0, 5) : '';
+    const endTimeStr = newEndsAt ? newEndsAt.slice(0, 5) : '';
+
+    return {
+      id,
+      code: current.code,
+      labelKey: current.code,
+      label: newLabel,
+      timeRange:
+        startTimeStr && endTimeStr ? `${startTimeStr} - ${endTimeStr}` : '',
+      codePrefix: newPrefix,
+      sortOrder: newSortOrder,
+      isActive: newIsActive,
+      defaultStartsAt: newStartsAt,
+      defaultEndsAt: newEndsAt,
+      canonicalStartsAt: newStartsAt,
+      canonicalEndsAt: newEndsAt,
+    };
+  }
+
+  async deleteSessionDef(
+    id: string,
+  ): Promise<{ success: boolean; message: string }> {
+    const existing = await this.db
+      .select({
+        id: sessionDefs.id,
+        label: sessionDefs.label,
+        code: sessionDefs.code,
+      })
+      .from(sessionDefs)
+      .where(eq(sessionDefs.id, id))
+      .limit(1);
+
+    if (!existing || existing.length === 0) {
+      throw new BadRequestException({
+        code: 'SESSION_DEF_NOT_FOUND',
+        message: 'Shift yang akan dihapus tidak ditemukan.',
+      });
+    }
+
+    const shift = existing[0];
+    const shiftLabel = shift.label || shift.code;
+
+    // Invariant check: Check active doctor assignments
+    const activeAssignments = await this.db
+      .select({ id: doctorAssignments.id })
+      .from(doctorAssignments)
+      .where(
+        and(
+          eq(doctorAssignments.sessionId, id),
+          eq(doctorAssignments.isActive, true),
+        ),
+      )
+      .limit(1);
+
+    if (activeAssignments && activeAssignments.length > 0) {
+      throw new BadRequestException({
+        code: 'SHIFT_IN_USE_BY_DOCTOR',
+        message: `Shift '${shiftLabel}' tidak dapat dihapus karena masih ditugaskan pada dokter yang aktif. Silakan nonaktifkan shift atau pindahkan penugasan dokter terlebih dahulu.`,
+      });
+    }
+
+    // Invariant check: Check active queue tickets
+    const activeTickets = await this.db
+      .select({ id: queueTickets.id })
+      .from(queueTickets)
+      .where(eq(queueTickets.sessionId, id))
+      .limit(1);
+
+    if (activeTickets && activeTickets.length > 0) {
+      throw new BadRequestException({
+        code: 'SHIFT_IN_USE_BY_QUEUE',
+        message: `Shift '${shiftLabel}' tidak dapat dihapus karena memiliki riwayat atau antrean tiket pasien. Silakan nonaktifkan shift (isActive: false) untuk menjaga integritas data klinis.`,
+      });
+    }
+
+    await this.db.transaction(async (tx) => {
+      // 1. Delete weekly templates for this session
+      await tx
+        .delete(sessionSchedules)
+        .where(eq(sessionSchedules.sessionId, id));
+      // 2. Delete the session definition
+      await tx.delete(sessionDefs).where(eq(sessionDefs.id, id));
+    });
+
+    await this.invalidateCaches();
+
+    return {
+      success: true,
+      message: `Shift '${shiftLabel}' berhasil dihapus.`,
+    };
+  }
+
+  async applyPreset(presetName: string): Promise<ScheduleConfigurationData> {
+    const PRESETS: Record<
+      string,
+      Array<{
+        code: string;
+        label: string;
+        codePrefix: string;
+        startsAt: string;
+        endsAt: string;
+        sortOrder: number;
+      }>
+    > = {
+      '2-shifts': [
+        {
+          code: 'pagi',
+          label: 'Sesi Pagi',
+          codePrefix: 'P',
+          startsAt: '08:00:00',
+          endsAt: '14:00:00',
+          sortOrder: 1,
+        },
+        {
+          code: 'sore',
+          label: 'Sesi Sore',
+          codePrefix: 'S',
+          startsAt: '14:00:00',
+          endsAt: '20:00:00',
+          sortOrder: 2,
+        },
+      ],
+      '3-shifts': [
+        {
+          code: 'pagi',
+          label: 'Sesi Pagi',
+          codePrefix: 'P',
+          startsAt: '07:00:00',
+          endsAt: '14:00:00',
+          sortOrder: 1,
+        },
+        {
+          code: 'siang',
+          label: 'Sesi Siang',
+          codePrefix: 'S',
+          startsAt: '14:00:00',
+          endsAt: '21:00:00',
+          sortOrder: 2,
+        },
+        {
+          code: 'malam',
+          label: 'Sesi Malam',
+          codePrefix: 'M',
+          startsAt: '21:00:00',
+          endsAt: '24:00:00',
+          sortOrder: 3,
+        },
+      ],
+      '4-shifts': [
+        {
+          code: 'dini_hari',
+          label: 'Sesi Dini Hari',
+          codePrefix: 'DH',
+          startsAt: '00:30:00',
+          endsAt: '04:30:00',
+          sortOrder: 1,
+        },
+        {
+          code: 'pagi',
+          label: 'Sesi Pagi',
+          codePrefix: 'P',
+          startsAt: '06:00:00',
+          endsAt: '12:00:00',
+          sortOrder: 2,
+        },
+        {
+          code: 'siang',
+          label: 'Sesi Siang',
+          codePrefix: 'S',
+          startsAt: '14:30:00',
+          endsAt: '18:00:00',
+          sortOrder: 3,
+        },
+        {
+          code: 'malam',
+          label: 'Sesi Malam',
+          codePrefix: 'M',
+          startsAt: '18:00:00',
+          endsAt: '24:00:00',
+          sortOrder: 4,
+        },
+      ],
+      custom: [
+        {
+          code: 'pagi_buta',
+          label: 'Sesi Pagi Buta',
+          codePrefix: 'PB',
+          startsAt: '04:00:00',
+          endsAt: '08:00:00',
+          sortOrder: 1,
+        },
+        {
+          code: 'layanan_senja',
+          label: 'Layanan Senja',
+          codePrefix: 'LS',
+          startsAt: '16:00:00',
+          endsAt: '21:00:00',
+          sortOrder: 2,
+        },
+      ],
+    };
+
+    const defs = PRESETS[presetName];
+    if (!defs) {
+      throw new BadRequestException({
+        code: 'INVALID_PRESET',
+        message: `Preset '${presetName}' tidak dikenali. Pilihan: ${Object.keys(PRESETS).join(', ')}`,
+      });
+    }
+
+    await this.db.transaction(async (tx) => {
+      // 1. Flush existing schedule data
+      await tx.delete(sessionSchedules);
+      await tx.delete(sessionDefs);
+
+      // 2. Insert preset definitions
+      const created: Array<{ id: string; startsAt: string; endsAt: string }> =
+        [];
+      const now = new Date().toISOString();
+
+      for (const d of defs) {
+        const ins = await tx
+          .insert(sessionDefs)
+          .values({
+            code: d.code,
+            label: d.label,
+            labelKey: `session.${d.code}`,
+            codePrefix: d.codePrefix,
+            sortOrder: d.sortOrder,
+            isActive: true,
+            defaultStartsAt: d.startsAt,
+            defaultEndsAt: d.endsAt,
+            createdAt: now,
+            updatedAt: now,
+          })
+          .returning({ id: sessionDefs.id });
+        created.push({ id: ins[0].id, startsAt: d.startsAt, endsAt: d.endsAt });
+      }
+
+      // 3. Populate session_schedule for active days
+      const days = await tx
+        .select({ dow: masterDays.dow })
+        .from(masterDays)
+        .where(eq(masterDays.isActive, true));
+
+      for (const day of days) {
+        for (const s of created) {
+          await tx.insert(sessionSchedules).values({
+            sessionId: s.id,
+            dow: day.dow,
+            startsAt: s.startsAt,
+            endsAt: s.endsAt,
+            isActive: true,
+            createdAt: now,
+            updatedAt: now,
+          });
+        }
+      }
+    });
+
+    await this.invalidateCaches();
+    return this.getConfiguration();
   }
 }

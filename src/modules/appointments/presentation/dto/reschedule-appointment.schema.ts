@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { CANONICAL_STAFF_SHIFTS } from '../../../schedules/domain/constants/schedule-shift.constants';
 
 export const RescheduleAppointmentSchema = z
   .object({
@@ -7,12 +6,7 @@ export const RescheduleAppointmentSchema = z
       .string()
       .min(1, 'target_date wajib diisi')
       .regex(/^\d{4}-\d{2}-\d{2}$/, 'Format target_date harus YYYY-MM-DD'),
-    session: z
-      .enum(CANONICAL_STAFF_SHIFTS, {
-        message:
-          'Sesi jadwal harus salah satu dari: early_morning, morning, afternoon, night',
-      })
-      .optional(),
+    session: z.string().optional(),
     target_session_id: z
       .string()
       .uuid('target_session_id harus berupa UUID valid')

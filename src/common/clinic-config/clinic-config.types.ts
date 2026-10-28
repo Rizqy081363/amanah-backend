@@ -8,14 +8,6 @@ export interface ClinicSchedulePolicyData {
   code: string;
   defaultConsultationDurationMinutes: number;
   defaultStartPrecisionMinutes: number;
-  earlyMorningStart: string;
-  earlyMorningEnd: string;
-  morningStart: string;
-  morningEnd: string;
-  afternoonStart: string;
-  afternoonEnd: string;
-  nightStart: string;
-  nightEnd: string;
   checkInWindowHours: number;
 }
 

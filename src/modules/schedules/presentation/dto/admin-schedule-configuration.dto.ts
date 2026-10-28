@@ -24,6 +24,25 @@ export class UpdateSessionDefDto {
   id: string;
 
   @ApiPropertyOptional({
+    description: 'Label tampilan manusiawi shift operasional',
+    example: 'Sesi Pagi',
+  })
+  @IsOptional()
+  @IsString()
+  label?: string;
+
+  @ApiPropertyOptional({
+    description: 'Prefix kartu/tiket antrean (1-4 karakter alfanumerik)',
+    example: 'P',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(/^[A-Za-z0-9]{1,4}$/, {
+    message: 'codePrefix must be 1-4 alphanumeric characters',
+  })
+  codePrefix?: string;
+
+  @ApiPropertyOptional({
     description: 'Status keaktifan definisi shift operasional',
     example: true,
   })
@@ -63,6 +82,145 @@ export class UpdateSessionDefDto {
     message: 'defaultEndsAt must be a valid time in HH:mm or HH:mm:ss format',
   })
   defaultEndsAt?: string;
+}
+
+export class CreateSessionDefDto {
+  @ApiProperty({
+    description: 'Label tampilan manusiawi shift operasional (contoh: Sesi Pagi Buta)',
+    example: 'Sesi Pagi Buta',
+  })
+  @IsNotEmpty()
+  @IsString()
+  label: string;
+
+  @ApiPropertyOptional({
+    description: 'Kode internal shift. Jika kosong dibuat otomatis dari label.',
+    example: 'pagi_buta',
+  })
+  @IsOptional()
+  @IsString()
+  code?: string;
+
+  @ApiProperty({
+    description: 'Prefix kartu antrean (1-4 karakter alfanumerik kapital)',
+    example: 'PB',
+  })
+  @IsNotEmpty()
+  @IsString()
+  @Matches(/^[A-Za-z0-9]{1,4}$/, {
+    message: 'codePrefix must be 1-4 alphanumeric characters',
+  })
+  codePrefix: string;
+
+  @ApiProperty({
+    description: 'Waktu mulai standar (HH:mm atau HH:mm:ss)',
+    example: '04:00:00',
+  })
+  @IsNotEmpty()
+  @IsString()
+  @Matches(/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/, {
+    message: 'defaultStartsAt must be a valid time in HH:mm or HH:mm:ss format',
+  })
+  defaultStartsAt: string;
+
+  @ApiProperty({
+    description: 'Waktu selesai standar (HH:mm atau HH:mm:ss)',
+    example: '08:00:00',
+  })
+  @IsNotEmpty()
+  @IsString()
+  @Matches(/^(([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?|24:00(:00)?)$/, {
+    message: 'defaultEndsAt must be a valid time in HH:mm or HH:mm:ss format',
+  })
+  defaultEndsAt: string;
+
+  @ApiPropertyOptional({
+    description: 'Urutan tampilan shift',
+    example: 1,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  sortOrder?: number;
+
+  @ApiPropertyOptional({
+    description: 'Status keaktifan awal',
+    example: true,
+  })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+}
+
+export class UpdateSingleSessionDefDto {
+  @ApiPropertyOptional({
+    description: 'Label tampilan manusiawi shift operasional',
+    example: 'Sesi Pagi Buta',
+  })
+  @IsOptional()
+  @IsString()
+  label?: string;
+
+  @ApiPropertyOptional({
+    description: 'Prefix kartu antrean (1-4 karakter alfanumerik kapital)',
+    example: 'PB',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(/^[A-Za-z0-9]{1,4}$/, {
+    message: 'codePrefix must be 1-4 alphanumeric characters',
+  })
+  codePrefix?: string;
+
+  @ApiPropertyOptional({
+    description: 'Waktu mulai standar (HH:mm atau HH:mm:ss)',
+    example: '04:00:00',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/, {
+    message: 'defaultStartsAt must be a valid time in HH:mm or HH:mm:ss format',
+  })
+  defaultStartsAt?: string;
+
+  @ApiPropertyOptional({
+    description: 'Waktu selesai standar (HH:mm atau HH:mm:ss)',
+    example: '08:00:00',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(/^(([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?|24:00(:00)?)$/, {
+    message: 'defaultEndsAt must be a valid time in HH:mm or HH:mm:ss format',
+  })
+  defaultEndsAt?: string;
+
+  @ApiPropertyOptional({
+    description: 'Urutan tampilan shift',
+    example: 1,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  sortOrder?: number;
+
+  @ApiPropertyOptional({
+    description: 'Status keaktifan',
+    example: true,
+  })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+}
+
+export class ApplySchedulePresetDto {
+  @ApiProperty({
+    description: 'Nama preset jadwal operasional klinik',
+    enum: ['2-shifts', '3-shifts', '4-shifts', 'custom'],
+    example: '2-shifts',
+  })
+  @IsNotEmpty()
+  @IsString()
+  preset: string;
 }
 
 export class UpdateWeeklyTemplateItemDto {

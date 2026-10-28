@@ -19,8 +19,7 @@ export class ScheduleProjectionQueryDto {
   date: string;
 
   @ApiProperty({
-    description:
-      'ID konteks jadwal backend-owned, misalnya early_morning, morning, afternoon, night',
+    description: 'ID konteks jadwal backend-owned atau kode shift',
     example: 'morning',
   })
   @IsString()

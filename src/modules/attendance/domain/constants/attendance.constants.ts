@@ -1,18 +1,6 @@
 import { attendanceMethod } from '../../../../database/schema/amanah.schema';
 
-export const CANONICAL_STAFF_SHIFTS = [
-  'early_morning',
-  'morning',
-  'afternoon',
-  'night',
-] as const;
-
-export type ShiftCode = (typeof CANONICAL_STAFF_SHIFTS)[number];
-
-export const CANONICAL_STAFF_SHIFT_VALUES = CANONICAL_STAFF_SHIFTS as unknown as [
-  ShiftCode,
-  ...ShiftCode[],
-];
+export type ShiftCode = string;
 
 export const ATTENDANCE_ACTIONS = {
   CHECK_IN: 'check_in',
@@ -45,8 +33,8 @@ export const ATTENDANCE_STATUS_VALUES = ATTENDANCE_STATUSES as unknown as [
 ];
 
 
-export function isValidShift(shift: string): shift is ShiftCode {
-  return (CANONICAL_STAFF_SHIFTS as readonly string[]).includes(shift);
+export function isValidShift(shift: string): boolean {
+  return typeof shift === 'string' && shift.trim().length > 0;
 }
 
 export function isValidStatus(status: string): status is AttendanceStatus {
@@ -56,10 +44,10 @@ export function isValidStatus(status: string): status is AttendanceStatus {
 /**
  * Normalizes shift string safely, preserving domain validity without inventing values.
  */
-export function normalizeShift(rawShift?: string | null): ShiftCode | undefined {
+export function normalizeShift(rawShift?: string | null): string | undefined {
   if (rawShift) {
-    const s = rawShift.trim().toLowerCase();
-    if (isValidShift(s)) {
+    const s = rawShift.trim();
+    if (s.length > 0) {
       return s;
     }
   }

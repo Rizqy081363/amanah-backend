@@ -1,8 +1,7 @@
 import { z } from 'zod';
-import { CANONICAL_STAFF_SHIFTS } from '../../domain/constants/schedule-shift.constants';
 
 export const UpdateScheduleSchema = z.object({
-  session: z.enum(CANONICAL_STAFF_SHIFTS).optional(),
+  session: z.string().optional(),
   startTime: z
     .string()
     .regex(/^\d{2}:\d{2}(:\d{2})?$/, 'Format startTime harus HH:mm atau HH:mm:ss')

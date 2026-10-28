@@ -14,7 +14,7 @@ export class QueryQueueNavigationDto {
   date?: string;
 
   @ApiPropertyOptional({
-    description: 'Kode sesi operasional (morning, afternoon, etc.)',
+    description: 'Kode sesi operasional',
     example: 'morning',
   })
   @IsOptional()

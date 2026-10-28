@@ -1,11 +1,7 @@
 import { UnprocessableEntityException } from '@nestjs/common';
 import { formatClockTime, parseClockTime } from '../schedule-projection';
 
-export type SessionShiftType =
-  | 'early_morning'
-  | 'morning'
-  | 'afternoon'
-  | 'night';
+export type SessionShiftType = string;
 
 export interface ShiftDefinition {
   shift: SessionShiftType;
@@ -20,86 +16,39 @@ export interface ShiftDefinition {
   aliases: string[];
 }
 
-/**
- * 24-Hour Cycle divided cleanly into 4 equal shifts of 6 hours (360 minutes) each.
- * Dini Hari: 00:00 - 06:00
- * Pagi:      06:00 - 12:00
- * Siang:     12:00 - 18:00
- * Malam:     18:00 - 24:00
- */
-export const SHIFT_DEFINITIONS: ShiftDefinition[] = [
-  {
-    shift: 'early_morning',
-    sessionShift: 'early_morning',
-    contextId: 'early_morning',
-    label: 'Dini Hari',
-    contextLabel: 'Dini Hari',
-    boundaryStartMinutes: 0,
-    boundaryEndMinutes: 360,
-    boundaryStartTime: '00:00',
-    boundaryEndTime: '06:00',
-    aliases: ['dini_hari', 'dini hari', 'early_morning'],
-  },
-  {
-    shift: 'morning',
-    sessionShift: 'morning',
-    contextId: 'morning',
-    label: 'Pagi',
-    contextLabel: 'Pagi',
-    boundaryStartMinutes: 360,
-    boundaryEndMinutes: 720,
-    boundaryStartTime: '06:00',
-    boundaryEndTime: '12:00',
-    aliases: ['pagi', 'morning'],
-  },
-  {
-    shift: 'afternoon',
-    sessionShift: 'afternoon',
-    contextId: 'afternoon',
-    label: 'Siang',
-    contextLabel: 'Siang',
-    boundaryStartMinutes: 720,
-    boundaryEndMinutes: 1080,
-    boundaryStartTime: '12:00',
-    boundaryEndTime: '18:00',
-    aliases: ['siang', 'sore', 'afternoon'],
-  },
-  {
-    shift: 'night',
-    sessionShift: 'night',
-    contextId: 'night',
-    label: 'Malam',
-    contextLabel: 'Malam',
-    boundaryStartMinutes: 1080,
-    boundaryEndMinutes: 1440,
-    boundaryStartTime: '18:00',
-    boundaryEndTime: '24:00',
-    aliases: ['malam', 'night'],
-  },
-];
-
 export class ScheduleSessionFactory {
   /**
    * Resolves a shift definition by contextId, shift name, or alias.
+   * Driven dynamically by definitions passed from DB session_def.
    */
-  static resolveShiftDefinition(shiftOrContextId: string): ShiftDefinition {
+  static resolveShiftDefinition(
+    shiftOrContextId: string,
+    customDefs?: ShiftDefinition[],
+  ): ShiftDefinition {
+    const list = customDefs || [];
     const normalized = (shiftOrContextId || '').trim().toLowerCase();
-    const found = SHIFT_DEFINITIONS.find(
+    const found = list.find(
       (def) =>
-        def.shift === normalized ||
-        def.contextId === normalized ||
-        def.aliases.includes(normalized),
+        def.shift.toLowerCase() === normalized ||
+        def.contextId.toLowerCase() === normalized ||
+        def.aliases.some((a) => a.toLowerCase() === normalized),
     );
 
     if (!found) {
-      throw new UnprocessableEntityException({
-        code: 'SCHEDULE_CONTEXT_NOT_FOUND',
-        message: 'Konteks jadwal yang dipilih tidak tersedia.',
-        metadata: {
-          scheduleContextId: shiftOrContextId,
-          supportedContextIds: SHIFT_DEFINITIONS.map((def) => def.contextId),
-        },
-      });
+      if (list.length > 0) return list[0];
+      // Cold-start fallback: return a dynamic single-shift container when no definitions exist in DB
+      return {
+        shift: shiftOrContextId || 'default',
+        sessionShift: shiftOrContextId || 'default',
+        contextId: shiftOrContextId || 'default',
+        label: shiftOrContextId || 'Sesi',
+        contextLabel: shiftOrContextId || 'Sesi',
+        boundaryStartMinutes: 0,
+        boundaryEndMinutes: 1440,
+        boundaryStartTime: '00:00',
+        boundaryEndTime: '24:00',
+        aliases: [shiftOrContextId],
+      };
     }
 
     return found;
@@ -108,13 +57,30 @@ export class ScheduleSessionFactory {
   /**
    * Resolves the corresponding shift dynamically from a clock time (HH:mm).
    */
-  static resolveShiftFromClockTime(clockTime: string): ShiftDefinition {
+  static resolveShiftFromClockTime(
+    clockTime: string,
+    customDefs?: ShiftDefinition[],
+  ): ShiftDefinition {
+    const list = customDefs || [];
     const minutes = parseClockTime(clockTime);
-    const found = SHIFT_DEFINITIONS.find(
+    const found = list.find(
       (def) =>
         minutes >= def.boundaryStartMinutes && minutes < def.boundaryEndMinutes,
     );
-    return found || SHIFT_DEFINITIONS[0];
+    if (found) return found;
+    if (list.length > 0) return list[0];
+    return {
+      shift: 'default',
+      sessionShift: 'default',
+      contextId: 'default',
+      label: 'Sesi',
+      contextLabel: 'Sesi',
+      boundaryStartMinutes: 0,
+      boundaryEndMinutes: 1440,
+      boundaryStartTime: '00:00',
+      boundaryEndTime: '24:00',
+      aliases: [],
+    };
   }
 
   /**
@@ -197,13 +163,16 @@ export class ScheduleSessionFactory {
    * Factory function to dynamically create showcase or default session parameters
    * for seeders or automated scheduling, avoiding hardcoded time literals.
    */
-  static createSessionTemplate(shift: SessionShiftType): {
+  static createSessionTemplate(
+    shift: SessionShiftType,
+    customDefs?: ShiftDefinition[],
+  ): {
     label: string;
     shift: SessionShiftType;
     startTime: string;
     endTime: string;
   } {
-    const def = ScheduleSessionFactory.resolveShiftDefinition(shift);
+    const def = ScheduleSessionFactory.resolveShiftDefinition(shift, customDefs);
 
     return {
       label: def.label,
@@ -223,6 +192,7 @@ export class ScheduleSessionFactory {
     bookedCount: number;
     isOnLeave?: boolean;
     isClosed?: boolean;
+    customDefs?: ShiftDefinition[];
   }): {
     shift: SessionShiftType;
     sessionLabel: string;
@@ -230,6 +200,7 @@ export class ScheduleSessionFactory {
   } {
     const shiftDef = ScheduleSessionFactory.resolveShiftFromClockTime(
       params.startTime,
+      params.customDefs,
     );
 
     return {

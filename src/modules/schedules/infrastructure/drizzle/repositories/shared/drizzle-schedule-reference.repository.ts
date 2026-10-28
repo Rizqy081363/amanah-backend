@@ -6,13 +6,12 @@ import {
   medicalSpecialties,
   sessionDefs,
 } from '@database/schema';
-import { SCHEDULE_CONTEXT_DEFINITIONS } from '@modules/schedules/domain/constants/schedule-context.constants';
 import {
   type ClinicRoomReferenceEntity,
   ScheduleOperationalStatus,
   type ScheduleOptionsReferenceEntity,
 } from '@modules/schedules/domain/entities/schedule.entity';
-import { SHIFT_DEFINITIONS } from '@modules/schedules/domain/factories/schedule-session.factory';
+import { parseClockTime } from '@modules/schedules/domain/schedule-projection';
 import { SchedulePolicyReader } from '@modules/schedules/infrastructure/drizzle/queries/schedule-policy.reader';
 import { Inject, Injectable } from '@nestjs/common';
 import { asc, eq } from 'drizzle-orm';
@@ -65,20 +64,34 @@ export class DrizzleScheduleReferenceRepository {
   }
 
   async getScheduleOptions(): Promise<ScheduleOptionsReferenceEntity> {
-    const clinicPolicy = await this.policyReader.getClinicSchedulePolicy();
+    const [allSessionDefs, clinicPolicy] = await Promise.all([
+      this.db.query.sessionDefs.findMany({
+        where: eq(sessionDefs.isActive, true),
+        orderBy: [asc(sessionDefs.sortOrder)],
+      }),
+      this.policyReader.getClinicSchedulePolicy(),
+    ]);
+
     return {
-      shifts: SCHEDULE_CONTEXT_DEFINITIONS.map((def) => ({
-        id: def.shift.toUpperCase(),
-        label: def.label,
-        shift: def.shift,
-        startTime: def.boundaryStartTime,
-        endTime: def.boundaryEndTime,
-        timeRange: `${def.boundaryStartTime} - ${def.boundaryEndTime}`,
-        startHour: Math.floor(def.boundaryStartMinutes / 60),
-        endHour: Math.floor(def.boundaryEndMinutes / 60),
-        durationMinutes: clinicPolicy.durationMinutes,
-        precisionMinutes: clinicPolicy.startPrecisionMinutes,
-      })),
+      shifts: allSessionDefs.map((def) => {
+        const startMin = parseClockTime(def.defaultStartsAt);
+        const endMin = parseClockTime(def.defaultEndsAt);
+        const startStr = def.defaultStartsAt.slice(0, 5);
+        const endStr = def.defaultEndsAt.slice(0, 5);
+        const label = def.label || def.code;
+        return {
+          id: def.code.toUpperCase(),
+          label,
+          shift: def.code,
+          startTime: startStr,
+          endTime: endStr,
+          timeRange: `${startStr} - ${endStr}`,
+          startHour: Math.floor(startMin / 60),
+          endHour: Math.floor(endMin / 60),
+          durationMinutes: clinicPolicy.durationMinutes,
+          precisionMinutes: clinicPolicy.startPrecisionMinutes,
+        };
+      }),
       statuses: [
         { id: 'OPEN', label: 'Buka' },
         { id: 'CLOSED', label: 'Tutup' },
@@ -136,17 +149,14 @@ export class DrizzleScheduleReferenceRepository {
           { id: 'ACTIVE', label: 'Aktif' },
           { id: 'INACTIVE', label: 'Non-Aktif' },
         ],
-        sessions: sessionList.map((s) => {
-          const shiftDef = SHIFT_DEFINITIONS.find((def) => def.shift === s.code);
-          return {
-            id: s.id,
-            code: s.code,
-            name: shiftDef?.label ?? s.code,
-            label: shiftDef?.label ?? s.code,
-            startsAt: s.defaultStartsAt,
-            endsAt: s.defaultEndsAt,
-          };
-        }),
+        sessions: sessionList.map((s) => ({
+          id: s.id,
+          code: s.code,
+          name: s.label || s.code,
+          label: s.label || s.code,
+          startsAt: s.defaultStartsAt,
+          endsAt: s.defaultEndsAt,
+        })),
       },
     };
   }

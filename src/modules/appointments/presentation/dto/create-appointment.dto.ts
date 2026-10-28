@@ -9,7 +9,6 @@ import {
   Matches,
 } from 'class-validator';
 import {
-  CANONICAL_STAFF_SHIFTS,
   type CanonicalStaffShift,
 } from '../../../schedules/domain/constants/schedule-shift.constants';
 import type { CreateAppointmentInput } from './create-appointment.schema';
@@ -58,11 +57,10 @@ export class CreateAppointmentDto implements CreateAppointmentInput {
   appointmentDate: string;
 
   @ApiProperty({
-    enum: CANONICAL_STAFF_SHIFTS,
     example: 'morning',
-    description: 'Sesi giliran kunjungan (early_morning, morning, afternoon, night)',
+    description: 'Sesi giliran kunjungan',
   })
-  @IsIn(CANONICAL_STAFF_SHIFTS)
+  @IsString()
   @IsNotEmpty()
   session: CanonicalStaffShift;
 

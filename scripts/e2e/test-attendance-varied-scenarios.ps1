@@ -71,7 +71,7 @@ try {
     $frontdeskProfileId = (Run-DockerSql "SELECT id FROM staff_profiles WHERE user_id = (SELECT id FROM users WHERE email = '$frontdeskEmail');").Trim()
 
     $afternoonSessionId = (Run-DockerSql "SELECT id FROM session_def WHERE code = 'afternoon';").Trim()
-    $morningSessionId = (Run-DockerSql "SELECT id FROM session_def WHERE code = 'morning';").Trim()
+    $morningSessionId = (Run-DockerSql "SELECT id FROM session_def WHERE code = ;").Trim()
 
     Assert-Test "Doctor profile ID resolved: $doctorProfileId" (-not [string]::IsNullOrWhiteSpace($doctorProfileId))
     Assert-Test "Original Doctor profile ID resolved: $origDocProfileId" (-not [string]::IsNullOrWhiteSpace($origDocProfileId))

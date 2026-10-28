@@ -61,7 +61,7 @@ export class RescheduleAdminDoctorSessionDto {
 
   @ApiPropertyOptional({
     description:
-      'ID konteks shift target baru (morning, afternoon, night, early_morning). Jika tidak diisi, backend mendeteksi otomatis dari targetStartTime.',
+      'ID konteks shift target baru. Jika tidak diisi, backend mendeteksi otomatis dari targetStartTime.',
     example: 'morning',
   })
   @IsOptional()

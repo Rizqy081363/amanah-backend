@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import {
   ATTENDANCE_STATUS_VALUES,
-  CANONICAL_STAFF_SHIFT_VALUES,
 } from '../../domain/constants/attendance.constants';
 
 export const ManualAttendanceSchema = z.object({
@@ -9,7 +8,7 @@ export const ManualAttendanceSchema = z.object({
     .string({ message: 'staffIdOrCode wajib diisi' })
     .trim()
     .min(1, 'staffIdOrCode tidak boleh kosong'),
-  shift: z.enum(CANONICAL_STAFF_SHIFT_VALUES).optional(),
+  shift: z.string().trim().min(1).optional(),
   status: z.enum(ATTENDANCE_STATUS_VALUES).default('present'),
   attendanceDate: z
     .string()

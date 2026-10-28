@@ -4,7 +4,6 @@ import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import { sessionDefs } from '@database/schema';
 import {
-  SCHEDULE_CONTEXT_DEFINITIONS,
   type ScheduleContextDefinition,
 } from '@modules/schedules/domain/constants/schedule-context.constants';
 import {
@@ -29,7 +28,7 @@ import {
   Optional,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import { eq } from 'drizzle-orm';
+import { asc, eq, or } from 'drizzle-orm';
 
 @Injectable()
 export class DrizzleScheduleAvailabilityRepository {
@@ -133,16 +132,38 @@ export class DrizzleScheduleAvailabilityRepository {
       );
     }
 
-    const policy = await this.policyReader.getPolicy(practitioner);
-    return SCHEDULE_CONTEXT_DEFINITIONS.map((context) =>
-      this.toScheduleContextEntity(
+    const [sessionList, policy] = await Promise.all([
+      this.db.query.sessionDefs.findMany({
+        where: eq(sessionDefs.isActive, true),
+        orderBy: [asc(sessionDefs.sortOrder)],
+      }),
+      this.policyReader.getPolicy(practitioner),
+    ]);
+
+    return sessionList.map((sDef) => {
+      const boundaryStartTime = (sDef.defaultStartsAt || '00:00').slice(0, 5);
+      const boundaryEndTime = (sDef.defaultEndsAt || '24:00').slice(0, 5);
+      const label = sDef.label || sDef.code;
+      const context: ScheduleContextDefinition = {
+        shift: sDef.code,
+        sessionShift: sDef.code,
+        contextId: sDef.id,
+        label,
+        contextLabel: label,
+        boundaryStartTime,
+        boundaryEndTime,
+        boundaryStartMinutes: parseClockTime(boundaryStartTime),
+        boundaryEndMinutes: parseClockTime(boundaryEndTime),
+        aliases: [sDef.code],
+      };
+      return this.toScheduleContextEntity(
         practitioner.id,
         date,
         context,
         policy,
         durationEditableByCurrentUser,
-      ),
-    );
+      );
+    });
   }
 
   async projectAvailability(
@@ -157,7 +178,30 @@ export class DrizzleScheduleAvailabilityRepository {
       );
     }
 
-    const context = ScheduleContextResolver.resolve(query.scheduleContextId);
+    const sessionDef = await this.db.query.sessionDefs.findFirst({
+      where: or(
+        eq(sessionDefs.id, query.scheduleContextId),
+        eq(sessionDefs.code, query.scheduleContextId),
+      ),
+    });
+
+    const boundaryStartTime = (sessionDef?.defaultStartsAt || '00:00').slice(0, 5);
+    const boundaryEndTime = (sessionDef?.defaultEndsAt || '24:00').slice(0, 5);
+    const label = sessionDef?.label || sessionDef?.code || query.scheduleContextId;
+
+    const context: ScheduleContextDefinition = {
+      shift: sessionDef?.code || query.scheduleContextId,
+      sessionShift: sessionDef?.code || query.scheduleContextId,
+      contextId: sessionDef?.id || query.scheduleContextId,
+      label,
+      contextLabel: label,
+      boundaryStartTime,
+      boundaryEndTime,
+      boundaryStartMinutes: parseClockTime(boundaryStartTime),
+      boundaryEndMinutes: parseClockTime(boundaryEndTime),
+      aliases: [sessionDef?.code || query.scheduleContextId],
+    };
+
     const policy = await this.policyReader.getPolicy(practitioner);
     this.validateProjectionRequest(context, query.startTime, policy);
 
@@ -200,10 +244,23 @@ export class DrizzleScheduleAvailabilityRepository {
       );
     }
 
-    const context =
-      SCHEDULE_CONTEXT_DEFINITIONS.find(
-        (definition) => definition.sessionShift === sessionDef.code,
-      ) ?? SCHEDULE_CONTEXT_DEFINITIONS[1];
+    const boundaryStartTime = (sessionDef.defaultStartsAt || '00:00').slice(0, 5);
+    const boundaryEndTime = (sessionDef.defaultEndsAt || '24:00').slice(0, 5);
+    const label = sessionDef.label || sessionDef.code;
+
+    const context: ScheduleContextDefinition = {
+      shift: sessionDef.code,
+      sessionShift: sessionDef.code,
+      contextId: sessionDef.id,
+      label,
+      contextLabel: label,
+      boundaryStartTime,
+      boundaryEndTime,
+      boundaryStartMinutes: parseClockTime(boundaryStartTime),
+      boundaryEndMinutes: parseClockTime(boundaryEndTime),
+      aliases: [sessionDef.code],
+    };
+
     const clinicPolicy = await this.policyReader.getClinicSchedulePolicy();
 
     return this.buildProjection({
@@ -211,8 +268,8 @@ export class DrizzleScheduleAvailabilityRepository {
       scheduleId: sessionDef.id,
       date: new Date().toISOString().split('T')[0],
       context,
-      selectedStartTime: sessionDef.defaultStartsAt.slice(0, 5),
-      boundaryEndTime: sessionDef.defaultEndsAt.slice(0, 5),
+      selectedStartTime: boundaryStartTime,
+      boundaryEndTime: boundaryEndTime,
       policy: clinicPolicy,
       durationEditableByCurrentUser,
       updatedAt: sessionDef.updatedAt ?? null,

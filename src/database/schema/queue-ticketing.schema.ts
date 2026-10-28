@@ -63,7 +63,8 @@ export const masterDays = pgTable('master_day', {
 export const sessionDefs = pgTable('session_def', {
   id: uuid('id').defaultRandom().primaryKey().notNull(),
   code: text('code').notNull().unique(),
-  labelKey: text('label_key').notNull(),
+  label: text('label').notNull(),
+  labelKey: text('label_key'),
   codePrefix: varchar('code_prefix', { length: 4 }).notNull(),
   sortOrder: integer('sort_order').notNull(),
   isActive: boolean('is_active').default(true).notNull(),

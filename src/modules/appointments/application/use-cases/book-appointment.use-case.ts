@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, asc, eq, isNull } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
@@ -70,15 +70,16 @@ export class BookAppointmentUseCase {
         },
       }));
 
-    const morningSession = !assignment
+    const fallbackSession = !assignment
       ? await this.db.query?.sessionDefs?.findFirst?.({
-          where: eq(sessionDefs.code, 'morning'),
+          where: eq(sessionDefs.isActive, true),
+          orderBy: [asc(sessionDefs.sortOrder)],
         })
       : null;
 
     const startTimeStr =
       assignment?.sessionDef?.defaultStartsAt ||
-      morningSession?.defaultStartsAt ||
+      fallbackSession?.defaultStartsAt ||
       '08:00';
     const [hours, minutes] = startTimeStr.split(':').map(Number);
     const dayStart = new Date(`${input.scheduledDate}T00:00:00.000Z`);

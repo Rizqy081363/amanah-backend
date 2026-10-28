@@ -1,11 +1,9 @@
 import {
-  CANONICAL_STAFF_SHIFTS,
   type CanonicalStaffShift,
 } from '@modules/schedules/domain/constants/schedule-shift.constants';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsBoolean,
-  IsIn,
   IsOptional,
   IsString,
 } from 'class-validator';
@@ -69,12 +67,10 @@ export class CreateScheduleDto {
   date?: string;
 
   @ApiPropertyOptional({
-    enum: CANONICAL_STAFF_SHIFTS,
     example: 'morning',
-    description:
-      'Sesi giliran praktek dokter (early_morning / morning / afternoon / night)',
+    description: 'Kode shift atau sesi praktek dokter',
   })
-  @IsIn(CANONICAL_STAFF_SHIFTS)
+  @IsString()
   @IsOptional()
   session?: CanonicalStaffShift;
 

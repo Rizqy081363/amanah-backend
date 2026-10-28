@@ -75,9 +75,8 @@ export class PayrollAttendanceFactory {
     const sessions = await this.db.query.sessionDefs.findMany({
       where: eq(sessionDefs.isActive, true),
     });
-    this.morningSession = sessions.find((s) => s.code === 'morning') || sessions[0];
-    this.afternoonSession =
-      sessions.find((s) => s.code === 'afternoon') || sessions[1] || sessions[0];
+    this.morningSession = sessions[0];
+    this.afternoonSession = sessions[1] || sessions[0];
 
     if (!this.morningSession) {
       throw new Error('[Factory] No active session definitions found in database.');
@@ -345,7 +344,7 @@ export class PayrollAttendanceFactory {
       unitId: this.activeUnit.id,
       roomId: this.defaultRoom?.id || null,
       attendanceDate: dates.regularDate,
-      shift: 'morning',
+      shift: this.morningSession.label,
       status: 'present',
       expectedCheckInAt: `${dates.regularDate}T08:00:00+07:00`,
       checkInAt: `${dates.regularDate}T07:55:00+07:00`,
@@ -365,7 +364,7 @@ export class PayrollAttendanceFactory {
       unitId: this.activeUnit.id,
       roomId: this.defaultRoom?.id || null,
       attendanceDate: dates.lateDate,
-      shift: 'morning',
+      shift: this.morningSession.label,
       status: 'late',
       expectedCheckInAt: `${dates.lateDate}T08:00:00+07:00`,
       checkInAt: `${dates.lateDate}T08:20:00+07:00`,
@@ -385,7 +384,7 @@ export class PayrollAttendanceFactory {
       unitId: this.activeUnit.id,
       roomId: this.defaultRoom?.id || null,
       attendanceDate: dates.replacementDate,
-      shift: 'morning',
+      shift: this.morningSession.label,
       status: 'present',
       expectedCheckInAt: `${dates.replacementDate}T08:00:00+07:00`,
       checkInAt: `${dates.replacementDate}T07:50:00+07:00`,
@@ -484,7 +483,7 @@ export class PayrollAttendanceFactory {
         unitId: this.activeUnit.id,
         roomId: this.defaultRoom?.id || null,
         attendanceDate: replaceDate,
-        shift: 'morning',
+        shift: this.morningSession.label,
         status: 'present',
         expectedCheckInAt: `${replaceDate}T08:00:00+07:00`,
         checkInAt: `${replaceDate}T07:50:00+07:00`,
@@ -532,7 +531,7 @@ export class PayrollAttendanceFactory {
             unitId: this.activeUnit?.id || null,
             roomId: this.defaultRoom?.id || null,
             attendanceDate: dateStr,
-            shift: 'morning',
+            shift: this.morningSession.label,
             status,
             expectedCheckInAt: `${dateStr}T08:00:00+07:00`,
             checkInAt: checkIn,

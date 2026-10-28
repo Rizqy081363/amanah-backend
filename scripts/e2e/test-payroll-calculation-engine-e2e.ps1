@@ -260,7 +260,7 @@ INSERT INTO staff_attendance_records (
     check_in_at, check_out_at, validated_duration_hours,
     is_replacement, recorded_method, notes
 ) VALUES (
-    '$WorkerStaffId', '2026-10-23', 'morning', 'present',
+    '$WorkerStaffId', '2026-10-23', , 'present',
     '2026-10-23 06:00:00+07', '2026-10-23 12:00:00+07', 6.00,
     true, 'manual_pin', '$AuditMarker'
 ) RETURNING id;

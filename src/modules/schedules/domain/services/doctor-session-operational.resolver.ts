@@ -1,9 +1,6 @@
 import { SHIFT_EXCEPTION_TYPE } from '@modules/appointments/domain/constants/appointment-lifecycle.constants';
 import { ScheduleClosureReason } from '../entities/schedule.entity';
-import {
-  type SessionShiftType,
-  SHIFT_DEFINITIONS,
-} from '../factories/schedule-session.factory';
+import { type SessionShiftType } from '../factories/schedule-session.factory';
 
 interface DoctorSessionAssignmentContext {
   id: string;
@@ -108,25 +105,20 @@ export function resolveDoctorSessionOperability(
   const sessionDef = da.sessionDef;
   const isMasterDefActive = Boolean(sessionDef && sessionDef.isActive);
 
-  const shiftCode = (sessionDef?.code || 'morning') as SessionShiftType;
-  const shiftDef =
-    SHIFT_DEFINITIONS.find((sd) => sd.shift === shiftCode) ||
-    SHIFT_DEFINITIONS[1];
-
+  const shiftCode = (sessionDef?.code || '') as SessionShiftType;
   const sched = sessionDef?.schedules?.find((s) => s.dow === targetDow);
 
-  // Time resolution: weekly template schedule -> def default time -> shift boundary
+  // Time resolution: weekly template schedule -> def default time -> fallback to standard
   const rawStartTime =
-    sched?.startsAt ||
-    sessionDef?.defaultStartsAt ||
-    shiftDef.boundaryStartTime;
+    sched?.startsAt || sessionDef?.defaultStartsAt || '00:00';
   const rawEndTime =
-    sched?.endsAt || sessionDef?.defaultEndsAt || shiftDef.boundaryEndTime;
+    sched?.endsAt || sessionDef?.defaultEndsAt || '24:00';
   const startTime = rawStartTime.slice(0, 5);
   const endTime = rawEndTime.slice(0, 5);
 
-  // Label resolution
-  const sessionLabel = sessionDef?.code;
+  // Label resolution directly from sessionDef
+  const sessionLabel =
+    (sessionDef as any)?.label || sessionDef?.code || 'Sesi';
 
   // 1. Master definition inactive: Shift does not operate anywhere in the clinic
   if (!isMasterDefActive) {
