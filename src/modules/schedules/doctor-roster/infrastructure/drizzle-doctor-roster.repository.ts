@@ -149,14 +149,11 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
           ? roomMap.get(preferredRoomId) || null
           : null;
 
-        const sessionLabel = def.code;
-
         const isTemplateActive = d.isActive && Boolean(sched);
 
         return {
           sessionId: def.id,
           sessionCode: def.code,
-          sessionLabel,
           timeRange,
           isActive,
           isTemplateActive,

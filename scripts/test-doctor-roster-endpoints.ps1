@@ -70,7 +70,7 @@ $updateBody = @{
 
 $updateRes = Invoke-RestMethod -Uri "$baseUrl/schedules/my-roster" -Method Put -Headers $headers -Body $updateBody
 Write-Host " -> PUT my-roster SUCCESS (HTTP 200 OK)" -ForegroundColor Green
-Write-Host "    Updated session $($targetSession.sessionLabel) on $($firstDay.dayName) to isActive=$newStatus" -ForegroundColor Gray
+Write-Host "    Updated session $($targetSession.sessionCode) on $($firstDay.dayName) to isActive=$newStatus" -ForegroundColor Gray
 
 # 5. DELETE /schedules/my-roster (Reset Override to Clinic Template)
 Write-Host "`n[5/6] Testing DELETE /api/v1/schedules/my-roster (Reset to Template)..." -ForegroundColor Yellow

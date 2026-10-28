@@ -21,10 +21,6 @@ export class DoctorRosterSessionDto {
   @IsString()
   sessionCode: string;
 
-  @ApiProperty({ example: 'Sesi Pagi' })
-  @IsString()
-  sessionLabel: string;
-
   @ApiProperty({ example: '08:00 - 12:00' })
   @IsString()
   timeRange: string;

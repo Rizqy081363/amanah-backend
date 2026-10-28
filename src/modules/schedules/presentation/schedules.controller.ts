@@ -1,6 +1,7 @@
 import {
   type AuthenticatedUser,
   isAdminUser,
+  isStaffUser,
 } from '@common/auth';
 import { CurrentUser } from '@common/auth/current-user.decorator';
 import { HybridAuthGuard } from '@common/auth/hybrid-auth.guard';
@@ -56,11 +57,10 @@ import {
   type QueryScheduleInput,
   UpdateScheduleSchema,
   type UpdateScheduleInput,
+  UpdateDoctorRosterSchema,
+  type UpdateDoctorRosterInput,
 } from './schemas';
-import {
-  DoctorRosterOverviewResponse,
-  UpdateDoctorRosterDto,
-} from '../doctor-roster/domain/doctor-roster.entity';
+import { DoctorRosterOverviewResponse } from '../doctor-roster/domain/doctor-roster.entity';
 import {
   DOCTOR_ROSTER_REPOSITORY,
   DoctorRosterRepository,
@@ -131,12 +131,12 @@ export class SchedulesController {
       }
       return requestedStaffId;
     }
-    const doctorPractitionerId = user.staff?.practitionerId;
-    if (!doctorPractitionerId) {
+    if (!isStaffUser(user) || !user.staff.practitionerId) {
       throw new DomainForbiddenException(
         'User bukan praktisi medis dokter terdaftar',
       );
     }
+    const doctorPractitionerId = user.staff.practitionerId;
     if (requestedStaffId && requestedStaffId !== doctorPractitionerId) {
       throw new DomainForbiddenException(
         'Akses ditolak: Staf hanya dapat mengakses jadwal untuk akun sendiri',
@@ -250,7 +250,7 @@ export class SchedulesController {
   }
 
   @Put('my-roster')
-  @Roles(SYSTEM_ROLES.ADMIN)
+  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
   @ApiOperation({
     summary:
       'Memperbarui matriks roster mingguan dokter yang sedang login (Mobile App / Web)',
@@ -262,7 +262,7 @@ export class SchedulesController {
     description: 'Roster mingguan dokter berhasil diperbarui',
   })
   async updateMyRoster(
-    @Body() dto: UpdateDoctorRosterDto,
+    @Body(zodPipe(UpdateDoctorRosterSchema)) dto: UpdateDoctorRosterInput,
     @CurrentUser() user: AuthenticatedUser,
     @Query('staffId') staffIdQuery?: string,
   ): Promise<DoctorRosterOverviewResponse> {
@@ -272,7 +272,7 @@ export class SchedulesController {
   }
 
   @Delete('my-roster')
-  @Roles(SYSTEM_ROLES.ADMIN)
+  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
   @ApiOperation({
     summary:
       'Mereset roster mingguan dokter kembali ke template klinik (Mobile App / Web)',
