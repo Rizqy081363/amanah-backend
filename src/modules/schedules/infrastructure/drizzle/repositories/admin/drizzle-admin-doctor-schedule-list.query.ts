@@ -9,8 +9,10 @@ import {
   shiftExceptions,
   staffInvitations,
   staffLeaveRequests,
+  replacementOpportunities,
+  REPLACEMENT_OPPORTUNITY_STATUS,
+  ACTIVE_CLAIMED_REPLACEMENT_STATUSES,
 } from '@database/schema';
-import { replacementOpportunities } from '@database/schema/leave-payroll.schema';
 import {
   DEFAULT_CONSULTATION_DURATION_MINUTES,
   INACTIVE_APPOINTMENT_STATUSES,
@@ -140,6 +142,8 @@ export class DrizzleAdminDoctorScheduleListQuery {
         where: eq(replacementOpportunities.workDate, targetDate),
         with: {
           claimedByStaffProfile: true,
+          originalStaffProfile: true,
+          sessionDef: true,
         },
       }),
     ]);
@@ -267,6 +271,42 @@ export class DrizzleAdminDoctorScheduleListQuery {
         approvedLeave?.substituteNameSnapshot ||
         null;
 
+      const myClaimedReplacements = allReplacementOpportunities.filter(
+        (ro) =>
+          (ro.claimedByPractitionerId === p.id ||
+            ro.claimedByStaffProfileId === p.staffProfileId) &&
+          (ACTIVE_CLAIMED_REPLACEMENT_STATUSES as readonly string[]).includes(
+            ro.status,
+          ),
+      );
+
+      for (const rep of myClaimedReplacements) {
+        const alreadyInSessions = sessions.some(
+          (s: any) => s.id === rep.sessionId,
+        );
+        if (!alreadyInSessions && rep.sessionDef) {
+          const sStart =
+            rep.sessionDef.defaultStartsAt?.slice(0, 5) || '00:00';
+          const sEnd = rep.sessionDef.defaultEndsAt?.slice(0, 5) || '24:00';
+          sessions.push({
+            id: rep.sessionDef.id,
+            sessionCode: rep.sessionDef.code,
+            practitionerId: p.id,
+            scheduleDate: targetDate,
+            startTime: sStart,
+            endTime: sEnd,
+            sessionShift: rep.sessionDef.code,
+            sessionLabel: rep.sessionDef.label || rep.sessionDef.code,
+            status: 'open',
+            clinicRoom: p.clinicRoom,
+            notes: `Dinas Pengganti: menggantikan ${rep.originalStaffProfile?.fullName || 'rekan'}`,
+            isReplacement: true,
+            replacedStaffName: rep.originalStaffProfile?.fullName || null,
+          });
+        }
+      }
+      sessions.sort((a: any, b: any) => a.startTime.localeCompare(b.startTime));
+
       const defaultRoomName = p.clinicRoom
         ? `${p.clinicRoom.name}${p.clinicRoom.location ? `, ${p.clinicRoom.location}` : ''}`
         : '';
@@ -298,10 +338,16 @@ export class DrizzleAdminDoctorScheduleListQuery {
           ? `${s.clinicRoom.name}${s.clinicRoom.location ? `, ${s.clinicRoom.location}` : ''}`
           : defaultRoomName;
 
-        const sessionOpStatus = resolveSessionOperationalStatus({
-          isClosedForLeave: isOnLeave,
-          persistedStatus: s.status,
-        });
+        const repCoverage = myClaimedReplacements.find(
+          (ro) => ro.sessionId === s.id,
+        );
+
+        const sessionOpStatus = repCoverage
+          ? ScheduleOperationalStatus.REPLACEMENT
+          : resolveSessionOperationalStatus({
+              isClosedForLeave: isOnLeave,
+              persistedStatus: s.status,
+            });
 
         let closureReason: ScheduleClosureReason | null = null;
         if (sessionOpStatus === ScheduleOperationalStatus.CLOSED) {
@@ -316,16 +362,19 @@ export class DrizzleAdminDoctorScheduleListQuery {
 
         const isRescheduleEligible =
           !isOnLeave &&
+          sessionOpStatus !== ScheduleOperationalStatus.REPLACEMENT &&
           closureReason !== ScheduleClosureReason.SHIFT_ENDED &&
           closureReason !== ScheduleClosureReason.DOCTOR_LEAVE &&
           closureReason !== ScheduleClosureReason.ADMIN_OVERRIDE;
         const rescheduleIneligibilityReason = isOnLeave
           ? 'Sesi tidak dapat di-reschedule karena dokter sedang cuti.'
-          : closureReason === ScheduleClosureReason.SHIFT_ENDED
-            ? 'Sesi praktik telah berakhir untuk hari ini.'
-            : closureReason === ScheduleClosureReason.ADMIN_OVERRIDE
-              ? 'Sesi berstatus Tutup. Sesi yang sudah ditutup tidak dapat di-reschedule. Silakan gunakan menu Edit Jadwal untuk membuka sesi.'
-              : null;
+          : sessionOpStatus === ScheduleOperationalStatus.REPLACEMENT
+            ? 'Sesi ini adalah dinas pengganti dan tidak dapat di-reschedule.'
+            : closureReason === ScheduleClosureReason.SHIFT_ENDED
+              ? 'Sesi praktik telah berakhir untuk hari ini.'
+              : closureReason === ScheduleClosureReason.ADMIN_OVERRIDE
+                ? 'Sesi berstatus Tutup. Sesi yang sudah ditutup tidak dapat di-reschedule. Silakan gunakan menu Edit Jadwal untuk membuka sesi.'
+                : null;
 
         return {
           id: s.id,
@@ -340,6 +389,11 @@ export class DrizzleAdminDoctorScheduleListQuery {
           roomId: s.roomId || null,
           isRescheduleEligible: isRescheduleEligible,
           rescheduleIneligibilityReason: rescheduleIneligibilityReason,
+          isReplacement: Boolean(repCoverage || s.isReplacement),
+          replacedStaffName:
+            repCoverage?.originalStaffProfile?.fullName ||
+            s.replacedStaffName ||
+            null,
           date: targetDate,
         };
       });
@@ -358,11 +412,12 @@ export class DrizzleAdminDoctorScheduleListQuery {
           (s) =>
             clinicNowTimeStr >= s.startTime &&
             clinicNowTimeStr < s.endTime &&
-            s.sessionStatus === ScheduleOperationalStatus.OPEN,
+            (s.sessionStatus === ScheduleOperationalStatus.OPEN ||
+              s.sessionStatus === ScheduleOperationalStatus.REPLACEMENT),
         );
         effectiveOpStatus = liveSession
-          ? ScheduleOperationalStatus.OPEN
-          : ScheduleOperationalStatus.CLOSED;
+          ? liveSession.sessionStatus
+          : aggregateOpStatus;
       }
 
       const isClosed = effectiveOpStatus === ScheduleOperationalStatus.CLOSED;

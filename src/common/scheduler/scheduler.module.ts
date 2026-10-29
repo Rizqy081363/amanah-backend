@@ -4,6 +4,7 @@ import { ClinicConfigModule } from '../clinic-config/clinic-config.module';
 import { RedisModule } from '../redis/redis.module';
 import { CronSchedulerAdapter } from './cron-scheduler.adapter';
 import { SCHEDULER_PORT } from './scheduler.constants';
+import { AdminSchedulerController } from './presentation/admin-scheduler.controller';
 
 @Global()
 @Module({
@@ -12,6 +13,7 @@ import { SCHEDULER_PORT } from './scheduler.constants';
     ClinicConfigModule,
     RedisModule,
   ],
+  controllers: [AdminSchedulerController],
   providers: [
     CronSchedulerAdapter,
     {

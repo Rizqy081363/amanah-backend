@@ -10,6 +10,7 @@ export enum ScheduleOperationalStatus {
   CLOSED = 'CLOSED',
   PENDING = 'PENDING',
   ON_LEAVE = 'ON_LEAVE',
+  REPLACEMENT = 'REPLACEMENT',
 }
 
 export enum ScheduleClosureReason {
@@ -52,6 +53,8 @@ export class ScheduleEntity {
   updatedAt: Date;
   doctorId?: string;
   practitionerId?: string;
+  isReplacement?: boolean;
+  replacedStaffName?: string | null;
   isRescheduleEligible?: boolean;
   rescheduleIneligibilityReason?: string | null;
   sessionId?: string | null;
@@ -281,6 +284,12 @@ export class AdminDoctorDailySession {
     example: true,
   })
   isRescheduleEligible: boolean;
+
+  @ApiPropertyOptional({ description: 'Flag apakah sesi ini merupakan dinas pengganti' })
+  isReplacement?: boolean;
+
+  @ApiPropertyOptional({ description: 'Nama staf yang digantikan' })
+  replacedStaffName?: string | null;
 
   @ApiProperty({
     description:

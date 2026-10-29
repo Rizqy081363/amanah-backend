@@ -58,6 +58,8 @@ export type ScheduleRecordMapperInput = {
   practitioner?: PractitionerRecord | null;
   clinicRoom?: ClinicRoomRecord | null;
   clinicService?: ClinicServiceRecord | null;
+  isReplacement?: boolean;
+  replacedStaffName?: string | null;
 };
 
 const RESCHEDULE_CLOSED_REASON =
@@ -81,11 +83,15 @@ function mapScheduleRecordToEntity(
       ? `${startTimeFormatted} - ${endTimeFormatted} WIB`
       : undefined;
 
-  const operationalStatus = resolveSessionOperationalStatus({
-    isClosedForLeave: false,
-    persistedStatus: record.status,
-  });
-  const isAvailable = operationalStatus === ScheduleOperationalStatus.OPEN;
+  const operationalStatus = record.isReplacement
+    ? ScheduleOperationalStatus.REPLACEMENT
+    : resolveSessionOperationalStatus({
+        isClosedForLeave: false,
+        persistedStatus: record.status,
+      });
+  const isAvailable =
+    operationalStatus === ScheduleOperationalStatus.OPEN ||
+    operationalStatus === ScheduleOperationalStatus.REPLACEMENT;
 
   const now = new Date();
   const wibTime = new Date(
@@ -98,11 +104,15 @@ function mapScheduleRecordToEntity(
   const endMinutes = endTimeFormatted ? parseClockTime(endTimeFormatted) : 1440;
   const isPast = isPastDate || (isToday && endMinutes <= currentMinutes);
 
-  let effectiveStatus = ScheduleOperationalStatus.OPEN;
-  let statusBadge = ScheduleOperationalStatus.OPEN;
-  let badgeVariant = 'success';
+  let effectiveStatus = record.isReplacement
+    ? ScheduleOperationalStatus.REPLACEMENT
+    : ScheduleOperationalStatus.OPEN;
+  let statusBadge = record.isReplacement
+    ? ScheduleOperationalStatus.REPLACEMENT
+    : ScheduleOperationalStatus.OPEN;
+  let badgeVariant = record.isReplacement ? 'trend' : 'success';
 
-  if (!isAvailable || isPast) {
+  if (!record.isReplacement && (!isAvailable || isPast)) {
     effectiveStatus = ScheduleOperationalStatus.CLOSED;
     statusBadge = ScheduleOperationalStatus.CLOSED;
     badgeVariant = 'warning';
@@ -154,10 +164,14 @@ function mapScheduleRecordToEntity(
     doctorId:
       record.practitionerId || record.practitioner?.staffProfileId || undefined,
     practitionerId: record.practitionerId,
-    isRescheduleEligible: isAvailable,
+    isReplacement: record.isReplacement ?? false,
+    replacedStaffName: record.replacedStaffName ?? null,
+    isRescheduleEligible: isAvailable && !record.isReplacement,
     rescheduleIneligibilityReason: !isAvailable
       ? RESCHEDULE_CLOSED_REASON
-      : null,
+      : record.isReplacement
+        ? 'Dinas pengganti tidak dapat di-reschedule secara manual'
+        : null,
     version: generateEntityVersion(record.updatedAt),
   };
 }

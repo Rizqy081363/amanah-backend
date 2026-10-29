@@ -93,12 +93,19 @@ export function resolveAggregateOperationalStatus(params: {
     return ScheduleOperationalStatus.CLOSED;
   }
 
-  if (
-    params.sessionStatuses.some(
-      (status) => status === ScheduleOperationalStatus.OPEN,
-    )
-  ) {
+  const hasReplacement = params.sessionStatuses.some(
+    (status) => status === ScheduleOperationalStatus.REPLACEMENT,
+  );
+  const hasOpen = params.sessionStatuses.some(
+    (status) => status === ScheduleOperationalStatus.OPEN,
+  );
+
+  if (hasOpen) {
     return ScheduleOperationalStatus.OPEN;
+  }
+
+  if (hasReplacement) {
+    return ScheduleOperationalStatus.REPLACEMENT;
   }
 
   return ScheduleOperationalStatus.CLOSED;

@@ -1,4 +1,6 @@
 import { ClinicConfigService } from '@common/clinic-config';
+import { ClinicTimeService } from '@common/time/clinic-time.service';
+import { ISchedulerPort, SCHEDULER_PORT } from '@common/scheduler';
 import { RedisService } from '@common/redis/redis.service';
 import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
@@ -122,6 +124,11 @@ export class DrizzleAdminScheduleConfigurationRepository {
     @Optional()
     @Inject(RedisService)
     private readonly redisService?: RedisService,
+    @Optional()
+    @Inject(SCHEDULER_PORT)
+    private readonly scheduler?: ISchedulerPort,
+    @Optional()
+    private readonly clinicTimeService?: ClinicTimeService,
   ) {}
 
   private async invalidateCaches(): Promise<void> {
@@ -489,7 +496,9 @@ export class DrizzleAdminScheduleConfigurationRepository {
     executor: any = this.db,
   ): Promise<void> {
     if (!settings || settings.length === 0) return;
-    const now = new Date().toISOString();
+    const now = this.clinicTimeService
+      ? this.clinicTimeService.nowDate().toISOString()
+      : new Date().toISOString();
 
     for (const item of settings) {
       await executor
@@ -499,6 +508,18 @@ export class DrizzleAdminScheduleConfigurationRepository {
           updatedAt: now,
         })
         .where(eq(clinicSettings.key, item.key));
+
+      if (
+        item.key === 'replacement.cleanup_cron_expression' &&
+        typeof item.value === 'string' &&
+        this.scheduler
+      ) {
+        try {
+          await this.scheduler.rescheduleJob('replacement_cleanup', item.value);
+        } catch {
+          // safe fallback
+        }
+      }
     }
     if (executor === this.db) {
       await this.invalidateCaches();
@@ -519,7 +540,9 @@ export class DrizzleAdminScheduleConfigurationRepository {
         await this.updateClinicSettings(dto.clinicSettings, tx);
       }
       if (dto.operatingDays && dto.operatingDays.length > 0) {
-        const now = new Date().toISOString();
+        const now = this.clinicTimeService
+          ? this.clinicTimeService.nowDate().toISOString()
+          : new Date().toISOString();
         for (const item of dto.operatingDays) {
           await tx
             .update(masterDays)
@@ -1085,7 +1108,9 @@ export class DrizzleAdminScheduleConfigurationRepository {
           .from(sessionDefs)
           .where(ne(sessionDefs.id, id));
         const chronologicalRemaining = reassignChronologicalSortOrders(remaining);
-        const now = new Date().toISOString();
+        const now = this.clinicTimeService
+          ? this.clinicTimeService.nowDate().toISOString()
+          : new Date().toISOString();
         for (const s of chronologicalRemaining) {
           if (s.id) {
             await tx

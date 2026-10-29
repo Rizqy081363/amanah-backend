@@ -196,18 +196,24 @@ export function buildDailySessions(
       ? `${s.clinicRoom.name}${s.clinicRoom.location ? `, ${s.clinicRoom.location}` : ''}`
       : defaultRoomName;
 
-    const sessionOpStatus = resolveSessionOperationalStatus({
-      isClosedForLeave: isOnLeave,
-      persistedStatus: s.status,
-    });
+    const sessionOpStatus = (s as any).isReplacement
+      ? ScheduleOperationalStatus.REPLACEMENT
+      : resolveSessionOperationalStatus({
+          isClosedForLeave: isOnLeave,
+          persistedStatus: s.status,
+        });
 
     const isRescheduleEligible =
-      !isOnLeave && sessionOpStatus !== ScheduleOperationalStatus.CLOSED;
+      !isOnLeave &&
+      sessionOpStatus !== ScheduleOperationalStatus.CLOSED &&
+      sessionOpStatus !== ScheduleOperationalStatus.REPLACEMENT;
     const rescheduleIneligibilityReason = isOnLeave
       ? 'Sesi tidak dapat di-reschedule karena dokter sedang cuti.'
-      : sessionOpStatus === ScheduleOperationalStatus.CLOSED
-        ? 'Sesi berstatus Tutup. Sesi yang sudah ditutup tidak dapat di-reschedule. Silakan gunakan menu Edit Jadwal untuk membuka sesi.'
-        : null;
+      : sessionOpStatus === ScheduleOperationalStatus.REPLACEMENT
+        ? 'Sesi ini adalah dinas pengganti dan tidak dapat di-reschedule.'
+        : sessionOpStatus === ScheduleOperationalStatus.CLOSED
+          ? 'Sesi berstatus Tutup. Sesi yang sudah ditutup tidak dapat di-reschedule. Silakan gunakan menu Edit Jadwal untuk membuka sesi.'
+          : null;
     const sessionTitle = s.sessionLabel;
 
     let closureReason: ScheduleClosureReason | null = null;
@@ -230,6 +236,8 @@ export function buildDailySessions(
       roomId: s.roomId || null,
       isRescheduleEligible: isRescheduleEligible,
       rescheduleIneligibilityReason: rescheduleIneligibilityReason,
+      isReplacement: Boolean((s as any).isReplacement),
+      replacedStaffName: (s as any).replacedStaffName || null,
       date: s.scheduleDate || scheduleDate || currentDate || '',
     };
   });

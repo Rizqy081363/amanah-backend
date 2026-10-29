@@ -10,11 +10,17 @@ import {
 import { and, asc, desc, eq, gte, inArray, lte } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
-import { practitioners, staffProfiles } from '../../../../database/schema';
-import { replacementOpportunities } from '../../../../database/schema/leave-payroll.schema';
+import {
+  practitioners,
+  staffProfiles,
+  replacementOpportunities,
+  REPLACEMENT_OPPORTUNITY_STATUS,
+} from '../../../../database/schema';
 import { STAFF_TYPES } from '../../../../common/constants/staff-types.constant';
 import { ClinicTimeService } from '../../../../common/time/clinic-time.service';
 import { NotificationGatewayService } from '../../../notifications/application/services/notification-gateway.service';
+import { RealtimeGatewayPort } from '../../../notifications/contracts/realtime-gateway.interface';
+import { REALTIME_GATEWAY_PORT } from '../../../notifications/notifications.constants';
 import { ReplacementOpportunityEntity } from '../../domain/entities/replacement-opportunity.entity';
 import {
   type ReplacementDateFacetItem,
@@ -34,6 +40,9 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
     private readonly clinicTimeService: ClinicTimeService,
     @Optional()
     private readonly notificationGateway?: NotificationGatewayService,
+    @Optional()
+    @Inject(REALTIME_GATEWAY_PORT)
+    private readonly realtimeGateway?: RealtimeGatewayPort,
   ) {}
 
   private mapOpportunity(r: any): ReplacementOpportunityEntity {
@@ -54,6 +63,7 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
         r.originalStaffProfile?.positionTitle ||
         r.originalStaffProfile?.staffType ||
         null,
+      originalStaffType: r.originalStaffProfile?.staffType || null,
       originalStaffAvatarUrl: r.originalStaffProfile?.avatarUrl || null,
       leaveReason: r.leaveRequest?.reason || null,
       claimedByStaffProfileId: r.claimedByStaffProfileId || null,
@@ -94,7 +104,10 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
       conditions.push(lte(replacementOpportunities.workDate, filters.endDate));
     } else if (filters?.date && filters.date !== 'all') {
       conditions.push(gte(replacementOpportunities.workDate, filters.date));
-    } else if (!filters?.date && filters?.status === 'open') {
+    } else if (
+      !filters?.date &&
+      filters?.status === REPLACEMENT_OPPORTUNITY_STATUS.OPEN
+    ) {
       // Mobile app default for open opportunities: upcoming/today only
       const todayStr = this.clinicTimeService.today();
       conditions.push(gte(replacementOpportunities.workDate, todayStr));
@@ -143,7 +156,10 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
   async findOpenOpportunities(
     date?: string,
   ): Promise<ReplacementOpportunityEntity[]> {
-    return this.findOpportunities({ date, status: 'open' });
+    return this.findOpportunities({
+      date,
+      status: REPLACEMENT_OPPORTUNITY_STATUS.OPEN,
+    });
   }
 
   async getReplacementFacets(): Promise<ReplacementFacetsEntity> {
@@ -151,7 +167,10 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
 
     const openRecords = await this.db.query.replacementOpportunities.findMany({
       where: and(
-        eq(replacementOpportunities.status, 'open'),
+        eq(
+          replacementOpportunities.status,
+          REPLACEMENT_OPPORTUNITY_STATUS.OPEN,
+        ),
         gte(replacementOpportunities.workDate, todayStr),
       ),
       with: {
@@ -229,7 +248,10 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
     const candidateRecords =
       await this.db.query.replacementOpportunities.findMany({
         where: and(
-          eq(replacementOpportunities.status, 'open'),
+          eq(
+            replacementOpportunities.status,
+            REPLACEMENT_OPPORTUNITY_STATUS.OPEN,
+          ),
           lte(replacementOpportunities.workDate, todayStr),
         ),
         with: {
@@ -257,12 +279,24 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
     const updated = await this.db
       .update(replacementOpportunities)
       .set({
-        status: 'cancelled',
+        status: REPLACEMENT_OPPORTUNITY_STATUS.CANCELLED,
         notes: 'System: Expired unclaimed replacement opportunity',
         updatedAt: new Date().toISOString(),
       })
       .where(inArray(replacementOpportunities.id, expiredIds))
       .returning({ id: replacementOpportunities.id });
+
+    void Promise.allSettled([
+      this.realtimeGateway?.emitToRoom?.('room:clinic', 'replacement:updated', {
+        status: REPLACEMENT_OPPORTUNITY_STATUS.CANCELLED,
+      }),
+      this.realtimeGateway?.emitToRole?.('admin', 'replacement:updated', {
+        status: REPLACEMENT_OPPORTUNITY_STATUS.CANCELLED,
+      }),
+      this.realtimeGateway?.emitToRole?.('staf', 'replacement:updated', {
+        status: REPLACEMENT_OPPORTUNITY_STATUS.CANCELLED,
+      }),
+    ]);
 
     this.logger.log(
       `[Cleanup] Automatically expired and cancelled ${updated.length} past replacement opportunities.`,
@@ -314,12 +348,30 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
         workDate: data.workDate,
         originalStaffProfileId: data.originalStaffProfileId,
         originalPractitionerId: data.originalPractitionerId || null,
-        status: 'open',
+        status: REPLACEMENT_OPPORTUNITY_STATUS.OPEN,
         notes: data.notes || null,
       })
       .returning();
 
     void this.dispatchNewOpportunityNotification(inserted.id, data.workDate);
+
+    void Promise.allSettled([
+      this.realtimeGateway?.emitToRoom?.('room:clinic', 'replacement:updated', {
+        opportunityId: inserted.id,
+        status: REPLACEMENT_OPPORTUNITY_STATUS.OPEN,
+        workDate: data.workDate,
+      }),
+      this.realtimeGateway?.emitToRole?.('admin', 'replacement:updated', {
+        opportunityId: inserted.id,
+        status: REPLACEMENT_OPPORTUNITY_STATUS.OPEN,
+        workDate: data.workDate,
+      }),
+      this.realtimeGateway?.emitToRole?.('staf', 'replacement:updated', {
+        opportunityId: inserted.id,
+        status: REPLACEMENT_OPPORTUNITY_STATUS.OPEN,
+        workDate: data.workDate,
+      }),
+    ]);
 
     return this.mapOpportunity(inserted);
   }
@@ -345,7 +397,7 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
       );
     }
 
-    if (existing.status !== 'open') {
+    if (existing.status !== REPLACEMENT_OPPORTUNITY_STATUS.OPEN) {
       throw new ConflictException(
         'Peluang pengganti ini sudah diambil oleh rekan lain atau tidak lagi terbuka',
       );
@@ -362,6 +414,12 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
 
     if (!claimingStaff) {
       throw new NotFoundException('Profil staf pengklaim tidak ditemukan');
+    }
+
+    if (claimingStaff.status !== 'active') {
+      throw new BadRequestException(
+        'Hanya staf berstatus aktif yang dapat mengklaim jadwal pengganti',
+      );
     }
 
     const isOriginalClinical =
@@ -397,7 +455,7 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
     const [updated] = await this.db
       .update(replacementOpportunities)
       .set({
-        status: 'claimed',
+        status: REPLACEMENT_OPPORTUNITY_STATUS.CLAIMED,
         claimedByStaffProfileId: staffProfileId,
         claimedByPractitionerId: resolvedPractitionerId,
         claimedAt: new Date().toISOString(),
@@ -406,7 +464,10 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
       .where(
         and(
           eq(replacementOpportunities.id, opportunityId),
-          eq(replacementOpportunities.status, 'open'),
+          eq(
+            replacementOpportunities.status,
+            REPLACEMENT_OPPORTUNITY_STATUS.OPEN,
+          ),
         ),
       )
       .returning();
@@ -418,6 +479,31 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
     }
 
     void this.dispatchClaimNotifications(opportunityId);
+
+    void Promise.allSettled([
+      this.realtimeGateway?.emitToRoom?.('room:clinic', 'replacement:updated', {
+        opportunityId,
+        status: REPLACEMENT_OPPORTUNITY_STATUS.CLAIMED,
+        workDate: updated.workDate,
+      }),
+      this.realtimeGateway?.emitToRole?.('admin', 'replacement:updated', {
+        opportunityId,
+        status: REPLACEMENT_OPPORTUNITY_STATUS.CLAIMED,
+        workDate: updated.workDate,
+      }),
+      this.realtimeGateway?.emitToRole?.('staf', 'replacement:updated', {
+        opportunityId,
+        status: REPLACEMENT_OPPORTUNITY_STATUS.CLAIMED,
+        workDate: updated.workDate,
+      }),
+      this.realtimeGateway?.emitToRoom?.(
+        'room:clinic',
+        'doctor_schedule:refresh',
+        {
+          date: updated.workDate,
+        },
+      ),
+    ]);
 
     return this.mapOpportunity(updated);
   }
@@ -444,13 +530,13 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
       );
     }
 
-    if (existing.status === 'completed') {
+    if (existing.status === REPLACEMENT_OPPORTUNITY_STATUS.COMPLETED) {
       throw new ConflictException(
         'Sesi pengganti ini telah selesai dilaksanakan dan tidak dapat diubah',
       );
     }
 
-    if (existing.status === 'cancelled') {
+    if (existing.status === REPLACEMENT_OPPORTUNITY_STATUS.CANCELLED) {
       throw new ConflictException('Sesi pengganti ini telah dibatalkan');
     }
 
@@ -465,6 +551,12 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
 
     if (!targetStaff) {
       throw new NotFoundException('Profil staf pengganti tidak ditemukan');
+    }
+
+    if (targetStaff.status !== 'active') {
+      throw new BadRequestException(
+        'Hanya staf berstatus aktif yang dapat ditugaskan sebagai pengganti',
+      );
     }
 
     const isOriginalClinical =
@@ -499,7 +591,7 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
     const [updated] = await this.db
       .update(replacementOpportunities)
       .set({
-        status: 'claimed',
+        status: REPLACEMENT_OPPORTUNITY_STATUS.CLAIMED,
         claimedByStaffProfileId: staffProfileId,
         claimedByPractitionerId: resolvedPractitionerId,
         claimedAt: new Date().toISOString(),
@@ -514,6 +606,31 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
     }
 
     void this.dispatchClaimNotifications(opportunityId);
+
+    void Promise.allSettled([
+      this.realtimeGateway?.emitToRoom?.('room:clinic', 'replacement:updated', {
+        opportunityId,
+        status: REPLACEMENT_OPPORTUNITY_STATUS.CLAIMED,
+        workDate: updated.workDate,
+      }),
+      this.realtimeGateway?.emitToRole?.('admin', 'replacement:updated', {
+        opportunityId,
+        status: REPLACEMENT_OPPORTUNITY_STATUS.CLAIMED,
+        workDate: updated.workDate,
+      }),
+      this.realtimeGateway?.emitToRole?.('staf', 'replacement:updated', {
+        opportunityId,
+        status: REPLACEMENT_OPPORTUNITY_STATUS.CLAIMED,
+        workDate: updated.workDate,
+      }),
+      this.realtimeGateway?.emitToRoom?.(
+        'room:clinic',
+        'doctor_schedule:refresh',
+        {
+          date: updated.workDate,
+        },
+      ),
+    ]);
 
     const fullRecord = await this.db.query.replacementOpportunities.findFirst({
       where: eq(replacementOpportunities.id, opportunityId),
@@ -552,7 +669,7 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
       throw new NotFoundException('Peluang pengganti tidak ditemukan');
     }
 
-    if (existing.status === 'completed') {
+    if (existing.status === REPLACEMENT_OPPORTUNITY_STATUS.COMPLETED) {
       throw new ConflictException(
         'Sesi dinas pengganti yang telah selesai tidak dapat dibatalkan',
       );
@@ -561,7 +678,7 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
     const [updated] = await this.db
       .update(replacementOpportunities)
       .set({
-        status: 'cancelled',
+        status: REPLACEMENT_OPPORTUNITY_STATUS.CANCELLED,
         updatedAt: new Date().toISOString(),
         notes: reason
           ? `Dibatalkan admin: ${reason}`
@@ -573,6 +690,31 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
     if (!updated) {
       throw new NotFoundException('Gagal membatalkan peluang pengganti');
     }
+
+    void Promise.allSettled([
+      this.realtimeGateway?.emitToRoom?.('room:clinic', 'replacement:updated', {
+        opportunityId,
+        status: REPLACEMENT_OPPORTUNITY_STATUS.CANCELLED,
+        workDate: updated.workDate,
+      }),
+      this.realtimeGateway?.emitToRole?.('admin', 'replacement:updated', {
+        opportunityId,
+        status: REPLACEMENT_OPPORTUNITY_STATUS.CANCELLED,
+        workDate: updated.workDate,
+      }),
+      this.realtimeGateway?.emitToRole?.('staf', 'replacement:updated', {
+        opportunityId,
+        status: REPLACEMENT_OPPORTUNITY_STATUS.CANCELLED,
+        workDate: updated.workDate,
+      }),
+      this.realtimeGateway?.emitToRoom?.(
+        'room:clinic',
+        'doctor_schedule:refresh',
+        {
+          date: updated.workDate,
+        },
+      ),
+    ]);
 
     const fullRecord = await this.db.query.replacementOpportunities.findFirst({
       where: eq(replacementOpportunities.id, opportunityId),
@@ -617,7 +759,7 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
           actionUrl: '/permission',
           data: {
             opportunityId,
-            status: 'open',
+            status: REPLACEMENT_OPPORTUNITY_STATUS.OPEN,
             workDate,
           },
         },
@@ -674,7 +816,7 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
             data: {
               opportunityId: opp.id,
               leaveRequestId: opp.leaveRequestId,
-              status: 'claimed',
+              status: REPLACEMENT_OPPORTUNITY_STATUS.CLAIMED,
               claimedByName,
               workDate: dateStr,
             },
@@ -700,7 +842,7 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
           data: {
             opportunityId: opp.id,
             leaveRequestId: opp.leaveRequestId,
-            status: 'claimed',
+            status: REPLACEMENT_OPPORTUNITY_STATUS.CLAIMED,
             claimedByName,
             originalStaffName,
             workDate: dateStr,
@@ -727,7 +869,7 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
             data: {
               opportunityId: opp.id,
               leaveRequestId: opp.leaveRequestId,
-              status: 'claimed',
+              status: REPLACEMENT_OPPORTUNITY_STATUS.CLAIMED,
               workDate: dateStr,
             },
           },

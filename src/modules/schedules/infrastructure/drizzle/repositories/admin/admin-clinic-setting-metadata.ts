@@ -502,6 +502,26 @@ const CLINIC_SETTING_METADATA_REGISTRY: Record<
       { label: 'Maksimal 1 Kali per Hari (Jika beruntun)', value: 'per_day' },
     ],
   },
+  'replacement.auto_expire_hours_before_shift': {
+    isAdminFacing: true,
+    category: 'attendance',
+    label: 'Batas Kedaluwarsa Otomatis Peluang Pengganti',
+    description:
+      'Jumlah jam sebelum sesi dimulai di mana peluang dinas pengganti yang belum diklaim akan otomatis ditutup/dibatalkan oleh sistem.',
+    controlType: 'number',
+    unit: 'jam',
+    min: 0,
+    max: 24,
+    step: 1,
+  },
+  'replacement.cleanup_cron_expression': {
+    isAdminFacing: true,
+    category: 'attendance',
+    label: 'Ekspresi Cron Pembersihan Jadwal Pengganti',
+    description:
+      'Jadwal interval berkala (cron) untuk mengeksekusi pembersihan otomatis peluang pengganti (contoh: 0 * * * * untuk tiap jam).',
+    controlType: 'text',
+  },
   'feature.legacy_compat': {
     isAdminFacing: false,
     category: 'general',

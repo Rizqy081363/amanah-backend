@@ -8,16 +8,21 @@ import {
   staffLeaveRequests,
   staffProfiles,
   staffRosters,
+  replacementOpportunities,
+  ACTIVE_CLAIMED_REPLACEMENT_STATUSES,
 } from '@database/schema';
 import { SHIFT_EXCEPTION_TYPE } from '@modules/appointments/domain/constants/appointment-lifecycle.constants';
-import type { ScheduleEntity } from '@modules/schedules/domain/entities/schedule.entity';
+import {
+  ScheduleOperationalStatus,
+  type ScheduleEntity,
+} from '@modules/schedules/domain/entities/schedule.entity';
 import type { SessionShiftType } from '@modules/schedules/domain/factories/schedule-session.factory';
 import { SchedulePersistenceStatus } from '@modules/schedules/domain/schedule-status';
 import { parseTimeToMinutes } from '@modules/schedules/domain/services/shift-duration.helper';
 import { ScheduleRecordMapper } from '@modules/schedules/infrastructure/drizzle/mappers/schedule-record.mapper';
 import { PractitionerResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/practitioner.resolver';
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, gte, lte } from 'drizzle-orm';
+import { and, eq, gte, inArray, lte, or } from 'drizzle-orm';
 
 export interface DoctorMySchedulesFilter {
   date?: string;
@@ -65,7 +70,12 @@ export class DoctorMySchedulesQuery {
     }
     const targetId = practitioner.id;
 
-    const [assignments, exceptions, templateSchedules] = await Promise.all([
+    const [
+      assignments,
+      exceptions,
+      templateSchedules,
+      claimedReplacements,
+    ] = await Promise.all([
       this.db.query.doctorAssignments.findMany({
         where: eq(doctorAssignments.doctorId, targetId),
         with: {
@@ -95,6 +105,25 @@ export class DoctorMySchedulesQuery {
         where: eq(sessionSchedules.isActive, true),
         with: {
           sessionDef: true,
+        },
+      }),
+      this.db.query.replacementOpportunities.findMany({
+        where: and(
+          or(
+            eq(replacementOpportunities.claimedByPractitionerId, targetId),
+            eq(replacementOpportunities.claimedByStaffProfileId, staffId),
+          ),
+          gte(replacementOpportunities.workDate, startDate),
+          lte(replacementOpportunities.workDate, endDate),
+          inArray(replacementOpportunities.status, [
+            ...ACTIVE_CLAIMED_REPLACEMENT_STATUSES,
+          ]),
+        ),
+        with: {
+          sessionDef: {
+            with: { schedules: true },
+          },
+          originalStaffProfile: true,
         },
       }),
     ]);
@@ -197,6 +226,64 @@ export class DoctorMySchedulesQuery {
           }),
         );
       }
+
+      const dayReplacements = claimedReplacements.filter(
+        (ro) => ro.workDate === curDateStr,
+      );
+
+      for (const rep of dayReplacements) {
+        const existing = results.find(
+          (s) =>
+            s.scheduleDate === curDateStr && s.sessionId === rep.sessionId,
+        );
+        if (existing) {
+          existing.status = ScheduleOperationalStatus.REPLACEMENT;
+          existing.effectiveStatus = ScheduleOperationalStatus.REPLACEMENT;
+          existing.statusBadge = ScheduleOperationalStatus.REPLACEMENT;
+          existing.badgeVariant = 'trend';
+          existing.isAvailable = true;
+          existing.isPast = false;
+          existing.isReplacement = true;
+          existing.replacedStaffName =
+            rep.originalStaffProfile?.fullName || null;
+          existing.notes = `Dinas Pengganti: menggantikan ${rep.originalStaffProfile?.fullName || 'rekan'}`;
+          existing.isRescheduleEligible = false;
+          existing.rescheduleIneligibilityReason =
+            'Dinas pengganti tidak dapat di-reschedule secara manual';
+        } else if (rep.sessionDef) {
+          const sched = rep.sessionDef.schedules?.find(
+            (s) => s.dow === curDow && s.isActive,
+          );
+          const startTime =
+            sched?.startsAt || rep.sessionDef.defaultStartsAt || '00:00';
+          const endTime =
+            sched?.endsAt || rep.sessionDef.defaultEndsAt || '23:59';
+
+          results.push(
+            ScheduleRecordMapper.toEntity({
+              id: rep.id,
+              sessionId: rep.sessionId,
+              practitionerId: targetId,
+              scheduleDate: curDateStr,
+              sessionLabel: rep.sessionDef.label,
+              sessionShift: rep.sessionDef.code as SessionShiftType,
+              startTime,
+              endTime,
+              roomId: practitioner.defaultRoomId || null,
+              serviceId: null,
+              status: ScheduleOperationalStatus.OPEN,
+              notes: `Dinas Pengganti: menggantikan ${rep.originalStaffProfile?.fullName || 'rekan'}`,
+              createdAt: rep.createdAt,
+              updatedAt: rep.updatedAt,
+              practitioner,
+              clinicRoom: null,
+              clinicService: null,
+              isReplacement: true,
+              replacedStaffName: rep.originalStaffProfile?.fullName || null,
+            }),
+          );
+        }
+      }
     }
 
     if (results.length > 1) {
@@ -211,7 +298,12 @@ export class DoctorMySchedulesQuery {
     startDate: string,
     endDate: string,
   ): Promise<ScheduleEntity[]> {
-    const [workerRosters, approvedLeaves, templateSchedules] = await Promise.all([
+    const [
+      workerRosters,
+      approvedLeaves,
+      templateSchedules,
+      workerReplacements,
+    ] = await Promise.all([
       this.db.query.staffRosters.findMany({
         where: eq(staffRosters.staffProfileId, staffProfile.id),
         with: {
@@ -232,6 +324,22 @@ export class DoctorMySchedulesQuery {
         where: eq(sessionSchedules.isActive, true),
         with: {
           sessionDef: true,
+        },
+      }),
+      this.db.query.replacementOpportunities.findMany({
+        where: and(
+          eq(replacementOpportunities.claimedByStaffProfileId, staffProfile.id),
+          gte(replacementOpportunities.workDate, startDate),
+          lte(replacementOpportunities.workDate, endDate),
+          inArray(replacementOpportunities.status, [
+            ...ACTIVE_CLAIMED_REPLACEMENT_STATUSES,
+          ]),
+        ),
+        with: {
+          sessionDef: {
+            with: { schedules: true },
+          },
+          originalStaffProfile: true,
         },
       }),
     ]);
@@ -334,6 +442,69 @@ export class DoctorMySchedulesQuery {
               },
               clinicRoom: null,
               clinicService: null,
+            }),
+          );
+        }
+      }
+
+      const dayReplacements = workerReplacements.filter(
+        (ro) => ro.workDate === curDateStr,
+      );
+
+      for (const rep of dayReplacements) {
+        const existing = results.find(
+          (s) =>
+            s.scheduleDate === curDateStr && s.sessionId === rep.sessionId,
+        );
+        if (existing) {
+          existing.status = ScheduleOperationalStatus.REPLACEMENT;
+          existing.effectiveStatus = ScheduleOperationalStatus.REPLACEMENT;
+          existing.statusBadge = ScheduleOperationalStatus.REPLACEMENT;
+          existing.badgeVariant = 'trend';
+          existing.isAvailable = true;
+          existing.isPast = false;
+          existing.isReplacement = true;
+          existing.replacedStaffName =
+            rep.originalStaffProfile?.fullName || null;
+          existing.notes = `Dinas Pengganti: menggantikan ${rep.originalStaffProfile?.fullName || 'rekan'}`;
+          existing.isRescheduleEligible = false;
+          existing.rescheduleIneligibilityReason =
+            'Dinas pengganti tidak dapat di-reschedule secara manual';
+        } else if (rep.sessionDef) {
+          const sched = rep.sessionDef.schedules?.find(
+            (s) => s.dow === curDow && s.isActive,
+          );
+          const startTime =
+            sched?.startsAt || rep.sessionDef.defaultStartsAt || '00:00';
+          const endTime =
+            sched?.endsAt || rep.sessionDef.defaultEndsAt || '23:59';
+
+          results.push(
+            ScheduleRecordMapper.toEntity({
+              id: rep.id,
+              sessionId: rep.sessionId,
+              practitionerId: staffProfile.id,
+              scheduleDate: curDateStr,
+              sessionLabel: rep.sessionDef.label,
+              sessionShift: rep.sessionDef.code as SessionShiftType,
+              startTime,
+              endTime,
+              roomId: null,
+              serviceId: null,
+              status: ScheduleOperationalStatus.OPEN,
+              notes: `Dinas Pengganti: menggantikan ${rep.originalStaffProfile?.fullName || 'rekan'}`,
+              createdAt: rep.createdAt,
+              updatedAt: rep.updatedAt,
+              practitioner: {
+                id: staffProfile.id,
+                staffProfileId: staffProfile.id,
+                displayName: staffProfile.fullName,
+                staffProfile,
+              },
+              clinicRoom: null,
+              clinicService: null,
+              isReplacement: true,
+              replacedStaffName: rep.originalStaffProfile?.fullName || null,
             }),
           );
         }

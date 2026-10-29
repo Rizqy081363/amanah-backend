@@ -1,4 +1,5 @@
 import { ClinicConfigModule } from '@common/clinic-config';
+import { SchedulerModule } from '@common/scheduler/scheduler.module';
 import { RedisModule } from '@common/redis/redis.module';
 import { DoctorRosterModule } from '@modules/schedules/doctor-roster/doctor-roster.module';
 import { SCHEDULE_REPOSITORY } from '@modules/schedules/domain/repositories/schedule.repository';
@@ -48,6 +49,7 @@ import {
   imports: [
     RedisModule,
     ClinicConfigModule,
+    SchedulerModule,
     DoctorRosterModule,
     OperatingDaysModule,
     StaffsModule,

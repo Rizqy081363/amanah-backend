@@ -15,6 +15,7 @@ import {
   PASSWORD_GENERATOR_TOKEN,
 } from '../../../common/services/password-generator.interface';
 import { AllConfigType } from '../../../config/config.type';
+import { ClinicTimeService } from '../../../common/time/clinic-time.service';
 import { DRIZZLE_SOURCE } from '../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../database/drizzle/drizzle.provider';
 import {
@@ -41,6 +42,11 @@ import {
   StaffRoleCode,
   StaffType,
 } from '../domain/constants/staff-invitation.constants';
+import {
+  REALTIME_GATEWAY_PORT,
+  REALTIME_ROOMS,
+} from '../../notifications/notifications.constants';
+import { SocketIoRealtimeGateway } from '../../notifications/infrastructure/realtime/socket-io-realtime.gateway';
 import { USER_STATUS } from '../../../auth/constants/auth.constants';
 import { MEDICAL_SPECIALTY_CODES } from '../../clinics/domain/constants/medical-specialty.constants';
 import { StaffInvitationEntity } from '../domain/entities/staff-invitation.entity';
@@ -67,7 +73,22 @@ export class StaffInvitationService {
     @Optional()
     @Inject(RedisService)
     private readonly redisService?: RedisService,
+    @Optional()
+    @Inject(REALTIME_GATEWAY_PORT)
+    private readonly realtimeGateway?: SocketIoRealtimeGateway,
+    @Optional()
+    private readonly clinicTimeService?: ClinicTimeService,
   ) {}
+
+  private getNowDate(): Date {
+    return this.clinicTimeService
+      ? this.clinicTimeService.nowDate()
+      : new Date();
+  }
+
+  private getNowIso(): string {
+    return this.getNowDate().toISOString();
+  }
 
   async getInvitationOptions(): Promise<{
     practitionerRoles: Array<{
@@ -132,7 +153,9 @@ export class StaffInvitationService {
     const token = randomBytes(32).toString('hex');
     const tokenHash = createHash('sha256').update(token).digest('hex');
     const passwordHash = await bcrypt.hash(temporaryPassword, 10);
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+    const expiresAt = new Date(
+      this.getNowDate().getTime() + 7 * 24 * 60 * 60 * 1000,
+    ); // 7 days
 
     const roleCode: StaffRoleCode =
       dto.roleCode === STAFF_ROLE_CODES.MIDWIFE
@@ -188,7 +211,7 @@ export class StaffInvitationService {
           providerId: 'credential',
           userId: userRecord.id,
           password: passwordHash,
-          updatedAt: new Date().toISOString(),
+          updatedAt: this.getNowIso(),
         });
       } catch {
         // Better Auth parity
@@ -197,7 +220,7 @@ export class StaffInvitationService {
       // Update existing credential account with new temporary password
       await this.db
         .update(authAccounts)
-        .set({ passwordHash, updatedAt: new Date().toISOString() })
+        .set({ passwordHash, updatedAt: this.getNowIso() })
         .where(
           and(
             eq(authAccounts.userId, userRecord.id),
@@ -208,7 +231,7 @@ export class StaffInvitationService {
       try {
         await this.db
           .update(account)
-          .set({ password: passwordHash, updatedAt: new Date().toISOString() })
+          .set({ password: passwordHash, updatedAt: this.getNowIso() })
           .where(
             and(
               eq(account.userId, userRecord.id),
@@ -289,7 +312,7 @@ export class StaffInvitationService {
           primaryUnitId: dto.poliklinikId,
           positionTitle: canonicalPositionTitle,
           status: STAFF_STATUS.INACTIVE,
-          updatedAt: new Date().toISOString(),
+          updatedAt: this.getNowIso(),
         })
         .where(eq(staffProfiles.id, staff.id))
         .returning();
@@ -318,7 +341,7 @@ export class StaffInvitationService {
             specialtyId:
               existingPractitioner.specialtyId || matchedSpecialty?.id || null,
             isAcceptingAppointments: false,
-            updatedAt: new Date().toISOString(),
+            updatedAt: this.getNowIso(),
           })
           .where(eq(practitioners.id, existingPractitioner.id));
       }
@@ -376,6 +399,41 @@ export class StaffInvitationService {
       // safe fallback
     }
 
+    try {
+      const realtimePayload = {
+        invitationId: invitation.id,
+        email: invitation.email,
+        roleCode: invitation.roleCode,
+        staffType: invitation.staffType,
+        fullName: doctorName,
+        status: invitation.status,
+        expiresAt:
+          invitation.expiresAt instanceof Date
+            ? invitation.expiresAt.toISOString()
+            : String(invitation.expiresAt),
+        createdAt: this.getNowIso(),
+      };
+      void this.realtimeGateway?.emitToRoom?.(
+        REALTIME_ROOMS.clinic,
+        'staff:invited',
+        realtimePayload,
+      );
+      void this.realtimeGateway?.emitToRole?.(
+        'admin',
+        'staff:invited',
+        realtimePayload,
+      );
+      void this.realtimeGateway?.emitToRole?.(
+        'admin',
+        'staff:updated',
+        realtimePayload,
+      );
+    } catch (realtimeErr) {
+      this.logger.warn(
+        `Failed to emit staff:invited realtime event: ${String(realtimeErr)}`,
+      );
+    }
+
     return {
       invitation,
       temporaryPassword,
@@ -403,7 +461,9 @@ export class StaffInvitationService {
     const token = randomBytes(32).toString('hex');
     const tokenHash = createHash('sha256').update(token).digest('hex');
     const passwordHash = await bcrypt.hash(temporaryPassword, 10);
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+    const expiresAt = new Date(
+      this.getNowDate().getTime() + 7 * 24 * 60 * 60 * 1000,
+    ); // 7 days
 
     const roleCode: StaffRoleCode = STAFF_ROLE_CODES.WORKER;
     const staffType: StaffType = STAFF_TYPES.WORKER;
@@ -452,7 +512,7 @@ export class StaffInvitationService {
           providerId: 'credential',
           userId: userRecord.id,
           password: passwordHash,
-          updatedAt: new Date().toISOString(),
+          updatedAt: this.getNowIso(),
         });
       } catch {
         // Better Auth parity
@@ -460,7 +520,7 @@ export class StaffInvitationService {
     } else {
       await this.db
         .update(authAccounts)
-        .set({ passwordHash, updatedAt: new Date().toISOString() })
+        .set({ passwordHash, updatedAt: this.getNowIso() })
         .where(
           and(
             eq(authAccounts.userId, userRecord.id),
@@ -471,7 +531,7 @@ export class StaffInvitationService {
       try {
         await this.db
           .update(account)
-          .set({ password: passwordHash, updatedAt: new Date().toISOString() })
+          .set({ password: passwordHash, updatedAt: this.getNowIso() })
           .where(
             and(
               eq(account.userId, userRecord.id),
@@ -532,7 +592,7 @@ export class StaffInvitationService {
           staffType,
           positionTitle: roleTitle,
           status: STAFF_STATUS.INACTIVE,
-          updatedAt: new Date().toISOString(),
+          updatedAt: this.getNowIso(),
         })
         .where(eq(staffProfiles.id, staff.id))
         .returning();
@@ -580,6 +640,41 @@ export class StaffInvitationService {
       this.logger.error(`Failed to dispatch email to ${email}:`, err);
     }
 
+    try {
+      const realtimePayload = {
+        invitationId: invitation.id,
+        email: invitation.email,
+        roleCode: invitation.roleCode,
+        staffType: invitation.staffType,
+        fullName: staffName,
+        status: invitation.status,
+        expiresAt:
+          invitation.expiresAt instanceof Date
+            ? invitation.expiresAt.toISOString()
+            : String(invitation.expiresAt),
+        createdAt: this.getNowIso(),
+      };
+      void this.realtimeGateway?.emitToRoom?.(
+        REALTIME_ROOMS.clinic,
+        'staff:invited',
+        realtimePayload,
+      );
+      void this.realtimeGateway?.emitToRole?.(
+        'admin',
+        'staff:invited',
+        realtimePayload,
+      );
+      void this.realtimeGateway?.emitToRole?.(
+        'admin',
+        'staff:updated',
+        realtimePayload,
+      );
+    } catch (realtimeErr) {
+      this.logger.warn(
+        `Failed to emit staff:invited realtime event: ${String(realtimeErr)}`,
+      );
+    }
+
     return {
       invitation,
       temporaryPassword,
@@ -616,7 +711,7 @@ export class StaffInvitationService {
         .update(authAccounts)
         .set({
           passwordHash: null,
-          updatedAt: new Date().toISOString(),
+          updatedAt: this.getNowIso(),
         })
         .where(
           and(
@@ -631,7 +726,7 @@ export class StaffInvitationService {
           .update(account)
           .set({
             password: null,
-            updatedAt: new Date().toISOString(),
+            updatedAt: this.getNowIso(),
           })
           .where(
             and(
@@ -646,7 +741,7 @@ export class StaffInvitationService {
       // 3. Mark user inactive
       await this.db
         .update(users)
-        .set({ status: USER_STATUS.INACTIVE, updatedAt: new Date().toISOString() })
+        .set({ status: USER_STATUS.INACTIVE, updatedAt: this.getNowIso() })
         .where(eq(users.id, userRecord.id));
 
       // 4. Inactivate staff_profile
@@ -659,7 +754,7 @@ export class StaffInvitationService {
           .update(staffProfiles)
           .set({
             status: STAFF_STATUS.INACTIVE,
-            updatedAt: new Date().toISOString(),
+            updatedAt: this.getNowIso(),
           })
           .where(eq(staffProfiles.id, staff.id));
 
@@ -668,7 +763,7 @@ export class StaffInvitationService {
           .update(practitioners)
           .set({
             isAcceptingAppointments: false,
-            updatedAt: new Date().toISOString(),
+            updatedAt: this.getNowIso(),
           })
           .where(eq(practitioners.staffProfileId, staff.id));
       }
@@ -679,6 +774,34 @@ export class StaffInvitationService {
       } catch {
         // parity safe
       }
+    }
+
+    try {
+      const realtimePayload = {
+        invitationId: id,
+        email: existing.email,
+        status: STAFF_INVITATION_STATUS.REVOKED,
+        revokedAt: this.getNowIso(),
+      };
+      void this.realtimeGateway?.emitToRoom?.(
+        REALTIME_ROOMS.clinic,
+        'staff:invitation_revoked',
+        realtimePayload,
+      );
+      void this.realtimeGateway?.emitToRole?.(
+        'admin',
+        'staff:invitation_revoked',
+        realtimePayload,
+      );
+      void this.realtimeGateway?.emitToRole?.(
+        'admin',
+        'staff:updated',
+        realtimePayload,
+      );
+    } catch (realtimeErr) {
+      this.logger.warn(
+        `Failed to emit staff:invitation_revoked realtime event: ${String(realtimeErr)}`,
+      );
     }
 
     return updated;

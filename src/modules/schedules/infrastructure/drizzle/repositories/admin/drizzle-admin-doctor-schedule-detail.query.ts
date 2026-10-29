@@ -7,8 +7,9 @@ import {
   sessionDefs,
   shiftExceptions,
   staffLeaveRequests,
+  replacementOpportunities,
+  ACTIVE_CLAIMED_REPLACEMENT_STATUSES,
 } from '@database/schema';
-import { replacementOpportunities } from '@database/schema/leave-payroll.schema';
 import { DEFAULT_CONSULTATION_DURATION_MINUTES } from '@modules/schedules/domain/constants/schedule.constants';
 import {
   type AdminDoctorScheduleDetailResponse,
@@ -173,12 +174,19 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
               replacementOpportunities.originalStaffProfileId,
               prac.staffProfileId,
             ),
+            eq(replacementOpportunities.claimedByPractitionerId, prac.id),
+            eq(
+              replacementOpportunities.claimedByStaffProfileId,
+              prac.staffProfileId,
+            ),
           ),
           gte(replacementOpportunities.workDate, startDate),
           lte(replacementOpportunities.workDate, endDate),
         ),
         with: {
           claimedByStaffProfile: true,
+          originalStaffProfile: true,
+          sessionDef: true,
         },
       }),
     ]);
@@ -212,8 +220,22 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
 
       const isDayActive = dayMap.get(dayDow) ?? true;
 
+      const dayClaimedReplacements = monthReplacementOpportunities.filter(
+        (ro: any) =>
+          (ro.claimedByPractitionerId === prac.id ||
+            ro.claimedByStaffProfileId === prac.staffProfileId) &&
+          ro.workDate === dayDate &&
+          (ACTIVE_CLAIMED_REPLACEMENT_STATUSES as readonly string[]).includes(
+            ro.status,
+          ),
+      );
+
       for (const da of dayAssignments as any[]) {
         if (!da.sessionDef?.isActive) continue;
+
+        const repCoverage = dayClaimedReplacements.find(
+          (ro: any) => ro.sessionId === da.sessionDef.id,
+        );
 
         const res = resolveDoctorSessionOperability({
           targetDow: dayDow,
@@ -233,11 +255,41 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
           endTime: res.endTime,
           sessionShift: res.sessionShift,
           sessionLabel: res.sessionLabel,
-          status: res.status,
+          status: repCoverage ? 'open' : res.status,
           clinicRoom: da.preferredRoom || prac.clinicRoom,
-          notes: res.notes,
-          closureReason: res.closureReason,
+          notes: repCoverage
+            ? `Dinas Pengganti: menggantikan ${repCoverage.originalStaffProfile?.fullName || 'rekan'}`
+            : res.notes,
+          closureReason: repCoverage ? null : res.closureReason,
+          isReplacement: Boolean(repCoverage),
+          replacedStaffName: repCoverage?.originalStaffProfile?.fullName || null,
         });
+      }
+
+      for (const rep of dayClaimedReplacements) {
+        const alreadyIn = monthSessions.some(
+          (s) => s.scheduleDate === dayDate && s.id === rep.sessionId,
+        );
+        if (!alreadyIn && rep.sessionDef) {
+          const sStart =
+            rep.sessionDef.defaultStartsAt?.slice(0, 5) || '00:00';
+          const sEnd = rep.sessionDef.defaultEndsAt?.slice(0, 5) || '24:00';
+          monthSessions.push({
+            id: rep.sessionDef.id,
+            practitionerId: prac.id,
+            scheduleDate: dayDate,
+            startTime: sStart,
+            endTime: sEnd,
+            sessionShift: rep.sessionDef.code,
+            sessionLabel: rep.sessionDef.label || rep.sessionDef.code,
+            status: 'open',
+            clinicRoom: prac.clinicRoom,
+            notes: `Dinas Pengganti: menggantikan ${rep.originalStaffProfile?.fullName || 'rekan'}`,
+            closureReason: null,
+            isReplacement: true,
+            replacedStaffName: rep.originalStaffProfile?.fullName || null,
+          });
+        }
       }
     }
 

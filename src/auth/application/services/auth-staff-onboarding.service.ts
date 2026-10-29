@@ -2,11 +2,14 @@ import {
   BadRequestException,
   Inject,
   Injectable,
+  Logger,
+  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
 import { isUUID } from 'class-validator';
 import { and, eq, or, sql } from 'drizzle-orm';
 import { RedisService } from '../../../common/redis/redis.service';
+import { ClinicTimeService } from '../../../common/time/clinic-time.service';
 import { DRIZZLE_SOURCE } from '../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../database/drizzle/drizzle.provider';
 import {
@@ -36,6 +39,14 @@ import {
 } from '../../../modules/staffs/domain/constants/staff-invitation.constants';
 import { USER_STATUS } from '../../constants/auth.constants';
 import {
+  NOTIFICATION_REPOSITORY,
+  REALTIME_GATEWAY_PORT,
+  REALTIME_ROOMS,
+} from '../../../modules/notifications/notifications.constants';
+import { SocketIoRealtimeGateway } from '../../../modules/notifications/infrastructure/realtime/socket-io-realtime.gateway';
+import { NotificationGatewayService } from '../../../modules/notifications/application/services/notification-gateway.service';
+import type { NotificationRepository } from '../../../modules/notifications/domain/repositories/notification.repository';
+import {
   AuthStaffOnboardingDto,
   StaffOnboardingRole,
 } from '../../dto/auth-staff-onboarding.dto';
@@ -44,11 +55,33 @@ import { AuthUserMapper } from '../mappers/auth-user.mapper';
 
 @Injectable()
 export class AuthStaffOnboardingService {
+  private readonly logger = new Logger(AuthStaffOnboardingService.name);
+
   constructor(
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,
     private readonly redisService: RedisService,
+    @Optional()
+    @Inject(REALTIME_GATEWAY_PORT)
+    private readonly realtimeGateway?: SocketIoRealtimeGateway,
+    @Optional()
+    private readonly notificationGateway?: NotificationGatewayService,
+    @Optional()
+    @Inject(NOTIFICATION_REPOSITORY)
+    private readonly notificationRepo?: NotificationRepository,
+    @Optional()
+    private readonly clinicTimeService?: ClinicTimeService,
   ) {}
+
+  private getNowDate(): Date {
+    return this.clinicTimeService
+      ? this.clinicTimeService.nowDate()
+      : new Date();
+  }
+
+  private getNowIso(): string {
+    return this.getNowDate().toISOString();
+  }
 
   public async resolveOnboardingPoliklinikId(
     poliklinikId?: string,
@@ -176,7 +209,7 @@ export class AuthStaffOnboardingService {
           .set({
             role: betterAuthRole,
             name: dto.fullName.trim(),
-            updatedAt: new Date().toISOString(),
+            updatedAt: this.getNowIso(),
           })
           .where(eq(user.id, userRecord.id));
       } catch {
@@ -190,7 +223,7 @@ export class AuthStaffOnboardingService {
           name: dto.fullName.trim(),
           phone: dto.phoneNumber?.trim() || userRecord.phone,
           status: USER_STATUS.ACTIVE,
-          updatedAt: new Date().toISOString(),
+          updatedAt: this.getNowIso(),
         })
         .where(eq(users.id, userRecord.id));
 
@@ -236,7 +269,7 @@ export class AuthStaffOnboardingService {
             primaryUnitId: resolvedPoliklinikId || existingStaff.primaryUnitId,
             avatarUrl: existingStaff.avatarUrl || userAvatarUrl,
             status: STAFF_STATUS.ACTIVE,
-            updatedAt: new Date().toISOString(),
+            updatedAt: this.getNowIso(),
           })
           .where(eq(staffProfiles.id, existingStaff.id))
           .returning();
@@ -271,9 +304,9 @@ export class AuthStaffOnboardingService {
           .update(staffInvitations)
           .set({
             status: STAFF_INVITATION_STATUS.ACCEPTED,
-            acceptedAt: new Date().toISOString(),
+            acceptedAt: this.getNowIso(),
             acceptedUserId: userRecord.id,
-            updatedAt: new Date().toISOString(),
+            updatedAt: this.getNowIso(),
           })
           .where(eq(staffInvitations.id, pendingInvitation.id));
       }
@@ -325,7 +358,7 @@ export class AuthStaffOnboardingService {
                 dto.licenseNumber?.trim() || existingPractitioner.licenseNumber,
               specialtyId: targetSpecialtyId || null,
               isAcceptingAppointments: true,
-              updatedAt: new Date().toISOString(),
+              updatedAt: this.getNowIso(),
             })
             .where(eq(practitioners.id, existingPractitioner.id));
         }
@@ -399,7 +432,7 @@ export class AuthStaffOnboardingService {
                 villageName: villName || existingAddress.villageName,
                 line1: streetLine1 || existingAddress.line1,
                 fullAddress: fullAddress || existingAddress.fullAddress,
-                updatedAt: new Date().toISOString(),
+                updatedAt: this.getNowIso(),
               })
               .where(eq(staffAddresses.id, existingAddress.id));
           } else {
@@ -461,6 +494,105 @@ export class AuthStaffOnboardingService {
         },
       },
     });
+
+    const primaryStaff = updatedUser?.staffProfiles?.[0];
+    const staffName = dto.fullName.trim();
+    const nowIso = this.getNowIso();
+
+    const staffOnboardedPayload = {
+      userId: userRecord.id,
+      staffProfileId: primaryStaff?.id || '',
+      staffCode: primaryStaff?.staffCode || finalStaffCode,
+      fullName: staffName,
+      staffType: staffTypeVal,
+      profession: positionTitle,
+      poliklinikId: resolvedPoliklinikId || null,
+      status: 'active',
+      onboardedAt: nowIso,
+    };
+
+    // 1. Scoped Real-time WebSocket Dispatch to Admin & Clinic
+    try {
+      void this.realtimeGateway?.emitToRoom?.(
+        REALTIME_ROOMS.clinic,
+        'staff:onboarded',
+        staffOnboardedPayload,
+      );
+      void this.realtimeGateway?.emitToRole?.(
+        'admin',
+        'staff:onboarded',
+        staffOnboardedPayload,
+      );
+      void this.realtimeGateway?.emitToRole?.(
+        'admin',
+        'staff:updated',
+        staffOnboardedPayload,
+      );
+      void this.realtimeGateway?.emitToUser?.(
+        userRecord.id,
+        'staff:onboarded',
+        staffOnboardedPayload,
+      );
+    } catch (realtimeErr) {
+      this.logger.warn(
+        `Failed to emit staff:onboarded realtime event: ${String(realtimeErr)}`,
+      );
+    }
+
+    // 2. Dispatch FCM Push & In-App Notification (Mobile & Web Bell)
+    const welcomeTitle = 'Selamat Bergabung di Klinik Amanah!';
+    const welcomeBody = `Selamat bertugas, ${staffName}! Akun Anda telah aktif sebagai ${positionTitle}. Silakan cek jadwal dan tugas Anda di aplikasi.`;
+
+    try {
+      if (this.notificationGateway) {
+        await this.notificationGateway.dispatch({
+          commandId: `welcome-staff-${userRecord.id}-${this.getNowDate().getTime()}`,
+          sourceDomain: 'staff',
+          target: {
+            type: 'user',
+            recipientUserIds: [userRecord.id],
+          },
+          category: 'system',
+          content: {
+            title: welcomeTitle,
+            body: welcomeBody,
+            actionUrl: '/home',
+            data: {
+              staffId: primaryStaff?.id || '',
+              staffCode: primaryStaff?.staffCode || finalStaffCode,
+              staffType: staffTypeVal,
+              profession: positionTitle,
+              category: 'welcome_staff',
+            },
+          },
+          channels: ['push', 'in_app'],
+          priority: 'high',
+        });
+      }
+    } catch (pushErr) {
+      this.logger.warn(
+        `Failed to dispatch welcome push notification via gateway: ${String(pushErr)}`,
+      );
+    }
+
+    // 3. Persist In-App Notification in DB for Mobile Bell History
+    try {
+      if (this.notificationRepo) {
+        await this.notificationRepo.createNotification({
+          category: 'system',
+          title: welcomeTitle,
+          body: welcomeBody,
+          senderName: 'Klinik Amanah',
+          senderRole: 'Sistem Kepegawaian',
+          isUrgent: false,
+          recipientUserIds: [userRecord.id],
+        });
+      }
+    } catch (repoErr) {
+      this.logger.warn(
+        `Failed to persist in-app welcome notification: ${String(repoErr)}`,
+      );
+    }
 
     return updatedUser ? AuthUserMapper.formatUser(updatedUser, false) : null;
   }

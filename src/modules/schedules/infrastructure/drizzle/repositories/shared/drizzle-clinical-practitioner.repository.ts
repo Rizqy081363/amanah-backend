@@ -6,14 +6,15 @@ import {
   shiftExceptions,
   staffAttendanceRecords,
   staffLeaveRequests,
+  replacementOpportunities,
+  ACTIVE_CLAIMED_REPLACEMENT_STATUSES,
 } from '@database/schema';
-import { replacementOpportunities } from '@database/schema/leave-payroll.schema';
 import type { ClinicalPractitionerEntity } from '@modules/schedules/domain/entities/schedule.entity';
 import { ScheduleRecordMapper } from '@modules/schedules/infrastructure/drizzle/mappers/schedule-record.mapper';
 import type { ClinicalPractitionersQueryDto } from '@modules/schedules/presentation/dto/clinical-practitioners-query.dto';
 import { ClinicTimeService } from '@common/time/clinic-time.service';
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, eq, gte, isNull, lte, or } from 'drizzle-orm';
+import { and, asc, eq, gte, inArray, isNull, lte, or } from 'drizzle-orm';
 
 @Injectable()
 export class DrizzleClinicalPractitionerRepository {
@@ -106,8 +107,18 @@ export class DrizzleClinicalPractitionerRepository {
         this.db.query.replacementOpportunities.findFirst({
           where: and(
             eq(replacementOpportunities.workDate, targetDate),
-            eq(replacementOpportunities.claimedByPractitionerId, p.id),
-            eq(replacementOpportunities.status, 'claimed'),
+            or(
+              eq(replacementOpportunities.claimedByPractitionerId, p.id),
+              p.staffProfileId
+                ? eq(
+                    replacementOpportunities.claimedByStaffProfileId,
+                    p.staffProfileId,
+                  )
+                : undefined,
+            ),
+            inArray(replacementOpportunities.status, [
+              ...ACTIVE_CLAIMED_REPLACEMENT_STATUSES,
+            ]),
           ),
           with: {
             originalStaffProfile: true,
