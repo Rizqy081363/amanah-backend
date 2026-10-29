@@ -103,6 +103,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
             profession: staffProfile.positionTitle,
             staffCode: staffProfile.staffCode,
             idCardNumber: staffProfile.nationalIdEncrypted || null,
+            gender: staffProfile.gender || null,
             photoUrl: staffProfile.avatarUrl,
             phoneNumber: staffProfile.phone,
             isActive: staffProfile.status === 'active',

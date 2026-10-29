@@ -80,12 +80,15 @@ export class GenerateCheckInQrUseCase {
     }
 
     if (apt.appointmentDate) {
+      const thresholds = await this.policyReader.getQueueThresholds();
       const checkInEval = isAppointmentWithinCheckInWindow({
         scheduledDate: apt.appointmentDate,
         scheduledStartTime: apt.scheduledStartTime,
         scheduledEndTime: apt.scheduledEndTime,
         todayDateStr: this.clinicTimeService.today(),
         currentTimeStr: this.clinicTimeService.getCurrentTimeString(),
+        arriveEarlyMinutes: thresholds.arriveEarlyMinutes,
+        overflowToleranceMinutes: thresholds.overflowToleranceMinutes,
       });
 
       if (!checkInEval.isOpen) {

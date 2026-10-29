@@ -41,6 +41,7 @@ import {
 } from '../domain/repositories/appointment.repository';
 import { ActiveTicketPolicyService } from '../domain/services/active-ticket-policy.service';
 import { isAppointmentWithinCheckInWindow } from '../domain/services/appointment-check-in-window.predicate';
+import { AppointmentPolicyReader } from '../domain/services/appointment-policy.reader';
 import { toDomainStatus } from '../domain/types/appointment.types';
 import { QueueResponseEnvelope } from '../domain/types/queue-response.type';
 import { AppointmentQueueNavigationService } from '../infrastructure/drizzle/appointment-queue-navigation.service';
@@ -87,6 +88,8 @@ export class AppointmentsService {
     private readonly queueEventPublisher?: QueueEventPublisher,
     @Optional()
     private readonly queueNavigationService?: AppointmentQueueNavigationService,
+    @Optional()
+    private readonly policyReader?: AppointmentPolicyReader,
   ) {}
 
   async createAppointment(
@@ -383,12 +386,15 @@ export class AppointmentsService {
     }
 
     if (current.appointmentDate) {
+      const thresholds = await this.policyReader?.getQueueThresholds();
       const checkInEval = isAppointmentWithinCheckInWindow({
         scheduledDate: current.appointmentDate,
         scheduledStartTime: current.scheduledStartTime,
         scheduledEndTime: current.scheduledEndTime,
         todayDateStr: this.clinicTimeService.today(),
         currentTimeStr: this.clinicTimeService.getCurrentTimeString(),
+        arriveEarlyMinutes: thresholds?.arriveEarlyMinutes,
+        overflowToleranceMinutes: thresholds?.overflowToleranceMinutes,
       });
 
       if (!checkInEval.isOpen) {

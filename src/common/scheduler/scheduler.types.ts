@@ -10,6 +10,7 @@ export interface RegisterJobOptions {
   handler: ScheduledTaskHandler;
   enabled?: boolean;
   distributedLock?: boolean;
+  lockMode?: 'daily' | 'run';
   lockTtlSeconds?: number;
 }
 

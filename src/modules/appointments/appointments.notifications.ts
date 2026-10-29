@@ -74,9 +74,7 @@ export class AppointmentsNotificationRules implements OnModuleInit {
               recipientUserId: staffUserId,
               audience: 'clinic',
               title: 'Pasien Baru',
-              body: payload.doctorName
-                ? `${payload.doctorName} mendapatkan 1 pasien baru (${payload.patientName || 'Pasien'}).`
-                : `Pasien baru ${payload.patientName || 'Pasien'} (${payload.queueNumber || '-'}) terdaftar untuk tanggal ${payload.appointmentDate}.`,
+              body: `${payload.patientName || 'Pasien'}\n${payload.queueNumber || '-'}`,
               severity: 'info',
               action: {
                 type: 'view_patient',
@@ -119,9 +117,7 @@ export class AppointmentsNotificationRules implements OnModuleInit {
       },
       titleTemplate: 'Pasien Baru',
       bodyTemplate: (payload: any) =>
-        payload.doctorName
-          ? `${payload.doctorName} mendapatkan 1 pasien baru (${payload.patientName || 'Pasien'}).`
-          : `Pasien baru ${payload.patientName || 'Pasien'} (${payload.queueNumber || '-'}) terdaftar untuk tanggal ${payload.appointmentDate}.`,
+        `${payload.patientName || 'Pasien'}\n${payload.queueNumber || '-'}`,
       senderName: (payload: any) => payload.patientName || 'Pasien',
       senderRole: 'Pasien',
       visualKey: (payload: any) => payload.avatarUrl || null,
@@ -781,9 +777,7 @@ export class AppointmentsNotificationRules implements OnModuleInit {
               recipientUserId: staffUserId,
               audience: 'clinic',
               title: 'Janji Temu Dibatalkan',
-              body: isClinicActor
-                ? `Janji temu pasien ${payload.patientName || 'Pasien'} (${payload.queueNumber || '-'}) dibatalkan oleh klinik. Alasan: ${payload.reason || '-'}.`
-                : `Pasien ${payload.patientName || 'Pasien'} membatalkan janji temu (${payload.queueNumber || '-'}). Alasan: ${payload.reason || '-'}.`,
+              body: `${payload.patientName || 'Pasien'}\n${payload.queueNumber || '-'}`,
               severity: 'warning',
               badgeIcon: 'alert-circle',
               visualKey: payload.avatarUrl ?? null,
@@ -841,7 +835,7 @@ export class AppointmentsNotificationRules implements OnModuleInit {
         ) {
           return `Janji temu Anda (${payload.queueNumber || '-'}) telah dibatalkan oleh pihak klinik. Alasan: ${payload.reason || 'Dibatalkan oleh staf'}.`;
         }
-        return `Pasien ${payload.patientName || 'Pasien'} membatalkan janji temu (${payload.queueNumber || '-'}). Alasan: ${payload.reason || 'Dibatalkan oleh pasien'}.`;
+        return `${payload.patientName || 'Pasien'}\n${payload.queueNumber || '-'}`;
       },
       senderName: (payload: any) =>
         payload.cancelledByRole === 'admin' ||

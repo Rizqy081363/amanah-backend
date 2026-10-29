@@ -47,6 +47,9 @@ export class StaffEntity {
   photoUrl?: string | null;
   phoneNumber: string;
   isActive: boolean;
+  status?: 'active' | 'inactive' | 'on_leave' | 'pending';
+  isPendingVerification?: boolean;
+  invitationId?: string | null;
   address?: StaffAddressData | null;
   leaveInfo?: StaffLeaveInfo | null;
   todayAttendance?: StaffTodayAttendance | null;

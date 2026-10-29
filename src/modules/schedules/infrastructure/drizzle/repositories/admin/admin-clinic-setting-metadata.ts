@@ -186,26 +186,42 @@ const CLINIC_SETTING_METADATA_REGISTRY: Record<
   'queue.arrive_early_minutes': {
     isAdminFacing: true,
     category: 'queue',
-    label: 'Anjuran Waktu Tiba Pasien',
+    label: 'Ambang Buka Check-In Janji Temu',
     description:
-      'Waktu sebelum estimasi panggilan saat pasien dianjurkan tiba di klinik.',
-    controlType: 'number',
-    unit: 'menit',
-    min: 0,
-    max: 60,
-    step: 5,
-  },
-  'queue.overflow_tolerance_minutes': {
-    isAdminFacing: true,
-    category: 'queue',
-    label: 'Toleransi Pelayanan Melewati Shift',
-    description:
-      'Batas kelonggaran waktu dokter melayani pasien setelah jam resmi shift selesai.',
+      'Batas waktu sebelum jadwal janji temu dimulai saat check-in dibuka dan pengingat dikirim ke pasien & staf.',
     controlType: 'number',
     unit: 'menit',
     min: 0,
     max: 120,
     step: 5,
+  },
+  'queue.overflow_tolerance_minutes': {
+    isAdminFacing: true,
+    category: 'queue',
+    label: 'Toleransi Keterlambatan Check-In',
+    description:
+      'Batas kelonggaran waktu setelah jam jadwal selesai sebelum check-in dinyatakan kedaluwarsa.',
+    controlType: 'number',
+    unit: 'menit',
+    min: 0,
+    max: 180,
+    step: 5,
+  },
+  'queue.check_in_reminder_enabled': {
+    isAdminFacing: true,
+    category: 'queue',
+    label: 'Notifikasi Pengingat Check-In Otomatis',
+    description:
+      'Kirim pengingat check-in otomatis via in-app & push notification saat jendela check-in dibuka.',
+    controlType: 'boolean',
+  },
+  'queue.operational_broadcast_enabled': {
+    isAdminFacing: true,
+    category: 'queue',
+    label: 'Siaran Operasional ke Seluruh Staf (Non-Medis)',
+    description:
+      'Kirim pengumuman pembukaan jendela check-in kepada seluruh staf operasional tanpa membocorkan data medis pasien.',
+    controlType: 'boolean',
   },
   'queue.no_show_grace_minutes': {
     isAdminFacing: true,

@@ -7,6 +7,7 @@ import {
   Inject,
   Param,
   Patch,
+  Post,
   UseFilters,
   UseGuards,
 } from '@nestjs/common';
@@ -27,6 +28,7 @@ import { RolesGuard } from '../../../common/auth/roles.guard';
 import { SYSTEM_ROLES } from '../../../common/auth/roles.enum';
 import { AuthenticatedUser } from '../../../common/auth/authenticated-user.interface';
 import { AppointmentsService } from '../application/appointments.service';
+import { AppointmentCheckInReminderService } from '../application/services/appointment-check-in-reminder.service';
 import {
   CANDIDATE_ASSIGNMENT_PORT,
   type ICandidateAssignmentPort,
@@ -60,6 +62,7 @@ export class AdminAppointmentsController {
     private readonly candidateResolver: ICandidateResolverPort,
     @Inject(CANDIDATE_ASSIGNMENT_PORT)
     private readonly assignmentService: ICandidateAssignmentPort,
+    private readonly reminderService: AppointmentCheckInReminderService,
   ) {}
 
   @Patch(':appointmentId/cancel')
@@ -209,6 +212,25 @@ export class AdminAppointmentsController {
     return {
       message: 'Ruangan berhasil dialihkan',
       data: updated,
+    };
+  }
+
+  @Post('reminders/evaluate')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Mengevaluasi dan mengirim pengingat check-in janji temu secara manual (Admin)',
+    description:
+      'Mengevaluasi seluruh janji temu aktif hari ini yang telah memasuki jendela check-in, dan memicu notifikasi berjenjang (Pasien, Dokter, Staf Umum) secara idempoten.',
+  })
+  @ApiOkResponse({
+    description: 'Evaluasi pengingat check-in berhasil diproses',
+  })
+  async evaluateReminders() {
+    const result = await this.reminderService.evaluateAndDispatchReminders();
+    return {
+      message: 'Evaluasi pengingat check-in berhasil dijalankan',
+      data: result,
     };
   }
 }

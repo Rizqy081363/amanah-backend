@@ -13,6 +13,7 @@ import {
   Patch,
   Post,
   Put,
+  Query,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -350,8 +351,20 @@ export class StaffsController {
   @ApiOkResponse({
     description: 'Daftar seluruh staf berhasil diambil',
   })
-  async getAllStaffs() {
-    return this.staffRepo.findAll();
+  async getAllStaffs(
+    @Query('status') status?: string,
+    @Query('staffType') staffType?: string,
+    @Query('profession') profession?: string,
+    @Query('poliklinikId') poliklinikId?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.staffRepo.findAll({
+      status,
+      staffType,
+      profession,
+      poliklinikId,
+      search,
+    });
   }
 
   @Get('profession/:profession')

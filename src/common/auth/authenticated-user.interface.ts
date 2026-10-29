@@ -67,11 +67,12 @@ export function isStaffUser(
 }
 
 /**
+/**
  * Type guard for Doctor staff principal.
  */
 export function isDoctorStaff(
   user: AuthenticatedUser,
-): user is AuthenticatedUser & { staff: AuthenticatedStaffProfile } {
+): user is AuthenticatedUser & { staff: AuthenticatedStaffProfile & { staffType: typeof STAFF_TYPES.DOCTOR } } {
   return isStaffUser(user) && user.staff.staffType === STAFF_TYPES.DOCTOR;
 }
 
@@ -80,7 +81,7 @@ export function isDoctorStaff(
  */
 export function isMidwifeStaff(
   user: AuthenticatedUser,
-): user is AuthenticatedUser & { staff: AuthenticatedStaffProfile } {
+): user is AuthenticatedUser & { staff: AuthenticatedStaffProfile & { staffType: typeof STAFF_TYPES.MIDWIFE } } {
   return isStaffUser(user) && user.staff.staffType === STAFF_TYPES.MIDWIFE;
 }
 
@@ -89,7 +90,7 @@ export function isMidwifeStaff(
  */
 export function isWorkerStaff(
   user: AuthenticatedUser,
-): user is AuthenticatedUser & { staff: AuthenticatedStaffProfile } {
+): user is AuthenticatedUser & { staff: AuthenticatedStaffProfile & { staffType: typeof STAFF_TYPES.WORKER } } {
   return isStaffUser(user) && user.staff.staffType === STAFF_TYPES.WORKER;
 }
 
@@ -98,7 +99,11 @@ export function isWorkerStaff(
  */
 export function isClinicalStaff(
   user: AuthenticatedUser,
-): user is AuthenticatedUser & { staff: AuthenticatedStaffProfile } {
+): user is AuthenticatedUser & {
+  staff: AuthenticatedStaffProfile & {
+    staffType: typeof STAFF_TYPES.DOCTOR | typeof STAFF_TYPES.MIDWIFE;
+  };
+} {
   return (
     isStaffUser(user) &&
     (user.staff.staffType === STAFF_TYPES.DOCTOR ||

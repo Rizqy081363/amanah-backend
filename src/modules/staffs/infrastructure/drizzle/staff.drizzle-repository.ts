@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, desc, eq, gte, ilike, lte } from 'drizzle-orm';
+import { and, desc, eq, gte, ilike, lte, or } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
@@ -7,13 +7,17 @@ import {
   staffAddresses,
   staffAttendanceRecords,
   staffCredentials,
+  staffInvitations,
   staffLeaveRequests,
   staffProfiles,
   user,
   users,
 } from '../../../../database/schema';
 import { StaffEntity } from '../../domain/entities/staff.entity';
-import { StaffRepository } from '../../domain/repositories/staff.repository';
+import {
+  FindAllStaffOptions,
+  StaffRepository,
+} from '../../domain/repositories/staff.repository';
 
 @Injectable()
 export class StaffDrizzleRepository implements StaffRepository {
@@ -28,6 +32,7 @@ export class StaffDrizzleRepository implements StaffRepository {
     practitionerRecord?: any,
     leaveRecord?: any,
     attendanceRecord?: any,
+    pendingInvitation?: any,
   ): StaffEntity {
     let leaveInfo: StaffEntity['leaveInfo'] = null;
     if (leaveRecord) {
@@ -66,6 +71,21 @@ export class StaffDrizzleRepository implements StaffRepository {
       };
     }
 
+    const hasPendingInvitation = Boolean(pendingInvitation);
+    const isOnLeave = Boolean(leaveInfo?.isOnLeave);
+    const isInactive = r.status === 'inactive';
+
+    let operationalStatus: 'active' | 'inactive' | 'on_leave' | 'pending';
+    if (isOnLeave) {
+      operationalStatus = 'on_leave';
+    } else if (hasPendingInvitation) {
+      operationalStatus = 'pending';
+    } else if (isInactive) {
+      operationalStatus = 'inactive';
+    } else {
+      operationalStatus = 'active';
+    }
+
     return {
       id: r.id,
       userId: r.userId || '',
@@ -88,7 +108,10 @@ export class StaffDrizzleRepository implements StaffRepository {
       email: r.email || null,
       photoUrl: r.avatarUrl || null,
       phoneNumber: r.phone || '',
-      isActive: r.status === 'active',
+      isActive: operationalStatus === 'active',
+      status: operationalStatus,
+      isPendingVerification: operationalStatus === 'pending',
+      invitationId: pendingInvitation?.id || null,
       address: addressRecord
         ? {
             provinceCode: addressRecord.provinceCode || null,
@@ -288,30 +311,74 @@ export class StaffDrizzleRepository implements StaffRepository {
     return records.map((r) => this.mapRecordToEntity(r));
   }
 
-  async findAll(): Promise<StaffEntity[]> {
+  async findAll(options?: FindAllStaffOptions): Promise<StaffEntity[]> {
     const todayStr = new Date().toISOString().split('T')[0];
 
-    const [records, activeLeaves, todayAttendances, allPractitioners] =
-      await Promise.all([
-        this.db.query.staffProfiles.findMany({
-          where: eq(staffProfiles.status, 'active'),
-          with: {
-            addresses: true,
-          },
-        }),
-        this.db.query.staffLeaveRequests.findMany({
-          where: and(
-            eq(staffLeaveRequests.status, 'approved'),
-            lte(staffLeaveRequests.startDate, todayStr),
-            gte(staffLeaveRequests.endDate, todayStr),
-          ),
-        }),
-        this.db.query.staffAttendanceRecords.findMany({
-          where: eq(staffAttendanceRecords.attendanceDate, todayStr),
-          orderBy: [desc(staffAttendanceRecords.checkInAt)],
-        }),
-        this.db.query.practitioners.findMany(),
-      ]);
+    const conditions = [];
+
+    if (options?.staffType) {
+      conditions.push(eq(staffProfiles.staffType, options.staffType as any));
+    }
+
+    if (options?.poliklinikId) {
+      conditions.push(eq(staffProfiles.primaryUnitId, options.poliklinikId));
+    }
+
+    if (options?.profession?.trim()) {
+      conditions.push(
+        ilike(staffProfiles.positionTitle, `%${options.profession.trim()}%`),
+      );
+    }
+
+    if (options?.search?.trim()) {
+      const q = `%${options.search.trim()}%`;
+      conditions.push(
+        or(
+          ilike(staffProfiles.fullName, q),
+          ilike(staffProfiles.email, q),
+          ilike(staffProfiles.positionTitle, q),
+          ilike(staffProfiles.staffCode, q),
+        ),
+      );
+    }
+
+    const whereClause =
+      conditions.length > 1
+        ? and(...conditions)
+        : conditions.length === 1
+          ? conditions[0]
+          : undefined;
+
+    const [
+      records,
+      activeLeaves,
+      todayAttendances,
+      allPractitioners,
+      pendingInvitations,
+    ] = await Promise.all([
+      this.db.query.staffProfiles.findMany({
+        where: whereClause,
+        with: {
+          addresses: true,
+          clinicUnit: true,
+        },
+      }),
+      this.db.query.staffLeaveRequests.findMany({
+        where: and(
+          eq(staffLeaveRequests.status, 'approved'),
+          lte(staffLeaveRequests.startDate, todayStr),
+          gte(staffLeaveRequests.endDate, todayStr),
+        ),
+      }),
+      this.db.query.staffAttendanceRecords.findMany({
+        where: eq(staffAttendanceRecords.attendanceDate, todayStr),
+        orderBy: [desc(staffAttendanceRecords.checkInAt)],
+      }),
+      this.db.query.practitioners.findMany(),
+      this.db.query.staffInvitations.findMany({
+        where: eq(staffInvitations.status, 'pending'),
+      }),
+    ]);
 
     const leaveByStaff = new Map<string, any>();
     for (const l of activeLeaves) {
@@ -332,12 +399,25 @@ export class StaffDrizzleRepository implements StaffRepository {
       }
     }
 
-    return records.map((r: any) => {
+    const pendingByEmail = new Map<string, any>();
+    for (const inv of pendingInvitations) {
+      if (inv.email) {
+        pendingByEmail.set(inv.email.toLowerCase().trim(), inv);
+      }
+    }
+
+    const matchedEmails = new Set<string>();
+
+    let entities: StaffEntity[] = records.map((r: any) => {
+      const emailKey = (r.email || '').toLowerCase().trim();
+      if (emailKey) matchedEmails.add(emailKey);
+
       const primaryAddr =
         r.addresses?.find((a: any) => a.isPrimary) || r.addresses?.[0];
       const practitionerRecord = practitionerByStaff.get(r.id);
       const leaveRec = leaveByStaff.get(r.id);
       const attRec = attByStaff.get(r.id);
+      const matchedPendingInv = emailKey ? pendingByEmail.get(emailKey) : null;
 
       return this.mapRecordToEntity(
         r,
@@ -345,6 +425,87 @@ export class StaffDrizzleRepository implements StaffRepository {
         practitionerRecord,
         leaveRec,
         attRec,
+        matchedPendingInv,
+      );
+    });
+
+    // Synthesize provisional staff for pending invitations not yet having a staffProfile record
+    if (options?.includePendingInvitations !== false) {
+      for (const inv of pendingInvitations) {
+        const invEmail = (inv.email || '').toLowerCase().trim();
+        if (invEmail && !matchedEmails.has(invEmail)) {
+          if (options?.staffType && inv.staffType !== options.staffType) {
+            continue;
+          }
+          const invMeta = (inv.metadata as any) || {};
+          const invName = invMeta.fullName || inv.email.split('@')[0];
+          if (options?.search?.trim()) {
+            const q = options.search.trim().toLowerCase();
+            const matches =
+              invName.toLowerCase().includes(q) ||
+              inv.email.toLowerCase().includes(q);
+            if (!matches) continue;
+          }
+
+          entities.push({
+            id: inv.id,
+            userId: inv.acceptedUserId || '',
+            poliklinikId: invMeta.poliklinikId || '',
+            poliklinikName: null,
+            fullName: invName,
+            profession:
+              inv.staffType === 'doctor'
+                ? 'Dokter'
+                : inv.staffType === 'midwife'
+                  ? 'Bidan'
+                  : 'Staf Operasional',
+            staffType: inv.staffType,
+            staffCode: 'MENUNGGU',
+            idCardNumber: '-',
+            licenseNumber: null,
+            birthPlace: null,
+            birthDate: null,
+            gender: null,
+            nationalId: null,
+            email: inv.email,
+            photoUrl: null,
+            phoneNumber: '',
+            isActive: false,
+            status: 'pending',
+            isPendingVerification: true,
+            invitationId: inv.id,
+            address: null,
+            leaveInfo: null,
+            todayAttendance: {
+              status: 'not_checked_in',
+              checkInAt: null,
+              checkOutAt: null,
+              shift: null,
+            },
+            createdAt: new Date(inv.createdAt),
+            updatedAt: new Date(inv.updatedAt),
+          });
+        }
+      }
+    }
+
+    // Apply operational status filter if specified
+    if (options?.status && options.status !== 'all') {
+      entities = entities.filter((e) => e.status === options.status);
+    }
+
+    // Deterministic sorting: pending/active first, then by createdAt descending
+    return entities.sort((a, b) => {
+      const getPriority = (st?: string) => {
+        if (st === 'pending') return 3;
+        if (st === 'active') return 2;
+        if (st === 'on_leave') return 1;
+        return 0;
+      };
+      const diff = getPriority(b.status) - getPriority(a.status);
+      if (diff !== 0) return diff;
+      return (
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       );
     });
   }

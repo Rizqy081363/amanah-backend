@@ -114,8 +114,11 @@ export class AppointmentHardenedDrizzleRepository
     });
 
     if (!row) return null;
-    const durationMinutes = await this.getPolicyDurationMinutes();
-    return this.mapToRecord(row, durationMinutes);
+    const [durationMinutes, thresholds] = await Promise.all([
+      this.getPolicyDurationMinutes(),
+      this.getQueueThresholds(),
+    ]);
+    return this.mapToRecord(row, durationMinutes, thresholds);
   }
 
   async getNextQueueNumber(
@@ -539,16 +542,34 @@ export class AppointmentHardenedDrizzleRepository
       },
     });
 
-    const durationMinutes = await this.getPolicyDurationMinutes();
+    const [durationMinutes, thresholds] = await Promise.all([
+      this.getPolicyDurationMinutes(),
+      this.getQueueThresholds(),
+    ]);
     return {
-      items: rows.map((r) => this.mapToRecord(r, durationMinutes)),
+      items: rows.map((r) => this.mapToRecord(r, durationMinutes, thresholds)),
       total: Number(countResult?.total || 0),
     };
+  }
+
+  private async getQueueThresholds(): Promise<
+    { arriveEarlyMinutes?: number; overflowToleranceMinutes?: number } | undefined
+  > {
+    if (this.clinicConfig) {
+      try {
+        return await this.clinicConfig.getQueueThresholds();
+      } catch (_) {}
+    }
+    return undefined;
   }
 
   private mapToRecord(
     apt: any,
     fallbackDurationMinutes?: number,
+    checkInThresholds?: {
+      arriveEarlyMinutes?: number;
+      overflowToleranceMinutes?: number;
+    },
   ): AppointmentRecord {
     const status = toDomainStatus(apt.status);
     const queueNumber = Number(
@@ -629,6 +650,9 @@ export class AppointmentHardenedDrizzleRepository
                 scheduledEndTime: apt.scheduledEndTime,
                 todayDateStr: this.clinicTimeService.today(),
                 currentTimeStr: this.clinicTimeService.getCurrentTimeString(),
+                arriveEarlyMinutes: checkInThresholds?.arriveEarlyMinutes,
+                overflowToleranceMinutes:
+                  checkInThresholds?.overflowToleranceMinutes,
               }).isOpen
             : true,
       }),

@@ -1,6 +1,7 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { ClinicConfigModule } from '../../common/clinic-config/clinic-config.module';
 import { DrizzleModule } from '../../database/drizzle/drizzle.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { QueueEngineModule } from '../queue-engine/queue-engine.module';
 import { SchedulePolicyReader } from '../schedules/infrastructure/drizzle/queries/schedule-policy.reader';
 import { AppointmentCallLifecycleService } from './application/appointment-call-lifecycle.service';
@@ -13,6 +14,8 @@ import { PUSH_NOTIFICATION_PORT } from './application/ports/push-notification.po
 import { REALTIME_EMITTER_PORT } from './application/ports/realtime-emitter.port';
 import { AppointmentCandidateResolver } from './application/resolvers/appointment-candidate.resolver';
 import { AppointmentAssignmentService } from './application/services/appointment-assignment.service';
+import { AppointmentCheckInReminderService } from './application/services/appointment-check-in-reminder.service';
+import { AppointmentCheckInReminderScheduler } from './application/schedulers/appointment-check-in-reminder.scheduler';
 import { BookAppointmentUseCase } from './application/use-cases/book-appointment.use-case';
 import { CallPatientUseCase } from './application/use-cases/call-patient.use-case';
 import { CancelAppointmentUseCase } from './application/use-cases/cancel-appointment.use-case';
@@ -50,6 +53,7 @@ import { PatientAppointmentHistoryController } from './presentation/patient-appo
   imports: [
     DrizzleModule,
     ClinicConfigModule,
+    NotificationsModule,
     forwardRef(() => CandidateAssignmentModule),
     forwardRef(() => QueueEngineModule),
   ],
@@ -121,6 +125,8 @@ import { PatientAppointmentHistoryController } from './presentation/patient-appo
     AppointmentQueueNavigationService,
     ActiveTicketPolicyService,
     QueueEligibilityService,
+    AppointmentCheckInReminderService,
+    AppointmentCheckInReminderScheduler,
   ],
   exports: [
     APPOINTMENT_REPOSITORY,
@@ -137,6 +143,7 @@ import { PatientAppointmentHistoryController } from './presentation/patient-appo
     AppointmentNotificationPublisher,
     AppointmentCallLifecycleService,
     PatientAppointmentHistoryService,
+    AppointmentCheckInReminderService,
     CallPatientUseCase,
     StartServiceUseCase,
     CompleteServiceUseCase,
