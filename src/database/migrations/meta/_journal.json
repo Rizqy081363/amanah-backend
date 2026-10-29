@@ -407,6 +407,13 @@
       "when": 1791341000000,
       "tag": "0057_normalize_clinic_services_image_url",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1791342000000,
+      "tag": "0058_migrate_portal_notification_urls",
+      "breakpoints": true
     }
   ]
 }

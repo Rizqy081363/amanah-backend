@@ -489,7 +489,7 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
         content: {
           title: `Peluang Pengganti Terisi: ${claimedByName}`,
           body: `${claimedByName} mengambil jadwal pengganti dari ${originalStaffName} untuk dinas pada ${dateStr} (${sessionName}).`,
-          actionUrl: '/dashboard/manajemen-perizinan',
+          actionUrl: '/admin/manajemen-perizinan',
           data: {
             opportunityId: opp.id,
             leaveRequestId: opp.leaveRequestId,

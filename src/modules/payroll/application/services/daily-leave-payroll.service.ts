@@ -582,7 +582,7 @@ export class DailyLeavePayrollService {
         content: {
           title,
           body,
-          actionUrl: '/dashboard/penggajian',
+          actionUrl: '/admin/payroll',
           data: {
             staffId: staff.id,
             targetDate,

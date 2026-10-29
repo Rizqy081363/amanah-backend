@@ -26,7 +26,7 @@ export class AppointmentPushAdapter implements PushNotificationPort {
         content: {
           title: payload.title,
           body: payload.body,
-          actionUrl: `/dashboard/klinik/antrean?appointmentId=${payload.data?.appointmentId || ''}`,
+          actionUrl: `/klinik/antrean?appointmentId=${payload.data?.appointmentId || ''}`,
           data: payload.data,
         },
         channels: ['push', 'in_app'],

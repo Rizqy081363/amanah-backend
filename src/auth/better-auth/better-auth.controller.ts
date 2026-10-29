@@ -28,8 +28,8 @@ export class BetterAuthController {
     const targetCallbackUrl =
       callbackURL ||
       (process.env.FRONTEND_DOMAIN
-        ? `${process.env.FRONTEND_DOMAIN}/dashboard`
-        : '/dashboard');
+        ? `${process.env.FRONTEND_DOMAIN}/admin/appointment-pasien`
+        : '/admin/appointment-pasien');
 
     const result = await auth.api.signInSocial({
       body: {

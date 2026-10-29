@@ -469,7 +469,7 @@ export class LeaveDrizzleRepository implements LeaveRepository {
           content: {
             title: `Pengajuan Izin Baru: ${staffName}`,
             body: `${staffName} mengajukan permohonan izin (${record.startDate} s/d ${record.endDate}). Alasan: ${record.reason}`,
-            actionUrl: `/dashboard/manajemen-perizinan?leaveId=${record.id}`,
+            actionUrl: `/admin/manajemen-perizinan?leaveId=${record.id}`,
             data: {
               leaveRequestId: record.id,
               staffProfileId: record.staffProfileId,
@@ -550,7 +550,7 @@ export class LeaveDrizzleRepository implements LeaveRepository {
           content: {
             title: `Pengajuan Izin Dibatalkan: ${staffName}`,
             body: `${staffName} membatalkan pengajuan izin (${record.startDate} s/d ${record.endDate}).`,
-            actionUrl: '/dashboard/manajemen-perizinan',
+            actionUrl: '/admin/manajemen-perizinan',
             data: {
               leaveRequestId: record.id,
               staffProfileId: record.staffProfileId,

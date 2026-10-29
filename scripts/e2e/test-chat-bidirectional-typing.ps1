@@ -179,7 +179,7 @@ Assert-Test "GET /api/v1/chat/presence returns HTTP 200" ($presenceRes.StatusCod
 Assert-Test "Presence response contains adminOnline boolean" ($null -ne $presenceRes.Data.adminOnline) "adminOnline: $($presenceRes.Data.adminOnline)"
 
 # ------------------------------------------------------------------------------
-# 11. Authenticated Patient Chat Workflow (Portal Pasien /dashboard/klinik/chat)
+# 11. Authenticated Patient Chat Workflow (Portal Pasien /klinik/chat)
 # ------------------------------------------------------------------------------
 Write-Host "`n[Step 11] Authenticated Patient Chat Workflow..." -ForegroundColor Yellow
 $patientLogin = Login-Patient

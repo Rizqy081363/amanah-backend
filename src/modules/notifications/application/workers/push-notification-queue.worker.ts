@@ -188,7 +188,7 @@ export class PushNotificationQueueWorker
     const payload = JSON.stringify({
       title: command.content.title,
       body: command.content.body,
-      actionUrl: command.content.actionUrl || '/dashboard',
+      actionUrl: command.content.actionUrl || '/admin/appointment-pasien',
       data: command.content.data || {},
       vibrationPattern: command.vibrationPattern || [300, 100, 300, 100, 300],
       tag: command.commandId,

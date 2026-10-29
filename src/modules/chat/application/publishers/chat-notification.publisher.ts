@@ -96,7 +96,7 @@ export class ChatNotificationPublisher {
             content: {
               title: `Pesan Chat: ${senderName}`,
               body: message.body,
-              actionUrl: `/dashboard/chat?conversationId=${conversation.id}`,
+              actionUrl: `/admin/chat?conversationId=${conversation.id}`,
               data: {
                 conversationId: conversation.id,
                 messageId: message.id,
@@ -117,7 +117,7 @@ export class ChatNotificationPublisher {
             content: {
               title: 'Pesan Baru dari Klinik Amanah',
               body: message.body,
-              actionUrl: `/dashboard/klinik/chat?conversationId=${conversation.id}`,
+              actionUrl: `/klinik/chat?conversationId=${conversation.id}`,
               data: {
                 conversationId: conversation.id,
                 messageId: message.id,

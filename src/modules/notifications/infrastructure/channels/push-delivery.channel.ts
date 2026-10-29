@@ -34,8 +34,8 @@ export class PushDeliveryChannel implements DeliveryChannelAdapter {
           body: notification.body,
           actionUrl: notification.metadata?.semanticAction?.params
             ?.appointmentId
-            ? `/dashboard/klinik/antrean?appointmentId=${notification.metadata.semanticAction.params.appointmentId}`
-            : '/dashboard',
+            ? `/klinik/antrean?appointmentId=${notification.metadata.semanticAction.params.appointmentId}`
+            : '/admin/appointment-pasien',
           data: {
             notificationId: notification.id,
             category: notification.category,

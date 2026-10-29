@@ -210,7 +210,7 @@ export class AttendanceNotificationService {
           content: {
             title,
             body,
-            actionUrl: `/dashboard/kehadiran-pegawai?highlight=${record.id}`,
+            actionUrl: `/admin/kehadiran-pegawai?highlight=${record.id}`,
             data: payload,
           },
           priority,
@@ -230,7 +230,7 @@ export class AttendanceNotificationService {
             content: {
               title,
               body,
-              actionUrl: `/dashboard/kehadiran-pegawai?highlight=${record.id}`,
+              actionUrl: `/admin/kehadiran-pegawai?highlight=${record.id}`,
               data: payload,
             },
             priority,
@@ -265,7 +265,7 @@ export class AttendanceNotificationService {
             content: {
               title: payrollTitle,
               body: payrollBody,
-              actionUrl: '/dashboard/penggajian',
+              actionUrl: '/admin/payroll',
               data: {
                 attendanceId: record.id,
                 staffId: record.staffId,

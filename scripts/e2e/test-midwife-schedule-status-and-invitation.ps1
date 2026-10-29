@@ -206,8 +206,8 @@ Write-Host "  Poli         : $($kiaUnit.name)" -ForegroundColor White
 Write-Host "  License SIPB : SIPB-2026-$randomId" -ForegroundColor White
 Write-Host "  Status       : OPEN" -ForegroundColor White
 Write-Host "  Web URLs     :" -ForegroundColor White
-Write-Host "    - Jadwal Dokter : http://localhost:3000/dashboard/jadwal-dokter" -ForegroundColor Cyan
-Write-Host "    - Manajemen Staf: http://localhost:3000/dashboard/staff" -ForegroundColor Cyan
+Write-Host "    - Jadwal Dokter : http://localhost:3000/admin/jadwal-dokter" -ForegroundColor Cyan
+Write-Host "    - Manajemen Staf: http://localhost:3000/admin/staff" -ForegroundColor Cyan
 Write-Host "==============================================================================" -ForegroundColor Green
 
 # ------------------------------------------------------------------------------
