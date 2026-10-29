@@ -6,6 +6,7 @@ import {
   count,
   desc,
   eq,
+  ilike,
   inArray,
   isNotNull,
   isNull,
@@ -20,10 +21,12 @@ import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
   appointments,
+  clinicRooms,
   clinicServices,
   clinicUnits,
   patientAffiliations,
   patientProfiles,
+  practitioners,
   queueTickets,
   serviceCategories,
 } from '../../../../database/schema';
@@ -212,12 +215,18 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
     },
   ): Promise<AppointmentFindAllResult> {
     const conditions: any[] = [];
+
+    // 1. Scheduled Date filter
     if (filters?.date) {
       conditions.push(eq(appointments.scheduledDate, filters.date));
     }
+
+    // 2. Patient ID filter
     if (filters?.patientId) {
       conditions.push(eq(appointments.patientId, filters.patientId));
     }
+
+    // 3. Doctor/Practitioner filter
     if (filters?.doctorId) {
       if (filters.doctorId === 'unassigned') {
         conditions.push(isNull(appointments.practitionerId));
@@ -225,19 +234,110 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
         conditions.push(eq(appointments.practitionerId, filters.doctorId));
       }
     }
+
+    if (filters?.doctorName) {
+      conditions.push(
+        ilike(practitioners.displayName, `%${filters.doctorName.trim()}%`),
+      );
+    }
+
+    // 4. Room filter
     if (filters?.roomId) {
       conditions.push(eq(appointments.roomId, filters.roomId));
     }
-    if (filters?.poliklinikId && this.poliklinikResolver) {
-      await this.poliklinikResolver.loadFromDatabase();
-      const serviceIds = this.poliklinikResolver.getServiceIdsForUnit(
-        filters.poliklinikId,
+
+    if (filters?.roomName) {
+      conditions.push(
+        ilike(clinicRooms.name, `%${filters.roomName.trim()}%`),
       );
-      if (serviceIds.length > 0) {
-        conditions.push(inArray(appointments.serviceId, serviceIds));
+    }
+
+    // 5. Service Name filter
+    if (filters?.serviceName) {
+      conditions.push(
+        ilike(clinicServices.name, `%${filters.serviceName.trim()}%`),
+      );
+    }
+
+    // 6. Session filter
+    if (filters?.session) {
+      conditions.push(eq(queueTickets.sessionId, filters.session));
+    }
+
+    // 7. Status filter (supports single or comma-separated status)
+    if (filters?.status) {
+      const rawStatuses = filters.status
+        .split(',')
+        .map((s) => s.trim().toLowerCase())
+        .filter(Boolean);
+
+      if (rawStatuses.length === 1) {
+        conditions.push(eq(appointments.status, rawStatuses[0] as any));
+      } else if (rawStatuses.length > 1) {
+        conditions.push(inArray(appointments.status, rawStatuses as any[]));
       }
     }
 
+    // 8. Poliklinik Unit filter (Unit Rooms, Services, or Cross-Assigned Rooms)
+    if (filters?.poliklinikId) {
+      const poliConditions: any[] = [
+        eq(clinicRooms.unitId, filters.poliklinikId),
+      ];
+
+      if (this.poliklinikResolver) {
+        await this.poliklinikResolver.loadFromDatabase();
+        const serviceIds = this.poliklinikResolver.getServiceIdsForUnit(
+          filters.poliklinikId,
+        );
+        if (serviceIds.length > 0) {
+          poliConditions.push(inArray(appointments.serviceId, serviceIds));
+        }
+      }
+
+      const roomsInUnit = await this.db
+        .select({ id: clinicRooms.id })
+        .from(clinicRooms)
+        .where(eq(clinicRooms.unitId, filters.poliklinikId));
+      if (roomsInUnit.length > 0) {
+        poliConditions.push(
+          inArray(
+            appointments.roomId,
+            roomsInUnit.map((r) => r.id),
+          ),
+        );
+      }
+
+      conditions.push(or(...poliConditions));
+    }
+
+    if (filters?.poliklinikName) {
+      const pn = `%${filters.poliklinikName.trim()}%`;
+      conditions.push(
+        or(
+          ilike(clinicUnits.name, pn),
+          ilike(clinicRooms.name, pn),
+        ),
+      );
+    }
+
+    // 9. Global database-driven search across all relevant fields
+    if (filters?.search && filters.search.trim().length > 0) {
+      const searchPattern = `%${filters.search.trim()}%`;
+      conditions.push(
+        or(
+          ilike(patientProfiles.fullName, searchPattern),
+          ilike(patientProfiles.medicalRecordNumber, searchPattern),
+          ilike(appointments.bookingCode, searchPattern),
+          ilike(queueTickets.queueNumber, searchPattern),
+          ilike(practitioners.displayName, searchPattern),
+          ilike(clinicRooms.name, searchPattern),
+          ilike(clinicServices.name, searchPattern),
+          ilike(appointments.complaint, searchPattern),
+        ),
+      );
+    }
+
+    // 10. Keyset cursor filter
     if (filters?.cursor) {
       const cursorPayload = decodeCursor(filters.cursor);
       const cursorIso = cursorPayload.createdAt.toISOString();
@@ -252,6 +352,26 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
       );
     }
 
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    // 11. Count total matching rows in database with identical WHERE clause
+    const [countResult] = await this.db
+      .select({ total: count() })
+      .from(appointments)
+      .leftJoin(patientProfiles, eq(appointments.patientId, patientProfiles.id))
+      .leftJoin(queueTickets, eq(appointments.id, queueTickets.appointmentId))
+      .leftJoin(
+        practitioners,
+        eq(appointments.practitionerId, practitioners.id),
+      )
+      .leftJoin(clinicRooms, eq(appointments.roomId, clinicRooms.id))
+      .leftJoin(clinicUnits, eq(clinicRooms.unitId, clinicUnits.id))
+      .leftJoin(clinicServices, eq(appointments.serviceId, clinicServices.id))
+      .where(whereClause);
+
+    const totalCount = Number(countResult?.total ?? 0);
+
+    // 12. Query matching row IDs in SQL with LIMIT + 1 and OFFSET
     const fetchLimit = limit + 1;
     const orderByClause = filters?.cursor
       ? [desc(appointments.createdAt), desc(appointments.id)]
@@ -262,117 +382,62 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
           asc(appointments.createdAt),
         ];
 
+    const matchedRows = await this.db
+      .select({
+        id: appointments.id,
+      })
+      .from(appointments)
+      .leftJoin(patientProfiles, eq(appointments.patientId, patientProfiles.id))
+      .leftJoin(queueTickets, eq(appointments.id, queueTickets.appointmentId))
+      .leftJoin(
+        practitioners,
+        eq(appointments.practitionerId, practitioners.id),
+      )
+      .leftJoin(clinicRooms, eq(appointments.roomId, clinicRooms.id))
+      .leftJoin(clinicUnits, eq(clinicRooms.unitId, clinicUnits.id))
+      .leftJoin(clinicServices, eq(appointments.serviceId, clinicServices.id))
+      .where(whereClause)
+      .orderBy(...orderByClause)
+      .limit(fetchLimit)
+      .offset(filters?.cursor ? 0 : offset);
+
+    if (matchedRows.length === 0) {
+      return {
+        data: [],
+        meta: {
+          nextCursor: null,
+          hasNextPage: false,
+          limit,
+          total: totalCount,
+        },
+      };
+    }
+
+    const hasNextPage = matchedRows.length > limit;
+    const pageRows = hasNextPage ? matchedRows.slice(0, limit) : matchedRows;
+    const pageIds = pageRows.map((r) => r.id);
+
+    // 13. Fetch relational records for the exact paginated IDs
     const records = await this.db.query.appointments.findMany({
-      where: conditions.length > 0 ? and(...conditions) : undefined,
-      limit: fetchLimit,
-      offset: filters?.cursor ? 0 : offset,
-      orderBy: orderByClause,
+      where: inArray(appointments.id, pageIds),
       with: APPOINTMENT_RELATIONS,
     });
 
+    const recordMap = new Map(records.map((r) => [r.id, r]));
+    const orderedRecords = pageIds
+      .map((id) => recordMap.get(id))
+      .filter((r): r is NonNullable<typeof r> => Boolean(r));
+
     const windowHours = await this.getWindowHours();
-    let results = await this.mapAndSweep(records, windowHours);
+    const results = await this.mapAndSweep(
+      orderedRecords,
+      windowHours,
+      filters?.poliklinikId,
+    );
 
-    if (filters?.poliklinikId) {
-      results = results.filter((a) => a.poliklinikId === filters.poliklinikId);
-    }
-    if (filters?.poliklinikName) {
-      const pn = filters.poliklinikName.toLowerCase().trim();
-      results = results.filter((a) =>
-        a.poliklinikName?.toLowerCase().includes(pn),
-      );
-    }
-    if (filters?.serviceName) {
-      const sn = filters.serviceName.toLowerCase().trim();
-      results = results.filter((a) =>
-        a.layananName?.toLowerCase().includes(sn),
-      );
-    }
-    if (filters?.doctorId) {
-      if (filters.doctorId === 'unassigned') {
-        results = results.filter((a) => !a.staffId && !a.doctorId);
-      } else {
-        results = results.filter(
-          (a) =>
-            a.staffId === filters.doctorId || a.doctorId === filters.doctorId,
-        );
-      }
-    }
-    if (filters?.doctorName) {
-      const dn = filters.doctorName.toLowerCase().trim();
-      results = results.filter((a) => a.doctorName?.toLowerCase().includes(dn));
-    }
-    if (filters?.roomId) {
-      results = results.filter((a) => a.roomId === filters.roomId);
-    }
-    if (filters?.roomName) {
-      const rn = filters.roomName.toLowerCase().trim();
-      results = results.filter((a) => a.roomName?.toLowerCase().includes(rn));
-    }
-    if (filters?.session) {
-      results = results.filter((a) => a.session === filters.session);
-    }
-    if (filters?.status) {
-      const statusUpper = filters.status.toUpperCase();
-      results = results.filter(
-        (a) =>
-          a.status?.toUpperCase() === statusUpper ||
-          (a as any).rawStatus?.toUpperCase() === statusUpper,
-      );
-    }
-    if (filters?.search) {
-      const q = filters.search.toLowerCase().trim();
-      results = results.filter((a) =>
-        [
-          a.patientName,
-          a.bookingCode,
-          a.queueNumber,
-          a.doctorName,
-          a.poliklinikName,
-          a.layananName,
-          a.complaint,
-        ]
-          .filter(Boolean)
-          .join(' ')
-          .toLowerCase()
-          .includes(q),
-      );
-    }
-    if (!filters?.cursor) {
-      results.sort((a, b) => {
-        if (a.appointmentDate !== b.appointmentDate) {
-          return a.appointmentDate.localeCompare(b.appointmentDate);
-        }
-        const numA =
-          parseInt(String(a.queueNumber).replace(/\D/g, ''), 10) || 0;
-        const numB =
-          parseInt(String(b.queueNumber).replace(/\D/g, ''), 10) || 0;
-        if (numA !== numB) {
-          return numA - numB;
-        }
-        const timeA = a.scheduledStartTime || '';
-        const timeB = b.scheduledStartTime || '';
-        if (timeA !== timeB) {
-          return timeA.localeCompare(timeB);
-        }
-        return a.createdAt.getTime() - b.createdAt.getTime();
-      });
-    }
-
-    let totalCount = results.length;
-    if (!filters?.cursor) {
-      const [countResult] = await this.db
-        .select({ total: count() })
-        .from(appointments)
-        .where(conditions.length > 0 ? and(...conditions) : undefined);
-      totalCount = Number(countResult?.total ?? results.length);
-    }
-
-    const hasNextPage = results.length > limit;
-    const pageData = hasNextPage ? results.slice(0, limit) : results;
     let nextCursor: string | null = null;
-    if (hasNextPage && pageData.length > 0) {
-      const lastItem = pageData[pageData.length - 1];
+    if (hasNextPage && results.length > 0) {
+      const lastItem = results[results.length - 1];
       nextCursor = encodeCursor({
         createdAt: lastItem.createdAt,
         id: lastItem.id,
@@ -380,7 +445,7 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
     }
 
     return {
-      data: pageData,
+      data: results,
       meta: {
         nextCursor,
         hasNextPage,

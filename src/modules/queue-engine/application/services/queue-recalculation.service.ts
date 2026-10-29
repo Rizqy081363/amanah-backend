@@ -11,10 +11,14 @@ import { ClinicTimeService } from '../../../../common/time/clinic-time.service';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import type { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
+  appointments,
+  patientAffiliations,
   patientProfiles,
+  practitioners,
   queueTickets,
   sessionDefs,
   sessionSchedules,
+  staffProfiles,
 } from '../../../../database/schema';
 import { NotificationGatewayService } from '../../../notifications/application/services/notification-gateway.service';
 import type { SocketIoRealtimeGateway } from '../../../notifications/infrastructure/realtime/socket-io-realtime.gateway';
@@ -299,10 +303,10 @@ export class QueueRecalculationService {
           waitingPosition: proj.position,
         });
 
-        if (oldStart && shiftMinutes >= notifyDelayMinutes) {
+        if (!oldStart || shiftMinutes >= notifyDelayMinutes) {
           shiftedForNotification.push({
             ticketId: ticket.id,
-            oldStart,
+            oldStart: oldStart ?? null,
             newStart,
             newEnd,
             shiftMinutes,
@@ -438,7 +442,8 @@ export class QueueRecalculationService {
   ): Promise<void> {
     if (!this.notificationGateway) return;
 
-    // Resolve user IDs for recipient patients
+    // 1. Resolve user IDs for recipient patients
+    // Tier 1: Direct patient user_id
     const patientIds = shiftedItems
       .map((s) => s.patientId)
       .filter((id): id is string => Boolean(id));
@@ -458,8 +463,59 @@ export class QueueRecalculationService {
           userMap.set(r.patientId, r.userId);
         }
       }
+
+      // Tier 2: Check patient_affiliations (family accounts, parents, guardians)
+      const unmappedPatientIds = patientIds.filter((id) => !userMap.has(id));
+      if (unmappedPatientIds.length > 0) {
+        const affRows = await this.db
+          .select({
+            patientId: patientAffiliations.patientId,
+            userId: patientAffiliations.userId,
+          })
+          .from(patientAffiliations)
+          .where(inArray(patientAffiliations.patientId, unmappedPatientIds));
+
+        for (const aff of affRows) {
+          if (aff.userId && !userMap.has(aff.patientId)) {
+            userMap.set(aff.patientId, aff.userId);
+          }
+        }
+      }
+
+      // Tier 3: Check appointments.createdBy via queue_tickets
+      const stillUnmappedPatientIds = patientIds.filter(
+        (id) => !userMap.has(id),
+      );
+      if (stillUnmappedPatientIds.length > 0) {
+        const ticketIds = shiftedItems
+          .filter(
+            (s) => s.patientId && stillUnmappedPatientIds.includes(s.patientId),
+          )
+          .map((s) => s.ticketId);
+
+        if (ticketIds.length > 0) {
+          const aptRows = await this.db
+            .select({
+              patientId: queueTickets.patientId,
+              createdBy: appointments.createdBy,
+            })
+            .from(queueTickets)
+            .innerJoin(
+              appointments,
+              eq(queueTickets.appointmentId, appointments.id),
+            )
+            .where(inArray(queueTickets.id, ticketIds));
+
+          for (const apt of aptRows) {
+            if (apt.patientId && apt.createdBy && !userMap.has(apt.patientId)) {
+              userMap.set(apt.patientId, apt.createdBy);
+            }
+          }
+        }
+      }
     }
 
+    // 2. Dispatch notifications to patients / booking owners
     for (const item of shiftedItems) {
       const userId = item.patientId ? userMap.get(item.patientId) : undefined;
       if (!userId) continue;
@@ -474,15 +530,15 @@ export class QueueRecalculationService {
         timezone,
       );
 
-      if (!item.oldStart) continue;
-
-      const diffMs = item.newStart.getTime() - item.oldStart.getTime();
+      const diffMs = item.oldStart
+        ? item.newStart.getTime() - item.oldStart.getTime()
+        : 0;
       const diffMinutes = Math.round(diffMs / 60_000);
-      if (Math.abs(diffMinutes) < 1) {
-        continue;
-      }
-
       const directionText = diffMinutes < 0 ? 'lebih awal' : 'mundur';
+
+      const bodyText = item.oldStart
+        ? `Pelayanan klinik berjalan dinamis. Estimasi giliran antrean ${item.queueNumber} bergeser ${directionText} menjadi ${etaWindow.displayRange}.`
+        : `Jadwal operasional klinik diperbarui. Estimasi giliran antrean ${item.queueNumber} kini dijadwalkan pada ${etaWindow.displayRange}.`;
 
       await this.notificationGateway
         .dispatch({
@@ -495,7 +551,7 @@ export class QueueRecalculationService {
           category: 'queue',
           content: {
             title: 'Pembaruan Estimasi Antrean',
-            body: `Pelayanan klinik berjalan dinamis. Estimasi giliran antrean ${item.queueNumber} bergeser ${directionText} menjadi ${etaWindow.displayRange}.`,
+            body: bodyText,
             data: {
               ticketId: item.ticketId,
               queueNumber: item.queueNumber,
@@ -512,6 +568,58 @@ export class QueueRecalculationService {
             `Failed to dispatch shift notification for ticket ${item.ticketId}: ${err.message}`,
           );
         });
+    }
+
+    // 3. Dispatch notifications to assigned doctors for the shifted tickets
+    const ticketIds = shiftedItems.map((s) => s.ticketId);
+    if (ticketIds.length > 0) {
+      const doctorTickets = await this.db
+        .select({
+          doctorId: queueTickets.doctorId,
+          userId: staffProfiles.userId,
+        })
+        .from(queueTickets)
+        .innerJoin(practitioners, eq(queueTickets.doctorId, practitioners.id))
+        .innerJoin(
+          staffProfiles,
+          eq(practitioners.staffProfileId, staffProfiles.id),
+        )
+        .where(inArray(queueTickets.id, ticketIds));
+
+      const doctorUserIds = Array.from(
+        new Set(
+          doctorTickets
+            .map((d) => d.userId)
+            .filter((uid): uid is string => Boolean(uid)),
+        ),
+      );
+
+      for (const docUserId of doctorUserIds) {
+        await this.notificationGateway
+          .dispatch({
+            commandId: `doctor-shift-${docUserId}-${new Date().toISOString()}`,
+            sourceDomain: 'queue',
+            target: {
+              type: 'user',
+              recipientUserIds: [docUserId],
+            },
+            category: 'queue',
+            content: {
+              title: 'Pembaruan Jadwal Shift Operasional',
+              body: 'Jadwal shift operasional sesi telah disesuaikan oleh admin klinik. Estimasi antrean pasien Anda telah diperbarui secara otomatis.',
+              data: {
+                shiftedTicketsCount: shiftedItems.length,
+              },
+            },
+            channels: ['in_app'],
+            priority: 'normal',
+          })
+          .catch((err) => {
+            this.logger.warn(
+              `Failed to dispatch doctor shift notification for user ${docUserId}: ${err.message}`,
+            );
+          });
+      }
     }
   }
 }
