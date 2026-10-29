@@ -1,7 +1,5 @@
 import { forwardRef, Inject, Injectable, Logger } from '@nestjs/common';
-import {
-  QUEUE_EVENTS_EXCHANGE,
-} from '../../../../common/rabbitmq/rabbitmq.constants';
+import { QUEUE_EVENTS_EXCHANGE } from '../../../../common/rabbitmq/rabbitmq.constants';
 import { RabbitMQService } from '../../../../common/rabbitmq/rabbitmq.service';
 import {
   QueueRecalculationService,
@@ -9,7 +7,15 @@ import {
 } from './queue-recalculation.service';
 
 export interface ProgressionEventPayload extends RecalculationParams {
-  eventType: 'completed' | 'in_service' | 'called' | 'cancelled' | 'requeued' | 'checked_in';
+  eventType:
+    | 'completed'
+    | 'in_service'
+    | 'called'
+    | 'cancelled'
+    | 'requeued'
+    | 'checked_in'
+    | 'shift_changed'
+    | 'schedule_changed';
   timestamp?: string;
 }
 

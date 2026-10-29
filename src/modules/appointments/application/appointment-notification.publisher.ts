@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { SYSTEM_ROLES } from '../../../auth/constants/auth.constants';
 import {
   type DomainEvent,
   type NotificationPublisher,
 } from '../../notifications/contracts/domain-event.interface';
 import { NOTIFICATION_PUBLISHER } from '../../notifications/notifications.constants';
-import { SYSTEM_ROLES } from '../../../auth/constants/auth.constants';
 import { APPOINTMENT_EVENTS } from '../domain/constants/appointment-lifecycle.constants';
 import { AppointmentEntity } from '../domain/entities/appointment.entity';
 
@@ -23,7 +23,10 @@ export class AppointmentNotificationPublisher {
     );
   }
 
-  private extractRoleCode(user?: any, fallback: string = SYSTEM_ROLES.STAF): string {
+  private extractRoleCode(
+    user?: any,
+    fallback: string = SYSTEM_ROLES.STAF,
+  ): string {
     return user?.systemRole ?? fallback;
   }
 
@@ -280,6 +283,7 @@ export class AppointmentNotificationPublisher {
           patientId: appointment.patientId,
           patientUserId: appointment.patientUserId || null,
           patientName: appointment.patientName || 'Pasien',
+          queueNumber: appointment.queueNumber || null,
           staffId: appointment.staffId || null,
           doctorName: appointment.doctorName || null,
           roomName: appointment.roomName || null,
@@ -393,8 +397,7 @@ export class AppointmentNotificationPublisher {
           poliklinikName: appointment.poliklinikName || null,
           roomName: appointment.roomName || null,
           ticketNumber:
-            appointment.ticketNumber ||
-            String(appointment.queueNumber || '-'),
+            appointment.ticketNumber || String(appointment.queueNumber || '-'),
           queueNumber: appointment.queueNumber || null,
           scheduledDate: appointment.scheduledDate || null,
           title: 'Pemeriksaan Dimulai',
@@ -453,8 +456,7 @@ export class AppointmentNotificationPublisher {
           poliklinikName: appointment.poliklinikName || null,
           roomName: appointment.roomName || null,
           ticketNumber:
-            appointment.ticketNumber ||
-            String(appointment.queueNumber || '-'),
+            appointment.ticketNumber || String(appointment.queueNumber || '-'),
           queueNumber: appointment.queueNumber || null,
           scheduledDate: appointment.scheduledDate || null,
           title: 'Pemeriksaan Selesai',

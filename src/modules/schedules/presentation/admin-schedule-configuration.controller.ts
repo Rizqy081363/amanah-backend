@@ -1,4 +1,4 @@
-import { SYSTEM_ROLES } from '@/auth/constants/auth.constants';
+import { type AuthenticatedUser, CurrentUser } from '@common/auth';
 import { HybridAuthGuard } from '@common/auth/hybrid-auth.guard';
 import { Roles } from '@common/auth/roles.decorator';
 import { RolesGuard } from '@common/auth/roles.guard';
@@ -24,6 +24,8 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import { SYSTEM_ROLES } from '@/auth/constants/auth.constants';
+import { UpdateOperationalShiftUseCase } from '../application/use-cases/update-operational-shift.use-case';
 import {
   DrizzleAdminScheduleConfigurationRepository,
   ScheduleConfigurationData,
@@ -58,6 +60,7 @@ import {
 export class AdminScheduleConfigurationController {
   constructor(
     private readonly configRepo: DrizzleAdminScheduleConfigurationRepository,
+    private readonly updateOperationalShiftUseCase: UpdateOperationalShiftUseCase,
   ) {}
 
   @Get()
@@ -119,11 +122,15 @@ export class AdminScheduleConfigurationController {
   })
   async updateSessionDefs(
     @Body() dto: UpdateSessionDefsBatchDto,
+    @CurrentUser() user?: AuthenticatedUser,
   ): Promise<{ success: boolean; message: string }> {
-    await this.configRepo.updateSessionDefs(dto.defs);
+    const res = await this.updateOperationalShiftUseCase.execute(
+      dto.defs,
+      user,
+    );
     return {
-      success: true,
-      message: 'Definisi shift operasional berhasil diperbarui',
+      success: res.success,
+      message: res.message,
     };
   }
 

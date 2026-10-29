@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, isNull, or, sql } from 'drizzle-orm';
+import { and, asc, eq, getTableColumns, isNull, or, sql } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import {
   appointments,
@@ -55,14 +55,18 @@ export class DrizzleQueueEngineRepository implements IQueueEngineRepository {
     const { roomId, doctorId, categoryId, serviceDate } = params;
 
     const res = await this.db.execute(sql`
-      SELECT id, appointment_id, category_id, session_id, queue_date, queue_number, patient_id, status
-      FROM queue_tickets
-      WHERE queue_date = ${serviceDate}
-        AND (${categoryId ?? null}::uuid IS NULL OR category_id = ${categoryId ?? null}::uuid)
-        AND status = 'waiting'
-      ORDER BY queue_number ASC
+      SELECT q.id, q.appointment_id, q.category_id, q.session_id, q.queue_date, q.queue_number, q.patient_id, q.status
+      FROM queue_tickets q
+      LEFT JOIN appointments a ON q.appointment_id = a.id
+      WHERE q.queue_date = ${serviceDate}
+        AND (${categoryId ?? null}::uuid IS NULL OR q.category_id = ${categoryId ?? null}::uuid)
+        AND q.status = 'waiting'
+      ORDER BY 
+        COALESCE(a.queue_number, NULLIF(regexp_replace(q.queue_number, '\\D', '', 'g'), '')::integer, 999999) ASC,
+        q.created_at ASC,
+        q.id ASC
       LIMIT 1
-      FOR UPDATE SKIP LOCKED;
+      FOR UPDATE OF q SKIP LOCKED;
     `);
 
     if (!res.rows || res.rows.length === 0) {
@@ -185,10 +189,24 @@ export class DrizzleQueueEngineRepository implements IQueueEngineRepository {
     }
 
     const rows = await this.db
-      .select()
+      .select({
+        ...getTableColumns(queueTickets),
+      })
       .from(queueTickets)
+      .leftJoin(appointments, eq(queueTickets.appointmentId, appointments.id))
       .where(and(...conditions))
-      .orderBy(queueTickets.queueNumber);
+      .orderBy(
+        sql`CASE 
+          WHEN ${queueTickets.status} = ${QUEUE_TICKET_STATUS.IN_SERVICE} THEN 0 
+          WHEN ${queueTickets.status} = ${QUEUE_TICKET_STATUS.CALLED} THEN 1 
+          ELSE 2 
+        END`,
+        asc(
+          sql`COALESCE(${appointments.queueNumber}, NULLIF(regexp_replace(${queueTickets.queueNumber}, '\\D', '', 'g'), '')::integer, 999999)`,
+        ),
+        asc(queueTickets.createdAt),
+        asc(queueTickets.id),
+      );
 
     return rows.map((r: any) => this.mapToDomainTicket(r));
   }

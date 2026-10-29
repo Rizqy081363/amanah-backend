@@ -643,7 +643,9 @@ export class AppointmentsNotificationRules implements OnModuleInit {
               severity: 'info',
               badgeIcon: 'calendar',
               visualKey: payload.avatarUrl || null,
-              senderName: isClinicActor ? 'Klinik Amanah' : (payload.patientName || 'Pasien'),
+              senderName: isClinicActor
+                ? 'Klinik Amanah'
+                : payload.patientName || 'Pasien',
               senderRole: isClinicActor ? 'Staf' : 'Pasien',
               action: {
                 type: 'view_schedule_detail',
@@ -751,7 +753,7 @@ export class AppointmentsNotificationRules implements OnModuleInit {
             audience: 'patient',
             title: 'Janji Temu Dibatalkan',
             body: isClinicActor
-              ? `Janji temu Anda (${payload.queueNumber || '-'}) dengan ${payload.doctorName || 'Dokter'} dibatalkan oleh ${payload.cancelledByRole === 'doctor' ? (payload.doctorName || 'dokter') : 'pihak klinik'}. Alasan: ${payload.reason || '-'}.`
+              ? `Janji temu Anda (${payload.queueNumber || '-'}) dengan ${payload.doctorName || 'Dokter'} dibatalkan oleh ${payload.cancelledByRole === 'doctor' ? payload.doctorName || 'dokter' : 'pihak klinik'}. Alasan: ${payload.reason || '-'}.`
               : `Janji temu Anda dengan ${payload.doctorName || 'Dokter'} telah berhasil dibatalkan.`,
             severity: isClinicActor ? 'error' : 'info',
             badgeIcon: 'alert-circle',
@@ -786,8 +788,8 @@ export class AppointmentsNotificationRules implements OnModuleInit {
               badgeIcon: 'alert-circle',
               visualKey: payload.avatarUrl ?? null,
               senderName: isClinicActor
-                ? (payload.doctorName || 'Dokter')
-                : (payload.patientName || 'Pasien'),
+                ? payload.doctorName || 'Dokter'
+                : payload.patientName || 'Pasien',
               senderRole: isClinicActor ? 'Dokter' : 'Pasien',
               action: {
                 type: 'view_schedule',
@@ -873,56 +875,63 @@ export class AppointmentsNotificationRules implements OnModuleInit {
       eventType: APPOINTMENT_EVENTS.ASSIGNMENT_UPDATED,
       category: 'appointment',
       defaultChannels: ['in_app', 'push'],
-      resolveIntents: async (payload: any): Promise<NotificationIntent[]> => {
+      resolveIntents: async (
+        payload: any,
+        actor?: any,
+      ): Promise<NotificationIntent[]> => {
         const intents: NotificationIntent[] = [];
-        const changeTitle =
-          payload.title ||
-          (payload.changeType === 'doctor'
-            ? 'Perubahan Dokter'
-            : 'Perubahan Ruangan');
-        const changeBody = payload.message
-          ? payload.message
-          : payload.changeType === 'doctor'
-            ? `Dokter dialihkan ke ${payload.doctorName || 'dokter baru'}.`
-            : `Ruangan dialihkan ke ${payload.roomName || 'ruangan baru'}.`;
+        const isDoctorChange = payload.changeType === 'doctor';
 
-        // 1. Notify Patient
+        // 1. Notify Patient (Audience: patient)
         if (payload.patientUserId) {
-          intents.push({
-            recipientUserId: payload.patientUserId,
-            audience: 'patient',
-            title: changeTitle,
-            body: changeBody,
-            severity: 'info',
-            badgeIcon: 'stethoscope',
-            visualKey: payload.avatarUrl ?? null,
-            senderName: 'Klinik Amanah',
-            senderRole: 'Admin',
-            action: {
-              type: 'view_queue',
-              params: { appointmentId: payload.appointmentId || '' },
-              label: 'Lihat Antrean',
-            },
-            presentation: { toast: true },
-          });
+          const isActorPatient = actor?.userId === payload.patientUserId;
+          if (!isActorPatient) {
+            const patientTitle = isDoctorChange
+              ? 'Perubahan Dokter Janji Temu'
+              : 'Perubahan Ruangan Janji Temu';
+            const patientBody = isDoctorChange
+              ? `Dokter janji temu Anda telah dialihkan ke ${payload.doctorName || 'dokter baru'}.`
+              : `Ruangan janji temu Anda telah dialihkan ke ${payload.roomName || 'ruangan baru'}.`;
+
+            intents.push({
+              recipientUserId: payload.patientUserId,
+              audience: 'patient',
+              title: patientTitle,
+              body: patientBody,
+              severity: 'info',
+              badgeIcon: 'stethoscope',
+              visualKey: payload.avatarUrl ?? null,
+              senderName: 'Klinik Amanah',
+              senderRole: 'Admin',
+              action: {
+                type: 'view_queue',
+                params: { appointmentId: payload.appointmentId || '' },
+                label: 'Lihat Antrean',
+              },
+              presentation: { toast: true },
+            });
+          }
         }
 
-        // 2. Notify newly assigned staff / doctor
+        // 2. Notify assigned doctor & clinic staff (Audience: clinic)
         if (this.recipientResolver && payload.staffId) {
           const clinicUserIds =
             await this.recipientResolver.resolveScopedClinicRecipients(
               payload.staffId,
             );
-          const staffTitle =
-            payload.changeType === 'doctor'
-              ? 'Penugasan Pasien Baru'
-              : changeTitle;
-          const staffBody =
-            payload.changeType === 'doctor'
-              ? `Anda telah ditugaskan untuk menangani pasien ${payload.patientName || 'Pasien'}.`
-              : changeBody;
+          const staffTitle = isDoctorChange
+            ? 'Penugasan Pasien Baru'
+            : 'Pembaruan Ruangan Pasien';
+          const staffBody = isDoctorChange
+            ? `Anda telah ditugaskan untuk menangani pasien ${payload.patientName || 'Pasien'} (${payload.queueNumber || '-'}).`
+            : `Ruangan periksa pasien ${payload.patientName || 'Pasien'} (${payload.queueNumber || '-'}) dialihkan ke ${payload.roomName || 'ruangan baru'}.`;
 
           for (const staffUserId of clinicUserIds) {
+            const isActorStaff = actor?.userId === staffUserId;
+            if (isActorStaff) {
+              continue;
+            }
+
             intents.push({
               recipientUserId: staffUserId,
               audience: 'clinic',

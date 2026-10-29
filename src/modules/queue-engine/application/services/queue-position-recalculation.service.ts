@@ -184,6 +184,9 @@ export class QueuePositionRecalculationService {
       .orderBy(
         sql`CASE WHEN ${appointments.status} = ${DB_APPOINTMENT_STATUS.IN_SERVICE} THEN 0 ELSE 1 END`,
         asc(
+          sql`COALESCE(${appointments.queueNumber}, NULLIF(regexp_replace(${queueTickets.queueNumber}, '\\D', '', 'g'), '')::integer, 999999)`,
+        ),
+        asc(
           sql`COALESCE(${queueTickets.assignedAt}, ${queueTickets.createdAt}, ${appointments.createdAt})`,
         ),
         asc(appointments.scheduledStartTime),

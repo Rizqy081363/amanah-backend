@@ -1,7 +1,4 @@
-import {
-  type AuthenticatedUser,
-  isAdminUser,
-} from '@common/auth';
+import { type AuthenticatedUser, isAdminUser } from '@common/auth';
 import { CurrentUser } from '@common/auth/current-user.decorator';
 import { HybridAuthGuard } from '@common/auth/hybrid-auth.guard';
 import { Roles } from '@common/auth/roles.decorator';
@@ -47,6 +44,7 @@ import {
   StaffRepository,
 } from '../../staffs/domain/repositories/staff.repository';
 import { UpdateStaffDto } from '../../staffs/presentation/dto/update-staff.dto';
+import { MutateDoctorSessionOperationalHoursUseCase } from '../application/use-cases/mutate-doctor-session-operational-hours.use-case';
 import {
   AdminDoctorAccumulatedPatientsResponse,
   AdminDoctorScheduleDetailResponse,
@@ -87,6 +85,7 @@ export class AdminDoctorSchedulesController {
     private readonly scheduleRepo: ScheduleRepository,
     @Inject(STAFF_REPOSITORY)
     private readonly staffRepo: StaffRepository,
+    private readonly mutateDoctorSessionOperationalHoursUseCase: MutateDoctorSessionOperationalHoursUseCase,
     @Optional()
     @Inject(RedisService)
     private readonly redisService?: RedisService,
@@ -116,7 +115,8 @@ export class AdminDoctorSchedulesController {
     const doctorPractitionerId = user.staff?.practitionerId;
     const staffId = user.staff?.id;
     if (
-      (!doctorPractitionerId || doctorPractitionerId !== targetPractitionerId) &&
+      (!doctorPractitionerId ||
+        doctorPractitionerId !== targetPractitionerId) &&
       (!staffId || staffId !== targetPractitionerId)
     ) {
       throw new DomainForbiddenException(
@@ -465,11 +465,13 @@ export class AdminDoctorSchedulesController {
     @CurrentUser() user?: AuthenticatedUser,
   ) {
     this.assertDoctorAccess(id, user);
-    const result = await this.scheduleRepo.updateAdminDoctorSession(
-      id,
-      sessionId,
-      body,
-    );
+    const result =
+      await this.mutateDoctorSessionOperationalHoursUseCase.execute(
+        id,
+        sessionId,
+        body,
+        user,
+      );
     await this.invalidateScheduleCaches();
     return result;
   }

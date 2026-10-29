@@ -31,14 +31,17 @@ import { AdminDoctorSchedulesController } from '@modules/schedules/presentation/
 import { AdminScheduleConfigurationController } from '@modules/schedules/presentation/admin-schedule-configuration.controller';
 import { ClinicalPractitionersController } from '@modules/schedules/presentation/clinical-practitioners.controller';
 import { SchedulesController } from '@modules/schedules/presentation/schedules.controller';
+import { Module } from '@nestjs/common';
+import { QueueEngineModule } from '../queue-engine/queue-engine.module';
+import { StaffsModule } from '../staffs/staffs.module';
 import {
   CreateScheduleUseCase,
   DeleteScheduleSessionUseCase,
   GetSchedulesUseCase,
+  MutateDoctorSessionOperationalHoursUseCase,
+  UpdateOperationalShiftUseCase,
   UpdateScheduleUseCase,
 } from './application/use-cases';
-import { StaffsModule } from '../staffs/staffs.module';
-import { Module } from '@nestjs/common';
 
 @Module({
   imports: [
@@ -47,6 +50,7 @@ import { Module } from '@nestjs/common';
     DoctorRosterModule,
     OperatingDaysModule,
     StaffsModule,
+    QueueEngineModule,
   ],
   controllers: [
     SchedulesController,
@@ -80,6 +84,8 @@ import { Module } from '@nestjs/common';
     GetSchedulesUseCase,
     UpdateScheduleUseCase,
     DeleteScheduleSessionUseCase,
+    UpdateOperationalShiftUseCase,
+    MutateDoctorSessionOperationalHoursUseCase,
     {
       provide: SCHEDULE_REPOSITORY,
       useClass: ScheduleDrizzleRepository,
@@ -91,6 +97,8 @@ import { Module } from '@nestjs/common';
     GetSchedulesUseCase,
     UpdateScheduleUseCase,
     DeleteScheduleSessionUseCase,
+    UpdateOperationalShiftUseCase,
+    MutateDoctorSessionOperationalHoursUseCase,
     PractitionerResolver,
     RoomResolver,
     ScheduleConflictQuery,
