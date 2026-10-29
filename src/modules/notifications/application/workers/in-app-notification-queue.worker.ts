@@ -130,10 +130,12 @@ export class InAppNotificationQueueWorker
             ? 'wallet'
             : 'calendar';
 
+      const audience = (content.data?.audience as any) || 'clinic';
+
       const persisted = await this.notificationRepo.createIfNotExists({
         idempotencyKey,
         category: command.category || 'shift',
-        audience: 'clinic',
+        audience,
         title: content.title,
         body: content.body,
         senderName: 'Sistem Klinik',
@@ -172,7 +174,7 @@ export class InAppNotificationQueueWorker
         schemaVersion: 2,
         id: notifId,
         eventId: command.commandId,
-        audience: 'clinic',
+        audience,
         recipientUserId: userId,
         type: command.category || command.sourceDomain,
         title: content.title,

@@ -17,6 +17,7 @@ import {
   type AppointmentRepository,
 } from '../../domain/repositories/appointment.repository';
 import { isAppointmentWithinCheckInWindow } from '../../domain/services/appointment-check-in-window.predicate';
+import { AppointmentPolicyReader } from '../../domain/services/appointment-policy.reader';
 import { AppointmentNotificationPublisher } from '../appointment-notification.publisher';
 import {
   APPOINTMENT_CHECK_IN_REPOSITORY_PORT,
@@ -58,6 +59,8 @@ export class PerformCheckInUseCase {
     private readonly notificationPublisher?: AppointmentNotificationPublisher,
     @Optional()
     private readonly queueEventPublisher?: QueueEventPublisher,
+    @Optional()
+    private readonly policyReader?: AppointmentPolicyReader,
   ) {}
 
   async execute(
@@ -156,12 +159,15 @@ export class PerformCheckInUseCase {
     }
 
     if (appointment.appointmentDate) {
+      const thresholds = await this.policyReader?.getQueueThresholds();
       const checkInEval = isAppointmentWithinCheckInWindow({
         scheduledDate: appointment.appointmentDate,
         scheduledStartTime: appointment.scheduledStartTime,
         scheduledEndTime: appointment.scheduledEndTime,
         todayDateStr: this.clinicTimeService.today(),
         currentTimeStr: this.clinicTimeService.getCurrentTimeString(),
+        arriveEarlyMinutes: thresholds?.arriveEarlyMinutes,
+        overflowToleranceMinutes: thresholds?.overflowToleranceMinutes,
       });
 
       if (!checkInEval.isOpen) {

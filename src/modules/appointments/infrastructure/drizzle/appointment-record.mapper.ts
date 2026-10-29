@@ -37,6 +37,10 @@ export class AppointmentRecordMapper {
     windowHours: number | undefined,
     clinicTimeService: ClinicTimeService,
     isDoctorServing?: boolean,
+    checkInThresholds?: {
+      arriveEarlyMinutes?: number;
+      overflowToleranceMinutes?: number;
+    },
   ): AppointmentEntity {
     let domainStatus = toDomainStatus(apt.status);
     let rawStatus = apt.status;
@@ -223,6 +227,9 @@ export class AppointmentRecordMapper {
                 scheduledEndTime: apt.scheduledEndTime,
                 todayDateStr: clinicTimeService.today(),
                 currentTimeStr: clinicTimeService.getCurrentTimeString(),
+                arriveEarlyMinutes: checkInThresholds?.arriveEarlyMinutes,
+                overflowToleranceMinutes:
+                  checkInThresholds?.overflowToleranceMinutes,
               }).isOpen
             : true,
       }),

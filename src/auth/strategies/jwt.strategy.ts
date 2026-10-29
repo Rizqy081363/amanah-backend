@@ -94,6 +94,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       staff: staffProfile
         ? {
             id: staffProfile.id,
+            staffType: (staffProfile.staffType as any) || 'worker',
             practitionerId: staffProfile.practitioners?.[0]?.id || null,
             userId: user.id,
             poliklinikId: staffProfile.primaryUnitId,
@@ -101,6 +102,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
             profession: staffProfile.positionTitle,
             staffCode: staffProfile.staffCode,
             idCardNumber: staffProfile.nationalIdEncrypted || null,
+            gender: staffProfile.gender || null,
             photoUrl: staffProfile.avatarUrl,
             phoneNumber: staffProfile.phone,
             isActive: staffProfile.status === 'active',

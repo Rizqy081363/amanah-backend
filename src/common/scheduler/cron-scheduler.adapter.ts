@@ -77,19 +77,24 @@ export class CronSchedulerAdapter
       const todayStr = new Date().toISOString().split('T')[0];
 
       if (options.distributedLock && this.redisService) {
-        const lockKey = `cron_lock:${options.jobId}:${todayStr}`;
+        const isRunMode = options.lockMode === 'run';
+        const lockKey = isRunMode
+          ? `cron_lock:${options.jobId}:run`
+          : `cron_lock:${options.jobId}:${todayStr}`;
+        const defaultTtl = isRunMode ? 50 : 7200;
+
         try {
           const isLocked = await this.redisService.get(lockKey);
           if (isLocked) {
             this.logger.log(
-              `[Scheduler] Job "${options.jobId}" skipped: already executed on ${todayStr} by another instance.`,
+              `[Scheduler] Job "${options.jobId}" skipped: already executing or executed by another instance.`,
             );
             return;
           }
           await this.redisService.set(
             lockKey,
             'locked',
-            options.lockTtlSeconds || 7200,
+            options.lockTtlSeconds || defaultTtl,
           );
         } catch (lockErr) {
           this.logger.warn(

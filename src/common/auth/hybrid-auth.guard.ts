@@ -149,6 +149,7 @@ export class HybridAuthGuard extends AuthGuard('jwt') implements CanActivate {
         staff: staffProfile
           ? {
               id: staffProfile.id,
+              staffType: (staffProfile.staffType as any) || 'worker',
               practitionerId: staffProfile.practitioners?.[0]?.id || null,
               userId: userRecord.id,
               poliklinikId: staffProfile.primaryUnitId,

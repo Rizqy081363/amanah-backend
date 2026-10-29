@@ -47,4 +47,6 @@ export interface QueueThresholdsData {
   maxActivePerPatientCategoryDay: number;
   rescheduleWarnWhenAheadLte: number;
   showDoctorWhenCalled: boolean;
+  checkInReminderEnabled: boolean;
+  operationalBroadcastEnabled: boolean;
 }

@@ -286,6 +286,8 @@ export class ClinicConfigService {
       maxActivePerPatientCategoryDay,
       rescheduleWarnWhenAheadLte,
       showDoctorWhenCalled,
+      checkInReminderEnabled,
+      operationalBroadcastEnabled,
     ] = await Promise.all([
       this.getNumber('queue.arrive_early_minutes', scope).catch(() => 15),
       this.getNumber('queue.overflow_tolerance_minutes', scope).catch(() => 30),
@@ -300,6 +302,12 @@ export class ClinicConfigService {
       this.getBoolean('ticket.show_doctor_when_called', scope).catch(
         () => true,
       ),
+      this.getBoolean('queue.check_in_reminder_enabled', scope).catch(
+        () => true,
+      ),
+      this.getBoolean('queue.operational_broadcast_enabled', scope).catch(
+        () => true,
+      ),
     ]);
 
     return {
@@ -310,7 +318,21 @@ export class ClinicConfigService {
       maxActivePerPatientCategoryDay,
       rescheduleWarnWhenAheadLte,
       showDoctorWhenCalled,
+      checkInReminderEnabled,
+      operationalBroadcastEnabled,
     };
+  }
+
+  async getCheckInReminderEnabled(scope?: ScopeQuery): Promise<boolean> {
+    return this.getBoolean('queue.check_in_reminder_enabled', scope).catch(
+      () => true,
+    );
+  }
+
+  async getOperationalBroadcastEnabled(scope?: ScopeQuery): Promise<boolean> {
+    return this.getBoolean('queue.operational_broadcast_enabled', scope).catch(
+      () => true,
+    );
   }
 
   async getLoadRatioThresholds(

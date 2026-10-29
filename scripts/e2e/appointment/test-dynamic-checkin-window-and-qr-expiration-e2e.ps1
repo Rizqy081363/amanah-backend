@@ -154,13 +154,18 @@ $bookPayload1 = @{
     appointmentDate = $targetDate
     session = $targetSession
     complaint = "E2E Dynamic QR Window Verification - Apt 1"
-    visitType = "Pemeriksaan Baru"
+    visitType = "new_visit"
 } | ConvertTo-Json
 
 $bookRes1 = Invoke-RestMethod -Uri "$apiUrl/appointments" -Method Post -Headers $patient1Auth.headers -Body $bookPayload1 -ContentType "application/json"
 $apt1 = Get-ResponseData $bookRes1
 $apt1Id = $apt1.id
 Assert-Test "Appointment 1 booked" ($null -ne $apt1Id -and $apt1Id.Length -gt 10)
+
+# Set scheduled time to current time window
+$currentTimeWindowStart = (Get-Date).ToString("HH:mm:ss")
+$currentTimeWindowEnd = (Get-Date).AddMinutes(30).ToString("HH:mm:ss")
+$null = Run-DockerSql "UPDATE appointments SET scheduled_start_time = '$currentTimeWindowStart', scheduled_end_time = '$currentTimeWindowEnd' WHERE id = '$apt1Id';"
 
 # Assign Doctor & Room to Appointment 1
 $docCandidates = Get-ResponseData (Invoke-RestMethod -Uri "$apiUrl/admin/appointments/$apt1Id/candidates/doctors" -Method Get -Headers $adminAuth.headers)
@@ -231,13 +236,16 @@ $bookPayload2 = @{
     appointmentDate = $targetDate
     session = $targetSession
     complaint = "E2E Dynamic QR Window Verification - Apt 2 (12h Window)"
-    visitType = "Pemeriksaan Baru"
+    visitType = "new_visit"
 } | ConvertTo-Json
 
 $bookRes2 = Invoke-RestMethod -Uri "$apiUrl/appointments" -Method Post -Headers $patient2Auth.headers -Body $bookPayload2 -ContentType "application/json"
 $apt2 = Get-ResponseData $bookRes2
 $apt2Id = $apt2.id
 Assert-Test "Appointment 2 booked" ($null -ne $apt2Id -and $apt2Id.Length -gt 10)
+
+# Set scheduled time to current time window
+$null = Run-DockerSql "UPDATE appointments SET scheduled_start_time = '$currentTimeWindowStart', scheduled_end_time = '$currentTimeWindowEnd' WHERE id = '$apt2Id';"
 
 # Assign Doctor & Room to Appointment 2
 $assignDocPayload2 = @{ doctorId = $targetDoctor.id; reason = "Penugasan dokter operasional E2E" } | ConvertTo-Json

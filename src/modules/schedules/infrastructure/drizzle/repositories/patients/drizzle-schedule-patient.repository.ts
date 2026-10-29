@@ -1,4 +1,5 @@
 import { ClinicTimeService } from '@common/time/clinic-time.service';
+import { ClinicConfigService } from '@common/clinic-config';
 import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
@@ -29,7 +30,7 @@ import { BookedPatientMapper } from '@modules/schedules/infrastructure/drizzle/m
 import { PractitionerResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/practitioner.resolver';
 import type { GetAdminDoctorPatientsQueryDto } from '@modules/schedules/presentation/dto/get-admin-doctor-patients-query.dto';
 import type { GetSessionPatientsQueryDto } from '@modules/schedules/presentation/dto/get-session-patients-query.dto';
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { isUUID } from 'class-validator';
 import {
   and,
@@ -50,6 +51,8 @@ export class DrizzleSchedulePatientRepository {
     private readonly db: DrizzleDatabase,
     private readonly practitionerResolver: PractitionerResolver,
     private readonly clinicTimeService: ClinicTimeService,
+    @Optional()
+    private readonly clinicConfig?: ClinicConfigService,
   ) {}
 
   async getBookedPatients(
@@ -255,6 +258,8 @@ export class DrizzleSchedulePatientRepository {
       (a) => a.status === DB_APPOINTMENT_STATUS.IN_SERVICE,
     );
 
+    const thresholds = await this.clinicConfig?.getQueueThresholds();
+
     let mappedPatients: AdminSessionPatientItem[] = aptRecords.map(
       (apt, idx) => {
         const ageStr = BookedPatientMapper.calculateAgeString(
@@ -331,6 +336,8 @@ export class DrizzleSchedulePatientRepository {
                   scheduledEndTime: apt.scheduledEndTime,
                   todayDateStr: this.clinicTimeService.today(),
                   currentTimeStr: this.clinicTimeService.getCurrentTimeString(),
+                  arriveEarlyMinutes: thresholds?.arriveEarlyMinutes,
+                  overflowToleranceMinutes: thresholds?.overflowToleranceMinutes,
                 }).isOpen
               : true,
         });

@@ -82,6 +82,22 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
     return undefined;
   }
 
+  private async getQueueThresholds(): Promise<
+    { arriveEarlyMinutes?: number; overflowToleranceMinutes?: number } | undefined
+  > {
+    if (this.clinicConfig) {
+      try {
+        return await this.clinicConfig.getQueueThresholds();
+      } catch (_) {}
+    }
+    if (this.policyReader) {
+      try {
+        return await this.policyReader.getQueueThresholds();
+      } catch (_) {}
+    }
+    return undefined;
+  }
+
   private async persistLateness(ids: string[]): Promise<void> {
     if (ids.length === 0) return;
     try {
@@ -129,6 +145,7 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
     if (this.poliklinikResolver) {
       await this.poliklinikResolver.loadFromDatabase();
     }
+    const thresholds = await this.getQueueThresholds();
     const busyDoctorIds = new Set<string>();
     for (const r of records) {
       if (
@@ -157,6 +174,7 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
         windowHours,
         this.clinicTimeService,
         isDoctorServing,
+        thresholds,
       );
       if (
         entity.status === DOMAIN_APPOINTMENT_STATUS.LATE &&
