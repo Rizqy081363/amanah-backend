@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { and, desc, eq } from 'drizzle-orm';
 import { ClinicConfigService } from '../../../../common/clinic-config/clinic-config.service';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
@@ -11,6 +11,7 @@ import {
 import { CompensationRateEntity } from '../../domain/entities/compensation-rate.entity';
 import { LeavePolicyEntity } from '../../domain/entities/leave-policy.entity';
 import { WorkPolicyRepository } from '../../domain/repositories/work-policy.repository';
+import { ClinicPolicyAnnouncementService } from '../../application/services/clinic-policy-announcement.service';
 
 @Injectable()
 export class WorkPolicyDrizzleRepository implements WorkPolicyRepository {
@@ -18,6 +19,8 @@ export class WorkPolicyDrizzleRepository implements WorkPolicyRepository {
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,
     private readonly clinicConfigService: ClinicConfigService,
+    @Optional()
+    private readonly announcementService?: ClinicPolicyAnnouncementService,
   ) {}
 
   private mapLeavePolicy(r: any): LeavePolicyEntity {
@@ -28,6 +31,7 @@ export class WorkPolicyDrizzleRepository implements WorkPolicyRepository {
       monthlyLimit: Number(r.monthlyLimit),
       quotaCountingPolicy: r.quotaCountingPolicy,
       periodPolicy: r.periodPolicy || 'non_overlapping',
+      noticeDaysRequired: Number(r.noticeDaysRequired ?? 0),
       isActive: Boolean(r.isActive),
       effectiveFrom: r.effectiveFrom,
       effectiveTo: r.effectiveTo || null,
@@ -70,6 +74,8 @@ export class WorkPolicyDrizzleRepository implements WorkPolicyRepository {
           limitMode: 'monthly_limit',
           monthlyLimit: 3,
           quotaCountingPolicy: 'per_request',
+          periodPolicy: 'non_overlapping',
+          noticeDaysRequired: 0,
           isActive: true,
         })
         .returning();
@@ -88,6 +94,7 @@ export class WorkPolicyDrizzleRepository implements WorkPolicyRepository {
         | 'monthlyLimit'
         | 'quotaCountingPolicy'
         | 'periodPolicy'
+        | 'noticeDaysRequired'
       >
     >,
     updatedBy: string,
@@ -111,6 +118,10 @@ export class WorkPolicyDrizzleRepository implements WorkPolicyRepository {
         quotaCountingPolicy:
           data.quotaCountingPolicy ?? current.quotaCountingPolicy,
         periodPolicy,
+        noticeDaysRequired:
+          data.noticeDaysRequired !== undefined
+            ? data.noticeDaysRequired
+            : (current.noticeDaysRequired ?? 0),
         updatedBy: updatedBy || null,
         updatedAt: now,
       })
@@ -136,7 +147,33 @@ export class WorkPolicyDrizzleRepository implements WorkPolicyRepository {
 
     this.clinicConfigService.invalidateCache();
 
-    return this.mapLeavePolicy(updated);
+    const mapped = this.mapLeavePolicy(updated);
+
+    if (this.announcementService) {
+      const summary = this.announcementService.buildLeavePolicyChangeSummary(
+        current,
+        mapped,
+      );
+      if (summary) {
+        void this.announcementService.announcePolicyChange({
+          module: 'leave',
+          title: summary.title,
+          body: summary.body,
+          actionUrl: '/permission',
+          metadata: {
+            actorUserId: updatedBy,
+            policyId: mapped.id,
+            approvalRequired: mapped.approvalRequired,
+            limitMode: mapped.limitMode,
+            monthlyLimit: mapped.monthlyLimit,
+            noticeDaysRequired: mapped.noticeDaysRequired,
+            periodPolicy: mapped.periodPolicy,
+          },
+        });
+      }
+    }
+
+    return mapped;
   }
 
   async getActiveCompensationRates(): Promise<CompensationRateEntity[]> {

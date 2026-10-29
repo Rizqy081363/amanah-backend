@@ -510,29 +510,64 @@ export class LeaveDrizzleRepository implements LeaveRepository {
           ? 'admin'
           : 'auto';
         const periodPolicy = policy?.periodPolicy || 'non_overlapping';
+        const noticeDaysRequired = policy?.noticeDaysRequired ?? 0;
 
-        // 3. Monthly limit check
+        // 3. Minimum Advance Notice (Lead Time) validation
+        if (noticeDaysRequired > 0 && reqType !== 'sick_leave') {
+          const [tYear, tMonth, tDay] = todayStr.split('-').map(Number);
+          const minDate = new Date(Date.UTC(tYear, tMonth - 1, tDay + noticeDaysRequired));
+          const minDateStr = minDate.toISOString().slice(0, 10);
+          if (data.startDate < minDateStr) {
+            throw new BadRequestException(
+              `Kebijakan klinik mewajibkan permohonan izin diajukan minimal ${noticeDaysRequired} hari sebelum tanggal mulai izin (paling cepat tanggal ${minDateStr}).`,
+            );
+          }
+        }
+
+        // 4. Monthly limit & quota counting policy check
         if (policy && policy.limitMode === 'monthly_limit') {
           const [year, month] = data.startDate.split('-').map(Number);
           const lastDay = new Date(year, month, 0).getDate();
           const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
           const monthEnd = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
 
-          const existingInMonth = await tx
-            .select({ id: staffLeaveRequests.id })
-            .from(staffLeaveRequests)
-            .where(
-              and(
-                eq(staffLeaveRequests.staffProfileId, data.staffId),
-                gte(staffLeaveRequests.startDate, monthStart),
-                lte(staffLeaveRequests.endDate, monthEnd),
-                inArray(staffLeaveRequests.status, ['pending', 'approved']),
-              ),
-            );
+          const existingInMonth = await tx.query.staffLeaveRequests.findMany({
+            where: and(
+              eq(staffLeaveRequests.staffProfileId, data.staffId),
+              gte(staffLeaveRequests.startDate, monthStart),
+              lte(staffLeaveRequests.endDate, monthEnd),
+              inArray(staffLeaveRequests.status, ['pending', 'approved']),
+            ),
+            with: {
+              sessions: true,
+            },
+          });
 
-          if (existingInMonth.length >= policy.monthlyLimit) {
+          let currentUsedQuota = 0;
+          if (policy.quotaCountingPolicy === 'per_session') {
+            for (const req of existingInMonth) {
+              if (req.scope === 'session' && req.sessions?.length) {
+                currentUsedQuota += req.sessions.length;
+              } else {
+                currentUsedQuota += req.durationDays || 1;
+              }
+            }
+          } else {
+            currentUsedQuota = existingInMonth.length;
+          }
+
+          const additionalQuota =
+            policy.quotaCountingPolicy === 'per_session' && data.scope === 'session'
+              ? (data.sessionIds?.length || 1)
+              : policy.quotaCountingPolicy === 'per_session'
+                ? durationDays
+                : 1;
+
+          if (currentUsedQuota + additionalQuota > policy.monthlyLimit) {
+            const unit =
+              policy.quotaCountingPolicy === 'per_session' ? 'sesi' : 'kali';
             throw new BadRequestException(
-              `Batas maksimum cuti bulanan (${policy.monthlyLimit} kali) telah tercapai untuk periode ini`,
+              `Batas maksimum cuti bulanan (${policy.monthlyLimit} ${unit}) telah tercapai untuk periode ini (sudah digunakan: ${currentUsedQuota} ${unit})`,
             );
           }
         }
@@ -781,9 +816,19 @@ export class LeaveDrizzleRepository implements LeaveRepository {
           });
         }
       } else if (status === 'approved' || status === 'rejected') {
-        // Admin reviewed leave -> notify the specific staff member via in_app & push
+        // Notify the specific staff member via in_app & push
         if (staffUserId) {
           const isApproved = status === 'approved';
+          const isAuto = record.decisionSource === 'auto';
+          const title = isAuto
+            ? 'Pengajuan Izin Disetujui Otomatis'
+            : isApproved
+              ? 'Pengajuan Izin Disetujui'
+              : 'Pengajuan Izin Ditolak';
+          const body = isAuto
+            ? `Permohonan izin Anda (${record.startDate} s/d ${record.endDate}) telah disetujui otomatis oleh sistem klinik.`
+            : `Permohonan izin Anda (${record.startDate} s/d ${record.endDate}) telah ${isApproved ? 'disetujui' : 'ditolak'}.${record.reviewerNotes ? ' Catatan: ' + record.reviewerNotes : ''}`;
+
           await this.notificationGateway.dispatch({
             commandId: `leave-review-${record.id}-${Date.now()}`,
             sourceDomain: 'leave',
@@ -793,21 +838,46 @@ export class LeaveDrizzleRepository implements LeaveRepository {
             },
             category: 'shift',
             content: {
-              title: isApproved
-                ? 'Pengajuan Izin Disetujui'
-                : 'Pengajuan Izin Ditolak',
-              body: `Permohonan izin Anda (${record.startDate} s/d ${record.endDate}) telah ${isApproved ? 'disetujui' : 'ditolak'}.${record.reviewerNotes ? ' Catatan: ' + record.reviewerNotes : ''}`,
+              title,
+              body,
               actionUrl: `/permission?leaveId=${record.id}`,
               data: {
                 leaveId: record.id,
                 leaveRequestId: record.id,
                 staffProfileId: record.staffProfileId,
                 status,
+                decisionSource: record.decisionSource,
                 reviewerNotes: record.reviewerNotes || null,
               },
             },
             channels: ['in_app', 'push'],
             priority: 'high',
+          });
+        }
+
+        // If auto-approved, also notify Admin role so management remains fully informed
+        if (status === 'approved' && record.decisionSource === 'auto') {
+          await this.notificationGateway.dispatch({
+            commandId: `leave-auto-${record.id}-${Date.now()}`,
+            sourceDomain: 'leave',
+            target: {
+              type: 'role',
+              roles: [SYSTEM_ROLES.ADMIN],
+            },
+            category: 'shift',
+            content: {
+              title: `Izin Disetujui Otomatis: ${staffName}`,
+              body: `Permohonan izin ${staffName} (${record.startDate} s/d ${record.endDate}) telah disetujui otomatis oleh sistem. Slot dinas pengganti telah dibuka.`,
+              actionUrl: `/admin/manajemen-perizinan?leaveId=${record.id}`,
+              data: {
+                leaveRequestId: record.id,
+                staffProfileId: record.staffProfileId,
+                status: 'approved',
+                decisionSource: 'auto',
+              },
+            },
+            channels: ['in_app', 'push'],
+            priority: 'normal',
           });
         }
       } else if (status === 'cancelled') {

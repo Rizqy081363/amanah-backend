@@ -51,4 +51,13 @@ export class UpdateLeavePolicyDto {
   @IsIn(['non_overlapping', 'previous_period_must_finish'])
   @IsOptional()
   periodPolicy?: 'non_overlapping' | 'previous_period_must_finish';
+
+  @ApiPropertyOptional({
+    example: 2,
+    description: 'Batas minimal hari pengajuan di muka (lead time)',
+  })
+  @IsInt()
+  @Min(0)
+  @IsOptional()
+  noticeDaysRequired?: number;
 }

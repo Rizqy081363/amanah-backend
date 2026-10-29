@@ -39,6 +39,7 @@ export const leavePolicies = pgTable(
     periodPolicy: varchar('period_policy', { length: 40 })
       .default('non_overlapping')
       .notNull(),
+    noticeDaysRequired: integer('notice_days_required').default(0).notNull(),
     isActive: boolean('is_active').default(true).notNull(),
     effectiveFrom: date('effective_from').defaultNow().notNull(),
     effectiveTo: date('effective_to'),
@@ -65,6 +66,10 @@ export const leavePolicies = pgTable(
     check(
       'leave_policy_period_policy_check',
       sql`${table.periodPolicy} IN ('non_overlapping', 'previous_period_must_finish')`,
+    ),
+    check(
+      'leave_policy_notice_days_check',
+      sql`${table.noticeDaysRequired} >= 0`,
     ),
   ],
 );
