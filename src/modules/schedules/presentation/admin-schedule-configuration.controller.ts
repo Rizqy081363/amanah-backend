@@ -104,12 +104,9 @@ export class AdminScheduleConfigurationController {
   })
   async batchUpdate(
     @Body() dto: UpdateScheduleConfigurationBatchDto,
+    @CurrentUser() user?: AuthenticatedUser,
   ): Promise<{ success: boolean; message: string }> {
-    await this.configRepo.batchUpdateConfiguration(dto);
-    return {
-      success: true,
-      message: 'Konfigurasi jadwal operasional dan klinik berhasil diperbarui',
-    };
+    return this.updateOperationalShiftUseCase.executeBatch(dto, user);
   }
 
   @Put('session-defs')
@@ -224,8 +221,13 @@ export class AdminScheduleConfigurationController {
   async updateSingleSessionDef(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateSingleSessionDefDto,
+    @CurrentUser() user?: AuthenticatedUser,
   ) {
-    const updated = await this.configRepo.updateSingleSessionDef(id, dto);
+    const updated = await this.updateOperationalShiftUseCase.executeSingle(
+      id,
+      dto,
+      user,
+    );
     return {
       success: true,
       message: `Shift '${updated.label}' berhasil diperbarui`,

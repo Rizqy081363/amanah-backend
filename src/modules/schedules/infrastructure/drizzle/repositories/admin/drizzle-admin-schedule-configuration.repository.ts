@@ -56,7 +56,7 @@ interface CanonicalDayInfo {
   isActive: boolean;
 }
 
-interface CanonicalSessionDefConfig {
+export interface CanonicalSessionDefConfig {
   id: string;
   code: string;
   labelKey: string;
