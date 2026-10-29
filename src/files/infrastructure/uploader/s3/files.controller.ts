@@ -5,7 +5,6 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiBearerAuth,
@@ -17,6 +16,7 @@ import {
   ApiUnauthorizedResponse,
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
+import { HybridAuthGuard } from '../../../../common/auth/hybrid-auth.guard';
 import { FileResponseDto } from './dto/file-response.dto';
 import { FilesS3Service } from './files.service';
 
@@ -44,7 +44,7 @@ export class FilesS3Controller {
     description: 'Format berkas tidak valid atau gagal diproses',
   })
   @ApiBearerAuth('access-token')
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(HybridAuthGuard)
   @Post('upload')
   @ApiConsumes('multipart/form-data')
   @ApiBody({

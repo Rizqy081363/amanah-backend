@@ -27,6 +27,7 @@ import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
 import { Public } from '../../../common/auth/public.decorator';
 import { Roles } from '../../../common/auth/roles.decorator';
 import { RolesGuard } from '../../../common/auth/roles.guard';
+import { SYSTEM_ROLES } from '../../../common/auth/roles.enum';
 import { HttpCache } from '../../../common/decorators/http-cache.decorator';
 import { ClinicsService } from '../application/clinics.service';
 import { CreateClinicDto } from './dto/create-clinic.dto';
@@ -110,7 +111,7 @@ export class ClinicsController {
 
   @ApiBearerAuth('access-token')
   @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @Roles(SYSTEM_ROLES.ADMIN)
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
@@ -131,7 +132,7 @@ export class ClinicsController {
 
   @ApiBearerAuth('access-token')
   @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @Roles(SYSTEM_ROLES.ADMIN)
   @Patch('layanan/:layananId')
   @ApiOperation({
     summary: 'Memperbarui data layanan klinik (Admin)',
@@ -157,7 +158,7 @@ export class ClinicsController {
 
   @ApiBearerAuth('access-token')
   @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @Roles(SYSTEM_ROLES.ADMIN)
   @Delete('layanan/:layananId')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
@@ -178,7 +179,7 @@ export class ClinicsController {
 
   @ApiBearerAuth('access-token')
   @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @Roles(SYSTEM_ROLES.ADMIN)
   @Patch(':id')
   @ApiOperation({
     summary: 'Memperbarui data poliklinik (Admin)',
@@ -200,7 +201,7 @@ export class ClinicsController {
 
   @ApiBearerAuth('access-token')
   @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @Roles(SYSTEM_ROLES.ADMIN)
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
@@ -258,7 +259,7 @@ export class ClinicsController {
 
   @ApiBearerAuth('access-token')
   @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @Roles(SYSTEM_ROLES.ADMIN)
   @Post(':id/layanan')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({

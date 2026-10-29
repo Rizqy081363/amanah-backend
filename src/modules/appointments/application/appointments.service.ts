@@ -8,7 +8,7 @@ import {
   Optional,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import type { AuthenticatedUser } from '../../../common/auth';
+import { SYSTEM_ROLES, type AuthenticatedUser } from '../../../common/auth';
 import { DEFAULT_PAGE_SIZE } from '../../../common/constants';
 import {
   AppointmentCreatedEvent,
@@ -345,7 +345,7 @@ export class AppointmentsService {
 
   async checkIn(
     id: string,
-    user?: any,
+    user?: AuthenticatedUser,
     expectedVersion?: string,
   ): Promise<AppointmentEntity> {
     const current = await this.appointmentRepo.findById(id);
@@ -353,22 +353,12 @@ export class AppointmentsService {
       throw new NotFoundException(`Janji temu dengan ID ${id} tidak ditemukan`);
     }
 
-    const userRole = (
-      user?.systemRole ||
-      (typeof user?.role === 'object' && user?.role !== null
-        ? user.role.code || user.role.name
-        : user?.role)
-    )
-      ?.toString()
-      .toUpperCase();
-
-    if (user && userRole === 'PATIENT') {
-      const callerUserId = user.id || user.sub;
+    if (user && user.systemRole === SYSTEM_ROLES.PATIENT) {
       const isOwner =
-        callerUserId === current.patientUserId ||
-        callerUserId === current.parentUserId ||
-        callerUserId === current.createdBy ||
-        user.patient?.id === current.patientId;
+        user.id === current.patientUserId ||
+        user.id === current.parentUserId ||
+        user.id === current.createdBy ||
+        (user.patient?.id && user.patient.id === current.patientId);
       if (!isOwner) {
         throw new ForbiddenException(
           'Anda tidak memiliki izin untuk melakukan check-in janji temu ini.',
@@ -450,7 +440,7 @@ export class AppointmentsService {
   async callPatient(
     id: string,
     practitionerId?: string,
-    user?: any,
+    user?: AuthenticatedUser,
     expectedVersion?: string,
   ): Promise<AppointmentEntity> {
     const current = await this.appointmentRepo.findById(id);
@@ -489,7 +479,7 @@ export class AppointmentsService {
 
   async complete(
     id: string,
-    user?: any,
+    user?: AuthenticatedUser,
     expectedVersion?: string,
   ): Promise<AppointmentEntity> {
     return this.transitionAppointmentStatus(
@@ -505,7 +495,7 @@ export class AppointmentsService {
   async cancel(
     id: string,
     reason?: string,
-    user?: any,
+    user?: AuthenticatedUser,
     expectedVersion?: string,
   ): Promise<AppointmentEntity> {
     const finalReason = reason || 'Dibatalkan oleh pasien';
@@ -518,6 +508,7 @@ export class AppointmentsService {
       expectedVersion,
       finalReason,
     );
+
     if (this.notificationPublisher) {
       await this.notificationPublisher.publishCancelled(
         updated,
@@ -531,7 +522,7 @@ export class AppointmentsService {
   async updateStatus(
     id: string,
     dto: UpdateAppointmentStatusDto,
-    user?: any,
+    user?: AuthenticatedUser,
     expectedVersion?: string,
   ): Promise<AppointmentEntity> {
     return this.transitionAppointmentStatus(
@@ -550,7 +541,7 @@ export class AppointmentsService {
     status: AppointmentEntity['status'],
     reason: string,
     practitionerId?: string,
-    user?: any,
+    user?: AuthenticatedUser,
     expectedVersion?: string,
     cancellationReason?: string,
   ): Promise<AppointmentEntity> {
@@ -571,7 +562,7 @@ export class AppointmentsService {
       current?.status || null,
       status,
       reason,
-      { userId: user?.id || user?.sub, roleCode: user?.role },
+      { userId: user?.id, roleCode: user?.roleCode || user?.systemRole },
     );
     this.sendPushNotificationForAppointment(updated, status, reason);
     return updated;
@@ -580,9 +571,9 @@ export class AppointmentsService {
   async cancelAdminAppointment(
     appointmentId: string,
     dto: CancelAppointmentDto,
-    user?: any,
+    user?: AuthenticatedUser,
   ): Promise<any> {
-    const actorUserId = user?.id || user?.sub;
+    const actorUserId = user?.id;
     const result = await this.appointmentRepo.cancelAdminAppointment(
       appointmentId,
       dto,
@@ -594,7 +585,7 @@ export class AppointmentsService {
       result.data.previousStatus,
       result.data.newStatus,
       dto.reason,
-      { userId: actorUserId, roleCode: user?.role },
+      { userId: actorUserId, roleCode: user?.roleCode || user?.systemRole },
     );
 
     const apt = await this.appointmentRepo.findById(appointmentId);
@@ -614,9 +605,9 @@ export class AppointmentsService {
   async updateAdminAppointmentStatus(
     appointmentId: string,
     dto: AdminUpdateAppointmentStatusDto,
-    user?: any,
+    user?: AuthenticatedUser,
   ): Promise<any> {
-    const actorUserId = user?.id || user?.sub;
+    const actorUserId = user?.id;
     const result = await this.appointmentRepo.updateAdminAppointmentStatus(
       appointmentId,
       dto,
@@ -628,7 +619,7 @@ export class AppointmentsService {
       result.data.previousStatus,
       result.data.newStatus,
       dto.reason || '',
-      { userId: actorUserId, roleCode: user?.role },
+      { userId: actorUserId, roleCode: user?.roleCode || user?.systemRole },
     );
 
     const apt = await this.appointmentRepo.findById(appointmentId);
@@ -755,7 +746,7 @@ export class AppointmentsService {
       });
   }
 
-  async delete(id: string, user?: any): Promise<void> {
+  async delete(id: string, user?: AuthenticatedUser): Promise<void> {
     const current = await this.appointmentRepo.findById(id);
     const success = await this.appointmentRepo.delete(id);
     if (!success) {
@@ -767,7 +758,7 @@ export class AppointmentsService {
       current?.status || null,
       'CANCELLED',
       'Dihapus oleh admin',
-      { userId: user?.id || user?.sub, roleCode: user?.role },
+      { userId: user?.id, roleCode: user?.roleCode || user?.systemRole },
     );
   }
 

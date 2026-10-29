@@ -27,6 +27,7 @@ import {
   Roles,
   RolesGuard,
 } from '../../../common/auth';
+import { SYSTEM_ROLES } from '../../../auth/constants/auth.constants';
 import { DomainForbiddenException } from '../../../common/exceptions';
 import { zodPipe } from '../../../common/validation';
 import {
@@ -73,7 +74,7 @@ export class AttendanceController {
   ) {}
 
   @Post('scan')
-  @Roles('STAF', 'ADMIN')
+  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Staf melakukan scan QR Code presensi kehadiran (Mobile App)',
@@ -106,7 +107,7 @@ export class AttendanceController {
   }
 
   @Post('manual')
-  @Roles('ADMIN', 'STAF')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Admin atau staf mencatat presensi kehadiran secara manual',
@@ -129,7 +130,7 @@ export class AttendanceController {
   }
 
   @Post('checkout')
-  @Roles('STAF', 'ADMIN')
+  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Staf atau admin melakukan presensi pulang dinas / checkout',
@@ -172,7 +173,7 @@ export class AttendanceController {
   }
 
   @Post('qr/rotate')
-  @Roles('ADMIN', 'STAF')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Terminal klinik meminta rotasi QR token presensi baru',
@@ -194,7 +195,7 @@ export class AttendanceController {
   }
 
   @Get('qr/active')
-  @Roles('ADMIN', 'STAF')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
   @ApiOperation({
     summary: 'Mengambil informasi sesi QR aktif saat ini untuk terminal',
   })
@@ -212,7 +213,7 @@ export class AttendanceController {
   }
 
   @Get('my-history')
-  @Roles('STAF', 'ADMIN')
+  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
   @ApiOperation({
     summary: 'Melihat riwayat presensi staf yang sedang login (Mobile App)',
     description:
@@ -230,7 +231,7 @@ export class AttendanceController {
   }
 
   @Get('daily')
-  @Roles('ADMIN', 'STAF')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
   @ApiOperation({
     summary: 'Admin memantau presensi harian seluruh staf (Web Dashboard BFF)',
     description:
@@ -247,7 +248,7 @@ export class AttendanceController {
   }
 
   @Get('export-candidates')
-  @Roles('ADMIN', 'STAF')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
   @ApiOperation({
     summary: 'Daftar staf dan rekap total kehadiran bulanan untuk wizard ekspor',
     description:

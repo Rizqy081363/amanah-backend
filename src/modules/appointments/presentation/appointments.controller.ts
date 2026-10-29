@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   Header,
   Headers,
@@ -32,6 +33,7 @@ import {
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
 import type { Response } from 'express';
+import { SYSTEM_ROLES } from '../../../auth/constants/auth.constants';
 import type { AuthenticatedUser } from '../../../common/auth';
 import { CurrentUser } from '../../../common/auth/current-user.decorator';
 import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
@@ -74,7 +76,7 @@ export class AppointmentsController {
 
   @ApiBearerAuth('access-token')
   @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'STAF', 'PATIENT')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF, SYSTEM_ROLES.PATIENT)
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
@@ -103,7 +105,7 @@ export class AppointmentsController {
 
   @ApiBearerAuth('access-token')
   @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'STAF')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
   @Get()
   @ApiOperation({
     summary: 'Mendapatkan daftar seluruh janji temu dengan filter dan paginasi',
@@ -119,7 +121,7 @@ export class AppointmentsController {
 
   @ApiBearerAuth('access-token')
   @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'STAF')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
   @Get('queue-navigation')
   @ApiOperation({
     summary:
@@ -139,7 +141,7 @@ export class AppointmentsController {
 
   @ApiBearerAuth('access-token')
   @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'STAF', 'PATIENT')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF, SYSTEM_ROLES.PATIENT)
   @Get('me')
   @ApiOperation({
     summary: 'Melihat riwayat janji temu dan antrean pasien saat ini',
@@ -156,7 +158,7 @@ export class AppointmentsController {
 
   @ApiBearerAuth('access-token')
   @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'STAF', 'PATIENT')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF, SYSTEM_ROLES.PATIENT)
   @Get('queue/daily')
   @ApiOperation({
     summary: 'Mendapatkan daftar antrean harian per poli dan sesi (Web/App)',
@@ -183,7 +185,7 @@ export class AppointmentsController {
 
   @ApiBearerAuth('access-token')
   @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles('PATIENT')
+  @Roles(SYSTEM_ROLES.PATIENT)
   @Get('queue/my')
   @ApiOperation({
     summary: 'Mendapatkan antrean aktif hari ini untuk pasien',
@@ -194,10 +196,10 @@ export class AppointmentsController {
   @ApiUnauthorizedResponse({ description: 'Sesi token tidak valid' })
   @ApiForbiddenResponse({ description: 'Hanya Pasien yang diizinkan' })
   async getMyQueue(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
     @Query('poliklinikId') poliklinikId?: string,
   ) {
-    const patientId = user?.patient?.id || user?.id || user?.sub;
+    const patientId = user.patient?.id || user.id;
     return this.appointmentsService.findMyQueue(
       patientId,
       this.clinicTimeService.today(),
@@ -207,7 +209,7 @@ export class AppointmentsController {
 
   @ApiBearerAuth('access-token')
   @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'STAF', 'PATIENT')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF, SYSTEM_ROLES.PATIENT)
   @Get('active-ticket')
   @ApiOperation({
     summary:
@@ -219,7 +221,7 @@ export class AppointmentsController {
     @Query('patientId') patientId?: string,
     @Query('categoryId') categoryId?: string,
     @Query('date') date?: string,
-    @CurrentUser() user?: any,
+    @CurrentUser() user?: AuthenticatedUser,
   ) {
     const resolvedPatientId = patientId || user?.patient?.id;
     if (!resolvedPatientId || !date) {
@@ -238,7 +240,7 @@ export class AppointmentsController {
 
   @ApiBearerAuth('access-token')
   @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'STAF', 'PATIENT')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF, SYSTEM_ROLES.PATIENT)
   @Get('queue/display')
   @ApiOperation({
     summary: 'Mendapatkan data display antrean TV ruang tunggu klinik',
@@ -258,7 +260,7 @@ export class AppointmentsController {
 
   @ApiBearerAuth('access-token')
   @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'STAF')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
   @Get('doctor/processed')
   @ApiOperation({
     summary: 'Mendapatkan daftar antrean yang sedang dan telah diproses dokter',
@@ -271,13 +273,15 @@ export class AppointmentsController {
   async getDoctorProcessedAppointments(
     @Query('date') date?: string,
     @Query('doctorId') queryDoctorId?: string,
-    @CurrentUser() user?: any,
+    @CurrentUser() user?: AuthenticatedUser,
   ) {
     const practitionerId =
       queryDoctorId ||
       user?.staff?.practitionerId ||
-      user?.staff?.id ||
-      user?.id;
+      user?.staff?.id;
+    if (!practitionerId) {
+      return [];
+    }
     return this.appointmentsService.findDoctorProcessedAppointments(
       practitionerId,
       date,
@@ -286,7 +290,7 @@ export class AppointmentsController {
 
   @ApiBearerAuth('access-token')
   @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'STAF', 'PATIENT')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF, SYSTEM_ROLES.PATIENT)
   @Get(':id')
   @ApiOperation({
     summary: 'Mendapatkan detail janji temu dan tiket antrean',
@@ -303,12 +307,28 @@ export class AppointmentsController {
   @ApiUnauthorizedResponse({ description: 'Sesi token tidak valid' })
   async getAppointmentById(
     @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
     @Res({ passthrough: true }) res?: Response,
   ) {
     const appointment = await this.appointmentsService.findById(id);
     if (!appointment) {
       throw new NotFoundException(`Kunjungan tidak ditemukan`);
     }
+
+    if (user.systemRole === SYSTEM_ROLES.PATIENT) {
+      const isOwner =
+        user.id === appointment.patientUserId ||
+        user.id === appointment.parentUserId ||
+        user.id === appointment.createdBy ||
+        (user.patient?.id && user.patient.id === appointment.patientId);
+
+      if (!isOwner) {
+        throw new ForbiddenException(
+          'Anda tidak memiliki wewenang untuk melihat data janji temu pasien lain.',
+        );
+      }
+    }
+
     if (res && appointment.version) {
       res.setHeader('ETag', formatETag(appointment.version));
     }
@@ -317,7 +337,7 @@ export class AppointmentsController {
 
   @ApiBearerAuth('access-token')
   @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'STAF', 'PATIENT')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF, SYSTEM_ROLES.PATIENT)
   @Patch(':id/check-in')
   @ApiOperation({
     summary: 'Pasien melakukan konfirmasi kedatangan di klinik (Check-in)',
@@ -353,7 +373,7 @@ export class AppointmentsController {
 
   @ApiBearerAuth('access-token')
   @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'STAF')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
   @Post(':id/check-in-qr')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -390,7 +410,7 @@ export class AppointmentsController {
 
   @ApiBearerAuth('access-token')
   @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles('STAF')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
   @Patch(':id/call')
   @ApiOperation({
     summary: 'Staf/Dokter memanggil pasien ke ruang periksa (Mobile App)',
@@ -429,7 +449,7 @@ export class AppointmentsController {
 
   @ApiBearerAuth('access-token')
   @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles('STAF')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
   @Patch(':id/complete')
   @ApiOperation({
     summary: 'Menyelesaikan pemeriksaan pasien (Mobile App)',
@@ -465,7 +485,7 @@ export class AppointmentsController {
 
   @ApiBearerAuth('access-token')
   @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'STAF', 'PATIENT')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF, SYSTEM_ROLES.PATIENT)
   @Patch(':id/cancel')
   @ApiOperation({
     summary: 'Membatalkan janji temu antrean',
@@ -514,7 +534,7 @@ export class AppointmentsController {
 
   @ApiBearerAuth('access-token')
   @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'STAF', 'PATIENT')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF, SYSTEM_ROLES.PATIENT)
   @Get(':id/reschedule-options')
   @ApiOperation({
     summary:
@@ -542,7 +562,7 @@ export class AppointmentsController {
 
   @ApiBearerAuth('access-token')
   @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'STAF', 'PATIENT')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF, SYSTEM_ROLES.PATIENT)
   @Post(':id/reschedule')
   @ApiOperation({
     summary: 'Melakukan penjadwalan ulang (reschedule) janji temu pasien',
@@ -574,7 +594,7 @@ export class AppointmentsController {
 
   @ApiBearerAuth('access-token')
   @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'STAF')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
   @Patch(':id/status')
   @ApiOperation({
     summary: 'Memperbarui status janji temu secara spesifik',
@@ -613,7 +633,7 @@ export class AppointmentsController {
 
   @ApiBearerAuth('access-token')
   @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @Roles(SYSTEM_ROLES.ADMIN)
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({

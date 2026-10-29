@@ -12,7 +12,6 @@ import {
   SerializeOptions,
   UseGuards,
 } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
 import {
   ApiBearerAuth,
   ApiCreatedResponse,
@@ -26,8 +25,10 @@ import {
   ApiUnauthorizedResponse,
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
-import { Roles } from '../common/auth';
+import { HybridAuthGuard } from '../common/auth/hybrid-auth.guard';
+import { Roles } from '../common/auth/roles.decorator';
 import { RolesGuard } from '../common/auth/roles.guard';
+import { SYSTEM_ROLES } from '../common/auth/roles.enum';
 import {
   InfinityPaginationResponse,
   InfinityPaginationResponseDto,
@@ -41,8 +42,8 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { UsersService } from './users.service';
 
 @ApiBearerAuth('access-token')
-@Roles('ADMIN')
-@UseGuards(AuthGuard('jwt'), RolesGuard)
+@Roles(SYSTEM_ROLES.ADMIN)
+@UseGuards(HybridAuthGuard, RolesGuard)
 @ApiTags('Users (Manajemen Pengguna Admin)')
 @ApiUnauthorizedResponse({
   description: 'Sesi token tidak valid atau telah kedaluwarsa',

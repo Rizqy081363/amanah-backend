@@ -1,10 +1,17 @@
-import { Controller, Get, HttpCode, HttpStatus, Post } from '@nestjs/common';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Controller, Get, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { SYSTEM_ROLES } from '../../auth/constants/auth.constants';
+import { HybridAuthGuard } from '../auth/hybrid-auth.guard';
+import { Roles } from '../auth/roles.decorator';
+import { RolesGuard } from '../auth/roles.guard';
 import { OutboxService } from './outbox.service';
 import { OutboxMetrics, OutboxProcessResult } from './outbox.types';
 import { OutboxWorker } from './outbox.worker';
 
 @ApiTags('Outbox & Event Streaming')
+@ApiBearerAuth('access-token')
+@UseGuards(HybridAuthGuard, RolesGuard)
+@Roles(SYSTEM_ROLES.ADMIN)
 @Controller({ path: 'outbox', version: '1' })
 export class OutboxController {
   constructor(

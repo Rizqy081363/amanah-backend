@@ -122,6 +122,7 @@
     "test:e2e:schedule-security": "powershell -ExecutionPolicy Bypass -File scripts/e2e/test-schedule-v2-security-crud.ps1",
     "test:e2e:appointment": "powershell -ExecutionPolicy Bypass -File scripts/e2e/run-all-appointment-e2e.ps1",
     "test:e2e:payroll": "powershell -ExecutionPolicy Bypass -File scripts/e2e/test-attendance-payroll-mutations.ps1",
+    "test:e2e:leave-overlap": "powershell -ExecutionPolicy Bypass -File scripts/e2e/test-leave-overlap-and-period-policy.ps1",
     "test:e2e:leave-scheduler": "powershell -ExecutionPolicy Bypass -File scripts/e2e/test-cron-leave-payroll-scheduler.ps1",
     "test:e2e:notifications": "powershell -ExecutionPolicy Bypass -File scripts/e2e/test-notifications-cross-client.ps1",
     "test:e2e:attendance-varied": "powershell -ExecutionPolicy Bypass -File scripts/e2e/test-attendance-varied-scenarios.ps1",

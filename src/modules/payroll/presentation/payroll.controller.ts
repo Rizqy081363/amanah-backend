@@ -31,6 +31,8 @@ import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
 import { Roles } from '../../../common/auth/roles.decorator';
 import { RolesGuard } from '../../../common/auth/roles.guard';
 import { SYSTEM_ROLES } from '../../../auth/constants/auth.constants';
+import { AuthenticatedUser } from '../../../common/auth/authenticated-user.interface';
+import { STAFF_TYPES } from '../../../common/constants/staff-types.constant';
 import { Idempotent } from '../../../common/decorators/idempotent.decorator';
 import { DailyLeavePayrollService } from '../application/services/daily-leave-payroll.service';
 import {
@@ -219,7 +221,7 @@ export class PayrollController {
   })
   @ApiOkResponse({ description: 'Ringkasan gaji staf berhasil diambil' })
   async getMyPayroll(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
     @Query('periodId') periodId?: string,
   ) {
     if (!user.staff?.id) {
@@ -234,9 +236,9 @@ export class PayrollController {
         staffId: user.staff.id,
         staffCode: user.staff.staffCode || undefined,
         fullName: user.name,
-        staffType: user.staff.staffType || 'worker',
-        positionTitle: user.staff.positionTitle || undefined,
-        departmentName: user.staff.departmentName || undefined,
+        staffType: user.staff.staffType || STAFF_TYPES.WORKER,
+        positionTitle: user.staff.profession || undefined,
+        departmentName: undefined,
         periodId,
         baseHours: 0,
         deductionHours: 0,
@@ -262,7 +264,7 @@ export class PayrollController {
   @ApiOkResponse({
     description: 'Riwayat buku besar penggajian staf berhasil diambil',
   })
-  async getMyPayrollHistory(@CurrentUser() user: any) {
+  async getMyPayrollHistory(@CurrentUser() user: AuthenticatedUser) {
     if (!user.staff?.id) {
       throw new ForbiddenException('User bukan staf terdaftar');
     }

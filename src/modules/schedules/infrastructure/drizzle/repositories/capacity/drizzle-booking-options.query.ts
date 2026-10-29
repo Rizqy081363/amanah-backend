@@ -43,6 +43,7 @@ interface BookingOptionSessionItem {
   disabledReason: string | null;
   loadStatus: string;
   practitioners: BookingPractitionerItem[];
+  icon?: string | null;
 }
 
 export interface BookingOptionsResponse {
@@ -101,7 +102,11 @@ export class DrizzleBookingOptionsQuery {
       this.clinicConfig.getSchedulePolicy().catch(() => null),
       this.db.query.sessionDefs.findMany({
         where: eq(sessionDefs.isActive, true),
-        orderBy: [asc(sessionDefs.sortOrder)],
+        orderBy: [
+          asc(sessionDefs.defaultStartsAt),
+          asc(sessionDefs.defaultEndsAt),
+          asc(sessionDefs.code),
+        ],
       }),
       this.db.query.masterDays.findFirst({
         where: eq(masterDays.dow, targetDow),
@@ -293,6 +298,7 @@ export class DrizzleBookingOptionsQuery {
         disabledReason,
         loadStatus: 'NORMAL',
         practitioners,
+        icon: def.icon ?? null,
       };
     });
 

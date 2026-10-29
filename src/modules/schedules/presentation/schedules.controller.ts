@@ -111,8 +111,12 @@ export class SchedulesController {
 
   private assertScheduleOwnership(schedule: any, user: AuthenticatedUser) {
     if (isAdminUser(user)) return;
-    const doctorPractitionerId = user.staff?.practitionerId;
-    if (!doctorPractitionerId || schedule.staffId !== doctorPractitionerId) {
+    const targetStaffId = user.staff?.practitionerId || user.staff?.id;
+    if (
+      !targetStaffId ||
+      (schedule.staffId !== targetStaffId &&
+        schedule.practitionerId !== targetStaffId)
+    ) {
       throw new DomainForbiddenException(
         'Akses ditolak: Anda hanya berwenang mengelola jadwal praktek Anda sendiri',
       );
@@ -131,18 +135,21 @@ export class SchedulesController {
       }
       return requestedStaffId;
     }
-    if (!isStaffUser(user) || !user.staff.practitionerId) {
-      throw new DomainForbiddenException(
-        'User bukan praktisi medis dokter terdaftar',
-      );
+    if (!isStaffUser(user)) {
+      throw new DomainForbiddenException('User bukan staf terdaftar');
     }
-    const doctorPractitionerId = user.staff.practitionerId;
-    if (requestedStaffId && requestedStaffId !== doctorPractitionerId) {
+    const staffId = user.staff.practitionerId || user.staff.id;
+    if (
+      requestedStaffId &&
+      requestedStaffId !== staffId &&
+      requestedStaffId !== user.staff.id &&
+      requestedStaffId !== user.staff.practitionerId
+    ) {
       throw new DomainForbiddenException(
         'Akses ditolak: Staf hanya dapat mengakses jadwal untuk akun sendiri',
       );
     }
-    return doctorPractitionerId;
+    return staffId;
   }
 
   @Post()
@@ -216,12 +223,10 @@ export class SchedulesController {
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
   ) {
-    const staffId = user.staff?.practitionerId;
-    if (!staffId) {
-      throw new DomainForbiddenException(
-        'User bukan praktisi medis dokter terdaftar',
-      );
+    if (!isStaffUser(user)) {
+      throw new DomainForbiddenException('User bukan staf terdaftar');
     }
+    const staffId = user.staff.practitionerId || user.staff.id;
     return this.scheduleRepo.findMySchedules(staffId, {
       date,
       startDate,
@@ -307,12 +312,10 @@ export class SchedulesController {
     @Query() query: CalendarSummaryQueryDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    const staffId = user.staff?.practitionerId;
-    if (!staffId) {
-      throw new DomainForbiddenException(
-        'User bukan praktisi medis dokter terdaftar',
-      );
+    if (!isStaffUser(user)) {
+      throw new DomainForbiddenException('User bukan staf terdaftar');
     }
+    const staffId = user.staff.practitionerId || user.staff.id;
     return this.scheduleRepo.getCalendarSummary(staffId, query.month);
   }
 

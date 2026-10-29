@@ -23,10 +23,12 @@ import {
 } from '@nestjs/swagger';
 import { desc, eq, ilike } from 'drizzle-orm';
 import {
+  AuthenticatedUser,
   CurrentUser,
   HybridAuthGuard,
   Roles,
   RolesGuard,
+  SYSTEM_ROLES,
 } from '../../../common/auth';
 import { DRIZZLE_SOURCE } from '../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../database/drizzle/drizzle.provider';
@@ -113,12 +115,12 @@ export class PatientAffiliationsController {
   ) {}
 
   @Get('booking-context')
-  @Roles('PATIENT', 'ADMIN', 'STAF')
+  @Roles(SYSTEM_ROLES.PATIENT, SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
   @ApiOperation({
     summary: 'Mendapatkan konteks formulir dan daftar pasien sesuai layanan',
   })
   async getBookingContext(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
     @Query('serviceId') serviceId: string,
   ) {
     if (!serviceId) {
@@ -269,14 +271,14 @@ export class PatientAffiliationsController {
   }
 
   @Get('me')
-  @Roles('PATIENT', 'ADMIN', 'STAF')
+  @Roles(SYSTEM_ROLES.PATIENT, SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
   @ApiOperation({
     summary: 'Mendapatkan seluruh daftar pasien berafiliasi untuk akun login',
     description:
       'Mengambil semua profil pasien yang terhubung ke akun ini (Diri Sendiri, Ibu, Anak, Pasangan, Teman, Kerabat).',
   })
   @ApiOkResponse({ description: 'Daftar afiliasi berhasil diambil' })
-  async getMyAffiliations(@CurrentUser() user: any) {
+  async getMyAffiliations(@CurrentUser() user: AuthenticatedUser) {
     const list = await this.affiliationRepo.findByUserId(user.id);
     return {
       success: true,
@@ -285,7 +287,7 @@ export class PatientAffiliationsController {
   }
 
   @Post()
-  @Roles('PATIENT', 'ADMIN', 'STAF')
+  @Roles(SYSTEM_ROLES.PATIENT, SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Mendaftarkan pasien on-demand atau menghubungkan relasi pasien',
@@ -294,7 +296,7 @@ export class PatientAffiliationsController {
   })
   @ApiCreatedResponse({ description: 'Afiliasi pasien berhasil dibuat' })
   async createAffiliation(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
     @Body() dto: CreatePatientAffiliationDto,
   ) {
     if (dto.relationshipType === 'self' || dto.isPrimary) {
@@ -459,13 +461,13 @@ export class PatientAffiliationsController {
   }
 
   @Delete(':patientId')
-  @Roles('PATIENT', 'ADMIN', 'STAF')
+  @Roles(SYSTEM_ROLES.PATIENT, SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Menghapus hubungan relasi pasien dari akun login',
   })
   async deleteAffiliation(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
     @Param('patientId') patientId: string,
   ) {
     const existing = await this.affiliationRepo.findByUserAndPatient(

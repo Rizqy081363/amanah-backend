@@ -26,11 +26,14 @@ import {
   ApiUnauthorizedResponse,
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
-import { CurrentUser } from '../../../common/auth/current-user.decorator';
-import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
-import { Public } from '../../../common/auth/public.decorator';
-import { Roles } from '../../../common/auth/roles.decorator';
-import { RolesGuard } from '../../../common/auth/roles.guard';
+import { SYSTEM_ROLES } from '../../../auth/constants/auth.constants';
+import {
+  type AuthenticatedUser,
+  CurrentUser,
+  HybridAuthGuard,
+  Roles,
+  RolesGuard,
+} from '../../../common/auth';
 import {
   PATIENT_AFFILIATION_REPOSITORY,
   type PatientAffiliationRepository,
@@ -75,8 +78,31 @@ export class MedicalIntakesController {
     private readonly patientRepo: PatientRepository,
   ) {}
 
+  private async assertPatientAccess(
+    patientId: string,
+    user: AuthenticatedUser,
+  ): Promise<void> {
+    if (user.systemRole !== SYSTEM_ROLES.PATIENT) {
+      return;
+    }
+    if (user.patient?.id === patientId) {
+      return;
+    }
+    const isAffiliated = await this.affiliationRepo.findByUserAndPatient(
+      user.id,
+      patientId,
+    );
+    const ownPatient = await this.patientRepo.findByUserId(user.id);
+    const isOwn = ownPatient && ownPatient.id === patientId;
+    if (!isAffiliated && !isOwn) {
+      throw new ForbiddenException(
+        'Akses ditolak: Anda tidak memiliki wewenang untuk mengakses data rekam medis pasien lain.',
+      );
+    }
+  }
+
   @Get('form-requirement')
-  @Roles('PATIENT', 'STAF', 'ADMIN')
+  @Roles(SYSTEM_ROLES.PATIENT, SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
   @ApiOperation({
     summary:
       'Mendapatkan requirement formulir encounter, reusable data & omitted fields',
@@ -97,7 +123,7 @@ export class MedicalIntakesController {
   async getFormRequirement(
     @Query('serviceId') serviceId: string,
     @Query('patientId') patientId?: string,
-    @CurrentUser() user?: any,
+    @CurrentUser() user?: AuthenticatedUser,
   ) {
     const requirement = await this.formRequirementService.resolveRequirement(
       serviceId,
@@ -111,7 +137,7 @@ export class MedicalIntakesController {
   }
 
   @Post()
-  @Roles('PATIENT', 'STAF', 'ADMIN')
+  @Roles(SYSTEM_ROLES.PATIENT, SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Submit formulir skrining / intake medis pre-konsultasi',
@@ -122,7 +148,7 @@ export class MedicalIntakesController {
   })
   async createIntake(
     @Body() body: CreateMedicalIntakeDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.medicalRecordRepo.createIntake(
       {
@@ -135,7 +161,7 @@ export class MedicalIntakesController {
   }
 
   @Post('maternity')
-  @Roles('PATIENT', 'STAF', 'ADMIN')
+  @Roles(SYSTEM_ROLES.PATIENT, SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Submit formulir intake kehamilan & persalinan relasional',
@@ -143,13 +169,13 @@ export class MedicalIntakesController {
   @ApiCreatedResponse({ description: 'Intake kehamilan berhasil disimpan' })
   async createMaternityIntake(
     @Body() body: CreateMaternityIntakeDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.medicalRecordRepo.createMaternalIntake(body, user?.id);
   }
 
   @Post('immunization')
-  @Roles('PATIENT', 'STAF', 'ADMIN')
+  @Roles(SYSTEM_ROLES.PATIENT, SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Submit formulir pendaftaran imunisasi anak relasional',
@@ -159,14 +185,13 @@ export class MedicalIntakesController {
   })
   async createImmunizationIntake(
     @Body() body: CreateChildImmunizationIntakeDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.medicalRecordRepo.createImmunizationIntake(body, user?.id);
   }
 
   @Get('by-appointment/:appointmentId')
-  @Public()
-  @Roles('STAF', 'ADMIN', 'PATIENT')
+  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.PATIENT)
   @ApiOperation({
     summary: 'Mendapatkan data intake lengkap berdasarkan ID Kunjungan',
   })
@@ -174,6 +199,7 @@ export class MedicalIntakesController {
   @ApiOkResponse({ description: 'Data intake berhasil ditemukan' })
   async getUnifiedIntakeByAppointmentId(
     @Param('appointmentId') appointmentId: string,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
     const intake =
       await this.medicalRecordRepo.findUnifiedIntakeByAppointmentId(
@@ -184,12 +210,14 @@ export class MedicalIntakesController {
         'Data intake untuk kunjungan ini tidak ditemukan',
       );
     }
+    if (intake.patientId) {
+      await this.assertPatientAccess(intake.patientId, user);
+    }
     return intake;
   }
 
   @Get('patient/:patientId/latest')
-  @Public()
-  @Roles('STAF', 'ADMIN', 'PATIENT')
+  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.PATIENT)
   @ApiOperation({
     summary: 'Mendapatkan data intake terbaru berdasarkan ID Pasien',
   })
@@ -197,8 +225,10 @@ export class MedicalIntakesController {
   @ApiOkResponse({ description: 'Data intake pasien berhasil ditemukan' })
   async getLatestIntakeByPatientId(
     @Param('patientId') patientId: string,
+    @CurrentUser() user: AuthenticatedUser,
     @Query('flow') flow?: string,
   ) {
+    await this.assertPatientAccess(patientId, user);
     const intake = await this.medicalRecordRepo.findLatestIntakeByPatientId(
       patientId,
       flow,
@@ -210,17 +240,17 @@ export class MedicalIntakesController {
   }
 
   @Get('maternity/history')
-  @Roles('PATIENT', 'STAF', 'ADMIN')
+  @Roles(SYSTEM_ROLES.PATIENT, SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
   @ApiOperation({
     summary: 'Mendapatkan riwayat formulir kehamilan & persalinan dengan paginasi',
   })
   async getMaternalHistory(
     @Query() query: GetMaternalHistoryQueryDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
     let targetPatientIds: string[] | undefined = undefined;
 
-    if (user.systemRole === 'PATIENT') {
+    if (user.systemRole === SYSTEM_ROLES.PATIENT) {
       const userAffiliations = await this.affiliationRepo.findByUserId(user.id);
       const allowedIds = userAffiliations.map((a) => a.patientId);
 
@@ -259,17 +289,17 @@ export class MedicalIntakesController {
   }
 
   @Get('immunization/history')
-  @Roles('PATIENT', 'STAF', 'ADMIN')
+  @Roles(SYSTEM_ROLES.PATIENT, SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
   @ApiOperation({
     summary: 'Mendapatkan riwayat formulir imunisasi anak dengan paginasi',
   })
   async getImmunizationHistory(
     @Query() query: GetImmunizationHistoryQueryDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
     let targetPatientIds: string[] | undefined = undefined;
 
-    if (user.systemRole === 'PATIENT') {
+    if (user.systemRole === SYSTEM_ROLES.PATIENT) {
       const userAffiliations = await this.affiliationRepo.findByUserId(user.id);
       const allowedIds = userAffiliations.map((a) => a.patientId);
 
@@ -308,38 +338,28 @@ export class MedicalIntakesController {
   }
 
   @Get('maternity/:id')
-  @Roles('STAF', 'ADMIN', 'PATIENT')
+  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.PATIENT)
   @ApiOperation({
     summary: 'Mendapatkan detail formulir intake maternal kehamilan by ID',
   })
   async getMaternalIntakeById(
     @Param('id') id: string,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
     const intake = await this.medicalRecordRepo.findMaternalIntakeById(id);
     if (!intake) {
       throw new NotFoundException('Data intake maternal tidak ditemukan');
     }
 
-    if (user.systemRole === 'PATIENT' && intake.patientId) {
-      const isAffiliated = await this.affiliationRepo.findByUserAndPatient(
-        user.id,
-        intake.patientId,
-      );
-      const ownPatient = await this.patientRepo.findByUserId(user.id);
-      const isOwn = ownPatient && ownPatient.id === intake.patientId;
-      if (!isAffiliated && !isOwn) {
-        throw new ForbiddenException(
-          'Anda tidak memiliki wewenang untuk mengakses data rekam medis ini.',
-        );
-      }
+    if (intake.patientId) {
+      await this.assertPatientAccess(intake.patientId, user);
     }
 
     return intake;
   }
 
   @Patch('maternity/:id')
-  @Roles('STAF', 'ADMIN')
+  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
   @ApiOperation({
     summary:
       'Update formulir intake maternal kehamilan by ID (Admin / Staf Dokter/Bidan)',
@@ -358,38 +378,28 @@ export class MedicalIntakesController {
   }
 
   @Get('immunization/:id')
-  @Roles('STAF', 'ADMIN', 'PATIENT')
+  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.PATIENT)
   @ApiOperation({
     summary: 'Mendapatkan detail formulir intake imunisasi anak by ID',
   })
   async getImmunizationIntakeById(
     @Param('id') id: string,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
     const intake = await this.medicalRecordRepo.findImmunizationIntakeById(id);
     if (!intake) {
       throw new NotFoundException('Data intake imunisasi tidak ditemukan');
     }
 
-    if (user.systemRole === 'PATIENT' && intake.patientId) {
-      const isAffiliated = await this.affiliationRepo.findByUserAndPatient(
-        user.id,
-        intake.patientId,
-      );
-      const ownPatient = await this.patientRepo.findByUserId(user.id);
-      const isOwn = ownPatient && ownPatient.id === intake.patientId;
-      if (!isAffiliated && !isOwn) {
-        throw new ForbiddenException(
-          'Anda tidak memiliki wewenang untuk mengakses data rekam medis ini.',
-        );
-      }
+    if (intake.patientId) {
+      await this.assertPatientAccess(intake.patientId, user);
     }
 
     return intake;
   }
 
   @Patch('immunization/:id')
-  @Roles('STAF', 'ADMIN')
+  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
   @ApiOperation({
     summary:
       'Update formulir intake imunisasi anak by ID (Admin / Staf Dokter/Bidan)',
@@ -411,7 +421,7 @@ export class MedicalIntakesController {
   }
 
   @Get('patient/:patientId')
-  @Roles('STAF', 'ADMIN', 'PATIENT')
+  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.PATIENT)
   @ApiOperation({
     summary: 'Mendapatkan riwayat skrining intake medis pasien',
   })
@@ -421,12 +431,16 @@ export class MedicalIntakesController {
     example: 'a8e79644-a541-4d05-b431-99c99d8620ec',
   })
   @ApiOkResponse({ description: 'Daftar intake pasien berhasil diambil' })
-  async getIntakesByPatientId(@Param('patientId') patientId: string) {
+  async getIntakesByPatientId(
+    @Param('patientId') patientId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    await this.assertPatientAccess(patientId, user);
     return this.medicalRecordRepo.findIntakesByPatientId(patientId);
   }
 
   @Get(':id')
-  @Roles('STAF', 'ADMIN', 'PATIENT')
+  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.PATIENT)
   @ApiOperation({
     summary: 'Mendapatkan detail formulir intake medis by ID',
   })
@@ -437,16 +451,22 @@ export class MedicalIntakesController {
   })
   @ApiOkResponse({ description: 'Data intake medis berhasil ditemukan' })
   @ApiNotFoundResponse({ description: 'Data intake medis tidak ditemukan' })
-  async getIntakeById(@Param('id') id: string) {
+  async getIntakeById(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     const intake = await this.medicalRecordRepo.findIntakeById(id);
     if (!intake) {
       throw new NotFoundException('Data intake medis tidak ditemukan');
+    }
+    if (intake.patientId) {
+      await this.assertPatientAccess(intake.patientId, user);
     }
     return intake;
   }
 
   @Patch(':id')
-  @Roles('STAF', 'ADMIN')
+  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
   @ApiOperation({
     summary:
       'Update formulir intake medis (jawaban kuesioner) by ID (Admin / Staf Dokter/Bidan)',

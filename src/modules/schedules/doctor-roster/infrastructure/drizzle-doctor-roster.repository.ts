@@ -8,6 +8,8 @@ import {
   practitioners,
   sessionDefs,
   sessionSchedules,
+  staffProfiles,
+  staffRosters,
 } from '@database/schema';
 import {
   Inject,
@@ -72,9 +74,24 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
       },
     });
 
-    if (!prac) {
+    let staffProfile: any = null;
+    let isClinical = false;
+
+    if (prac) {
+      staffProfile = prac.staffProfile;
+      isClinical = true;
+    } else {
+      staffProfile = await this.db.query.staffProfiles.findFirst({
+        where: eq(staffProfiles.id, doctorId),
+        with: {
+          clinicUnit: true,
+        },
+      });
+    }
+
+    if (!prac && !staffProfile) {
       throw new NotFoundException(
-        `Dokter dengan ID ${doctorId} tidak ditemukan`,
+        `Staf dengan ID ${doctorId} tidak ditemukan`,
       );
     }
 
@@ -90,17 +107,22 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
         this.db.query.sessionSchedules.findMany({
           where: eq(sessionSchedules.isActive, true),
         }),
-        this.db.query.doctorAssignments.findMany({
-          where: eq(doctorAssignments.doctorId, prac.id),
-        }),
+        isClinical && prac
+          ? this.db.query.doctorAssignments.findMany({
+              where: eq(doctorAssignments.doctorId, prac.id),
+            })
+          : this.db.query.staffRosters.findMany({
+              where: eq(staffRosters.staffProfileId, staffProfile.id),
+            }),
         this.db.query.clinicRooms.findMany(),
       ]);
 
-    const doctorName = prac.staffProfile?.fullName || prac.displayName || '';
+    const doctorName =
+      prac?.displayName || staffProfile?.fullName || '';
     const specialization =
-      prac.medicalSpecialty?.name ||
-      prac.staffProfile?.clinicUnit?.name ||
-      prac.staffProfile?.positionTitle ||
+      prac?.medicalSpecialty?.name ||
+      staffProfile?.clinicUnit?.name ||
+      staffProfile?.positionTitle ||
       '';
 
     const roomMap = new Map(allRooms.map((r) => [r.id, r.name]));
@@ -150,7 +172,10 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
           assignment = undefined;
         }
 
-        const preferredRoomId = assignment?.preferredRoomId || null;
+        const preferredRoomId =
+          (assignment && 'preferredRoomId' in assignment
+            ? (assignment as any).preferredRoomId
+            : null) || null;
         const preferredRoomName = preferredRoomId
           ? roomMap.get(preferredRoomId) || null
           : null;
@@ -183,7 +208,7 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
     });
 
     return {
-      doctorId: prac.id,
+      doctorId: prac?.id || staffProfile?.id || doctorId,
       doctorName,
       specialization,
       hasAnyOverride: hasAnyCustomRoster,
@@ -203,16 +228,29 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
       ),
     });
 
+    let staffProfile: any = null;
     if (!prac) {
+      staffProfile = await this.db.query.staffProfiles.findFirst({
+        where: eq(staffProfiles.id, doctorId),
+      });
+    }
+
+    if (!prac && !staffProfile) {
       throw new NotFoundException(
-        `Dokter dengan ID ${doctorId} tidak ditemukan`,
+        `Staf dengan ID ${doctorId} tidak ditemukan`,
       );
     }
 
     await this.db.transaction(async (tx) => {
-      await tx
-        .delete(doctorAssignments)
-        .where(eq(doctorAssignments.doctorId, prac.id));
+      if (prac) {
+        await tx
+          .delete(doctorAssignments)
+          .where(eq(doctorAssignments.doctorId, prac.id));
+      } else {
+        await tx
+          .delete(staffRosters)
+          .where(eq(staffRosters.staffProfileId, staffProfile.id));
+      }
 
       const activeSessionDefs = await tx.query.sessionDefs.findMany({
         where: eq(sessionDefs.isActive, true),
@@ -224,18 +262,29 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
       );
 
       if (validItems.length > 0) {
-        await tx.insert(doctorAssignments).values(
-          validItems.map((item) => ({
-            doctorId: prac.id,
-            sessionId: item.sessionId,
-            dow: item.dow,
-            preferredRoomId: item.preferredRoomId || null,
-            isActive: Boolean(item.isActive),
-          })),
-        );
+        if (prac) {
+          await tx.insert(doctorAssignments).values(
+            validItems.map((item) => ({
+              doctorId: prac.id,
+              sessionId: item.sessionId,
+              dow: item.dow,
+              preferredRoomId: item.preferredRoomId || null,
+              isActive: Boolean(item.isActive),
+            })),
+          );
+        } else {
+          await tx.insert(staffRosters).values(
+            validItems.map((item) => ({
+              staffProfileId: staffProfile.id,
+              sessionId: item.sessionId,
+              dow: item.dow,
+              isActive: Boolean(item.isActive),
+            })),
+          );
+        }
       }
 
-      if (validItems.length > 0) {
+      if (validItems.length > 0 && prac) {
         await tx.insert(doctorScheduleStatusHistory).values(
           validItems.map((item) => ({
             doctorId: prac.id,
@@ -256,7 +305,7 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
 
     await this.invalidateScheduleCaches();
 
-    return this.getDoctorRoster(prac.id);
+    return this.getDoctorRoster(prac ? prac.id : staffProfile.id);
   }
 
   async resetDoctorRoster(
@@ -270,58 +319,72 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
       ),
     });
 
+    let staffProfile: any = null;
     if (!prac) {
+      staffProfile = await this.db.query.staffProfiles.findFirst({
+        where: eq(staffProfiles.id, doctorId),
+      });
+    }
+
+    if (!prac && !staffProfile) {
       throw new NotFoundException(
-        `Dokter dengan ID ${doctorId} tidak ditemukan`,
+        `Staf dengan ID ${doctorId} tidak ditemukan`,
       );
     }
 
     await this.db.transaction(async (tx) => {
-      // 1. Delete all explicit assignments (with dow) for this doctor
-      await tx
-        .delete(doctorAssignments)
-        .where(eq(doctorAssignments.doctorId, prac.id));
+      if (prac) {
+        // 1. Delete all explicit assignments (with dow) for this doctor
+        await tx
+          .delete(doctorAssignments)
+          .where(eq(doctorAssignments.doctorId, prac.id));
 
-      // 2. Query active session definitions
-      const activeSessionDefs = await tx.query.sessionDefs.findMany({
-        where: eq(sessionDefs.isActive, true),
-      });
+        // 2. Query active session definitions
+        const activeSessionDefs = await tx.query.sessionDefs.findMany({
+          where: eq(sessionDefs.isActive, true),
+        });
 
-      // 3. Restore default generic assignments (dow = null) so doctor adheres to clinic weekly master template
-      if (activeSessionDefs.length > 0) {
-        await tx.insert(doctorAssignments).values(
-          activeSessionDefs.map((def: any) => ({
-            doctorId: prac.id,
-            sessionId: def.id,
-            dow: null,
-            preferredRoomId: null,
-            isActive: true,
-          })),
-        );
-      }
+        // 3. Restore default generic assignments (dow = null) so doctor adheres to clinic weekly master template
+        if (activeSessionDefs.length > 0) {
+          await tx.insert(doctorAssignments).values(
+            activeSessionDefs.map((def: any) => ({
+              doctorId: prac.id,
+              sessionId: def.id,
+              dow: null,
+              preferredRoomId: null,
+              isActive: true,
+            })),
+          );
+        }
 
-      // 4. Record audit history
-      if (activeSessionDefs.length > 0) {
-        await tx.insert(doctorScheduleStatusHistory).values(
-          activeSessionDefs.map((def: any) => ({
-            doctorId: prac.id,
-            sessionId: def.id,
-            dow: null,
-            action: 'remove_roster' as const,
-            newStatus: 'OPEN',
-            reason: 'Roster direset ke template mingguan klinik',
-            metadata: {
-              action: 'reset_to_weekly_template',
-            },
-            changedBy: userId || null,
-          })),
-        );
+        // 4. Record audit history
+        if (activeSessionDefs.length > 0) {
+          await tx.insert(doctorScheduleStatusHistory).values(
+            activeSessionDefs.map((def: any) => ({
+              doctorId: prac.id,
+              sessionId: def.id,
+              dow: null,
+              action: 'remove_roster' as const,
+              newStatus: 'OPEN',
+              reason: 'Roster direset ke template mingguan klinik',
+              metadata: {
+                action: 'reset_to_weekly_template',
+              },
+              changedBy: userId || null,
+            })),
+          );
+        }
+      } else {
+        // For operational workers, delete all staff_rosters overrides to restore weekly template
+        await tx
+          .delete(staffRosters)
+          .where(eq(staffRosters.staffProfileId, staffProfile.id));
       }
     });
 
     await this.invalidateScheduleCaches();
 
-    return this.getDoctorRoster(prac.id);
+    return this.getDoctorRoster(prac ? prac.id : staffProfile.id);
   }
 
   async getDoctorScheduleHistory(

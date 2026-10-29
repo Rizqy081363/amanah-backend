@@ -7,13 +7,18 @@ import {
   Optional,
 } from '@nestjs/common';
 import { and, desc, eq, gte, inArray, lte } from 'drizzle-orm';
+import { SYSTEM_ROLES } from '../../../../auth/constants/auth.constants';
 import { RedisService } from '../../../../common/redis/redis.service';
+import { ClinicTimeService } from '../../../../common/time/clinic-time.service';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
   doctorAssignments,
   masterDays,
   practitioners,
+  sessionDefs,
+  sessionSchedules,
+  shiftExceptions,
   staffAttendanceRecords,
   staffLeaveRequests,
   staffLeaveRequestType,
@@ -25,6 +30,7 @@ import {
   leaveRequestSessions,
   replacementOpportunities,
 } from '../../../../database/schema/leave-payroll.schema';
+import { SHIFT_EXCEPTION_TYPE } from '../../../appointments/domain/constants/appointment-lifecycle.constants';
 import { NotificationGatewayService } from '../../../notifications/application/services/notification-gateway.service';
 import { LeaveEntity } from '../../domain/entities/leave.entity';
 import {
@@ -32,6 +38,15 @@ import {
   LeaveFilterOptions,
   LeaveRepository,
 } from '../../domain/repositories/leave.repository';
+
+interface SessionDiagnosticResult {
+  eligibleSessions: any[];
+  hasRawScheduledSessions: boolean;
+  hasElapsedSessions: boolean;
+  hasAttendedSessionsToday: boolean;
+  isCustomRosterDayOff: boolean;
+  isOverriddenByLeaveException: boolean;
+}
 
 @Injectable()
 export class LeaveDrizzleRepository implements LeaveRepository {
@@ -41,6 +56,7 @@ export class LeaveDrizzleRepository implements LeaveRepository {
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,
     private readonly notificationGateway: NotificationGatewayService,
+    private readonly clinicTimeService: ClinicTimeService,
     @Optional()
     @Inject(RedisService)
     private readonly redisService?: RedisService,
@@ -93,10 +109,10 @@ export class LeaveDrizzleRepository implements LeaveRepository {
     };
   }
 
-  async getEligibleSessions(
+  private async resolveSessionsWithDiagnostics(
     staffProfileId: string,
     date: string,
-  ): Promise<any[]> {
+  ): Promise<SessionDiagnosticResult> {
     const targetDate = new Date(date);
     const dayOfWeek = targetDate.getDay(); // 0 (Sun) to 6 (Sat)
 
@@ -107,106 +123,257 @@ export class LeaveDrizzleRepository implements LeaveRepository {
       .where(eq(practitioners.staffProfileId, staffProfileId))
       .limit(1);
 
-    let eligibleSessions: any[] = [];
+    let rawSessions: any[] = [];
+    let isCustomRosterDayOff = false;
+    let isOverriddenByLeaveException = false;
 
     if (practitioner) {
-      // Doctor / Midwife schedule
-      const assignments = await this.db.query.doctorAssignments.findMany({
-        where: and(
-          eq(doctorAssignments.doctorId, practitioner.id),
-          eq(doctorAssignments.dow, dayOfWeek),
-          eq(doctorAssignments.isActive, true),
-        ),
-        with: {
-          sessionDef: true,
-        },
-      });
+      // Doctor / Midwife schedule: check custom assignments vs master weekly template
+      const doctorAssignmentsList =
+        await this.db.query.doctorAssignments.findMany({
+          where: eq(doctorAssignments.doctorId, practitioner.id),
+          with: {
+            sessionDef: true,
+          },
+        });
 
-      eligibleSessions = assignments.map((a) => ({
-        sessionId: a.sessionId,
-        sessionCode: a.sessionDef.code,
-        sessionLabel: a.sessionDef.label,
-        startsAt: a.sessionDef.defaultStartsAt,
-        endsAt: a.sessionDef.defaultEndsAt,
-        workDate: date,
-      }));
-    } else {
-      // Operational Worker schedule
-      const rosters = await this.db.query.staffRosters.findMany({
-        where: and(
-          eq(staffRosters.staffProfileId, staffProfileId),
-          eq(staffRosters.dow, dayOfWeek),
-          eq(staffRosters.isActive, true),
-        ),
-        with: {
-          sessionDef: true,
-        },
-      });
+      const hasAnyCustomRoster = doctorAssignmentsList.some(
+        (da) => da.dow !== null,
+      );
 
-      eligibleSessions = rosters.map((r) => ({
-        sessionId: r.sessionId,
-        sessionCode: r.sessionDef.code,
-        sessionLabel: r.sessionDef.label,
-        startsAt: r.sessionDef.defaultStartsAt,
-        endsAt: r.sessionDef.defaultEndsAt,
-        workDate: date,
-      }));
-    }
-
-    // Smart Filter for Today: Exclude shifts already finished, attended, or checked-out
-    const todayStr = new Date().toISOString().split('T')[0];
-    const isToday = date === todayStr;
-
-    if (isToday && eligibleSessions.length > 0) {
-      const now = new Date();
-      const todayAttendances = await this.db
-        .select()
-        .from(staffAttendanceRecords)
-        .where(
-          and(
-            eq(staffAttendanceRecords.staffProfileId, staffProfileId),
-            eq(staffAttendanceRecords.attendanceDate, date),
-          ),
+      if (hasAnyCustomRoster) {
+        // Specific custom assignment for this day
+        const activeToday = doctorAssignmentsList.filter(
+          (da) =>
+            da.dow === dayOfWeek && da.isActive && da.sessionDef?.isActive,
         );
 
-      eligibleSessions = eligibleSessions.filter((s) => {
-        const att = todayAttendances.find(
-          (a) =>
-            a.sessionId === s.sessionId ||
-            (a.shift && a.shift.toLowerCase() === s.sessionCode.toLowerCase()),
-        );
-
-        // 1. If staff has already checked out from this session, it cannot be requested as leave
-        if (att?.checkOutAt) {
-          return false;
+        if (activeToday.length === 0) {
+          isCustomRosterDayOff = true;
+        } else {
+          rawSessions = activeToday.map((a) => ({
+            sessionId: a.sessionId,
+            sessionCode: a.sessionDef.code,
+            sessionLabel: a.sessionDef.label,
+            startsAt: a.sessionDef.defaultStartsAt,
+            endsAt: a.sessionDef.defaultEndsAt,
+            workDate: date,
+          }));
         }
+      } else {
+        // Virtual Baseline: Doctor has no custom assignments, so they inherit the clinic master weekly template
+        const templateSchedules =
+          await this.db.query.sessionSchedules.findMany({
+            where: and(
+              eq(sessionSchedules.dow, dayOfWeek),
+              eq(sessionSchedules.isActive, true),
+            ),
+            with: {
+              sessionDef: true,
+            },
+          });
 
-        // 2. If staff has already checked in, mid-shift departure belongs to Attendance (Early Check-Out)
-        if (att?.checkInAt) {
-          return false;
-        }
+        rawSessions = templateSchedules
+          .filter((ts) => ts.sessionDef && ts.sessionDef.isActive)
+          .map((ts) => ({
+            sessionId: ts.sessionId,
+            sessionCode: ts.sessionDef.code,
+            sessionLabel: ts.sessionDef.label,
+            startsAt: ts.startsAt || ts.sessionDef.defaultStartsAt,
+            endsAt: ts.endsAt || ts.sessionDef.defaultEndsAt,
+            workDate: date,
+          }));
+      }
 
-        // 3. If session end time has already elapsed in the past
-        if (s.endsAt) {
-          let [endH, endM] = s.endsAt.split(':').map(Number);
-          if (endH === 24) endH = 0;
-          const sessionEndDate = new Date(targetDate);
-          sessionEndDate.setHours(endH, endM || 0, 0, 0);
-          if (endH === 0) sessionEndDate.setDate(sessionEndDate.getDate() + 1);
+      // Check shift_exceptions for this practitioner on this date
+      const shiftExceptionsList = await this.db.query.shiftExceptions.findMany({
+        where: and(
+          eq(shiftExceptions.doctorId, practitioner.id),
+          eq(shiftExceptions.serviceDate, date),
+        ),
+      });
 
-          if (now.getTime() > sessionEndDate.getTime()) {
-            return false;
+      for (const exc of shiftExceptionsList) {
+        if (exc.type === SHIFT_EXCEPTION_TYPE.LEAVE) {
+          if (exc.sessionId) {
+            const idx = rawSessions.findIndex(
+              (s) => s.sessionId === exc.sessionId,
+            );
+            if (idx !== -1) {
+              rawSessions.splice(idx, 1);
+              isOverriddenByLeaveException = true;
+            }
+          } else {
+            // Whole-day leave override
+            if (rawSessions.length > 0) {
+              isOverriddenByLeaveException = true;
+            }
+            rawSessions = [];
+          }
+        } else if (exc.type === SHIFT_EXCEPTION_TYPE.EXTRA && exc.sessionId) {
+          if (!rawSessions.some((s) => s.sessionId === exc.sessionId)) {
+            const extraDef = await this.db.query.sessionDefs.findFirst({
+              where: eq(sessionDefs.id, exc.sessionId),
+            });
+            if (extraDef && extraDef.isActive) {
+              rawSessions.push({
+                sessionId: extraDef.id,
+                sessionCode: extraDef.code,
+                sessionLabel: extraDef.label,
+                startsAt: extraDef.defaultStartsAt,
+                endsAt: extraDef.defaultEndsAt,
+                workDate: date,
+              });
+            }
           }
         }
-
-        return true;
+      }
+    } else {
+      // Operational Worker schedule: check custom roster vs master weekly template
+      const allWorkerRosters = await this.db.query.staffRosters.findMany({
+        where: eq(staffRosters.staffProfileId, staffProfileId),
+        with: {
+          sessionDef: true,
+        },
       });
+
+      const hasAnyCustomRoster = allWorkerRosters.length > 0;
+
+      if (hasAnyCustomRoster) {
+        const activeToday = allWorkerRosters.filter(
+          (r) =>
+            r.dow === dayOfWeek && r.isActive && r.sessionDef?.isActive,
+        );
+
+        if (activeToday.length === 0) {
+          isCustomRosterDayOff = true;
+        } else {
+          rawSessions = activeToday.map((r) => ({
+            sessionId: r.sessionId,
+            sessionCode: r.sessionDef.code,
+            sessionLabel: r.sessionDef.label,
+            startsAt: r.sessionDef.defaultStartsAt,
+            endsAt: r.sessionDef.defaultEndsAt,
+            workDate: date,
+          }));
+        }
+      } else {
+        // Virtual Baseline: Worker has no custom roster, inherits master clinic weekly template
+        const templateSchedules =
+          await this.db.query.sessionSchedules.findMany({
+            where: and(
+              eq(sessionSchedules.dow, dayOfWeek),
+              eq(sessionSchedules.isActive, true),
+            ),
+            with: {
+              sessionDef: true,
+            },
+          });
+
+        rawSessions = templateSchedules
+          .filter((ts) => ts.sessionDef && ts.sessionDef.isActive)
+          .map((ts) => ({
+            sessionId: ts.sessionId,
+            sessionCode: ts.sessionDef.code,
+            sessionLabel: ts.sessionDef.label,
+            startsAt: ts.startsAt || ts.sessionDef.defaultStartsAt,
+            endsAt: ts.endsAt || ts.sessionDef.defaultEndsAt,
+            workDate: date,
+          }));
+      }
     }
 
-    return eligibleSessions;
+    const hasRawScheduledSessions = rawSessions.length > 0;
+    const todayStr = this.clinicTimeService.today();
+    let hasElapsedSessions = false;
+    let hasAttendedSessionsToday = false;
+    let eligibleSessions: any[] = [];
+
+    if (date < todayStr) {
+      hasElapsedSessions = rawSessions.length > 0;
+      eligibleSessions = [];
+    } else if (date === todayStr) {
+      if (rawSessions.length > 0) {
+        const now = new Date();
+        const todayAttendances = await this.db
+          .select()
+          .from(staffAttendanceRecords)
+          .where(
+            and(
+              eq(staffAttendanceRecords.staffProfileId, staffProfileId),
+              eq(staffAttendanceRecords.attendanceDate, date),
+            ),
+          );
+
+        eligibleSessions = rawSessions.filter((s) => {
+          const att = todayAttendances.find(
+            (a) =>
+              a.sessionId === s.sessionId ||
+              (a.shift && a.shift.toLowerCase() === s.sessionCode.toLowerCase()),
+          );
+
+          // 1. If staff has already checked out from this session, it cannot be requested as leave
+          if (att?.checkOutAt) {
+            hasAttendedSessionsToday = true;
+            return false;
+          }
+
+          // 2. If staff has already checked in, mid-shift departure belongs to Attendance (Early Check-Out)
+          if (att?.checkInAt) {
+            hasAttendedSessionsToday = true;
+            return false;
+          }
+
+          // 3. If session end time has already elapsed in the past
+          if (s.endsAt) {
+            let [endH, endM] = s.endsAt.split(':').map(Number);
+            if (endH === 24) endH = 0;
+            const sessionEndDate = new Date(targetDate);
+            sessionEndDate.setHours(endH, endM || 0, 0, 0);
+            if (endH === 0) sessionEndDate.setDate(sessionEndDate.getDate() + 1);
+
+            if (now.getTime() > sessionEndDate.getTime()) {
+              hasElapsedSessions = true;
+              return false;
+            }
+          }
+
+          return true;
+        });
+      }
+    } else {
+      eligibleSessions = [...rawSessions];
+    }
+
+    return {
+      eligibleSessions,
+      hasRawScheduledSessions,
+      hasElapsedSessions,
+      hasAttendedSessionsToday,
+      isCustomRosterDayOff,
+      isOverriddenByLeaveException,
+    };
+  }
+
+  async getEligibleSessions(
+    staffProfileId: string,
+    date: string,
+  ): Promise<any[]> {
+    const diagnostics = await this.resolveSessionsWithDiagnostics(
+      staffProfileId,
+      date,
+    );
+    return diagnostics.eligibleSessions;
   }
 
   async create(data: CreateLeaveData): Promise<LeaveEntity> {
+    const todayStr = this.clinicTimeService.today();
+    if (data.startDate < todayStr) {
+      throw new BadRequestException(
+        'Tanggal permohonan izin tidak boleh di masa lalu (minimal hari ini)',
+      );
+    }
+
     const start = new Date(data.startDate).getTime();
     const end = new Date(data.endDate).getTime();
     const durationDays = Math.max(
@@ -214,71 +381,15 @@ export class LeaveDrizzleRepository implements LeaveRepository {
       Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1,
     );
 
-    // 1. Check leave policy
-    const [policy] = await this.db
-      .select()
-      .from(leavePolicies)
-      .where(eq(leavePolicies.isActive, true))
-      .orderBy(desc(leavePolicies.effectiveFrom))
-      .limit(1);
-
-    const approvalRequired = policy ? policy.approvalRequired : true;
-    const initialStatus: 'pending' | 'approved' = approvalRequired
-      ? 'pending'
-      : 'approved';
-    const decisionSource: 'admin' | 'auto' = approvalRequired
-      ? 'admin'
-      : 'auto';
-
-    // Check monthly limit if applicable
-    if (policy && policy.limitMode === 'monthly_limit') {
-      const [year, month] = data.startDate.split('-').map(Number);
-      const lastDay = new Date(year, month, 0).getDate();
-      const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
-      const monthEnd = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-
-      const existingInMonth = await this.db
-        .select()
-        .from(staffLeaveRequests)
-        .where(
-          and(
-            eq(staffLeaveRequests.staffProfileId, data.staffId),
-            gte(staffLeaveRequests.startDate, monthStart),
-            lte(staffLeaveRequests.endDate, monthEnd),
-            inArray(staffLeaveRequests.status, ['pending', 'approved']),
-          ),
-        );
-
-      if (existingInMonth.length >= policy.monthlyLimit) {
-        throw new BadRequestException(
-          `Batas maksimum cuti bulanan (${policy.monthlyLimit} kali) telah tercapai untuk periode ini`,
-        );
-      }
-    }
-
-    // 2. Overlapping approved leave protection
-    const overlappingApproved = await this.db
-      .select({ id: staffLeaveRequests.id })
-      .from(staffLeaveRequests)
-      .where(
-        and(
-          eq(staffLeaveRequests.staffProfileId, data.staffId),
-          eq(staffLeaveRequests.status, 'approved'),
-          lte(staffLeaveRequests.startDate, data.endDate),
-          gte(staffLeaveRequests.endDate, data.startDate),
-        ),
-      );
-    if (overlappingApproved.length > 0) {
-      throw new BadRequestException(
-        'Anda sudah memiliki permohonan cuti yang telah disetujui pada rentang tanggal tersebut',
-      );
-    }
-
-    // 3. Schedule Operability and Active Shift Protection
+    // Schedule Operability and Active Shift Protection (Read-only pre-flight checks)
     const startDt = new Date(data.startDate);
     const endDt = new Date(data.endDate);
     let totalEligibleSessionsAcrossRange = 0;
     let anyOperatingDayOpen = false;
+    let anyElapsedToday = false;
+    let anyAttendedToday = false;
+    let anyCustomRosterDayOff = false;
+    let anyOverriddenByLeaveException = false;
 
     for (
       let cur = new Date(startDt);
@@ -295,11 +406,17 @@ export class LeaveDrizzleRepository implements LeaveRepository {
         anyOperatingDayOpen = true;
       }
 
-      const sessionsOnDate = await this.getEligibleSessions(
+      const diag = await this.resolveSessionsWithDiagnostics(
         data.staffId,
         curDateStr,
       );
-      totalEligibleSessionsAcrossRange += sessionsOnDate.length;
+      totalEligibleSessionsAcrossRange += diag.eligibleSessions.length;
+      if (diag.hasElapsedSessions) anyElapsedToday = true;
+      if (diag.hasAttendedSessionsToday) anyAttendedToday = true;
+      if (diag.isCustomRosterDayOff) anyCustomRosterDayOff = true;
+      if (diag.isOverriddenByLeaveException) {
+        anyOverriddenByLeaveException = true;
+      }
     }
 
     if (!anyOperatingDayOpen) {
@@ -309,6 +426,26 @@ export class LeaveDrizzleRepository implements LeaveRepository {
     }
 
     if (totalEligibleSessionsAcrossRange === 0) {
+      if (anyAttendedToday) {
+        throw new BadRequestException(
+          'Anda telah melakukan check-in atau menyelesaikan kehadiran pada sesi dinas hari ini. Permohonan izin tidak dapat diajukan untuk sesi yang sudah dihadiri.',
+        );
+      }
+      if (anyElapsedToday) {
+        throw new BadRequestException(
+          'Shift dinas pada tanggal yang dipilih telah berakhir. Permohonan izin tidak dapat diajukan untuk sesi yang sudah lewat.',
+        );
+      }
+      if (anyOverriddenByLeaveException) {
+        throw new BadRequestException(
+          'Jadwal dinas pada tanggal yang dipilih telah berstatus cuti atau dinonaktifkan.',
+        );
+      }
+      if (anyCustomRosterDayOff) {
+        throw new BadRequestException(
+          'Anda tidak memiliki jadwal dinas aktif pada tanggal yang dipilih.',
+        );
+      }
       throw new BadRequestException(
         'Tidak dapat mengajukan cuti pada jadwal yang tidak aktif atau sudah ditutup.',
       );
@@ -347,48 +484,174 @@ export class LeaveDrizzleRepository implements LeaveRepository {
 
     const reqType = data.type;
 
-    const [record] = await this.db
-      .insert(staffLeaveRequests)
-      .values({
-        staffProfileId: data.staffId,
-        practitionerId,
-        requestType: reqType,
-        startDate: data.startDate,
-        endDate: data.endDate,
-        durationDays,
-        reason: data.reason,
-        scope: data.scope || 'full_day',
-        decisionSource,
-        substitutePractitionerId: data.substituteStaffId || null,
-        status: initialStatus,
-        reviewedAt:
-          initialStatus === 'approved' ? new Date().toISOString() : null,
-      })
-      .returning();
+    // Transactional Execution & Concurrency Serialization
+    const { record, insertedSessions, initialStatus } =
+      await this.db.transaction(async (tx) => {
+        // 1. Concurrency serialization: lock staff profile row for update
+        await tx
+          .select({ id: staffProfiles.id })
+          .from(staffProfiles)
+          .where(eq(staffProfiles.id, data.staffId))
+          .for('update');
 
-    // Insert sessions if provided
-    const insertedSessions: any[] = [];
-    if (data.sessionIds && data.sessionIds.length > 0) {
-      for (const sessId of data.sessionIds) {
-        const [sessRecord] = await this.db
-          .insert(leaveRequestSessions)
+        // 2. Load active leave policy and determine configuration
+        const [policy] = await tx
+          .select()
+          .from(leavePolicies)
+          .where(eq(leavePolicies.isActive, true))
+          .orderBy(desc(leavePolicies.effectiveFrom))
+          .limit(1);
+
+        const approvalRequired = policy ? policy.approvalRequired : true;
+        const initialStatus: 'pending' | 'approved' = approvalRequired
+          ? 'pending'
+          : 'approved';
+        const decisionSource: 'admin' | 'auto' = approvalRequired
+          ? 'admin'
+          : 'auto';
+        const periodPolicy = policy?.periodPolicy || 'non_overlapping';
+
+        // 3. Monthly limit check
+        if (policy && policy.limitMode === 'monthly_limit') {
+          const [year, month] = data.startDate.split('-').map(Number);
+          const lastDay = new Date(year, month, 0).getDate();
+          const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
+          const monthEnd = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
+          const existingInMonth = await tx
+            .select({ id: staffLeaveRequests.id })
+            .from(staffLeaveRequests)
+            .where(
+              and(
+                eq(staffLeaveRequests.staffProfileId, data.staffId),
+                gte(staffLeaveRequests.startDate, monthStart),
+                lte(staffLeaveRequests.endDate, monthEnd),
+                inArray(staffLeaveRequests.status, ['pending', 'approved']),
+              ),
+            );
+
+          if (existingInMonth.length >= policy.monthlyLimit) {
+            throw new BadRequestException(
+              `Batas maksimum cuti bulanan (${policy.monthlyLimit} kali) telah tercapai untuk periode ini`,
+            );
+          }
+        }
+
+        // 4. Strict Mode Protection (Policy B: previous_period_must_finish)
+        if (periodPolicy === 'previous_period_must_finish') {
+          const activeOrFutureLeaves = await tx.query.staffLeaveRequests.findMany({
+            where: and(
+              eq(staffLeaveRequests.staffProfileId, data.staffId),
+              inArray(staffLeaveRequests.status, ['pending', 'approved']),
+              gte(staffLeaveRequests.endDate, todayStr),
+            ),
+            orderBy: [desc(staffLeaveRequests.endDate)],
+          });
+
+          if (activeOrFutureLeaves.length > 0) {
+            const latest = activeOrFutureLeaves[0];
+            const dateRangeLabel =
+              latest.startDate === latest.endDate
+                ? latest.startDate
+                : `${latest.startDate} s/d ${latest.endDate}`;
+            throw new BadRequestException(
+              `Kebijakan klinik mewajibkan masa periode cuti sebelumnya (${dateRangeLabel}) selesai terlebih dahulu sebelum dapat mengajukan permohonan izin baru.`,
+            );
+          }
+        }
+
+        // 5. Overlapping Leave Protection (Pending and Approved requests)
+        const overlappingRequests = await tx.query.staffLeaveRequests.findMany({
+          where: and(
+            eq(staffLeaveRequests.staffProfileId, data.staffId),
+            inArray(staffLeaveRequests.status, ['pending', 'approved']),
+            lte(staffLeaveRequests.startDate, data.endDate),
+            gte(staffLeaveRequests.endDate, data.startDate),
+          ),
+          with: {
+            sessions: true,
+          },
+        });
+
+        for (const existing of overlappingRequests) {
+          let isConflicting = false;
+
+          if (existing.scope === 'full_day' || data.scope === 'full_day') {
+            // A full_day leave encompasses all shifts, so any date overlap is a conflict
+            isConflicting = true;
+          } else if (existing.scope === 'session' && data.scope === 'session') {
+            // Both are session-scoped on overlapping date(s): conflict if any session is shared
+            const newSessionIds = new Set(data.sessionIds || []);
+            const existingSessionIds =
+              existing.sessions?.map((s) => s.sessionId) || [];
+            const hasCommonSession = existingSessionIds.some((id) =>
+              newSessionIds.has(id),
+            );
+            if (hasCommonSession) {
+              isConflicting = true;
+            }
+          }
+
+          if (isConflicting) {
+            const statusLabel =
+              existing.status === 'pending'
+                ? 'menunggu persetujuan (pending)'
+                : 'telah disetujui';
+            const dateRangeLabel =
+              existing.startDate === existing.endDate
+                ? existing.startDate
+                : `${existing.startDate} s/d ${existing.endDate}`;
+            throw new BadRequestException(
+              `Anda memiliki permohonan izin yang ${statusLabel} pada rentang tanggal/sesi tersebut (${dateRangeLabel}). Tidak dapat mengajukan permohonan cuti baru yang tumpang tindih.`,
+            );
+          }
+        }
+
+        // 6. Persist leave request
+        const [record] = await tx
+          .insert(staffLeaveRequests)
           .values({
-            leaveRequestId: record.id,
-            sessionId: sessId,
-            workDate: data.startDate,
+            staffProfileId: data.staffId,
+            practitionerId,
+            requestType: reqType,
+            startDate: data.startDate,
+            endDate: data.endDate,
+            durationDays,
+            reason: data.reason,
+            scope: data.scope || 'full_day',
+            decisionSource,
+            substitutePractitionerId: data.substituteStaffId || null,
+            status: initialStatus,
+            reviewedAt:
+              initialStatus === 'approved' ? new Date().toISOString() : null,
           })
           .returning();
-        insertedSessions.push(sessRecord);
-      }
-    }
 
-    // If auto-approved, automatically generate open replacement opportunities
+        // 7. Persist session relations if provided
+        const insertedSessions: any[] = [];
+        if (data.sessionIds && data.sessionIds.length > 0) {
+          for (const sessId of data.sessionIds) {
+            const [sessRecord] = await tx
+              .insert(leaveRequestSessions)
+              .values({
+                leaveRequestId: record.id,
+                sessionId: sessId,
+                workDate: data.startDate,
+              })
+              .returning();
+            insertedSessions.push(sessRecord);
+          }
+        }
+
+        return { record, insertedSessions, initialStatus };
+      });
+
+    // Post-commit side effects (Opportunities, Caches, Notifications)
     if (initialStatus === 'approved') {
       await this.generateReplacementOpportunities(record, insertedSessions);
       await this.invalidateScheduleCaches();
     }
 
-    // Fire-and-forget notification to RabbitMQ
     void this.dispatchLeaveNotification(record, initialStatus);
 
     return this.mapRecordToEntity(record, insertedSessions);
@@ -414,23 +677,33 @@ export class LeaveDrizzleRepository implements LeaveRepository {
             .onConflictDoNothing();
         }
       } else {
-        // Full day: query assigned sessions on start date
-        const assigned = await this.getEligibleSessions(
-          leaveRequest.staffProfileId,
-          leaveRequest.startDate,
-        );
-        for (const a of assigned) {
-          await this.db
-            .insert(replacementOpportunities)
-            .values({
-              leaveRequestId: leaveRequest.id,
-              sessionId: a.sessionId,
-              workDate: leaveRequest.startDate,
-              originalStaffProfileId: leaveRequest.staffProfileId,
-              originalPractitionerId: leaveRequest.practitionerId || null,
-              status: 'open',
-            })
-            .onConflictDoNothing();
+        // Full day: query assigned sessions for every date across [startDate..endDate]
+        const startDt = new Date(leaveRequest.startDate);
+        const endDt = new Date(leaveRequest.endDate);
+
+        for (
+          let cur = new Date(startDt);
+          cur <= endDt;
+          cur.setDate(cur.getDate() + 1)
+        ) {
+          const curDateStr = cur.toISOString().slice(0, 10);
+          const assigned = await this.getEligibleSessions(
+            leaveRequest.staffProfileId,
+            curDateStr,
+          );
+          for (const a of assigned) {
+            await this.db
+              .insert(replacementOpportunities)
+              .values({
+                leaveRequestId: leaveRequest.id,
+                sessionId: a.sessionId,
+                workDate: curDateStr,
+                originalStaffProfileId: leaveRequest.staffProfileId,
+                originalPractitionerId: leaveRequest.practitionerId || null,
+                status: 'open',
+              })
+              .onConflictDoNothing();
+          }
         }
       }
     } catch (err) {
@@ -463,7 +736,7 @@ export class LeaveDrizzleRepository implements LeaveRepository {
           sourceDomain: 'leave',
           target: {
             type: 'role',
-            roles: ['admin'],
+            roles: [SYSTEM_ROLES.ADMIN],
           },
           category: 'shift',
           content: {
@@ -544,7 +817,7 @@ export class LeaveDrizzleRepository implements LeaveRepository {
           sourceDomain: 'leave',
           target: {
             type: 'role',
-            roles: ['admin'],
+            roles: [SYSTEM_ROLES.ADMIN],
           },
           category: 'shift',
           content: {

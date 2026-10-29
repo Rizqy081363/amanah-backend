@@ -8,7 +8,6 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiBearerAuth,
@@ -22,6 +21,7 @@ import {
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
 import type { Response as ExpressResponse } from 'express';
+import { HybridAuthGuard } from '../../../../common/auth/hybrid-auth.guard';
 import { FileResponseDto } from './dto/file-response.dto';
 import { FilesLocalService } from './files.service';
 
@@ -49,7 +49,7 @@ export class FilesLocalController {
       'Mengunggah file (foto profil, surat rujukan, lampiran izin) berformat multipart/form-data ke server.',
   })
   @ApiBearerAuth('access-token')
-  @UseGuards(AuthGuard('jwt'))
+  @UseGuards(HybridAuthGuard)
   @Post('upload')
   @ApiConsumes('multipart/form-data')
   @ApiBody({

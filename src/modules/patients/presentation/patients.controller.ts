@@ -29,10 +29,12 @@ import {
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
 import {
+  AuthenticatedUser,
   CurrentUser,
   HybridAuthGuard,
   Roles,
   RolesGuard,
+  SYSTEM_ROLES,
 } from '../../../common/auth';
 import {
   PATIENT_REPOSITORY,
@@ -70,7 +72,7 @@ export class PatientsController {
   ) {}
 
   @Post()
-  @Roles('ADMIN', 'STAF')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Mendaftarkan pasien baru (Meja Registrasi)',
@@ -127,7 +129,7 @@ export class PatientsController {
   }
 
   @Post('registration')
-  @Roles('PATIENT', 'ADMIN')
+  @Roles(SYSTEM_ROLES.PATIENT, SYSTEM_ROLES.ADMIN)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Registrasi mandiri profil pasien (Onboarding Modal Barrier)',
@@ -146,14 +148,14 @@ export class PatientsController {
     description: 'Validasi form data pasien gagal',
   })
   async registerPatient(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
     @Body() body: RegisterPatientDto,
   ) {
     return this.patientRepo.register(user.id, body);
   }
 
   @Get('me')
-  @Roles('ADMIN', 'STAF', 'PATIENT')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF, SYSTEM_ROLES.PATIENT)
   @ApiOperation({
     summary: 'Mendapatkan profil pasien login saat ini',
     description:
@@ -165,7 +167,7 @@ export class PatientsController {
   @ApiNotFoundResponse({
     description: 'Profil pasien belum terdaftar untuk akun ini',
   })
-  async getMyProfile(@CurrentUser() user: any) {
+  async getMyProfile(@CurrentUser() user: AuthenticatedUser) {
     const patient = await this.patientRepo.findByUserId(user.id);
     if (!patient) {
       throw new NotFoundException({
@@ -177,7 +179,7 @@ export class PatientsController {
   }
 
   @Patch('me')
-  @Roles('ADMIN', 'STAF', 'PATIENT')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF, SYSTEM_ROLES.PATIENT)
   @ApiOperation({
     summary: 'Memperbarui profil pasien login saat ini (Self-Update)',
     description:
@@ -193,7 +195,7 @@ export class PatientsController {
     description: 'Validasi form data pembaruan gagal',
   })
   async updateMyProfile(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
     @Body() body: UpdatePatientDto,
   ) {
     const patient = await this.patientRepo.findByUserId(user.id);
@@ -208,7 +210,7 @@ export class PatientsController {
   }
 
   @Get('by-nik/:nik')
-  @Roles('ADMIN', 'STAF')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
   @ApiOperation({
     summary: 'Mencari pasien berdasarkan 16 digit NIK KTP',
     description:
@@ -232,7 +234,7 @@ export class PatientsController {
   }
 
   @Get('nik/:nik')
-  @Roles('ADMIN', 'STAF')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
   @ApiOperation({
     summary: 'Mencari pasien berdasarkan 16 digit NIK KTP (Kanonikal)',
     description: 'Rute kanonikal pencarian profil pasien berdasarkan NIK.',
@@ -255,7 +257,7 @@ export class PatientsController {
   }
 
   @Get('directory')
-  @Roles('ADMIN', 'STAF')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
   @ApiOperation({
     summary:
       'Direktori pasien klinik dengan statistik agregat dan pagination (Admin)',
@@ -271,7 +273,7 @@ export class PatientsController {
   }
 
   @Get()
-  @Roles('ADMIN', 'STAF')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
   @ApiOperation({
     summary: 'Daftar pasien klinik dengan pagination dan pencarian',
     description:
@@ -292,7 +294,7 @@ export class PatientsController {
   }
 
   @Get(':id')
-  @Roles('ADMIN', 'STAF', 'PATIENT')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF, SYSTEM_ROLES.PATIENT)
   @ApiOperation({
     summary: 'Mendapatkan profil detail pasien berdasarkan ID',
     description:
@@ -310,13 +312,16 @@ export class PatientsController {
   @ApiForbiddenResponse({
     description: 'Pasien tidak diizinkan mengakses data pasien lain',
   })
-  async getPatientById(@Param('id') id: string, @CurrentUser() user: any) {
+  async getPatientById(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     const patient = await this.patientRepo.findById(id);
     if (!patient) {
       throw new NotFoundException(`Pasien dengan ID ${id} tidak ditemukan`);
     }
 
-    if (user.systemRole === 'PATIENT' && patient.userId !== user.id) {
+    if (user.systemRole === SYSTEM_ROLES.PATIENT && patient.userId !== user.id) {
       const isAffiliated = await this.affiliationRepo.findByUserAndPatient(
         user.id,
         id,
@@ -332,7 +337,7 @@ export class PatientsController {
   }
 
   @Patch(':id')
-  @Roles('ADMIN', 'STAF', 'PATIENT')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF, SYSTEM_ROLES.PATIENT)
   @ApiOperation({
     summary: 'Memperbarui data profil pasien',
     description:
@@ -354,14 +359,14 @@ export class PatientsController {
   async updatePatient(
     @Param('id') id: string,
     @Body() body: UpdatePatientDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
     const existing = await this.patientRepo.findById(id);
     if (!existing) {
       throw new NotFoundException(`Pasien dengan ID ${id} tidak ditemukan`);
     }
 
-    if (user.systemRole === 'PATIENT' && existing.userId !== user.id) {
+    if (user.systemRole === SYSTEM_ROLES.PATIENT && existing.userId !== user.id) {
       const isAffiliated = await this.affiliationRepo.findByUserAndPatient(
         user.id,
         id,
@@ -378,7 +383,7 @@ export class PatientsController {
   }
 
   @Delete(':id')
-  @Roles('ADMIN')
+  @Roles(SYSTEM_ROLES.ADMIN)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Menonaktifkan data pasien (Admin)',
@@ -396,7 +401,7 @@ export class PatientsController {
   }
 
   @Post('bulk-delete')
-  @Roles('ADMIN')
+  @Roles(SYSTEM_ROLES.ADMIN)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Menonaktifkan data pasien secara massal (Bulk Soft Delete)',

@@ -26,6 +26,7 @@ import {
   isPatientUser,
   Roles,
   RolesGuard,
+  SYSTEM_ROLES,
 } from '../../../common/auth';
 import { DRIZZLE_SOURCE } from '../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../database/drizzle/drizzle.provider';
@@ -82,7 +83,7 @@ export class PatientAppointmentHistoryController {
 
   @ApiBearerAuth('access-token')
   @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'STAF')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
   @Get('patient/:patientId')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({

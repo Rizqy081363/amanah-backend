@@ -82,6 +82,14 @@ export class UpdateSessionDefDto {
     message: 'defaultEndsAt must be a valid time in HH:mm or HH:mm:ss format',
   })
   defaultEndsAt?: string;
+
+  @ApiPropertyOptional({
+    description: 'Icon atau emoji representasi visual shift',
+    example: '🌅',
+  })
+  @IsOptional()
+  @IsString()
+  icon?: string | null;
 }
 
 export class CreateSessionDefDto {
@@ -150,6 +158,14 @@ export class CreateSessionDefDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Icon atau emoji representasi visual shift',
+    example: '🌅',
+  })
+  @IsOptional()
+  @IsString()
+  icon?: string | null;
 }
 
 export class UpdateSingleSessionDefDto {
@@ -210,6 +226,14 @@ export class UpdateSingleSessionDefDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Icon atau emoji representasi visual shift',
+    example: '🌅',
+  })
+  @IsOptional()
+  @IsString()
+  icon?: string | null;
 }
 
 export class UpdateWeeklyTemplateItemDto {

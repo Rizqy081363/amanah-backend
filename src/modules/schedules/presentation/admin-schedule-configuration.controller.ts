@@ -25,7 +25,16 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { SYSTEM_ROLES } from '@/auth/constants/auth.constants';
-import { UpdateOperationalShiftUseCase } from '../application/use-cases/update-operational-shift.use-case';
+import { zodPipe } from '../../../common/validation/zod-validation.pipe';
+import {
+  CreateOperationalShiftUseCase,
+  UpdateOperationalShiftUseCase,
+} from '../application/use-cases';
+import {
+  CreateSessionDefSchema,
+  UpdateSessionDefsBatchSchema,
+  UpdateSingleSessionDefSchema,
+} from './schemas/operational-shift.schema';
 import {
   DrizzleAdminScheduleConfigurationRepository,
   ScheduleConfigurationData,
@@ -61,6 +70,7 @@ export class AdminScheduleConfigurationController {
   constructor(
     private readonly configRepo: DrizzleAdminScheduleConfigurationRepository,
     private readonly updateOperationalShiftUseCase: UpdateOperationalShiftUseCase,
+    private readonly createOperationalShiftUseCase: CreateOperationalShiftUseCase,
   ) {}
 
   @Get()
@@ -118,7 +128,7 @@ export class AdminScheduleConfigurationController {
     description: 'Definisi shift operasional berhasil diperbarui',
   })
   async updateSessionDefs(
-    @Body() dto: UpdateSessionDefsBatchDto,
+    @Body(zodPipe(UpdateSessionDefsBatchSchema)) dto: UpdateSessionDefsBatchDto,
     @CurrentUser() user?: AuthenticatedUser,
   ): Promise<{ success: boolean; message: string }> {
     const res = await this.updateOperationalShiftUseCase.execute(
@@ -175,8 +185,11 @@ export class AdminScheduleConfigurationController {
   @ApiOkResponse({
     description: 'Definisi shift operasional baru berhasil dibuat',
   })
-  async createSessionDef(@Body() dto: CreateSessionDefDto) {
-    const created = await this.configRepo.createSessionDef(dto);
+  async createSessionDef(
+    @Body(zodPipe(CreateSessionDefSchema)) dto: CreateSessionDefDto,
+    @CurrentUser() user?: AuthenticatedUser,
+  ) {
+    const created = await this.createOperationalShiftUseCase.execute(dto, user);
     return {
       success: true,
       message: `Shift '${created.label}' berhasil dibuat`,
@@ -220,7 +233,7 @@ export class AdminScheduleConfigurationController {
   })
   async updateSingleSessionDef(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: UpdateSingleSessionDefDto,
+    @Body(zodPipe(UpdateSingleSessionDefSchema)) dto: UpdateSingleSessionDefDto,
     @CurrentUser() user?: AuthenticatedUser,
   ) {
     const updated = await this.updateOperationalShiftUseCase.executeSingle(

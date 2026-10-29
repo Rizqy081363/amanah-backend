@@ -686,10 +686,18 @@ export class StaffsController {
   @ApiOkResponse({
     description: 'Daftar roster staf berhasil diambil',
   })
-  async getStaffRoster(@Param('id') id: string) {
+  async getStaffRoster(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+  ) {
     const staff = await this.staffRepo.findById(id);
     if (!staff) {
       throw new NotFoundException(`Staf dengan ID ${id} tidak ditemukan`);
+    }
+    if (user.systemRole !== SYSTEM_ROLES.ADMIN && staff.userId !== user.id) {
+      throw new ForbiddenException(
+        'Akses ditolak: Anda hanya berwenang melihat data roster staf Anda sendiri',
+      );
     }
     return this.rosterRepo.findByStaffProfileId(id);
   }

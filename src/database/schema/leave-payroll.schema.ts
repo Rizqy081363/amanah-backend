@@ -36,6 +36,9 @@ export const leavePolicies = pgTable(
     quotaCountingPolicy: varchar('quota_counting_policy', { length: 30 })
       .default('per_request')
       .notNull(),
+    periodPolicy: varchar('period_policy', { length: 40 })
+      .default('non_overlapping')
+      .notNull(),
     isActive: boolean('is_active').default(true).notNull(),
     effectiveFrom: date('effective_from').defaultNow().notNull(),
     effectiveTo: date('effective_to'),
@@ -58,6 +61,10 @@ export const leavePolicies = pgTable(
     check(
       'leave_policy_quota_policy_check',
       sql`${table.quotaCountingPolicy} IN ('per_request', 'per_session')`,
+    ),
+    check(
+      'leave_policy_period_policy_check',
+      sql`${table.periodPolicy} IN ('non_overlapping', 'previous_period_must_finish')`,
     ),
   ],
 );

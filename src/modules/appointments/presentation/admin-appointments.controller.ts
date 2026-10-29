@@ -24,6 +24,8 @@ import { CurrentUser } from '../../../common/auth/current-user.decorator';
 import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
 import { Roles } from '../../../common/auth/roles.decorator';
 import { RolesGuard } from '../../../common/auth/roles.guard';
+import { SYSTEM_ROLES } from '../../../common/auth/roles.enum';
+import { AuthenticatedUser } from '../../../common/auth/authenticated-user.interface';
 import { AppointmentsService } from '../application/appointments.service';
 import {
   CANDIDATE_ASSIGNMENT_PORT,
@@ -43,7 +45,7 @@ import { AppointmentDomainExceptionFilter } from './filters/appointment-domain-e
 @ApiBearerAuth('access-token')
 @UseGuards(HybridAuthGuard, RolesGuard)
 @UseFilters(AppointmentDomainExceptionFilter)
-@Roles('ADMIN', 'STAF')
+@Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
 @ApiUnauthorizedResponse({
   description: 'Sesi autentikasi tidak valid atau token tidak disertakan',
 })
@@ -81,7 +83,7 @@ export class AdminAppointmentsController {
   async cancelAppointment(
     @Param('appointmentId') appointmentId: string,
     @Body() body: CancelAppointmentDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.appointmentsService.cancelAdminAppointment(
       appointmentId,
@@ -111,7 +113,7 @@ export class AdminAppointmentsController {
   async updateStatus(
     @Param('appointmentId') appointmentId: string,
     @Body() body: AdminUpdateAppointmentStatusDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.appointmentsService.updateAdminAppointmentStatus(
       appointmentId,
@@ -165,7 +167,7 @@ export class AdminAppointmentsController {
   async changeDoctor(
     @Param('appointmentId') appointmentId: string,
     @Body() body: ChangeAppointmentDoctorDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
     const updated = await this.assignmentService.changeDoctor(
       appointmentId,
@@ -197,7 +199,7 @@ export class AdminAppointmentsController {
   async changeRoom(
     @Param('appointmentId') appointmentId: string,
     @Body() body: ChangeAppointmentRoomDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
     const updated = await this.assignmentService.changeRoom(
       appointmentId,

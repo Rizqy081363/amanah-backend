@@ -13,6 +13,7 @@ import {
   SYSTEM_ROLES,
   type SystemRole,
 } from '../constants/auth.constants';
+import type { StaffType } from '../../common/constants/staff-types.constant';
 import { JwtPayloadType } from './types/jwt-payload.type';
 
 @Injectable()
@@ -94,6 +95,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       staff: staffProfile
         ? {
             id: staffProfile.id,
+            staffType: staffProfile.staffType as StaffType,
             practitionerId: staffProfile.practitioners?.[0]?.id || null,
             userId: user.id,
             poliklinikId: staffProfile.primaryUnitId,

@@ -414,6 +414,27 @@
       "when": 1791342000000,
       "tag": "0058_migrate_portal_notification_urls",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1791343000000,
+      "tag": "0059_add_icon_to_session_def",
+      "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1791344000000,
+      "tag": "0060_add_period_policy_to_leave_policy",
+      "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1791345000000,
+      "tag": "0061_add_replacement_cleanup_settings",
+      "breakpoints": true
     }
   ]
 }

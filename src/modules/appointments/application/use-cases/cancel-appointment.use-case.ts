@@ -1,4 +1,12 @@
-import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+  Optional,
+} from '@nestjs/common';
+import { SYSTEM_ROLES } from '../../../../common/auth/roles.enum';
 import { RedisService } from '../../../../common/redis/redis.service';
 import { QueuePositionRecalculationService } from '../../../queue-engine/application/services/queue-position-recalculation.service';
 import { DOMAIN_APPOINTMENT_STATUS } from '../../domain/constants/appointment-lifecycle.constants';
@@ -42,6 +50,23 @@ export class CancelAppointmentUseCase {
     reason?: string,
     user?: any,
   ): Promise<AppointmentRecord> {
+    if (user && user.systemRole === SYSTEM_ROLES.PATIENT) {
+      const existing = await this.appointmentRepo.findById(appointmentId);
+      if (!existing) {
+        throw new NotFoundException(
+          `Janji temu dengan ID ${appointmentId} tidak ditemukan.`,
+        );
+      }
+      const isOwner =
+        existing.patientUserId === user.id ||
+        (user.patient?.id && existing.patientId === user.patient.id);
+      if (!isOwner) {
+        throw new ForbiddenException(
+          'Anda tidak memiliki akses untuk membatalkan janji temu ini.',
+        );
+      }
+    }
+
     const cancelledAt = new Date();
     const updated = await this.appointmentRepo.transitionStatus({
       id: appointmentId,

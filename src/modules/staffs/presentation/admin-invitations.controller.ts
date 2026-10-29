@@ -23,10 +23,12 @@ import {
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
 import {
+  AuthenticatedUser,
   CurrentUser,
   HybridAuthGuard,
   Roles,
   RolesGuard,
+  SYSTEM_ROLES,
 } from '../../../common/auth';
 import { StaffInvitationService } from '../application/staff-invitation.service';
 import { InviteDoctorDto } from './dto/invite-doctor.dto';
@@ -35,7 +37,7 @@ import { InviteStaffDto } from './dto/invite-staff.dto';
 @ApiTags('Admin Staff & Doctor Invitations')
 @ApiBearerAuth('access-token')
 @UseGuards(HybridAuthGuard, RolesGuard)
-@Roles('ADMIN')
+@Roles(SYSTEM_ROLES.ADMIN)
 @ApiUnauthorizedResponse({
   description: 'Sesi autentikasi tidak valid atau token tidak disertakan',
 })
@@ -62,7 +64,7 @@ export class AdminInvitationsController {
   @ApiUnprocessableEntityResponse({
     description: 'Data dokter atau email tidak valid',
   })
-  async inviteDoctor(@CurrentUser() user: any, @Body() dto: InviteDoctorDto) {
+  async inviteDoctor(@CurrentUser() user: AuthenticatedUser, @Body() dto: InviteDoctorDto) {
     return this.staffInvitationService.inviteDoctor(dto, user.id);
   }
 
@@ -79,7 +81,7 @@ export class AdminInvitationsController {
   @ApiUnprocessableEntityResponse({
     description: 'Data staf atau email tidak valid',
   })
-  async inviteStaff(@CurrentUser() user: any, @Body() dto: InviteStaffDto) {
+  async inviteStaff(@CurrentUser() user: AuthenticatedUser, @Body() dto: InviteStaffDto) {
     return this.staffInvitationService.inviteStaff(dto, user.id);
   }
 

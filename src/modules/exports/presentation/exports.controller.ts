@@ -11,7 +11,6 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
 import {
   ApiAcceptedResponse,
   ApiBearerAuth,
@@ -23,13 +22,19 @@ import {
 } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { CurrentUser } from '../../../common/auth/current-user.decorator';
+import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
+import { RolesGuard } from '../../../common/auth/roles.guard';
+import { Roles } from '../../../common/auth/roles.decorator';
+import { SYSTEM_ROLES } from '../../../common/auth/roles.enum';
+import { AuthenticatedUser } from '../../../common/auth/authenticated-user.interface';
 import { ExportsService } from '../application/exports.service';
 import { CheckExportAvailabilityDto } from './dto/check-export-availability.dto';
 import { CreateExportDto } from './dto/create-export.dto';
 
 @ApiTags('Exports (Pipeline Asinkronus Berkas & Artefak)')
 @ApiBearerAuth('access-token')
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(HybridAuthGuard, RolesGuard)
+@Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
 @Controller({ path: 'exports', version: '1' })
 export class ExportsController {
   constructor(private readonly exportsService: ExportsService) {}
@@ -46,7 +51,7 @@ export class ExportsController {
   })
   async createExport(
     @Body() dto: CreateExportDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
     @Headers('idempotency-key') idempotencyKey?: string,
   ) {
     return this.exportsService.requestExport(dto, user.id, idempotencyKey);
@@ -62,7 +67,7 @@ export class ExportsController {
   @ApiOkResponse({ description: 'Ketersediaan data berhasil diverifikasi' })
   async checkAvailability(
     @Body() dto: CheckExportAvailabilityDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.exportsService.checkAvailability(
       dto.exportType,
@@ -76,7 +81,7 @@ export class ExportsController {
     summary: 'Melihat riwayat tugas ekspor berkas milik staf/user yang sedang login',
   })
   @ApiOkResponse({ description: 'Daftar riwayat job ekspor berhasil diambil' })
-  async getMyHistory(@CurrentUser() user: any) {
+  async getMyHistory(@CurrentUser() user: AuthenticatedUser) {
     return this.exportsService.getMyHistory(user.id);
   }
 
@@ -86,7 +91,10 @@ export class ExportsController {
   })
   @ApiOkResponse({ description: 'Detail status progress ekspor berkas' })
   @ApiNotFoundResponse({ description: 'Job ekspor tidak ditemukan' })
-  async getJobStatus(@Param('id') id: string, @CurrentUser() user: any) {
+  async getJobStatus(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return this.exportsService.getJobStatus(id, user.id);
   }
 
@@ -99,7 +107,7 @@ export class ExportsController {
   @ApiNotFoundResponse({ description: 'Job ekspor atau berkas tidak ditemukan' })
   async downloadFile(
     @Param('id') id: string,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
     @Res() res: Response,
   ) {
     const file = await this.exportsService.getDownloadFile(id, user.id);
@@ -114,7 +122,10 @@ export class ExportsController {
     summary: 'Membatalkan tugas ekspor yang sedang diantrekan atau berjalan',
   })
   @ApiOkResponse({ description: 'Tugas ekspor berhasil dibatalkan' })
-  async cancelExport(@Param('id') id: string, @CurrentUser() user: any) {
+  async cancelExport(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return this.exportsService.cancelExport(id, user.id);
   }
 }

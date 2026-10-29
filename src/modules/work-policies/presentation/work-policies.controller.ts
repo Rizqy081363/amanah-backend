@@ -21,6 +21,7 @@ import { CurrentUser } from '../../../common/auth/current-user.decorator';
 import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
 import { Roles } from '../../../common/auth/roles.decorator';
 import { RolesGuard } from '../../../common/auth/roles.guard';
+import { SYSTEM_ROLES } from '../../../auth/constants/auth.constants';
 import {
   WORK_POLICY_REPOSITORY,
   WorkPolicyRepository,
@@ -46,7 +47,7 @@ export class WorkPoliciesController {
   ) {}
 
   @Get('current')
-  @Roles('ADMIN', 'STAF')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
   @ApiOperation({
     summary: 'Mendapatkan kebijakan cuti dan tarif kompensasi aktif saat ini',
     description:
@@ -70,7 +71,7 @@ export class WorkPoliciesController {
   }
 
   @Patch('leave-policy')
-  @Roles('ADMIN')
+  @Roles(SYSTEM_ROLES.ADMIN)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Admin memperbarui konfigurasi kebijakan cuti (Web Dashboard)',
@@ -86,7 +87,7 @@ export class WorkPoliciesController {
   }
 
   @Put('compensation-rates')
-  @Roles('ADMIN')
+  @Roles(SYSTEM_ROLES.ADMIN)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Admin memperbarui tarif kerja per jam staf (Web Dashboard)',
@@ -102,7 +103,7 @@ export class WorkPoliciesController {
   }
 
   @Put('attendance-timing')
-  @Roles('ADMIN')
+  @Roles(SYSTEM_ROLES.ADMIN)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary:

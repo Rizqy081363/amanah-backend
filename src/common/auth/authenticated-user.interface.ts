@@ -1,7 +1,9 @@
 import { SYSTEM_ROLES, type SystemRole } from '../../auth/constants/auth.constants';
+import { STAFF_TYPES, type StaffType } from '../constants/staff-types.constant';
 
 export interface AuthenticatedStaffProfile {
   id: string;
+  staffType: StaffType;
   practitionerId: string | null;
   userId: string;
   poliklinikId?: string | null;
@@ -62,6 +64,46 @@ export function isStaffUser(
   user: AuthenticatedUser,
 ): user is AuthenticatedUser & { staff: AuthenticatedStaffProfile } {
   return user.systemRole === SYSTEM_ROLES.STAF && user.staff !== null;
+}
+
+/**
+ * Type guard for Doctor staff principal.
+ */
+export function isDoctorStaff(
+  user: AuthenticatedUser,
+): user is AuthenticatedUser & { staff: AuthenticatedStaffProfile } {
+  return isStaffUser(user) && user.staff.staffType === STAFF_TYPES.DOCTOR;
+}
+
+/**
+ * Type guard for Midwife staff principal.
+ */
+export function isMidwifeStaff(
+  user: AuthenticatedUser,
+): user is AuthenticatedUser & { staff: AuthenticatedStaffProfile } {
+  return isStaffUser(user) && user.staff.staffType === STAFF_TYPES.MIDWIFE;
+}
+
+/**
+ * Type guard for Operational Worker staff principal.
+ */
+export function isWorkerStaff(
+  user: AuthenticatedUser,
+): user is AuthenticatedUser & { staff: AuthenticatedStaffProfile } {
+  return isStaffUser(user) && user.staff.staffType === STAFF_TYPES.WORKER;
+}
+
+/**
+ * Type guard for Clinical staff (Doctor or Midwife).
+ */
+export function isClinicalStaff(
+  user: AuthenticatedUser,
+): user is AuthenticatedUser & { staff: AuthenticatedStaffProfile } {
+  return (
+    isStaffUser(user) &&
+    (user.staff.staffType === STAFF_TYPES.DOCTOR ||
+      user.staff.staffType === STAFF_TYPES.MIDWIFE)
+  );
 }
 
 /**

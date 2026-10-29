@@ -3,17 +3,28 @@ import {
   BadRequestException,
   Body,
   Controller,
+  ForbiddenException,
   Get,
   Inject,
   NotFoundException,
   Param,
   Post,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { and, eq } from 'drizzle-orm';
+import { SYSTEM_ROLES } from '../../../../auth/constants/auth.constants';
+import {
+  type AuthenticatedUser,
+  CurrentUser,
+  HybridAuthGuard,
+  Roles,
+  RolesGuard,
+} from '../../../../common/auth';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import {
   clinicRooms,
+  patientProfiles,
   practitioners,
   queueNotificationOutbox,
   queueTickets,
@@ -388,12 +399,16 @@ export class V2TicketsController {
   }
 
   @Post(':id/reschedule')
+  @ApiBearerAuth('access-token')
+  @UseGuards(HybridAuthGuard, RolesGuard)
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF, SYSTEM_ROLES.PATIENT)
   @ApiOperation({
     summary: 'Reschedule an existing ticket (cancel old, issue new)',
   })
   async rescheduleTicket(
     @Param('id') id: string,
     @Body() dto: RescheduleQueueTicketDto,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
     const [oldTicket] = await this.db
       .select()
@@ -403,6 +418,28 @@ export class V2TicketsController {
 
     if (!oldTicket) {
       throw new NotFoundException(`Ticket not found: ${id}`);
+    }
+
+    if (user.systemRole === SYSTEM_ROLES.PATIENT) {
+      const patientId = user.patient?.id;
+      const [patientProfile] = oldTicket.patientId
+        ? await this.db
+            .select({ id: patientProfiles.id })
+            .from(patientProfiles)
+            .where(
+              and(
+                eq(patientProfiles.id, oldTicket.patientId),
+                eq(patientProfiles.userId, user.id),
+              ),
+            )
+            .limit(1)
+        : [null];
+
+      if (patientId !== oldTicket.patientId && !patientProfile) {
+        throw new ForbiddenException(
+          'Anda tidak memiliki wewenang untuk mengubah jadwal tiket pasien lain.',
+        );
+      }
     }
 
     if (

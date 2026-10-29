@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  ForbiddenException,
   Get,
   HttpCode,
   HttpStatus,
@@ -10,7 +11,6 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
 import {
   ApiBearerAuth,
   ApiCreatedResponse,
@@ -23,6 +23,11 @@ import {
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
 import { CurrentUser } from '../../../common/auth/current-user.decorator';
+import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
+import { RolesGuard } from '../../../common/auth/roles.guard';
+import { Roles } from '../../../common/auth/roles.decorator';
+import { SYSTEM_ROLES } from '../../../common/auth/roles.enum';
+import { AuthenticatedUser } from '../../../common/auth/authenticated-user.interface';
 import {
   SUPPORT_TICKET_REPOSITORY,
   SupportTicketRepository,
@@ -32,7 +37,8 @@ import { CreateTicketMessageDto } from './dto/create-ticket-message.dto';
 
 @ApiTags('Support Tickets (Bantuan Teknis IT)')
 @ApiBearerAuth('access-token')
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(HybridAuthGuard, RolesGuard)
+@Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
 @ApiUnauthorizedResponse({
   description: 'Sesi autentikasi tidak valid atau token tidak disertakan',
 })
@@ -73,7 +79,7 @@ export class SupportTicketsController {
   })
   async createTicket(
     @Body() body: CreateSupportTicketDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.ticketRepo.createTicket({
       reporterUserId: user.id,
@@ -116,7 +122,7 @@ export class SupportTicketsController {
       },
     },
   })
-  async getMyTickets(@CurrentUser() user: any) {
+  async getMyTickets(@CurrentUser() user: AuthenticatedUser) {
     return this.ticketRepo.findMyTickets(user.id);
   }
 
@@ -138,11 +144,19 @@ export class SupportTicketsController {
   @ApiNotFoundResponse({
     description: 'Tiket dengan ID yang diberikan tidak ditemukan',
   })
-  async getTicketById(@Param('id') id: string) {
+  async getTicketById(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     const ticket = await this.ticketRepo.findTicketById(id);
     if (!ticket) {
       throw new NotFoundException(
         `Tiket kendala dengan ID ${id} tidak ditemukan`,
+      );
+    }
+    if (user.systemRole !== SYSTEM_ROLES.ADMIN && ticket.reporterUserId !== user.id) {
+      throw new ForbiddenException(
+        'Anda tidak memiliki akses ke tiket kendala ini.',
       );
     }
     return ticket;
@@ -180,7 +194,21 @@ export class SupportTicketsController {
       },
     },
   })
-  async getTicketMessages(@Param('id') id: string) {
+  async getTicketMessages(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const ticket = await this.ticketRepo.findTicketById(id);
+    if (!ticket) {
+      throw new NotFoundException(
+        `Tiket kendala dengan ID ${id} tidak ditemukan`,
+      );
+    }
+    if (user.systemRole !== SYSTEM_ROLES.ADMIN && ticket.reporterUserId !== user.id) {
+      throw new ForbiddenException(
+        'Anda tidak memiliki akses ke tiket kendala ini.',
+      );
+    }
     return this.ticketRepo.findMessages(id);
   }
 
@@ -205,7 +233,7 @@ export class SupportTicketsController {
   async sendTicketMessage(
     @Param('id') id: string,
     @Body() body: CreateTicketMessageDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
     const ticket = await this.ticketRepo.findTicketById(id);
     if (!ticket) {
@@ -213,11 +241,16 @@ export class SupportTicketsController {
         `Tiket kendala dengan ID ${id} tidak ditemukan`,
       );
     }
+    if (user.systemRole !== SYSTEM_ROLES.ADMIN && ticket.reporterUserId !== user.id) {
+      throw new ForbiddenException(
+        'Anda tidak memiliki akses ke tiket kendala ini.',
+      );
+    }
 
     return this.ticketRepo.addMessage({
       ticketId: id,
       senderUserId: user.id,
-      senderType: 'reporter',
+      senderType: user.systemRole === SYSTEM_ROLES.ADMIN ? 'support_agent' : 'reporter',
       body: body.message,
     });
   }

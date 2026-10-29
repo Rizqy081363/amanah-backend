@@ -27,6 +27,7 @@ export class WorkPolicyDrizzleRepository implements WorkPolicyRepository {
       limitMode: r.limitMode,
       monthlyLimit: Number(r.monthlyLimit),
       quotaCountingPolicy: r.quotaCountingPolicy,
+      periodPolicy: r.periodPolicy || 'non_overlapping',
       isActive: Boolean(r.isActive),
       effectiveFrom: r.effectiveFrom,
       effectiveTo: r.effectiveTo || null,
@@ -86,11 +87,14 @@ export class WorkPolicyDrizzleRepository implements WorkPolicyRepository {
         | 'limitMode'
         | 'monthlyLimit'
         | 'quotaCountingPolicy'
+        | 'periodPolicy'
       >
     >,
     updatedBy: string,
   ): Promise<LeavePolicyEntity> {
     const current = await this.getActiveLeavePolicy();
+    const periodPolicy = data.periodPolicy ?? current.periodPolicy;
+    const now = new Date().toISOString();
 
     const [updated] = await this.db
       .update(leavePolicies)
@@ -106,11 +110,31 @@ export class WorkPolicyDrizzleRepository implements WorkPolicyRepository {
             : current.monthlyLimit,
         quotaCountingPolicy:
           data.quotaCountingPolicy ?? current.quotaCountingPolicy,
+        periodPolicy,
         updatedBy: updatedBy || null,
-        updatedAt: new Date().toISOString(),
+        updatedAt: now,
       })
       .where(eq(leavePolicies.id, current.id))
       .returning();
+
+    // Mirror to clinic_setting for unified configuration access
+    await this.db
+      .insert(clinicSettings)
+      .values({
+        key: 'leave.period_policy',
+        scopeType: 'global',
+        value: periodPolicy,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: clinicSettings.key,
+        set: {
+          value: periodPolicy,
+          updatedAt: now,
+        },
+      });
+
+    this.clinicConfigService.invalidateCache();
 
     return this.mapLeavePolicy(updated);
   }

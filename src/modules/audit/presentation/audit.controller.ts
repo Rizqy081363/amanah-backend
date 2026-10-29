@@ -19,6 +19,7 @@ import {
 import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
 import { Roles } from '../../../common/auth/roles.decorator';
 import { RolesGuard } from '../../../common/auth/roles.guard';
+import { SYSTEM_ROLES } from '../../../common/auth/roles.enum';
 import { AuditService } from '../application/audit.service';
 import { QueryAuditLogDto } from './dto/query-audit-log.dto';
 
@@ -34,7 +35,7 @@ export class AuditController {
 
   @Get()
   @HttpCode(HttpStatus.OK)
-  @Roles('ADMIN')
+  @Roles(SYSTEM_ROLES.ADMIN)
   @ApiOperation({
     summary: 'Melihat seluruh riwayat audit perubahan sistem (Khusus Admin)',
     description:
@@ -49,7 +50,7 @@ export class AuditController {
 
   @Get(':id')
   @HttpCode(HttpStatus.OK)
-  @Roles('ADMIN')
+  @Roles(SYSTEM_ROLES.ADMIN)
   @ApiOperation({
     summary: 'Melihat detail satu catatan audit spesifik berdasarkan ID',
     description:

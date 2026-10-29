@@ -27,11 +27,13 @@ import {
 } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
 import {
+  AuthenticatedUser,
   CurrentUser,
   HybridAuthGuard,
   Public,
   Roles,
   RolesGuard,
+  SYSTEM_ROLES,
 } from '../../common/auth';
 import { AvatarService } from './avatar.service';
 
@@ -82,7 +84,7 @@ export class AvatarController {
   })
   @HttpCode(HttpStatus.OK)
   async uploadAvatarPatch(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
     @UploadedFile() file?: Express.Multer.File,
   ) {
     return this.handleUpload(user.id, file);
@@ -118,7 +120,7 @@ export class AvatarController {
   })
   @HttpCode(HttpStatus.OK)
   async uploadAvatarPost(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
     @UploadedFile() file?: Express.Multer.File,
   ) {
     return this.handleUpload(user.id, file);
@@ -126,7 +128,7 @@ export class AvatarController {
 
   @Patch(':id/avatar')
   @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @Roles(SYSTEM_ROLES.ADMIN)
   @ApiBearerAuth('access-token')
   @UseInterceptors(
     FileInterceptor('file', {
@@ -172,7 +174,7 @@ export class AvatarController {
 
   @Post(':id/avatar')
   @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles('ADMIN')
+  @Roles(SYSTEM_ROLES.ADMIN)
   @ApiBearerAuth('access-token')
   @UseInterceptors(
     FileInterceptor('file', {
@@ -225,7 +227,7 @@ export class AvatarController {
       'Menghapus avatar kustom dan mengembalikan representasi avatar ke fallback inisial.',
   })
   @HttpCode(HttpStatus.OK)
-  async deleteAvatar(@CurrentUser() user: any) {
+  async deleteAvatar(@CurrentUser() user: AuthenticatedUser) {
     await this.avatarService.deleteAvatar(user.id);
     return {
       statusCode: HttpStatus.OK,
@@ -240,7 +242,7 @@ export class AvatarController {
     summary: 'Ambil gambar avatar pengguna yang sedang login',
   })
   async getMyAvatar(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
     @Req() req: Request,
     @Res() res: Response,
   ) {

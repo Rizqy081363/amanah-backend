@@ -41,7 +41,11 @@ import {
   validateSessionDefsNonOverlap,
   validateWeeklyTemplatesNonOverlap,
 } from '@modules/schedules/domain/services/shift-overlap.validator';
-import { and, asc, eq } from 'drizzle-orm';
+import {
+  reassignChronologicalSortOrders,
+  sortSessionsChronologically,
+} from '@modules/schedules/domain/services/session-chronology.service';
+import { and, asc, eq, ne } from 'drizzle-orm';
 import {
   ClinicSettingCategory,
   ClinicSettingControlType,
@@ -69,6 +73,7 @@ export interface CanonicalSessionDefConfig {
   defaultEndsAt: string;
   canonicalStartsAt?: string;
   canonicalEndsAt?: string;
+  icon?: string | null;
 }
 
 interface CanonicalWeeklyTemplateConfig {
@@ -143,7 +148,14 @@ export class DrizzleAdminScheduleConfigurationRepository {
       rawClinicSettings,
       rawMasterDays,
     ] = await Promise.all([
-      this.db.select().from(sessionDefs).orderBy(asc(sessionDefs.sortOrder)),
+      this.db
+        .select()
+        .from(sessionDefs)
+        .orderBy(
+          asc(sessionDefs.defaultStartsAt),
+          asc(sessionDefs.defaultEndsAt),
+          asc(sessionDefs.code),
+        ),
       this.db
         .select({
           id: sessionSchedules.id,
@@ -157,7 +169,11 @@ export class DrizzleAdminScheduleConfigurationRepository {
         })
         .from(sessionSchedules)
         .innerJoin(sessionDefs, eq(sessionSchedules.sessionId, sessionDefs.id))
-        .orderBy(asc(sessionSchedules.dow), asc(sessionDefs.sortOrder)),
+        .orderBy(
+          asc(sessionSchedules.dow),
+          asc(sessionDefs.defaultStartsAt),
+          asc(sessionDefs.defaultEndsAt),
+        ),
       this.db.select().from(clinicSettings).orderBy(asc(clinicSettings.key)),
       this.db
         .select({
@@ -194,6 +210,7 @@ export class DrizzleAdminScheduleConfigurationRepository {
           defaultEndsAt: sd.defaultEndsAt,
           canonicalStartsAt: sd.defaultStartsAt,
           canonicalEndsAt: sd.defaultEndsAt,
+          icon: sd.icon ?? null,
         };
       },
     );
@@ -320,12 +337,23 @@ export class DrizzleAdminScheduleConfigurationRepository {
 
     validateSessionDefsNonOverlap(mergedDefs);
 
+    // Re-assign chronological sortOrders for all shifts based on real startsAt
+    const chronologicalDefs = reassignChronologicalSortOrders(mergedDefs);
+    const sortOrderMap = new Map(
+      chronologicalDefs.map((cd) => [cd.id, cd.sortOrder]),
+    );
+
     for (const def of defs) {
+      const normalizedSort = sortOrderMap.get(def.id);
       const updateData: any = {
         ...(typeof def.isActive === 'boolean' && { isActive: def.isActive }),
-        ...(typeof def.sortOrder === 'number' && {
-          sortOrder: def.sortOrder,
+        ...(typeof def.label === 'string' && { label: def.label }),
+        ...(typeof def.codePrefix === 'string' && {
+          codePrefix: def.codePrefix.toUpperCase(),
         }),
+        ...(typeof def.icon === 'string' && { icon: def.icon }),
+        ...(def.icon === null && { icon: null }),
+        ...(typeof normalizedSort === 'number' && { sortOrder: normalizedSort }),
         ...(def.defaultStartsAt && { defaultStartsAt: def.defaultStartsAt }),
         ...(def.defaultEndsAt && { defaultEndsAt: def.defaultEndsAt }),
         updatedAt: now,
@@ -337,7 +365,8 @@ export class DrizzleAdminScheduleConfigurationRepository {
         .where(eq(sessionDefs.id, def.id));
 
       // Cascade perubahan jam baku master ke seluruh jadwal mingguan (session_schedule)
-      const hasTimeUpdate = Boolean(def.defaultStartsAt) || Boolean(def.defaultEndsAt);
+      const hasTimeUpdate =
+        Boolean(def.defaultStartsAt) || Boolean(def.defaultEndsAt);
       if (hasTimeUpdate) {
         await executor
           .update(sessionSchedules)
@@ -347,6 +376,16 @@ export class DrizzleAdminScheduleConfigurationRepository {
             updatedAt: now,
           })
           .where(eq(sessionSchedules.sessionId, def.id));
+      }
+    }
+
+    // Sinkronisasi sortOrder pada shift lain yang tidak ada di payload perubahan
+    for (const cd of chronologicalDefs) {
+      if (cd.id && !defs.some((d) => d.id === cd.id)) {
+        await executor
+          .update(sessionDefs)
+          .set({ sortOrder: cd.sortOrder, updatedAt: now })
+          .where(eq(sessionDefs.id, cd.id));
       }
     }
     if (executor === this.db) {
@@ -527,24 +566,10 @@ export class DrizzleAdminScheduleConfigurationRepository {
       });
     }
 
-    // Determine sort order
-    let sortOrder = dto.sortOrder;
-    if (typeof sortOrder !== 'number') {
-      const allSorted = await this.db
-        .select({ sortOrder: sessionDefs.sortOrder })
-        .from(sessionDefs)
-        .orderBy(asc(sessionDefs.sortOrder));
-      const maxSort =
-        allSorted.length > 0
-          ? Math.max(...allSorted.map((s) => s.sortOrder))
-          : 0;
-      sortOrder = maxSort + 1;
-    }
-
     const isActive = dto.isActive ?? true;
 
-    // Validate non-overlap with active shifts
-    const existingActive = await this.db
+    // 1. Query all existing defs to determine true chronological positions
+    const allExisting = await this.db
       .select({
         id: sessionDefs.id,
         code: sessionDefs.code,
@@ -554,8 +579,9 @@ export class DrizzleAdminScheduleConfigurationRepository {
         defaultStartsAt: sessionDefs.defaultStartsAt,
         defaultEndsAt: sessionDefs.defaultEndsAt,
       })
-      .from(sessionDefs)
-      .where(eq(sessionDefs.isActive, true));
+      .from(sessionDefs);
+
+    const existingActive = allExisting.filter((e) => e.isActive);
 
     const checkList = [
       ...existingActive.map((e) => ({
@@ -571,7 +597,7 @@ export class DrizzleAdminScheduleConfigurationRepository {
         id: 'new-shift',
         code: rawCode,
         label: dto.label,
-        sortOrder,
+        sortOrder: 0,
         isActive,
         startsAt: dto.defaultStartsAt,
         endsAt: dto.defaultEndsAt,
@@ -579,6 +605,27 @@ export class DrizzleAdminScheduleConfigurationRepository {
     ];
 
     validateSessionDefsNonOverlap(checkList);
+
+    // Calculate chronological sortOrder across all shifts including new candidate
+    const candidateDef = {
+      id: 'new-shift',
+      code: rawCode,
+      label: dto.label,
+      sortOrder: 0,
+      isActive,
+      defaultStartsAt: dto.defaultStartsAt,
+      defaultEndsAt: dto.defaultEndsAt,
+      startsAt: dto.defaultStartsAt,
+      endsAt: dto.defaultEndsAt,
+    };
+
+    const allReassigned = reassignChronologicalSortOrders([
+      ...allExisting,
+      candidateDef,
+    ]);
+
+    const newShiftAssigned = allReassigned.find((s) => s.id === 'new-shift');
+    const sortOrder = newShiftAssigned?.sortOrder ?? 1;
 
     const now = new Date().toISOString();
     let createdId = '';
@@ -591,6 +638,7 @@ export class DrizzleAdminScheduleConfigurationRepository {
           label: dto.label,
           labelKey: `session.${rawCode}`,
           codePrefix: dto.codePrefix.toUpperCase(),
+          icon: dto.icon || null,
           sortOrder,
           isActive,
           defaultStartsAt: dto.defaultStartsAt,
@@ -601,6 +649,16 @@ export class DrizzleAdminScheduleConfigurationRepository {
         .returning({ id: sessionDefs.id });
 
       createdId = insertRes[0].id;
+
+      // Update sortOrders of existing shifts to match chronological normalization
+      for (const s of allReassigned) {
+        if (s.id !== 'new-shift') {
+          await tx
+            .update(sessionDefs)
+            .set({ sortOrder: s.sortOrder, updatedAt: now })
+            .where(eq(sessionDefs.id, s.id));
+        }
+      }
 
       // Populate weekly template (session_schedule) for active days
       const days = await tx
@@ -638,6 +696,7 @@ export class DrizzleAdminScheduleConfigurationRepository {
       timeRange:
         startTimeStr && endTimeStr ? `${startTimeStr} - ${endTimeStr}` : '',
       codePrefix: dto.codePrefix.toUpperCase(),
+      icon: dto.icon || null,
       sortOrder,
       isActive,
       defaultStartsAt: dto.defaultStartsAt,
@@ -673,6 +732,7 @@ export class DrizzleAdminScheduleConfigurationRepository {
       typeof dto.sortOrder === 'number' ? dto.sortOrder : current.sortOrder;
     const newLabel = dto.label || current.label || current.code;
     const newPrefix = (dto.codePrefix || current.codePrefix).toUpperCase();
+    const newIcon = dto.icon !== undefined ? dto.icon : current.icon;
 
     // Check overlap if active
     if (newIsActive) {
@@ -706,6 +766,32 @@ export class DrizzleAdminScheduleConfigurationRepository {
       validateSessionDefsNonOverlap(merged);
     }
 
+    // Re-assign chronological sortOrders for all shifts based on real startsAt
+    const allDefs = await this.db.select().from(sessionDefs);
+    const mergedAll = allDefs.map((s) => {
+      if (s.id === id) {
+        return {
+          ...s,
+          label: newLabel,
+          codePrefix: newPrefix,
+          defaultStartsAt: newStartsAt,
+          defaultEndsAt: newEndsAt,
+          startsAt: newStartsAt,
+          endsAt: newEndsAt,
+          isActive: newIsActive,
+        };
+      }
+      return {
+        ...s,
+        startsAt: s.defaultStartsAt,
+        endsAt: s.defaultEndsAt,
+      };
+    });
+
+    const chronological = reassignChronologicalSortOrders(mergedAll);
+    const thisItem = chronological.find((s) => s.id === id);
+    const resolvedSortOrder = thisItem?.sortOrder ?? newSortOrder;
+
     const now = new Date().toISOString();
 
     await this.db.transaction(async (tx) => {
@@ -714,13 +800,23 @@ export class DrizzleAdminScheduleConfigurationRepository {
         .set({
           label: newLabel,
           codePrefix: newPrefix,
+          icon: newIcon || null,
           defaultStartsAt: newStartsAt,
           defaultEndsAt: newEndsAt,
-          sortOrder: newSortOrder,
+          sortOrder: resolvedSortOrder,
           isActive: newIsActive,
           updatedAt: now,
         })
         .where(eq(sessionDefs.id, id));
+
+      for (const s of chronological) {
+        if (s.id && s.id !== id) {
+          await tx
+            .update(sessionDefs)
+            .set({ sortOrder: s.sortOrder, updatedAt: now })
+            .where(eq(sessionDefs.id, s.id));
+        }
+      }
 
       const timeChanged =
         newStartsAt !== current.defaultStartsAt ||
@@ -751,7 +847,8 @@ export class DrizzleAdminScheduleConfigurationRepository {
       timeRange:
         startTimeStr && endTimeStr ? `${startTimeStr} - ${endTimeStr}` : '',
       codePrefix: newPrefix,
-      sortOrder: newSortOrder,
+      icon: newIcon || null,
+      sortOrder: resolvedSortOrder,
       isActive: newIsActive,
       defaultStartsAt: newStartsAt,
       defaultEndsAt: newEndsAt,
@@ -768,6 +865,7 @@ export class DrizzleAdminScheduleConfigurationRepository {
         labelKey: sessionDefs.labelKey,
         label: sessionDefs.label,
         codePrefix: sessionDefs.codePrefix,
+        icon: sessionDefs.icon,
         sortOrder: sessionDefs.sortOrder,
         isActive: sessionDefs.isActive,
         defaultStartsAt: sessionDefs.defaultStartsAt,
@@ -798,6 +896,7 @@ export class DrizzleAdminScheduleConfigurationRepository {
       timeRange:
         startTimeStr && endTimeStr ? `${startTimeStr} - ${endTimeStr}` : '',
       codePrefix: current.codePrefix,
+      icon: current.icon ?? null,
       sortOrder: current.sortOrder,
       isActive: current.isActive,
       defaultStartsAt: current.defaultStartsAt,
@@ -979,6 +1078,22 @@ export class DrizzleAdminScheduleConfigurationRepository {
 
         // 6. Delete the session definition
         await tx.delete(sessionDefs).where(eq(sessionDefs.id, id));
+
+        // 7. Re-assign chronological sort orders for remaining shifts
+        const remaining = await tx
+          .select()
+          .from(sessionDefs)
+          .where(ne(sessionDefs.id, id));
+        const chronologicalRemaining = reassignChronologicalSortOrders(remaining);
+        const now = new Date().toISOString();
+        for (const s of chronologicalRemaining) {
+          if (s.id) {
+            await tx
+              .update(sessionDefs)
+              .set({ sortOrder: s.sortOrder, updatedAt: now })
+              .where(eq(sessionDefs.id, s.id));
+          }
+        }
       });
 
       await this.invalidateCaches();
@@ -1031,6 +1146,22 @@ export class DrizzleAdminScheduleConfigurationRepository {
         .where(eq(sessionSchedules.sessionId, id));
       // 2. Delete the session definition
       await tx.delete(sessionDefs).where(eq(sessionDefs.id, id));
+
+      // 3. Re-assign chronological sort orders for remaining shifts
+      const remaining = await tx
+        .select()
+        .from(sessionDefs)
+        .where(ne(sessionDefs.id, id));
+      const chronologicalRemaining = reassignChronologicalSortOrders(remaining);
+      const now = new Date().toISOString();
+      for (const s of chronologicalRemaining) {
+        if (s.id) {
+          await tx
+            .update(sessionDefs)
+            .set({ sortOrder: s.sortOrder, updatedAt: now })
+            .where(eq(sessionDefs.id, s.id));
+        }
+      }
     });
 
     await this.invalidateCaches();

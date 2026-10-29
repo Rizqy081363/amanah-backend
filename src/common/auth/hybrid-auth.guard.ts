@@ -17,7 +17,7 @@ import { DRIZZLE_SOURCE } from '../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../database/drizzle/drizzle.provider';
 import { users } from '../../database/schema';
 import { formatBloodTypeDisplay } from '../../modules/patients/domain/data/patient-reference.data';
-import { STAFF_ROLE_CODES } from '../../modules/staffs/domain/constants/staff-invitation.constants';
+import { STAFF_ROLE_CODES, type StaffType } from '../../modules/staffs/domain/constants/staff-invitation.constants';
 import { DomainUnauthorizedException } from '../exceptions';
 import { RedisService } from '../redis/redis.service';
 import type { AuthenticatedUser } from './authenticated-user.interface';
@@ -149,6 +149,7 @@ export class HybridAuthGuard extends AuthGuard('jwt') implements CanActivate {
         staff: staffProfile
           ? {
               id: staffProfile.id,
+              staffType: staffProfile.staffType as StaffType,
               practitionerId: staffProfile.practitioners?.[0]?.id || null,
               userId: userRecord.id,
               poliklinikId: staffProfile.primaryUnitId,

@@ -70,6 +70,7 @@ export const sessionDefs = pgTable('session_def', {
   isActive: boolean('is_active').default(true).notNull(),
   defaultStartsAt: time('default_starts_at').notNull(),
   defaultEndsAt: time('default_ends_at').notNull(),
+  icon: text('icon'),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
     .defaultNow()
     .notNull(),

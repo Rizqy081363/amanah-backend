@@ -22,6 +22,7 @@ import {
   payrollEntries,
   payrollPeriods,
   sessionDefs,
+  sessionSchedules,
   staffLeaveRequests,
   staffProfiles,
   staffRosters,
@@ -327,6 +328,32 @@ export class DailyLeavePayrollService {
 
             for (const s of [...rosterSessions, ...doctorSessions]) {
               sessionMap.set(`${s.startsAt}-${s.endsAt}`, s);
+            }
+
+            // Virtual Baseline: If neither worker roster nor doctor assignments gave sessions,
+            // fall back to the clinic Master Weekly Operational Template (session_schedule)
+            if (sessionMap.size === 0) {
+              const templateSessions = await this.db
+                .select({
+                  startsAt: sessionDefs.defaultStartsAt,
+                  endsAt: sessionDefs.defaultEndsAt,
+                })
+                .from(sessionSchedules)
+                .innerJoin(
+                  sessionDefs,
+                  eq(sessionSchedules.sessionId, sessionDefs.id),
+                )
+                .where(
+                  and(
+                    eq(sessionSchedules.dow, targetDow),
+                    eq(sessionSchedules.isActive, true),
+                    eq(sessionDefs.isActive, true),
+                  ),
+                );
+
+              for (const s of templateSessions) {
+                sessionMap.set(`${s.startsAt}-${s.endsAt}`, s);
+              }
             }
           }
         }

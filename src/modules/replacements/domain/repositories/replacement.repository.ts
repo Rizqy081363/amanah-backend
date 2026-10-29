@@ -5,16 +5,41 @@ export const REPLACEMENT_REPOSITORY = 'REPLACEMENT_REPOSITORY';
 
 export type ReplacementOpportunityFilter = {
   date?: string;
+  exactDate?: string;
   startDate?: string;
   endDate?: string;
   status?: ReplacementOpportunityStatus | 'all';
+  staffProfileId?: string;
 };
+
+export interface ReplacementStaffFacetItem {
+  staffProfileId: string;
+  fullName: string;
+  staffType: string;
+  avatarUrl: string | null;
+  opportunityCount: number;
+  earliestDate: string;
+  availableDates: string[];
+}
+
+export interface ReplacementDateFacetItem {
+  workDate: string;
+  count: number;
+}
+
+export interface ReplacementFacetsEntity {
+  distinctStaff: ReplacementStaffFacetItem[];
+  availableDates: ReplacementDateFacetItem[];
+  totalOpenOpportunities: number;
+}
 
 export interface ReplacementRepository {
   findOpportunities(
     filters?: ReplacementOpportunityFilter,
   ): Promise<ReplacementOpportunityEntity[]>;
   findOpenOpportunities(date?: string): Promise<ReplacementOpportunityEntity[]>;
+  getReplacementFacets(): Promise<ReplacementFacetsEntity>;
+  cleanupExpiredOpportunities(leadHours?: number): Promise<number>;
   findByLeaveRequestId(
     leaveRequestId: string,
   ): Promise<ReplacementOpportunityEntity[]>;

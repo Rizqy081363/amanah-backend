@@ -7,16 +7,21 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
-import { and, desc, eq, gte, lte } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, lte } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
-import { practitioners } from '../../../../database/schema';
+import { practitioners, staffProfiles } from '../../../../database/schema';
 import { replacementOpportunities } from '../../../../database/schema/leave-payroll.schema';
+import { STAFF_TYPES } from '../../../../common/constants/staff-types.constant';
+import { ClinicTimeService } from '../../../../common/time/clinic-time.service';
 import { NotificationGatewayService } from '../../../notifications/application/services/notification-gateway.service';
 import { ReplacementOpportunityEntity } from '../../domain/entities/replacement-opportunity.entity';
 import {
+  type ReplacementDateFacetItem,
+  type ReplacementFacetsEntity,
   type ReplacementOpportunityFilter,
   type ReplacementRepository,
+  type ReplacementStaffFacetItem,
 } from '../../domain/repositories/replacement.repository';
 
 @Injectable()
@@ -26,6 +31,7 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
   constructor(
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,
+    private readonly clinicTimeService: ClinicTimeService,
     @Optional()
     private readonly notificationGateway?: NotificationGatewayService,
   ) {}
@@ -73,7 +79,9 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
     const conditions = [];
 
     // Date filtering
-    if (filters?.startDate && filters?.endDate) {
+    if (filters?.exactDate) {
+      conditions.push(eq(replacementOpportunities.workDate, filters.exactDate));
+    } else if (filters?.startDate && filters?.endDate) {
       conditions.push(
         gte(replacementOpportunities.workDate, filters.startDate),
       );
@@ -88,7 +96,7 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
       conditions.push(gte(replacementOpportunities.workDate, filters.date));
     } else if (!filters?.date && filters?.status === 'open') {
       // Mobile app default for open opportunities: upcoming/today only
-      const todayStr = new Date().toISOString().split('T')[0];
+      const todayStr = this.clinicTimeService.today();
       conditions.push(gte(replacementOpportunities.workDate, todayStr));
     }
 
@@ -96,6 +104,16 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
     const statusFilter = filters?.status;
     if (statusFilter && statusFilter !== 'all') {
       conditions.push(eq(replacementOpportunities.status, statusFilter));
+    }
+
+    // Staff filter
+    if (filters?.staffProfileId) {
+      conditions.push(
+        eq(
+          replacementOpportunities.originalStaffProfileId,
+          filters.staffProfileId,
+        ),
+      );
     }
 
     const records = await this.db.query.replacementOpportunities.findMany({
@@ -126,6 +144,131 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
     date?: string,
   ): Promise<ReplacementOpportunityEntity[]> {
     return this.findOpportunities({ date, status: 'open' });
+  }
+
+  async getReplacementFacets(): Promise<ReplacementFacetsEntity> {
+    const todayStr = this.clinicTimeService.today();
+
+    const openRecords = await this.db.query.replacementOpportunities.findMany({
+      where: and(
+        eq(replacementOpportunities.status, 'open'),
+        gte(replacementOpportunities.workDate, todayStr),
+      ),
+      with: {
+        originalStaffProfile: true,
+      },
+      orderBy: [asc(replacementOpportunities.workDate)],
+    });
+
+    const staffMap = new Map<
+      string,
+      {
+        staffProfileId: string;
+        fullName: string;
+        staffType: string;
+        avatarUrl: string | null;
+        opportunityCount: number;
+        earliestDate: string;
+        availableDates: Set<string>;
+      }
+    >();
+
+    const dateMap = new Map<string, number>();
+
+    for (const record of openRecords) {
+      const staff = record.originalStaffProfile;
+      const wDate = record.workDate;
+
+      dateMap.set(wDate, (dateMap.get(wDate) || 0) + 1);
+
+      if (staff) {
+        if (!staffMap.has(staff.id)) {
+          staffMap.set(staff.id, {
+            staffProfileId: staff.id,
+            fullName: staff.fullName,
+            staffType: staff.staffType,
+            avatarUrl: staff.avatarUrl || null,
+            opportunityCount: 0,
+            earliestDate: wDate,
+            availableDates: new Set<string>(),
+          });
+        }
+        const staffEntry = staffMap.get(staff.id)!;
+        staffEntry.opportunityCount++;
+        staffEntry.availableDates.add(wDate);
+        if (wDate < staffEntry.earliestDate) {
+          staffEntry.earliestDate = wDate;
+        }
+      }
+    }
+
+    const distinctStaff: ReplacementStaffFacetItem[] = Array.from(
+      staffMap.values(),
+    ).map((s) => ({
+      ...s,
+      availableDates: Array.from(s.availableDates).sort(),
+    }));
+
+    const availableDates: ReplacementDateFacetItem[] = Array.from(
+      dateMap.entries(),
+    )
+      .map(([workDate, count]) => ({ workDate, count }))
+      .sort((a, b) => a.workDate.localeCompare(b.workDate));
+
+    return {
+      distinctStaff,
+      availableDates,
+      totalOpenOpportunities: openRecords.length,
+    };
+  }
+
+  async cleanupExpiredOpportunities(leadHours: number = 2): Promise<number> {
+    const todayStr = this.clinicTimeService.today();
+    const nowTimeStr = new Date().toTimeString().substring(0, 8);
+
+    const candidateRecords =
+      await this.db.query.replacementOpportunities.findMany({
+        where: and(
+          eq(replacementOpportunities.status, 'open'),
+          lte(replacementOpportunities.workDate, todayStr),
+        ),
+        with: {
+          sessionDef: true,
+        },
+      });
+
+    const expiredIds: string[] = [];
+
+    for (const rec of candidateRecords) {
+      if (rec.workDate < todayStr) {
+        expiredIds.push(rec.id);
+      } else if (rec.workDate === todayStr && rec.sessionDef) {
+        const startsAt = rec.sessionDef.defaultStartsAt;
+        if (startsAt && startsAt <= nowTimeStr) {
+          expiredIds.push(rec.id);
+        }
+      }
+    }
+
+    if (expiredIds.length === 0) {
+      return 0;
+    }
+
+    const updated = await this.db
+      .update(replacementOpportunities)
+      .set({
+        status: 'cancelled',
+        notes: 'System: Expired unclaimed replacement opportunity',
+        updatedAt: new Date().toISOString(),
+      })
+      .where(inArray(replacementOpportunities.id, expiredIds))
+      .returning({ id: replacementOpportunities.id });
+
+    this.logger.log(
+      `[Cleanup] Automatically expired and cancelled ${updated.length} past replacement opportunities.`,
+    );
+
+    return updated.length;
   }
 
   async findByLeaveRequestId(
@@ -208,6 +351,38 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
       );
     }
 
+    const [originalStaff, claimingStaff] = await Promise.all([
+      this.db.query.staffProfiles.findFirst({
+        where: eq(staffProfiles.id, existing.originalStaffProfileId),
+      }),
+      this.db.query.staffProfiles.findFirst({
+        where: eq(staffProfiles.id, staffProfileId),
+      }),
+    ]);
+
+    if (!claimingStaff) {
+      throw new NotFoundException('Profil staf pengklaim tidak ditemukan');
+    }
+
+    const isOriginalClinical =
+      originalStaff?.staffType === STAFF_TYPES.DOCTOR ||
+      originalStaff?.staffType === STAFF_TYPES.MIDWIFE;
+    const isClaimingClinical =
+      claimingStaff.staffType === STAFF_TYPES.DOCTOR ||
+      claimingStaff.staffType === STAFF_TYPES.MIDWIFE;
+
+    if (isOriginalClinical && !isClaimingClinical) {
+      throw new BadRequestException(
+        'Sesi dinas medis dokter/bidan hanya dapat digantikan oleh tenaga medis dokter/bidan',
+      );
+    }
+
+    if (!isOriginalClinical && isClaimingClinical) {
+      throw new BadRequestException(
+        'Sesi dinas staf operasional hanya dapat digantikan oleh staf operasional',
+      );
+    }
+
     let resolvedPractitionerId = practitionerId || null;
     if (!resolvedPractitionerId) {
       const p = await this.db.query.practitioners.findFirst({
@@ -277,6 +452,38 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
 
     if (existing.status === 'cancelled') {
       throw new ConflictException('Sesi pengganti ini telah dibatalkan');
+    }
+
+    const [originalStaff, targetStaff] = await Promise.all([
+      this.db.query.staffProfiles.findFirst({
+        where: eq(staffProfiles.id, existing.originalStaffProfileId),
+      }),
+      this.db.query.staffProfiles.findFirst({
+        where: eq(staffProfiles.id, staffProfileId),
+      }),
+    ]);
+
+    if (!targetStaff) {
+      throw new NotFoundException('Profil staf pengganti tidak ditemukan');
+    }
+
+    const isOriginalClinical =
+      originalStaff?.staffType === STAFF_TYPES.DOCTOR ||
+      originalStaff?.staffType === STAFF_TYPES.MIDWIFE;
+    const isTargetClinical =
+      targetStaff.staffType === STAFF_TYPES.DOCTOR ||
+      targetStaff.staffType === STAFF_TYPES.MIDWIFE;
+
+    if (isOriginalClinical && !isTargetClinical) {
+      throw new BadRequestException(
+        'Sesi dinas medis dokter/bidan hanya dapat ditugaskan kepada tenaga medis dokter/bidan',
+      );
+    }
+
+    if (!isOriginalClinical && isTargetClinical) {
+      throw new BadRequestException(
+        'Sesi dinas staf operasional hanya dapat ditugaskan kepada staf operasional',
+      );
     }
 
     let resolvedPractitionerId = practitionerId || null;

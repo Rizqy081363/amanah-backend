@@ -42,4 +42,13 @@ export class UpdateLeavePolicyDto {
   @IsIn(['per_request', 'per_session'])
   @IsOptional()
   quotaCountingPolicy?: 'per_request' | 'per_session';
+
+  @ApiPropertyOptional({
+    example: 'non_overlapping',
+    enum: ['non_overlapping', 'previous_period_must_finish'],
+    description: 'Kebijakan pengajuan periode cuti (fleksibel non-overlapping vs ketat periode sebelumnya harus selesai)',
+  })
+  @IsIn(['non_overlapping', 'previous_period_must_finish'])
+  @IsOptional()
+  periodPolicy?: 'non_overlapping' | 'previous_period_must_finish';
 }

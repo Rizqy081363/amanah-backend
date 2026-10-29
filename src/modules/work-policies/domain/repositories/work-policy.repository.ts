@@ -13,6 +13,7 @@ export interface WorkPolicyRepository {
         | 'limitMode'
         | 'monthlyLimit'
         | 'quotaCountingPolicy'
+        | 'periodPolicy'
       >
     >,
     updatedBy: string,

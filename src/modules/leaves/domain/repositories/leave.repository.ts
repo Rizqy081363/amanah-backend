@@ -1,3 +1,4 @@
+import type { StaffType } from '../../../../common/constants/staff-types.constant';
 import type {
   CanonicalLeaveScope,
   CanonicalLeaveStatus,
@@ -22,7 +23,7 @@ export interface CreateLeaveData {
 
 export interface LeaveFilterOptions {
   status?: CanonicalLeaveStatus;
-  staffType?: 'doctor' | 'midwife' | 'worker';
+  staffType?: StaffType;
 }
 
 export interface LeaveRepository {

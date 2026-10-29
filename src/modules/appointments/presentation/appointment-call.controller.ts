@@ -1,10 +1,12 @@
 import {
   Body,
   Controller,
+  ForbiddenException,
   Get,
   HttpCode,
   HttpStatus,
   Inject,
+  NotFoundException,
   Optional,
   Param,
   ParseUUIDPipe,
@@ -26,6 +28,8 @@ import { CurrentUser } from '../../../common/auth/current-user.decorator';
 import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
 import { Roles } from '../../../common/auth/roles.decorator';
 import { RolesGuard } from '../../../common/auth/roles.guard';
+import { SYSTEM_ROLES } from '../../../common/auth/roles.enum';
+import { AuthenticatedUser } from '../../../common/auth/authenticated-user.interface';
 import { AppointmentCallLifecycleService } from '../application/appointment-call-lifecycle.service';
 import { CallPatientUseCase } from '../application/use-cases/call-patient.use-case';
 import { APPOINTMENT_CALL_REPOSITORY } from '../domain/constants/appointment-lifecycle.constants';
@@ -47,7 +51,7 @@ export class AppointmentCallController {
 
   @ApiBearerAuth('access-token')
   @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'STAF')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
   @Post(':id/call')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -69,9 +73,9 @@ export class AppointmentCallController {
   async callPatient(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() body: AppointmentCallActionDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    const callerId = user?.id || user?.sub || 'system';
+    const callerId = user.id;
     const result = await this.callLifecycleService.callPatient(
       id,
       callerId,
@@ -87,7 +91,7 @@ export class AppointmentCallController {
 
   @ApiBearerAuth('access-token')
   @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'STAF')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
   @Post(':id/respond')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -107,15 +111,15 @@ export class AppointmentCallController {
   })
   async patientResponded(
     @Param('id', new ParseUUIDPipe()) id: string,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    const callerId = user?.id || user?.sub || 'system';
+    const callerId = user.id;
     return this.callLifecycleService.patientResponded(id, callerId);
   }
 
   @ApiBearerAuth('access-token')
   @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'STAF')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
   @Post(':id/no-show')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -139,15 +143,15 @@ export class AppointmentCallController {
   async patientNoShow(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() body: AppointmentCallActionDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    const callerId = user?.id || user?.sub || 'system';
+    const callerId = user.id;
     return this.callLifecycleService.patientNoShow(id, callerId, body.notes);
   }
 
   @ApiBearerAuth('access-token')
   @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'STAF', 'PATIENT')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF, SYSTEM_ROLES.PATIENT)
   @Get(':id/call-attempts')
   @ApiOperation({
     summary: 'Melihat riwayat percobaan pemanggilan pasien untuk appointment',
@@ -160,7 +164,24 @@ export class AppointmentCallController {
   })
   @ApiOkResponse({ description: 'Riwayat panggilan berhasil diambil' })
   @ApiNotFoundResponse({ description: 'Janji temu tidak ditemukan' })
-  async getCallAttempts(@Param('id', new ParseUUIDPipe()) id: string) {
+  async getCallAttempts(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    if (user.systemRole === SYSTEM_ROLES.PATIENT) {
+      const details = await this.callRepo.getAppointmentWithDetails(id);
+      if (!details) {
+        throw new NotFoundException('Janji temu tidak ditemukan');
+      }
+      const isOwner =
+        details.patientUserId === user.id ||
+        (user.patient?.id && details.patientId === user.patient.id);
+      if (!isOwner) {
+        throw new ForbiddenException(
+          'Anda tidak memiliki akses untuk melihat riwayat panggilan janji temu ini.',
+        );
+      }
+    }
     return this.callRepo.findAttemptsByAppointmentId(id);
   }
 }

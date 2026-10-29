@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   Headers,
   HttpCode,
@@ -29,11 +30,19 @@ import {
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
 import type { Response } from 'express';
-import { CurrentUser } from '../../../common/auth/current-user.decorator';
-import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
-import { Roles } from '../../../common/auth/roles.decorator';
-import { RolesGuard } from '../../../common/auth/roles.guard';
+import { SYSTEM_ROLES } from '../../../auth/constants/auth.constants';
+import {
+  type AuthenticatedUser,
+  CurrentUser,
+  HybridAuthGuard,
+  Roles,
+  RolesGuard,
+} from '../../../common/auth';
 import { formatETag } from '../../../common/occ';
+import {
+  PATIENT_AFFILIATION_REPOSITORY,
+  type PatientAffiliationRepository,
+} from '../../patients/domain/repositories/patient-affiliation.repository';
 import {
   MEDICAL_RECORD_REPOSITORY,
   MedicalRecordRepository,
@@ -58,10 +67,33 @@ export class MedicalRecordsController {
   constructor(
     @Inject(MEDICAL_RECORD_REPOSITORY)
     private readonly medicalRecordRepo: MedicalRecordRepository,
+    @Inject(PATIENT_AFFILIATION_REPOSITORY)
+    private readonly affiliationRepo: PatientAffiliationRepository,
   ) {}
 
+  private async assertPatientAccess(
+    patientId: string,
+    user: AuthenticatedUser,
+  ): Promise<void> {
+    if (user.systemRole !== SYSTEM_ROLES.PATIENT) {
+      return;
+    }
+    if (user.patient?.id === patientId) {
+      return;
+    }
+    const isAffiliated = await this.affiliationRepo.findByUserAndPatient(
+      user.id,
+      patientId,
+    );
+    if (!isAffiliated) {
+      throw new ForbiddenException(
+        'Akses ditolak: Anda tidak memiliki wewenang untuk mengakses data rekam medis pasien lain.',
+      );
+    }
+  }
+
   @Post()
-  @Roles('STAF', 'ADMIN')
+  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Mencatat Rekam Medis Klinis (SOAP, Diagnosa ICD-10 & Resep Obat)',
@@ -72,7 +104,7 @@ export class MedicalRecordsController {
   })
   async createRecord(
     @Body() body: CreateMedicalRecordDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
     const practitionerId =
       body.staffId ||
@@ -112,7 +144,7 @@ export class MedicalRecordsController {
   }
 
   @Get()
-  @Roles('STAF', 'ADMIN')
+  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
   @ApiOperation({
     summary: 'Daftar semua rekam medis dengan paginasi, filter & pencarian',
   })
@@ -122,14 +154,14 @@ export class MedicalRecordsController {
   }
 
   @Get('me')
-  @Roles('PATIENT', 'STAF', 'ADMIN')
+  @Roles(SYSTEM_ROLES.PATIENT, SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
   @ApiOperation({
     summary: 'Mendapatkan riwayat rekam medis pasien yang sedang login',
   })
   @ApiOkResponse({
     description: 'Riwayat rekam medis pasien login berhasil diambil',
   })
-  async getMyRecords(@CurrentUser() user: any) {
+  async getMyRecords(@CurrentUser() user: AuthenticatedUser) {
     const patientId = user?.patient?.id;
     if (!patientId) {
       return [];
@@ -138,7 +170,7 @@ export class MedicalRecordsController {
   }
 
   @Get('kunjungan/:kunjunganId')
-  @Roles('STAF', 'ADMIN', 'PATIENT')
+  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.PATIENT)
   @ApiOperation({
     summary: 'Mendapatkan rekam medis berdasarkan ID Kunjungan / Appointment',
     description:
@@ -151,18 +183,22 @@ export class MedicalRecordsController {
   })
   @ApiOkResponse({ description: 'Rekam medis kunjungan berhasil ditemukan' })
   @ApiNotFoundResponse({ description: 'Rekam medis tidak ditemukan' })
-  async getByKunjunganId(@Param('kunjunganId') kunjunganId: string) {
+  async getByKunjunganId(
+    @Param('kunjunganId') kunjunganId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     const record = await this.medicalRecordRepo.findByKunjunganId(kunjunganId);
     if (!record) {
       throw new NotFoundException(
         `Rekam medis untuk kunjungan ${kunjunganId} tidak ditemukan`,
       );
     }
+    await this.assertPatientAccess(record.patientId, user);
     return record;
   }
 
   @Get('patient/:patientId')
-  @Roles('STAF', 'ADMIN', 'PATIENT')
+  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.PATIENT)
   @ApiOperation({
     summary: 'Mendapatkan seluruh riwayat rekam medis pasien kronologis',
     description:
@@ -174,12 +210,16 @@ export class MedicalRecordsController {
     example: 'a8e79644-a541-4d05-b431-99c99d8620ec',
   })
   @ApiOkResponse({ description: 'Riwayat rekam medis pasien berhasil diambil' })
-  async getByPatientId(@Param('patientId') patientId: string) {
+  async getByPatientId(
+    @Param('patientId') patientId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    await this.assertPatientAccess(patientId, user);
     return this.medicalRecordRepo.findByPatientId(patientId);
   }
 
   @Get(':id')
-  @Roles('STAF', 'ADMIN', 'PATIENT')
+  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.PATIENT)
   @ApiOperation({
     summary: 'Mendapatkan detail rekam medis klinis berdasarkan ID Encounter',
     description:
@@ -194,6 +234,7 @@ export class MedicalRecordsController {
   @ApiNotFoundResponse({ description: 'Rekam medis tidak ditemukan' })
   async getById(
     @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
     @Res({ passthrough: true }) res?: Response,
   ) {
     const record = await this.medicalRecordRepo.findById(id);
@@ -202,6 +243,7 @@ export class MedicalRecordsController {
         `Rekam medis dengan ID ${id} tidak ditemukan`,
       );
     }
+    await this.assertPatientAccess(record.patientId, user);
     if (res && record.version) {
       res.setHeader('ETag', formatETag(record.version));
     }
@@ -209,7 +251,7 @@ export class MedicalRecordsController {
   }
 
   @Patch(':id')
-  @Roles('STAF', 'ADMIN')
+  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
   @ApiOperation({
     summary: 'Memperbarui data rekam medis klinis',
     description: 'Mengubah catatan anamnesis SOAP atau catatan tindakan medis.',
@@ -227,7 +269,7 @@ export class MedicalRecordsController {
   async updateRecord(
     @Param('id') id: string,
     @Body() body: UpdateMedicalRecordDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
     @Headers('if-match') ifMatch?: string,
     @Res({ passthrough: true }) res?: Response,
   ) {
@@ -260,7 +302,7 @@ export class MedicalRecordsController {
   }
 
   @Patch(':id/diagnosis')
-  @Roles('STAF', 'ADMIN')
+  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
   @ApiOperation({
     summary: 'Dokter / Praktisi memperbarui diagnosa kerja & resep obat',
     description:
@@ -279,7 +321,7 @@ export class MedicalRecordsController {
   async updateDiagnosis(
     @Param('id') id: string,
     @Body() body: UpdateDiagnosisDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
     @Headers('if-match') ifMatch?: string,
     @Res({ passthrough: true }) res?: Response,
   ) {
@@ -309,7 +351,7 @@ export class MedicalRecordsController {
   }
 
   @Delete(':id')
-  @Roles('ADMIN', 'STAF')
+  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Menghapus rekam medis klinis (Admin / Staf)',

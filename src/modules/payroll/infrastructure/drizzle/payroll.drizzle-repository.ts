@@ -20,6 +20,7 @@ import {
   payrollPeriods,
 } from '../../../../database/schema/leave-payroll.schema';
 import { calculateSessionNetHours } from '../../../schedules/domain/services/shift-duration.helper';
+import { STAFF_TYPES } from '../../../../common/constants/staff-types.constant';
 import { PAYROLL_PERIOD_STATUS } from '../../domain/constants/payroll.constants';
 import { PayrollEntryEntity } from '../../domain/entities/payroll-entry.entity';
 import { PayrollPeriodEntity } from '../../domain/entities/payroll-period.entity';
@@ -379,7 +380,7 @@ export class PayrollDrizzleRepository implements PayrollRepository {
     );
 
     for (const staff of activeStaff) {
-      const staffType = (staff.staffType || 'worker').toLowerCase();
+      const staffType = (staff.staffType || STAFF_TYPES.WORKER).toLowerCase();
       const rates = rateMap.get(staffType) ?? { hourly: 0, overtime: 0 };
 
       const practitionerId = staff.practitioners?.[0]?.id || null;
@@ -871,7 +872,7 @@ export class PayrollDrizzleRepository implements PayrollRepository {
       .where(eq(staffProfiles.id, input.staffProfileId))
       .limit(1);
 
-    const staffType = staff?.staffType?.toLowerCase() || 'worker';
+    const staffType = staff?.staffType?.toLowerCase() || STAFF_TYPES.WORKER;
     const rates = await this.db
       .select()
       .from(compensationRates)
@@ -962,7 +963,7 @@ export class PayrollDrizzleRepository implements PayrollRepository {
       .orderBy(desc(payrollPeriods.periodStart));
 
     return {
-      categories: ['doctor', 'midwife', 'worker'],
+      categories: Object.values(STAFF_TYPES),
       periods: periods.map((p) => ({
         ...p,
         status: p.status as any,

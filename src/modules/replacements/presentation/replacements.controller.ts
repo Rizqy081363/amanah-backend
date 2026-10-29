@@ -28,8 +28,18 @@ import { CurrentUser } from '../../../common/auth/current-user.decorator';
 import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
 import { Roles } from '../../../common/auth/roles.decorator';
 import { RolesGuard } from '../../../common/auth/roles.guard';
+import { AuthenticatedUser } from '../../../common/auth/authenticated-user.interface';
 import { Idempotent } from '../../../common/decorators/idempotent.decorator';
 import { REPLACEMENT_OPPORTUNITY_STATUSES } from '../../../database/schema';
+import { zodPipe } from '../../../common/validation';
+import {
+  QueryReplacementsInput,
+  QueryReplacementsSchema,
+} from './schemas/query-replacements.schema';
+import {
+  ReplacementParamInput,
+  ReplacementParamSchema,
+} from './schemas/replacement-param.schema';
 import {
   REPLACEMENT_REPOSITORY,
   type ReplacementOpportunityFilter,
@@ -54,6 +64,21 @@ export class ReplacementsController {
     private readonly replacementRepo: ReplacementRepository,
   ) {}
 
+  @Get('facets')
+  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
+  @ApiOperation({
+    summary:
+      'Mendapatkan metadata facet peluang pengganti (Mobile KAI Carousel & Filter)',
+    description:
+      'Mengembalikan daftar staf yang sedang cuti dan tanggal yang memiliki peluang pengganti terbuka.',
+  })
+  @ApiOkResponse({
+    description: 'Metadata facet peluang pengganti berhasil diambil',
+  })
+  async getFacets() {
+    return this.replacementRepo.getReplacementFacets();
+  }
+
   @Get(['', 'opportunities'])
   @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
   @ApiOperation({
@@ -65,6 +90,11 @@ export class ReplacementsController {
     name: 'date',
     required: false,
     description: 'Filter tanggal awal peluang pengganti (YYYY-MM-DD atau all)',
+  })
+  @ApiQuery({
+    name: 'exactDate',
+    required: false,
+    description: 'Filter tanggal spesifik peluang pengganti (YYYY-MM-DD)',
   })
   @ApiQuery({
     name: 'startDate',
@@ -83,20 +113,24 @@ export class ReplacementsController {
     description:
       'Filter status peluang pengganti (all | open | claimed | completed | cancelled). Default: all',
   })
+  @ApiQuery({
+    name: 'staffProfileId',
+    required: false,
+    description: 'Filter profil staf yang cuti / digantikan (UUID)',
+  })
   @ApiOkResponse({
     description: 'Daftar peluang pengganti berhasil diambil',
   })
   async getOpportunities(
-    @Query('date') date?: string,
-    @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string,
-    @Query('status') status?: ReplacementOpportunityFilter['status'],
+    @Query(zodPipe(QueryReplacementsSchema)) query: QueryReplacementsInput,
   ) {
     return this.replacementRepo.findOpportunities({
-      date,
-      startDate,
-      endDate,
-      status,
+      date: query.date,
+      exactDate: query.exactDate,
+      startDate: query.startDate,
+      endDate: query.endDate,
+      status: query.status,
+      staffProfileId: query.staffProfileId,
     });
   }
 
@@ -118,15 +152,18 @@ export class ReplacementsController {
   })
   @ApiNotFoundResponse({ description: 'Peluang pengganti tidak ditemukan' })
   @Idempotent()
-  async claimOpportunity(@Param('id') id: string, @CurrentUser() user: any) {
+  async claimOpportunity(
+    @Param(zodPipe(ReplacementParamSchema)) param: ReplacementParamInput,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     if (!user.staff?.id) {
       throw new ForbiddenException('User bukan staf terdaftar');
     }
 
     return this.replacementRepo.claimOpportunity(
-      id,
+      param.id,
       user.staff.id,
-      user.staff.practitionerId ?? null,
+      user.staff.practitionerId ?? undefined,
     );
   }
 
@@ -146,11 +183,11 @@ export class ReplacementsController {
   @ApiNotFoundResponse({ description: 'Peluang pengganti tidak ditemukan' })
   @Idempotent()
   async assignOpportunity(
-    @Param('id') id: string,
+    @Param(zodPipe(ReplacementParamSchema)) param: ReplacementParamInput,
     @Body() dto: AssignReplacementDto,
   ) {
     return this.replacementRepo.assignOpportunity(
-      id,
+      param.id,
       dto.staffProfileId,
       dto.practitionerId,
       dto.notes,
@@ -172,9 +209,9 @@ export class ReplacementsController {
   @ApiNotFoundResponse({ description: 'Peluang pengganti tidak ditemukan' })
   @Idempotent()
   async cancelOpportunity(
-    @Param('id') id: string,
+    @Param(zodPipe(ReplacementParamSchema)) param: ReplacementParamInput,
     @Body() dto?: CancelReplacementDto,
   ) {
-    return this.replacementRepo.cancelOpportunity(id, dto?.reason);
+    return this.replacementRepo.cancelOpportunity(param.id, dto?.reason);
   }
 }

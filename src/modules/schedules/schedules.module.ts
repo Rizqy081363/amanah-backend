@@ -39,6 +39,7 @@ import {
   DeleteScheduleSessionUseCase,
   GetSchedulesUseCase,
   MutateDoctorSessionOperationalHoursUseCase,
+  CreateOperationalShiftUseCase,
   UpdateOperationalShiftUseCase,
   UpdateScheduleUseCase,
 } from './application/use-cases';
@@ -81,6 +82,7 @@ import {
     DrizzleAdminScheduleConfigurationRepository,
     DrizzleScheduleConfigurationImpactEvaluator,
     CreateScheduleUseCase,
+    CreateOperationalShiftUseCase,
     GetSchedulesUseCase,
     UpdateScheduleUseCase,
     DeleteScheduleSessionUseCase,
@@ -94,6 +96,7 @@ import {
   exports: [
     SCHEDULE_REPOSITORY,
     CreateScheduleUseCase,
+    CreateOperationalShiftUseCase,
     GetSchedulesUseCase,
     UpdateScheduleUseCase,
     DeleteScheduleSessionUseCase,
