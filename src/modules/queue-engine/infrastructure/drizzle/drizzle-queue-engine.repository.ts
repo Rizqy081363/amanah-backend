@@ -235,6 +235,7 @@ export class DrizzleQueueEngineRepository implements IQueueEngineRepository {
   private mapToDomainTicket(row: any): DomainQueueTicket {
     return {
       id: row.id,
+      appointmentId: row.appointmentId,
       categoryId: row.categoryId,
       sessionId: row.sessionId,
       serviceDate: row.queueDate,

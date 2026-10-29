@@ -11,6 +11,7 @@ import { replacementOpportunities } from '@database/schema/leave-payroll.schema'
 import type { ClinicalPractitionerEntity } from '@modules/schedules/domain/entities/schedule.entity';
 import { ScheduleRecordMapper } from '@modules/schedules/infrastructure/drizzle/mappers/schedule-record.mapper';
 import type { ClinicalPractitionersQueryDto } from '@modules/schedules/presentation/dto/clinical-practitioners-query.dto';
+import { ClinicTimeService } from '@common/time/clinic-time.service';
 import { Inject, Injectable } from '@nestjs/common';
 import { and, asc, eq, gte, isNull, lte, or } from 'drizzle-orm';
 
@@ -19,12 +20,13 @@ export class DrizzleClinicalPractitionerRepository {
   constructor(
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,
+    private readonly clinicTimeService: ClinicTimeService,
   ) {}
 
   async findClinicalPractitioners(
     query: ClinicalPractitionersQueryDto,
   ): Promise<ClinicalPractitionerEntity[]> {
-    const targetDate = query.date || new Date().toISOString().slice(0, 10);
+    const targetDate = query.date || this.clinicTimeService.today();
     const targetDow = new Date(targetDate).getDay();
 
     const pracs = await this.db.query.practitioners.findMany({
@@ -137,7 +139,8 @@ export class DrizzleClinicalPractitionerRepository {
         ? `${p.clinicRoom.name}${p.clinicRoom.location ? `, ${p.clinicRoom.location}` : ''}`
         : p.staffProfile?.clinicUnit?.name || '';
 
-      const todayStr = new Date().toISOString().slice(0, 10);
+      const todayStr = this.clinicTimeService.today();
+    
       let attendanceStatus:
         | 'checked_in'
         | 'not_checked_in'

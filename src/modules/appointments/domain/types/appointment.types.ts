@@ -73,6 +73,7 @@ export interface AllowedActionsContext {
   hasRoom?: boolean;
   aheadCount?: number;
   isDoctorServing?: boolean;
+  canCheckIn?: boolean;
 }
 
 export function resolveAllowedActions(
@@ -84,10 +85,7 @@ export function resolveAllowedActions(
       ? { aheadCount: contextOrAheadCount, hasDoctor: true, hasRoom: true }
       : contextOrAheadCount;
 
-  const {
-    hasDoctor = false,
-    hasRoom = false,
-  } = context;
+  const { hasDoctor = false, hasRoom = false, canCheckIn = true } = context;
   const isFullyAssigned = Boolean(hasDoctor && hasRoom);
 
   switch (status) {
@@ -99,7 +97,7 @@ export function resolveAllowedActions(
       if (!hasRoom) {
         actions.push('ASSIGN_ROOM');
       }
-      if (isFullyAssigned) {
+      if (isFullyAssigned && canCheckIn) {
         actions.push('CHECK_IN');
       }
       actions.push('CANCEL', 'RESCHEDULE');

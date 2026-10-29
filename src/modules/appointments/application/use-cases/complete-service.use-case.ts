@@ -28,13 +28,12 @@ export class CompleteServiceUseCase {
     private readonly appointmentRepo: AppointmentRepositoryPort,
     @Inject(REALTIME_EMITTER_PORT)
     private readonly realtimeEmitter: RealtimeEmitterPort,
+    private readonly clinicTimeService: ClinicTimeService,
     @Optional()
     @Inject(PUSH_NOTIFICATION_PORT)
     private readonly pushNotification?: PushNotificationPort,
     @Optional()
     private readonly redisService?: RedisService,
-    @Optional()
-    private readonly clinicTimeService?: ClinicTimeService,
     @Optional()
     private readonly queueEventPublisher?: QueueEventPublisher,
     @Optional()
@@ -90,11 +89,10 @@ export class CompleteServiceUseCase {
 
     if (this.pushNotification && updated.patientUserId) {
       const timeStr = this.clinicTimeService
-        ? this.clinicTimeService.formatTime(actualCompletedAt).slice(0, 5)
-        : actualCompletedAt.toISOString().slice(11, 16);
+        .formatTime(actualCompletedAt)
+        .slice(0, 5);
       const tzAbbr =
-        this.clinicTimeService?.getTimezoneAbbreviation(actualCompletedAt) ||
-        'WIB';
+        this.clinicTimeService.getTimezoneAbbreviation(actualCompletedAt);
       const patientInfo = updated.patientName
         ? ` (${updated.patientName})`
         : '';
@@ -140,10 +138,7 @@ export class CompleteServiceUseCase {
             patientName: updated.patientName,
             staffId: updated.practitionerId,
             doctorName:
-              updated.doctorName ||
-              user?.staff?.fullName ||
-              user?.name ||
-              null,
+              updated.doctorName || user?.staff?.fullName || user?.name || null,
             avatarUrl: updated.avatarUrl ?? null,
             roomName: updated.roomName || null,
             poliklinikName: updated.poliklinikName,

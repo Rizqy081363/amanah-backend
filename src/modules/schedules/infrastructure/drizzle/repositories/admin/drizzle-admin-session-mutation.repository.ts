@@ -1,3 +1,4 @@
+import { ClinicTimeService } from '@common/time/clinic-time.service';
 import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
@@ -9,6 +10,8 @@ import {
   sessionDefs,
   shiftExceptions,
 } from '@database/schema';
+import { SHIFT_EXCEPTION_TYPE } from '@modules/appointments/domain/constants/appointment-lifecycle.constants';
+import { isUuid } from '@modules/schedules/domain/constants/schedule.constants';
 import {
   AdminScheduleStatusRequest,
   toAdminScheduleStatusRequest,
@@ -25,7 +28,6 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { isUUID } from 'class-validator';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 
 @Injectable()
@@ -36,6 +38,7 @@ export class DrizzleAdminSessionMutationRepository {
     private readonly practitionerResolver: PractitionerResolver,
     private readonly roomResolver: RoomResolver,
     private readonly conflictQuery: ScheduleConflictQuery,
+    private readonly clinicTimeService: ClinicTimeService,
   ) {}
 
   async createAdminDoctorSession(
@@ -93,7 +96,9 @@ export class DrizzleAdminSessionMutationRepository {
     }
 
     const exceptionType =
-      requestedStatus === AdminScheduleStatusRequest.CLOSED ? 'leave' : 'extra';
+      requestedStatus === AdminScheduleStatusRequest.CLOSED
+        ? SHIFT_EXCEPTION_TYPE.LEAVE
+        : SHIFT_EXCEPTION_TYPE.EXTRA;
 
     const [createdException] = await this.db
       .insert(shiftExceptions)
@@ -145,86 +150,70 @@ export class DrizzleAdminSessionMutationRepository {
       throw new NotFoundException(`Dokter dengan ID ${id} tidak ditemukan`);
     }
 
-    let targetDate = new Date().toISOString().slice(0, 10);
-    let targetSessionDefId: string | null = null;
-    let existingStartTime = '08:00:00';
-    let existingEndTime = '12:00:00';
-    let roomId: string | null = null;
-
-    if ((body as any)?.date) {
-      targetDate = (body as any).date;
+    if (!isUuid(sessionId)) {
+      throw new BadRequestException(
+        `Format ID sesi ${sessionId} tidak valid`,
+      );
     }
 
-    if (sessionId.startsWith('roster-')) {
-      const daId = sessionId.slice(7, 43);
-      const rosterDate = sessionId.slice(44);
-      if (rosterDate && !(body as any)?.date) {
-        targetDate = rosterDate;
-      }
-      if (!isUUID(daId)) {
+    let targetDate = this.clinicTimeService.today();
+    let targetSessionDefId: string;
+    let existingStartTime: string;
+    let existingEndTime: string;
+    let roomId: string | null = null;
+
+    const da = await this.db.query.doctorAssignments.findFirst({
+      where: and(
+        eq(doctorAssignments.id, sessionId),
+        eq(doctorAssignments.doctorId, practitioner.id),
+      ),
+      with: { sessionDef: true },
+    });
+
+    if (da) {
+      if (!da.sessionDef) {
         throw new NotFoundException(
-          `Format ID roster sesi ${sessionId} tidak valid`,
-        );
-      }
-      const da = await this.db.query.doctorAssignments.findFirst({
-        where: and(
-          eq(doctorAssignments.id, daId),
-          eq(doctorAssignments.doctorId, practitioner.id),
-        ),
-        with: { sessionDef: true },
-      });
-      if (!da) {
-        throw new NotFoundException(
-          `Sesi jadwal dengan ID ${sessionId} tidak ditemukan untuk dokter ini`,
+          `Definisi sesi tidak ditemukan untuk penugasan dokter ${sessionId}`,
         );
       }
       targetSessionDefId = da.sessionId;
-      existingStartTime = da.sessionDef?.defaultStartsAt || '08:00:00';
-      existingEndTime = da.sessionDef?.defaultEndsAt || '12:00:00';
+      existingStartTime = da.sessionDef.defaultStartsAt;
+      existingEndTime = da.sessionDef.defaultEndsAt;
       roomId = da.preferredRoomId;
-    } else if (isUUID(sessionId)) {
-      const da = await this.db.query.doctorAssignments.findFirst({
+    } else {
+      const ex = await this.db.query.shiftExceptions.findFirst({
         where: and(
-          eq(doctorAssignments.id, sessionId),
-          eq(doctorAssignments.doctorId, practitioner.id),
+          eq(shiftExceptions.id, sessionId),
+          eq(shiftExceptions.doctorId, practitioner.id),
         ),
         with: { sessionDef: true },
       });
-      if (da) {
-        targetSessionDefId = da.sessionId;
-        existingStartTime = da.sessionDef?.defaultStartsAt || '08:00:00';
-        existingEndTime = da.sessionDef?.defaultEndsAt || '12:00:00';
-        roomId = da.preferredRoomId;
+
+      if (ex) {
+        if (!ex.sessionDef) {
+          throw new NotFoundException(
+            `Definisi sesi tidak ditemukan untuk shift exception ${sessionId}`,
+          );
+        }
+        targetDate = this.clinicTimeService.normalizeDate(ex.serviceDate);
+        targetSessionDefId = ex.sessionId ?? ex.sessionDef.id;
+        existingStartTime = ex.sessionDef.defaultStartsAt;
+        existingEndTime = ex.sessionDef.defaultEndsAt;
       } else {
-        const ex = await this.db.query.shiftExceptions.findFirst({
-          where: and(
-            eq(shiftExceptions.id, sessionId),
-            eq(shiftExceptions.doctorId, practitioner.id),
-          ),
-          with: { sessionDef: true },
+        const sDef = await this.db.query.sessionDefs.findFirst({
+          where: eq(sessionDefs.id, sessionId),
         });
-        if (ex) {
-          targetDate = ex.serviceDate;
-          targetSessionDefId = ex.sessionId;
-          existingStartTime = ex.sessionDef?.defaultStartsAt || '08:00:00';
-          existingEndTime = ex.sessionDef?.defaultEndsAt || '12:00:00';
+
+        if (sDef) {
+          targetSessionDefId = sDef.id;
+          existingStartTime = sDef.defaultStartsAt;
+          existingEndTime = sDef.defaultEndsAt;
         } else {
-          const sDef = await this.db.query.sessionDefs.findFirst({
-            where: eq(sessionDefs.id, sessionId),
-          });
-          if (sDef) {
-            targetSessionDefId = sDef.id;
-            existingStartTime = sDef.defaultStartsAt || '08:00:00';
-            existingEndTime = sDef.defaultEndsAt || '12:00:00';
-          } else {
-            throw new NotFoundException(
-              `Sesi jadwal dengan ID ${sessionId} tidak ditemukan untuk dokter ini`,
-            );
-          }
+          throw new NotFoundException(
+            `Sesi jadwal dengan ID ${sessionId} tidak ditemukan untuk dokter ini`,
+          );
         }
       }
-    } else {
-      throw new NotFoundException(`Format ID sesi ${sessionId} tidak valid`);
     }
 
     const startTimeFormatted = body.startTime
@@ -273,10 +262,8 @@ export class DrizzleAdminSessionMutationRepository {
           where: and(
             eq(shiftExceptions.doctorId, practitioner.id),
             eq(shiftExceptions.serviceDate, targetDate),
-            eq(shiftExceptions.type, 'leave'),
-            targetSessionDefId
-              ? eq(shiftExceptions.sessionId, targetSessionDefId)
-              : sql`TRUE`,
+            eq(shiftExceptions.type, SHIFT_EXCEPTION_TYPE.LEAVE),
+            eq(shiftExceptions.sessionId, targetSessionDefId),
           ),
         });
 
@@ -285,7 +272,7 @@ export class DrizzleAdminSessionMutationRepository {
             doctorId: practitioner.id,
             serviceDate: targetDate,
             sessionId: targetSessionDefId,
-            type: 'leave',
+            type: SHIFT_EXCEPTION_TYPE.LEAVE,
             note: 'Sesi jadwal ditutup oleh admin klinik.',
           });
         }
@@ -348,10 +335,8 @@ export class DrizzleAdminSessionMutationRepository {
             and(
               eq(shiftExceptions.doctorId, practitioner.id),
               eq(shiftExceptions.serviceDate, targetDate),
-              eq(shiftExceptions.type, 'leave'),
-              targetSessionDefId
-                ? eq(shiftExceptions.sessionId, targetSessionDefId)
-                : sql`TRUE`,
+              eq(shiftExceptions.type, SHIFT_EXCEPTION_TYPE.LEAVE),
+              eq(shiftExceptions.sessionId, targetSessionDefId),
             ),
           );
       }

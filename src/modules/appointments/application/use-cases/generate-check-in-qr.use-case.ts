@@ -5,6 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { ClinicTimeService } from '../../../../common/time/clinic-time.service';
 import {
   DEFAULT_CHECK_IN_CONFIG,
   hoursToMilliseconds,
@@ -19,6 +20,7 @@ import {
   APPOINTMENT_REPOSITORY,
   type AppointmentRepository,
 } from '../../domain/repositories/appointment.repository';
+import { isAppointmentWithinCheckInWindow } from '../../domain/services/appointment-check-in-window.predicate';
 import { isAppointmentLate } from '../../domain/services/appointment-lateness.predicate';
 import { AppointmentPolicyReader } from '../../domain/services/appointment-policy.reader';
 import {
@@ -36,6 +38,7 @@ export class GenerateCheckInQrUseCase {
     @Inject(APPOINTMENT_CHECK_IN_REPOSITORY_PORT)
     private readonly checkInRepo: AppointmentCheckInRepositoryPort,
     private readonly policyReader: AppointmentPolicyReader,
+    private readonly clinicTimeService: ClinicTimeService,
   ) {}
 
   private generateManualCode(length: number): string {
@@ -74,6 +77,35 @@ export class GenerateCheckInQrUseCase {
       throw new BadRequestException(
         'Ruangan periksa belum ditugaskan. QR Check-in hanya dapat dibuat setelah ruangan ditugaskan.',
       );
+    }
+
+    if (apt.appointmentDate) {
+      const checkInEval = isAppointmentWithinCheckInWindow({
+        scheduledDate: apt.appointmentDate,
+        scheduledStartTime: apt.scheduledStartTime,
+        scheduledEndTime: apt.scheduledEndTime,
+        todayDateStr: this.clinicTimeService.today(),
+        currentTimeStr: this.clinicTimeService.getCurrentTimeString(),
+      });
+
+      if (!checkInEval.isOpen) {
+        if (checkInEval.reason === 'TOO_EARLY') {
+          throw new BadRequestException(
+            `Waktu check-in untuk janji temu ini belum dibuka. Check-in dibuka mulai pukul ${checkInEval.openTimeStr} WIB.`,
+          );
+        }
+        if (checkInEval.reason === 'NOT_TODAY') {
+          throw new BadRequestException(
+            `Check-in hanya dapat dilakukan pada hari pelayanan yang dijadwalkan (${apt.appointmentDate}).`,
+          );
+        }
+        if (checkInEval.reason === 'EXPIRED') {
+          throw new BadRequestException(
+            `Waktu check-in untuk janji temu ini telah berakhir (tutup pukul ${checkInEval.closeTimeStr} WIB).`,
+          );
+        }
+        throw new BadRequestException('Waktu check-in tidak valid.');
+      }
     }
 
     const windowHours = await this.policyReader.getCheckInWindowHours();

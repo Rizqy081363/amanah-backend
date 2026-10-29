@@ -1,3 +1,4 @@
+import { isUUID } from 'class-validator';
 import { z } from 'zod';
 
 export const RescheduleAppointmentSchema = z
@@ -6,10 +7,18 @@ export const RescheduleAppointmentSchema = z
       .string()
       .min(1, 'target_date wajib diisi')
       .regex(/^\d{4}-\d{2}-\d{2}$/, 'Format target_date harus YYYY-MM-DD'),
-    session: z.string().optional(),
+    session: z
+      .string()
+      .trim()
+      .transform((val) => (val === '' ? undefined : val))
+      .optional(),
     target_session_id: z
       .string()
-      .uuid('target_session_id harus berupa UUID valid')
+      .trim()
+      .refine((val) => val === '' || isUUID(val), {
+        message: 'target_session_id harus berupa UUID valid',
+      })
+      .transform((val) => (val === '' ? undefined : val))
       .optional(),
     target_start_time: z
       .string()

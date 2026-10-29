@@ -1,18 +1,11 @@
 import { Temporal } from '@js-temporal/polyfill';
+import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm';
+import type { ClinicConfigService } from '../../../../common/clinic-config/clinic-config.service';
 import {
   DomainConflictException,
   DomainForbiddenException,
   EntityNotFoundException,
 } from '../../../../common/exceptions';
-import {
-  and,
-  eq,
-  inArray,
-  isNull,
-  or,
-  sql,
-} from 'drizzle-orm';
-import type { ClinicConfigService } from '../../../../common/clinic-config/clinic-config.service';
 import type { ClinicTimeService } from '../../../../common/time/clinic-time.service';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
@@ -28,8 +21,8 @@ import {
   queueTickets,
   sessionDefs,
 } from '../../../../database/schema';
-import type { QueuePositionRecalculationService } from '../../../queue-engine/application/services/queue-position-recalculation.service';
 import { MEDICAL_SPECIALTY_CODES } from '../../../clinics/domain/constants/medical-specialty.constants';
+import type { QueuePositionRecalculationService } from '../../../queue-engine/application/services/queue-position-recalculation.service';
 import {
   DB_APPOINTMENT_STATUS,
   QUEUE_TICKET_STATUS,
@@ -43,8 +36,8 @@ export class AppointmentCreationHandler {
     db: DrizzleDatabase,
     data: Omit<AppointmentEntity, 'id' | 'createdAt' | 'updatedAt'>,
     findById: (id: string) => Promise<AppointmentEntity | null>,
-    clinicConfig?: ClinicConfigService,
-    clinicTimeService?: ClinicTimeService,
+    clinicConfig: ClinicConfigService | undefined,
+    clinicTimeService: ClinicTimeService,
     queuePositionRecalculationService?: QueuePositionRecalculationService,
   ): Promise<AppointmentEntity> {
     // Validate patient existence and active status
@@ -334,13 +327,9 @@ export class AppointmentCreationHandler {
       formattedTicketNumber = `${categoryPrefix}-${sessionPrefix}${String(ticketIndex).padStart(3, '0')}`;
     }
 
-    const [startH, startM] = startTime
-      .split(':')
-      .map((v) => parseInt(v, 10));
+    const [startH, startM] = startTime.split(':').map((v) => parseInt(v, 10));
     const timeStr = `${String(startH).padStart(2, '0')}:${String(startM).padStart(2, '0')}:00`;
-    const tz =
-      clinicTimeService?.getTimezone() ||
-      (clinicConfig ? await clinicConfig.getTimezone() : 'Asia/Jakarta');
+    const tz = clinicTimeService.getTimezone();
 
     const baseStart = new Date(
       Temporal.PlainDateTime.from(`${data.appointmentDate}T${timeStr}`)

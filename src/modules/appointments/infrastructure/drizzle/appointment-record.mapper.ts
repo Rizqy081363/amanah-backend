@@ -9,6 +9,7 @@ import {
 } from '../../domain/constants/appointment-lifecycle.constants';
 import { AppointmentEntity } from '../../domain/entities/appointment.entity';
 import { computeConsultationMetrics } from '../../domain/helpers/consultation-duration.helper';
+import { isAppointmentWithinCheckInWindow } from '../../domain/services/appointment-check-in-window.predicate';
 import { isAppointmentLate } from '../../domain/services/appointment-lateness.predicate';
 import {
   resolveAllowedActions,
@@ -27,13 +28,14 @@ export class AppointmentRecordMapper {
 
   static toEntity(
     apt: any,
-    ticket?: any | null,
-    poliklinikIdOverride?:
+    ticket: any | null | undefined,
+    poliklinikIdOverride:
       | string
       | { poliklinikId: string; poliklinikName: string }
-      | null,
-    windowHours?: number,
-    clinicTimeService?: ClinicTimeService,
+      | null
+      | undefined,
+    windowHours: number | undefined,
+    clinicTimeService: ClinicTimeService,
     isDoctorServing?: boolean,
   ): AppointmentEntity {
     let domainStatus = toDomainStatus(apt.status);
@@ -86,8 +88,6 @@ export class AppointmentRecordMapper {
       directPatientAvatar ||
       (patientUserId ? `/api/v1/users/${patientUserId}/avatar` : null);
 
-
-
     const actualStartedAt = apt.actualStartedAt
       ? new Date(apt.actualStartedAt)
       : apt.startedAt
@@ -115,28 +115,13 @@ export class AppointmentRecordMapper {
 
     let etaRange: string | null = null;
     if (estimatedStartAt) {
-      const tz =
-        clinicTimeService?.getTimezone() ||
-        process.env.CLINIC_TIMEZONE ||
-        'Asia/Jakarta';
       const tzAbbr =
-        clinicTimeService?.getTimezoneAbbreviation(estimatedStartAt) || 'WIB';
-
-      const formatTime = (d: Date): string => {
-        if (clinicTimeService) {
-          return clinicTimeService.formatTime(d).slice(0, 5);
-        }
-        return new Intl.DateTimeFormat('en-GB', {
-          timeZone: tz,
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: false,
-        }).format(d);
-      };
-
-      const startStr = formatTime(estimatedStartAt);
+        clinicTimeService.getTimezoneAbbreviation(estimatedStartAt);
+      const startStr = clinicTimeService
+        .formatTime(estimatedStartAt)
+        .slice(0, 5);
       if (estimatedEndAt) {
-        const endStr = formatTime(estimatedEndAt);
+        const endStr = clinicTimeService.formatTime(estimatedEndAt).slice(0, 5);
         etaRange = `${startStr} - ${endStr} ${tzAbbr}`;
       } else {
         etaRange = `~${startStr} ${tzAbbr}`;
@@ -172,12 +157,10 @@ export class AppointmentRecordMapper {
       resolvedUnit?.poliklinikId ??
       (typeof poliklinikIdOverride === 'string'
         ? poliklinikIdOverride
-        : apt.clinicRoom?.clinicUnit?.id ?? '');
+        : (apt.clinicRoom?.clinicUnit?.id ?? ''));
 
     const resolvedPoliName =
-      resolvedUnit?.poliklinikName ??
-      apt.clinicRoom?.clinicUnit?.name ??
-      '';
+      resolvedUnit?.poliklinikName ?? apt.clinicRoom?.clinicUnit?.name ?? '';
 
     const hasDoctor = Boolean(apt.practitionerId || apt.practitioner);
     const hasRoom = Boolean(apt.roomId || apt.clinicRoom);
@@ -232,6 +215,16 @@ export class AppointmentRecordMapper {
         hasRoom,
         aheadCount,
         isDoctorServing,
+        canCheckIn:
+          domainStatus === DOMAIN_APPOINTMENT_STATUS.BOOKED && apt.scheduledDate
+            ? isAppointmentWithinCheckInWindow({
+                scheduledDate: apt.scheduledDate,
+                scheduledStartTime: apt.scheduledStartTime,
+                scheduledEndTime: apt.scheduledEndTime,
+                todayDateStr: clinicTimeService.today(),
+                currentTimeStr: clinicTimeService.getCurrentTimeString(),
+              }).isOpen
+            : true,
       }),
       visitType: apt.visitType,
       complaint: apt.complaint || null,

@@ -9,6 +9,7 @@ export type QueueTicketStatus =
 
 export interface DomainQueueTicket {
   id: string;
+  appointmentId?: string | null;
   categoryId: string;
   sessionId: string;
   serviceDate: string; // YYYY-MM-DD

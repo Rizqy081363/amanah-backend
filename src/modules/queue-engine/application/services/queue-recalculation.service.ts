@@ -1,5 +1,11 @@
 import { Temporal } from '@js-temporal/polyfill';
-import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+  Optional,
+} from '@nestjs/common';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { ClinicTimeService } from '../../../../common/time/clinic-time.service';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
@@ -28,6 +34,7 @@ export interface RecalculationParams {
   sessionId?: string;
   categoryId?: string;
   triggerEvent?: string;
+  eventType?: string;
   ticketId?: string;
   appointmentId?: string;
 }
@@ -44,8 +51,7 @@ export class QueueRecalculationService {
     private readonly simulator: SimulatorService,
     private readonly estimator: EstimatorService,
     private readonly clinicSettings: ClinicSettingService,
-    @Optional()
-    private readonly clinicTimeService?: ClinicTimeService,
+    private readonly clinicTimeService: ClinicTimeService,
     @Optional()
     private readonly notificationGateway?: NotificationGatewayService,
     @Optional()
@@ -62,7 +68,8 @@ export class QueueRecalculationService {
     updatedCount: number;
     sessionsHandled: number;
   }> {
-    const { serviceDate, triggerEvent } = params;
+    const { serviceDate } = params;
+    const triggerEvent = params.triggerEvent || params.eventType;
     const { sessionId, categoryId } = params;
 
     this.logger.log(
@@ -171,37 +178,23 @@ export class QueueRecalculationService {
       return 0;
     }
 
-    // 2. Load clinic configuration tunables
-    const priorMinutes =
-      (await this.clinicSettings
-        .getNumber('duration.prior_minutes')
-        .catch(() => 30)) || 30;
-    const priorWeight =
-      (await this.clinicSettings
-        .getNumber('duration.prior_weight')
-        .catch(() => 5)) || 5;
-    const minRemainingMinutes =
-      (await this.clinicSettings
-        .getNumber('duration.min_remaining_minutes')
-        .catch(() => 5)) || 5;
-    const updateThresholdMinutes =
-      (await this.clinicSettings
-        .getNumber('eta.update_threshold_minutes')
-        .catch(() => 10)) || 10;
-    const notifyDelayMinutes =
-      (await this.clinicSettings
-        .getNumber('eta.notify_delay_minutes')
-        .catch(() => 15)) || 15;
-    const displayRoundMinutes =
-      (await this.clinicSettings
-        .getNumber('eta.display_round_minutes')
-        .catch(() => 5)) || 5;
-    const timezone =
-      this.clinicTimeService?.getTimezone() ||
-      (await this.clinicSettings
-        .getString('clinic.timezone')
-        .catch(() => 'Asia/Jakarta')) ||
-      'Asia/Jakarta';
+    // 2. Load clinic configuration tunables directly from SSOT
+    const [
+      priorMinutes,
+      priorWeight,
+      minRemainingMinutes,
+      updateThresholdMinutes,
+      notifyDelayMinutes,
+      displayRoundMinutes,
+    ] = await Promise.all([
+      this.clinicSettings.getNumber('duration.prior_minutes'),
+      this.clinicSettings.getNumber('duration.prior_weight'),
+      this.clinicSettings.getNumber('duration.min_remaining_minutes'),
+      this.clinicSettings.getNumber('eta.update_threshold_minutes'),
+      this.clinicSettings.getNumber('eta.notify_delay_minutes'),
+      this.clinicSettings.getNumber('eta.display_round_minutes'),
+    ]);
+    const timezone = this.clinicTimeService.getTimezone();
 
     // 3. Compute estimated duration using empirical completed durations + Bayesian prior
     const recentDurations = await this.queueRepo.getRecentCompletedDurations({
@@ -236,7 +229,7 @@ export class QueueRecalculationService {
     ];
 
     // 5. Run simulation with sliding window
-    const now = this.clinicTimeService?.nowDate() || new Date();
+    const now = this.clinicTimeService.nowDate();
     const simTickets: SimulationTicketItem[] = activeTickets.map((t) => ({
       id: t.id,
       status: t.status,
@@ -286,9 +279,16 @@ export class QueueRecalculationService {
       } else {
         shiftMinutes =
           Math.abs(newStart.getTime() - oldStart.getTime()) / 60_000;
-        if (shiftMinutes >= updateThresholdMinutes) {
+        if (shiftMinutes >= updateThresholdMinutes || shiftMinutes > 0) {
           hasShifted = true;
         }
+      }
+
+      const positionChanged =
+        ticket.waitingPosition !== undefined &&
+        ticket.waitingPosition !== proj.position;
+      if (positionChanged) {
+        hasShifted = true;
       }
 
       if (hasShifted) {
@@ -296,13 +296,13 @@ export class QueueRecalculationService {
           ticketId: ticket.id,
           projectedStart: newStart,
           projectedEnd: newEnd,
-          waitingPosition: ticket.waitingPosition ?? proj.position,
+          waitingPosition: proj.position,
         });
 
-        if (shiftMinutes >= notifyDelayMinutes) {
+        if (oldStart && shiftMinutes >= notifyDelayMinutes) {
           shiftedForNotification.push({
             ticketId: ticket.id,
-            oldStart: oldStart ?? null,
+            oldStart,
             newStart,
             newEnd,
             shiftMinutes,
@@ -386,8 +386,14 @@ export class QueueRecalculationService {
         .where(eq(sessionDefs.id, sessionId))
         .limit(1);
 
-      startTime = defRow?.startsAt || '08:00';
-      endTime = defRow?.endsAt || '12:00';
+      if (!defRow) {
+        throw new NotFoundException(
+          `Definisi sesi dinas dengan ID ${sessionId} tidak ditemukan di database`,
+        );
+      }
+
+      startTime = defRow.startsAt;
+      endTime = defRow.endsAt;
     }
 
     const parseSessionBoundary = (
@@ -468,13 +474,19 @@ export class QueueRecalculationService {
         timezone,
       );
 
-      const isEarlier =
-        item.oldStart && item.newStart.getTime() < item.oldStart.getTime();
-      const directionText = isEarlier ? 'lebih awal' : 'sedikit mundur';
+      if (!item.oldStart) continue;
+
+      const diffMs = item.newStart.getTime() - item.oldStart.getTime();
+      const diffMinutes = Math.round(diffMs / 60_000);
+      if (Math.abs(diffMinutes) < 1) {
+        continue;
+      }
+
+      const directionText = diffMinutes < 0 ? 'lebih awal' : 'mundur';
 
       await this.notificationGateway
         .dispatch({
-          commandId: `recalc-shift-${item.ticketId}-${Date.now()}`,
+          commandId: `queue-shift-${item.ticketId}-${item.newStart.toISOString()}`,
           sourceDomain: 'queue',
           target: {
             type: 'user',

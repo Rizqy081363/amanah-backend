@@ -1,3 +1,4 @@
+import { ClinicTimeService } from '@common/time/clinic-time.service';
 import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
@@ -24,6 +25,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { and, eq, inArray, or, sql } from 'drizzle-orm';
 import { DrizzleAdminDoctorScheduleDetailQuery } from './drizzle-admin-doctor-schedule-detail.query';
@@ -31,6 +33,8 @@ import { DrizzleAdminSessionMutationRepository } from './drizzle-admin-session-m
 
 @Injectable()
 export class DrizzleAdminScheduleMutationRepository {
+  private readonly sessionMutationRepo: DrizzleAdminSessionMutationRepository;
+
   constructor(
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,
@@ -38,13 +42,27 @@ export class DrizzleAdminScheduleMutationRepository {
     private readonly roomResolver: RoomResolver,
     conflictQuery: ScheduleConflictQuery,
     private readonly detailQuery: DrizzleAdminDoctorScheduleDetailQuery,
-    private readonly sessionMutationRepo: DrizzleAdminSessionMutationRepository = new DrizzleAdminSessionMutationRepository(
-      db,
-      practitionerResolver,
-      roomResolver,
-      conflictQuery,
-    ),
-  ) {}
+    @Optional()
+    sessionMutationRepo?: DrizzleAdminSessionMutationRepository,
+    @Optional()
+    clinicTimeService?: ClinicTimeService,
+  ) {
+    if (sessionMutationRepo) {
+      this.sessionMutationRepo = sessionMutationRepo;
+    } else if (clinicTimeService) {
+      this.sessionMutationRepo = new DrizzleAdminSessionMutationRepository(
+        db,
+        practitionerResolver,
+        roomResolver,
+        conflictQuery,
+        clinicTimeService,
+      );
+    } else {
+      throw new Error(
+        'Either sessionMutationRepo or clinicTimeService must be provided to DrizzleAdminScheduleMutationRepository',
+      );
+    }
+  }
 
   async updateAdminDoctorSchedule(
     id: string,

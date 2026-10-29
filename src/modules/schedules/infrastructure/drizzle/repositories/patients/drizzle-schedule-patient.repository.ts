@@ -9,10 +9,12 @@ import {
 } from '@database/schema';
 import {
   DB_APPOINTMENT_STATUS,
+  DOMAIN_APPOINTMENT_STATUS,
   isTerminalAppointmentStatus,
 } from '@modules/appointments/domain/constants/appointment-lifecycle.constants';
 import { AppointmentTemporalStatusHelper } from '@modules/appointments/domain/helpers/appointment-temporal-status.helper';
 import { computeConsultationMetrics } from '@modules/appointments/domain/helpers/consultation-duration.helper';
+import { isAppointmentWithinCheckInWindow } from '@modules/appointments/domain/services/appointment-check-in-window.predicate';
 import {
   resolveAllowedActions,
   toDomainStatus,
@@ -27,12 +29,7 @@ import { BookedPatientMapper } from '@modules/schedules/infrastructure/drizzle/m
 import { PractitionerResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/practitioner.resolver';
 import type { GetAdminDoctorPatientsQueryDto } from '@modules/schedules/presentation/dto/get-admin-doctor-patients-query.dto';
 import type { GetSessionPatientsQueryDto } from '@modules/schedules/presentation/dto/get-session-patients-query.dto';
-import {
-  Inject,
-  Injectable,
-  NotFoundException,
-  Optional,
-} from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { isUUID } from 'class-validator';
 import {
   and,
@@ -52,8 +49,7 @@ export class DrizzleSchedulePatientRepository {
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,
     private readonly practitionerResolver: PractitionerResolver,
-    @Optional()
-    private readonly clinicTimeService?: ClinicTimeService,
+    private readonly clinicTimeService: ClinicTimeService,
   ) {}
 
   async getBookedPatients(
@@ -132,8 +128,7 @@ export class DrizzleSchedulePatientRepository {
 
     let effectiveSessionDef: any = null;
     let effectiveRoom: any = null;
-    const sessDate: string =
-      query.date || new Date().toISOString().slice(0, 10);
+    const sessDate: string = query.date || this.clinicTimeService.today();
 
     if (isUUID(sessionId)) {
       const sessionDef = await this.db.query.sessionDefs.findFirst({
@@ -195,14 +190,10 @@ export class DrizzleSchedulePatientRepository {
     );
 
     const sessStartTime = (
-      daySchedule?.startsAt ||
-      effectiveSessionDef.defaultStartsAt ||
-      '08:00'
+      daySchedule?.startsAt || effectiveSessionDef.defaultStartsAt
     ).slice(0, 5);
     const sessEndTime = (
-      daySchedule?.endsAt ||
-      effectiveSessionDef.defaultEndsAt ||
-      '12:00'
+      daySchedule?.endsAt || effectiveSessionDef.defaultEndsAt
     ).slice(0, 5);
     const sessStart = `${sessStartTime}:00`;
     const sessEnd = `${sessEndTime}:00`;
@@ -230,11 +221,7 @@ export class DrizzleSchedulePatientRepository {
     if (query.status && query.status !== 'all') {
       if (query.status === 'waiting') {
         conditions.push(
-          inArray(appointments.status, [
-            'waiting',
-            'checked_in',
-            'in_service',
-          ]),
+          inArray(appointments.status, ['waiting', 'checked_in', 'in_service']),
         );
       } else {
         conditions.push(eq(appointments.status, query.status as any));
@@ -268,170 +255,185 @@ export class DrizzleSchedulePatientRepository {
       (a) => a.status === DB_APPOINTMENT_STATUS.IN_SERVICE,
     );
 
-    let mappedPatients: AdminSessionPatientItem[] = aptRecords.map((apt, idx) => {
-      const ageStr = BookedPatientMapper.calculateAgeString(
-        apt.patientProfile?.birthDate,
-      );
+    let mappedPatients: AdminSessionPatientItem[] = aptRecords.map(
+      (apt, idx) => {
+        const ageStr = BookedPatientMapper.calculateAgeString(
+          apt.patientProfile?.birthDate,
+        );
 
-      const queueNumber =
-        apt.queueTickets?.[0]?.queueNumber ||
-        (apt.clinicRoom?.clinicUnit?.queuePrefix && apt.queueNumber
-          ? `${apt.clinicRoom.clinicUnit.queuePrefix}-${String(apt.queueNumber).padStart(3, '0')}`
-          : apt.queueNumber
-            ? String(apt.queueNumber)
-            : `P-${apt.bookingCode ? apt.bookingCode.slice(-3) : '001'}`);
+        const queueNumber =
+          apt.queueTickets?.[0]?.queueNumber ||
+          (apt.clinicRoom?.clinicUnit?.queuePrefix && apt.queueNumber
+            ? `${apt.clinicRoom.clinicUnit.queuePrefix}-${String(apt.queueNumber).padStart(3, '0')}`
+            : apt.queueNumber
+              ? String(apt.queueNumber)
+              : `P-${apt.bookingCode ? apt.bookingCode.slice(-3) : '001'}`);
 
-      let etaRange: string | null = null;
-      if (apt.estimatedStartAt) {
-        const estStart = new Date(apt.estimatedStartAt);
-        const estEnd = apt.estimatedEndAt
-          ? new Date(apt.estimatedEndAt)
-          : new Date(estStart.getTime() + 20 * 60_000);
-        const startStr = this.clinicTimeService
-          ? this.clinicTimeService.formatTime(estStart).slice(0, 5)
-          : estStart.toISOString().slice(11, 16);
-        const endStr = this.clinicTimeService
-          ? this.clinicTimeService.formatTime(estEnd).slice(0, 5)
-          : estEnd.toISOString().slice(11, 16);
-        const tzAbbr =
-          this.clinicTimeService?.getTimezoneAbbreviation(estStart) || 'WIB';
-        etaRange = `${startStr} - ${endStr} ${tzAbbr}`;
-      }
+        let etaRange: string | null = null;
+        if (apt.estimatedStartAt) {
+          const estStart = new Date(apt.estimatedStartAt);
+          const estEnd = apt.estimatedEndAt
+            ? new Date(apt.estimatedEndAt)
+            : new Date(estStart.getTime() + 20 * 60_000);
+          const startStr = this.clinicTimeService
+            .formatTime(estStart)
+            .slice(0, 5);
+          const endStr = this.clinicTimeService.formatTime(estEnd).slice(0, 5);
+          const tzAbbr =
+            this.clinicTimeService.getTimezoneAbbreviation(estStart);
+          etaRange = `${startStr} - ${endStr} ${tzAbbr}`;
+        }
 
-      const isElapsed = AppointmentTemporalStatusHelper.isElapsed({
-        scheduledDate: apt.scheduledDate,
-        scheduledStartTime: apt.scheduledStartTime,
-        scheduledEndTime: apt.scheduledEndTime,
-      });
+        const isElapsed = AppointmentTemporalStatusHelper.isElapsed({
+          scheduledDate: apt.scheduledDate,
+          scheduledStartTime: apt.scheduledStartTime,
+          scheduledEndTime: apt.scheduledEndTime,
+        });
 
-      const effectiveStatus = AppointmentTemporalStatusHelper.resolveDbStatus(
-        apt.status,
-        isElapsed,
-      );
+        const effectiveStatus = AppointmentTemporalStatusHelper.resolveDbStatus(
+          apt.status,
+          isElapsed,
+        );
 
-      const statusBadge = effectiveStatus;
+        const statusBadge = effectiveStatus;
 
-      const isCancellable =
-        !isElapsed &&
-        !isTerminalAppointmentStatus(effectiveStatus) &&
-        effectiveStatus !== DB_APPOINTMENT_STATUS.IN_SERVICE;
+        const isCancellable =
+          !isElapsed &&
+          !isTerminalAppointmentStatus(effectiveStatus) &&
+          effectiveStatus !== DB_APPOINTMENT_STATUS.IN_SERVICE;
 
-      const clinicRoomName =
-        apt.clinicRoom?.name || session.clinicRoom?.name || '';
-      const roomName = apt.clinicRoom?.name || session.clinicRoom?.name || null;
-      const roomLocation =
-        apt.clinicRoom?.location || session.clinicRoom?.location || null;
-      const poliklinikName =
-        apt.clinicRoom?.clinicUnit?.name ||
-        session.clinicRoom?.clinicUnit?.name ||
-        null;
+        const clinicRoomName =
+          apt.clinicRoom?.name || session.clinicRoom?.name || '';
+        const roomName =
+          apt.clinicRoom?.name || session.clinicRoom?.name || null;
+        const roomLocation =
+          apt.clinicRoom?.location || session.clinicRoom?.location || null;
+        const poliklinikName =
+          apt.clinicRoom?.clinicUnit?.name ||
+          session.clinicRoom?.clinicUnit?.name ||
+          null;
 
-      const hasDoctor = Boolean(apt.practitionerId || practitioner.id);
-      const hasRoom = Boolean(apt.roomId || session.clinicRoom?.id);
+        const hasDoctor = Boolean(apt.practitionerId || practitioner.id);
+        const hasRoom = Boolean(apt.roomId || session.clinicRoom?.id);
 
-      const domainStatus = toDomainStatus(effectiveStatus);
-      const allowedActions = resolveAllowedActions(domainStatus, {
-        hasDoctor,
-        hasRoom,
-        aheadCount: idx,
-        isDoctorServing,
-      });
+        const domainStatus = toDomainStatus(effectiveStatus);
+        const allowedActions = resolveAllowedActions(domainStatus, {
+          hasDoctor,
+          hasRoom,
+          aheadCount: idx,
+          isDoctorServing,
+          canCheckIn:
+            domainStatus === DOMAIN_APPOINTMENT_STATUS.BOOKED &&
+            apt.scheduledDate
+              ? isAppointmentWithinCheckInWindow({
+                  scheduledDate: apt.scheduledDate,
+                  scheduledStartTime: apt.scheduledStartTime,
+                  scheduledEndTime: apt.scheduledEndTime,
+                  todayDateStr: this.clinicTimeService.today(),
+                  currentTimeStr: this.clinicTimeService.getCurrentTimeString(),
+                }).isOpen
+              : true,
+        });
 
-      const primaryAddress =
-        apt.patientProfile?.patientAddresses?.find((a: any) => a.isPrimary) ??
-        apt.patientProfile?.patientAddresses?.[0];
-      const addressStr = primaryAddress?.fullAddress ?? null;
+        const primaryAddress =
+          apt.patientProfile?.patientAddresses?.find((a: any) => a.isPrimary) ??
+          apt.patientProfile?.patientAddresses?.[0];
+        const addressStr = primaryAddress?.fullAddress ?? null;
 
-      const emergencyContact =
-        apt.patientProfile?.patientEmergencyContacts?.[0];
-      const guardianStr =
-        apt.guardianNameSnapshot ||
-        (emergencyContact
-          ? `${emergencyContact.name}${emergencyContact.relationship ? ` (${emergencyContact.relationship})` : ''}`
-          : null);
+        const emergencyContact =
+          apt.patientProfile?.patientEmergencyContacts?.[0];
+        const guardianStr =
+          apt.guardianNameSnapshot ||
+          (emergencyContact
+            ? `${emergencyContact.name}${emergencyContact.relationship ? ` (${emergencyContact.relationship})` : ''}`
+            : null);
 
-      const actualStartedAt = apt.actualStartedAt
-        ? new Date(apt.actualStartedAt)
-        : apt.startedAt
-          ? new Date(apt.startedAt)
-          : apt.queueTickets?.[0]?.startedAt
-            ? new Date(apt.queueTickets[0].startedAt)
-            : null;
+        const actualStartedAt = apt.actualStartedAt
+          ? new Date(apt.actualStartedAt)
+          : apt.startedAt
+            ? new Date(apt.startedAt)
+            : apt.queueTickets?.[0]?.startedAt
+              ? new Date(apt.queueTickets[0].startedAt)
+              : null;
 
-      const actualCompletedAt = apt.actualCompletedAt
-        ? new Date(apt.actualCompletedAt)
-        : apt.completedAt
-          ? new Date(apt.completedAt)
-          : apt.queueTickets?.[0]?.completedAt
-            ? new Date(apt.queueTickets[0].completedAt)
-            : null;
+        const actualCompletedAt = apt.actualCompletedAt
+          ? new Date(apt.actualCompletedAt)
+          : apt.completedAt
+            ? new Date(apt.completedAt)
+            : apt.queueTickets?.[0]?.completedAt
+              ? new Date(apt.queueTickets[0].completedAt)
+              : null;
 
-      const { elapsedSeconds, formattedDuration } = computeConsultationMetrics(
-        actualStartedAt,
-        actualCompletedAt,
-        effectiveStatus as any,
-      );
+        const { elapsedSeconds, formattedDuration } =
+          computeConsultationMetrics(
+            actualStartedAt,
+            actualCompletedAt,
+            effectiveStatus as any,
+          );
 
-      const estimatedDurationMinutes =
-        practitioner.consultationDurationMinutes || 30;
+        const estimatedDurationMinutes =
+          practitioner.consultationDurationMinutes || 30;
 
-      const finalDurationFormatted =
-        formattedDuration || `${estimatedDurationMinutes} Menit`;
+        const finalDurationFormatted =
+          formattedDuration || `${estimatedDurationMinutes} Menit`;
 
-      return {
-        id: apt.id,
-        appointmentId: apt.id,
-        appointmentDate: apt.scheduledDate,
-        queueTicketId: apt.queueTickets?.[0]?.id || null,
-        queueNumber,
-        etaRange,
-        estimatedStartAt: apt.estimatedStartAt
-          ? new Date(apt.estimatedStartAt).toISOString()
-          : null,
-        estimatedEndAt: apt.estimatedEndAt
-          ? new Date(apt.estimatedEndAt).toISOString()
-          : null,
-        sessionTitle: session.sessionLabel,
-        estimatedDurationMinutes,
-        consultationDurationFormatted: finalDurationFormatted,
-        consultationElapsedSeconds: elapsedSeconds,
-        status: effectiveStatus,
-        statusBadge,
-        chiefComplaint: apt.complaint || null,
-        clinicRoomName,
-        roomName,
-        roomLocation,
-        poliklinikName,
-        visitType:
-          apt.visitType === 'follow_up' ? 'Kontrol Ulang' : 'Pemeriksaan Baru',
-        serviceName: apt.clinicService?.name || null,
-        isCancellable,
-        allowedActions,
-        patient: {
-          id: apt.patientProfile?.id || apt.patientId,
-          fullName: apt.patientProfile?.fullName || 'Pasien',
-          medicalRecordNumber:
-            apt.patientProfile?.medicalRecordNumber || 'RM-UNKNOWN',
-          nik: apt.patientProfile?.nationalIdEncrypted ?? null,
-          gender: apt.patientProfile?.gender || null,
-          birthDate: apt.patientProfile?.birthDate || '',
-          age: ageStr,
-          phoneNumber: apt.patientProfile?.phone || null,
-          email: apt.patientProfile?.email || null,
-          address: addressStr,
-          guardianName: guardianStr,
-          avatarUrl: apt.patientProfile?.avatarUrl || null,
-        },
-        bookingMetadata: {
-          bookedAt: apt.createdAt,
-          checkedInAt: apt.checkedInAt || null,
-          startedAt: apt.startedAt || null,
-          completedAt: apt.completedAt || null,
-          cancelledAt: apt.cancelledAt || null,
-          cancelReason: apt.cancelReason || null,
-        },
-      };
-    });
+        return {
+          id: apt.id,
+          appointmentId: apt.id,
+          appointmentDate: apt.scheduledDate,
+          queueTicketId: apt.queueTickets?.[0]?.id || null,
+          queueNumber,
+          etaRange,
+          estimatedStartAt: apt.estimatedStartAt
+            ? new Date(apt.estimatedStartAt).toISOString()
+            : null,
+          estimatedEndAt: apt.estimatedEndAt
+            ? new Date(apt.estimatedEndAt).toISOString()
+            : null,
+          sessionTitle: session.sessionLabel,
+          estimatedDurationMinutes,
+          consultationDurationFormatted: finalDurationFormatted,
+          consultationElapsedSeconds: elapsedSeconds,
+          status: effectiveStatus,
+          statusBadge,
+          chiefComplaint: apt.complaint || null,
+          clinicRoomName,
+          roomName,
+          roomLocation,
+          poliklinikName,
+          visitType:
+            apt.visitType === 'follow_up'
+              ? 'Kontrol Ulang'
+              : 'Pemeriksaan Baru',
+          serviceName: apt.clinicService?.name || null,
+          isCancellable,
+          allowedActions,
+          patient: {
+            id: apt.patientProfile?.id || apt.patientId,
+            fullName: apt.patientProfile?.fullName || 'Pasien',
+            medicalRecordNumber:
+              apt.patientProfile?.medicalRecordNumber || 'RM-UNKNOWN',
+            nik: apt.patientProfile?.nationalIdEncrypted ?? null,
+            gender: apt.patientProfile?.gender || null,
+            birthDate: apt.patientProfile?.birthDate || '',
+            age: ageStr,
+            phoneNumber: apt.patientProfile?.phone || null,
+            email: apt.patientProfile?.email || null,
+            address: addressStr,
+            guardianName: guardianStr,
+            avatarUrl: apt.patientProfile?.avatarUrl || null,
+          },
+          bookingMetadata: {
+            bookedAt: apt.createdAt,
+            checkedInAt: apt.checkedInAt || null,
+            startedAt: apt.startedAt || null,
+            completedAt: apt.completedAt || null,
+            cancelledAt: apt.cancelledAt || null,
+            cancelReason: apt.cancelReason || null,
+          },
+        };
+      },
+    );
 
     if (query.search) {
       const q = query.search.toLowerCase();
@@ -489,8 +491,7 @@ export class DrizzleSchedulePatientRepository {
       },
     });
 
-    const doctorName =
-      prac?.staffProfile?.fullName || prac?.displayName || '';
+    const doctorName = prac?.staffProfile?.fullName || prac?.displayName || '';
 
     const targetDow = new Date(date).getDay();
     const assignments = await this.db.query.doctorAssignments.findMany({

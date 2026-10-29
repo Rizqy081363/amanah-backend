@@ -1,5 +1,6 @@
 import { Temporal } from '@js-temporal/polyfill';
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { SYSTEM_ROLES } from '../../../../auth/constants/auth.constants';
 import type { AuthenticatedUser } from '../../../../common/auth/authenticated-user.interface';
 import { isAdminUser } from '../../../../common/auth/authenticated-user.interface';
 import type { ClinicConfigService } from '../../../../common/clinic-config/clinic-config.service';
@@ -31,7 +32,6 @@ import {
   QUEUE_TICKET_STATUS,
 } from '../../domain/constants/appointment-lifecycle.constants';
 import type { AppointmentEntity } from '../../domain/entities/appointment.entity';
-import { SYSTEM_ROLES } from '../../../../auth/constants/auth.constants';
 import { ActiveTicketPolicyService } from '../../domain/services/active-ticket-policy.service';
 import { RescheduleAppointmentDto } from '../../presentation/dto/reschedule-appointment.dto';
 
@@ -40,7 +40,7 @@ export class AppointmentRescheduleHandler {
     db: DrizzleDatabase,
     appointmentId: string,
     userId: string,
-    user?: AuthenticatedUser,
+    user: AuthenticatedUser | undefined,
   ): Promise<any> {
     const apt = await db.query.appointments.findFirst({
       where: eq(appointments.id, appointmentId),
@@ -168,10 +168,12 @@ export class AppointmentRescheduleHandler {
     dto: RescheduleAppointmentDto,
     userId: string,
     findById: (id: string) => Promise<AppointmentEntity | null>,
-    user?: AuthenticatedUser,
-    queuePositionRecalculationService?: QueuePositionRecalculationService,
-    clinicConfig?: ClinicConfigService,
-    clinicTimeService?: ClinicTimeService,
+    user: AuthenticatedUser | undefined,
+    queuePositionRecalculationService:
+      | QueuePositionRecalculationService
+      | undefined,
+    clinicConfig: ClinicConfigService | undefined,
+    clinicTimeService: ClinicTimeService,
   ): Promise<AppointmentEntity> {
     const targetDate = dto.target_date;
 
@@ -356,9 +358,7 @@ export class AppointmentRescheduleHandler {
       const h = Number.isNaN(startH) ? 8 : startH;
       const m = Number.isNaN(startM) ? 0 : startM;
       const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
-      const tz =
-        clinicTimeService?.getTimezone() ||
-        (clinicConfig ? await clinicConfig.getTimezone() : 'Asia/Jakarta');
+      const tz = clinicTimeService.getTimezone();
 
       const baseStart = new Date(
         Temporal.PlainDateTime.from(`${targetDate}T${timeStr}`)

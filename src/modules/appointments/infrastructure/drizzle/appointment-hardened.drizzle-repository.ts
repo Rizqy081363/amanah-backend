@@ -1,4 +1,5 @@
 import { ClinicConfigService } from '@common/clinic-config';
+import { ClinicTimeService } from '@common/time/clinic-time.service';
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import {
   and,
@@ -42,6 +43,7 @@ import {
   StaleStatusError,
 } from '../../domain/errors/appointment-domain.errors';
 import { computeConsultationMetrics } from '../../domain/helpers/consultation-duration.helper';
+import { isAppointmentWithinCheckInWindow } from '../../domain/services/appointment-check-in-window.predicate';
 import {
   type AppointmentRecord,
   resolveAllowedActions,
@@ -58,6 +60,7 @@ export class AppointmentHardenedDrizzleRepository
   constructor(
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,
+    private readonly clinicTimeService: ClinicTimeService,
     @Optional()
     private readonly clinicConfig?: ClinicConfigService,
     private readonly policyReader?: SchedulePolicyReader,
@@ -618,6 +621,16 @@ export class AppointmentHardenedDrizzleRepository
       allowedActions: resolveAllowedActions(status, {
         hasDoctor: Boolean(apt.practitionerId || apt.practitioner),
         hasRoom: Boolean(apt.roomId || apt.clinicRoom),
+        canCheckIn:
+          status === DOMAIN_APPOINTMENT_STATUS.BOOKED && apt.scheduledDate
+            ? isAppointmentWithinCheckInWindow({
+                scheduledDate: apt.scheduledDate,
+                scheduledStartTime: apt.scheduledStartTime,
+                scheduledEndTime: apt.scheduledEndTime,
+                todayDateStr: this.clinicTimeService.today(),
+                currentTimeStr: this.clinicTimeService.getCurrentTimeString(),
+              }).isOpen
+            : true,
       }),
       estimatedStartAt,
       estimatedEndAt,

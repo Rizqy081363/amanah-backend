@@ -1,5 +1,4 @@
 import { ClinicConfigService } from '@common/clinic-config';
-import type { AuthenticatedUser } from '../../../../common/auth';
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import {
   and,
@@ -14,6 +13,7 @@ import {
   or,
   sql,
 } from 'drizzle-orm';
+import type { AuthenticatedUser } from '../../../../common/auth';
 import { decodeCursor, encodeCursor } from '../../../../common/pagination';
 import { ClinicTimeService } from '../../../../common/time/clinic-time.service';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
@@ -46,22 +46,21 @@ import { RescheduleAppointmentDto } from '../../presentation/dto/reschedule-appo
 import { AppointmentAdminHandler } from './appointment-admin.handler';
 import { AppointmentCreationHandler } from './appointment-creation.handler';
 import { AppointmentRecordMapper } from './appointment-record.mapper';
+import { APPOINTMENT_RELATIONS } from './appointment-relations.constant';
 import { AppointmentRescheduleHandler } from './appointment-reschedule.handler';
 import { AppointmentStatusHandler } from './appointment-status.handler';
-import { APPOINTMENT_RELATIONS } from './appointment-relations.constant';
 
 @Injectable()
 export class AppointmentDrizzleRepository implements AppointmentRepository {
   constructor(
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,
+    private readonly clinicTimeService: ClinicTimeService,
     @Optional()
     private readonly clinicConfig?: ClinicConfigService,
     private readonly policyReader?: AppointmentPolicyReader,
     @Optional()
     private readonly poliklinikResolver?: AppointmentPoliklinikResolver,
-    @Optional()
-    private readonly clinicTimeService?: ClinicTimeService,
     @Optional()
     private readonly queuePositionRecalculationService?: QueuePositionRecalculationService,
   ) {}

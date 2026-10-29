@@ -3,6 +3,7 @@ import { RedisModule } from '@common/redis/redis.module';
 import { DoctorRosterModule } from '@modules/schedules/doctor-roster/doctor-roster.module';
 import { SCHEDULE_REPOSITORY } from '@modules/schedules/domain/repositories/schedule.repository';
 import { AppointmentOccupationQuery } from '@modules/schedules/infrastructure/drizzle/queries/appointment-occupation.query';
+import { DoctorMySchedulesQuery } from '@modules/schedules/infrastructure/drizzle/queries/doctor-my-schedules.query';
 import { ScheduleConflictQuery } from '@modules/schedules/infrastructure/drizzle/queries/schedule-conflict.query';
 import { SchedulePolicyReader } from '@modules/schedules/infrastructure/drizzle/queries/schedule-policy.reader';
 import {
@@ -58,6 +59,7 @@ import { Module } from '@nestjs/common';
     RoomResolver,
     SchedulePolicyReader,
     ScheduleConflictQuery,
+    DoctorMySchedulesQuery,
     AppointmentOccupationQuery,
     DrizzleRescheduleEligibilityEvaluator,
     DrizzleAdminSessionMutationRepository,
@@ -92,6 +94,7 @@ import { Module } from '@nestjs/common';
     PractitionerResolver,
     RoomResolver,
     ScheduleConflictQuery,
+    DoctorMySchedulesQuery,
     AppointmentOccupationQuery,
     SchedulePolicyReader,
     DrizzleScheduleSessionRepository,

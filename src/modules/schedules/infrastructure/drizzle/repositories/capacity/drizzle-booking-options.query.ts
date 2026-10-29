@@ -16,12 +16,7 @@ import {
   type DateDisplayFormatStyle,
   formatIndoDate,
 } from '@modules/schedules/domain/services/schedule-date.formatter';
-import {
-  BadRequestException,
-  Inject,
-  Injectable,
-  Optional,
-} from '@nestjs/common';
+import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import { and, asc, eq, isNull, or } from 'drizzle-orm';
 
 interface BookingPractitionerItem {
@@ -70,16 +65,11 @@ export class DrizzleBookingOptionsQuery {
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,
     private readonly clinicConfig: ClinicConfigService,
-    @Optional()
-    private readonly clinicTimeService?: ClinicTimeService,
+    private readonly clinicTimeService: ClinicTimeService,
   ) {}
 
   private getTimezone(): string {
-    return (
-      this.clinicTimeService?.getTimezone() ||
-      process.env.CLINIC_TIMEZONE ||
-      'Asia/Jakarta'
-    );
+    return this.clinicTimeService.getTimezone();
   }
 
   async execute(
@@ -252,7 +242,7 @@ export class DrizzleBookingOptionsQuery {
           return {
             id: da.doctorId,
             staffProfileId: staff?.id,
-            sessionId: `session-${da.id}-${dateStr}`,
+            sessionId: da.sessionId,
             name,
             avatarUrl: staff?.avatarUrl || null,
             specialty,

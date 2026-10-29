@@ -29,7 +29,7 @@ export interface SessionNetHoursParams {
 /**
  * Mengonversi format waktu 'HH:mm' atau 'HH:mm:ss' ke total menit sejak 00:00.
  */
-export function parseTimeToMinutes(timeStr: string): number {
+export function parseTimeToMinutes(timeStr?: string | null): number {
   if (!timeStr) return 0;
   const parts = timeStr.trim().split(':');
   const hours = Number(parts[0]) || 0;

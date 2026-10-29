@@ -3,9 +3,7 @@ import { ClinicTimeService } from '@common/time/clinic-time.service';
 import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import { sessionDefs } from '@database/schema';
-import {
-  type ScheduleContextDefinition,
-} from '@modules/schedules/domain/constants/schedule-context.constants';
+import { type ScheduleContextDefinition } from '@modules/schedules/domain/constants/schedule-context.constants';
 import {
   type ScheduleContextEntity,
   type ScheduleProjectionEntity,
@@ -16,7 +14,6 @@ import {
   projectScheduleProjection,
   type ScheduleClosedReason,
 } from '@modules/schedules/domain/schedule-projection';
-import { ScheduleContextResolver } from '@modules/schedules/domain/services/schedule-context-resolver';
 import { AppointmentOccupationQuery } from '@modules/schedules/infrastructure/drizzle/queries/appointment-occupation.query';
 import { SchedulePolicyReader } from '@modules/schedules/infrastructure/drizzle/queries/schedule-policy.reader';
 import { PractitionerResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/practitioner.resolver';
@@ -25,7 +22,6 @@ import {
   Inject,
   Injectable,
   NotFoundException,
-  Optional,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { asc, eq, or } from 'drizzle-orm';
@@ -38,16 +34,11 @@ export class DrizzleScheduleAvailabilityRepository {
     private readonly practitionerResolver: PractitionerResolver,
     private readonly policyReader: SchedulePolicyReader,
     private readonly occupationQuery: AppointmentOccupationQuery,
-    @Optional()
-    private readonly clinicTimeService?: ClinicTimeService,
+    private readonly clinicTimeService: ClinicTimeService,
   ) {}
 
   private getTimezone(): string {
-    return (
-      this.clinicTimeService?.getTimezone() ||
-      process.env.CLINIC_TIMEZONE ||
-      'UTC'
-    );
+    return this.clinicTimeService.getTimezone();
   }
 
   private toScheduleContextEntity(
@@ -185,9 +176,13 @@ export class DrizzleScheduleAvailabilityRepository {
       ),
     });
 
-    const boundaryStartTime = (sessionDef?.defaultStartsAt || '00:00').slice(0, 5);
+    const boundaryStartTime = (sessionDef?.defaultStartsAt || '00:00').slice(
+      0,
+      5,
+    );
     const boundaryEndTime = (sessionDef?.defaultEndsAt || '24:00').slice(0, 5);
-    const label = sessionDef?.label || sessionDef?.code || query.scheduleContextId;
+    const label =
+      sessionDef?.label || sessionDef?.code || query.scheduleContextId;
 
     const context: ScheduleContextDefinition = {
       shift: sessionDef?.code || query.scheduleContextId,
@@ -244,7 +239,10 @@ export class DrizzleScheduleAvailabilityRepository {
       );
     }
 
-    const boundaryStartTime = (sessionDef.defaultStartsAt || '00:00').slice(0, 5);
+    const boundaryStartTime = (sessionDef.defaultStartsAt || '00:00').slice(
+      0,
+      5,
+    );
     const boundaryEndTime = (sessionDef.defaultEndsAt || '24:00').slice(0, 5);
     const label = sessionDef.label || sessionDef.code;
 

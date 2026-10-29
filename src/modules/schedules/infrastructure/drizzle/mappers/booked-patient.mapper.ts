@@ -18,7 +18,7 @@ export class BookedPatientMapper {
 
   static toEntity(
     apt: any,
-    clinicTimeService?: ClinicTimeService,
+    clinicTimeService: ClinicTimeService,
   ): BookedPatientEntity {
     const ageStr = BookedPatientMapper.calculateAgeString(
       apt.patientProfile?.birthDate,
@@ -38,14 +38,9 @@ export class BookedPatientMapper {
       const estEnd = apt.estimatedEndAt
         ? new Date(apt.estimatedEndAt)
         : new Date(estStart.getTime() + 20 * 60_000);
-      const startStr = clinicTimeService
-        ? clinicTimeService.formatTime(estStart).slice(0, 5)
-        : estStart.toISOString().slice(11, 16);
-      const endStr = clinicTimeService
-        ? clinicTimeService.formatTime(estEnd).slice(0, 5)
-        : estEnd.toISOString().slice(11, 16);
-      const tzAbbr =
-        clinicTimeService?.getTimezoneAbbreviation(estStart) || 'WIB';
+      const startStr = clinicTimeService.formatTime(estStart).slice(0, 5);
+      const endStr = clinicTimeService.formatTime(estEnd).slice(0, 5);
+      const tzAbbr = clinicTimeService.getTimezoneAbbreviation(estStart);
       etaRange = `${startStr} - ${endStr} ${tzAbbr}`;
     }
 

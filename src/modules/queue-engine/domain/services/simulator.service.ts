@@ -168,10 +168,10 @@ export class SimulatorService {
         }
       }
 
-      let startMs = Math.max(
-        laneAvailableAt[earliestLaneIdx],
-        firstSegmentStartMs,
-      );
+      let startMs =
+        inServiceTickets.length > 0
+          ? laneAvailableAt[earliestLaneIdx]
+          : Math.max(laneAvailableAt[earliestLaneIdx], firstSegmentStartMs);
 
       // Verify start falls within effective open segments; if in closure gap, advance
       let fits = false;
@@ -179,11 +179,14 @@ export class SimulatorService {
         const segStartMs = seg.start.getTime();
         const segEndMs = seg.end.getTime();
 
-        if (startMs < segStartMs) {
+        if (inServiceTickets.length === 0 && startMs < segStartMs) {
           startMs = segStartMs;
         }
 
         if (startMs >= segStartMs && startMs < segEndMs) {
+          fits = true;
+          break;
+        } else if (inServiceTickets.length > 0 && startMs < segEndMs) {
           fits = true;
           break;
         }

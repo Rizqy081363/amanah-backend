@@ -1,8 +1,3 @@
-import type { AuthenticatedUser } from '../../../common/auth';
-import {
-  DomainForbiddenException,
-  DomainValidationException,
-} from '../../../common/exceptions';
 import {
   BadRequestException,
   ForbiddenException,
@@ -13,11 +8,16 @@ import {
   Optional,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import type { AuthenticatedUser } from '../../../common/auth';
 import { DEFAULT_PAGE_SIZE } from '../../../common/constants';
 import {
   AppointmentCreatedEvent,
   AppointmentStatusChangedEvent,
 } from '../../../common/events';
+import {
+  DomainForbiddenException,
+  DomainValidationException,
+} from '../../../common/exceptions';
 import {
   OutboxEventRecord,
   OutboxService,
@@ -40,6 +40,7 @@ import {
   AppointmentRepository,
 } from '../domain/repositories/appointment.repository';
 import { ActiveTicketPolicyService } from '../domain/services/active-ticket-policy.service';
+import { isAppointmentWithinCheckInWindow } from '../domain/services/appointment-check-in-window.predicate';
 import { toDomainStatus } from '../domain/types/appointment.types';
 import { QueueResponseEnvelope } from '../domain/types/queue-response.type';
 import { AppointmentQueueNavigationService } from '../infrastructure/drizzle/appointment-queue-navigation.service';
@@ -70,6 +71,7 @@ export class AppointmentsService {
     private readonly appointmentRepo: AppointmentRepository,
     private readonly redisService: RedisService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly clinicTimeService: ClinicTimeService,
     @Optional()
     private readonly outboxService?: OutboxService,
     @Optional()
@@ -79,8 +81,6 @@ export class AppointmentsService {
     @Optional()
     @Inject(PUSH_NOTIFICATION_PORT)
     private readonly pushNotification?: PushNotificationPort,
-    @Optional()
-    private readonly clinicTimeService?: ClinicTimeService,
     @Optional()
     private readonly activeTicketPolicy?: ActiveTicketPolicyService,
     @Optional()
@@ -203,11 +203,7 @@ export class AppointmentsService {
     if (!this.queueNavigationService) {
       throw new BadRequestException('Queue navigation service tidak tersedia');
     }
-    const targetDate =
-      query.date ||
-      (this.clinicTimeService
-        ? this.clinicTimeService.today()
-        : new Date().toISOString().split('T')[0]);
+    const targetDate = query.date || this.clinicTimeService.today();
     return this.queueNavigationService.getNavigation(targetDate, query.session);
   }
 
@@ -243,15 +239,12 @@ export class AppointmentsService {
       userId,
       user,
     );
-    await this.eventEmitter.emitAsync(
-      APPOINTMENT_EVENTS.RESCHEDULED,
-      {
-        appointmentId,
-        newDate: dto.target_date,
-        userId,
-        reason: dto.reason,
-      },
-    );
+    await this.eventEmitter.emitAsync(APPOINTMENT_EVENTS.RESCHEDULED, {
+      appointmentId,
+      newDate: dto.target_date,
+      userId,
+      reason: dto.reason,
+    });
     if (this.notificationPublisher) {
       await this.notificationPublisher.publishRescheduled(
         updated,
@@ -343,17 +336,11 @@ export class AppointmentsService {
   }
 
   private getClinicTimezone(): string {
-    return (
-      this.clinicTimeService?.getTimezone() ||
-      process.env.CLINIC_TIMEZONE ||
-      'UTC'
-    );
+    return this.clinicTimeService.getTimezone();
   }
 
   private getNowIso(): string {
-    return this.clinicTimeService
-      ? this.clinicTimeService.nowInstant().toString()
-      : new Date().toISOString();
+    return this.clinicTimeService.nowInstant().toString();
   }
 
   async checkIn(
@@ -405,7 +392,36 @@ export class AppointmentsService {
       return current;
     }
 
-    return this.transitionAppointmentStatus(
+    if (current.appointmentDate) {
+      const checkInEval = isAppointmentWithinCheckInWindow({
+        scheduledDate: current.appointmentDate,
+        scheduledStartTime: current.scheduledStartTime,
+        scheduledEndTime: current.scheduledEndTime,
+        todayDateStr: this.clinicTimeService.today(),
+        currentTimeStr: this.clinicTimeService.getCurrentTimeString(),
+      });
+
+      if (!checkInEval.isOpen) {
+        if (checkInEval.reason === 'TOO_EARLY') {
+          throw new BadRequestException(
+            `Waktu check-in untuk janji temu ini belum dibuka. Check-in dibuka mulai pukul ${checkInEval.openTimeStr} WIB.`,
+          );
+        }
+        if (checkInEval.reason === 'NOT_TODAY') {
+          throw new BadRequestException(
+            `Check-in hanya dapat dilakukan pada hari pelayanan yang dijadwalkan (${current.appointmentDate}).`,
+          );
+        }
+        if (checkInEval.reason === 'EXPIRED') {
+          throw new BadRequestException(
+            `Waktu check-in untuk janji temu ini telah berakhir (tutup pukul ${checkInEval.closeTimeStr} WIB).`,
+          );
+        }
+        throw new BadRequestException('Waktu check-in tidak valid.');
+      }
+    }
+
+    const updated = await this.transitionAppointmentStatus(
       id,
       'WAITING',
       'Check-in kedatangan pasien',
@@ -413,6 +429,22 @@ export class AppointmentsService {
       user,
       expectedVersion,
     );
+
+    if (this.queueEventPublisher && updated?.appointmentDate) {
+      this.queueEventPublisher
+        .publishProgression({
+          eventType: 'checked_in',
+          serviceDate: updated.appointmentDate,
+          appointmentId: updated.id,
+        })
+        .catch((err) => {
+          this.logger.warn(
+            `Failed to publish queue progression on check-in for ${updated.id}: ${err.message}`,
+          );
+        });
+    }
+
+    return updated;
   }
 
   async callPatient(
@@ -814,11 +846,7 @@ export class AppointmentsService {
     practitionerId: string,
     date?: string,
   ): Promise<AppointmentEntity[]> {
-    const targetDate =
-      date ||
-      (this.clinicTimeService
-        ? this.clinicTimeService.today()
-        : new Date().toISOString().split('T')[0]);
+    const targetDate = date || this.clinicTimeService.today();
 
     const result = await this.appointmentRepo.findAll(100, 0, {
       doctorId: practitionerId,
@@ -834,4 +862,3 @@ export class AppointmentsService {
     );
   }
 }
-

@@ -8,12 +8,15 @@ import {
   Optional,
 } from '@nestjs/common';
 import { RedisService } from '../../../../common/redis/redis.service';
+import { ClinicTimeService } from '../../../../common/time/clinic-time.service';
+import { QueueEventPublisher } from '../../../queue-engine/application/services/queue-event-publisher.service';
 import { DOMAIN_APPOINTMENT_STATUS } from '../../domain/constants/appointment-lifecycle.constants';
 import type { AppointmentEntity } from '../../domain/entities/appointment.entity';
 import {
   APPOINTMENT_REPOSITORY,
   type AppointmentRepository,
 } from '../../domain/repositories/appointment.repository';
+import { isAppointmentWithinCheckInWindow } from '../../domain/services/appointment-check-in-window.predicate';
 import { AppointmentNotificationPublisher } from '../appointment-notification.publisher';
 import {
   APPOINTMENT_CHECK_IN_REPOSITORY_PORT,
@@ -45,6 +48,7 @@ export class PerformCheckInUseCase {
     private readonly checkInRepo: AppointmentCheckInRepositoryPort,
     @Inject(REALTIME_EMITTER_PORT)
     private readonly realtimeEmitter: RealtimeEmitterPort,
+    private readonly clinicTimeService: ClinicTimeService,
     @Optional()
     @Inject(PUSH_NOTIFICATION_PORT)
     private readonly pushNotification?: PushNotificationPort,
@@ -52,6 +56,8 @@ export class PerformCheckInUseCase {
     private readonly redisService?: RedisService,
     @Optional()
     private readonly notificationPublisher?: AppointmentNotificationPublisher,
+    @Optional()
+    private readonly queueEventPublisher?: QueueEventPublisher,
   ) {}
 
   async execute(
@@ -149,6 +155,35 @@ export class PerformCheckInUseCase {
       );
     }
 
+    if (appointment.appointmentDate) {
+      const checkInEval = isAppointmentWithinCheckInWindow({
+        scheduledDate: appointment.appointmentDate,
+        scheduledStartTime: appointment.scheduledStartTime,
+        scheduledEndTime: appointment.scheduledEndTime,
+        todayDateStr: this.clinicTimeService.today(),
+        currentTimeStr: this.clinicTimeService.getCurrentTimeString(),
+      });
+
+      if (!checkInEval.isOpen) {
+        if (checkInEval.reason === 'TOO_EARLY') {
+          throw new BadRequestException(
+            `Waktu check-in untuk janji temu ini belum dibuka. Check-in dibuka mulai pukul ${checkInEval.openTimeStr} WIB.`,
+          );
+        }
+        if (checkInEval.reason === 'NOT_TODAY') {
+          throw new BadRequestException(
+            `Check-in hanya dapat dilakukan pada hari pelayanan yang dijadwalkan (${appointment.appointmentDate}).`,
+          );
+        }
+        if (checkInEval.reason === 'EXPIRED') {
+          throw new BadRequestException(
+            `Waktu check-in untuk janji temu ini telah berakhir (tutup pukul ${checkInEval.closeTimeStr} WIB).`,
+          );
+        }
+        throw new BadRequestException('Waktu check-in tidak valid.');
+      }
+    }
+
     // In the queue ticketing model, physically attending patients are never rejected.
     // Check-in transitions status to WAITING and marks physical arrival at clinic.
 
@@ -190,6 +225,20 @@ export class PerformCheckInUseCase {
       queueNumber: Number(updated.queueNumber) || 1,
       practitionerId: updated.staffId || '',
     });
+
+    if (this.queueEventPublisher && updated.appointmentDate) {
+      this.queueEventPublisher
+        .publishProgression({
+          eventType: 'checked_in',
+          serviceDate: updated.appointmentDate,
+          appointmentId: updated.id,
+        })
+        .catch((err) => {
+          this.logger.warn(
+            `Failed to publish queue progression on check-in for ${updated.id}: ${err.message}`,
+          );
+        });
+    }
 
     if (this.notificationPublisher) {
       await this.notificationPublisher.publishCheckedIn(updated, actorUser);

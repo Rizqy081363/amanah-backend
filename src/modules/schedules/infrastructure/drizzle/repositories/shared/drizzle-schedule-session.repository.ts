@@ -1,3 +1,4 @@
+import { ClinicTimeService } from '@common/time/clinic-time.service';
 import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
@@ -5,13 +6,18 @@ import {
   clinicRooms,
   doctorAssignments,
   sessionDefs,
-  sessionSchedules,
   shiftExceptions,
 } from '@database/schema';
-import { ACTIVE_APPOINTMENT_STATUSES } from '@modules/schedules/domain/constants/schedule.constants';
+import { SHIFT_EXCEPTION_TYPE } from '@modules/appointments/domain/constants/appointment-lifecycle.constants';
+import {
+  ACTIVE_APPOINTMENT_STATUSES,
+  isUuid,
+} from '@modules/schedules/domain/constants/schedule.constants';
 import type { ScheduleEntity } from '@modules/schedules/domain/entities/schedule.entity';
+import type { SessionShiftType } from '@modules/schedules/domain/factories/schedule-session.factory';
 import { SchedulePersistenceStatus } from '@modules/schedules/domain/schedule-status';
 import { ScheduleRecordMapper } from '@modules/schedules/infrastructure/drizzle/mappers/schedule-record.mapper';
+import { DoctorMySchedulesQuery } from '@modules/schedules/infrastructure/drizzle/queries/doctor-my-schedules.query';
 import { ScheduleConflictQuery } from '@modules/schedules/infrastructure/drizzle/queries/schedule-conflict.query';
 import { PractitionerResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/practitioner.resolver';
 import {
@@ -22,20 +28,41 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
-import { ClinicConfigService } from '@common/clinic-config/clinic-config.service';
-import { isUUID } from 'class-validator';
-import { and, eq, gte, inArray, lte, or, sql } from 'drizzle-orm';
+import { and, eq, inArray, or, sql } from 'drizzle-orm';
+
+export interface ScheduleSessionFilter {
+  poliklinikId?: string;
+  staffId?: string;
+  date?: string;
+}
+
+export interface MySchedulesFilter {
+  date?: string;
+  startDate?: string;
+  endDate?: string;
+}
 
 @Injectable()
 export class DrizzleScheduleSessionRepository {
+  private readonly resolvedMySchedulesQuery: DoctorMySchedulesQuery;
+
   constructor(
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,
     private readonly practitionerResolver: PractitionerResolver,
     private readonly conflictQuery: ScheduleConflictQuery,
+    private readonly clinicTimeService: ClinicTimeService,
     @Optional()
-    private readonly clinicConfig?: ClinicConfigService,
-  ) {}
+    mySchedulesQuery?: DoctorMySchedulesQuery,
+  ) {
+    this.resolvedMySchedulesQuery =
+      mySchedulesQuery ??
+      new DoctorMySchedulesQuery(
+        db,
+        practitionerResolver,
+        clinicTimeService,
+      );
+  }
 
   async create(
     data: Omit<ScheduleEntity, 'id' | 'createdAt' | 'updatedAt'>,
@@ -56,7 +83,7 @@ export class DrizzleScheduleSessionRepository {
       throw new BadRequestException(`Sesi dinas tidak valid: ${shift}`);
     }
 
-    const sessionLabel = sessionDef.code;
+    const sessionLabel = sessionDef.label || sessionDef.code;
     const targetDate = data.scheduleDate;
     if (!targetDate) {
       throw new BadRequestException('Tanggal jadwal (scheduleDate) wajib diisi');
@@ -81,112 +108,55 @@ export class DrizzleScheduleSessionRepository {
     );
 
     const isAvailable = data.isAvailable ?? true;
+    const exceptionType = isAvailable
+      ? SHIFT_EXCEPTION_TYPE.EXTRA
+      : SHIFT_EXCEPTION_TYPE.LEAVE;
+
     const [exception] = await this.db
       .insert(shiftExceptions)
       .values({
         doctorId: practitionerId,
         serviceDate: targetDate,
         sessionId: sessionDef.id,
-        type: isAvailable ? 'extra' : 'leave',
+        type: exceptionType,
         note: data.notes || sessionLabel,
       })
       .returning();
 
-    const entity =
-      (await this.findById(exception.id)) ||
-      ({
-        id: exception.id,
-        staffId: practitioner.staffProfileId,
-        scheduleDate: targetDate,
-        session: shift,
-        sessionShift: shift,
-        sessionLabel,
-        startTime: defaultStartTime.slice(0, 5),
-        endTime: defaultEndTime.slice(0, 5),
-        roomId,
-        poliklinikId: data.poliklinikId,
-        isAvailable,
-        notes: data.notes || null,
-        createdAt: exception.createdAt,
-        updatedAt: exception.updatedAt,
-      } as any);
+    const entity = await this.findById(exception.id);
+    if (entity) {
+      return entity;
+    }
 
-    return entity;
+    return ScheduleRecordMapper.toEntity({
+      id: exception.id,
+      sessionId: sessionDef.id,
+      practitionerId,
+      scheduleDate: targetDate,
+      sessionLabel,
+      sessionShift: sessionDef.code as SessionShiftType,
+      startTime: defaultStartTime.slice(0, 5),
+      endTime: defaultEndTime.slice(0, 5),
+      roomId,
+      serviceId: data.serviceId || null,
+      status: isAvailable
+        ? SchedulePersistenceStatus.OPEN
+        : SchedulePersistenceStatus.CLOSED,
+      notes: data.notes || null,
+      createdAt: exception.createdAt,
+      updatedAt: exception.updatedAt,
+      practitioner,
+      clinicRoom: null,
+      clinicService: null,
+    });
   }
 
   async findById(id: string): Promise<ScheduleEntity | null> {
-    if (id.startsWith('roster-')) {
-      const daId = id.slice(7, 43);
-      const targetDate = id.slice(44);
-      if (!isUUID(daId)) return null;
-      const da = await this.db.query.doctorAssignments.findFirst({
-        where: eq(doctorAssignments.id, daId),
-        with: {
-          sessionDef: {
-            with: { schedules: true },
-          },
-          preferredRoom: {
-            with: { clinicUnit: true },
-          },
-          practitioner: {
-            with: {
-              staffProfile: {
-                with: { clinicUnit: true },
-              },
-            },
-          },
-        },
-      });
-      if (!da || !da.sessionDef) return null;
-
-      const dayDow = new Date(targetDate).getDay();
-      const sched = da.sessionDef.schedules?.find(
-        (s) => s.dow === dayDow && s.isActive,
-      );
-      const startTime = (
-        sched?.startsAt || da.sessionDef.defaultStartsAt
-      ).slice(0, 5);
-      const endTime = (sched?.endsAt || da.sessionDef.defaultEndsAt).slice(
-        0,
-        5,
-      );
-
-      const exception = await this.db.query.shiftExceptions.findFirst({
-        where: and(
-          eq(shiftExceptions.doctorId, da.doctorId),
-          eq(shiftExceptions.serviceDate, targetDate),
-          eq(shiftExceptions.sessionId, da.sessionId),
-        ),
-      });
-
-      const isLeave = exception?.type === 'leave';
-
-      return ScheduleRecordMapper.toEntity({
-        id,
-        practitionerId: da.doctorId,
-        scheduleDate: targetDate,
-        sessionLabel: da.sessionDef.label,
-        sessionShift: da.sessionDef.code as any,
-        startTime: `${startTime}:00`,
-        endTime: `${endTime}:00`,
-        roomId: da.preferredRoomId,
-        serviceId: da.categoryId,
-        status: isLeave
-          ? SchedulePersistenceStatus.CLOSED
-          : SchedulePersistenceStatus.OPEN,
-        notes: exception?.note || null,
-        createdAt: da.createdAt,
-        updatedAt: da.updatedAt,
-        practitioner: da.practitioner,
-        clinicRoom: da.preferredRoom,
-        clinicService: null,
-      });
-    }
-
-    if (!isUUID(id)) {
+    if (!isUuid(id)) {
       return null;
     }
 
+    // 1. Check shift exception records
     const exception = await this.db.query.shiftExceptions.findFirst({
       where: eq(shiftExceptions.id, id),
       with: {
@@ -206,14 +176,15 @@ export class DrizzleScheduleSessionRepository {
       const sDef = exception.sessionDef;
       const startTime = sDef ? sDef.defaultStartsAt : null;
       const endTime = sDef ? sDef.defaultEndsAt : null;
-      const isLeave = exception.type === 'leave';
+      const isLeave = exception.type === SHIFT_EXCEPTION_TYPE.LEAVE;
 
       return ScheduleRecordMapper.toEntity({
         id: exception.id,
+        sessionId: exception.sessionId,
         practitionerId: exception.doctorId,
         scheduleDate: exception.serviceDate,
         sessionLabel: sDef?.label ?? null,
-        sessionShift: (sDef?.code as any) ?? null,
+        sessionShift: (sDef?.code as SessionShiftType) ?? null,
         startTime,
         endTime,
         roomId: exception.practitioner?.defaultRoomId || null,
@@ -230,6 +201,7 @@ export class DrizzleScheduleSessionRepository {
       });
     }
 
+    // 2. Check doctor assignment records
     const da = await this.db.query.doctorAssignments.findFirst({
       where: eq(doctorAssignments.id, id),
       with: {
@@ -248,18 +220,17 @@ export class DrizzleScheduleSessionRepository {
     });
 
     if (da && da.sessionDef) {
-      const today = new Date().toISOString().slice(0, 10);
-      const startTime = da.sessionDef.defaultStartsAt;
-      const endTime = da.sessionDef.defaultEndsAt;
+      const today = this.clinicTimeService.today();
 
       return ScheduleRecordMapper.toEntity({
         id: da.id,
+        sessionId: da.sessionId,
         practitionerId: da.doctorId,
         scheduleDate: today,
         sessionLabel: da.sessionDef.label,
-        sessionShift: da.sessionDef.code as any,
-        startTime,
-        endTime,
+        sessionShift: da.sessionDef.code as SessionShiftType,
+        startTime: da.sessionDef.defaultStartsAt,
+        endTime: da.sessionDef.defaultEndsAt,
         roomId: da.preferredRoomId,
         serviceId: da.categoryId,
         status: da.isActive
@@ -274,13 +245,14 @@ export class DrizzleScheduleSessionRepository {
       });
     }
 
+    // 3. Check master session definition records
     const sDef = await this.db.query.sessionDefs.findFirst({
       where: eq(sessionDefs.id, id),
       with: { schedules: true },
     });
 
     if (sDef) {
-      const da = await this.db.query.doctorAssignments.findFirst({
+      const activeDa = await this.db.query.doctorAssignments.findFirst({
         where: and(
           eq(doctorAssignments.sessionId, sDef.id),
           eq(doctorAssignments.isActive, true),
@@ -295,24 +267,25 @@ export class DrizzleScheduleSessionRepository {
         },
       });
 
-      const today = new Date().toISOString().slice(0, 10);
+      const today = this.clinicTimeService.today();
+
       return ScheduleRecordMapper.toEntity({
-        id: da?.id || sDef.id,
+        id: activeDa?.id || sDef.id,
         sessionId: sDef.id,
-        practitionerId: da?.doctorId || '',
+        practitionerId: activeDa?.doctorId || '',
         scheduleDate: today,
         sessionLabel: sDef.label,
-        sessionShift: sDef.code as any,
+        sessionShift: sDef.code as SessionShiftType,
         startTime: sDef.defaultStartsAt,
         endTime: sDef.defaultEndsAt,
-        roomId: da?.preferredRoomId || null,
-        serviceId: da?.categoryId || null,
+        roomId: activeDa?.preferredRoomId || null,
+        serviceId: activeDa?.categoryId || null,
         status: SchedulePersistenceStatus.OPEN,
         notes: null,
         createdAt: sDef.createdAt,
         updatedAt: sDef.updatedAt,
-        practitioner: da?.practitioner || null,
-        clinicRoom: da?.preferredRoom || null,
+        practitioner: activeDa?.practitioner || null,
+        clinicRoom: activeDa?.preferredRoom || null,
         clinicService: null,
       });
     }
@@ -323,13 +296,9 @@ export class DrizzleScheduleSessionRepository {
   async findAll(
     limit = 20,
     offset = 0,
-    filters?: {
-      poliklinikId?: string;
-      staffId?: string;
-      date?: string;
-    },
+    filters?: ScheduleSessionFilter,
   ): Promise<ScheduleEntity[]> {
-    const targetDate = filters?.date || new Date().toISOString().slice(0, 10);
+    const targetDate = filters?.date || this.clinicTimeService.today();
     const targetDow = new Date(targetDate).getDay();
 
     let practitionerId: string | undefined;
@@ -388,7 +357,7 @@ export class DrizzleScheduleSessionRepository {
           e.doctorId === da.doctorId &&
           (!e.sessionId || e.sessionId === da.sessionId),
       );
-      const isLeave = ex?.type === 'leave';
+      const isLeave = ex?.type === SHIFT_EXCEPTION_TYPE.LEAVE;
 
       const sched = da.sessionDef.schedules?.find(
         (s) => s.dow === targetDow && s.isActive,
@@ -402,7 +371,7 @@ export class DrizzleScheduleSessionRepository {
         practitionerId: da.doctorId,
         scheduleDate: targetDate,
         sessionLabel: da.sessionDef.label,
-        sessionShift: da.sessionDef.code as any,
+        sessionShift: da.sessionDef.code as SessionShiftType,
         startTime,
         endTime,
         roomId: da.preferredRoomId,
@@ -436,228 +405,15 @@ export class DrizzleScheduleSessionRepository {
 
   async findMySchedules(
     staffId: string,
-    filters?: {
-      date?: string;
-      startDate?: string;
-      endDate?: string;
-    },
+    filters?: MySchedulesFilter,
   ): Promise<ScheduleEntity[]> {
-    const practitioner = await this.practitionerResolver.resolve(staffId);
-    if (!practitioner) {
-      return [];
-    }
-    const targetId = practitioner.id;
-
-    const startDate = filters?.date || filters?.startDate || new Date().toISOString().slice(0, 10);
-    const endDate = filters?.date || filters?.endDate || startDate;
-
-    const [assignments, exceptions, templateSchedules] = await Promise.all([
-      this.db.query.doctorAssignments.findMany({
-        where: eq(doctorAssignments.doctorId, targetId),
-        with: {
-          sessionDef: {
-            with: { schedules: true },
-          },
-          preferredRoom: {
-            with: { clinicUnit: true },
-          },
-          practitioner: {
-            with: {
-              staffProfile: {
-                with: { clinicUnit: true },
-              },
-            },
-          },
-        },
-      }),
-      this.db.query.shiftExceptions.findMany({
-        where: and(
-          eq(shiftExceptions.doctorId, targetId),
-          gte(shiftExceptions.serviceDate, startDate),
-          lte(shiftExceptions.serviceDate, endDate),
-        ),
-      }),
-      this.db.query.sessionSchedules.findMany({
-        where: eq(sessionSchedules.isActive, true),
-        with: {
-          sessionDef: true,
-        },
-      }),
-    ]);
-
-    const results: ScheduleEntity[] = [];
-    const startObj = new Date(startDate);
-    const endObj = new Date(endDate);
-
-    for (let d = new Date(startObj); d <= endObj; d.setDate(d.getDate() + 1)) {
-      const curDateStr = d.toISOString().slice(0, 10);
-      const curDow = d.getDay();
-
-      const dayAssignments = assignments.filter(
-        (da) => da.dow === null || da.dow === curDow,
-      );
-
-      // 1. Process explicit doctor assignments for this day
-      const processedSessionIds = new Set<string>();
-
-      for (const da of dayAssignments) {
-        if (!da.sessionDef || !da.sessionDef.isActive) continue;
-        processedSessionIds.add(da.sessionId);
-        if (!da.isActive) continue; // explicitly deactivated by doctor
-
-        const ex = exceptions.find(
-          (e) =>
-            e.serviceDate === curDateStr &&
-            (!e.sessionId || e.sessionId === da.sessionId),
-        );
-        const isLeave = ex?.type === 'leave';
-
-        const sched = da.sessionDef.schedules?.find(
-          (s) => s.dow === curDow && s.isActive,
-        );
-        const startTime = sched?.startsAt || da.sessionDef.defaultStartsAt;
-        const endTime = sched?.endsAt || da.sessionDef.defaultEndsAt;
-
-        results.push(
-          ScheduleRecordMapper.toEntity({
-            id: da.id,
-            sessionId: da.sessionId,
-            practitionerId: da.doctorId,
-            scheduleDate: curDateStr,
-            sessionLabel: da.sessionDef.label,
-            sessionShift: da.sessionDef.code as any,
-            startTime,
-            endTime,
-            roomId: da.preferredRoomId,
-            serviceId: da.categoryId,
-            status: isLeave
-              ? SchedulePersistenceStatus.CLOSED
-              : SchedulePersistenceStatus.OPEN,
-            notes: ex?.note || null,
-            createdAt: da.createdAt,
-            updatedAt: da.updatedAt,
-            practitioner: da.practitioner,
-            clinicRoom: da.preferredRoom,
-            clinicService: null,
-          }),
-        );
-      }
-
-      // 2. Virtual Baseline: inherit active clinic weekly template for unassigned sessions
-      const dayTemplates = templateSchedules.filter(
-        (ts) => ts.dow === curDow && ts.sessionDef?.isActive,
-      );
-
-      for (const ts of dayTemplates) {
-        if (!ts.sessionDef || processedSessionIds.has(ts.sessionId)) continue;
-
-        const ex = exceptions.find(
-          (e) =>
-            e.serviceDate === curDateStr &&
-            (!e.sessionId || e.sessionId === ts.sessionId),
-        );
-        const isLeave = ex?.type === 'leave';
-
-        const startTime = ts.startsAt || ts.sessionDef.defaultStartsAt;
-        const endTime = ts.endsAt || ts.sessionDef.defaultEndsAt;
-
-        results.push(
-          ScheduleRecordMapper.toEntity({
-            id: `template-${ts.id}`,
-            sessionId: ts.sessionId,
-            practitionerId: targetId,
-            scheduleDate: curDateStr,
-            sessionLabel: ts.sessionDef.label,
-            sessionShift: ts.sessionDef.code as any,
-            startTime,
-            endTime,
-            roomId: practitioner.defaultRoomId || null,
-            serviceId: null,
-            status: isLeave
-              ? SchedulePersistenceStatus.CLOSED
-              : SchedulePersistenceStatus.OPEN,
-            notes: ex?.note || null,
-            createdAt: ts.sessionDef.createdAt,
-            updatedAt: ts.sessionDef.updatedAt,
-            practitioner: practitioner as any,
-            clinicRoom: null,
-            clinicService: null,
-          }),
-        );
-      }
-    }
-
-    if (results.length > 1) {
-      const tz = this.clinicConfig
-        ? await this.clinicConfig.getTimezone()
-        : 'Asia/Jakarta';
-
-      const now = new Date();
-      const formatter = new Intl.DateTimeFormat('en-US', {
-        timeZone: tz,
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        hourCycle: 'h23',
-      });
-      const parts = formatter.formatToParts(now);
-      const partMap: Record<string, string> = {};
-      for (const p of parts) {
-        partMap[p.type] = p.value;
-      }
-      const curHour = parseInt(partMap.hour, 10) || 0;
-      const curMin = parseInt(partMap.minute, 10) || 0;
-      const currentMinutes = curHour * 60 + curMin;
-      const currentDateStr = `${partMap.year}-${partMap.month}-${partMap.day}`;
-
-      const parseTimeToMinutes = (timeStr?: string | null): number => {
-        if (!timeStr) return 0;
-        const clean = timeStr.trim();
-        const p = clean.split(':');
-        const h = parseInt(p[0], 10) || 0;
-        const m = parseInt(p[1], 10) || 0;
-        return h * 60 + m;
-      };
-
-      const calculateScore = (s: ScheduleEntity): number => {
-        const schedDate = s.scheduleDate;
-        const startMin = parseTimeToMinutes(s.startTime);
-        let endMin = parseTimeToMinutes(s.endTime);
-        if (endMin <= startMin) endMin = 1440;
-
-        if (schedDate === currentDateStr) {
-          // Priority 0: Active session right now
-          if (startMin <= currentMinutes && currentMinutes < endMin) {
-            return 0;
-          }
-          // Priority 1: Upcoming session today (soonest start first)
-          if (currentMinutes < startMin) {
-            return 10000 + (startMin - currentMinutes);
-          }
-          // Priority 2: Past session today (most recently ended first)
-          return 20000 + (currentMinutes - endMin);
-        }
-
-        // Priority 3: Future or past dates
-        const dateDiff = Math.abs(
-          new Date(schedDate).getTime() - new Date(currentDateStr).getTime(),
-        );
-        const days = Math.round(dateDiff / (1000 * 60 * 60 * 24));
-        if (schedDate > currentDateStr) {
-          return 30000 + days * 1440 + startMin;
-        }
-        return 40000 + days * 1440;
-      };
-
-      results.sort((a, b) => calculateScore(a) - calculateScore(b));
-    }
-
-    return results;
+    return this.resolvedMySchedulesQuery.execute(staffId, filters);
   }
 
-  async findByPoliAndDate(poliklinikId: string, date: string): Promise<any[]> {
+  async findByPoliAndDate(
+    poliklinikId: string,
+    date: string,
+  ): Promise<ScheduleEntity[]> {
     const list = await this.findAll(100, 0, {
       poliklinikId,
       date,
@@ -669,6 +425,10 @@ export class DrizzleScheduleSessionRepository {
     id: string,
     data: Partial<ScheduleEntity>,
   ): Promise<ScheduleEntity | null> {
+    if (!isUuid(id)) {
+      return null;
+    }
+
     const existing = await this.findById(id);
     if (!existing) return null;
 
@@ -700,7 +460,7 @@ export class DrizzleScheduleSessionRepository {
           where: and(
             eq(shiftExceptions.doctorId, practitionerId),
             eq(shiftExceptions.serviceDate, targetDate),
-            eq(shiftExceptions.type, 'leave'),
+            eq(shiftExceptions.type, SHIFT_EXCEPTION_TYPE.LEAVE),
             targetSessionDefId
               ? eq(shiftExceptions.sessionId, targetSessionDefId)
               : sql`TRUE`,
@@ -720,7 +480,7 @@ export class DrizzleScheduleSessionRepository {
             doctorId: practitionerId,
             serviceDate: targetDate,
             sessionId: targetSessionDefId,
-            type: 'leave',
+            type: SHIFT_EXCEPTION_TYPE.LEAVE,
             note: data.notes || 'Sesi jadwal dinonaktifkan',
           });
         }
@@ -731,7 +491,7 @@ export class DrizzleScheduleSessionRepository {
             and(
               eq(shiftExceptions.doctorId, practitionerId),
               eq(shiftExceptions.serviceDate, targetDate),
-              eq(shiftExceptions.type, 'leave'),
+              eq(shiftExceptions.type, SHIFT_EXCEPTION_TYPE.LEAVE),
               targetSessionDefId
                 ? eq(shiftExceptions.sessionId, targetSessionDefId)
                 : sql`TRUE`,
@@ -751,6 +511,10 @@ export class DrizzleScheduleSessionRepository {
   }
 
   async delete(id: string): Promise<boolean> {
+    if (!isUuid(id)) {
+      throw new NotFoundException(`Format ID jadwal ${id} tidak valid.`);
+    }
+
     const existing = await this.findById(id);
     if (!existing) return false;
 
@@ -775,24 +539,25 @@ export class DrizzleScheduleSessionRepository {
       });
     }
 
-    if (id.startsWith('roster-')) {
-      const daId = id.slice(7, 43);
-      if (!isUUID(daId)) {
-        throw new NotFoundException(`Format ID roster ${id} tidak valid`);
-      }
-      await this.db
-        .update(doctorAssignments)
-        .set({ isActive: false, updatedAt: new Date().toISOString() })
-        .where(eq(doctorAssignments.id, daId));
+    const exception = await this.db.query.shiftExceptions.findFirst({
+      where: eq(shiftExceptions.id, id),
+    });
+    if (exception) {
+      await this.db.delete(shiftExceptions).where(eq(shiftExceptions.id, id));
       return true;
     }
 
-    if (!isUUID(id)) {
-      throw new NotFoundException(`Format ID sesi ${id} tidak valid`);
+    const da = await this.db.query.doctorAssignments.findFirst({
+      where: eq(doctorAssignments.id, id),
+    });
+    if (da) {
+      await this.db
+        .update(doctorAssignments)
+        .set({ isActive: false, updatedAt: new Date().toISOString() })
+        .where(eq(doctorAssignments.id, id));
+      return true;
     }
 
-    await this.db.delete(shiftExceptions).where(eq(shiftExceptions.id, id));
-
-    return true;
+    return false;
   }
 }

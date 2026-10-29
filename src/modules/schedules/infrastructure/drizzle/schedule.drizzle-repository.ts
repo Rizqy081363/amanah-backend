@@ -1,4 +1,5 @@
 import { ClinicConfigService } from '@common/clinic-config/clinic-config.service';
+import { ClinicTimeService } from '@common/time/clinic-time.service';
 import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import type { NotificationPublisher } from '@modules/notifications/contracts/domain-event.interface';
@@ -71,6 +72,7 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
   constructor(
     @Inject(DRIZZLE_SOURCE)
     db: DrizzleDatabase,
+    private readonly clinicTimeService: ClinicTimeService,
     @Optional()
     @Inject(NOTIFICATION_PUBLISHER)
     notificationPublisher?: NotificationPublisher,
@@ -94,6 +96,7 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
     @Optional() clinicConfigService?: ClinicConfigService,
   ) {
     const resolvedConfig = clinicConfigService ?? new ClinicConfigService(db);
+    const resolvedTimeService = this.clinicTimeService;
     const resolvedPractitioner =
       practitionerResolver ?? new PractitionerResolver(db);
     const resolvedRoom = roomResolver ?? new RoomResolver(db);
@@ -109,7 +112,7 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
         db,
         resolvedPractitioner,
         resolvedConflict,
-        resolvedConfig,
+        resolvedTimeService,
       );
     this.dayRepo =
       dayRepo ?? new DrizzleScheduleDayRepository(db, resolvedPractitioner);
@@ -122,6 +125,7 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
         resolvedPractitioner,
         resolvedPolicy,
         resolvedOccupation,
+        resolvedTimeService,
       );
     this.capacityRepo =
       capacityRepo ??
@@ -145,9 +149,14 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
     }
     this.patientRepo =
       patientRepo ??
-      new DrizzleSchedulePatientRepository(db, resolvedPractitioner);
+      new DrizzleSchedulePatientRepository(
+        db,
+        resolvedPractitioner,
+        resolvedTimeService,
+      );
     this.clinicalPractitionerRepo =
-      clinicalPractitionerRepo ?? new DrizzleClinicalPractitionerRepository(db);
+      clinicalPractitionerRepo ??
+      new DrizzleClinicalPractitionerRepository(db, resolvedTimeService);
     this.adminListQuery =
       adminListQuery ??
       new DrizzleAdminDoctorScheduleListQuery(db, resolvedPolicy);
@@ -166,10 +175,13 @@ export class ScheduleDrizzleRepository implements ScheduleRepository {
         resolvedRoom,
         resolvedConflict,
         this.adminDetailQuery,
+        undefined,
+        resolvedTimeService,
       );
     this.bookingOptionsQuery = new DrizzleBookingOptionsQuery(
       db,
       resolvedConfig,
+      resolvedTimeService,
     );
   }
 

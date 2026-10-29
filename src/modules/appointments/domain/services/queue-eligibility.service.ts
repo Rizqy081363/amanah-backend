@@ -58,7 +58,12 @@ export class QueueEligibilityService {
   static resolveAllowedActions(
     status: AppointmentStatus,
     contextOrAheadCount:
-      | { hasDoctor?: boolean; hasRoom?: boolean; aheadCount?: number }
+      | {
+          hasDoctor?: boolean;
+          hasRoom?: boolean;
+          aheadCount?: number;
+          canCheckIn?: boolean;
+        }
       | number = 0,
   ): AppointmentAction[] {
     const context =
@@ -66,7 +71,12 @@ export class QueueEligibilityService {
         ? { aheadCount: contextOrAheadCount, hasDoctor: true, hasRoom: true }
         : contextOrAheadCount;
 
-    const { hasDoctor = false, hasRoom = false, aheadCount = 0 } = context;
+    const {
+      hasDoctor = false,
+      hasRoom = false,
+      aheadCount = 0,
+      canCheckIn = true,
+    } = context;
     const isFullyAssigned = Boolean(hasDoctor && hasRoom);
 
     switch (status) {
@@ -74,7 +84,7 @@ export class QueueEligibilityService {
         const actions: AppointmentAction[] = [];
         if (!hasDoctor) actions.push('ASSIGN_DOCTOR');
         if (!hasRoom) actions.push('ASSIGN_ROOM');
-        if (isFullyAssigned) actions.push('CHECK_IN');
+        if (isFullyAssigned && canCheckIn) actions.push('CHECK_IN');
         actions.push('CANCEL');
         return actions;
       }

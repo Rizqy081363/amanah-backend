@@ -9,7 +9,7 @@ import {
 } from './queue-recalculation.service';
 
 export interface ProgressionEventPayload extends RecalculationParams {
-  eventType: 'completed' | 'in_service' | 'called' | 'cancelled' | 'requeued';
+  eventType: 'completed' | 'in_service' | 'called' | 'cancelled' | 'requeued' | 'checked_in';
   timestamp?: string;
 }
 
@@ -31,6 +31,7 @@ export class QueueEventPublisher {
     const routingKey = `queue.progression.${payload.eventType}`;
     const message = {
       ...payload,
+      triggerEvent: payload.eventType,
       timestamp: payload.timestamp || new Date().toISOString(),
     };
 
