@@ -2,6 +2,15 @@ import { StaffEntity } from '../entities/staff.entity';
 
 export const STAFF_REPOSITORY = 'STAFF_REPOSITORY';
 
+export interface FindAllStaffOptions {
+  status?: string;
+  staffType?: string;
+  profession?: string;
+  poliklinikId?: string;
+  search?: string;
+  includePendingInvitations?: boolean;
+}
+
 export abstract class StaffRepository {
   abstract create(
     data: Omit<StaffEntity, 'id' | 'createdAt' | 'updatedAt'>,
@@ -11,7 +20,7 @@ export abstract class StaffRepository {
   abstract findByCardNumber(cardNum: string): Promise<StaffEntity | null>;
   abstract findByProfession(profession: string): Promise<StaffEntity[]>;
   abstract findByPoliklinik(poliId: string): Promise<StaffEntity[]>;
-  abstract findAll(): Promise<StaffEntity[]>;
+  abstract findAll(options?: FindAllStaffOptions): Promise<StaffEntity[]>;
   abstract update(
     id: string,
     data: Partial<StaffEntity>,
