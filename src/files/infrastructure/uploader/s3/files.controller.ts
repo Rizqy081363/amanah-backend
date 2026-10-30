@@ -17,6 +17,10 @@ import {
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
 import { HybridAuthGuard } from '../../../../common/auth/hybrid-auth.guard';
+import {
+  PermissionsGuard,
+  RequirePermissions,
+} from '../../../../common/auth';
 import { FileResponseDto } from './dto/file-response.dto';
 import { FilesS3Service } from './files.service';
 
@@ -44,7 +48,8 @@ export class FilesS3Controller {
     description: 'Format berkas tidak valid atau gagal diproses',
   })
   @ApiBearerAuth('access-token')
-  @UseGuards(HybridAuthGuard)
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('profile:update')
   @Post('upload')
   @ApiConsumes('multipart/form-data')
   @ApiBody({

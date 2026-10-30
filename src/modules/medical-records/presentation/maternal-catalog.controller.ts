@@ -1,8 +1,10 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Public } from '../../../common/auth';
 import { MaternalCatalogService } from '../application/services/maternal-catalog.service';
 
 @ApiTags('Maternal Intake Catalogs (Dynamic Questionnaire & Master Options)')
+@Public()
 @Controller({ path: 'medical-records/maternal/catalogs', version: '1' })
 export class MaternalCatalogController {
   constructor(private readonly catalogService: MaternalCatalogService) {}

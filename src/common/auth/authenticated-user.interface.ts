@@ -1,4 +1,8 @@
-import { SYSTEM_ROLES, type SystemRole } from '../../auth/constants/auth.constants';
+import {
+  ROLE_AUDIENCE,
+  type RoleAudience,
+  type RoleTier,
+} from '../constants/role-audience.constants';
 
 export interface AuthenticatedStaffProfile {
   id: string;
@@ -37,8 +41,8 @@ interface AuthenticatedUserRole {
   id?: string;
   code?: string;
   name: string;
-  tier?: 'macro' | 'micro';
-  audience: 'internal' | 'external';
+  tier?: RoleTier;
+  audience: RoleAudience;
   isClinical?: boolean;
 }
 
@@ -46,11 +50,11 @@ export interface AuthenticatedUser {
   id: string;
   email: string;
   name: string;
-  systemRole: SystemRole;
+  systemRole?: string;
   roleCode: string;
   roles: string[];
   role: AuthenticatedUserRole | null;
-  audience: 'internal' | 'external';
+  audience: RoleAudience;
   permissions?: string[];
   staff: AuthenticatedStaffProfile | null;
   patient: AuthenticatedPatientProfile | null;
@@ -58,10 +62,10 @@ export interface AuthenticatedUser {
 }
 
 /**
- * Type guard for Admin principal.
+ * Type guard for Admin principal (Super Administrator or wildcard permission holder).
  */
 export function isAdminUser(user: AuthenticatedUser): boolean {
-  return user.systemRole === SYSTEM_ROLES.ADMIN;
+  return user.roleCode === 'admin' || (user.permissions?.includes('*') ?? false);
 }
 
 /**
@@ -70,7 +74,7 @@ export function isAdminUser(user: AuthenticatedUser): boolean {
 export function isStaffUser(
   user: AuthenticatedUser,
 ): user is AuthenticatedUser & { staff: AuthenticatedStaffProfile } {
-  return user.systemRole === SYSTEM_ROLES.STAF && user.staff !== null;
+  return user.audience === ROLE_AUDIENCE.INTERNAL && user.staff !== null;
 }
 
 /**
@@ -93,5 +97,5 @@ export function isClinicalStaff(
 export function isPatientUser(
   user: AuthenticatedUser,
 ): user is AuthenticatedUser & { patient: AuthenticatedPatientProfile } {
-  return user.systemRole === SYSTEM_ROLES.PATIENT && user.patient !== null;
+  return user.audience === ROLE_AUDIENCE.EXTERNAL && user.patient !== null;
 }

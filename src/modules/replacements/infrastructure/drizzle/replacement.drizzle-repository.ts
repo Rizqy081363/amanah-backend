@@ -19,7 +19,11 @@ import {
 import { ClinicTimeService } from '../../../../common/time/clinic-time.service';
 import { NotificationGatewayService } from '../../../notifications/application/services/notification-gateway.service';
 import { RealtimeGatewayPort } from '../../../notifications/contracts/realtime-gateway.interface';
-import { REALTIME_GATEWAY_PORT } from '../../../notifications/notifications.constants';
+import {
+  REALTIME_GATEWAY_PORT,
+  REALTIME_ROOMS,
+} from '../../../notifications/notifications.constants';
+import { NOTIFICATION_AUDIENCE } from '../../../../common/constants/notification-audience.constants';
 import { ReplacementOpportunityEntity } from '../../domain/entities/replacement-opportunity.entity';
 import {
   type ReplacementDateFacetItem,
@@ -287,13 +291,10 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
       .returning({ id: replacementOpportunities.id });
 
     void Promise.allSettled([
-      this.realtimeGateway?.emitToRoom?.('room:clinic', 'replacement:updated', {
+      this.realtimeGateway?.emitToRoom?.(REALTIME_ROOMS.clinic, 'replacement:updated', {
         status: REPLACEMENT_OPPORTUNITY_STATUS.CANCELLED,
       }),
       this.realtimeGateway?.emitToRole?.('admin', 'replacement:updated', {
-        status: REPLACEMENT_OPPORTUNITY_STATUS.CANCELLED,
-      }),
-      this.realtimeGateway?.emitToRole?.('staf', 'replacement:updated', {
         status: REPLACEMENT_OPPORTUNITY_STATUS.CANCELLED,
       }),
     ]);
@@ -356,17 +357,12 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
     void this.dispatchNewOpportunityNotification(inserted.id, data.workDate);
 
     void Promise.allSettled([
-      this.realtimeGateway?.emitToRoom?.('room:clinic', 'replacement:updated', {
+      this.realtimeGateway?.emitToRoom?.(REALTIME_ROOMS.clinic, 'replacement:updated', {
         opportunityId: inserted.id,
         status: REPLACEMENT_OPPORTUNITY_STATUS.OPEN,
         workDate: data.workDate,
       }),
       this.realtimeGateway?.emitToRole?.('admin', 'replacement:updated', {
-        opportunityId: inserted.id,
-        status: REPLACEMENT_OPPORTUNITY_STATUS.OPEN,
-        workDate: data.workDate,
-      }),
-      this.realtimeGateway?.emitToRole?.('staf', 'replacement:updated', {
         opportunityId: inserted.id,
         status: REPLACEMENT_OPPORTUNITY_STATUS.OPEN,
         workDate: data.workDate,
@@ -483,7 +479,7 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
     void this.dispatchClaimNotifications(opportunityId);
 
     void Promise.allSettled([
-      this.realtimeGateway?.emitToRoom?.('room:clinic', 'replacement:updated', {
+      this.realtimeGateway?.emitToRoom?.(REALTIME_ROOMS.clinic, 'replacement:updated', {
         opportunityId,
         status: REPLACEMENT_OPPORTUNITY_STATUS.CLAIMED,
         workDate: updated.workDate,
@@ -493,13 +489,8 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
         status: REPLACEMENT_OPPORTUNITY_STATUS.CLAIMED,
         workDate: updated.workDate,
       }),
-      this.realtimeGateway?.emitToRole?.('staf', 'replacement:updated', {
-        opportunityId,
-        status: REPLACEMENT_OPPORTUNITY_STATUS.CLAIMED,
-        workDate: updated.workDate,
-      }),
       this.realtimeGateway?.emitToRoom?.(
-        'room:clinic',
+        REALTIME_ROOMS.clinic,
         'doctor_schedule:refresh',
         {
           date: updated.workDate,
@@ -612,7 +603,7 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
     void this.dispatchClaimNotifications(opportunityId);
 
     void Promise.allSettled([
-      this.realtimeGateway?.emitToRoom?.('room:clinic', 'replacement:updated', {
+      this.realtimeGateway?.emitToRoom?.(REALTIME_ROOMS.clinic, 'replacement:updated', {
         opportunityId,
         status: REPLACEMENT_OPPORTUNITY_STATUS.CLAIMED,
         workDate: updated.workDate,
@@ -622,13 +613,8 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
         status: REPLACEMENT_OPPORTUNITY_STATUS.CLAIMED,
         workDate: updated.workDate,
       }),
-      this.realtimeGateway?.emitToRole?.('staf', 'replacement:updated', {
-        opportunityId,
-        status: REPLACEMENT_OPPORTUNITY_STATUS.CLAIMED,
-        workDate: updated.workDate,
-      }),
       this.realtimeGateway?.emitToRoom?.(
-        'room:clinic',
+        REALTIME_ROOMS.clinic,
         'doctor_schedule:refresh',
         {
           date: updated.workDate,
@@ -696,7 +682,7 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
     }
 
     void Promise.allSettled([
-      this.realtimeGateway?.emitToRoom?.('room:clinic', 'replacement:updated', {
+      this.realtimeGateway?.emitToRoom?.(REALTIME_ROOMS.clinic, 'replacement:updated', {
         opportunityId,
         status: REPLACEMENT_OPPORTUNITY_STATUS.CANCELLED,
         workDate: updated.workDate,
@@ -706,13 +692,8 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
         status: REPLACEMENT_OPPORTUNITY_STATUS.CANCELLED,
         workDate: updated.workDate,
       }),
-      this.realtimeGateway?.emitToRole?.('staf', 'replacement:updated', {
-        opportunityId,
-        status: REPLACEMENT_OPPORTUNITY_STATUS.CANCELLED,
-        workDate: updated.workDate,
-      }),
       this.realtimeGateway?.emitToRoom?.(
-        'room:clinic',
+        REALTIME_ROOMS.clinic,
         'doctor_schedule:refresh',
         {
           date: updated.workDate,
@@ -753,9 +734,9 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
         commandId: `rep-new-${opportunityId}-${Date.now()}`,
         sourceDomain: 'replacement',
         target: {
-          type: 'role',
-          roles: ['staf'],
+          type: 'broadcast',
         },
+        audience: NOTIFICATION_AUDIENCE.INTERNAL,
         category: 'shift',
         content: {
           title: 'Peluang Jadwal Pengganti Baru',

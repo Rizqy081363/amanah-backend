@@ -1,11 +1,13 @@
 import { Controller, Get, Inject } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { asc, eq } from 'drizzle-orm';
+import { Public } from '../../../common/auth';
 import { DRIZZLE_SOURCE } from '../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../database/drizzle/drizzle.provider';
 import { occupations } from '../../../database/schema';
 
 @ApiTags('Occupations')
+@Public()
 @Controller({ path: 'occupations', version: '1' })
 export class OccupationsController {
   constructor(

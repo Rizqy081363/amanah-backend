@@ -22,9 +22,6 @@ import { CurrentUser } from '../../../common/auth/current-user.decorator';
 import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
 import { PermissionsGuard } from '../../../common/auth/permissions.guard';
 import { RequirePermissions } from '../../../common/auth/permissions.decorator';
-import { Roles } from '../../../common/auth/roles.decorator';
-import { RolesGuard } from '../../../common/auth/roles.guard';
-import { SYSTEM_ROLES } from '../../../common/auth/roles.enum';
 import { AuthenticatedUser } from '../../../common/auth/authenticated-user.interface';
 import { CancelAppointmentUseCase } from '../application/use-cases/cancel-appointment.use-case';
 import { CompleteServiceUseCase } from '../application/use-cases/complete-service.use-case';
@@ -83,8 +80,8 @@ export class AppointmentOperationsController {
   }
 
   @ApiBearerAuth('access-token')
-  @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF, SYSTEM_ROLES.PATIENT)
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('appointments:manage', 'appointments:book')
   @Post(':id/cancel')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({

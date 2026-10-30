@@ -16,16 +16,15 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import { PermissionsGuard, RequirePermissions } from '../../../common/auth';
 import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
-import { Roles } from '../../../common/auth/roles.decorator';
-import { RolesGuard } from '../../../common/auth/roles.guard';
-import { SYSTEM_ROLES } from '../../../common/auth/roles.enum';
 import { AuditService } from '../application/audit.service';
 import { QueryAuditLogDto } from './dto/query-audit-log.dto';
 
 @ApiTags('Audit Logs (Jejak Rekaman Audit)')
 @ApiBearerAuth('access-token')
-@UseGuards(HybridAuthGuard, RolesGuard)
+@UseGuards(HybridAuthGuard, PermissionsGuard)
+@RequirePermissions('users:manage')
 @Controller({
   path: 'audit-logs',
   version: '1',
@@ -35,7 +34,6 @@ export class AuditController {
 
   @Get()
   @HttpCode(HttpStatus.OK)
-  @Roles(SYSTEM_ROLES.ADMIN)
   @ApiOperation({
     summary: 'Melihat seluruh riwayat audit perubahan sistem (Khusus Admin)',
     description:
@@ -50,7 +48,6 @@ export class AuditController {
 
   @Get(':id')
   @HttpCode(HttpStatus.OK)
-  @Roles(SYSTEM_ROLES.ADMIN)
   @ApiOperation({
     summary: 'Melihat detail satu catatan audit spesifik berdasarkan ID',
     description:

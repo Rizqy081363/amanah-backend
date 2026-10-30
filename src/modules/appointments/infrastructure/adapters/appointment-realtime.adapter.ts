@@ -1,6 +1,9 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { SocketIoRealtimeGateway } from '../../../../modules/notifications/infrastructure/realtime/socket-io-realtime.gateway';
-import { REALTIME_GATEWAY_PORT } from '../../../../modules/notifications/notifications.constants';
+import {
+  REALTIME_GATEWAY_PORT,
+  REALTIME_ROOMS,
+} from '../../../../modules/notifications/notifications.constants';
 import type {
   PatientCalledEvent,
   RealtimeEmitterPort,
@@ -23,7 +26,7 @@ export class AppointmentRealtimeAdapter implements RealtimeEmitterPort {
         this.realtimeGateway.server.emit('appointment:status_changed', event);
       }
       await this.realtimeGateway.emitToRoom?.(
-        'room:clinic',
+        REALTIME_ROOMS.clinic,
         'appointment:status_changed',
         event,
       );
@@ -39,7 +42,7 @@ export class AppointmentRealtimeAdapter implements RealtimeEmitterPort {
         this.realtimeGateway.server.emit('appointment:called', event);
       }
       await this.realtimeGateway.emitToRoom?.(
-        'room:clinic',
+        REALTIME_ROOMS.clinic,
         'appointment:called',
         event,
       );

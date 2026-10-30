@@ -2,23 +2,21 @@ import { NameInitialsHelper } from '../../../common/utils/name-initials.helper';
 import { formatBloodTypeDisplay } from '../../../modules/patients/domain/data/patient-reference.data';
 import { STAFF_STATUS } from '../../../modules/staffs/domain/constants/staff-invitation.constants';
 import {
-  resolveSystemRole,
-  SYSTEM_ROLES,
-  type SystemRole,
-} from '../../constants/auth.constants';
+  ROLE_AUDIENCE,
+  type RoleAudience,
+} from '../../../common/constants/role-audience.constants';
 
 export class AuthUserMapper {
   static formatUser(userRecord: any, hasPendingInvitation = false) {
     const { authAccounts: _authAccounts, ...sanitizedUser } = userRecord;
 
-    const primaryRole = sanitizedUser.userRoles_userId?.[0]?.role;
-    const hasStaffProfiles = Boolean(
-      sanitizedUser.staffProfiles && sanitizedUser.staffProfiles.length > 0,
-    );
-    const systemRole: SystemRole = resolveSystemRole(
-      primaryRole?.code,
-      hasStaffProfiles,
-    );
+    const role =
+      sanitizedUser.userRoles_userId?.[0]?.role ??
+      sanitizedUser.staffProfiles?.[0]?.role ??
+      null;
+    const roleCode = role?.code ?? null;
+    const audience: RoleAudience | null = role?.audience ?? null;
+    const s = sanitizedUser.staffProfiles?.[0];
 
     const p = sanitizedUser.patientProfiles?.[0];
     const primaryPatientAddress =
@@ -59,8 +57,6 @@ export class AuthUserMapper {
           status: p.status,
         }
       : null;
-
-    const s = sanitizedUser.staffProfiles?.[0];
 
     // Compute canonical avatar object and initials
     const fullName =
@@ -170,9 +166,9 @@ export class AuthUserMapper {
       : null;
 
     let needsOnboarding = false;
-    if (systemRole === SYSTEM_ROLES.ADMIN) {
+    if (roleCode === 'admin') {
       needsOnboarding = false;
-    } else if (systemRole === SYSTEM_ROLES.STAF) {
+    } else if (audience === ROLE_AUDIENCE.INTERNAL || Boolean(s)) {
       if (hasPendingInvitation) {
         needsOnboarding = true;
       } else if (!s || s.status === STAFF_STATUS.INACTIVE) {
@@ -198,23 +194,20 @@ export class AuthUserMapper {
       }
     }
 
-    const audience: 'internal' | 'external' =
-      primaryRole?.audience ?? (s ? 'internal' : 'external');
-
     return {
       ...sanitizedUser,
       avatarUrl: avatar.url,
       avatar,
-      systemRole,
+      roleCode,
       audience,
-      role: primaryRole
+      role: role
         ? {
-            id: primaryRole.id,
-            code: primaryRole.code,
-            name: primaryRole.name,
-            tier: primaryRole.tier,
-            audience: primaryRole.audience,
-            isClinical: primaryRole.isClinical,
+            id: role.id,
+            code: role.code,
+            name: role.name,
+            tier: role.tier,
+            audience: role.audience,
+            isClinical: role.isClinical,
           }
         : null,
       permissions: Array.from(permissionSet),

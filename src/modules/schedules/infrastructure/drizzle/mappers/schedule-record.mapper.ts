@@ -13,6 +13,10 @@ type StaffProfileRecord = {
   positionTitle?: string | null;
   primaryUnitId?: string | null;
   avatarUrl?: string | null;
+  role?: {
+    code?: string | null;
+    name?: string | null;
+  } | null;
   clinicUnit?: {
     name?: string | null;
   } | null;
@@ -126,10 +130,9 @@ function mapScheduleRecordToEntity(
       record.practitioner?.staffProfile?.fullName ||
       record.practitioner?.displayName ||
       '',
-    profession:
-      record.practitioner?.medicalSpecialty?.name ||
-      record.practitioner?.staffProfile?.positionTitle ||
-      '',
+    profession: record.practitioner?.medicalSpecialty?.name ?? '',
+    roleCode: record.practitioner?.staffProfile?.role?.code ?? null,
+    roleName: record.practitioner?.staffProfile?.role?.name ?? null,
     scheduleDate: record.scheduleDate,
     specificDate: record.scheduleDate,
     poliklinikId:

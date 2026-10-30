@@ -18,7 +18,7 @@ import {
   user,
   users,
 } from '../../../database/schema';
-import { USER_STATUS } from '../../constants/auth.constants';
+import { USER_STATUS } from '../../../common/constants/user-status.constants';
 import { AuthUpdateDto } from '../../dto/auth-update.dto';
 import { DeleteAccountResponseDto } from '../../dto/delete-account-response.dto';
 import type { JwtPayloadType } from '../../strategies/types/jwt-payload.type';

@@ -16,9 +16,7 @@ import {
 } from '@nestjs/swagger';
 import { count, eq, sql } from 'drizzle-orm';
 import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
-import { RolesGuard } from '../../../common/auth/roles.guard';
-import { Roles } from '../../../common/auth/roles.decorator';
-import { SYSTEM_ROLES } from '../../../common/auth/roles.enum';
+import { PermissionsGuard, RequirePermissions } from '../../../common/auth';
 import { HttpCache } from '../../../common/decorators/http-cache.decorator';
 import { DRIZZLE_SOURCE } from '../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../database/drizzle/drizzle.provider';
@@ -31,8 +29,8 @@ import { QueryClinicAnalyticsDto } from './dto/query-clinic-analytics.dto';
 
 @ApiTags('Clinics Analytics (Statistik & Kunjungan Poliklinik)')
 @ApiBearerAuth('access-token')
-@UseGuards(HybridAuthGuard, RolesGuard)
-@Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+@UseGuards(HybridAuthGuard, PermissionsGuard)
+@RequirePermissions('clinics:manage')
 @ApiUnauthorizedResponse({
   description: 'Sesi autentikasi tidak valid atau token tidak disertakan',
 })

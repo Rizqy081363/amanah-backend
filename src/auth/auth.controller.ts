@@ -28,7 +28,13 @@ import {
   ApiUnauthorizedResponse,
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
-import { CurrentUser, HybridAuthGuard } from '../common/auth';
+import {
+  CurrentUser,
+  HybridAuthGuard,
+  PermissionsGuard,
+  Public,
+  RequirePermissions,
+} from '../common/auth';
 import { RateLimit } from '../common/throttling';
 import { zodPipe } from '../common/validation';
 import { AvatarService } from '../modules/avatar/avatar.service';
@@ -86,6 +92,7 @@ export class AuthController {
     groups: ['me'],
   })
   @Post('email/login')
+  @Public()
   @RateLimit({ limit: 5, windowSeconds: 60 })
   @ApiOperation({
     summary: 'Login dengan email dan kata sandi',
@@ -110,6 +117,7 @@ export class AuthController {
     groups: ['me'],
   })
   @Post('google')
+  @Public()
   @RateLimit({ limit: 10, windowSeconds: 60 })
   @ApiOperation({
     summary: 'Autentikasi menggunakan Google ID Token (Mobile / Web)',
@@ -132,6 +140,7 @@ export class AuthController {
   }
 
   @Post('email/register')
+  @Public()
   @RateLimit({ limit: 5, windowSeconds: 60 })
   @ApiOperation({
     summary: 'Registrasi pengguna baru',
@@ -151,6 +160,7 @@ export class AuthController {
   }
 
   @Post('email/confirm')
+  @Public()
   @ApiOperation({
     summary: 'Konfirmasi alamat email',
     description:
@@ -171,6 +181,7 @@ export class AuthController {
   }
 
   @Post('email/confirm/new')
+  @Public()
   @ApiOperation({
     summary: 'Konfirmasi perubahan email baru',
     description:
@@ -191,6 +202,7 @@ export class AuthController {
   }
 
   @Post('forgot/password')
+  @Public()
   @RateLimit({ limit: 10, windowSeconds: 60 })
   @ApiOperation({
     summary: 'Permintaan pemulihan kata sandi',
@@ -210,6 +222,7 @@ export class AuthController {
   }
 
   @Post('reset/password')
+  @Public()
   @ApiOperation({
     summary: 'Reset kata sandi dengan token',
     description:
@@ -233,6 +246,7 @@ export class AuthController {
   }
 
   @Post('otp/resend')
+  @Public()
   @RateLimit({ limit: 5, windowSeconds: 60 })
   @ApiOperation({
     summary: 'Kirim ulang kode OTP (Verifikasi Email atau Lupa Password)',
@@ -251,6 +265,7 @@ export class AuthController {
   }
 
   @Post('email/resend-verification')
+  @Public()
   @RateLimit({ limit: 5, windowSeconds: 60 })
   @ApiOperation({
     summary: 'Kirim ulang kode verifikasi email akun baru',
@@ -273,6 +288,7 @@ export class AuthController {
   }
 
   @Post('email/verify-otp')
+  @Public()
   @RateLimit({ limit: 5, windowSeconds: 60 })
   @ApiOperation({
     summary: 'Verifikasi email dengan kode OTP 6-digit',
@@ -293,6 +309,7 @@ export class AuthController {
   }
 
   @Post('otp/reset-password')
+  @Public()
   @RateLimit({ limit: 5, windowSeconds: 60 })
   @ApiOperation({
     summary: 'Reset kata sandi menggunakan kode OTP 6-digit',
@@ -317,7 +334,8 @@ export class AuthController {
     groups: ['me'],
   })
   @Get('me')
-  @UseGuards(HybridAuthGuard)
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('profile:read')
   @ApiOperation({
     summary: 'Mendapatkan data profil pengguna saat ini',
     description:
@@ -400,7 +418,8 @@ export class AuthController {
     groups: ['me'],
   })
   @Patch('me')
-  @UseGuards(HybridAuthGuard)
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('profile:update')
   @ApiOperation({
     summary: 'Memperbarui profil diri sendiri',
     description:
@@ -429,7 +448,8 @@ export class AuthController {
     groups: ['me'],
   })
   @Post('onboarding/staff')
-  @UseGuards(HybridAuthGuard)
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('app:access')
   @ApiOperation({
     summary: 'Penyelesaian onboarding peran staf klinis (Dokter, Bidan, Staf)',
     description:
@@ -452,7 +472,8 @@ export class AuthController {
 
   @ApiBearerAuth('access-token')
   @Delete('me')
-  @UseGuards(HybridAuthGuard)
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('profile:update')
   @ApiOperation({
     summary: 'Hapus akun sendiri secara permanen (Systemic Account Purge)',
     description:
@@ -482,7 +503,8 @@ export class AuthController {
 
   @ApiBearerAuth('access-token')
   @Patch('me/avatar')
-  @UseGuards(HybridAuthGuard)
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('profile:update')
   @UseInterceptors(
     FileInterceptor('file', {
       limits: { fileSize: 5 * 1024 * 1024 },
@@ -516,7 +538,8 @@ export class AuthController {
 
   @ApiBearerAuth('access-token')
   @Post('me/avatar')
-  @UseGuards(HybridAuthGuard)
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('profile:update')
   @UseInterceptors(
     FileInterceptor('file', {
       limits: { fileSize: 5 * 1024 * 1024 },

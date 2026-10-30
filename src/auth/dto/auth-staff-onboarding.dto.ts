@@ -1,24 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
-
-export enum StaffOnboardingRole {
-  DOCTOR = 'doctor',
-  MIDWIFE = 'midwife',
-  }
+import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class AuthStaffOnboardingDto {
-  @ApiPropertyOptional({
-    description:
-      'Pilihan peran klinis (opsional - server akan menggunakan peran undangan/DB jika telah ditetapkan): doctor, midwife, atau worker/staff',
-    enum: StaffOnboardingRole,
-    example: 'doctor',
-  })
-  @IsEnum(StaffOnboardingRole, {
-    message: 'Peran harus salah satu dari: doctor, midwife, worker, staff',
-  })
-  @IsOptional()
-  role?: StaffOnboardingRole;
-
   @ApiProperty({
     description: 'Nama lengkap staf dengan gelar',
     example: 'dr. Zikri Ahmad, Sp.A',

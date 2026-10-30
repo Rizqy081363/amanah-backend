@@ -1,6 +1,7 @@
 import { Controller, Get, Inject } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { asc, eq } from 'drizzle-orm';
+import { Public } from '../../../../common/auth';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import {
   serviceCategories,
@@ -9,6 +10,7 @@ import {
 } from '../../../../database/schema';
 
 @ApiTags('v2 - Catalog')
+@Public()
 @Controller({ path: 'catalog', version: '2' })
 export class V2CatalogController {
   constructor(@Inject(DRIZZLE_SOURCE) private readonly db: any) {}

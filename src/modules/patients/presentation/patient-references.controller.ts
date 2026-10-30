@@ -1,6 +1,7 @@
 import { Controller, Get, Inject, Query } from '@nestjs/common';
 import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { asc, eq } from 'drizzle-orm';
+import { Public } from '../../../common/auth';
 import { DRIZZLE_SOURCE } from '../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../database/drizzle/drizzle.provider';
 import { occupations } from '../../../database/schema';
@@ -13,6 +14,7 @@ import {
 import { IndonesianRegionService } from '../infrastructure/services/indonesian-region.service';
 
 @ApiTags('Patient Demographic & Region References')
+@Public()
 @Controller({ path: 'patients/reference', version: '1' })
 export class PatientReferencesController {
   constructor(

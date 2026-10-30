@@ -44,7 +44,7 @@ export class ClinicsController {
   @Get()
   @ApiOperation({
     summary:
-      'Mendapatkan seluruh daftar poliklinik aktif (Poli Umum, Poli KIA)',
+      'Mendapatkan seluruh daftar unit poliklinik aktif',
     description:
       'Endpoint publik untuk melihat poliklinik yang tersedia di klinik beserta status operasionalnya.',
   })
@@ -75,7 +75,7 @@ export class ClinicsController {
   @ApiOperation({
     summary: 'Mendapatkan seluruh katalog kategori dan layanan klinik (SSOT)',
     description:
-      'Mengambil hierarki kategori layanan (Layanan Umum, Layanan Kebidanan, dll) beserta daftar tindakan medis, poliklinik tujuan, dan pilihan keluhan bawaan.',
+      'Mengambil hierarki kategori layanan beserta daftar tindakan medis, poliklinik tujuan, dan pilihan keluhan bawaan.',
   })
   @ApiOkResponse({
     description: 'Katalog layanan berhasil diambil',

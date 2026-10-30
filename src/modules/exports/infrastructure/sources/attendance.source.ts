@@ -4,6 +4,8 @@ import { and, asc, desc, eq, gte, lte, or, sql } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import type { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
+  permissions,
+  rolePermissions,
   roles,
   sessionDefs,
   staffAttendanceRecords,
@@ -93,18 +95,26 @@ export class AttendanceExportSource implements ExportSource {
     userId: string,
     explicitStaffId?: string,
   ): Promise<{ staffId: string | null; isClinicWide: boolean; staffName?: string }> {
-    // 1. Check if actor has admin role
-    const [actor] = await this.db
+    // 1. Check if actor has admin role or attendance:review/attendance:manage permission
+    const userRolePerms = await this.db
       .select({
         roleCode: roles.code,
+        permCode: permissions.code,
       })
       .from(users)
       .leftJoin(userRoles, eq(users.id, userRoles.userId))
       .leftJoin(roles, eq(userRoles.roleId, roles.id))
-      .where(eq(users.id, userId))
-      .limit(1);
+      .leftJoin(rolePermissions, eq(roles.id, rolePermissions.roleId))
+      .leftJoin(permissions, eq(rolePermissions.permissionId, permissions.id))
+      .where(eq(users.id, userId));
 
-    const isAdmin = actor?.roleCode === 'admin';
+    const isPrivileged = userRolePerms.some(
+      (r) =>
+        r.roleCode === 'admin' ||
+        r.permCode === 'attendance:review' ||
+        r.permCode === 'attendance:manage' ||
+        r.permCode === '*',
+    );
 
     // 2. Lookup actor's own linked staff profile
     const [ownStaff] = await this.db
@@ -113,8 +123,8 @@ export class AttendanceExportSource implements ExportSource {
       .where(eq(staffProfiles.userId, userId))
       .limit(1);
 
-    // Non-admin (Doctor, Midwife, Worker on Flutter): strictly locked to own profile
-    if (!isAdmin) {
+    // Non-privileged staff (strictly locked to own profile)
+    if (!isPrivileged) {
       return {
         staffId: ownStaff?.id ?? null,
         isClinicWide: false,
@@ -122,7 +132,7 @@ export class AttendanceExportSource implements ExportSource {
       };
     }
 
-    // Admin (Web Portal): can target explicit staff or export clinic-wide
+    // Privileged (Admin / Manager): can target explicit staff or export clinic-wide
     if (explicitStaffId) {
       if (isUUID(explicitStaffId)) {
         const [targetStaff] = await this.db

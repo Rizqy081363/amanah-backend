@@ -105,7 +105,7 @@ export class AttendanceBffStatsDrizzleRepo {
         name: roles.name,
       })
       .from(roles)
-      .where(and(eq(roles.audience, 'internal'), not(eq(roles.code, 'admin'))));
+      .where(eq(roles.audience, 'internal'));
 
     const categories = staffRoles.map((r) => ({
       label: r.name,

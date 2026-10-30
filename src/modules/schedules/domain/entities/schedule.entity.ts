@@ -22,6 +22,8 @@ export class ScheduleEntity {
   staffId: string;
   staffName?: string;
   profession?: string;
+  roleCode?: string | null;
+  roleName?: string | null;
   scheduleDate: string;
   poliklinikId?: string | null;
   poliklinikName?: string | null;
@@ -342,8 +344,15 @@ export class AdminDoctorScheduleCardEntity {
 
   @ApiPropertyOptional({
     description: 'Kode peran staf (contoh: doctor, midwife, it_support)',
+    nullable: true,
   })
-  roleCode?: string;
+  roleCode?: string | null;
+
+  @ApiPropertyOptional({
+    description: 'Nama peran kanonik staf (contoh: Dokter Umum, Bidan, Tabib, Spesialis)',
+    nullable: true,
+  })
+  roleName?: string | null;
 
   @ApiPropertyOptional({
     description: 'Flag penanda tenaga medis klinis',
@@ -594,8 +603,15 @@ export class AdminDoctorScheduleDetailData {
 
   @ApiPropertyOptional({
     description: 'Kode peran staf (contoh: doctor, midwife, it_support)',
+    nullable: true,
   })
-  roleCode?: string;
+  roleCode?: string | null;
+
+  @ApiPropertyOptional({
+    description: 'Nama peran kanonik staf (contoh: Dokter Umum, Bidan, Tabib, Spesialis)',
+    nullable: true,
+  })
+  roleName?: string | null;
 
   @ApiPropertyOptional({
     description: 'Flag penanda tenaga medis klinis',
@@ -725,6 +741,8 @@ export class ClinicalPractitionerEntity {
   id: string;
   name: string;
   spec: string;
+  roleCode?: string | null;
+  roleName?: string | null;
   avatar: string;
   location: string;
   rating: string;

@@ -13,6 +13,11 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../../common/auth/current-user.decorator';
 import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
 import {
+  PermissionsGuard,
+  Public,
+  RequirePermissions,
+} from '../../../common/auth';
+import {
   DEVICE_SUBSCRIPTION_REPOSITORY,
   type DeviceSubscriptionRepository,
 } from '../domain/repositories/device-subscription.repository';
@@ -37,6 +42,7 @@ export class PushSubscriptionController {
   ) {}
 
   @Get('public-key')
+  @Public()
   getPublicKey(): { publicKey: string | null } {
     return {
       publicKey: process.env.VAPID_PUBLIC_KEY || null,
@@ -44,7 +50,8 @@ export class PushSubscriptionController {
   }
 
   @Post('subscribe')
-  @UseGuards(HybridAuthGuard)
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('notifications:read')
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   async subscribe(
@@ -68,7 +75,8 @@ export class PushSubscriptionController {
   }
 
   @Delete('unsubscribe')
-  @UseGuards(HybridAuthGuard)
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('notifications:read')
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   async unsubscribe(
@@ -86,7 +94,8 @@ export class PushSubscriptionController {
   }
 
   @Post('device')
-  @UseGuards(HybridAuthGuard)
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('notifications:read')
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   async registerDevice(
@@ -111,7 +120,8 @@ export class PushSubscriptionController {
   }
 
   @Delete('device')
-  @UseGuards(HybridAuthGuard)
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('notifications:read')
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   async unregisterDevice(

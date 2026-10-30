@@ -16,7 +16,7 @@ import {
   ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
-import { CurrentUser } from '../../../../common/auth/current-user.decorator';
+import { CurrentUser, Public } from '../../../../common/auth';
 import { RealtimeTicketService } from '../../../notifications/application/services/realtime-ticket.service';
 import { createRealtimePrincipal } from '../../../notifications/contracts/realtime-session.contract';
 import { ChatService } from '../../application/services/chat.service';
@@ -35,6 +35,7 @@ export class ChatController {
   ) {}
 
   @Post('conversations')
+  @Public()
   @HttpCode(HttpStatus.OK)
   @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({
@@ -55,6 +56,7 @@ export class ChatController {
   }
 
   @Get('conversations/active')
+  @Public()
   @HttpCode(HttpStatus.OK)
   @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({
@@ -68,6 +70,7 @@ export class ChatController {
   }
 
   @Get('conversations/:id/messages')
+  @Public()
   @HttpCode(HttpStatus.OK)
   @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({
@@ -93,6 +96,7 @@ export class ChatController {
   }
 
   @Post('conversations/:id/messages')
+  @Public()
   @HttpCode(HttpStatus.CREATED)
   @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({
@@ -117,6 +121,7 @@ export class ChatController {
   }
 
   @Post('realtime-ticket')
+  @Public()
   @HttpCode(HttpStatus.OK)
   @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({
@@ -150,6 +155,7 @@ export class ChatController {
   }
 
   @Get('presence')
+  @Public()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Mengecek status ketersediaan admin klinik',

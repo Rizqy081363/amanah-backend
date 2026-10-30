@@ -32,9 +32,9 @@ import {
   AuthenticatedUser,
   CurrentUser,
   HybridAuthGuard,
-  Roles,
-  RolesGuard,
-  SYSTEM_ROLES,
+  isPatientUser,
+  PermissionsGuard,
+  RequirePermissions,
 } from '../../../common/auth';
 import {
   PATIENT_REPOSITORY,
@@ -54,7 +54,7 @@ import { UpdatePatientDto } from './dto/update-patient.dto';
 
 @ApiTags('Patients (Data Pasien & Rekam Medis)')
 @ApiBearerAuth('access-token')
-@UseGuards(HybridAuthGuard, RolesGuard)
+@UseGuards(HybridAuthGuard, PermissionsGuard)
 @ApiUnauthorizedResponse({
   description: 'Sesi autentikasi tidak valid atau token tidak disertakan',
 })
@@ -72,7 +72,7 @@ export class PatientsController {
   ) {}
 
   @Post()
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+  @RequirePermissions('patients:register', 'patients:manage')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Mendaftarkan pasien baru (Meja Registrasi)',
@@ -129,7 +129,7 @@ export class PatientsController {
   }
 
   @Post('registration')
-  @Roles(SYSTEM_ROLES.PATIENT, SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('patients:register', 'profile:update')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Registrasi mandiri profil pasien (Onboarding Modal Barrier)',
@@ -155,7 +155,7 @@ export class PatientsController {
   }
 
   @Get('me')
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF, SYSTEM_ROLES.PATIENT)
+  @RequirePermissions('profile:read', 'patients:read')
   @ApiOperation({
     summary: 'Mendapatkan profil pasien login saat ini',
     description:
@@ -179,7 +179,7 @@ export class PatientsController {
   }
 
   @Patch('me')
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF, SYSTEM_ROLES.PATIENT)
+  @RequirePermissions('profile:update', 'patients:manage')
   @ApiOperation({
     summary: 'Memperbarui profil pasien login saat ini (Self-Update)',
     description:
@@ -210,7 +210,7 @@ export class PatientsController {
   }
 
   @Get('by-nik/:nik')
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+  @RequirePermissions('patients:read', 'patients:manage')
   @ApiOperation({
     summary: 'Mencari pasien berdasarkan 16 digit NIK KTP',
     description:
@@ -234,7 +234,7 @@ export class PatientsController {
   }
 
   @Get('nik/:nik')
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+  @RequirePermissions('patients:read', 'patients:manage')
   @ApiOperation({
     summary: 'Mencari pasien berdasarkan 16 digit NIK KTP (Kanonikal)',
     description: 'Rute kanonikal pencarian profil pasien berdasarkan NIK.',
@@ -257,7 +257,7 @@ export class PatientsController {
   }
 
   @Get('directory')
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+  @RequirePermissions('patients:read', 'patients:manage')
   @ApiOperation({
     summary:
       'Direktori pasien klinik dengan statistik agregat dan pagination (Admin)',
@@ -273,7 +273,7 @@ export class PatientsController {
   }
 
   @Get()
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+  @RequirePermissions('patients:read', 'patients:manage')
   @ApiOperation({
     summary: 'Daftar pasien klinik dengan pagination dan pencarian',
     description:
@@ -294,7 +294,7 @@ export class PatientsController {
   }
 
   @Get(':id')
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF, SYSTEM_ROLES.PATIENT)
+  @RequirePermissions('patients:read', 'patients:manage')
   @ApiOperation({
     summary: 'Mendapatkan profil detail pasien berdasarkan ID',
     description:
@@ -321,7 +321,7 @@ export class PatientsController {
       throw new NotFoundException(`Pasien dengan ID ${id} tidak ditemukan`);
     }
 
-    if (user.systemRole === SYSTEM_ROLES.PATIENT && patient.userId !== user.id) {
+    if (isPatientUser(user) && patient.userId !== user.id) {
       const isAffiliated = await this.affiliationRepo.findByUserAndPatient(
         user.id,
         id,
@@ -337,7 +337,7 @@ export class PatientsController {
   }
 
   @Patch(':id')
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF, SYSTEM_ROLES.PATIENT)
+  @RequirePermissions('patients:manage', 'profile:update')
   @ApiOperation({
     summary: 'Memperbarui data profil pasien',
     description:
@@ -366,7 +366,7 @@ export class PatientsController {
       throw new NotFoundException(`Pasien dengan ID ${id} tidak ditemukan`);
     }
 
-    if (user.systemRole === SYSTEM_ROLES.PATIENT && existing.userId !== user.id) {
+    if (isPatientUser(user) && existing.userId !== user.id) {
       const isAffiliated = await this.affiliationRepo.findByUserAndPatient(
         user.id,
         id,
@@ -383,7 +383,7 @@ export class PatientsController {
   }
 
   @Delete(':id')
-  @Roles(SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('patients:manage')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Menonaktifkan data pasien (Admin)',
@@ -401,7 +401,7 @@ export class PatientsController {
   }
 
   @Post('bulk-delete')
-  @Roles(SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('patients:manage')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Menonaktifkan data pasien secara massal (Bulk Soft Delete)',

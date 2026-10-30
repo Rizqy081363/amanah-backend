@@ -8,6 +8,10 @@ import {
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
 import { HybridAuthGuard } from '../../../../common/auth/hybrid-auth.guard';
+import {
+  PermissionsGuard,
+  RequirePermissions,
+} from '../../../../common/auth';
 import { FileUploadDto } from './dto/file.dto';
 import { FileResponseDto } from './dto/file-response.dto';
 import { FilesS3PresignedService } from './files.service';
@@ -36,7 +40,8 @@ export class FilesS3PresignedController {
     description: 'Payload nama berkas atau tipe data tidak valid',
   })
   @ApiBearerAuth('access-token')
-  @UseGuards(HybridAuthGuard)
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('profile:update')
   @Post('upload')
   async uploadFile(@Body() file: FileUploadDto) {
     return this.filesService.create(file);

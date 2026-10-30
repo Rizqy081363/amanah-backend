@@ -24,9 +24,7 @@ import {
 } from '@nestjs/swagger';
 import { CurrentUser } from '../../../common/auth/current-user.decorator';
 import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
-import { RolesGuard } from '../../../common/auth/roles.guard';
-import { Roles } from '../../../common/auth/roles.decorator';
-import { SYSTEM_ROLES } from '../../../common/auth/roles.enum';
+import { isAdminUser, PermissionsGuard, RequirePermissions } from '../../../common/auth';
 import { AuthenticatedUser } from '../../../common/auth/authenticated-user.interface';
 import {
   SUPPORT_TICKET_REPOSITORY,
@@ -37,8 +35,8 @@ import { CreateTicketMessageDto } from './dto/create-ticket-message.dto';
 
 @ApiTags('Support Tickets (Bantuan Teknis IT)')
 @ApiBearerAuth('access-token')
-@UseGuards(HybridAuthGuard, RolesGuard)
-@Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+@UseGuards(HybridAuthGuard, PermissionsGuard)
+@RequirePermissions('app:access')
 @ApiUnauthorizedResponse({
   description: 'Sesi autentikasi tidak valid atau token tidak disertakan',
 })
@@ -154,7 +152,7 @@ export class SupportTicketsController {
         `Tiket kendala dengan ID ${id} tidak ditemukan`,
       );
     }
-    if (user.systemRole !== SYSTEM_ROLES.ADMIN && ticket.reporterUserId !== user.id) {
+    if (!isAdminUser(user) && ticket.reporterUserId !== user.id) {
       throw new ForbiddenException(
         'Anda tidak memiliki akses ke tiket kendala ini.',
       );
@@ -204,7 +202,7 @@ export class SupportTicketsController {
         `Tiket kendala dengan ID ${id} tidak ditemukan`,
       );
     }
-    if (user.systemRole !== SYSTEM_ROLES.ADMIN && ticket.reporterUserId !== user.id) {
+    if (!isAdminUser(user) && ticket.reporterUserId !== user.id) {
       throw new ForbiddenException(
         'Anda tidak memiliki akses ke tiket kendala ini.',
       );
@@ -241,7 +239,7 @@ export class SupportTicketsController {
         `Tiket kendala dengan ID ${id} tidak ditemukan`,
       );
     }
-    if (user.systemRole !== SYSTEM_ROLES.ADMIN && ticket.reporterUserId !== user.id) {
+    if (!isAdminUser(user) && ticket.reporterUserId !== user.id) {
       throw new ForbiddenException(
         'Anda tidak memiliki akses ke tiket kendala ini.',
       );
@@ -250,7 +248,7 @@ export class SupportTicketsController {
     return this.ticketRepo.addMessage({
       ticketId: id,
       senderUserId: user.id,
-      senderType: user.systemRole === SYSTEM_ROLES.ADMIN ? 'support_agent' : 'reporter',
+      senderType: isAdminUser(user) ? 'support_agent' : 'reporter',
       body: body.message,
     });
   }

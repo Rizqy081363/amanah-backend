@@ -24,12 +24,11 @@ import {
   ApiUnauthorizedResponse,
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
-import { SYSTEM_ROLES } from '../../../auth/constants/auth.constants';
 import type { AuthenticatedUser } from '../../../common/auth';
 import { CurrentUser } from '../../../common/auth/current-user.decorator';
 import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
-import { Roles } from '../../../common/auth/roles.decorator';
-import { RolesGuard } from '../../../common/auth/roles.guard';
+import { RequirePermissions } from '../../../common/auth/permissions.decorator';
+import { PermissionsGuard } from '../../../common/auth/permissions.guard';
 import { Idempotent } from '../../../common/decorators/idempotent.decorator';
 import { zodPipe } from '../../../common/validation';
 import {
@@ -56,7 +55,7 @@ import {
 
 @ApiTags('Staff Leaves (Perizinan Cuti Staf)')
 @ApiBearerAuth('access-token')
-@UseGuards(HybridAuthGuard, RolesGuard)
+@UseGuards(HybridAuthGuard, PermissionsGuard)
 @ApiUnauthorizedResponse({
   description: 'Sesi autentikasi tidak valid atau token tidak disertakan',
 })
@@ -76,7 +75,7 @@ export class LeavesController {
   ) {}
 
   @Get('eligible-sessions')
-  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('attendance:read', 'attendance:submit')
   @ApiOperation({
     summary:
       'Melihat sesi jadwal yang eligible untuk diajukan cuti (Mobile App & Web)',
@@ -99,7 +98,7 @@ export class LeavesController {
   }
 
   @Post()
-  @Roles(SYSTEM_ROLES.STAF)
+  @RequirePermissions('attendance:submit')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Staf mengajukan permohonan cuti / izin (Mobile App)',
@@ -120,7 +119,7 @@ export class LeavesController {
   }
 
   @Get('my-leaves')
-  @Roles(SYSTEM_ROLES.STAF)
+  @RequirePermissions('attendance:read')
   @ApiOperation({
     summary: 'Melihat riwayat pengajuan cuti staf login (Mobile App)',
     description:
@@ -135,7 +134,7 @@ export class LeavesController {
   }
 
   @Get('pending')
-  @Roles(SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('attendance:review', 'attendance:approve', 'attendance:manage')
   @ApiOperation({
     summary:
       'Admin melihat daftar pengajuan cuti yang butuh persetujuan (Web Dashboard)',
@@ -151,7 +150,7 @@ export class LeavesController {
   }
 
   @Get('all')
-  @Roles(SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('attendance:review', 'attendance:manage')
   @ApiOperation({
     summary: 'Admin melihat seluruh data permohonan cuti (Web Dashboard)',
     description:
@@ -175,7 +174,7 @@ export class LeavesController {
   }
 
   @Patch(':id/status')
-  @Roles(SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('attendance:approve', 'attendance:manage')
   @ApiOperation({
     summary: 'Admin menyetujui atau menolak cuti staf (Web Dashboard)',
     description:
@@ -198,7 +197,7 @@ export class LeavesController {
   }
 
   @Patch(':id/cancel')
-  @Roles(SYSTEM_ROLES.STAF)
+  @RequirePermissions('attendance:submit')
   @ApiOperation({
     summary:
       'Staf membatalkan pengajuan cuti sendiri yang masih pending (Mobile App)',

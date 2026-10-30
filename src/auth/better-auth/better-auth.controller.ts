@@ -10,9 +10,11 @@ import {
 import { ApiExcludeController } from '@nestjs/swagger';
 import { toNodeHandler } from 'better-auth/node';
 import type { Request, Response } from 'express';
+import { Public } from '../../common/auth';
 import { auth } from './auth';
 
 @ApiExcludeController()
+@Public()
 @Controller({
   path: 'auth',
   version: VERSION_NEUTRAL,

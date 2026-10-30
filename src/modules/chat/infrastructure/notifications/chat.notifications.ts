@@ -28,7 +28,7 @@ export class ChatNotificationRules implements OnModuleInit {
       ): Promise<NotificationIntent[]> => {
         const intents: NotificationIntent[] = [];
 
-        // 1. Customer Message Alert for Clinic Staff (Audience: 'clinic')
+        // 1. Customer Message Alert for Clinic Staff (Audience: NOTIFICATION_AUDIENCE.INTERNAL)
         if (payload.senderRole === 'customer') {
           const staffUserIds = this.recipientResolver
             ? await this.recipientResolver.resolveScopedClinicRecipients(
@@ -77,7 +77,7 @@ export class ChatNotificationRules implements OnModuleInit {
           }
         }
 
-        // 2. Admin Reply Alert for Registered Patient (Audience: 'patient')
+        // 2. Admin Reply Alert for Registered Patient (Audience: NOTIFICATION_AUDIENCE.EXTERNAL)
         if (payload.senderRole === 'admin' && payload.patientUserId) {
           if (!actor?.userId || actor.userId !== payload.patientUserId) {
             intents.push({

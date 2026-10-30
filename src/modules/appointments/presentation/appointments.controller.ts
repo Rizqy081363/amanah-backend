@@ -33,13 +33,10 @@ import {
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
 import type { Response } from 'express';
-import { SYSTEM_ROLES } from '../../../auth/constants/auth.constants';
 import { NOTIFICATION_AUDIENCE } from '../../../common/constants/notification-audience.constants';
 import type { AuthenticatedUser } from '../../../common/auth';
 import { CurrentUser } from '../../../common/auth/current-user.decorator';
 import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
-import { Roles } from '../../../common/auth/roles.decorator';
-import { RolesGuard } from '../../../common/auth/roles.guard';
 import { PermissionsGuard } from '../../../common/auth/permissions.guard';
 import { RequirePermissions } from '../../../common/auth/permissions.decorator';
 import { zodPipe } from '../../../common/validation';
@@ -78,8 +75,8 @@ export class AppointmentsController {
   ) {}
 
   @ApiBearerAuth('access-token')
-  @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF, SYSTEM_ROLES.PATIENT)
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('appointments:book')
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
@@ -147,8 +144,8 @@ export class AppointmentsController {
   }
 
   @ApiBearerAuth('access-token')
-  @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF, SYSTEM_ROLES.PATIENT)
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('appointments:read')
   @Get('me')
   @ApiOperation({
     summary: 'Melihat riwayat janji temu dan antrean pasien saat ini',
@@ -164,8 +161,8 @@ export class AppointmentsController {
   }
 
   @ApiBearerAuth('access-token')
-  @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF, SYSTEM_ROLES.PATIENT)
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('queue:read', 'appointments:read')
   @Get('queue/daily')
   @ApiOperation({
     summary: 'Mendapatkan daftar antrean harian per poli dan sesi (Web/App)',
@@ -191,8 +188,8 @@ export class AppointmentsController {
   }
 
   @ApiBearerAuth('access-token')
-  @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles(SYSTEM_ROLES.PATIENT)
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('appointments:read', 'queue:read')
   @Get('queue/my')
   @ApiOperation({
     summary: 'Mendapatkan antrean aktif hari ini untuk pasien',
@@ -215,8 +212,8 @@ export class AppointmentsController {
   }
 
   @ApiBearerAuth('access-token')
-  @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF, SYSTEM_ROLES.PATIENT)
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('appointments:read')
   @Get('active-ticket')
   @ApiOperation({
     summary:
@@ -246,8 +243,8 @@ export class AppointmentsController {
   }
 
   @ApiBearerAuth('access-token')
-  @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF, SYSTEM_ROLES.PATIENT)
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('queue:read')
   @Get('queue/display')
   @ApiOperation({
     summary: 'Mendapatkan data display antrean TV ruang tunggu klinik',
@@ -296,8 +293,8 @@ export class AppointmentsController {
   }
 
   @ApiBearerAuth('access-token')
-  @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF, SYSTEM_ROLES.PATIENT)
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('appointments:read')
   @Get(':id')
   @ApiOperation({
     summary: 'Mendapatkan detail janji temu dan tiket antrean',
@@ -343,8 +340,8 @@ export class AppointmentsController {
   }
 
   @ApiBearerAuth('access-token')
-  @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF, SYSTEM_ROLES.PATIENT)
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('appointments:book', 'appointments:manage')
   @Patch(':id/check-in')
   @ApiOperation({
     summary: 'Pasien melakukan konfirmasi kedatangan di klinik (Check-in)',
@@ -397,7 +394,8 @@ export class AppointmentsController {
   }
 
   @ApiBearerAuth('access-token')
-  @UseGuards(HybridAuthGuard)
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('appointments:book')
   @Post('check-in')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -493,8 +491,8 @@ export class AppointmentsController {
   }
 
   @ApiBearerAuth('access-token')
-  @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF, SYSTEM_ROLES.PATIENT)
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('appointments:manage', 'appointments:book')
   @Patch(':id/cancel')
   @ApiOperation({
     summary: 'Membatalkan janji temu antrean',
@@ -542,8 +540,8 @@ export class AppointmentsController {
   }
 
   @ApiBearerAuth('access-token')
-  @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF, SYSTEM_ROLES.PATIENT)
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('appointments:read', 'appointments:book')
   @Get(':id/reschedule-options')
   @ApiOperation({
     summary:
@@ -570,8 +568,8 @@ export class AppointmentsController {
   }
 
   @ApiBearerAuth('access-token')
-  @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF, SYSTEM_ROLES.PATIENT)
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('appointments:book', 'appointments:manage')
   @Post(':id/reschedule')
   @ApiOperation({
     summary: 'Melakukan penjadwalan ulang (reschedule) janji temu pasien',

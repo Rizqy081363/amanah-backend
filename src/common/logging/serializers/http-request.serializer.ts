@@ -40,18 +40,11 @@ export function extractAuthContext(req: any): AuthContext {
     return { authenticated: false };
   }
 
-  const role =
-    typeof user.systemRole === 'string'
-      ? user.systemRole
-      : typeof user.role?.name === 'string'
-        ? user.role.name
-        : typeof user.role === 'string'
-          ? user.role
-          : undefined;
+  const role = user.roleCode || user.role?.code || undefined;
 
   return {
     authenticated: true,
-    userId: user.id || user.userId,
+    userId: user.id,
     role,
     email: user.email,
   };

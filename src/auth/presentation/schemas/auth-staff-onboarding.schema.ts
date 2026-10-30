@@ -1,7 +1,6 @@
 import { z } from 'zod';
 
 export const AuthStaffOnboardingSchema = z.object({
-  role: z.enum(['doctor', 'midwife', 'worker', 'staff']).optional(),
   fullName: z
     .string()
     .trim()

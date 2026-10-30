@@ -1,8 +1,10 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Public } from '../../../common/auth';
 import { ImmunizationCatalogService } from '../application/services/immunization-catalog.service';
 
 @ApiTags('Immunization Intake Catalogs (Vaccine Master Schedule)')
+@Public()
 @Controller({ path: 'medical-records/immunization/catalogs', version: '1' })
 export class ImmunizationCatalogController {
   constructor(private readonly catalogService: ImmunizationCatalogService) {}

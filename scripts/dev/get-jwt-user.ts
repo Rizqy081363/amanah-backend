@@ -3,9 +3,6 @@ import jwt from 'jsonwebtoken';
 import {
   createDbPool,
   getEnvValue,
-  dbHost,
-  dbPort,
-  dbName,
 } from './purge/db-connection';
 
 interface CliArgs {
@@ -62,7 +59,7 @@ function parseCliArgs(): CliArgs {
 
 function printUsage(): void {
   console.log(`
-Amanah Healthcare — Dynamic JWT Token Generator CLI
+Amanah Healthcare — Dynamic JWT Token Generator CLI (RBAC & Permissions Aware)
 
 Usage:
   bun run db:jwt --email <email> [options]
@@ -74,13 +71,13 @@ Options:
   --expires, -x <time>     Token expiry (default: "7d" or AUTH_JWT_TOKEN_EXPIRES_IN)
   --secret, -s <secret>    JWT signing secret (default: AUTH_JWT_SECRET from .env, or "secret")
   --raw, -r                Print ONLY the JWT token string (ideal for scripting/pipe)
-  --list, -l               List all available active users and their roles
+  --list, -l               List all available active users, roles, and audience
   --help, -h               Show this help message
 
 Examples:
+  bun run db:jwt --email admin@amanah.com
   bun run db:jwt --email zikrifadhiilahahmad@gmail.com
-  bun run db:jwt --email:admin@amanah.com
-  bun run db:jwt --email:dokter@amanah.com --raw
+  bun run db:jwt --email admin@amanah.com --raw
   bun run db:jwt --list
 `);
 }
@@ -91,13 +88,15 @@ async function listUsers(pool: any): Promise<void> {
       u.id, 
       u.email, 
       u.name, 
-      r.name as role_name, 
-      r.code as role_code,
+      COALESCE(r_ur.name, r_sp.name) as role_name, 
+      COALESCE(r_ur.code, r_sp.code) as role_code,
+      COALESCE(r_ur.audience, r_sp.audience) as role_audience,
       sp.position_title
     FROM users u
     LEFT JOIN user_roles ur ON u.id = ur.user_id
-    LEFT JOIN roles r ON ur.role_id = r.id
+    LEFT JOIN roles r_ur ON ur.role_id = r_ur.id
     LEFT JOIN staff_profiles sp ON u.id = sp.user_id
+    LEFT JOIN roles r_sp ON sp.role_id = r_sp.id
     ORDER BY u.created_at DESC
     LIMIT 50;
   `;
@@ -106,19 +105,22 @@ async function listUsers(pool: any): Promise<void> {
 
   console.log('\n=== Available Users in Database ===\n');
   console.log(
-    'Email'.padEnd(38) +
-      'Role'.padEnd(16) +
-      'Name'.padEnd(30) +
+    'Email'.padEnd(36) +
+      'Role Code'.padEnd(16) +
+      'Audience'.padEnd(12) +
+      'Name'.padEnd(28) +
       'User ID',
   );
-  console.log('-'.repeat(120));
+  console.log('-'.repeat(128));
 
   for (const row of res.rows) {
-    const role = row.role_code || row.role_name || 'patient';
+    const roleCode = row.role_code || (row.position_title ? 'staff' : 'patient');
+    const audience = row.role_audience || (row.position_title ? 'internal' : 'external');
     console.log(
-      (row.email || '(no email)').padEnd(38) +
-        role.padEnd(16) +
-        (row.name || '-').padEnd(30) +
+      (row.email || '(no email)').padEnd(36) +
+        roleCode.padEnd(16) +
+        audience.padEnd(12) +
+        (row.name || '-').padEnd(28) +
         row.id,
     );
   }
@@ -155,17 +157,19 @@ async function main(): Promise<void> {
         u.email, 
         u.name, 
         u.phone,
-        r.id as role_id, 
-        r.code as role_code, 
-        r.name as role_name,
+        COALESCE(r_ur.id, r_sp.id) as role_id, 
+        COALESCE(r_ur.code, r_sp.code) as role_code, 
+        COALESCE(r_ur.name, r_sp.name) as role_name,
+        COALESCE(r_ur.audience, r_sp.audience) as role_audience,
         sp.id as staff_id,
         sp.position_title,
         sp.staff_code,
         doc.id as practitioner_id
       FROM users u
       LEFT JOIN user_roles ur ON u.id = ur.user_id
-      LEFT JOIN roles r ON ur.role_id = r.id
+      LEFT JOIN roles r_ur ON ur.role_id = r_ur.id
       LEFT JOIN staff_profiles sp ON u.id = sp.user_id
+      LEFT JOIN roles r_sp ON sp.role_id = r_sp.id
       LEFT JOIN practitioners doc ON sp.id = doc.staff_profile_id
       WHERE LOWER(u.email) = LOWER($1)
       LIMIT 1;
@@ -185,18 +189,30 @@ async function main(): Promise<void> {
 
     const user = res.rows[0];
 
-    // Compute canonical systemRole
-    let systemRole: 'ADMIN' | 'STAF' | 'PATIENT' = 'PATIENT';
-    if (user.role_code === 'admin') {
-      systemRole = 'ADMIN';
-    } else if (
-      user.role_code === 'staff_doctor' ||
-      user.role_code === 'staff_midwife' ||
-      user.role_code === 'staff_worker' ||
-      user.staff_id
-    ) {
-      systemRole = 'STAF';
+    // Fetch granular permissions assigned to the role
+    const permissionCodes: string[] = [];
+    if (user.role_id) {
+      const permRes = await pool.query(
+        `SELECT p.code 
+         FROM role_permissions rp
+         JOIN permissions p ON rp.permission_id = p.id
+         WHERE rp.role_id = $1
+         ORDER BY p.code;`,
+        [user.role_id],
+      );
+      for (const row of permRes.rows) {
+        permissionCodes.push(row.code);
+      }
     }
+
+    // Determine role code and macro systemRole for backwards compatibility
+    const roleCode = user.role_code || (user.staff_id ? 'staff' : 'patient');
+    const systemRole =
+      roleCode === 'admin'
+        ? 'ADMIN'
+        : user.staff_id || user.role_audience === 'internal'
+          ? 'STAF'
+          : 'PATIENT';
 
     const jwtSecret =
       args.secret || getEnvValue('AUTH_JWT_SECRET', 'secret');
@@ -206,11 +222,17 @@ async function main(): Promise<void> {
     const payload = {
       id: user.id,
       email: user.email,
+      roleCode,
       systemRole,
-      role: {
-        id: user.role_id || null,
-        name: systemRole,
-      },
+      role: user.role_id
+        ? {
+            id: user.role_id,
+            code: user.role_code,
+            name: user.role_name,
+            audience: user.role_audience,
+          }
+        : null,
+      permissions: permissionCodes,
     };
 
     const token = jwt.sign(payload, jwtSecret, { expiresIn: expiresIn as any });
@@ -221,13 +243,16 @@ async function main(): Promise<void> {
     }
 
     console.log('\n============================================================');
-    console.log('  Amanah Healthcare — Generated JWT Bearer Token');
+    console.log('  Amanah Healthcare — Dynamic JWT Bearer Token');
     console.log('============================================================');
     console.log(` User ID         : ${user.id}`);
     console.log(` Email           : ${user.email}`);
     console.log(` Name            : ${user.name}`);
+    console.log(` Role Code       : ${roleCode}`);
+    console.log(` Role Name       : ${user.role_name || '(none)'}`);
+    console.log(` Role Audience   : ${user.role_audience || (user.staff_id ? 'internal' : 'external')}`);
     console.log(` System Role     : ${systemRole}`);
-    console.log(` Role Code       : ${user.role_code || 'patient'}`);
+    console.log(` Permissions     : ${permissionCodes.length} assigned (${permissionCodes.includes('*') ? 'WILDCARD (*)' : permissionCodes.slice(0, 5).join(', ') + (permissionCodes.length > 5 ? '...' : '')})`);
     if (user.staff_id) {
       console.log(` Staff ID        : ${user.staff_id}`);
       console.log(` Position Title  : ${user.position_title || '-'}`);

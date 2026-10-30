@@ -35,7 +35,8 @@ import { PatientAppointmentHistoryQueryDto } from './dto/patient-appointment-his
 
 @ApiTags('Appointments (Riwayat Janji Temu Pasien)')
 @ApiBearerAuth('access-token')
-@UseGuards(HybridAuthGuard)
+@UseGuards(HybridAuthGuard, PermissionsGuard)
+@RequirePermissions('appointments:read')
 @ApiUnauthorizedResponse({
   description: 'Sesi autentikasi tidak valid atau token tidak disertakan',
 })
@@ -48,6 +49,7 @@ export class PatientAppointmentHistoryController {
   ) {}
 
   @Get('me')
+  @RequirePermissions('appointments:read')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Melihat riwayat janji temu pasien yang sedang login (Mobile App)',

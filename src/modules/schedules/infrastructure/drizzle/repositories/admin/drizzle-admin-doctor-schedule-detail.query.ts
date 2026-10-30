@@ -57,6 +57,7 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
         staffProfile: {
           with: {
             clinicUnit: true,
+            role: true,
           },
         },
         medicalSpecialty: true,
@@ -403,14 +404,11 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
         staffProfileId: prac.staffProfileId,
         staffId: prac.staffProfileId,
         staffCode: prac.staffProfile?.staffCode || null,
-        roleCode: (prac.staffProfile as any)?.role?.code ?? undefined,
-        isClinical: (prac.staffProfile as any)?.role?.isClinical ?? true,
+        roleCode: prac.staffProfile?.role?.code ?? null,
+        roleName: prac.staffProfile?.role?.name ?? null,
+        isClinical: prac.staffProfile?.role?.isClinical ?? true,
         fullName: prac.staffProfile?.fullName || prac.displayName || '',
-        specialty:
-          prac.medicalSpecialty?.name ||
-          prac.staffProfile?.clinicUnit?.name ||
-          prac.staffProfile?.positionTitle ||
-          '',
+        specialty: prac.medicalSpecialty?.name || '',
         doctorStatus: statusDokter,
         isAcceptingAppointments: prac.isAcceptingAppointments,
         email: prac.staffProfile?.email || null,

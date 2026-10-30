@@ -23,11 +23,10 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import { SYSTEM_ROLES } from '../../../auth/constants/auth.constants';
 import { CurrentUser } from '../../../common/auth/current-user.decorator';
 import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
-import { Roles } from '../../../common/auth/roles.decorator';
-import { RolesGuard } from '../../../common/auth/roles.guard';
+import { RequirePermissions } from '../../../common/auth/permissions.decorator';
+import { PermissionsGuard } from '../../../common/auth/permissions.guard';
 import { AuthenticatedUser } from '../../../common/auth/authenticated-user.interface';
 import { Idempotent } from '../../../common/decorators/idempotent.decorator';
 import { REPLACEMENT_OPPORTUNITY_STATUSES } from '../../../database/schema';
@@ -50,7 +49,7 @@ import { CancelReplacementDto } from './dto/cancel-replacement.dto';
 
 @ApiTags('Replacement Opportunities (Jadwal Pengganti & Cuti Terbuka)')
 @ApiBearerAuth('access-token')
-@UseGuards(HybridAuthGuard, RolesGuard)
+@UseGuards(HybridAuthGuard, PermissionsGuard)
 @ApiUnauthorizedResponse({
   description: 'Sesi autentikasi tidak valid atau token tidak disertakan',
 })
@@ -65,7 +64,7 @@ export class ReplacementsController {
   ) {}
 
   @Get('facets')
-  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('attendance:read', 'attendance:manage')
   @ApiOperation({
     summary:
       'Mendapatkan metadata facet peluang pengganti (Mobile KAI Carousel & Filter)',
@@ -80,7 +79,7 @@ export class ReplacementsController {
   }
 
   @Get(['', 'opportunities'])
-  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('attendance:read', 'attendance:manage')
   @ApiOperation({
     summary: 'Melihat daftar peluang jadwal pengganti (Mobile App & Admin)',
     description:
@@ -135,7 +134,7 @@ export class ReplacementsController {
   }
 
   @Post(':id/claim')
-  @Roles(SYSTEM_ROLES.STAF)
+  @RequirePermissions('attendance:submit')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Staf mengklaim peluang sesi dinas pengganti (Mobile App)',
@@ -168,7 +167,7 @@ export class ReplacementsController {
   }
 
   @Post(':id/assign')
-  @Roles(SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('attendance:manage')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Admin menugaskan staf pengganti secara langsung (Web Admin)',
@@ -195,7 +194,7 @@ export class ReplacementsController {
   }
 
   @Post(':id/cancel')
-  @Roles(SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('attendance:manage')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Admin membatalkan peluang dinas pengganti (Web Admin)',

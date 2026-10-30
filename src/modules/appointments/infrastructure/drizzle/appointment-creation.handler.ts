@@ -21,7 +21,6 @@ import {
   queueTickets,
   sessionDefs,
 } from '../../../../database/schema';
-import { MEDICAL_SPECIALTY_CODES } from '../../../clinics/domain/constants/medical-specialty.constants';
 import type { QueuePositionRecalculationService } from '../../../queue-engine/application/services/queue-position-recalculation.service';
 import {
   DB_APPOINTMENT_STATUS,
@@ -195,7 +194,10 @@ export class AppointmentCreationHandler {
     const effectiveMedicalFlow =
       clinicServiceRecord?.intakeForm?.code || data.medicalFlow || null;
 
-    const targetUnitId = data.poliklinikId;
+    const targetUnitId =
+      data.poliklinikId ||
+      clinicServiceRecord?.serviceCategory?.unitId ||
+      null;
     let unitPrefix: string | null = null;
     if (targetUnitId) {
       const unit = await db.query.clinicUnits.findFirst({
@@ -444,7 +446,7 @@ export class AppointmentCreationHandler {
       AppointmentRecordMapper.toEntity(
         apt,
         ticket,
-        data.poliklinikId,
+        targetUnitId || data.poliklinikId,
         undefined,
         clinicTimeService,
       )

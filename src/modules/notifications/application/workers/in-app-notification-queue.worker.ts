@@ -230,11 +230,11 @@ export class InAppNotificationQueueWorker
     command: NotificationDispatchCommand,
   ): Promise<string[]> {
     const { target } = command;
-    if (target.type === 'user') {
-      return target.recipientUserIds || [];
-    }
+    let recipientIds: string[] = [];
 
-    if (
+    if (target.type === 'user') {
+      recipientIds = target.recipientUserIds || [];
+    } else if (
       target.type === 'role' &&
       target.roles &&
       target.roles.length > 0 &&
@@ -247,9 +247,24 @@ export class InAppNotificationQueueWorker
         .innerJoin(roles, sql`${userRoles.roleId} = ${roles.id}`)
         .where(inArray(sql`lower(${roles.code})`, normalizedRoles));
 
-      return [...new Set(rows.map((r) => r.userId))];
+      recipientIds = [...new Set(rows.map((r) => r.userId))];
+    } else if (target.type === 'broadcast' && this.db) {
+      if (command.audience === 'internal') {
+        const rows = await this.db
+          .select({ userId: userRoles.userId })
+          .from(userRoles)
+          .innerJoin(roles, sql`${userRoles.roleId} = ${roles.id}`)
+          .where(sql`${roles.audience} = 'internal'`);
+
+        recipientIds = [...new Set(rows.map((r) => r.userId))];
+      }
     }
 
-    return [];
+    if (target.excludedUserIds && target.excludedUserIds.length > 0) {
+      const excluded = new Set(target.excludedUserIds);
+      return recipientIds.filter((id) => !excluded.has(id));
+    }
+
+    return recipientIds;
   }
 }

@@ -26,13 +26,13 @@ import {
   ApiUnauthorizedResponse,
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
-import { SYSTEM_ROLES } from '../../../auth/constants/auth.constants';
 import {
   type AuthenticatedUser,
   CurrentUser,
   HybridAuthGuard,
-  Roles,
-  RolesGuard,
+  isPatientUser,
+  PermissionsGuard,
+  RequirePermissions,
 } from '../../../common/auth';
 import {
   PATIENT_AFFILIATION_REPOSITORY,
@@ -58,7 +58,7 @@ import { UpdateMedicalIntakeDto } from './dto/update-medical-intake.dto';
 
 @ApiTags('Medical Intakes (Formulir Skrining, Imunisasi & Kehamilan)')
 @ApiBearerAuth('access-token')
-@UseGuards(HybridAuthGuard, RolesGuard)
+@UseGuards(HybridAuthGuard, PermissionsGuard)
 @ApiUnauthorizedResponse({
   description: 'Sesi autentikasi tidak valid atau token tidak disertakan',
 })
@@ -82,7 +82,7 @@ export class MedicalIntakesController {
     patientId: string,
     user: AuthenticatedUser,
   ): Promise<void> {
-    if (user.systemRole !== SYSTEM_ROLES.PATIENT) {
+    if (!isPatientUser(user)) {
       return;
     }
     if (user.patient?.id === patientId) {
@@ -102,7 +102,7 @@ export class MedicalIntakesController {
   }
 
   @Get('form-requirement')
-  @Roles(SYSTEM_ROLES.PATIENT, SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('appointments:read', 'records:read')
   @ApiOperation({
     summary:
       'Mendapatkan requirement formulir encounter, reusable data & omitted fields',
@@ -137,7 +137,7 @@ export class MedicalIntakesController {
   }
 
   @Post()
-  @Roles(SYSTEM_ROLES.PATIENT, SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('records:write')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Submit formulir skrining / intake medis pre-konsultasi',
@@ -161,7 +161,7 @@ export class MedicalIntakesController {
   }
 
   @Post('maternity')
-  @Roles(SYSTEM_ROLES.PATIENT, SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('records:write')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Submit formulir intake kehamilan & persalinan relasional',
@@ -175,7 +175,7 @@ export class MedicalIntakesController {
   }
 
   @Post('immunization')
-  @Roles(SYSTEM_ROLES.PATIENT, SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('records:write')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Submit formulir pendaftaran imunisasi anak relasional',
@@ -191,7 +191,7 @@ export class MedicalIntakesController {
   }
 
   @Get('by-appointment/:appointmentId')
-  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.PATIENT)
+  @RequirePermissions('records:read')
   @ApiOperation({
     summary: 'Mendapatkan data intake lengkap berdasarkan ID Kunjungan',
   })
@@ -217,7 +217,7 @@ export class MedicalIntakesController {
   }
 
   @Get('patient/:patientId/latest')
-  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.PATIENT)
+  @RequirePermissions('records:read')
   @ApiOperation({
     summary: 'Mendapatkan data intake terbaru berdasarkan ID Pasien',
   })
@@ -240,7 +240,7 @@ export class MedicalIntakesController {
   }
 
   @Get('maternity/history')
-  @Roles(SYSTEM_ROLES.PATIENT, SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('records:read')
   @ApiOperation({
     summary: 'Mendapatkan riwayat formulir kehamilan & persalinan dengan paginasi',
   })
@@ -250,7 +250,7 @@ export class MedicalIntakesController {
   ) {
     let targetPatientIds: string[] | undefined = undefined;
 
-    if (user.systemRole === SYSTEM_ROLES.PATIENT) {
+    if (isPatientUser(user)) {
       const userAffiliations = await this.affiliationRepo.findByUserId(user.id);
       const allowedIds = userAffiliations.map((a) => a.patientId);
 
@@ -289,7 +289,7 @@ export class MedicalIntakesController {
   }
 
   @Get('immunization/history')
-  @Roles(SYSTEM_ROLES.PATIENT, SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('records:read')
   @ApiOperation({
     summary: 'Mendapatkan riwayat formulir imunisasi anak dengan paginasi',
   })
@@ -299,7 +299,7 @@ export class MedicalIntakesController {
   ) {
     let targetPatientIds: string[] | undefined = undefined;
 
-    if (user.systemRole === SYSTEM_ROLES.PATIENT) {
+    if (isPatientUser(user)) {
       const userAffiliations = await this.affiliationRepo.findByUserId(user.id);
       const allowedIds = userAffiliations.map((a) => a.patientId);
 
@@ -338,7 +338,7 @@ export class MedicalIntakesController {
   }
 
   @Get('maternity/:id')
-  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.PATIENT)
+  @RequirePermissions('records:read')
   @ApiOperation({
     summary: 'Mendapatkan detail formulir intake maternal kehamilan by ID',
   })
@@ -359,7 +359,7 @@ export class MedicalIntakesController {
   }
 
   @Patch('maternity/:id')
-  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('records:write')
   @ApiOperation({
     summary:
       'Update formulir intake maternal kehamilan by ID (Admin / Staf Dokter/Bidan)',
@@ -378,7 +378,7 @@ export class MedicalIntakesController {
   }
 
   @Get('immunization/:id')
-  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.PATIENT)
+  @RequirePermissions('records:read')
   @ApiOperation({
     summary: 'Mendapatkan detail formulir intake imunisasi anak by ID',
   })
@@ -399,7 +399,7 @@ export class MedicalIntakesController {
   }
 
   @Patch('immunization/:id')
-  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('records:write')
   @ApiOperation({
     summary:
       'Update formulir intake imunisasi anak by ID (Admin / Staf Dokter/Bidan)',
@@ -421,7 +421,7 @@ export class MedicalIntakesController {
   }
 
   @Get('patient/:patientId')
-  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.PATIENT)
+  @RequirePermissions('records:read')
   @ApiOperation({
     summary: 'Mendapatkan riwayat skrining intake medis pasien',
   })
@@ -440,7 +440,7 @@ export class MedicalIntakesController {
   }
 
   @Get(':id')
-  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.PATIENT)
+  @RequirePermissions('records:read')
   @ApiOperation({
     summary: 'Mendapatkan detail formulir intake medis by ID',
   })
@@ -466,7 +466,7 @@ export class MedicalIntakesController {
   }
 
   @Patch(':id')
-  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('records:write')
   @ApiOperation({
     summary:
       'Update formulir intake medis (jawaban kuesioner) by ID (Admin / Staf Dokter/Bidan)',

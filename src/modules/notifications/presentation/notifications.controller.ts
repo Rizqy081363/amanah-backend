@@ -23,6 +23,7 @@ import {
 } from '@nestjs/swagger';
 import { CurrentUser } from '../../../common/auth/current-user.decorator';
 import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
+import { PermissionsGuard, RequirePermissions } from '../../../common/auth';
 import { RealtimeGatewayPort } from '../contracts/realtime-gateway.interface';
 import {
   NOTIFICATION_REPOSITORY,
@@ -36,7 +37,8 @@ import { QueryNotificationDto } from './dto/query-notification.dto';
 
 @ApiTags('Notifications (Notifikasi Staf & Pasien)')
 @ApiBearerAuth('access-token')
-@UseGuards(HybridAuthGuard)
+@UseGuards(HybridAuthGuard, PermissionsGuard)
+@RequirePermissions('notifications:read')
 @ApiUnauthorizedResponse({
   description: 'Sesi autentikasi tidak valid atau token tidak disertakan',
 })
@@ -50,6 +52,7 @@ export class NotificationsController {
   ) {}
 
   @Get('me')
+  @RequirePermissions('notifications:read')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Melihat daftar notifikasi user yang sedang login (Mobile App)',
@@ -110,6 +113,7 @@ export class NotificationsController {
   }
 
   @Get('unread-count')
+  @RequirePermissions('notifications:read')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Mendapatkan jumlah notifikasi belum dibaca (Mobile & Web)',
@@ -134,6 +138,7 @@ export class NotificationsController {
   }
 
   @Patch('read-all')
+  @RequirePermissions('notifications:read')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Menandai seluruh notifikasi user telah dibaca (Mobile App)',
@@ -178,6 +183,7 @@ export class NotificationsController {
   }
 
   @Patch(':id/read')
+  @RequirePermissions('notifications:read')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Menandai satu notifikasi telah dibaca (Mobile App)',

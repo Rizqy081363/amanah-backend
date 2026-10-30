@@ -29,8 +29,11 @@ import {
 } from '../../../../database/schema';
 import { NotificationGatewayService } from '../../../notifications/application/services/notification-gateway.service';
 import { SocketIoRealtimeGateway } from '../../../notifications/infrastructure/realtime/socket-io-realtime.gateway';
-import { NOTIFICATION_SOURCE_DOMAINS } from '../../../notifications/notifications.constants';
-import { REALTIME_GATEWAY_PORT } from '../../../notifications/notifications.constants';
+import {
+  NOTIFICATION_SOURCE_DOMAINS,
+  REALTIME_GATEWAY_PORT,
+  REALTIME_ROOMS,
+} from '../../../notifications/notifications.constants';
 import { calculateSessionNetHours } from '../../../schedules/domain/services/shift-duration.helper';
 import { PAYROLL_PERIOD_STATUS } from '../../domain/constants/payroll.constants';
 
@@ -585,11 +588,11 @@ export class DailyLeavePayrollService {
         payload,
       );
       void this.realtimeGateway.emitToRole?.(
-        'ADMIN',
-        'payroll:leave_deduction_applied',
-        payload,
+        'admin',
+        'payroll:refresh',
+        { date: targetDate },
       );
-      void this.realtimeGateway.emitToRoom?.('role:admin', 'payroll:refresh', {
+      void this.realtimeGateway.emitToRoom?.(REALTIME_ROOMS.clinic, 'payroll:refresh', {
         date: targetDate,
       });
     }

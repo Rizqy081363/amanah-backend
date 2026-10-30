@@ -36,6 +36,7 @@ export class DrizzleClinicalPractitionerRepository {
         staffProfile: {
           with: {
             clinicUnit: true,
+            role: true,
           },
         },
         medicalSpecialty: true,
@@ -47,11 +48,7 @@ export class DrizzleClinicalPractitionerRepository {
     const results: ClinicalPractitionerEntity[] = [];
 
     for (const p of pracs) {
-      const spec =
-        p.medicalSpecialty?.name ||
-        p.staffProfile?.clinicUnit?.name ||
-        p.staffProfile?.positionTitle ||
-        '';
+      const spec = p.medicalSpecialty?.name ?? '';
 
       if (query.service) {
         const q = query.service.toLowerCase();
@@ -189,6 +186,8 @@ export class DrizzleClinicalPractitionerRepository {
         id: p.id,
         name: p.staffProfile?.fullName || p.displayName || '',
         spec,
+        roleCode: p.staffProfile?.role?.code ?? null,
+        roleName: p.staffProfile?.role?.name ?? null,
         avatar: ScheduleRecordMapper.toAvatarUrl(p.staffProfile),
         location,
         rating: p.rating ? String(p.rating) : '5.0',

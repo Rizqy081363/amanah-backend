@@ -12,13 +12,16 @@ import { fromNodeHeaders } from 'better-auth/node';
 import { eq } from 'drizzle-orm';
 import type { Request } from 'express';
 import { auth as betterAuth } from '../../auth/better-auth/auth';
-import { SYSTEM_ROLES, type SystemRole } from '../../auth/constants/auth.constants';
 import { DRIZZLE_SOURCE } from '../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../database/drizzle/drizzle.provider';
 import { users } from '../../database/schema';
 import { formatBloodTypeDisplay } from '../../modules/patients/domain/data/patient-reference.data';
 import { DomainUnauthorizedException } from '../exceptions';
 import { RedisService } from '../redis/redis.service';
+import {
+  ROLE_AUDIENCE,
+  type RoleAudience,
+} from '../constants/role-audience.constants';
 import type { AuthenticatedUser } from './authenticated-user.interface';
 import { IS_PUBLIC_KEY } from './public.decorator';
 
@@ -123,30 +126,19 @@ export class HybridAuthGuard extends AuthGuard('jwt') implements CanActivate {
         );
       }
 
-      const primaryRole = userRecord.userRoles_userId?.[0]?.role;
-      let systemRole: SystemRole = SYSTEM_ROLES.PATIENT;
-      if (primaryRole?.code === 'admin') {
-        systemRole = SYSTEM_ROLES.ADMIN;
-      } else if (
-        (userRecord.staffProfiles && userRecord.staffProfiles.length > 0) ||
-        (primaryRole && primaryRole.code !== 'patient')
-      ) {
-        systemRole = SYSTEM_ROLES.STAF;
-      }
+      const staffProfile = userRecord.staffProfiles?.[0];
+      const patientProfile = userRecord.patientProfiles?.[0];
+      const primaryRole =
+        userRecord.userRoles_userId?.[0]?.role ?? staffProfile?.role ?? null;
+
+      const audience: RoleAudience | null =
+        (primaryRole?.audience as RoleAudience) ?? null;
 
       const userRoleCodes = (userRecord.userRoles_userId || [])
         .map((ur) => ur.role?.code)
         .filter((code): code is string => Boolean(code));
-      const roleCode =
-        primaryRole?.code ||
-        (systemRole === SYSTEM_ROLES.ADMIN
-          ? 'admin'
-          : systemRole === SYSTEM_ROLES.STAF
-            ? 'worker'
-            : 'patient');
-
-      const staffProfile = userRecord.staffProfiles?.[0];
-      const patientProfile = userRecord.patientProfiles?.[0];
+      const roleCode = primaryRole?.code ?? null;
+      const systemRole = roleCode;
 
       const permissionSet = new Set<string>();
       for (const ur of userRecord.userRoles_userId || []) {
@@ -164,16 +156,13 @@ export class HybridAuthGuard extends AuthGuard('jwt') implements CanActivate {
         staffProfile?.role?.isClinical ??
         Boolean(staffProfile?.practitioners?.length);
 
-      const audience: 'internal' | 'external' =
-        primaryRole?.audience ?? (staffProfile ? 'internal' : 'external');
-
       const authenticatedUser: AuthenticatedUser = {
         id: userRecord.id,
         email: userRecord.email,
         name: userRecord.name,
         systemRole,
         roleCode,
-        roles: userRoleCodes.length > 0 ? userRoleCodes : [roleCode],
+        roles: userRoleCodes.length > 0 ? userRoleCodes : roleCode ? [roleCode] : [],
         audience,
         role: primaryRole
           ? {

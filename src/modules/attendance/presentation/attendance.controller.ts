@@ -24,10 +24,9 @@ import {
   HybridAuthGuard,
   isAdminUser,
   isStaffUser,
-  Roles,
-  RolesGuard,
+  PermissionsGuard,
+  RequirePermissions,
 } from '../../../common/auth';
-import { SYSTEM_ROLES } from '../../../auth/constants/auth.constants';
 import { DomainForbiddenException } from '../../../common/exceptions';
 import { zodPipe } from '../../../common/validation';
 import {
@@ -54,7 +53,7 @@ import {
 
 @ApiTags('Attendance (Presensi QR & Manual Staf)')
 @ApiBearerAuth('access-token')
-@UseGuards(HybridAuthGuard, RolesGuard)
+@UseGuards(HybridAuthGuard, PermissionsGuard)
 @ApiUnauthorizedResponse({
   description: 'Sesi autentikasi tidak valid atau token tidak disertakan',
 })
@@ -74,7 +73,7 @@ export class AttendanceController {
   ) {}
 
   @Post('scan')
-  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('attendance:submit')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Staf melakukan scan QR Code presensi kehadiran (Mobile App)',
@@ -107,7 +106,7 @@ export class AttendanceController {
   }
 
   @Post('manual')
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+  @RequirePermissions('attendance:approve', 'attendance:manage')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Admin atau staf mencatat presensi kehadiran secara manual',
@@ -130,7 +129,7 @@ export class AttendanceController {
   }
 
   @Post('checkout')
-  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('attendance:submit', 'attendance:manage')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Staf atau admin melakukan presensi pulang dinas / checkout',
@@ -173,7 +172,7 @@ export class AttendanceController {
   }
 
   @Post('qr/rotate')
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+  @RequirePermissions('attendance:manage')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Terminal klinik meminta rotasi QR token presensi baru',
@@ -195,7 +194,7 @@ export class AttendanceController {
   }
 
   @Get('qr/active')
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+  @RequirePermissions('attendance:submit', 'attendance:read', 'attendance:manage')
   @ApiOperation({
     summary: 'Mengambil informasi sesi QR aktif saat ini untuk terminal',
   })
@@ -213,7 +212,7 @@ export class AttendanceController {
   }
 
   @Get('my-history')
-  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('attendance:read')
   @ApiOperation({
     summary: 'Melihat riwayat presensi staf yang sedang login (Mobile App)',
     description:
@@ -231,7 +230,7 @@ export class AttendanceController {
   }
 
   @Get('daily')
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+  @RequirePermissions('attendance:review', 'attendance:manage')
   @ApiOperation({
     summary: 'Admin memantau presensi harian seluruh staf (Web Dashboard BFF)',
     description:
@@ -248,7 +247,7 @@ export class AttendanceController {
   }
 
   @Get('export-candidates')
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+  @RequirePermissions('attendance:review', 'attendance:manage')
   @ApiOperation({
     summary: 'Daftar staf dan rekap total kehadiran bulanan untuk wizard ekspor',
     description:

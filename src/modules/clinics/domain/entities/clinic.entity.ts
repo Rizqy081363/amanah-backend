@@ -13,7 +13,7 @@ export class LayananPoliEntity {
   name: string;
   description?: string | null;
   intakeFormId?: string | null;
-  medicalFlow?: string;
+  medicalFlow?: string | null;
   isActive: boolean;
   createdAt: Date;
 }

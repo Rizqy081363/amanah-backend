@@ -59,9 +59,7 @@ export class ChatNotificationPublisher {
           },
           actor: {
             userId: actor?.userId || message.senderUserId || undefined,
-            roleCode:
-              actor?.roleCode ||
-              (message.senderRole === 'customer' ? 'patient' : 'admin'),
+            roleCode: actor?.roleCode || undefined,
           },
         };
 

@@ -718,7 +718,7 @@ export class KiaIntakeDrizzleRepository {
 
     if (appt?.patientProfile) {
       return {
-        flow: appt.medicalFlow || 'regular',
+        flow: appt.medicalFlow || null,
         type: 'regular',
         data: {
           ...baseAppointmentData,

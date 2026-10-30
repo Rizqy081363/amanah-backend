@@ -15,7 +15,6 @@ import { DrizzleDatabase } from '../../../database/drizzle/drizzle.provider';
 import {
   clinicUnits,
   doctorAssignments,
-  medicalSpecialties,
   practitioners,
   roles,
   sessionDefs,
@@ -26,12 +25,11 @@ import {
   userRoles,
   users,
 } from '../../../database/schema';
-import { MEDICAL_SPECIALTY_CODES } from '../../../modules/clinics/domain/constants/medical-specialty.constants';
 import {
   STAFF_INVITATION_STATUS,
   STAFF_STATUS,
 } from '../../../modules/staffs/domain/constants/staff-invitation.constants';
-import { USER_STATUS } from '../../constants/auth.constants';
+import { USER_STATUS } from '../../../common/constants/user-status.constants';
 import {
   NOTIFICATION_REPOSITORY,
   REALTIME_GATEWAY_PORT,
@@ -40,10 +38,7 @@ import {
 import { SocketIoRealtimeGateway } from '../../../modules/notifications/infrastructure/realtime/socket-io-realtime.gateway';
 import { NotificationGatewayService } from '../../../modules/notifications/application/services/notification-gateway.service';
 import type { NotificationRepository } from '../../../modules/notifications/domain/repositories/notification.repository';
-import {
-  AuthStaffOnboardingDto,
-  StaffOnboardingRole,
-} from '../../dto/auth-staff-onboarding.dto';
+import { AuthStaffOnboardingDto } from '../../dto/auth-staff-onboarding.dto';
 import type { JwtPayloadType } from '../../strategies/types/jwt-payload.type';
 import { AuthUserMapper } from '../mappers/auth-user.mapper';
 
@@ -152,24 +147,15 @@ export class AuthStaffOnboardingService {
       }
     } else if (pendingInvitation?.roleCode) {
       const invRole = await this.db.query.roles.findFirst({
-        where: or(
-          eq(roles.code, pendingInvitation.roleCode),
-          eq(roles.code, `staff_${pendingInvitation.roleCode}`),
-        ),
+        where: eq(roles.code, pendingInvitation.roleCode),
       });
       if (invRole) {
         effectiveRole = invRole;
       }
     }
 
-    if (!effectiveRole) {
-      effectiveRole = await this.db.query.roles.findFirst({
-        where: eq(roles.code, 'worker'),
-      });
-    }
-
-    const roleCode = effectiveRole?.code || 'worker';
-    const roleId = effectiveRole?.id;
+    const roleCode = effectiveRole?.code ?? null;
+    const roleId = effectiveRole?.id ?? null;
     const isClinical = effectiveRole?.isClinical ?? false;
 
     const defaultPrefix = isClinical ? 'STF-CLN' : 'STF-ADM';
@@ -297,14 +283,6 @@ export class AuthStaffOnboardingService {
           where: eq(practitioners.staffProfileId, existingStaff.id),
         });
 
-        const targetSpecialtyCode =
-          roleCode.includes('midwife')
-            ? MEDICAL_SPECIALTY_CODES.MATERNAL_CHILD_HEALTH
-            : MEDICAL_SPECIALTY_CODES.GENERAL_PRACTITIONER;
-        const matchedSpecialty = await tx.query.medicalSpecialties.findFirst({
-          where: eq(medicalSpecialties.code, targetSpecialtyCode),
-        });
-
         if (!existingPractitioner) {
           const [newPractitioner] = await tx
             .insert(practitioners)
@@ -312,25 +290,18 @@ export class AuthStaffOnboardingService {
               staffProfileId: existingStaff.id,
               displayName: dto.fullName.trim(),
               licenseNumber: dto.licenseNumber?.trim() || null,
-              specialtyId: matchedSpecialty?.id || null,
               isAcceptingAppointments: true,
             })
             .returning();
           practitionerId = newPractitioner.id;
         } else {
           practitionerId = existingPractitioner.id;
-          let targetSpecialtyId = existingPractitioner.specialtyId;
-          if (!targetSpecialtyId && matchedSpecialty) {
-            targetSpecialtyId = matchedSpecialty.id;
-          }
-
           await tx
             .update(practitioners)
             .set({
               displayName: dto.fullName.trim(),
               licenseNumber:
                 dto.licenseNumber?.trim() || existingPractitioner.licenseNumber,
-              specialtyId: targetSpecialtyId || null,
               isAcceptingAppointments: true,
               updatedAt: this.getNowIso(),
             })

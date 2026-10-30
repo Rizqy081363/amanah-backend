@@ -1,8 +1,11 @@
-import { type AuthenticatedUser, isAdminUser } from '@common/auth';
+import {
+  type AuthenticatedUser,
+  isAdminUser,
+  PermissionsGuard,
+  RequirePermissions,
+} from '@common/auth';
 import { CurrentUser } from '@common/auth/current-user.decorator';
 import { HybridAuthGuard } from '@common/auth/hybrid-auth.guard';
-import { Roles } from '@common/auth/roles.decorator';
-import { RolesGuard } from '@common/auth/roles.guard';
 import { HttpCache } from '@common/decorators/http-cache.decorator';
 import {
   DomainForbiddenException,
@@ -38,7 +41,6 @@ import {
   ApiUnauthorizedResponse,
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
-import { SYSTEM_ROLES } from '../../../auth/constants/auth.constants';
 import {
   STAFF_REPOSITORY,
   StaffRepository,
@@ -69,14 +71,13 @@ import { UpdateAdminDoctorSessionDto } from './dto/update-admin-doctor-session.d
 
 @ApiTags('Admin Doctor Schedules (Supervisi Jadwal Dokter)')
 @ApiBearerAuth('access-token')
-@UseGuards(HybridAuthGuard, RolesGuard)
-@Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+@UseGuards(HybridAuthGuard, PermissionsGuard)
 @ApiUnauthorizedResponse({
   description: 'Sesi autentikasi tidak valid atau token tidak disertakan',
 })
 @ApiForbiddenResponse({
   description:
-    'Akses ditolak: Hanya administrator atau dokter terkait yang berwenang',
+    'Akses ditolak: Memerlukan izin modul jadwal atau kepemilikan jadwal terkait',
 })
 @Controller({ path: 'admin/doctor-schedules', version: '1' })
 export class AdminDoctorSchedulesController {
@@ -126,7 +127,7 @@ export class AdminDoctorSchedulesController {
   }
 
   @Get()
-  @Roles(SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('schedules:read')
   @ApiOperation({
     summary: 'Mendapatkan daftar jadwal seluruh dokter untuk supervisi admin',
     description:
@@ -146,6 +147,7 @@ export class AdminDoctorSchedulesController {
   }
 
   @Get('filter-options')
+  @RequirePermissions('schedules:read')
   @ApiOperation({
     summary:
       'Mendapatkan master opsi referensi filter jadwal dokter (Poliklinik, Spesialisasi, Status)',
@@ -161,6 +163,7 @@ export class AdminDoctorSchedulesController {
   }
 
   @Get(':id')
+  @RequirePermissions('schedules:read')
   @ApiOperation({
     summary:
       'Mendapatkan detail jadwal dokter, kalender bulanan, dan shift 24 jam',
@@ -194,6 +197,7 @@ export class AdminDoctorSchedulesController {
   }
 
   @Get(':id/profile')
+  @RequirePermissions('schedules:read')
   @ApiOperation({
     summary:
       'Mendapatkan data profil onboarding lengkap dokter / bidan (Admin)',
@@ -229,6 +233,7 @@ export class AdminDoctorSchedulesController {
   }
 
   @Patch(':id/profile')
+  @RequirePermissions('schedules:manage')
   @ApiOperation({
     summary:
       'Memperbarui data profil dan status operasional dokter / bidan (Admin)',
@@ -261,6 +266,7 @@ export class AdminDoctorSchedulesController {
   }
 
   @Patch(':id')
+  @RequirePermissions('schedules:manage')
   @ApiOperation({
     summary: 'Memperbarui operasional jadwal dan status cuti dokter (Admin)',
     description:
@@ -292,6 +298,7 @@ export class AdminDoctorSchedulesController {
   }
 
   @Put(':id')
+  @RequirePermissions('schedules:manage')
   @ApiOperation({
     summary:
       'Memperbarui operasional jadwal dan status cuti dokter via PUT (Admin)',
@@ -324,7 +331,7 @@ export class AdminDoctorSchedulesController {
   }
 
   @Patch(':id/days/:date')
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+  @RequirePermissions('schedules:manage')
   @ApiOperation({
     summary: 'Menyesuaikan status praktik untuk tanggal kalender tertentu',
     description:
@@ -364,6 +371,7 @@ export class AdminDoctorSchedulesController {
   }
 
   @Patch(':id/day-status')
+  @RequirePermissions('schedules:manage')
   @ApiOperation({
     summary:
       'Menyesuaikan status praktik tanggal kalender melalui payload body (Admin)',
@@ -403,6 +411,7 @@ export class AdminDoctorSchedulesController {
   }
 
   @Post(':id/sessions')
+  @RequirePermissions('schedules:manage')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary:
@@ -436,6 +445,7 @@ export class AdminDoctorSchedulesController {
   }
 
   @Patch(':id/sessions/:sessionId')
+  @RequirePermissions('schedules:manage')
   @ApiOperation({
     summary: 'Memperbarui sesi shift praktik dokter (Admin & Dokter)',
     description:
@@ -477,7 +487,7 @@ export class AdminDoctorSchedulesController {
   }
 
   @Get(':id/sessions/:sessionId/reschedule-eligibility')
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+  @RequirePermissions('schedules:read')
   @ApiOperation({
     summary:
       'Pengecekan pra-syarat (eligibility pre-check) sebelum reschedule sesi dokter (Admin & Dokter)',
@@ -520,7 +530,7 @@ export class AdminDoctorSchedulesController {
   }
 
   @Post(':id/sessions/:sessionId/reschedule')
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+  @RequirePermissions('schedules:manage')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary:
@@ -562,7 +572,7 @@ export class AdminDoctorSchedulesController {
   }
 
   @Delete(':id/sessions/:sessionId')
-  @Roles(SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('schedules:manage')
   @ApiOperation({
     summary:
       'Penghapusan sesi jadwal dokter oleh Admin (Dinonaktifkan demi Integritas Data)',
@@ -589,6 +599,7 @@ export class AdminDoctorSchedulesController {
   }
 
   @Get(':id/sessions/:sessionId/patients')
+  @RequirePermissions('schedules:read')
   @ApiOperation({
     summary:
       'Mendapatkan daftar pasien terdaftar pada sesi shift tertentu dokter (5-Kolom Grid & Demografis)',
@@ -628,6 +639,7 @@ export class AdminDoctorSchedulesController {
   }
 
   @Get(':id/patients')
+  @RequirePermissions('schedules:read')
   @ApiOperation({
     summary:
       'Mendapatkan akumulasi daftar seluruh pasien dokter pada tanggal tertentu (4 Sesi)',

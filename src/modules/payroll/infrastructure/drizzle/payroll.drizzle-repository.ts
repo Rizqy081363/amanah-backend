@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { and, desc, eq, gte, inArray, lte, ne } from 'drizzle-orm';
 import { ClinicConfigService } from '../../../../common/clinic-config/clinic-config.service';
+import { ROLE_AUDIENCE } from '../../../../common/constants/role-audience.constants';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
@@ -985,7 +986,7 @@ export class PayrollDrizzleRepository implements PayrollRepository {
           code: roles.code,
         })
         .from(roles)
-        .where(ne(roles.code, 'patient')),
+        .where(eq(roles.audience, ROLE_AUDIENCE.INTERNAL)),
     ]);
 
     return {

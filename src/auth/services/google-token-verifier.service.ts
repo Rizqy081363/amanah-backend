@@ -2,7 +2,7 @@ import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { OAuth2Client, type TokenPayload } from 'google-auth-library';
 import type { AllConfigType } from '../../config/config.type';
-import { AUTH_ERROR_CODES } from '../constants/auth.constants';
+import { AUTH_ERROR_CODES } from '../../common/constants/auth-error-codes.constants';
 
 export interface VerifiedGoogleUser {
   sub: string;

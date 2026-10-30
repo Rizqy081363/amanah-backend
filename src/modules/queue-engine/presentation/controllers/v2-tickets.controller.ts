@@ -13,13 +13,14 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { and, eq } from 'drizzle-orm';
-import { SYSTEM_ROLES } from '../../../../auth/constants/auth.constants';
 import {
   type AuthenticatedUser,
   CurrentUser,
   HybridAuthGuard,
-  Roles,
-  RolesGuard,
+  isPatientUser,
+  PermissionsGuard,
+  Public,
+  RequirePermissions,
 } from '../../../../common/auth';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import {
@@ -64,6 +65,7 @@ export class V2TicketsController {
   ) {}
 
   @Post()
+  @Public()
   @ApiOperation({ summary: 'Issue a new queue ticket (atomic counter)' })
   async createTicket(@Body() dto: CreateQueueTicketDto) {
     const [category] = await this.db
@@ -299,6 +301,7 @@ export class V2TicketsController {
   }
 
   @Get(':id')
+  @Public()
   @ApiOperation({ summary: 'Get segregated patient ticket view by ticket ID' })
   async getTicket(@Param('id') id: string) {
     const [ticket] = await this.db
@@ -400,8 +403,8 @@ export class V2TicketsController {
 
   @Post(':id/reschedule')
   @ApiBearerAuth('access-token')
-  @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF, SYSTEM_ROLES.PATIENT)
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('appointments:book', 'appointments:manage')
   @ApiOperation({
     summary: 'Reschedule an existing ticket (cancel old, issue new)',
   })
@@ -420,7 +423,7 @@ export class V2TicketsController {
       throw new NotFoundException(`Ticket not found: ${id}`);
     }
 
-    if (user.systemRole === SYSTEM_ROLES.PATIENT) {
+    if (isPatientUser(user)) {
       const patientId = user.patient?.id;
       const [patientProfile] = oldTicket.patientId
         ? await this.db

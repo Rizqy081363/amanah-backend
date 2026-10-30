@@ -7,7 +7,6 @@ import {
   Optional,
 } from '@nestjs/common';
 import { and, desc, eq, gte, inArray, lte } from 'drizzle-orm';
-import { SYSTEM_ROLES } from '../../../../auth/constants/auth.constants';
 import { RedisService } from '../../../../common/redis/redis.service';
 import { ClinicTimeService } from '../../../../common/time/clinic-time.service';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
@@ -748,7 +747,7 @@ export class LeaveDrizzleRepository implements LeaveRepository {
           sourceDomain: 'leave',
           target: {
             type: 'role',
-            roles: [SYSTEM_ROLES.ADMIN],
+            roles: ['admin'],
           },
           category: 'shift',
           content: {
@@ -829,7 +828,7 @@ export class LeaveDrizzleRepository implements LeaveRepository {
           sourceDomain: 'leave',
           target: {
             type: 'role',
-            roles: [SYSTEM_ROLES.ADMIN],
+            roles: ['admin'],
           },
           category: 'shift',
           content: {

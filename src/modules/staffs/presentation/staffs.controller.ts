@@ -35,12 +35,13 @@ import {
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
 import {
+  type AuthenticatedUser,
   CurrentUser,
   HybridAuthGuard,
-  Roles,
-  RolesGuard,
+  isAdminUser,
+  PermissionsGuard,
+  RequirePermissions,
 } from '../../../common/auth';
-import { SYSTEM_ROLES } from '../../../auth/constants/auth.constants';
 import { AvatarService } from '../../avatar/avatar.service';
 import {
   STAFF_REPOSITORY,
@@ -58,7 +59,7 @@ import { UpdateStaffDto } from './dto/update-staff.dto';
 
 @ApiTags('Staffs (Pegawai Klinis & Kartu ID Digital)')
 @ApiBearerAuth('access-token')
-@UseGuards(HybridAuthGuard, RolesGuard)
+@UseGuards(HybridAuthGuard, PermissionsGuard)
 @ApiUnauthorizedResponse({
   description: 'Sesi autentikasi tidak valid atau token tidak disertakan',
 })
@@ -76,7 +77,7 @@ export class StaffsController {
   ) {}
 
   @Get('me')
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+  @RequirePermissions('profile:read', 'staff:read')
   @ApiOperation({
     summary: 'Mendapatkan profil dan Kartu ID digital staf login',
     description:
@@ -85,7 +86,7 @@ export class StaffsController {
   @ApiOkResponse({
     description: 'Profil staf dan digital ID berhasil diambil',
   })
-  async getMyProfile(@CurrentUser() user: any) {
+  async getMyProfile(@CurrentUser() user: AuthenticatedUser) {
     const staff = await this.staffRepo.findByUserId(user.id);
     if (!staff) {
       throw new NotFoundException({
@@ -97,7 +98,7 @@ export class StaffsController {
   }
 
   @Patch('me')
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+  @RequirePermissions('profile:update', 'staff:manage')
   @ApiOperation({
     summary: 'Memperbarui profil staf login saat ini (Self-Update)',
     description:
@@ -109,7 +110,7 @@ export class StaffsController {
   })
   @ApiUnprocessableEntityResponse({ description: 'Validasi pembaruan gagal' })
   async updateMyProfile(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
     @Body() body: UpdateStaffDto,
   ) {
     const staff = await this.staffRepo.findByUserId(user.id);
@@ -137,7 +138,7 @@ export class StaffsController {
   }
 
   @Patch('me/avatar')
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+  @RequirePermissions('profile:update', 'staff:manage')
   @UseInterceptors(
     FileInterceptor('file', {
       limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
@@ -163,7 +164,7 @@ export class StaffsController {
   })
   @HttpCode(HttpStatus.OK)
   async uploadMyAvatar(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
     @UploadedFile() file?: Express.Multer.File,
   ) {
     if (!file?.buffer) {
@@ -173,7 +174,7 @@ export class StaffsController {
   }
 
   @Post('me/avatar')
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+  @RequirePermissions('profile:update', 'staff:manage')
   @UseInterceptors(
     FileInterceptor('file', {
       limits: { fileSize: 5 * 1024 * 1024 },
@@ -197,14 +198,14 @@ export class StaffsController {
   })
   @HttpCode(HttpStatus.OK)
   async uploadMyAvatarPost(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
     @UploadedFile() file?: Express.Multer.File,
   ) {
     return this.uploadMyAvatar(user, file);
   }
 
   @Get('me/credentials')
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+  @RequirePermissions('profile:read', 'staff:read')
   @ApiOperation({
     summary: 'Melihat kredensial legalitas staf yang sedang login (SIP/STR)',
     description:
@@ -213,7 +214,7 @@ export class StaffsController {
   @ApiOkResponse({
     description: 'Daftar kredensial staf login berhasil diambil',
   })
-  async getMyCredentials(@CurrentUser() user: any) {
+  async getMyCredentials(@CurrentUser() user: AuthenticatedUser) {
     const staff = await this.staffRepo.findByUserId(user.id);
     if (!staff) {
       throw new NotFoundException({
@@ -225,7 +226,7 @@ export class StaffsController {
   }
 
   @Post('me/credentials')
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+  @RequirePermissions('profile:update', 'staff:manage')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Menambahkan kredensial SIP/STR untuk staf yang sedang login',
@@ -234,7 +235,7 @@ export class StaffsController {
   })
   @ApiCreatedResponse({ description: 'Kredensial berhasil dicatat' })
   async addMyCredential(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
     @Body() body: CreateCredentialDto,
   ) {
     const staff = await this.staffRepo.findByUserId(user.id);
@@ -248,7 +249,7 @@ export class StaffsController {
   }
 
   @Patch('me/credentials/:credentialId')
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+  @RequirePermissions('profile:update', 'staff:manage')
   @ApiOperation({
     summary: 'Memperbarui kredensial SIP/STR staf login',
     description:
@@ -260,7 +261,7 @@ export class StaffsController {
   })
   @ApiOkResponse({ description: 'Kredensial berhasil diperbarui' })
   async updateMyCredential(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
     @Param('credentialId') credentialId: string,
     @Body() body: UpdateCredentialDto,
   ) {
@@ -279,7 +280,7 @@ export class StaffsController {
   }
 
   @Delete('me/credentials/:credentialId')
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+  @RequirePermissions('profile:update', 'staff:manage')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Menghapus kredensial SIP/STR staf login',
@@ -308,7 +309,7 @@ export class StaffsController {
   }
 
   @Post()
-  @Roles(SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('staff:manage')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Menambahkan profil staf klinis baru (Admin)',
@@ -342,7 +343,7 @@ export class StaffsController {
   }
 
   @Get()
-  @Roles(SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('staff:read', 'staff:manage')
   @ApiOperation({
     summary: 'Mendapatkan daftar seluruh staf klinis (Admin)',
     description:
@@ -368,7 +369,7 @@ export class StaffsController {
   }
 
   @Get('profession/:profession')
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+  @RequirePermissions('staff:read', 'staff:manage')
   @ApiOperation({
     summary: 'Filter staf berdasarkan profesi klinis',
     description:
@@ -387,7 +388,7 @@ export class StaffsController {
   }
 
   @Get(':id')
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+  @RequirePermissions('staff:read', 'staff:manage')
   @ApiOperation({
     summary: 'Mendapatkan detail profil staf berdasarkan ID',
     description:
@@ -411,7 +412,7 @@ export class StaffsController {
   }
 
   @Patch(':id')
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+  @RequirePermissions('staff:manage', 'profile:update')
   @ApiOperation({
     summary: 'Memperbarui data profil staf (Admin / Staf Pemilik)',
     description:
@@ -428,14 +429,14 @@ export class StaffsController {
   async updateStaff(
     @Param('id') id: string,
     @Body() body: UpdateStaffDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
     const existing = await this.staffRepo.findById(id);
     if (!existing) {
       throw new NotFoundException(`Staf dengan ID ${id} tidak ditemukan`);
     }
 
-    if (user.systemRole !== SYSTEM_ROLES.ADMIN && existing.userId !== user.id) {
+    if (!isAdminUser(user) && existing.userId !== user.id) {
       throw new ForbiddenException(
         'Akses ditolak: Anda hanya berwenang memperbarui data profil staf Anda sendiri',
       );
@@ -449,7 +450,7 @@ export class StaffsController {
   }
 
   @Patch(':id/avatar')
-  @Roles(SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('staff:manage')
   @UseInterceptors(
     FileInterceptor('file', {
       limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
@@ -499,7 +500,7 @@ export class StaffsController {
   }
 
   @Post(':id/avatar')
-  @Roles(SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('staff:manage')
   @UseInterceptors(
     FileInterceptor('file', {
       limits: { fileSize: 5 * 1024 * 1024 },
@@ -535,7 +536,7 @@ export class StaffsController {
   }
 
   @Delete(':id')
-  @Roles(SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('staff:manage')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Menonaktifkan staf (Admin)',
@@ -554,7 +555,7 @@ export class StaffsController {
   }
 
   @Get(':id/credentials')
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+  @RequirePermissions('staff:read', 'staff:manage')
   @ApiOperation({
     summary: 'Melihat daftar legalitas/kredensial staf (SIP, STR)',
     description:
@@ -571,7 +572,7 @@ export class StaffsController {
   }
 
   @Post(':id/credentials')
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+  @RequirePermissions('staff:manage', 'profile:update')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Menambahkan kredensial SIP/STR untuk staf',
@@ -590,13 +591,13 @@ export class StaffsController {
   async addCredential(
     @Param('id') id: string,
     @Body() body: CreateCredentialDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
     const staff = await this.staffRepo.findById(id);
     if (!staff) {
       throw new NotFoundException(`Staf dengan ID ${id} tidak ditemukan`);
     }
-    if (user.systemRole !== SYSTEM_ROLES.ADMIN && staff.userId !== user.id) {
+    if (!isAdminUser(user) && staff.userId !== user.id) {
       throw new ForbiddenException(
         'Akses ditolak: Anda hanya berwenang menambahkan kredensial untuk profil Anda sendiri',
       );
@@ -605,7 +606,7 @@ export class StaffsController {
   }
 
   @Patch(':id/credentials/:credentialId')
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+  @RequirePermissions('staff:manage', 'profile:update')
   @ApiOperation({
     summary:
       'Memperbarui kredensial SIP/STR staf berdasarkan ID staf dan ID kredensial',
@@ -626,13 +627,13 @@ export class StaffsController {
     @Param('id') id: string,
     @Param('credentialId') credentialId: string,
     @Body() body: UpdateCredentialDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
     const staff = await this.staffRepo.findById(id);
     if (!staff) {
       throw new NotFoundException(`Staf dengan ID ${id} tidak ditemukan`);
     }
-    if (user.systemRole !== SYSTEM_ROLES.ADMIN && staff.userId !== user.id) {
+    if (!isAdminUser(user) && staff.userId !== user.id) {
       throw new ForbiddenException(
         'Akses ditolak: Anda hanya berwenang mengubah kredensial profil Anda sendiri',
       );
@@ -647,7 +648,7 @@ export class StaffsController {
   }
 
   @Delete(':id/credentials/:credentialId')
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+  @RequirePermissions('staff:manage', 'profile:update')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Menghapus kredensial SIP/STR staf berdasarkan ID',
@@ -665,13 +666,13 @@ export class StaffsController {
   async deleteCredential(
     @Param('id') id: string,
     @Param('credentialId') credentialId: string,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
     const staff = await this.staffRepo.findById(id);
     if (!staff) {
       throw new NotFoundException(`Staf dengan ID ${id} tidak ditemukan`);
     }
-    if (user.systemRole !== SYSTEM_ROLES.ADMIN && staff.userId !== user.id) {
+    if (!isAdminUser(user) && staff.userId !== user.id) {
       throw new ForbiddenException(
         'Akses ditolak: Anda hanya berwenang menghapus kredensial profil Anda sendiri',
       );
@@ -686,7 +687,7 @@ export class StaffsController {
   }
 
   @Get(':id/roster')
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+  @RequirePermissions('staff:read', 'staff:manage')
   @ApiOperation({
     summary: 'Mendapatkan jadwal shift roster staf operasional',
     description:
@@ -701,13 +702,13 @@ export class StaffsController {
   })
   async getStaffRoster(
     @Param('id') id: string,
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
     const staff = await this.staffRepo.findById(id);
     if (!staff) {
       throw new NotFoundException(`Staf dengan ID ${id} tidak ditemukan`);
     }
-    if (user.systemRole !== SYSTEM_ROLES.ADMIN && staff.userId !== user.id) {
+    if (!isAdminUser(user) && staff.userId !== user.id) {
       throw new ForbiddenException(
         'Akses ditolak: Anda hanya berwenang melihat data roster staf Anda sendiri',
       );
@@ -716,7 +717,7 @@ export class StaffsController {
   }
 
   @Put(':id/roster')
-  @Roles(SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('staff:manage')
   @ApiOperation({
     summary:
       'Mengganti seluruh jadwal shift roster staf operasional (Bulk Replace)',
@@ -742,7 +743,7 @@ export class StaffsController {
   }
 
   @Delete(':id/roster/:rosterId')
-  @Roles(SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('staff:manage')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Menghapus satu item jadwal roster staf operasional',
@@ -768,7 +769,7 @@ export class StaffsController {
   }
 
   @Delete(':id/roster')
-  @Roles(SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('staff:manage')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Mereset roster staf ke template master jadwal mingguan klinik',

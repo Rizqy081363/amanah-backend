@@ -41,8 +41,7 @@ import {
   REALTIME_ROOMS,
 } from '../../notifications/notifications.constants';
 import { SocketIoRealtimeGateway } from '../../notifications/infrastructure/realtime/socket-io-realtime.gateway';
-import { USER_STATUS } from '../../../auth/constants/auth.constants';
-import { MEDICAL_SPECIALTY_CODES } from '../../clinics/domain/constants/medical-specialty.constants';
+import { USER_STATUS } from '../../../common/constants/user-status.constants';
 import { StaffInvitationEntity } from '../domain/entities/staff-invitation.entity';
 import {
   STAFF_INVITATION_REPOSITORY,
@@ -101,10 +100,7 @@ export class StaffInvitationService {
     polyclinics: Array<{ id: string; name: string; code: string }>;
   }> {
     const staffRoles = await this.db.query.roles.findMany({
-      where: and(
-        eq(roles.audience, 'internal'),
-        not(eq(roles.code, 'admin')),
-      ),
+      where: eq(roles.audience, 'internal'),
       orderBy: [asc(roles.name)],
     });
 

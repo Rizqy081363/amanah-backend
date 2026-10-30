@@ -24,7 +24,7 @@ export class CreateAppointmentDto implements CreateAppointmentInput {
   patientId?: string;
 
   @ApiProperty({
-    description: 'ID Poliklinik tujuan (Poli Umum / Poli KIA)',
+    description: 'ID Unit Poliklinik tujuan (UUID dari clinic_units)',
     example: '123e4567-e89b-12d3-a456-426614174001',
   })
   @IsUUID()

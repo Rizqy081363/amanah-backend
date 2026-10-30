@@ -5,16 +5,19 @@ import {
   ApiServiceUnavailableResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { Public } from '../common/auth';
 import { SkipRateLimit } from '../common/throttling';
 import { HealthService } from './health.service';
 
 @ApiTags('Health')
+@Public()
 @SkipRateLimit()
 @Controller('health')
 export class HealthController {
   constructor(private readonly healthService: HealthService) {}
 
   @Get('live')
+  @Public()
   @ApiOperation({
     summary: 'Liveness probe server',
     description:
@@ -34,6 +37,7 @@ export class HealthController {
   }
 
   @Get('ready')
+  @Public()
   @ApiOperation({
     summary: 'Readiness probe ketergantungan sistem',
     description:

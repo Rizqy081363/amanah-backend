@@ -8,10 +8,9 @@ import { DRIZZLE_SOURCE } from '../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../database/drizzle/drizzle.provider';
 import { users } from '../../database/schema';
 import {
-  resolveSystemRole,
-  SYSTEM_ROLES,
-  type SystemRole,
-} from '../constants/auth.constants';
+  ROLE_AUDIENCE,
+  type RoleAudience,
+} from '../../common/constants/role-audience.constants';
 import { JwtPayloadType } from './types/jwt-payload.type';
 
 @Injectable()
@@ -74,25 +73,13 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     const staffProfile = user.staffProfiles?.[0];
     const patientProfile = user.patientProfiles?.[0];
 
-    const primaryRole = user.userRoles_userId?.[0]?.role;
-    const hasStaffProfiles = Boolean(
-      user.staffProfiles && user.staffProfiles.length > 0,
-    );
-    const systemRole: SystemRole = resolveSystemRole(
-      primaryRole?.code,
-      hasStaffProfiles,
-    );
-
+    const primaryRole =
+      user.userRoles_userId?.[0]?.role ?? staffProfile?.role ?? null;
     const userRoleCodes = (user.userRoles_userId || [])
       .map((ur) => ur.role?.code)
       .filter((code): code is string => Boolean(code));
-    const roleCode =
-      primaryRole?.code ||
-      (systemRole === SYSTEM_ROLES.ADMIN
-        ? 'admin'
-        : systemRole === SYSTEM_ROLES.STAF
-          ? staffProfile?.role?.code || 'worker'
-          : 'patient');
+    const roleCode = primaryRole?.code ?? null;
+    const systemRole = roleCode;
 
     const permissionSet = new Set<string>();
     for (const ur of user.userRoles_userId || []) {
@@ -110,8 +97,8 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       staffProfile?.role?.isClinical ??
       Boolean(staffProfile?.practitioners?.length);
 
-    const audience: 'internal' | 'external' =
-      primaryRole?.audience ?? (staffProfile ? 'internal' : 'external');
+    const audience: RoleAudience | null =
+      (primaryRole?.audience as RoleAudience) ?? null;
 
     return {
       ...payload,
@@ -120,7 +107,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       name: user.name,
       systemRole,
       roleCode,
-      roles: userRoleCodes.length > 0 ? userRoleCodes : [roleCode],
+      roles: userRoleCodes.length > 0 ? userRoleCodes : roleCode ? [roleCode] : [],
       role: primaryRole
         ? {
             id: primaryRole.id,

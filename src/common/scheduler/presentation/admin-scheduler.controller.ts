@@ -18,10 +18,8 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import { SYSTEM_ROLES } from '../../../auth/constants/auth.constants';
+import { PermissionsGuard, RequirePermissions } from '../../auth';
 import { HybridAuthGuard } from '../../auth/hybrid-auth.guard';
-import { Roles } from '../../auth/roles.decorator';
-import { RolesGuard } from '../../auth/roles.guard';
 import { ISchedulerPort } from '../scheduler-port.interface';
 import { SCHEDULER_PORT } from '../scheduler.constants';
 import { ScheduledJobInfo } from '../scheduler.types';
@@ -32,8 +30,8 @@ export class RescheduleJobDto {
 
 @ApiTags('Admin Scheduler (Dynamic Cron Jobs & Background Tasks)')
 @ApiBearerAuth('access-token')
-@UseGuards(HybridAuthGuard, RolesGuard)
-@Roles(SYSTEM_ROLES.ADMIN)
+@UseGuards(HybridAuthGuard, PermissionsGuard)
+@RequirePermissions('users:manage')
 @ApiUnauthorizedResponse({
   description: 'Sesi autentikasi tidak valid atau token tidak disertakan',
 })
@@ -48,6 +46,8 @@ export class AdminSchedulerController {
   ) {}
 
   @Get('jobs')
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('users:manage')
   @ApiOperation({
     summary: 'Melihat seluruh daftar dynamic cron jobs yang terdaftar',
     description:
@@ -59,6 +59,8 @@ export class AdminSchedulerController {
   }
 
   @Post('jobs/:jobId/trigger')
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('users:manage')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Memicu eksekusi langsung dynamic cron job secara manual',
@@ -76,6 +78,8 @@ export class AdminSchedulerController {
   }
 
   @Post('jobs/:jobId/reschedule')
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('users:manage')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Mengubah jadwal ekspresi cron dari dynamic job',

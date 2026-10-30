@@ -1,13 +1,12 @@
 import {
   type AuthenticatedUser,
   isAdminUser,
+  PermissionsGuard,
+  RequirePermissions,
 } from '@common/auth';
 import { CurrentUser } from '@common/auth/current-user.decorator';
 import { HybridAuthGuard } from '@common/auth/hybrid-auth.guard';
-import { Roles } from '@common/auth/roles.decorator';
-import { RolesGuard } from '@common/auth/roles.guard';
 import { DomainForbiddenException } from '@common/exceptions';
-import { SYSTEM_ROLES } from '@/auth/constants/auth.constants';
 import {
   Body,
   Controller,
@@ -40,8 +39,7 @@ import {
 
 @ApiTags('Admin Doctor Schedules - Roster & History')
 @ApiBearerAuth('access-token')
-@UseGuards(HybridAuthGuard, RolesGuard)
-@Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+@UseGuards(HybridAuthGuard, PermissionsGuard)
 @Controller({ path: 'admin/doctor-schedules', version: '1' })
 export class AdminDoctorRosterController {
   constructor(
@@ -61,6 +59,7 @@ export class AdminDoctorRosterController {
   }
 
   @Get(':id/assignments')
+  @RequirePermissions('schedules:read')
   @ApiOperation({
     summary:
       'Mendapatkan matriks hari dan shift kerja dokter (Roster Mingguan)',
@@ -76,7 +75,7 @@ export class AdminDoctorRosterController {
   }
 
   @Put(':id/assignments')
-  @Roles(SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('schedules:manage')
   @ApiOperation({
     summary:
       'Menyimpan konfigurasi hari dan shift kerja dokter (Roster Mingguan)',
@@ -94,7 +93,7 @@ export class AdminDoctorRosterController {
   }
 
   @Delete(':id/assignments')
-  @Roles(SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('schedules:manage')
   @ApiOperation({
     summary:
       'Mereset roster kerja dokter kembali ke template mingguan default klinik',
@@ -111,7 +110,7 @@ export class AdminDoctorRosterController {
   }
 
   @Post(':id/assignments/reset')
-  @Roles(SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('schedules:manage')
   @ApiOperation({
     summary:
       'Mereset roster kerja dokter kembali ke template mingguan default klinik',
@@ -128,6 +127,7 @@ export class AdminDoctorRosterController {
   }
 
   @Get(':id/history')
+  @RequirePermissions('schedules:read')
   @ApiOperation({
     summary:
       'Mendapatkan riwayat audit perubahan status dan jadwal praktik dokter',

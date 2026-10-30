@@ -23,9 +23,7 @@ import {
 import type { Response } from 'express';
 import { CurrentUser } from '../../../common/auth/current-user.decorator';
 import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
-import { RolesGuard } from '../../../common/auth/roles.guard';
-import { Roles } from '../../../common/auth/roles.decorator';
-import { SYSTEM_ROLES } from '../../../common/auth/roles.enum';
+import { PermissionsGuard, RequirePermissions } from '../../../common/auth';
 import { AuthenticatedUser } from '../../../common/auth/authenticated-user.interface';
 import { ExportsService } from '../application/exports.service';
 import { CheckExportAvailabilityDto } from './dto/check-export-availability.dto';
@@ -33,8 +31,8 @@ import { CreateExportDto } from './dto/create-export.dto';
 
 @ApiTags('Exports (Pipeline Asinkronus Berkas & Artefak)')
 @ApiBearerAuth('access-token')
-@UseGuards(HybridAuthGuard, RolesGuard)
-@Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+@UseGuards(HybridAuthGuard, PermissionsGuard)
+@RequirePermissions('records:read')
 @Controller({ path: 'exports', version: '1' })
 export class ExportsController {
   constructor(private readonly exportsService: ExportsService) {}

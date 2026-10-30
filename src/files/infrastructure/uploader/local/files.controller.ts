@@ -22,6 +22,11 @@ import {
 } from '@nestjs/swagger';
 import type { Response as ExpressResponse } from 'express';
 import { HybridAuthGuard } from '../../../../common/auth/hybrid-auth.guard';
+import {
+  PermissionsGuard,
+  Public,
+  RequirePermissions,
+} from '../../../../common/auth';
 import { FileResponseDto } from './dto/file-response.dto';
 import { FilesLocalService } from './files.service';
 
@@ -49,7 +54,8 @@ export class FilesLocalController {
       'Mengunggah file (foto profil, surat rujukan, lampiran izin) berformat multipart/form-data ke server.',
   })
   @ApiBearerAuth('access-token')
-  @UseGuards(HybridAuthGuard)
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('profile:update')
   @Post('upload')
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -72,6 +78,7 @@ export class FilesLocalController {
   }
 
   @Get(':path')
+  @Public()
   @ApiExcludeEndpoint()
   download(@Param('path') path: string, @Response() response: ExpressResponse) {
     return response.sendFile(path, { root: './files' });

@@ -14,12 +14,14 @@ import {
 } from '@nestjs/swagger';
 import { CurrentUser } from '../../../common/auth/current-user.decorator';
 import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
+import { PermissionsGuard, RequirePermissions } from '../../../common/auth';
 import { RealtimeTicketService } from '../application/services/realtime-ticket.service';
 import { createRealtimePrincipal } from '../contracts/realtime-session.contract';
 
 @ApiTags('Realtime (WebSocket Ticket Auth)')
 @ApiBearerAuth('access-token')
-@UseGuards(HybridAuthGuard)
+@UseGuards(HybridAuthGuard, PermissionsGuard)
+@RequirePermissions('app:access')
 @ApiUnauthorizedResponse({
   description: 'Sesi autentikasi tidak valid atau token tidak disertakan',
 })
@@ -28,6 +30,7 @@ export class RealtimeTicketController {
   constructor(private readonly realtimeTicketService: RealtimeTicketService) {}
 
   @Post('ticket')
+  @RequirePermissions('app:access')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary:

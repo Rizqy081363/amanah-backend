@@ -85,6 +85,7 @@ export class DrizzleAdminDoctorScheduleListQuery {
           staffProfile: {
             with: {
               clinicUnit: true,
+              role: true,
             },
           },
           medicalSpecialty: true,
@@ -463,17 +464,15 @@ export class DrizzleAdminDoctorScheduleListQuery {
 
       const practiceRoom =
         dailySessions.length > 0 ? dailySessions[0].roomName : defaultRoomName;
-      const specialty =
-        p.medicalSpecialty?.name ||
-        p.staffProfile?.clinicUnit?.name ||
-        p.staffProfile?.positionTitle ||
-        '';
+      const specialty = p.medicalSpecialty?.name || '';
+      const unitName = p.staffProfile?.clinicUnit?.name || '';
       const doctorFullName = p.staffProfile?.fullName || p.displayName || '';
       if (query.search) {
         const q = query.search.toLowerCase();
         const matchSearch =
           doctorFullName.toLowerCase().includes(q) ||
           specialty.toLowerCase().includes(q) ||
+          unitName.toLowerCase().includes(q) ||
           practiceRoom.toLowerCase().includes(q);
         if (!matchSearch) continue;
       }
@@ -481,16 +480,21 @@ export class DrizzleAdminDoctorScheduleListQuery {
       if (query.poli) {
         const poliList = query.poli
           .split(',')
-          .map((item) => item.trim().toLowerCase())
+          .map((item) => item.trim())
           .filter(Boolean);
         if (poliList.length > 0) {
-          const matchPoli = poliList.some(
-            (item) =>
-              specialty.toLowerCase().includes(item) ||
-              (p.staffProfile?.clinicUnit?.name || '')
-                .toLowerCase()
-                .includes(item),
-          );
+          const staffUnitId = p.staffProfile?.primaryUnitId;
+          const staffUnitCode = p.staffProfile?.clinicUnit?.code;
+          const roomUnitId = p.clinicRoom?.unitId;
+
+          const matchPoli = poliList.some((item) => {
+            const itemLower = item.toLowerCase();
+            return (
+              (staffUnitId && staffUnitId === item) ||
+              (staffUnitCode && staffUnitCode.toLowerCase() === itemLower) ||
+              (roomUnitId && roomUnitId === item)
+            );
+          });
           if (!matchPoli) continue;
         }
       }
@@ -567,8 +571,9 @@ export class DrizzleAdminDoctorScheduleListQuery {
         staffProfileId: p.staffProfileId,
         staffId: p.staffProfileId,
         staffCode: p.staffProfile?.staffCode || null,
-        roleCode: (p.staffProfile as any)?.role?.code ?? undefined,
-        isClinical: (p.staffProfile as any)?.role?.isClinical ?? true,
+        roleCode: p.staffProfile?.role?.code ?? null,
+        roleName: p.staffProfile?.role?.name ?? null,
+        isClinical: p.staffProfile?.role?.isClinical ?? true,
         fullName: doctorFullName,
         specialty,
         doctorStatus: scheduleStatus,

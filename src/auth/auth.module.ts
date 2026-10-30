@@ -13,7 +13,6 @@ import { AuthService } from './auth.service';
 import {
   BetterAuthController,
   BetterAuthGuard,
-  BetterAuthRbacGuard,
 } from './better-auth';
 import { GoogleTokenVerifierService } from './services/google-token-verifier.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
@@ -32,7 +31,6 @@ import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy';
     JwtStrategy,
     JwtRefreshStrategy,
     BetterAuthGuard,
-    BetterAuthRbacGuard,
     HybridAuthGuard,
   ],
   exports: [
@@ -43,7 +41,6 @@ import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy';
     AuthAccountLifecycleService,
     GoogleTokenVerifierService,
     BetterAuthGuard,
-    BetterAuthRbacGuard,
     HybridAuthGuard,
   ],
 })

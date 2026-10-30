@@ -13,10 +13,9 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { SYSTEM_ROLES } from '../../../../auth/constants/auth.constants';
 import { HybridAuthGuard } from '../../../../common/auth/hybrid-auth.guard';
-import { Roles } from '../../../../common/auth/roles.decorator';
-import { RolesGuard } from '../../../../common/auth/roles.guard';
+import { PermissionsGuard } from '../../../../common/auth/permissions.guard';
+import { RequirePermissions } from '../../../../common/auth/permissions.decorator';
 import { and, desc, eq, isNull, or, sql } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import {
@@ -49,8 +48,7 @@ import { CallNextDto, CreateClosureDto } from '../dto/create-closure.dto';
 
 @ApiTags('v2 - Admin Queue')
 @ApiBearerAuth('access-token')
-@UseGuards(HybridAuthGuard, RolesGuard)
-@Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+@UseGuards(HybridAuthGuard, PermissionsGuard)
 @Controller({ path: 'admin', version: '2' })
 export class V2AdminQueueController {
   constructor(
@@ -64,6 +62,7 @@ export class V2AdminQueueController {
   ) {}
 
   @Post('rooms/:id/call-next')
+  @RequirePermissions('queue:call')
   @ApiOperation({
     summary:
       'Staff calls next waiting ticket for a room (FOR UPDATE SKIP LOCKED)',
@@ -186,6 +185,7 @@ export class V2AdminQueueController {
   }
 
   @Post('tickets/:id/requeue')
+  @RequirePermissions('queue:call', 'queue:recall')
   @ApiOperation({ summary: 'Requeue a called ticket back to waiting state' })
   async requeueTicket(@Param('id') id: string) {
     const [ticket] = await this.db
@@ -238,6 +238,7 @@ export class V2AdminQueueController {
   }
 
   @Post('closures/preview')
+  @RequirePermissions('clinics:manage', 'schedules:manage')
   @ApiOperation({ summary: 'Preview impact of closure on existing tickets' })
   async previewClosure(@Body() dto: CreateClosureDto) {
     const startsAt = new Date(dto.startsAt);
@@ -438,7 +439,7 @@ export class V2AdminQueueController {
   }
 
   @Post('closures')
-  @Roles(SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('clinics:manage', 'schedules:manage')
   @ApiOperation({ summary: 'Apply clinic closure and cascade ticket moves' })
   async applyClosure(@Body() dto: CreateClosureDto) {
     const startsAt = new Date(dto.startsAt);
@@ -564,6 +565,7 @@ export class V2AdminQueueController {
   }
 
   @Get('closures')
+  @RequirePermissions('clinics:manage', 'schedules:manage', 'queue:read')
   @ApiOperation({ summary: 'List clinic closures' })
   async getClosures(
     @Query('scope') scope?: string,
@@ -630,7 +632,7 @@ export class V2AdminQueueController {
   }
 
   @Post('closures/:id/cancel')
-  @Roles(SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('clinics:manage', 'schedules:manage')
   @ApiOperation({
     summary: 'Cancel an active clinic closure (Rule R21 soft-cancellation)',
   })
@@ -670,7 +672,7 @@ export class V2AdminQueueController {
   }
 
   @Delete('closures/:id')
-  @Roles(SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('clinics:manage', 'schedules:manage')
   @ApiOperation({
     summary: 'Delete/cancel a clinic closure (Rule R21 soft-cancellation)',
   })
@@ -679,7 +681,7 @@ export class V2AdminQueueController {
   }
 
   @Post('closures/reconcile')
-  @Roles(SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('clinics:manage', 'schedules:manage')
   @ApiOperation({
     summary:
       'Reconcile waiting tickets against active closures (Section 5.3 safety net)',

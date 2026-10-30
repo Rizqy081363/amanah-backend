@@ -16,10 +16,8 @@ import { DrizzleDatabase } from '../../../database/drizzle/drizzle.provider';
 import {
   account,
   authAccounts,
-  roles,
   session,
   user,
-  userRoles,
   users,
 } from '../../../database/schema';
 import { MailService } from '../../../mail/mail.service';
@@ -79,24 +77,13 @@ export class AuthRegistrationOtpService {
       passwordHash,
     });
 
-    const patientRole = await this.db.query.roles.findFirst({
-      where: eq(roles.code, 'patient'),
-    });
-
-    if (patientRole) {
-      await this.db.insert(userRoles).values({
-        userId: newUser.id,
-        roleId: patientRole.id,
-      });
-    }
-
     try {
       await this.db.insert(user).values({
         id: newUser.id,
         name: fullName,
         email: dto.email,
         emailVerified: true,
-        role: 'patient',
+        role: null,
         banned: false,
       });
 

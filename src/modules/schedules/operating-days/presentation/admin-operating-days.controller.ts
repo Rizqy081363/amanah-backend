@@ -1,7 +1,5 @@
-import { SYSTEM_ROLES } from '@/auth/constants/auth.constants';
+import { PermissionsGuard, RequirePermissions } from '@common/auth';
 import { HybridAuthGuard } from '@common/auth/hybrid-auth.guard';
-import { Roles } from '@common/auth/roles.decorator';
-import { RolesGuard } from '@common/auth/roles.guard';
 import {
   Body,
   Controller,
@@ -25,14 +23,14 @@ import { UpdateOperatingDaysBatchDto } from './dto/update-operating-days.dto';
 
 @ApiTags('Admin Operating Days (Pengaturan Hari Operasional Klinik)')
 @ApiBearerAuth('access-token')
-@UseGuards(HybridAuthGuard, RolesGuard)
-@Roles(SYSTEM_ROLES.ADMIN)
+@UseGuards(HybridAuthGuard, PermissionsGuard)
+@RequirePermissions('schedules:manage')
 @ApiUnauthorizedResponse({
   description: 'Sesi autentikasi tidak valid atau token tidak disertakan',
 })
 @ApiForbiddenResponse({
   description:
-    'Akses ditolak: Hanya administrator yang berwenang mengubah konfigurasi',
+    'Akses ditolak: Memerlukan izin schedules:manage untuk mengubah konfigurasi',
 })
 @Controller({ path: 'admin/operating-days', version: '1' })
 export class AdminOperatingDaysController {

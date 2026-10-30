@@ -5,7 +5,6 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { SYSTEM_ROLES } from '../../auth/constants/auth.constants';
 import type { AuthenticatedUser } from './authenticated-user.interface';
 import { IS_PUBLIC_KEY } from './public.decorator';
 import { PERMISSIONS_KEY } from './permissions.decorator';
@@ -40,11 +39,7 @@ export class PermissionsGuard implements CanActivate {
     }
 
     // Super Administrator or wildcard permission holder has full access
-    if (
-      user.roleCode === 'admin' ||
-      user.systemRole === SYSTEM_ROLES.ADMIN ||
-      user.permissions?.includes('*')
-    ) {
+    if (user.roleCode === 'admin' || user.permissions?.includes('*')) {
       return true;
     }
 

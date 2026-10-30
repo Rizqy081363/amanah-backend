@@ -26,9 +26,8 @@ import {
   AuthenticatedUser,
   CurrentUser,
   HybridAuthGuard,
-  Roles,
-  RolesGuard,
-  SYSTEM_ROLES,
+  PermissionsGuard,
+  RequirePermissions,
 } from '../../../common/auth';
 import { DRIZZLE_SOURCE } from '../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../database/drizzle/drizzle.provider';
@@ -102,7 +101,7 @@ function mapEnrichedPatient(
 
 @ApiTags('Patient Affiliations (Keluarga & Relasi Pasien)')
 @ApiBearerAuth('access-token')
-@UseGuards(HybridAuthGuard, RolesGuard)
+@UseGuards(HybridAuthGuard, PermissionsGuard)
 @Controller({ path: 'patients/affiliations', version: '1' })
 export class PatientAffiliationsController {
   constructor(
@@ -115,7 +114,7 @@ export class PatientAffiliationsController {
   ) {}
 
   @Get('booking-context')
-  @Roles(SYSTEM_ROLES.PATIENT, SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+  @RequirePermissions('appointments:read', 'patients:read')
   @ApiOperation({
     summary: 'Mendapatkan konteks formulir dan daftar pasien sesuai layanan',
   })
@@ -256,7 +255,7 @@ export class PatientAffiliationsController {
   }
 
   @Get('me')
-  @Roles(SYSTEM_ROLES.PATIENT, SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+  @RequirePermissions('profile:read', 'patients:read')
   @ApiOperation({
     summary: 'Mendapatkan seluruh daftar pasien berafiliasi untuk akun login',
     description:
@@ -272,7 +271,7 @@ export class PatientAffiliationsController {
   }
 
   @Post()
-  @Roles(SYSTEM_ROLES.PATIENT, SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+  @RequirePermissions('patients:register', 'patients:manage')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Mendaftarkan pasien on-demand atau menghubungkan relasi pasien',
@@ -446,7 +445,7 @@ export class PatientAffiliationsController {
   }
 
   @Delete(':patientId')
-  @Roles(SYSTEM_ROLES.PATIENT, SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+  @RequirePermissions('patients:manage', 'profile:update')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Menghapus hubungan relasi pasien dari akun login',

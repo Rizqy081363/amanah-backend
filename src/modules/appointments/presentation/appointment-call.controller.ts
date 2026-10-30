@@ -150,7 +150,8 @@ export class AppointmentCallController {
   }
 
   @ApiBearerAuth('access-token')
-  @UseGuards(HybridAuthGuard)
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('appointments:read')
   @Get(':id/call-attempts')
   @ApiOperation({
     summary: 'Melihat riwayat percobaan pemanggilan pasien untuk appointment',

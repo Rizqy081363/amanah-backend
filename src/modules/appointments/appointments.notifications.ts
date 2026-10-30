@@ -32,7 +32,7 @@ export class AppointmentsNotificationRules implements OnModuleInit {
           payload.patientUserId &&
           actor.userId === payload.patientUserId;
 
-        // Intent 1: Patient Confirmation (Audience: 'patient')
+        // Intent 1: Patient Confirmation (Audience: NOTIFICATION_AUDIENCE.EXTERNAL)
         if (payload.patientUserId) {
           intents.push({
             recipientUserId: payload.patientUserId,
@@ -61,7 +61,7 @@ export class AppointmentsNotificationRules implements OnModuleInit {
           });
         }
 
-        // Intent 2: Clinic Staff Alert (Audience: 'clinic', Scoped: Admin + Frontdesk + Assigned Practitioner)
+        // Intent 2: Clinic Staff Alert (Audience: NOTIFICATION_AUDIENCE.INTERNAL, Scoped: Admin + Frontdesk + Assigned Practitioner)
         if (this.recipientResolver) {
           const clinicUserIds =
             await this.recipientResolver.resolveScopedClinicRecipients(
@@ -183,7 +183,7 @@ export class AppointmentsNotificationRules implements OnModuleInit {
           });
         }
 
-        // Intent 2: Clinic Staff Alert (Audience: 'clinic', Scoped: Admin + Frontdesk + Assigned Practitioner)
+        // Intent 2: Clinic Staff Alert (Audience: NOTIFICATION_AUDIENCE.INTERNAL, Scoped: Admin + Frontdesk + Assigned Practitioner)
         if (this.recipientResolver) {
           const clinicUserIds =
             await this.recipientResolver.resolveScopedClinicRecipients(

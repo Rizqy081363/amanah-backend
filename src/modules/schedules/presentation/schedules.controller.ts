@@ -2,12 +2,12 @@ import {
   type AuthenticatedUser,
   isAdminUser,
   isStaffUser,
+  PermissionsGuard,
+  RequirePermissions,
 } from '@common/auth';
 import { CurrentUser } from '@common/auth/current-user.decorator';
 import { HybridAuthGuard } from '@common/auth/hybrid-auth.guard';
 import { Public } from '@common/auth/public.decorator';
-import { Roles } from '@common/auth/roles.decorator';
-import { RolesGuard } from '@common/auth/roles.guard';
 import {
   DomainForbiddenException,
   DomainValidationException,
@@ -43,7 +43,6 @@ import {
   ApiUnauthorizedResponse,
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
-import { SYSTEM_ROLES } from '../../../auth/constants/auth.constants';
 import { zodPipe } from '../../../common/validation/zod-validation.pipe';
 import {
   CreateScheduleUseCase,
@@ -89,13 +88,13 @@ import { UpdateScheduleDto } from './dto/update-schedule.dto';
 
 @ApiTags('Schedules (Jadwal Dokter & Bidan)')
 @ApiBearerAuth('access-token')
-@UseGuards(HybridAuthGuard, RolesGuard)
+@UseGuards(HybridAuthGuard, PermissionsGuard)
 @ApiUnauthorizedResponse({
   description: 'Sesi autentikasi tidak valid atau token tidak disertakan',
 })
 @ApiForbiddenResponse({
   description:
-    'Akses ditolak: Peran akun tidak memiliki wewenang untuk aksi ini',
+    'Akses ditolak: Memerlukan izin modul jadwal untuk aksi ini',
 })
 @Controller({ path: 'schedules', version: '1' })
 export class SchedulesController {
@@ -153,7 +152,7 @@ export class SchedulesController {
   }
 
   @Post()
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+  @RequirePermissions('schedules:manage')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Menambahkan jadwal jaga/praktek staf (Admin/Staf)',
@@ -174,7 +173,7 @@ export class SchedulesController {
   }
 
   @Get()
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF, SYSTEM_ROLES.PATIENT)
+  @RequirePermissions('schedules:read')
   @ApiOperation({
     summary: 'Mendapatkan daftar seluruh jadwal praktek dengan filter',
     description:
@@ -190,7 +189,7 @@ export class SchedulesController {
   }
 
   @Get('my-schedules')
-  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('schedules:read')
   @ApiOperation({
     summary: 'Melihat jadwal staf yang sedang login (Mobile App / Web)',
     description:
@@ -235,7 +234,7 @@ export class SchedulesController {
   }
 
   @Get('my-roster')
-  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('schedules:read')
   @ApiOperation({
     summary:
       'Melihat matriks roster mingguan dokter yang sedang login (Mobile App / Web)',
@@ -255,7 +254,7 @@ export class SchedulesController {
   }
 
   @Put('my-roster')
-  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('schedules:manage')
   @ApiOperation({
     summary:
       'Memperbarui matriks roster mingguan dokter yang sedang login (Mobile App / Web)',
@@ -277,7 +276,7 @@ export class SchedulesController {
   }
 
   @Delete('my-roster')
-  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('schedules:manage')
   @ApiOperation({
     summary:
       'Mereset roster mingguan dokter kembali ke template klinik (Mobile App / Web)',
@@ -299,7 +298,7 @@ export class SchedulesController {
   }
 
   @Get('calendar-summary')
-  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('schedules:read')
   @ApiOperation({
     summary: 'Melihat ringkasan kalender bulanan jadwal dokter (Mobile App)',
     description:
@@ -320,7 +319,7 @@ export class SchedulesController {
   }
 
   @Patch('days/:date')
-  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('schedules:manage')
   @ApiOperation({
     summary:
       'Menutup atau membuka seluruh jadwal pada hari/tanggal tertentu (Mobile & Web Staf)',
@@ -366,7 +365,7 @@ export class SchedulesController {
   }
 
   @Get('reference/rooms')
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF, SYSTEM_ROLES.PATIENT)
+  @RequirePermissions('schedules:read')
   @ApiOperation({
     summary: 'Mendapatkan daftar ruang praktek klinik dan status okupansi',
     description:
@@ -434,7 +433,7 @@ export class SchedulesController {
   }
 
   @Get('contexts')
-  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('schedules:read')
   @ApiOperation({
     summary: 'Mendapatkan konteks jadwal dan durasi efektif dokter',
     description:
@@ -456,7 +455,7 @@ export class SchedulesController {
   }
 
   @Get('projection')
-  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('schedules:read')
   @ApiOperation({
     summary: 'Preview proyeksi kapasitas dan durasi konsultasi shift',
     description:
@@ -478,7 +477,7 @@ export class SchedulesController {
   }
 
   @Get('capacity-overview')
-  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('schedules:read')
   @ApiOperation({
     summary: 'Ringkasan Kapasitas Lane dan Beban Antrean Layanan per Shift',
     description:
@@ -501,7 +500,7 @@ export class SchedulesController {
   }
 
   @Get('booked-patients')
-  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('schedules:read')
   @ApiOperation({
     summary: 'Melihat daftar pasien terdaftar dokter berdasarkan tanggal',
     description:
@@ -524,7 +523,7 @@ export class SchedulesController {
   }
 
   @Get('poli/:poliklinikId')
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF, SYSTEM_ROLES.PATIENT)
+  @RequirePermissions('schedules:read')
   @ApiOperation({
     summary: 'Melihat jadwal dokter/bidan aktif di poliklinik tertentu',
     description:
@@ -555,7 +554,7 @@ export class SchedulesController {
   }
 
   @Get('sessions/:sessionId/reschedule-eligibility')
-  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('schedules:read')
   @ApiOperation({
     summary:
       'Pengecekan pra-syarat (eligibility pre-check) sebelum reschedule sesi dokter (Mobile & Admin)',
@@ -598,7 +597,7 @@ export class SchedulesController {
   }
 
   @Post('sessions/:sessionId/reschedule')
-  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('schedules:manage')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary:
@@ -639,7 +638,7 @@ export class SchedulesController {
   }
 
   @Get('sessions/:sessionId/patients')
-  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('schedules:read')
   @ApiOperation({
     summary:
       'Mendapatkan daftar pasien terdaftar pada sesi shift tertentu dokter (Mobile & Admin)',
@@ -687,7 +686,7 @@ export class SchedulesController {
   }
 
   @Get(':id/booked-patients')
-  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('schedules:read')
   @ApiOperation({
     summary: 'Melihat daftar pasien yang terdaftar pada satu sesi jadwal',
     description:
@@ -734,7 +733,7 @@ export class SchedulesController {
   }
 
   @Get(':id')
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF, SYSTEM_ROLES.PATIENT)
+  @RequirePermissions('schedules:read')
   @ApiOperation({
     summary: 'Mendapatkan detail jadwal berdasarkan ID',
     description: 'Mengambil informasi lengkap satu jadwal dinas staf.',
@@ -755,7 +754,7 @@ export class SchedulesController {
   }
 
   @Patch(':id/availability')
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+  @RequirePermissions('schedules:manage')
   @ApiOperation({
     summary: 'Mengaktifkan / menonaktifkan ketersediaan jadwal staf',
     description:
@@ -802,7 +801,7 @@ export class SchedulesController {
   }
 
   @Patch(':id')
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+  @RequirePermissions('schedules:manage')
   @ApiOperation({
     summary: 'Memperbarui informasi jadwal praktek',
     description:
@@ -827,7 +826,7 @@ export class SchedulesController {
   }
 
   @Delete(':id')
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+  @RequirePermissions('schedules:manage')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Menghapus jadwal staf (Admin / Staf Dokter)',

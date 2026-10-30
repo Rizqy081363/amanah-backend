@@ -569,7 +569,7 @@ export class AppointmentsService {
       current?.status || null,
       status,
       reason,
-      { userId: user?.id, roleCode: user?.roleCode || user?.systemRole },
+      { userId: user?.id, roleCode: user?.roleCode },
     );
     this.sendPushNotificationForAppointment(updated, status, reason);
     return updated;
@@ -592,7 +592,7 @@ export class AppointmentsService {
       result.data.previousStatus,
       result.data.newStatus,
       dto.reason,
-      { userId: actorUserId, roleCode: user?.roleCode || user?.systemRole },
+      { userId: actorUserId, roleCode: user?.roleCode },
     );
 
     const apt = await this.appointmentRepo.findById(appointmentId);
@@ -626,7 +626,7 @@ export class AppointmentsService {
       result.data.previousStatus,
       result.data.newStatus,
       dto.reason || '',
-      { userId: actorUserId, roleCode: user?.roleCode || user?.systemRole },
+      { userId: actorUserId, roleCode: user?.roleCode },
     );
 
     const apt = await this.appointmentRepo.findById(appointmentId);
@@ -765,7 +765,7 @@ export class AppointmentsService {
       current?.status || null,
       'CANCELLED',
       'Dihapus oleh admin',
-      { userId: user?.id, roleCode: user?.roleCode || user?.systemRole },
+      { userId: user?.id, roleCode: user?.roleCode },
     );
   }
 

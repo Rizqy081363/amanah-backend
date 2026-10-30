@@ -5,8 +5,7 @@ import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
   clinicServices,
   clinicUnits,
-  practitioners,
-  staffProfiles,
+  serviceCategories,
 } from '../../../../database/schema';
 
 export interface ResolvedPoliklinik {
@@ -52,23 +51,15 @@ export class AppointmentPoliklinikResolver {
     }
 
     const categoryUnits = await this.db
-      .selectDistinct({
-        categoryId: clinicServices.serviceCategoryId,
+      .select({
+        categoryId: serviceCategories.id,
         unitId: clinicUnits.id,
         unitName: clinicUnits.name,
       })
-      .from(clinicServices)
-      .innerJoin(
-        practitioners,
-        eq(clinicServices.specialtyId, practitioners.specialtyId),
-      )
-      .innerJoin(
-        staffProfiles,
-        eq(practitioners.staffProfileId, staffProfiles.id),
-      )
-      .innerJoin(clinicUnits, eq(staffProfiles.primaryUnitId, clinicUnits.id))
+      .from(serviceCategories)
+      .innerJoin(clinicUnits, eq(serviceCategories.unitId, clinicUnits.id))
       .where(
-        and(eq(clinicServices.isActive, true), eq(clinicUnits.isActive, true)),
+        and(eq(serviceCategories.isActive, true), eq(clinicUnits.isActive, true)),
       );
 
     this.categoryUnitMap.clear();

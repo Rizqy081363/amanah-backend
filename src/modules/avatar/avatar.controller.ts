@@ -30,10 +30,9 @@ import {
   AuthenticatedUser,
   CurrentUser,
   HybridAuthGuard,
+  PermissionsGuard,
   Public,
-  Roles,
-  RolesGuard,
-  SYSTEM_ROLES,
+  RequirePermissions,
 } from '../../common/auth';
 import { AvatarService } from './avatar.service';
 
@@ -53,7 +52,8 @@ export class AvatarController {
   }
 
   @Patch('me/avatar')
-  @UseGuards(HybridAuthGuard)
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('profile:update')
   @ApiBearerAuth('access-token')
   @UseInterceptors(
     FileInterceptor('file', {
@@ -91,7 +91,8 @@ export class AvatarController {
   }
 
   @Post('me/avatar')
-  @UseGuards(HybridAuthGuard)
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('profile:update')
   @ApiBearerAuth('access-token')
   @UseInterceptors(
     FileInterceptor('file', {
@@ -127,8 +128,8 @@ export class AvatarController {
   }
 
   @Patch(':id/avatar')
-  @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles(SYSTEM_ROLES.ADMIN)
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('users:manage')
   @ApiBearerAuth('access-token')
   @UseInterceptors(
     FileInterceptor('file', {
@@ -173,8 +174,8 @@ export class AvatarController {
   }
 
   @Post(':id/avatar')
-  @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles(SYSTEM_ROLES.ADMIN)
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('users:manage')
   @ApiBearerAuth('access-token')
   @UseInterceptors(
     FileInterceptor('file', {
@@ -219,7 +220,8 @@ export class AvatarController {
   }
 
   @Delete('me/avatar')
-  @UseGuards(HybridAuthGuard)
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('profile:update')
   @ApiBearerAuth('access-token')
   @ApiOperation({
     summary: 'Hapus avatar kustom pengguna',
@@ -236,7 +238,8 @@ export class AvatarController {
   }
 
   @Get('me/avatar')
-  @UseGuards(HybridAuthGuard)
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('profile:read')
   @ApiBearerAuth('access-token')
   @ApiOperation({
     summary: 'Ambil gambar avatar pengguna yang sedang login',

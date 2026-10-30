@@ -5,6 +5,7 @@ import { SocketIoRealtimeGateway } from '../../../notifications/infrastructure/r
 import {
   NOTIFICATION_SOURCE_DOMAINS,
   REALTIME_GATEWAY_PORT,
+  REALTIME_ROOMS,
 } from '../../../notifications/notifications.constants';
 import {
   ATTENDANCE_ACTIONS,
@@ -95,12 +96,12 @@ export class AttendanceNotificationService {
       // 1. Scoped Realtime WebSocket Dispatch (Strictly Isolated to Clinic Staff & Admin)
       if (this.realtimeGateway) {
         // A. Target clinic staff room (Terminal & Clinic Operational Room)
-        void this.realtimeGateway.emitToRoom?.('room:clinic', 'attendance:recorded', payload);
-        void this.realtimeGateway.emitToRoom?.('room:clinic', `attendance:${action}`, payload);
+        void this.realtimeGateway.emitToRoom?.(REALTIME_ROOMS.clinic, 'attendance:recorded', payload);
+        void this.realtimeGateway.emitToRoom?.(REALTIME_ROOMS.clinic, `attendance:${action}`, payload);
         if (record.isEarlyDeparture) {
-          void this.realtimeGateway.emitToRoom?.('room:clinic', 'attendance:early_departure', payload);
+          void this.realtimeGateway.emitToRoom?.(REALTIME_ROOMS.clinic, 'attendance:early_departure', payload);
         }
-        void this.realtimeGateway.emitToRoom?.('room:clinic', 'attendance:refresh', { date: record.attendanceDate });
+        void this.realtimeGateway.emitToRoom?.(REALTIME_ROOMS.clinic, 'attendance:refresh', { date: record.attendanceDate });
 
         // B. Target admin role room (Admin Web & Supervisors)
         void this.realtimeGateway.emitToRole('admin', 'attendance:recorded', payload);
@@ -158,15 +159,10 @@ export class AttendanceNotificationService {
           'payroll:shift_earnings_recorded',
           payrollPayload,
         );
-        void this.realtimeGateway.emitToRole(
-          'ADMIN',
-          'payroll:shift_earnings_recorded',
-          payrollPayload,
-        );
-        void this.realtimeGateway.emitToRoom?.('role:admin', 'payroll:refresh', {
+        void this.realtimeGateway.emitToRole('admin', 'payroll:refresh', {
           date: record.attendanceDate,
         });
-        void this.realtimeGateway.emitToRoom?.('room:clinic', 'payroll:refresh', {
+        void this.realtimeGateway.emitToRoom?.(REALTIME_ROOMS.clinic, 'payroll:refresh', {
           date: record.attendanceDate,
         });
 
@@ -204,7 +200,7 @@ export class AttendanceNotificationService {
           channels: ['in_app'],
           target: {
             type: 'role',
-            roles: ['admin', 'staf'],
+            roles: ['admin'],
           },
           category: 'shift',
           content: {

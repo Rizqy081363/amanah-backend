@@ -28,11 +28,9 @@ import {
 import {
   AUTH_ERROR_CODES,
   AUTH_SURFACES,
-  resolveSystemRole,
-  SYSTEM_ROLES,
-  type SystemRole,
+  ROLE_AUDIENCE,
   USER_STATUS,
-} from '../../constants/auth.constants';
+} from '../../../common/constants';
 import { AuthEmailLoginDto } from '../../dto/auth-email-login.dto';
 import { AuthGoogleLoginDto } from '../../dto/auth-google-login.dto';
 import { LoginResponseDto } from '../../dto/login-response.dto';
@@ -120,17 +118,12 @@ export class AuthLoginService {
       });
     }
 
-    const primaryRole = user.userRoles_userId?.[0]?.role;
-    const hasStaffProfiles = Boolean(
-      user.staffProfiles && user.staffProfiles.length > 0,
-    );
-    const systemRole: SystemRole = resolveSystemRole(
-      primaryRole?.code,
-      hasStaffProfiles,
-    );
+    const primaryRole = user.userRoles_userId?.[0]?.role ?? null;
+    const roleCode = primaryRole?.code ?? null;
+    const isExternalAudience = primaryRole?.audience === ROLE_AUDIENCE.EXTERNAL;
 
     if (loginDto.clientId === AUTH_SURFACES.MOBILE_INTERNAL) {
-      if (systemRole === SYSTEM_ROLES.PATIENT) {
+      if (isExternalAudience) {
         throw new ForbiddenException({
           code: AUTH_ERROR_CODES.CLIENT_NOT_ALLOWED,
           message:
@@ -154,11 +147,15 @@ export class AuthLoginService {
       {
         id: user.id,
         email: user.email,
-        systemRole,
-        role: {
-          id: primaryRole?.id,
-          name: systemRole,
-        },
+        roleCode,
+        systemRole: roleCode,
+        role: primaryRole
+          ? {
+              id: primaryRole.id,
+              code: primaryRole.code,
+              name: primaryRole.name,
+            }
+          : null,
       },
       {
         secret: this.configService.getOrThrow('auth.secret', { infer: true }),
@@ -174,10 +171,13 @@ export class AuthLoginService {
         sessionId: user.id,
         hash: 'session_hash',
         id: user.id,
-        role: {
-          id: primaryRole?.id,
-          name: systemRole,
-        },
+        role: primaryRole
+          ? {
+              id: primaryRole.id,
+              code: primaryRole.code,
+              name: primaryRole.name,
+            }
+          : null,
       },
       {
         secret: this.configService.getOrThrow('auth.refreshSecret', {
@@ -216,15 +216,12 @@ export class AuthLoginService {
       });
 
       const firstUserRole = existingUser?.userRoles_userId?.[0];
-      const primaryRoleCode = firstUserRole?.role?.code;
       const isExistingStaff =
-        resolveSystemRole(
-          primaryRoleCode,
-          Boolean(
-            existingUser?.staffProfiles &&
-              existingUser.staffProfiles.length > 0,
-          ),
-        ) === SYSTEM_ROLES.STAF;
+        firstUserRole?.role?.audience === ROLE_AUDIENCE.INTERNAL ||
+        Boolean(
+          existingUser?.staffProfiles &&
+            existingUser.staffProfiles.length > 0,
+        );
 
       const pendingInvitation = await this.db.query.staffInvitations.findFirst({
         where: and(
@@ -307,12 +304,6 @@ export class AuthLoginService {
         });
       }
 
-      if (!targetRole) {
-        targetRole = await this.db.query.roles.findFirst({
-          where: eq(roles.code, 'worker'),
-        });
-      }
-
       if (targetRole) {
         await this.db.insert(userRoles).values({
           userId,
@@ -386,13 +377,7 @@ export class AuthLoginService {
     }
 
     const primaryRole = completeUser.userRoles_userId?.[0]?.role;
-    const hasStaffProfiles = Boolean(
-      completeUser.staffProfiles && completeUser.staffProfiles.length > 0,
-    );
-    const systemRole: SystemRole = resolveSystemRole(
-      primaryRole?.code,
-      hasStaffProfiles,
-    );
+    const roleCode = primaryRole?.code ?? null;
 
     const tokenExpiresIn =
       this.configService.get('auth.expires', { infer: true }) || '1d';
@@ -400,11 +385,14 @@ export class AuthLoginService {
       {
         id: completeUser.id,
         email: completeUser.email,
-        systemRole,
-        role: {
-          id: primaryRole?.id,
-          name: systemRole,
-        },
+        roleCode,
+        role: primaryRole
+          ? {
+              id: primaryRole.id,
+              code: primaryRole.code,
+              name: primaryRole.name,
+            }
+          : null,
       },
       {
         secret: this.configService.getOrThrow('auth.secret', { infer: true }),
@@ -419,10 +407,13 @@ export class AuthLoginService {
         sessionId: completeUser.id,
         hash: 'session_hash',
         id: completeUser.id,
-        role: {
-          id: primaryRole?.id,
-          name: systemRole,
-        },
+        role: primaryRole
+          ? {
+              id: primaryRole.id,
+              code: primaryRole.code,
+              name: primaryRole.name,
+            }
+          : null,
       },
       {
         secret: this.configService.getOrThrow('auth.refreshSecret', {
@@ -473,13 +464,7 @@ export class AuthLoginService {
     }
 
     const primaryRole = user.userRoles_userId?.[0]?.role;
-    const hasStaffProfiles = Boolean(
-      user.staffProfiles && user.staffProfiles.length > 0,
-    );
-    const systemRole: SystemRole = resolveSystemRole(
-      primaryRole?.code,
-      hasStaffProfiles,
-    );
+    const roleCode = primaryRole?.code ?? null;
 
     const tokenExpiresIn =
       this.configService.get('auth.expires', { infer: true }) || '1d';
@@ -487,11 +472,14 @@ export class AuthLoginService {
       {
         id: user.id,
         email: user.email,
-        systemRole,
-        role: {
-          id: primaryRole?.id,
-          name: systemRole,
-        },
+        roleCode,
+        role: primaryRole
+          ? {
+              id: primaryRole.id,
+              code: primaryRole.code,
+              name: primaryRole.name,
+            }
+          : null,
       },
       {
         secret: this.configService.getOrThrow('auth.secret', { infer: true }),
@@ -506,10 +494,13 @@ export class AuthLoginService {
         sessionId: user.id,
         hash: 'session_hash',
         id: user.id,
-        role: {
-          id: primaryRole?.id,
-          name: systemRole,
-        },
+        role: primaryRole
+          ? {
+              id: primaryRole.id,
+              code: primaryRole.code,
+              name: primaryRole.name,
+            }
+          : null,
       },
       {
         secret: this.configService.getOrThrow('auth.refreshSecret', {

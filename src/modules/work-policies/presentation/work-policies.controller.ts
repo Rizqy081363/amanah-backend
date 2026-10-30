@@ -19,9 +19,7 @@ import {
 } from '@nestjs/swagger';
 import { CurrentUser } from '../../../common/auth/current-user.decorator';
 import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
-import { Roles } from '../../../common/auth/roles.decorator';
-import { RolesGuard } from '../../../common/auth/roles.guard';
-import { SYSTEM_ROLES } from '../../../auth/constants/auth.constants';
+import { PermissionsGuard, RequirePermissions } from '../../../common/auth';
 import {
   WORK_POLICY_REPOSITORY,
   WorkPolicyRepository,
@@ -32,7 +30,7 @@ import { UpdateLeavePolicyDto } from './dto/update-leave-policy.dto';
 
 @ApiTags('Work Policies & Rates (Kebijakan Cuti & Tarif)')
 @ApiBearerAuth('access-token')
-@UseGuards(HybridAuthGuard, RolesGuard)
+@UseGuards(HybridAuthGuard, PermissionsGuard)
 @ApiUnauthorizedResponse({
   description: 'Sesi autentikasi tidak valid atau token tidak disertakan',
 })
@@ -47,7 +45,7 @@ export class WorkPoliciesController {
   ) {}
 
   @Get('current')
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+  @RequirePermissions('attendance:read')
   @ApiOperation({
     summary: 'Mendapatkan kebijakan cuti dan tarif kompensasi aktif saat ini',
     description:
@@ -71,7 +69,7 @@ export class WorkPoliciesController {
   }
 
   @Patch('leave-policy')
-  @Roles(SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('attendance:manage')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Admin memperbarui konfigurasi kebijakan cuti (Web Dashboard)',
@@ -87,7 +85,7 @@ export class WorkPoliciesController {
   }
 
   @Put('compensation-rates')
-  @Roles(SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('payroll:manage')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Admin memperbarui tarif kerja per jam staf (Web Dashboard)',
@@ -103,7 +101,7 @@ export class WorkPoliciesController {
   }
 
   @Put('attendance-timing')
-  @Roles(SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('attendance:manage')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary:

@@ -30,13 +30,13 @@ import {
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
 import type { Response } from 'express';
-import { SYSTEM_ROLES } from '../../../auth/constants/auth.constants';
 import {
   type AuthenticatedUser,
   CurrentUser,
   HybridAuthGuard,
-  Roles,
-  RolesGuard,
+  isPatientUser,
+  PermissionsGuard,
+  RequirePermissions,
 } from '../../../common/auth';
 import { formatETag } from '../../../common/occ';
 import {
@@ -54,7 +54,7 @@ import { UpdateMedicalRecordDto } from './dto/update-medical-record.dto';
 
 @ApiTags('Medical Records (Rekam Medis, Diagnosa ICD-10 & Resep Obat)')
 @ApiBearerAuth('access-token')
-@UseGuards(HybridAuthGuard, RolesGuard)
+@UseGuards(HybridAuthGuard, PermissionsGuard)
 @ApiUnauthorizedResponse({
   description: 'Sesi autentikasi tidak valid atau token tidak disertakan',
 })
@@ -75,7 +75,7 @@ export class MedicalRecordsController {
     patientId: string,
     user: AuthenticatedUser,
   ): Promise<void> {
-    if (user.systemRole !== SYSTEM_ROLES.PATIENT) {
+    if (!isPatientUser(user)) {
       return;
     }
     if (user.patient?.id === patientId) {
@@ -93,7 +93,7 @@ export class MedicalRecordsController {
   }
 
   @Post()
-  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('records:write')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Mencatat Rekam Medis Klinis (SOAP, Diagnosa ICD-10 & Resep Obat)',
@@ -144,7 +144,7 @@ export class MedicalRecordsController {
   }
 
   @Get()
-  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('records:read')
   @ApiOperation({
     summary: 'Daftar semua rekam medis dengan paginasi, filter & pencarian',
   })
@@ -154,7 +154,7 @@ export class MedicalRecordsController {
   }
 
   @Get('me')
-  @Roles(SYSTEM_ROLES.PATIENT, SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('records:read')
   @ApiOperation({
     summary: 'Mendapatkan riwayat rekam medis pasien yang sedang login',
   })
@@ -170,7 +170,7 @@ export class MedicalRecordsController {
   }
 
   @Get('kunjungan/:kunjunganId')
-  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.PATIENT)
+  @RequirePermissions('records:read')
   @ApiOperation({
     summary: 'Mendapatkan rekam medis berdasarkan ID Kunjungan / Appointment',
     description:
@@ -198,7 +198,7 @@ export class MedicalRecordsController {
   }
 
   @Get('patient/:patientId')
-  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.PATIENT)
+  @RequirePermissions('records:read')
   @ApiOperation({
     summary: 'Mendapatkan seluruh riwayat rekam medis pasien kronologis',
     description:
@@ -219,7 +219,7 @@ export class MedicalRecordsController {
   }
 
   @Get(':id')
-  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.PATIENT)
+  @RequirePermissions('records:read')
   @ApiOperation({
     summary: 'Mendapatkan detail rekam medis klinis berdasarkan ID Encounter',
     description:
@@ -251,7 +251,7 @@ export class MedicalRecordsController {
   }
 
   @Patch(':id')
-  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('records:write')
   @ApiOperation({
     summary: 'Memperbarui data rekam medis klinis',
     description: 'Mengubah catatan anamnesis SOAP atau catatan tindakan medis.',
@@ -302,7 +302,7 @@ export class MedicalRecordsController {
   }
 
   @Patch(':id/diagnosis')
-  @Roles(SYSTEM_ROLES.STAF, SYSTEM_ROLES.ADMIN)
+  @RequirePermissions('records:write', 'prescriptions:write')
   @ApiOperation({
     summary: 'Dokter / Praktisi memperbarui diagnosa kerja & resep obat',
     description:
@@ -351,7 +351,7 @@ export class MedicalRecordsController {
   }
 
   @Delete(':id')
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+  @RequirePermissions('records:write')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Menghapus rekam medis klinis (Admin / Staf)',

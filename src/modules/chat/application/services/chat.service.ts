@@ -9,7 +9,10 @@ import {
   Optional,
 } from '@nestjs/common';
 import { RealtimeGatewayPort } from '../../../notifications/contracts/realtime-gateway.interface';
-import { REALTIME_GATEWAY_PORT } from '../../../notifications/notifications.constants';
+import {
+  REALTIME_GATEWAY_PORT,
+  REALTIME_ROOMS,
+} from '../../../notifications/notifications.constants';
 import { ChatNotificationPublisher } from '../publishers/chat-notification.publisher';
 import { ChatMessageEntity } from '../../domain/entities/chat-message.entity';
 import { ConversationEntity } from '../../domain/entities/conversation.entity';
@@ -177,7 +180,7 @@ export class ChatService {
           message,
         );
         await this.realtimeGateway.emitToRoom?.(
-          'room:clinic',
+          REALTIME_ROOMS.clinic,
           'chat:message',
           message,
         );
@@ -279,7 +282,7 @@ export class ChatService {
           );
         }
         await this.realtimeGateway.emitToRoom?.(
-          'room:clinic',
+          REALTIME_ROOMS.clinic,
           'chat:message',
           message,
         );
@@ -319,7 +322,7 @@ export class ChatService {
         );
       }
       await this.realtimeGateway.emitToRoom?.(
-        'room:clinic',
+        REALTIME_ROOMS.clinic,
         'chat:conversation_closed',
         payload,
       );
