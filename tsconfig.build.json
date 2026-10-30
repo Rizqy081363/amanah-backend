@@ -7,10 +7,6 @@
     "**/*spec.ts",
     "**/testing/**",
     "src/database/seeds/**",
-    ".install-scripts",
-    "src/users/infrastructure/**",
-    "src/users/users.service.ts",
-    "src/users/users.controller.ts",
-    "src/users/users.module.ts"
+    ".install-scripts"
   ]
 }

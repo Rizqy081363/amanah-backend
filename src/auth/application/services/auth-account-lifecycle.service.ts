@@ -20,6 +20,7 @@ import {
 } from '../../../database/schema';
 import { USER_STATUS } from '../../../common/constants/user-status.constants';
 import { AuthUpdateDto } from '../../dto/auth-update.dto';
+import { AuthUserResponseDto } from '../../dto/auth-user-response.dto';
 import { DeleteAccountResponseDto } from '../../dto/delete-account-response.dto';
 import type { JwtPayloadType } from '../../strategies/types/jwt-payload.type';
 import { AuthUserMapper } from '../mappers/auth-user.mapper';
@@ -32,7 +33,7 @@ export class AuthAccountLifecycleService {
     private readonly redisService: RedisService,
   ) {}
 
-  async me(userJwtPayload: any): Promise<any> {
+  async me(userJwtPayload: any): Promise<AuthUserResponseDto | null> {
     const userRecord = await this.db.query.users.findFirst({
       where: eq(users.id, userJwtPayload.id),
       with: {
@@ -79,7 +80,7 @@ export class AuthAccountLifecycleService {
   async update(
     userJwtPayload: JwtPayloadType,
     userDto: AuthUpdateDto,
-  ): Promise<any> {
+  ): Promise<AuthUserResponseDto | null> {
     const userRecord = await this.db.query.users.findFirst({
       where: eq(users.id, userJwtPayload.id),
     });

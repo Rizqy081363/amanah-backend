@@ -191,7 +191,7 @@ export class AuthLoginService {
       token,
       refreshToken,
       tokenExpires: Date.now() + 86400000,
-      user: AuthUserMapper.formatUser(user, false) as any,
+      user: AuthUserMapper.formatUser(user, false),
     };
   }
 
@@ -427,7 +427,7 @@ export class AuthLoginService {
       token,
       refreshToken,
       tokenExpires: Date.now() + 86400000,
-      user: AuthUserMapper.formatUser(completeUser, Boolean(pendingInvitation)) as any,
+      user: AuthUserMapper.formatUser(completeUser, Boolean(pendingInvitation)),
     };
   }
 

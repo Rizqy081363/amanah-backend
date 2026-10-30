@@ -5,9 +5,13 @@ import {
   ROLE_AUDIENCE,
   type RoleAudience,
 } from '../../../common/constants/role-audience.constants';
+import { AuthUserResponseDto } from '../../dto/auth-user-response.dto';
 
 export class AuthUserMapper {
-  static formatUser(userRecord: any, hasPendingInvitation = false) {
+  static formatUser(
+    userRecord: any,
+    hasPendingInvitation = false,
+  ): AuthUserResponseDto {
     const { authAccounts: _authAccounts, ...sanitizedUser } = userRecord;
 
     const role =

@@ -39,6 +39,7 @@ import { SocketIoRealtimeGateway } from '../../../modules/notifications/infrastr
 import { NotificationGatewayService } from '../../../modules/notifications/application/services/notification-gateway.service';
 import type { NotificationRepository } from '../../../modules/notifications/domain/repositories/notification.repository';
 import { AuthStaffOnboardingDto } from '../../dto/auth-staff-onboarding.dto';
+import { AuthUserResponseDto } from '../../dto/auth-user-response.dto';
 import type { JwtPayloadType } from '../../strategies/types/jwt-payload.type';
 import { AuthUserMapper } from '../mappers/auth-user.mapper';
 
@@ -108,7 +109,7 @@ export class AuthStaffOnboardingService {
   async completeStaffOnboarding(
     userJwtPayload: JwtPayloadType,
     dto: AuthStaffOnboardingDto,
-  ): Promise<any> {
+  ): Promise<AuthUserResponseDto | null> {
     const userRecord = await this.db.query.users.findFirst({
       where: eq(users.id, userJwtPayload.id),
       with: {

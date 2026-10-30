@@ -25,13 +25,12 @@
     "forceConsistentCasingInFileNames": false,
     "noFallthroughCasesInSwitch": false,
     "esModuleInterop": true,
-    "types": ["bun-types", "jest"]
+    "types": ["bun-types", "jest", "multer"]
   },
   "include": ["src/**/*"],
   "exclude": [
     "node_modules",
     "dist",
-    "src/users/**/*",
     "**/*.spec.ts",
     "test/**/*"
   ]

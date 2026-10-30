@@ -38,7 +38,6 @@ import {
 import { RateLimit } from '../common/throttling';
 import { zodPipe } from '../common/validation';
 import { AvatarService } from '../modules/avatar/avatar.service';
-import { User } from '../users/domain/user';
 import { NullableType } from '../utils/types/nullable.type';
 import type { RequestWithUser } from '../utils/types/request-with-user.type';
 import { AuthService } from './auth.service';
@@ -56,6 +55,7 @@ import { AuthResetPasswordDto } from './dto/auth-reset-password.dto';
 import { AuthResetPasswordOtpDto } from './dto/auth-reset-password-otp.dto';
 import { AuthStaffOnboardingDto } from './dto/auth-staff-onboarding.dto';
 import { AuthUpdateDto } from './dto/auth-update.dto';
+import { AuthUserResponseDto } from './dto/auth-user-response.dto';
 import { AuthVerifyOtpDto } from './dto/auth-verify-otp.dto';
 import { DeleteAccountResponseDto } from './dto/delete-account-response.dto';
 import { LoginResponseDto } from './dto/login-response.dto';
@@ -342,7 +342,7 @@ export class AuthController {
       'Mengembalikan informasi akun pengguna yang sedang login berdasarkan JWT bearer token.',
   })
   @ApiOkResponse({
-    type: User,
+    type: AuthUserResponseDto,
     description: 'Data profil berhasil diambil',
   })
   @ApiUnauthorizedResponse({
@@ -351,7 +351,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   public me(
     @Request() request: RequestWithUser<JwtPayloadType>,
-  ): Promise<NullableType<User>> {
+  ): Promise<NullableType<AuthUserResponseDto>> {
     return this.service.me(request.user);
   }
 
@@ -427,7 +427,7 @@ export class AuthController {
   })
   @HttpCode(HttpStatus.OK)
   @ApiOkResponse({
-    type: User,
+    type: AuthUserResponseDto,
     description: 'Profil berhasil diperbarui',
   })
   @ApiUnauthorizedResponse({
@@ -439,7 +439,7 @@ export class AuthController {
   public update(
     @Request() request: RequestWithUser<JwtPayloadType>,
     @Body(zodPipe(AuthUpdateSchema)) userDto: AuthUpdateDto,
-  ): Promise<NullableType<User>> {
+  ): Promise<NullableType<AuthUserResponseDto>> {
     return this.service.update(request.user, userDto);
   }
 
@@ -456,7 +456,7 @@ export class AuthController {
       'Menetapkan peran klinis, profil staf, dan registrasi praktisi setelah autentikasi akun baru (Google OAuth atau email/password).',
   })
   @ApiOkResponse({
-    type: User,
+    type: AuthUserResponseDto,
     description: 'Profil staf berhasil ditetapkan dan akun siap digunakan',
   })
   @ApiUnauthorizedResponse({
@@ -466,7 +466,7 @@ export class AuthController {
   public completeStaffOnboarding(
     @Request() request: RequestWithUser<JwtPayloadType>,
     @Body(zodPipe(AuthStaffOnboardingSchema)) dto: AuthStaffOnboardingDto,
-  ): Promise<NullableType<User>> {
+  ): Promise<NullableType<AuthUserResponseDto>> {
     return this.service.completeStaffOnboarding(request.user, dto);
   }
 

@@ -13,6 +13,7 @@ import {
 import { AuthResetPasswordOtpDto } from './dto/auth-reset-password-otp.dto';
 import { AuthStaffOnboardingDto } from './dto/auth-staff-onboarding.dto';
 import { AuthUpdateDto } from './dto/auth-update.dto';
+import { AuthUserResponseDto } from './dto/auth-user-response.dto';
 import { AuthVerifyOtpDto } from './dto/auth-verify-otp.dto';
 import { DeleteAccountResponseDto } from './dto/delete-account-response.dto';
 import { LoginResponseDto } from './dto/login-response.dto';
@@ -83,18 +84,18 @@ export class AuthService {
   public completeStaffOnboarding(
     userPayload: JwtPayloadType,
     dto: AuthStaffOnboardingDto,
-  ): Promise<any> {
+  ): Promise<AuthUserResponseDto | null> {
     return this.staffOnboardingService.completeStaffOnboarding(userPayload, dto);
   }
 
-  public me(userPayload: any): Promise<any> {
+  public me(userPayload: any): Promise<AuthUserResponseDto | null> {
     return this.accountLifecycleService.me(userPayload);
   }
 
   public update(
     userPayload: JwtPayloadType,
     userDto: AuthUpdateDto,
-  ): Promise<any> {
+  ): Promise<AuthUserResponseDto | null> {
     return this.accountLifecycleService.update(userPayload, userDto);
   }
 
