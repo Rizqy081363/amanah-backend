@@ -15,9 +15,13 @@ import { AuthStaffOnboardingDto } from './dto/auth-staff-onboarding.dto';
 import { AuthUpdateDto } from './dto/auth-update.dto';
 import { AuthUserResponseDto } from './dto/auth-user-response.dto';
 import { AuthVerifyOtpDto } from './dto/auth-verify-otp.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { DeleteAccountResponseDto } from './dto/delete-account-response.dto';
+import { LinkGoogleDto } from './dto/link-google.dto';
+import { LinkedProvidersResponseDto } from './dto/linked-providers-response.dto';
 import { LoginResponseDto } from './dto/login-response.dto';
 import { RefreshResponseDto } from './dto/refresh-response.dto';
+import { RequestEmailChangeDto } from './dto/request-email-change.dto';
 import type { JwtPayloadType } from './strategies/types/jwt-payload.type';
 
 /**
@@ -122,5 +126,44 @@ export class AuthService {
     token?: string;
   }): Promise<void> {
     return this.loginService.logout(data);
+  }
+
+  public getLinkedProviders(
+    userId: string,
+  ): Promise<LinkedProvidersResponseDto> {
+    return this.accountLifecycleService.getLinkedProviders(userId);
+  }
+
+  public changePassword(
+    userId: string,
+    dto: ChangePasswordDto,
+  ): Promise<{ success: boolean; message: string }> {
+    return this.accountLifecycleService.changePassword(userId, dto);
+  }
+
+  public requestEmailChange(
+    userId: string,
+    dto: RequestEmailChangeDto,
+  ): Promise<{ success: boolean; message: string }> {
+    return this.registrationOtpService.requestEmailChange(userId, dto);
+  }
+
+  public linkGoogleAccount(
+    userId: string,
+    dto: LinkGoogleDto,
+  ): Promise<LinkedProvidersResponseDto> {
+    return this.accountLifecycleService.linkGoogleAccount(userId, dto);
+  }
+
+  public unlinkCredential(
+    userId: string,
+  ): Promise<LinkedProvidersResponseDto> {
+    return this.accountLifecycleService.unlinkCredential(userId);
+  }
+
+  public unlinkGoogle(
+    userId: string,
+  ): Promise<LinkedProvidersResponseDto> {
+    return this.accountLifecycleService.unlinkGoogle(userId);
   }
 }

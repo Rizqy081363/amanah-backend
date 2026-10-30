@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   HttpException,
   HttpStatus,
   Inject,
@@ -9,6 +10,7 @@ import {
 } from '@nestjs/common';
 import bcrypt from 'bcryptjs';
 import { and, eq, sql } from 'drizzle-orm';
+import { AUTH_PROVIDER } from '../../../common/constants/auth-providers.constants';
 import { RedisService } from '../../../common/redis/redis.service';
 import { DRIZZLE_SOURCE } from '../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../database/drizzle/drizzle.provider';
@@ -19,9 +21,14 @@ import {
   users,
 } from '../../../database/schema';
 import { USER_STATUS } from '../../../common/constants/user-status.constants';
+import { MailService } from '../../../mail/mail.service';
 import { AuthUpdateDto } from '../../dto/auth-update.dto';
 import { AuthUserResponseDto } from '../../dto/auth-user-response.dto';
+import { ChangePasswordDto } from '../../dto/change-password.dto';
 import { DeleteAccountResponseDto } from '../../dto/delete-account-response.dto';
+import { LinkGoogleDto } from '../../dto/link-google.dto';
+import { LinkedProvidersResponseDto } from '../../dto/linked-providers-response.dto';
+import { GoogleTokenVerifierService } from '../../services/google-token-verifier.service';
 import type { JwtPayloadType } from '../../strategies/types/jwt-payload.type';
 import { AuthUserMapper } from '../mappers/auth-user.mapper';
 
@@ -31,6 +38,8 @@ export class AuthAccountLifecycleService {
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,
     private readonly redisService: RedisService,
+    private readonly mailService: MailService,
+    private readonly googleVerifier: GoogleTokenVerifierService,
   ) {}
 
   async me(userJwtPayload: any): Promise<AuthUserResponseDto | null> {
@@ -283,5 +292,298 @@ export class AuthAccountLifecycleService {
         email,
       },
     };
+  }
+
+  async getLinkedProviders(userId: string): Promise<LinkedProvidersResponseDto> {
+    const userRecord = await this.db.query.users.findFirst({
+      where: eq(users.id, userId),
+    });
+
+    if (!userRecord) {
+      throw new UnauthorizedException();
+    }
+
+    const accounts = await this.db.query.authAccounts.findMany({
+      where: eq(authAccounts.userId, userId),
+    });
+
+    const hasPassword = accounts.some(
+      (a) => a.providerId === AUTH_PROVIDER.CREDENTIAL && Boolean(a.passwordHash),
+    );
+    const hasGoogle = accounts.some(
+      (a) => a.providerId === AUTH_PROVIDER.GOOGLE,
+    );
+    const linkedProviders = accounts.map((a) => a.providerId);
+
+    return {
+      linkedProviders,
+      hasPassword,
+      hasGoogle,
+      email: userRecord.email,
+    };
+  }
+
+  async changePassword(
+    userId: string,
+    dto: ChangePasswordDto,
+  ): Promise<{ success: boolean; message: string }> {
+    const userRecord = await this.db.query.users.findFirst({
+      where: eq(users.id, userId),
+    });
+
+    if (!userRecord) {
+      throw new UnauthorizedException();
+    }
+
+    const credentialAcc = await this.db.query.authAccounts.findFirst({
+      where: and(
+        eq(authAccounts.userId, userId),
+        eq(authAccounts.providerId, AUTH_PROVIDER.CREDENTIAL),
+      ),
+    });
+
+    if (credentialAcc?.passwordHash) {
+      const isOldValid = await bcrypt.compare(
+        dto.currentPassword,
+        credentialAcc.passwordHash,
+      );
+      if (!isOldValid) {
+        throw new UnprocessableEntityException({
+          status: HttpStatus.UNPROCESSABLE_ENTITY,
+          errors: {
+            currentPassword: 'Kata sandi saat ini tidak cocok',
+          },
+        });
+      }
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const newHash = await bcrypt.hash(dto.newPassword, salt);
+
+    if (credentialAcc) {
+      await this.db
+        .update(authAccounts)
+        .set({
+          passwordHash: newHash,
+          updatedAt: sql`NOW()`,
+        })
+        .where(eq(authAccounts.id, credentialAcc.id));
+    } else {
+      await this.db.insert(authAccounts).values({
+        userId,
+        providerId: AUTH_PROVIDER.CREDENTIAL,
+        accountId: userRecord.email,
+        passwordHash: newHash,
+      });
+    }
+
+    try {
+      await this.db
+        .update(account)
+        .set({
+          password: newHash,
+          updatedAt: sql`NOW()`,
+        })
+        .where(
+          and(
+            eq(account.userId, userId),
+            eq(account.providerId, AUTH_PROVIDER.CREDENTIAL),
+          ),
+        );
+    } catch {
+      // Complementary Better-Auth table
+    }
+
+    await this.redisService.purgeUserData(userId, userRecord.email);
+
+    try {
+      await this.mailService.send({
+        to: userRecord.email,
+        subject: 'Pemberitahuan Keamanan: Kata Sandi Akun Diperbarui',
+        text: `Halo ${userRecord.name},\n\nKata sandi akun Anda di Amanah Healthcare baru saja berhasil diperbarui. Seluruh sesi login lain telah dinonaktifkan demi keamanan akun Anda.\n\nJika Anda tidak melakukan perubahan ini, segera hubungi tim administrator sistem.`,
+      });
+    } catch {
+      // Non-blocking
+    }
+
+    return {
+      success: true,
+      message: 'Kata sandi berhasil diperbarui. Silakan login kembali dengan kata sandi baru.',
+    };
+  }
+
+  async linkGoogleAccount(
+    userId: string,
+    dto: LinkGoogleDto,
+  ): Promise<LinkedProvidersResponseDto> {
+    const userRecord = await this.db.query.users.findFirst({
+      where: eq(users.id, userId),
+    });
+
+    if (!userRecord) {
+      throw new UnauthorizedException();
+    }
+
+    const verifiedGoogle = await this.googleVerifier.verify(dto.idToken);
+    const googleSub = verifiedGoogle.sub;
+
+    const existingLink = await this.db.query.authAccounts.findFirst({
+      where: and(
+        eq(authAccounts.providerId, AUTH_PROVIDER.GOOGLE),
+        eq(authAccounts.accountId, googleSub),
+      ),
+    });
+
+    if (existingLink && existingLink.userId !== userId) {
+      throw new ConflictException(
+        'Akun Google ini sudah terhubung dengan akun pengguna lain di sistem.',
+      );
+    }
+
+    if (!existingLink) {
+      await this.db.insert(authAccounts).values({
+        userId,
+        providerId: AUTH_PROVIDER.GOOGLE,
+        accountId: googleSub,
+      });
+
+      try {
+        await this.db.insert(account).values({
+          userId,
+          accountId: googleSub,
+          providerId: AUTH_PROVIDER.GOOGLE,
+          createdAt: sql`NOW()`,
+          updatedAt: sql`NOW()`,
+        });
+      } catch {
+        // Complementary Better-Auth table
+      }
+    }
+
+    if (verifiedGoogle.picture && !userRecord.avatarUrl) {
+      await this.db
+        .update(users)
+        .set({
+          avatarUrl: verifiedGoogle.picture,
+          updatedAt: sql`NOW()`,
+        })
+        .where(eq(users.id, userId));
+    }
+
+    try {
+      await this.mailService.send({
+        to: userRecord.email,
+        subject: 'Pemberitahuan Keamanan: Akun Google Berhasil Ditautkan',
+        text: `Halo ${userRecord.name},\n\nAkun Google (${verifiedGoogle.email}) telah berhasil ditautkan ke akun Amanah Healthcare Anda. Anda kini dapat menggunakan tombol Masuk dengan Google.`,
+      });
+    } catch {
+      // Non-blocking
+    }
+
+    return this.getLinkedProviders(userId);
+  }
+
+  async unlinkCredential(userId: string): Promise<LinkedProvidersResponseDto> {
+    const userRecord = await this.db.query.users.findFirst({
+      where: eq(users.id, userId),
+    });
+
+    if (!userRecord) {
+      throw new UnauthorizedException();
+    }
+
+    const currentProviders = await this.getLinkedProviders(userId);
+    if (!currentProviders.hasGoogle) {
+      throw new BadRequestException(
+        'Tidak dapat mematikan kata sandi karena tidak ada metode masuk lain yang aktif. Hubungkan akun Google terlebih dahulu untuk mencegah akun terkunci.',
+      );
+    }
+
+    await this.db
+      .delete(authAccounts)
+      .where(
+        and(
+          eq(authAccounts.userId, userId),
+          eq(authAccounts.providerId, AUTH_PROVIDER.CREDENTIAL),
+        ),
+      );
+
+    try {
+      await this.db
+        .delete(account)
+        .where(
+          and(
+            eq(account.userId, userId),
+            eq(account.providerId, AUTH_PROVIDER.CREDENTIAL),
+          ),
+        );
+    } catch {
+      // Complementary Better-Auth table
+    }
+
+    await this.redisService.purgeUserData(userId, userRecord.email);
+
+    try {
+      await this.mailService.send({
+        to: userRecord.email,
+        subject: 'Pemberitahuan Keamanan: Akses Kata Sandi Dinonaktifkan',
+        text: `Halo ${userRecord.name},\n\nAkses masuk menggunakan kata sandi tradisional telah dinonaktifkan. Mulai saat ini, Anda hanya dapat masuk menggunakan Akun Google yang telah terhubung.`,
+      });
+    } catch {
+      // Non-blocking
+    }
+
+    return this.getLinkedProviders(userId);
+  }
+
+  async unlinkGoogle(userId: string): Promise<LinkedProvidersResponseDto> {
+    const userRecord = await this.db.query.users.findFirst({
+      where: eq(users.id, userId),
+    });
+
+    if (!userRecord) {
+      throw new UnauthorizedException();
+    }
+
+    const currentProviders = await this.getLinkedProviders(userId);
+    if (!currentProviders.hasPassword) {
+      throw new BadRequestException(
+        'Tidak dapat melepas akun Google karena tidak ada kata sandi yang aktif. Buat kata sandi terlebih dahulu untuk mencegah akun terkunci.',
+      );
+    }
+
+    await this.db
+      .delete(authAccounts)
+      .where(
+        and(
+          eq(authAccounts.userId, userId),
+          eq(authAccounts.providerId, AUTH_PROVIDER.GOOGLE),
+        ),
+      );
+
+    try {
+      await this.db
+        .delete(account)
+        .where(
+          and(
+            eq(account.userId, userId),
+            eq(account.providerId, AUTH_PROVIDER.GOOGLE),
+          ),
+        );
+    } catch {
+      // Complementary Better-Auth table
+    }
+
+    try {
+      await this.mailService.send({
+        to: userRecord.email,
+        subject: 'Pemberitahuan Keamanan: Tautan Akun Google Dilepas',
+        text: `Halo ${userRecord.name},\n\nTautan akun Google telah berhasil dilepas dari akun Anda. Anda kini masuk menggunakan alamat email dan kata sandi.`,
+      });
+    } catch {
+      // Non-blocking
+    }
+
+    return this.getLinkedProviders(userId);
   }
 }

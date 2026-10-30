@@ -57,9 +57,13 @@ import { AuthStaffOnboardingDto } from './dto/auth-staff-onboarding.dto';
 import { AuthUpdateDto } from './dto/auth-update.dto';
 import { AuthUserResponseDto } from './dto/auth-user-response.dto';
 import { AuthVerifyOtpDto } from './dto/auth-verify-otp.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { DeleteAccountResponseDto } from './dto/delete-account-response.dto';
+import { LinkGoogleDto } from './dto/link-google.dto';
+import { LinkedProvidersResponseDto } from './dto/linked-providers-response.dto';
 import { LoginResponseDto } from './dto/login-response.dto';
 import { RefreshResponseDto } from './dto/refresh-response.dto';
+import { RequestEmailChangeDto } from './dto/request-email-change.dto';
 import {
   AuthConfirmEmailSchema,
   AuthEmailLoginSchema,
@@ -73,6 +77,9 @@ import {
   AuthStaffOnboardingSchema,
   AuthUpdateSchema,
   AuthVerifyOtpSchema,
+  ChangePasswordSchema,
+  LinkGoogleSchema,
+  RequestEmailChangeSchema,
 } from './presentation/schemas';
 import type { JwtPayloadType } from './strategies/types/jwt-payload.type';
 import type { JwtRefreshPayloadType } from './strategies/types/jwt-refresh-payload.type';
@@ -468,6 +475,126 @@ export class AuthController {
     @Body(zodPipe(AuthStaffOnboardingSchema)) dto: AuthStaffOnboardingDto,
   ): Promise<NullableType<AuthUserResponseDto>> {
     return this.service.completeStaffOnboarding(request.user, dto);
+  }
+
+  @ApiBearerAuth('access-token')
+  @Get('me/linked-providers')
+  @UseGuards(HybridAuthGuard)
+  @ApiOperation({
+    summary: 'Mendapatkan status metode login aktif pada akun saat ini',
+    description:
+      'Mengembalikan status keterhubungan kredensial kata sandi dan Google OAuth pada akun pengguna.',
+  })
+  @ApiOkResponse({
+    type: LinkedProvidersResponseDto,
+    description: 'Data metode login berhasil diambil',
+  })
+  @HttpCode(HttpStatus.OK)
+  public getLinkedProviders(
+    @Request() request: RequestWithUser<JwtPayloadType>,
+  ): Promise<LinkedProvidersResponseDto> {
+    return this.service.getLinkedProviders(request.user.id);
+  }
+
+  @ApiBearerAuth('access-token')
+  @Patch('me/password')
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('profile:update')
+  @ApiOperation({
+    summary: 'Ubah kata sandi akun pengguna saat ini',
+    description:
+      'Memvalidasi kata sandi lama, meng-hash kata sandi baru, dan menginvalidasi seluruh sesi aktif lain di sistem.',
+  })
+  @ApiOkResponse({
+    description: 'Kata sandi berhasil diperbarui',
+  })
+  @HttpCode(HttpStatus.OK)
+  public changePassword(
+    @Request() request: RequestWithUser<JwtPayloadType>,
+    @Body(zodPipe(ChangePasswordSchema)) dto: ChangePasswordDto,
+  ): Promise<{ success: boolean; message: string }> {
+    return this.service.changePassword(request.user.id, dto);
+  }
+
+  @ApiBearerAuth('access-token')
+  @Post('me/request-email-change')
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('profile:update')
+  @ApiOperation({
+    summary: 'Ajukan permintaan perubahan alamat email akun',
+    description:
+      'Mengirimkan tautan dan token verifikasi ke alamat email baru untuk menyelesaikan alur pemindahan email.',
+  })
+  @ApiOkResponse({
+    description: 'Tautan konfirmasi berhasil dikirim ke alamat email baru',
+  })
+  @HttpCode(HttpStatus.OK)
+  public requestEmailChange(
+    @Request() request: RequestWithUser<JwtPayloadType>,
+    @Body(zodPipe(RequestEmailChangeSchema)) dto: RequestEmailChangeDto,
+  ): Promise<{ success: boolean; message: string }> {
+    return this.service.requestEmailChange(request.user.id, dto);
+  }
+
+  @ApiBearerAuth('access-token')
+  @Post('me/link-google')
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('profile:update')
+  @ApiOperation({
+    summary: 'Tautkan Akun Google ke akun saat ini',
+    description:
+      'Memverifikasi ID token Google OAuth dan mendaftarkan Google sebagai metode masuk resmi akun.',
+  })
+  @ApiOkResponse({
+    type: LinkedProvidersResponseDto,
+    description: 'Akun Google berhasil ditautkan',
+  })
+  @HttpCode(HttpStatus.OK)
+  public linkGoogle(
+    @Request() request: RequestWithUser<JwtPayloadType>,
+    @Body(zodPipe(LinkGoogleSchema)) dto: LinkGoogleDto,
+  ): Promise<LinkedProvidersResponseDto> {
+    return this.service.linkGoogleAccount(request.user.id, dto);
+  }
+
+  @ApiBearerAuth('access-token')
+  @Post('me/unlink-credential')
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('profile:update')
+  @ApiOperation({
+    summary: 'Matikan login kata sandi tradisional (Alih penuh ke Google OAuth)',
+    description:
+      'Menghapus kredensial kata sandi tradisional setelah akun Google terhubung aktif, sehingga akun login secara murni passwordless via Google.',
+  })
+  @ApiOkResponse({
+    type: LinkedProvidersResponseDto,
+    description: 'Akses kata sandi tradisional berhasil dinonaktifkan',
+  })
+  @HttpCode(HttpStatus.OK)
+  public unlinkCredential(
+    @Request() request: RequestWithUser<JwtPayloadType>,
+  ): Promise<LinkedProvidersResponseDto> {
+    return this.service.unlinkCredential(request.user.id);
+  }
+
+  @ApiBearerAuth('access-token')
+  @Post('me/unlink-google')
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('profile:update')
+  @ApiOperation({
+    summary: 'Putuskan tautan Akun Google (Kembali murni ke email dan kata sandi)',
+    description:
+      'Melepas metode masuk Google OAuth dari akun. Wajib memiliki kata sandi aktif agar akun tidak terkunci.',
+  })
+  @ApiOkResponse({
+    type: LinkedProvidersResponseDto,
+    description: 'Tautan Google berhasil dilepas',
+  })
+  @HttpCode(HttpStatus.OK)
+  public unlinkGoogle(
+    @Request() request: RequestWithUser<JwtPayloadType>,
+  ): Promise<LinkedProvidersResponseDto> {
+    return this.service.unlinkGoogle(request.user.id);
   }
 
   @ApiBearerAuth('access-token')

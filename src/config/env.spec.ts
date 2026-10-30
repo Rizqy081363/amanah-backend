@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import {
   AppRuntime,
+  MailDriver,
   NodeEnvironment,
   validateEnvironment,
 } from './env';
@@ -127,5 +128,60 @@ describe('Enterprise Environment Validation (env.ts)', () => {
       expect(error.message).not.toContain(secretValue);
       expect(error.message).toContain('AUTH_JWT_SECRET');
     }
+  });
+
+  describe('Mail Transporter & Resend Configuration Matrix', () => {
+    it('should successfully validate MAIL_DRIVER=smtp in development without RESEND_API_KEY', () => {
+      const config = {
+        ...VALID_BASE_CONFIG,
+        MAIL_DRIVER: MailDriver.Smtp,
+      };
+      const validated = validateEnvironment(config);
+      expect(validated.MAIL_DRIVER).toBe(MailDriver.Smtp);
+      expect(validated.RESEND_API_KEY).toBeUndefined();
+    });
+
+    it('should successfully validate MAIL_DRIVER=resend when valid RESEND_API_KEY is provided', () => {
+      const config = {
+        ...VALID_BASE_CONFIG,
+        MAIL_DRIVER: MailDriver.Resend,
+        RESEND_API_KEY: 're_valid_prod_key_1234567890',
+      };
+      const validated = validateEnvironment(config);
+      expect(validated.MAIL_DRIVER).toBe(MailDriver.Resend);
+      expect(validated.RESEND_API_KEY).toBe('re_valid_prod_key_1234567890');
+    });
+
+    it('should fail when MAIL_DRIVER=resend and RESEND_API_KEY is missing', () => {
+      const config = {
+        ...VALID_BASE_CONFIG,
+        MAIL_DRIVER: MailDriver.Resend,
+      };
+      expect(() => validateEnvironment(config)).toThrow(
+        /\[RESEND_API_KEY\] is required when MAIL_DRIVER=resend/,
+      );
+    });
+
+    it('should fail in production mode when MAIL_DRIVER=smtp points to loopback or mailpit', () => {
+      const config = {
+        ...VALID_BASE_CONFIG,
+        NODE_ENV: NodeEnvironment.Production,
+        MAIL_DRIVER: MailDriver.Smtp,
+        SMTP_HOST: 'mailpit',
+      };
+      expect(() => validateEnvironment(config)).toThrow(
+        /\[MAIL_DRIVER\] Local mailer .* is not allowed in production mode/,
+      );
+    });
+
+    it('should fail when MAIL_DRIVER is an invalid enum value', () => {
+      const config = {
+        ...VALID_BASE_CONFIG,
+        MAIL_DRIVER: 'unsupported_driver',
+      };
+      expect(() => validateEnvironment(config)).toThrow(
+        /MAIL_DRIVER must be one of the following values/,
+      );
+    });
   });
 });

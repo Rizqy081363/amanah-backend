@@ -1,4 +1,6 @@
 import {
+  BadRequestException,
+  ConflictException,
   HttpException,
   HttpStatus,
   Inject,
@@ -8,7 +10,8 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import bcrypt from 'bcryptjs';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
+import { AUTH_PROVIDER } from '../../../common/constants/auth-providers.constants';
 import { RedisService } from '../../../common/redis/redis.service';
 import { AllConfigType } from '../../../config/config.type';
 import { DRIZZLE_SOURCE } from '../../../database/drizzle/drizzle.constants';
@@ -29,6 +32,7 @@ import {
 } from '../../dto/auth-resend-otp.dto';
 import { AuthResetPasswordOtpDto } from '../../dto/auth-reset-password-otp.dto';
 import { AuthVerifyOtpDto } from '../../dto/auth-verify-otp.dto';
+import { RequestEmailChangeDto } from '../../dto/request-email-change.dto';
 
 @Injectable()
 export class AuthRegistrationOtpService {
@@ -125,6 +129,91 @@ export class AuthRegistrationOtpService {
       .where(eq(users.id, payload.id));
   }
 
+  async requestEmailChange(
+    userId: string,
+    dto: RequestEmailChangeDto,
+  ): Promise<{ success: boolean; message: string }> {
+    const userRecord = await this.db.query.users.findFirst({
+      where: eq(users.id, userId),
+    });
+
+    if (!userRecord) {
+      throw new UnprocessableEntityException({
+        status: HttpStatus.UNPROCESSABLE_ENTITY,
+        errors: {
+          user: 'Pengguna tidak ditemukan',
+        },
+      });
+    }
+
+    const newEmail = dto.newEmail.trim().toLowerCase();
+    if (newEmail === userRecord.email.toLowerCase()) {
+      throw new BadRequestException(
+        'Alamat email baru tidak boleh sama dengan email akun saat ini.',
+      );
+    }
+
+    const existingUser = await this.db.query.users.findFirst({
+      where: eq(users.email, newEmail),
+    });
+    if (existingUser) {
+      throw new ConflictException(
+        'Alamat email tersebut sudah terdaftar pada akun lain di sistem.',
+      );
+    }
+
+    const credentialAcc = await this.db.query.authAccounts.findFirst({
+      where: and(
+        eq(authAccounts.userId, userId),
+        eq(authAccounts.providerId, AUTH_PROVIDER.CREDENTIAL),
+      ),
+    });
+
+    if (credentialAcc?.passwordHash) {
+      if (!dto.currentPassword) {
+        throw new BadRequestException(
+          'Kata sandi saat ini wajib diisi untuk mengonfirmasi perubahan alamat email.',
+        );
+      }
+      const isPasswordValid = await bcrypt.compare(
+        dto.currentPassword,
+        credentialAcc.passwordHash,
+      );
+      if (!isPasswordValid) {
+        throw new UnprocessableEntityException({
+          status: HttpStatus.UNPROCESSABLE_ENTITY,
+          errors: {
+            currentPassword: 'Kata sandi saat ini tidak cocok',
+          },
+        });
+      }
+    }
+
+    const hash = await this.jwtService.signAsync(
+      {
+        id: userRecord.id,
+        email: userRecord.email,
+        newEmail,
+      },
+      {
+        secret: this.configService.getOrThrow('auth.confirmEmailSecret', {
+          infer: true,
+        }),
+        expiresIn: '24h',
+      },
+    );
+
+    await this.mailService.confirmNewEmail({
+      to: newEmail,
+      data: { hash },
+    });
+
+    return {
+      success: true,
+      message: `Tautan konfirmasi telah dikirim ke ${newEmail}. Silakan periksa kotak masuk untuk menyelesaikan perubahan email.`,
+    };
+  }
+
   async confirmNewEmail(hash: string): Promise<void> {
     let payload: { id: string; email: string; newEmail?: string };
     try {
@@ -144,14 +233,67 @@ export class AuthRegistrationOtpService {
 
     const emailToSet =
       payload.newEmail !== undefined ? payload.newEmail : payload.email;
+
     await this.db
       .update(users)
       .set({
         email: emailToSet,
         emailVerified: true,
-        updatedAt: new Date().toISOString(),
+        updatedAt: sql`NOW()`,
       })
       .where(eq(users.id, payload.id));
+
+    await this.db
+      .update(authAccounts)
+      .set({
+        accountId: emailToSet,
+        updatedAt: sql`NOW()`,
+      })
+      .where(
+        and(
+          eq(authAccounts.userId, payload.id),
+          eq(authAccounts.providerId, AUTH_PROVIDER.CREDENTIAL),
+        ),
+      );
+
+    try {
+      await this.db
+        .update(user)
+        .set({
+          email: emailToSet,
+          updatedAt: sql`NOW()`,
+        })
+        .where(eq(user.id, payload.id));
+
+      await this.db
+        .update(account)
+        .set({
+          accountId: emailToSet,
+          updatedAt: sql`NOW()`,
+        })
+        .where(
+          and(
+            eq(account.userId, payload.id),
+            eq(account.providerId, AUTH_PROVIDER.CREDENTIAL),
+          ),
+        );
+    } catch {
+      // Complementary Better-Auth table
+    }
+
+    await this.redisService.purgeUserData(payload.id, payload.email);
+
+    if (payload.email && payload.email !== emailToSet) {
+      try {
+        await this.mailService.send({
+          to: payload.email,
+          subject: 'Pemberitahuan Keamanan: Alamat Email Akun Telah Dipindahkan',
+          text: `Halo,\n\nAlamat email untuk akun Amanah Healthcare Anda telah berhasil dialihkan ke: ${emailToSet}.\n\nJika Anda tidak merasa mengajukan pemindahan ini, segera hubungi tim administrator sistem.`,
+        });
+      } catch {
+        // Non-blocking
+      }
+    }
   }
 
   async forgotPassword(email: string): Promise<void> {

@@ -84,7 +84,7 @@ export class MailService {
     };
 
     try {
-      await this.mailerService.sendMail({
+      const result = await this.mailerService.sendMail({
         to,
         subject,
         text,
@@ -93,7 +93,7 @@ export class MailService {
         context,
       });
       this.logger.log(
-        `Email '${subject}' dispatched successfully to: ${Array.isArray(to) ? to.join(', ') : to}`,
+        `Email '${subject}' dispatched successfully to: ${Array.isArray(to) ? to.join(', ') : to} (Message ID: ${result.messageId})`,
       );
     } catch (error) {
       this.logger.error(

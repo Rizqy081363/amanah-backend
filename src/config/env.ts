@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { plainToClass } from 'class-transformer';
+import { plainToClass, Type } from 'class-transformer';
 import {
   IsBoolean,
   IsEnum,
@@ -23,6 +23,11 @@ export enum AppRuntime {
   Container = 'container',
   }
 
+export enum MailDriver {
+  Smtp = 'smtp',
+  Resend = 'resend',
+}
+
 export class EnvironmentVariables {
   @IsEnum(NodeEnvironment)
   @IsOptional()
@@ -36,6 +41,7 @@ export class EnvironmentVariables {
   @IsNotEmpty()
   APP_NAME: string = 'Amanah Healthcare Backend';
 
+  @Type(() => Number)
   @IsInt()
   @Min(1)
   @Max(65535)
@@ -118,6 +124,7 @@ export class EnvironmentVariables {
   @IsNotEmpty({ message: 'DATABASE_HOST is required' })
   DATABASE_HOST: string;
 
+  @Type(() => Number)
   @IsInt()
   @Min(1)
   @Max(65535)
@@ -136,6 +143,7 @@ export class EnvironmentVariables {
   @IsNotEmpty({ message: 'DATABASE_NAME is required' })
   DATABASE_NAME: string;
 
+  @Type(() => Number)
   @IsInt()
   @Min(1)
   @Max(200)
@@ -166,6 +174,7 @@ export class EnvironmentVariables {
   @IsNotEmpty({ message: 'SMTP_HOST is required' })
   SMTP_HOST: string;
 
+  @Type(() => Number)
   @IsInt()
   @Min(1)
   @Max(65535)
@@ -224,6 +233,7 @@ export class EnvironmentVariables {
   @IsOptional()
   HTTP_LOG_RESPONSE_BODY?: boolean;
 
+  @Type(() => Number)
   @IsInt()
   @IsOptional()
   HTTP_LOG_MAX_BODY_LENGTH?: number;
@@ -260,14 +270,17 @@ export class EnvironmentVariables {
   @IsOptional()
   CACHE_KEY_PREFIX?: string;
 
+  @Type(() => Number)
   @IsInt()
   @IsOptional()
   CACHE_DEFAULT_TTL_SECONDS?: number;
 
+  @Type(() => Number)
   @IsInt()
   @IsOptional()
   CACHE_READINESS_TIMEOUT_MS?: number;
 
+  @Type(() => Number)
   @IsInt()
   @IsOptional()
   CACHE_MAX_RECONNECT_ATTEMPTS?: number;
@@ -276,6 +289,7 @@ export class EnvironmentVariables {
   @IsOptional()
   MAIL_HOST?: string;
 
+  @Type(() => Number)
   @IsInt()
   @IsOptional()
   MAIL_PORT?: number;
@@ -323,6 +337,14 @@ export class EnvironmentVariables {
   @IsString()
   @IsOptional()
   FILE_DRIVER?: string = 'local';
+
+  @IsEnum(MailDriver)
+  @IsOptional()
+  MAIL_DRIVER: MailDriver = MailDriver.Smtp;
+
+  @IsString()
+  @IsOptional()
+  RESEND_API_KEY?: string;
 
   @IsString()
   @IsOptional()
@@ -428,6 +450,27 @@ export function validateEnvironment(
       throw new Error(
         'Environment validation failed: [SMTP_HOST] must not use loopback host (localhost/127.0.0.1) in container runtime mode',
       );
+    }
+  }
+
+  // Enterprise Rule 3: Resend requirements & Anti-local in production mode
+  if (validated.MAIL_DRIVER === MailDriver.Resend) {
+    if (!validated.RESEND_API_KEY || !validated.RESEND_API_KEY.trim()) {
+      throw new Error(
+        'Environment validation failed: [RESEND_API_KEY] is required when MAIL_DRIVER=resend',
+      );
+    }
+  }
+
+  if (validated.NODE_ENV === NodeEnvironment.Production) {
+    if (validated.MAIL_DRIVER === MailDriver.Smtp) {
+      const isLoopback = containsLoopback(validated.SMTP_HOST || validated.MAIL_HOST || '');
+      const isMailpit = (validated.SMTP_HOST || validated.MAIL_HOST || '').toLowerCase().includes('mailpit');
+      if (isLoopback || isMailpit) {
+        throw new Error(
+          'Environment validation failed: [MAIL_DRIVER] Local mailer (mailpit/smtp loopback) is not allowed in production mode. Set MAIL_DRIVER=resend with a valid RESEND_API_KEY.',
+        );
+      }
     }
   }
 

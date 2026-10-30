@@ -1,37 +1,26 @@
 import fs from 'node:fs/promises';
-import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { Inject, Injectable } from '@nestjs/common';
 import Handlebars from 'handlebars';
-import nodemailer from 'nodemailer';
-import { AllConfigType } from '../config/config.type';
+import {
+  MAIL_TRANSPORTER,
+  type MailTransporterPort,
+} from './ports/mail-transporter.port';
+import type { MailSentResult } from './types/mail-sent-result.type';
+import type { MailerSendMailOptions } from './types/mailer-send-options.type';
 
 @Injectable()
 export class MailerService {
-  private readonly transporter: nodemailer.Transporter;
-  constructor(private readonly configService: ConfigService<AllConfigType>) {
-    const user = configService.get('mail.user', { infer: true });
-    const pass = configService.get('mail.password', { infer: true });
-    const auth = user && pass ? { user, pass } : undefined;
-
-    this.transporter = nodemailer.createTransport({
-      host: configService.get('mail.host', { infer: true }) || 'localhost',
-      port: configService.get('mail.port', { infer: true }) || 1025,
-      ignoreTLS: configService.get('mail.ignoreTLS', { infer: true }),
-      secure: configService.get('mail.secure', { infer: true }),
-      requireTLS: configService.get('mail.requireTLS', { infer: true }),
-      ...(auth ? { auth } : {}),
-    });
-  }
+  constructor(
+    @Inject(MAIL_TRANSPORTER)
+    private readonly mailTransporter: MailTransporterPort,
+  ) {}
 
   async sendMail({
     templatePath,
     context,
     ...mailOptions
-  }: nodemailer.SendMailOptions & {
-    templatePath?: string;
-    context?: Record<string, unknown>;
-  }): Promise<void> {
-    let html = mailOptions.html as string | undefined;
+  }: MailerSendMailOptions): Promise<MailSentResult> {
+    let html = mailOptions.html;
     if (templatePath) {
       const template = await fs.readFile(templatePath, 'utf-8');
       html = Handlebars.compile(template, {
@@ -39,16 +28,35 @@ export class MailerService {
       })(context || {});
     }
 
-    await this.transporter.sendMail({
-      ...mailOptions,
-      from: mailOptions.from
-        ? mailOptions.from
-        : `"${this.configService.get('mail.defaultName', {
-            infer: true,
-          })}" <${this.configService.get('mail.defaultEmail', {
-            infer: true,
-          })}>`,
-      html: html ?? mailOptions.text,
+    const to = Array.isArray(mailOptions.to)
+      ? mailOptions.to.map((item) => (typeof item === 'string' ? item : item.address))
+      : typeof mailOptions.to === 'string'
+        ? mailOptions.to
+        : mailOptions.to?.address || '';
+
+    const resolveAddress = (
+      input?: string | { address: string; name?: string } | Array<string | { address: string; name?: string }>,
+    ): string | undefined => {
+      if (!input) return undefined;
+      if (typeof input === 'string') return input;
+      if (Array.isArray(input)) {
+        return input
+          .map((item) => (typeof item === 'string' ? item : item.address))
+          .join(', ');
+      }
+      return input.address;
+    };
+
+    const from = resolveAddress(mailOptions.from);
+    const replyTo = resolveAddress(mailOptions.replyTo);
+
+    return this.mailTransporter.send({
+      to,
+      from,
+      subject: mailOptions.subject || '',
+      text: typeof mailOptions.text === 'string' ? mailOptions.text : undefined,
+      html: html ?? (typeof mailOptions.text === 'string' ? mailOptions.text : undefined),
+      replyTo,
     });
   }
 }
