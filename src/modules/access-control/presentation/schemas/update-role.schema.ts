@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ROLE_AUDIENCES } from '../../../../common/constants/role-audience.constants';
 
 export const UpdateRoleSchema = z.object({
   name: z
@@ -24,7 +25,7 @@ export const UpdateRoleSchema = z.object({
     })
     .optional(),
   audience: z
-    .enum(['internal', 'external'], {
+    .enum(ROLE_AUDIENCES, {
       message: 'Audiens peran harus berupa "internal" (staf klinik) atau "external" (pasien)',
     })
     .optional(),

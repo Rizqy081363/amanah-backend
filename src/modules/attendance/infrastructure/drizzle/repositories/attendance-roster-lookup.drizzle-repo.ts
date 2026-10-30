@@ -6,6 +6,7 @@ import { DrizzleDatabase } from '../../../../../database/drizzle/drizzle.provide
 import {
   doctorAssignments,
   practitioners,
+  roles,
   sessionDefs,
   sessionSchedules,
   shiftExceptions,
@@ -513,6 +514,9 @@ export class AttendanceRosterLookupDrizzleRepo {
     fullName: string;
     userId: string | null;
     roleId?: string | null;
+    roleCode?: string | null;
+    roleName?: string | null;
+    isClinical?: boolean | null;
     positionTitle?: string | null;
     avatarUrl?: string | null;
     practitionerId?: string | null;
@@ -525,6 +529,9 @@ export class AttendanceRosterLookupDrizzleRepo {
         fullName: staffProfiles.fullName,
         userId: staffProfiles.userId,
         roleId: staffProfiles.roleId,
+        roleCode: roles.code,
+        roleName: roles.name,
+        isClinical: roles.isClinical,
         positionTitle: staffProfiles.positionTitle,
         avatarUrl: staffProfiles.avatarUrl,
         practitionerId: practitioners.id,
@@ -533,6 +540,10 @@ export class AttendanceRosterLookupDrizzleRepo {
       .leftJoin(
         practitioners,
         eq(practitioners.staffProfileId, staffProfiles.id),
+      )
+      .leftJoin(
+        roles,
+        eq(roles.id, staffProfiles.roleId),
       )
       .where(
         isUUID(q)

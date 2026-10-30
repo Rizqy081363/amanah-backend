@@ -10,6 +10,7 @@ import {
   staffProfiles,
   userRoles,
 } from '../../../../database/schema';
+import { ROLE_AUDIENCE } from '../../../../common/constants/role-audience.constants';
 
 @Injectable()
 export class AppointmentRecipientResolver {
@@ -42,7 +43,7 @@ export class AppointmentRecipientResolver {
         .innerJoin(permissions, eq(rolePermissions.permissionId, permissions.id))
         .where(
           and(
-            eq(roles.audience, 'internal'),
+            eq(roles.audience, ROLE_AUDIENCE.INTERNAL),
             isNull(userRoles.revokedAt),
             inArray(permissions.code, [
               'appointments:read',

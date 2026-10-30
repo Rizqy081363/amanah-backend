@@ -16,6 +16,7 @@ import {
 import { ChatNotificationPublisher } from '../publishers/chat-notification.publisher';
 import { ChatMessageEntity } from '../../domain/entities/chat-message.entity';
 import { ConversationEntity } from '../../domain/entities/conversation.entity';
+import { CHAT_SENDER_ROLE } from '../../domain/constants/chat-lifecycle.constants';
 import {
   AdminConversationQueryParams,
   CHAT_REPOSITORY,
@@ -151,7 +152,7 @@ export class ChatService {
 
     const message = await this.chatRepo.createMessage({
       conversationId,
-      senderRole: 'customer',
+      senderRole: CHAT_SENDER_ROLE.EXTERNAL,
       senderUserId: caller?.userId || null,
       clientMessageId: clientMessageId || randomUUID(),
       body: body.trim(),
@@ -240,7 +241,7 @@ export class ChatService {
 
     const message = await this.chatRepo.createMessage({
       conversationId,
-      senderRole: 'admin',
+      senderRole: CHAT_SENDER_ROLE.INTERNAL,
       senderUserId: adminUserId,
       clientMessageId: clientMessageId || randomUUID(),
       body: trimmedBody,

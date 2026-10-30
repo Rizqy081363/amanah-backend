@@ -442,6 +442,48 @@
       "when": 1791346000000,
       "tag": "0062_hierarchical_dynamic_rbac",
       "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1791347000000,
+      "tag": "0063_add_role_audience",
+      "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1791348000000,
+      "tag": "0064_universal_staff_substitute",
+      "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "7",
+      "when": 1791349000000,
+      "tag": "0065_notifications_target_role_and_audience",
+      "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1791350000000,
+      "tag": "0066_dynamic_clinic_facilities_and_clean_canvas",
+      "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1791351000000,
+      "tag": "0067_clinical_intake_forms_and_service_linking",
+      "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1791352000000,
+      "tag": "0068_chat_sender_audience",
+      "breakpoints": true
     }
   ]
 }

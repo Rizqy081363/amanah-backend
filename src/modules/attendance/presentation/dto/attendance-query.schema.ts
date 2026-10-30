@@ -7,6 +7,7 @@ export const AttendanceQuerySchema = z.object({
     .optional(),
   shift: z.string().optional(),
   status: z.string().optional(),
+  roleId: z.string().optional(),
   category: z.string().optional(),
   search: z.string().max(100).optional(),
 });

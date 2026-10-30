@@ -57,6 +57,7 @@ export interface AttendanceBFFResponse {
     shifts: Array<{ label: string; value: string }>;
     statuses: Array<{ label: string; value: string }>;
     categories: Array<{ label: string; value: string }>;
+    roles?: Array<{ label: string; value: string; id: string; code: string; isClinical: boolean }>;
   };
 }
 
@@ -235,6 +236,9 @@ export interface AttendanceRepository {
     fullName: string;
     userId: string | null;
     roleId?: string | null;
+    roleCode?: string | null;
+    roleName?: string | null;
+    isClinical?: boolean | null;
     positionTitle?: string | null;
     avatarUrl?: string | null;
     practitionerId?: string | null;

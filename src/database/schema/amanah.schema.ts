@@ -2654,7 +2654,7 @@ export const messages = pgTable(
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
     conversationId: uuid('conversation_id').notNull(),
-    senderRole: chatSenderRole('sender_role').default('customer').notNull(),
+    senderRole: varchar('sender_role', { length: 20 }).default('external').notNull(),
     senderUserId: uuid('sender_user_id'),
     senderType: messageSenderType('sender_type'),
     clientMessageId: uuid('client_message_id').defaultRandom().notNull(),

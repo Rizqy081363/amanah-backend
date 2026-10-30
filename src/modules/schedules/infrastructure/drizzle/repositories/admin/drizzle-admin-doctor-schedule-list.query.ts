@@ -17,6 +17,7 @@ import {
   DEFAULT_CONSULTATION_DURATION_MINUTES,
   INACTIVE_APPOINTMENT_STATUSES,
 } from '@modules/schedules/domain/constants/schedule.constants';
+import { STAFF_STATUS } from '@modules/staffs/domain/constants/staff-invitation.constants';
 import {
   type AdminDoctorDailySession,
   type AdminDoctorScheduleCardEntity,
@@ -76,7 +77,6 @@ export class DrizzleAdminDoctorScheduleListQuery {
       allActiveSessionDefs,
       allShiftExceptions,
       dayRecord,
-      pendingInvitations,
       allApprovedLeaves,
       allReplacementOpportunities,
     ] = await Promise.all([
@@ -129,9 +129,6 @@ export class DrizzleAdminDoctorScheduleListQuery {
       this.db.query.masterDays.findFirst({
         where: eq(masterDays.dow, targetDow),
       }),
-      this.db.query.staffInvitations.findMany({
-        where: eq(staffInvitations.status, 'pending'),
-      }),
       this.db.query.staffLeaveRequests.findMany({
         where: and(
           eq(staffLeaveRequests.status, 'approved'),
@@ -148,12 +145,6 @@ export class DrizzleAdminDoctorScheduleListQuery {
         },
       }),
     ]);
-
-    const pendingInvitationEmails = new Set(
-      pendingInvitations
-        .map((inv) => inv.email?.toLowerCase().trim())
-        .filter(Boolean),
-    );
 
     const cards: AdminDoctorScheduleCardEntity[] = [];
 
@@ -182,19 +173,10 @@ export class DrizzleAdminDoctorScheduleListQuery {
         };
       });
 
-      const doctorEmail = (p.staffProfile?.email || '').toLowerCase().trim();
-      const matchedInvitation = pendingInvitations.find(
-        (inv) =>
-          Boolean(doctorEmail) &&
-          inv.email?.toLowerCase().trim() === doctorEmail,
-      );
-      const hasPendingInvitation = Boolean(matchedInvitation);
       const isPending =
         !p.isAcceptingAppointments ||
-        p.staffProfile?.status === 'inactive' ||
-        hasPendingInvitation;
+        p.staffProfile?.status === STAFF_STATUS.INACTIVE;
       const effectiveCreatedAt =
-        matchedInvitation?.createdAt ||
         p.createdAt ||
         p.staffProfile?.createdAt ||
         null;
@@ -549,7 +531,7 @@ export class DrizzleAdminDoctorScheduleListQuery {
         const isDocActive =
           !isPending &&
           (p.isAcceptingAppointments ?? true) &&
-          p.staffProfile?.status !== 'inactive';
+          p.staffProfile?.status !== STAFF_STATUS.INACTIVE;
 
         const matchesStatus = statusList.some((st) => {
           if (st === 'ACTIVE') return isDocActive;

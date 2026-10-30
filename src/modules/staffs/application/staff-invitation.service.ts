@@ -31,6 +31,7 @@ import {
   userRoles,
   users,
 } from '../../../database/schema';
+import { ROLE_AUDIENCE } from '../../../common/constants/role-audience.constants';
 import { MailService } from '../../../mail/mail.service';
 import {
   STAFF_INVITATION_STATUS,
@@ -88,6 +89,7 @@ export class StaffInvitationService {
       code: string;
       name: string;
       tier: string;
+      parentRoleId: string | null;
       isClinical: boolean;
       description: string | null;
     }>;
@@ -95,22 +97,30 @@ export class StaffInvitationService {
       id: string;
       code: string;
       name: string;
+      tier: string;
+      parentRoleId: string | null;
       description: string | null;
     }>;
-    polyclinics: Array<{ id: string; name: string; code: string }>;
+    polyclinics: Array<{ id: string; name: string; code: string; unitType?: string; iconName?: string }>;
+    clinicUnits: Array<{ id: string; name: string; code: string; unitType?: string; iconName?: string }>;
   }> {
     const staffRoles = await this.db.query.roles.findMany({
-      where: eq(roles.audience, 'internal'),
+      where: eq(roles.audience, ROLE_AUDIENCE.INTERNAL),
       orderBy: [asc(roles.name)],
     });
 
-    const polyclinics = await this.db.query.clinicUnits.findMany({
-      where: and(
-        eq(clinicUnits.unitType, 'polyclinic'),
-        eq(clinicUnits.isActive, true),
-      ),
+    const activeClinicUnits = await this.db.query.clinicUnits.findMany({
+      where: eq(clinicUnits.isActive, true),
       orderBy: [asc(clinicUnits.name)],
     });
+
+    const unitsMapped = activeClinicUnits.map((p) => ({
+      id: p.id,
+      name: p.name,
+      code: p.code,
+      unitType: p.unitType,
+      iconName: p.iconName,
+    }));
 
     return {
       roles: staffRoles.map((r) => ({
@@ -118,6 +128,7 @@ export class StaffInvitationService {
         code: r.code,
         name: r.name,
         tier: r.tier,
+        parentRoleId: r.parentRoleId || null,
         isClinical: r.isClinical,
         description: r.description,
       })),
@@ -127,13 +138,12 @@ export class StaffInvitationService {
           id: r.id,
           code: r.code,
           name: r.name,
+          tier: r.tier,
+          parentRoleId: r.parentRoleId || null,
           description: r.description,
         })),
-      polyclinics: polyclinics.map((p) => ({
-        id: p.id,
-        name: p.name,
-        code: p.code,
-      })),
+      polyclinics: unitsMapped,
+      clinicUnits: unitsMapped,
     };
   }
 
@@ -264,6 +274,7 @@ export class StaffInvitationService {
       ),
     });
 
+    const targetUnitId = dto.unitId || dto.poliklinikId || null;
     const prefix = isClinical ? 'CLN' : 'STF';
     if (!staff) {
       const staffCode = `${prefix}-${Date.now().toString().slice(-4)}`;
@@ -275,7 +286,7 @@ export class StaffInvitationService {
           staffCode,
           fullName: staffName,
           positionTitle: roleTitle,
-          primaryUnitId: dto.poliklinikId || null,
+          primaryUnitId: targetUnitId,
           phone: null,
           email,
           status: STAFF_STATUS.INACTIVE,
@@ -289,7 +300,7 @@ export class StaffInvitationService {
           roleId: targetRole.id,
           fullName: staffName,
           positionTitle: roleTitle,
-          primaryUnitId: dto.poliklinikId || staff.primaryUnitId,
+          primaryUnitId: targetUnitId || staff.primaryUnitId,
           status: STAFF_STATUS.INACTIVE,
           updatedAt: this.getNowIso(),
         })

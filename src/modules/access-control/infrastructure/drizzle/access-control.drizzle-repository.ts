@@ -24,6 +24,10 @@ import {
   RoleEntity,
   RoleTier,
 } from '../../domain/entities/role.entity';
+import {
+  DEFAULT_ROLE_AUDIENCE,
+  ROLE_AUDIENCE,
+} from '../../../../common/constants/role-audience.constants';
 import { PermissionEntity } from '../../domain/entities/permission.entity';
 
 @Injectable()
@@ -98,7 +102,7 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
         isSystem: r.isSystem,
         parentRoleId: r.parentRoleId,
         tier: r.tier as RoleTier,
-        audience: (r.audience as RoleAudience) || 'internal',
+        audience: (r.audience as RoleAudience) || DEFAULT_ROLE_AUDIENCE,
         isClinical: r.isClinical,
         createdAt: r.createdAt,
         updatedAt: r.updatedAt,
@@ -111,7 +115,7 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
               isSystem: r.parentRole.isSystem,
               parentRoleId: r.parentRole.parentRoleId,
               tier: r.parentRole.tier as RoleTier,
-              audience: (r.parentRole.audience as RoleAudience) || 'internal',
+              audience: (r.parentRole.audience as RoleAudience) || DEFAULT_ROLE_AUDIENCE,
               isClinical: r.parentRole.isClinical,
               createdAt: r.parentRole.createdAt,
               updatedAt: r.parentRole.updatedAt,
@@ -186,7 +190,7 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
       isSystem: roleRecord.isSystem,
       parentRoleId: roleRecord.parentRoleId,
       tier: roleRecord.tier as RoleTier,
-      audience: (roleRecord.audience as RoleAudience) || 'internal',
+      audience: (roleRecord.audience as RoleAudience) || DEFAULT_ROLE_AUDIENCE,
       isClinical: roleRecord.isClinical,
       createdAt: roleRecord.createdAt,
       updatedAt: roleRecord.updatedAt,
@@ -199,7 +203,7 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
             isSystem: roleRecord.parentRole.isSystem,
             parentRoleId: roleRecord.parentRole.parentRoleId,
             tier: roleRecord.parentRole.tier as RoleTier,
-            audience: (roleRecord.parentRole.audience as RoleAudience) || 'internal',
+            audience: (roleRecord.parentRole.audience as RoleAudience) || DEFAULT_ROLE_AUDIENCE,
             isClinical: roleRecord.parentRole.isClinical,
             createdAt: roleRecord.parentRole.createdAt,
             updatedAt: roleRecord.parentRole.updatedAt,
@@ -234,7 +238,7 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
       );
     }
 
-    let audience: RoleAudience = (data.audience as RoleAudience) || 'internal';
+    let audience: RoleAudience = (data.audience as RoleAudience) || DEFAULT_ROLE_AUDIENCE;
     let isClinical = Boolean(data.isClinical);
     if (data.parentRoleId) {
       const parent = await this.db.query.roles.findFirst({

@@ -14,6 +14,7 @@ import {
 import {
   ATTENDANCE_STATUSES,
 } from '../../../domain/constants/attendance.constants';
+import { ROLE_AUDIENCE } from '../../../../../common/constants/role-audience.constants';
 import { AttendanceExportCandidate } from '../../../domain/repositories/attendance.repository';
 
 @Injectable()
@@ -80,6 +81,7 @@ export class AttendanceBffStatsDrizzleRepo {
     shifts: Array<{ label: string; value: string }>;
     statuses: Array<{ label: string; value: string }>;
     categories: Array<{ label: string; value: string }>;
+    roles: Array<{ label: string; value: string; id: string; code: string; isClinical: boolean }>;
   }> {
     // 1. Database-driven active shifts from session_def
     const activeSessions = await this.db
@@ -97,15 +99,24 @@ export class AttendanceBffStatsDrizzleRepo {
       value: s.code,
     }));
 
-    // 2. Database-driven distinct staff categories from roles table (audience = 'internal')
+    // 2. Database-driven distinct staff roles from roles table (audience = 'internal')
     const staffRoles = await this.db
       .select({
         id: roles.id,
         code: roles.code,
         name: roles.name,
+        isClinical: roles.isClinical,
       })
       .from(roles)
-      .where(eq(roles.audience, 'internal'));
+      .where(eq(roles.audience, ROLE_AUDIENCE.INTERNAL));
+
+    const rolesList = staffRoles.map((r) => ({
+      id: r.id,
+      code: r.code,
+      label: r.name,
+      value: r.id,
+      isClinical: r.isClinical,
+    }));
 
     const categories = staffRoles.map((r) => ({
       label: r.name,
@@ -118,7 +129,7 @@ export class AttendanceBffStatsDrizzleRepo {
       value: st,
     }));
 
-    return { shifts, statuses, categories };
+    return { shifts, statuses, categories, roles: rolesList };
   }
 
   async getAllShiftLabelsMap(): Promise<Map<string, string>> {

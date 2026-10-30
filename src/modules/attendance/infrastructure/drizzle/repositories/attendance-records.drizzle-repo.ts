@@ -252,11 +252,7 @@ export class AttendanceRecordsDrizzleRepo {
         },
         replacementOpportunity: {
           with: {
-            originalStaffProfile: {
-              with: {
-                role: true,
-              },
-            },
+            originalStaffProfile: true,
           },
         },
       },

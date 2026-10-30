@@ -177,6 +177,7 @@ export class StaffDrizzleRepository implements StaffRepository {
       where: eq(staffProfiles.id, id),
       with: {
         clinicUnit: true,
+        role: true,
       },
     });
 
@@ -191,6 +192,7 @@ export class StaffDrizzleRepository implements StaffRepository {
           where: eq(staffProfiles.id, targetProfileId),
           with: {
             clinicUnit: true,
+            role: true,
           },
         });
       }
@@ -242,6 +244,7 @@ export class StaffDrizzleRepository implements StaffRepository {
       where: eq(staffProfiles.userId, userId),
       with: {
         clinicUnit: true,
+        role: true,
       },
     });
     if (!record) return null;
@@ -356,6 +359,7 @@ export class StaffDrizzleRepository implements StaffRepository {
         with: {
           addresses: true,
           clinicUnit: true,
+          role: true,
         },
       }),
       this.db.query.staffLeaveRequests.findMany({
@@ -372,6 +376,9 @@ export class StaffDrizzleRepository implements StaffRepository {
       this.db.query.practitioners.findMany(),
       this.db.query.staffInvitations.findMany({
         where: eq(staffInvitations.status, 'pending'),
+        with: {
+          role: true,
+        },
       }),
     ]);
 
@@ -448,9 +455,15 @@ export class StaffDrizzleRepository implements StaffRepository {
             poliklinikId: invMeta.poliklinikId || '',
             poliklinikName: null,
             fullName: invName,
-            profession: invMeta.roleTitle || inv.roleCode || 'Staf',
+            profession:
+              invMeta.roleTitle ||
+              (inv as any).role?.name ||
+              inv.roleCode ||
+              'Staf',
             roleId: inv.roleId,
-            roleCode: inv.roleCode,
+            roleCode: (inv as any).role?.code || inv.roleCode,
+            roleName: (inv as any).role?.name || null,
+            isClinical: (inv as any).role?.isClinical ?? false,
             staffCode: 'MENUNGGU',
             idCardNumber: '-',
             licenseNumber: null,

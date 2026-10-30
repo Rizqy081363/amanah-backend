@@ -1,4 +1,4 @@
-export type ChatSenderRole = 'customer' | 'admin';
+import type { ChatSenderRole } from '../constants/chat-lifecycle.constants';
 
 export class ChatMessageEntity {
   id!: string;

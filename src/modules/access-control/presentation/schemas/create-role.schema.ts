@@ -1,4 +1,8 @@
 import { z } from 'zod';
+import {
+  DEFAULT_ROLE_AUDIENCE,
+  ROLE_AUDIENCES,
+} from '../../../../common/constants/role-audience.constants';
 
 export const CreateRoleSchema = z.object({
   code: z
@@ -32,11 +36,11 @@ export const CreateRoleSchema = z.object({
     })
     .optional(),
   audience: z
-    .enum(['internal', 'external'], {
+    .enum(ROLE_AUDIENCES, {
       message: 'Audiens peran harus berupa "internal" (staf klinik) atau "external" (pasien)',
     })
     .optional()
-    .default('internal'),
+    .default(DEFAULT_ROLE_AUDIENCE),
   isClinical: z
     .boolean({ message: 'Status klinis peran harus berupa boolean' })
     .optional()

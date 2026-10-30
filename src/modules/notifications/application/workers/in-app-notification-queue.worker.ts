@@ -6,9 +6,10 @@ import {
   OnModuleInit,
   Optional,
 } from '@nestjs/common';
-import { inArray, sql } from 'drizzle-orm';
+import { eq, inArray, sql } from 'drizzle-orm';
 import {
   DEFAULT_NOTIFICATION_AUDIENCE,
+  NOTIFICATION_AUDIENCE,
   isNotificationAudience,
 } from '../../../../common/constants/notification-audience.constants';
 import { NOTIFICATIONS_IN_APP_QUEUE } from '../../../../common/rabbitmq/rabbitmq.constants';
@@ -249,12 +250,12 @@ export class InAppNotificationQueueWorker
 
       recipientIds = [...new Set(rows.map((r) => r.userId))];
     } else if (target.type === 'broadcast' && this.db) {
-      if (command.audience === 'internal') {
+      if (command.audience === NOTIFICATION_AUDIENCE.INTERNAL) {
         const rows = await this.db
           .select({ userId: userRoles.userId })
           .from(userRoles)
           .innerJoin(roles, sql`${userRoles.roleId} = ${roles.id}`)
-          .where(sql`${roles.audience} = 'internal'`);
+          .where(eq(roles.audience, NOTIFICATION_AUDIENCE.INTERNAL));
 
         recipientIds = [...new Set(rows.map((r) => r.userId))];
       }

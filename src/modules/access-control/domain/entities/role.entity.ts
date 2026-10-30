@@ -1,7 +1,11 @@
 import { PermissionEntity } from './permission.entity';
+import {
+  ROLE_AUDIENCE,
+  type RoleAudience,
+} from '../../../../common/constants/role-audience.constants';
 
+export { ROLE_AUDIENCE, type RoleAudience };
 export type RoleTier = 'macro' | 'micro';
-export type RoleAudience = 'internal' | 'external';
 
 export class RoleEntity {
   id: string;

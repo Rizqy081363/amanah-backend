@@ -62,9 +62,9 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
       originalPractitionerId: r.originalPractitionerId || null,
       originalStaffName: r.originalStaffProfile?.fullName || undefined,
       originalStaffRole:
+        r.originalStaffProfile?.role?.name ||
         r.originalPractitioner?.medicalSpecialty?.name ||
         r.originalStaffProfile?.positionTitle ||
-        (r.originalStaffProfile as any)?.role?.name ||
         null,
       originalStaffAvatarUrl: r.originalStaffProfile?.avatarUrl || null,
       leaveReason: r.leaveRequest?.reason || null,
@@ -72,9 +72,9 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
       claimedByPractitionerId: r.claimedByPractitionerId || null,
       claimedByName: r.claimedByStaffProfile?.fullName || null,
       claimedByRole:
+        r.claimedByStaffProfile?.role?.name ||
         r.claimedByPractitioner?.medicalSpecialty?.name ||
         r.claimedByStaffProfile?.positionTitle ||
-        (r.claimedByStaffProfile as any)?.role?.name ||
         null,
       claimedByAvatarUrl: r.claimedByStaffProfile?.avatarUrl || null,
       claimedAt: r.claimedAt ? new Date(r.claimedAt) : null,
@@ -135,13 +135,17 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
       where: conditions.length > 0 ? and(...conditions) : undefined,
       with: {
         sessionDef: true,
-        originalStaffProfile: true,
+        originalStaffProfile: {
+          with: { role: true },
+        },
         originalPractitioner: {
           with: {
             medicalSpecialty: true,
           },
         },
-        claimedByStaffProfile: true,
+        claimedByStaffProfile: {
+          with: { role: true },
+        },
         claimedByPractitioner: {
           with: {
             medicalSpecialty: true,
@@ -313,13 +317,17 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
       where: eq(replacementOpportunities.leaveRequestId, leaveRequestId),
       with: {
         sessionDef: true,
-        originalStaffProfile: true,
+        originalStaffProfile: {
+          with: { role: true },
+        },
         originalPractitioner: {
           with: {
             medicalSpecialty: true,
           },
         },
-        claimedByStaffProfile: true,
+        claimedByStaffProfile: {
+          with: { role: true },
+        },
         claimedByPractitioner: {
           with: {
             medicalSpecialty: true,
@@ -626,13 +634,17 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
       where: eq(replacementOpportunities.id, opportunityId),
       with: {
         sessionDef: true,
-        originalStaffProfile: true,
+        originalStaffProfile: {
+          with: { role: true },
+        },
         originalPractitioner: {
           with: {
             medicalSpecialty: true,
           },
         },
-        claimedByStaffProfile: true,
+        claimedByStaffProfile: {
+          with: { role: true },
+        },
         claimedByPractitioner: {
           with: {
             medicalSpecialty: true,
@@ -705,13 +717,17 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
       where: eq(replacementOpportunities.id, opportunityId),
       with: {
         sessionDef: true,
-        originalStaffProfile: true,
+        originalStaffProfile: {
+          with: { role: true },
+        },
         originalPractitioner: {
           with: {
             medicalSpecialty: true,
           },
         },
-        claimedByStaffProfile: true,
+        claimedByStaffProfile: {
+          with: { role: true },
+        },
         claimedByPractitioner: {
           with: {
             medicalSpecialty: true,

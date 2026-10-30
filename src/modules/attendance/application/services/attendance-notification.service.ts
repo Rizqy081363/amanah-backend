@@ -19,6 +19,8 @@ export interface AttendanceNotificationStaffInfo {
   userId?: string | null;
   roleId?: string | null;
   roleCode?: string | null;
+  roleName?: string | null;
+  isClinical?: boolean | null;
   positionTitle?: string | null;
   avatarUrl?: string | null;
   earnedAmount?: number;
@@ -78,7 +80,11 @@ export class AttendanceNotificationService {
         id_staf: staffCode,
         nama_staf: staffName,
         avatar: staffInfo.avatarUrl || undefined,
-        kategori: categoryLabel,
+        roleId: staffInfo.roleId || null,
+        roleCode: staffInfo.roleCode || null,
+        roleName: staffInfo.roleName || null,
+        isClinical: staffInfo.isClinical ?? false,
+        kategori: staffInfo.roleName || categoryLabel,
         tanggal_presensi: record.attendanceDate || '',
         waktu_presensi: formattedTime,
         checkInAt: record.checkInAt ? record.checkInAt.toISOString() : null,

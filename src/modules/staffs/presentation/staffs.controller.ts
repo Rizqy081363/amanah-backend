@@ -343,7 +343,7 @@ export class StaffsController {
   }
 
   @Get()
-  @RequirePermissions('staff:read', 'staff:manage')
+  @RequirePermissions('staff:read')
   @ApiOperation({
     summary: 'Mendapatkan daftar seluruh staf klinis (Admin)',
     description:
@@ -369,7 +369,7 @@ export class StaffsController {
   }
 
   @Get('profession/:profession')
-  @RequirePermissions('staff:read', 'staff:manage')
+  @RequirePermissions('staff:read')
   @ApiOperation({
     summary: 'Filter staf berdasarkan profesi klinis',
     description:
@@ -388,7 +388,7 @@ export class StaffsController {
   }
 
   @Get(':id')
-  @RequirePermissions('staff:read', 'staff:manage')
+  @RequirePermissions('staff:read')
   @ApiOperation({
     summary: 'Mendapatkan detail profil staf berdasarkan ID',
     description:
@@ -555,7 +555,7 @@ export class StaffsController {
   }
 
   @Get(':id/credentials')
-  @RequirePermissions('staff:read', 'staff:manage')
+  @RequirePermissions('staff:read')
   @ApiOperation({
     summary: 'Melihat daftar legalitas/kredensial staf (SIP, STR)',
     description:
@@ -687,7 +687,7 @@ export class StaffsController {
   }
 
   @Get(':id/roster')
-  @RequirePermissions('staff:read', 'staff:manage')
+  @RequirePermissions('staff:read')
   @ApiOperation({
     summary: 'Mendapatkan jadwal shift roster staf operasional',
     description:

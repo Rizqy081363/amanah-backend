@@ -1,4 +1,5 @@
 import { ChatMessageEntity } from '../entities/chat-message.entity';
+import type { ChatSenderRole } from '../constants/chat-lifecycle.constants';
 import {
   ConversationEntity,
   ConversationStatus,
@@ -36,7 +37,7 @@ export interface MessageQueryParams {
 
 export interface CreateChatMessageParams {
   conversationId: string;
-  senderRole: 'customer' | 'admin';
+  senderRole: ChatSenderRole;
   senderUserId?: string | null;
   clientMessageId: string;
   body: string;

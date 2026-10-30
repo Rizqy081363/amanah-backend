@@ -12,6 +12,7 @@ export interface GetDailyAttendanceBffQuery {
   date?: string;
   shift?: string;
   status?: string;
+  roleId?: string;
   category?: string;
   search?: string;
 }
@@ -76,7 +77,7 @@ export class GetDailyAttendanceBffUseCase {
         }
       }
 
-      const roleName = staff?.role?.name || staff?.positionTitle || '-';
+      const roleName = staff?.role?.name || null;
       const roleCode = staff?.role?.code || null;
       const roleId = staff?.roleId || staff?.role?.id || null;
       const isClinical = staff?.role?.isClinical ?? false;
@@ -93,7 +94,7 @@ export class GetDailyAttendanceBffUseCase {
         roleCode,
         roleName,
         isClinical,
-        kategori: roleName,
+        kategori: roleName || '',
         tanggal_presensi: rec.attendanceDate,
         waktu_presensi: checkInFormatted,
         checkInAt: rec.checkInAt ? new Date(rec.checkInAt).toISOString() : null,
@@ -127,10 +128,19 @@ export class GetDailyAttendanceBffUseCase {
       );
     }
 
+    if (query.roleId && query.roleId !== 'all') {
+      tableRecords = tableRecords.filter(
+        (r) => r.roleId === query.roleId,
+      );
+    }
+
     if (query.category && query.category !== 'all') {
       const cat = query.category.toLowerCase();
       tableRecords = tableRecords.filter(
-        (r) => r.kategori.toLowerCase() === cat,
+        (r) =>
+          r.roleCode?.toLowerCase() === cat ||
+          r.roleId === query.category ||
+          r.roleName?.toLowerCase() === cat,
       );
     }
 

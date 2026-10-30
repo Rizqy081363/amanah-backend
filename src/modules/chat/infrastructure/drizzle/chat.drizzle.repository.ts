@@ -17,6 +17,7 @@ import {
   MessageQueryParams,
   PaginatedResult,
 } from '../../domain/repositories/chat.repository.interface';
+import { CHAT_SENDER_ROLE } from '../../domain/constants/chat-lifecycle.constants';
 
 @Injectable()
 export class ChatDrizzleRepository implements ChatRepositoryInterface {
@@ -361,7 +362,7 @@ export class ChatDrizzleRepository implements ChatRepositoryInterface {
   private mapMessage(record: any, fallbackName?: string): ChatMessageEntity {
     let senderName = record.authorSnapshot || fallbackName || '';
     if (!senderName) {
-      if (record.senderRole === 'admin') {
+      if (record.senderRole === CHAT_SENDER_ROLE.INTERNAL) {
         senderName = record.user?.name || 'Admin Klinik';
       } else {
         senderName = record.user?.name || 'Pasien';

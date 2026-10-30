@@ -7,7 +7,7 @@ import {
 } from '../../../notifications/contracts/domain-event.interface';
 import { NOTIFICATION_AUDIENCE } from '../../../../common/constants/notification-audience.constants';
 import { NOTIFICATION_PUBLISHER } from '../../../notifications/notifications.constants';
-import { CHAT_EVENTS } from '../../domain/constants/chat-lifecycle.constants';
+import { CHAT_EVENTS, CHAT_SENDER_ROLE } from '../../domain/constants/chat-lifecycle.constants';
 import { ChatMessageEntity } from '../../domain/entities/chat-message.entity';
 import { ConversationEntity } from '../../domain/entities/conversation.entity';
 
@@ -79,7 +79,7 @@ export class ChatNotificationPublisher {
           actor?.userId || message.senderUserId || undefined;
         const excludedUserIds = senderActorUserId ? [senderActorUserId] : [];
 
-        if (message.senderRole === 'customer') {
+        if (message.senderRole === CHAT_SENDER_ROLE.EXTERNAL) {
           await this.notificationGateway.dispatch({
             commandId: `chat-${message.id}-${Date.now()}`,
             sourceDomain: 'chat',
@@ -100,7 +100,7 @@ export class ChatNotificationPublisher {
             },
             channels: ['push'],
           });
-        } else if (message.senderRole === 'admin' && conversation.userId) {
+        } else if (message.senderRole === CHAT_SENDER_ROLE.INTERNAL && conversation.userId) {
           await this.notificationGateway.dispatch({
             commandId: `chat-reply-${message.id}-${Date.now()}`,
             sourceDomain: 'chat',

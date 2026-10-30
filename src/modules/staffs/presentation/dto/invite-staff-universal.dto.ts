@@ -35,6 +35,14 @@ export class InviteStaffUniversalDto {
   poliklinikId?: string;
 
   @ApiPropertyOptional({
+    example: 'd9b04fc2-5f36-4c4b-873b-e0c1f2b6e123',
+    description: 'ID Unit kerja klinik utama (opsional)',
+  })
+  @IsUUID('4', { message: 'ID Unit kerja harus UUID v4 valid' })
+  @IsOptional()
+  unitId?: string;
+
+  @ApiPropertyOptional({
     example: 'dr. Hendra Wijaya, Sp.A / Siti Aminah, A.Md.Keb / Budi Santoso',
     description: 'Nama lengkap calon pegawai (opsional)',
   })

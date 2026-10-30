@@ -129,7 +129,7 @@ export class AttendanceController {
   }
 
   @Post('checkout')
-  @RequirePermissions('attendance:submit', 'attendance:manage')
+  @RequirePermissions('attendance:submit')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Staf atau admin melakukan presensi pulang dinas / checkout',
@@ -148,7 +148,17 @@ export class AttendanceController {
     let targetStaffId: string;
     let isAdministrativeEntry = false;
 
-    if (isAdmin && body.staffId) {
+    // Explicitly distinguish self-service checkout from administrative intervention (Standing Rule #5)
+    if (body.staffId && (!isStaff || body.staffId !== user.staff?.id)) {
+      const canManage =
+        isAdmin ||
+        user.permissions?.includes('attendance:manage') ||
+        user.permissions?.includes('*');
+      if (!canManage) {
+        throw new DomainForbiddenException(
+          'Hanya supervisor atau pengelola presensi yang dapat mencatat kepulangan staf lain.',
+        );
+      }
       targetStaffId = body.staffId;
       isAdministrativeEntry = true;
     } else if (isStaff) {
