@@ -140,6 +140,7 @@ export class ChatController {
         userId: body.guestId,
         roleCode: 'guest',
         roles: ['guest'],
+        audience: 'external',
       });
     }
 

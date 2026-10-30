@@ -52,9 +52,8 @@ export class AuthStaffOnboardingDto {
   profession?: string;
 
   @ApiPropertyOptional({
-    description:
-      'ID atau kode poliklinik / unit layanan utama. Onboarding mobile menggunakan kode stabil poli_umum atau poli_kia.',
-    example: 'poli_umum',
+    description: 'ID atau kode unit poliklinik layanan utama',
+    example: '123e4567-e89b-12d3-a456-426614174000',
   })
   @IsOptional()
   @IsString()

@@ -28,14 +28,8 @@ import {
 } from '../../../database/schema';
 import { MEDICAL_SPECIALTY_CODES } from '../../../modules/clinics/domain/constants/medical-specialty.constants';
 import {
-  BETTER_AUTH_STAFF_ROLES,
-  type BetterAuthStaffRole,
   STAFF_INVITATION_STATUS,
-  STAFF_ROLE_CODES,
   STAFF_STATUS,
-  STAFF_TYPES,
-  type StaffRoleCode,
-  type StaffType,
 } from '../../../modules/staffs/domain/constants/staff-invitation.constants';
 import { USER_STATUS } from '../../constants/auth.constants';
 import {
@@ -110,9 +104,7 @@ export class AuthStaffOnboardingService {
     }
 
     if (!clinicUnit?.isActive) {
-      throw new BadRequestException(
-        'Poliklinik tidak valid. Pilih Poli Umum atau Poli KIA.',
-      );
+      throw new BadRequestException('Poliklinik tidak valid atau tidak aktif.');
     }
 
     return clinicUnit.id;
@@ -142,7 +134,7 @@ export class AuthStaffOnboardingService {
       },
     });
 
-    let effectiveRoleCode: string | undefined = assignedUserRole?.role?.code;
+    let effectiveRole = assignedUserRole?.role;
 
     const pendingInvitation = await this.db.query.staffInvitations.findFirst({
       where: and(
@@ -151,51 +143,42 @@ export class AuthStaffOnboardingService {
       ),
     });
 
-    if (pendingInvitation) {
-      effectiveRoleCode = pendingInvitation.roleCode;
+    if (pendingInvitation?.roleId) {
+      const invRole = await this.db.query.roles.findFirst({
+        where: eq(roles.id, pendingInvitation.roleId),
+      });
+      if (invRole) {
+        effectiveRole = invRole;
+      }
+    } else if (pendingInvitation?.roleCode) {
+      const invRole = await this.db.query.roles.findFirst({
+        where: or(
+          eq(roles.code, pendingInvitation.roleCode),
+          eq(roles.code, `staff_${pendingInvitation.roleCode}`),
+        ),
+      });
+      if (invRole) {
+        effectiveRole = invRole;
+      }
     }
 
-    let betterAuthRole: BetterAuthStaffRole = BETTER_AUTH_STAFF_ROLES.DOCTOR;
-    let rolesCode: StaffRoleCode = STAFF_ROLE_CODES.DOCTOR;
-    let staffTypeVal: StaffType = STAFF_TYPES.DOCTOR;
-
-    if (
-      effectiveRoleCode === STAFF_ROLE_CODES.DOCTOR ||
-      (!effectiveRoleCode && dto.role === StaffOnboardingRole.DOCTOR)
-    ) {
-      betterAuthRole = BETTER_AUTH_STAFF_ROLES.DOCTOR;
-      rolesCode = STAFF_ROLE_CODES.DOCTOR;
-      staffTypeVal = STAFF_TYPES.DOCTOR;
-    } else if (
-      effectiveRoleCode === STAFF_ROLE_CODES.MIDWIFE ||
-      (!effectiveRoleCode && dto.role === StaffOnboardingRole.MIDWIFE)
-    ) {
-      betterAuthRole = BETTER_AUTH_STAFF_ROLES.MIDWIFE;
-      rolesCode = STAFF_ROLE_CODES.MIDWIFE;
-      staffTypeVal = STAFF_TYPES.MIDWIFE;
-    } else {
-      betterAuthRole = BETTER_AUTH_STAFF_ROLES.WORKER;
-      rolesCode = STAFF_ROLE_CODES.WORKER;
-      staffTypeVal = STAFF_TYPES.WORKER;
+    if (!effectiveRole) {
+      effectiveRole = await this.db.query.roles.findFirst({
+        where: eq(roles.code, 'worker'),
+      });
     }
 
-    const defaultPrefix =
-      staffTypeVal === STAFF_TYPES.DOCTOR
-        ? 'STF-DOK'
-        : staffTypeVal === STAFF_TYPES.MIDWIFE
-          ? 'STF-BDN'
-          : 'STF-ADM';
+    const roleCode = effectiveRole?.code || 'worker';
+    const roleId = effectiveRole?.id;
+    const isClinical = effectiveRole?.isClinical ?? false;
+
+    const defaultPrefix = isClinical ? 'STF-CLN' : 'STF-ADM';
     const finalStaffCode =
       dto.staffCode?.trim() ||
       `${defaultPrefix}-${Date.now().toString().slice(-4)}`;
 
     const positionTitle =
-      dto.profession?.trim() ||
-      (staffTypeVal === STAFF_TYPES.DOCTOR
-        ? 'Dokter'
-        : staffTypeVal === STAFF_TYPES.MIDWIFE
-          ? 'Bidan'
-          : 'Staf Administrasi');
+      dto.profession?.trim() || effectiveRole?.name || 'Staf Klinik';
     const resolvedPoliklinikId = await this.resolveOnboardingPoliklinikId(
       dto.poliklinikId,
     );
@@ -207,7 +190,7 @@ export class AuthStaffOnboardingService {
         await tx
           .update(user)
           .set({
-            role: betterAuthRole,
+            role: roleCode,
             name: dto.fullName.trim(),
             updatedAt: this.getNowIso(),
           })
@@ -228,16 +211,12 @@ export class AuthStaffOnboardingService {
         .where(eq(users.id, userRecord.id));
 
       // 3. Update user_roles
-      const targetRole = await tx.query.roles.findFirst({
-        where: eq(roles.code, rolesCode),
-      });
-
-      if (targetRole) {
+      if (roleId) {
         await tx.delete(userRoles).where(eq(userRoles.userId, userRecord.id));
 
         await tx.insert(userRoles).values({
           userId: userRecord.id,
-          roleId: targetRole.id,
+          roleId: roleId,
         });
       }
 
@@ -256,7 +235,7 @@ export class AuthStaffOnboardingService {
           .set({
             fullName: dto.fullName.trim(),
             staffCode: finalStaffCode,
-            staffType: staffTypeVal,
+            roleId: roleId || existingStaff.roleId,
             positionTitle,
             birthPlace: dto.birthPlace?.trim() || existingStaff.birthPlace,
             birthDate: dto.birthDate || existingStaff.birthDate,
@@ -280,8 +259,8 @@ export class AuthStaffOnboardingService {
           .values({
             userId: userRecord.id,
             staffCode: finalStaffCode,
+            roleId: roleId || null,
             fullName: dto.fullName.trim(),
-            staffType: staffTypeVal,
             positionTitle,
             birthPlace: dto.birthPlace?.trim() || null,
             birthDate: dto.birthDate || null,
@@ -311,20 +290,15 @@ export class AuthStaffOnboardingService {
           .where(eq(staffInvitations.id, pendingInvitation.id));
       }
 
-      // 6. If clinical practitioner (doctor or midwife), create or update practitioner record
-      const isClinicalPractitioner =
-        (staffTypeVal === STAFF_TYPES.DOCTOR ||
-          staffTypeVal === STAFF_TYPES.MIDWIFE) &&
-        existingStaff;
-
-      if (isClinicalPractitioner) {
+      // 6. If clinical practitioner (isClinical is true), create or update practitioner record
+      if (isClinical && existingStaff) {
         let practitionerId: string;
         const existingPractitioner = await tx.query.practitioners.findFirst({
           where: eq(practitioners.staffProfileId, existingStaff.id),
         });
 
         const targetSpecialtyCode =
-          staffTypeVal === STAFF_TYPES.MIDWIFE
+          roleCode.includes('midwife')
             ? MEDICAL_SPECIALTY_CODES.MATERNAL_CHILD_HEALTH
             : MEDICAL_SPECIALTY_CODES.GENERAL_PRACTITIONER;
         const matchedSpecialty = await tx.query.medicalSpecialties.findFirst({
@@ -504,7 +478,9 @@ export class AuthStaffOnboardingService {
       staffProfileId: primaryStaff?.id || '',
       staffCode: primaryStaff?.staffCode || finalStaffCode,
       fullName: staffName,
-      staffType: staffTypeVal,
+      roleId,
+      roleCode,
+      isClinical,
       profession: positionTitle,
       poliklinikId: resolvedPoliklinikId || null,
       status: 'active',
@@ -560,7 +536,9 @@ export class AuthStaffOnboardingService {
             data: {
               staffId: primaryStaff?.id || '',
               staffCode: primaryStaff?.staffCode || finalStaffCode,
-              staffType: staffTypeVal,
+              roleId: roleId || '',
+              roleCode,
+              isClinical: String(isClinical),
               profession: positionTitle,
               category: 'welcome_staff',
             },

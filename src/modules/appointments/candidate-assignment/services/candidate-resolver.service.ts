@@ -7,7 +7,6 @@ import { filterEffectiveDoctorAssignments } from '@modules/schedules/domain/serv
 import { Injectable } from '@nestjs/common';
 import {
   isTerminalAppointmentStatus,
-  STAFF_TYPE,
 } from '../../domain/constants/appointment-lifecycle.constants';
 import {
   AppointmentNotFoundException,
@@ -21,7 +20,6 @@ import {
 } from '../domain/entities/candidate-doctor.entity';
 import type { RoomCandidateItem } from '../domain/entities/candidate-room.entity';
 import { SessionResolutionHelper } from '../domain/helpers/session-resolution.helper';
-import { MEDICAL_SPECIALTY_CODES } from '@modules/clinics/domain/constants/medical-specialty.constants';
 import { DrizzleCandidateAssignmentRepository } from '../infrastructure/drizzle-candidate-assignment.repository';
 
 @Injectable()
@@ -199,28 +197,10 @@ export class CandidateResolverService implements ICandidateResolverPort {
       const queueCount = queueCounts.get(p.id) || 0;
 
       // Resolve specialty strictly against dynamic medical specialties (SSOT)
-      let matchedSpecialty =
+      const matchedSpecialty =
         (p.specialtyId ? specialtyMap.get(p.specialtyId) : null) ||
         p.medicalSpecialty ||
-        null;
-
-      // Deterministic domain fallback if specialtyId is missing (e.g., legacy or migration records)
-      if (!matchedSpecialty) {
-        const unitCode = p.staffProfile?.clinicUnit?.code;
-        const staffType = p.staffProfile?.staffType;
-        if (unitCode === 'poli_kia' || staffType === 'midwife') {
-          matchedSpecialty =
-            allSpecialties.find((s) => s.code === MEDICAL_SPECIALTY_CODES.MATERNAL_CHILD_HEALTH) || null;
-        } else {
-          matchedSpecialty =
-            allSpecialties.find((s) => s.code === MEDICAL_SPECIALTY_CODES.GENERAL_PRACTITIONER) || null;
-        }
-      }
-
-      // If still not matched, fallback to first available medical specialty
-      if (!matchedSpecialty && allSpecialties.length > 0) {
-        matchedSpecialty = allSpecialties[0];
-      }
+        (allSpecialties.length > 0 ? allSpecialties[0] : null);
 
       if (!matchedSpecialty) continue;
 
@@ -238,7 +218,7 @@ export class CandidateResolverService implements ICandidateResolverPort {
         name: p.displayName || p.staffProfile?.fullName || '',
         avatarUrl: p.staffProfile?.avatarUrl || null,
         specialty: currentGroup.name,
-        staffType: p.staffProfile?.staffType || STAFF_TYPE.DOCTOR,
+        roleCode: p.staffProfile?.role?.code ?? '',
         availability,
         existingSessionId: resolvedSessionId,
         currentQueueCount: queueCount,

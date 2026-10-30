@@ -1,9 +1,8 @@
+import { NotificationAudience } from '../../../../common/constants/notification-audience.constants';
 import {
   NotificationCategoryType,
   NotificationChannel,
 } from '../../notifications.constants';
-
-type NotificationAudience = 'patient' | 'clinic';
 
 interface NotificationSemanticAction {
   type: string;

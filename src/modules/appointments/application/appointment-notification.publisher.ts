@@ -1,6 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
-import { SYSTEM_ROLES } from '../../../auth/constants/auth.constants';
+import {
+  NOTIFICATION_AUDIENCE,
+  NotificationAudience,
+} from '../../../common/constants/notification-audience.constants';
 import {
   type DomainEvent,
   type NotificationPublisher,
@@ -21,13 +24,6 @@ export class AppointmentNotificationPublisher {
     this.logger.log(
       `AppointmentNotificationPublisher initialized: hasPublisher=${!!this.notificationPublisher}`,
     );
-  }
-
-  private extractRoleCode(
-    user?: any,
-    fallback: string = SYSTEM_ROLES.STAF,
-  ): string {
-    return user?.systemRole ?? fallback;
   }
 
   async publishCreated(created: AppointmentEntity, user?: any): Promise<void> {
@@ -63,7 +59,7 @@ export class AppointmentNotificationPublisher {
         },
         actor: {
           userId: user?.id || user?.sub,
-          roleCode: this.extractRoleCode(user, 'PATIENT'),
+          roleCode: user?.roleCode,
         },
       };
       await this.notificationPublisher.publish(domainEvent);
@@ -108,21 +104,20 @@ export class AppointmentNotificationPublisher {
           appointment.patientUserId === actorUserId,
       );
 
-      const normalizedRole = this.extractRoleCode(user, 'PATIENT');
-      const isDoctorRole =
-        normalizedRole === 'DOCTOR' || normalizedRole === 'DOKTER';
-      const isStaffOrAdmin =
-        normalizedRole === 'ADMIN' ||
-        normalizedRole === 'STAF' ||
-        normalizedRole === 'STAFF';
-
-      const determinedRole = isDoctorRole
-        ? 'doctor'
-        : isPatientOwner
-          ? 'patient'
-          : isStaffOrAdmin
-            ? 'admin'
-            : 'patient';
+      const actorAudience: NotificationAudience =
+        user?.audience ??
+        (isPatientOwner
+          ? NOTIFICATION_AUDIENCE.EXTERNAL
+          : NOTIFICATION_AUDIENCE.INTERNAL);
+      const actorName =
+        user?.name ||
+        (actorAudience === NOTIFICATION_AUDIENCE.INTERNAL
+          ? 'Pihak Klinik'
+          : 'Pasien');
+      const actorRoleName =
+        user?.roleName ||
+        user?.role?.name ||
+        (actorAudience === NOTIFICATION_AUDIENCE.INTERNAL ? 'Klinik' : 'Pasien');
 
       const domainEvent: DomainEvent = {
         eventId: randomUUID(),
@@ -150,16 +145,13 @@ export class AppointmentNotificationPublisher {
           queueNumber: appointment.queueNumber,
           status: 'BATAL',
           reason,
-          cancelledByRole: determinedRole,
+          cancelledByAudience: actorAudience,
+          actorName,
+          actorRoleName,
         },
         actor: {
-          userId: user?.id || user?.sub,
-          roleCode:
-            determinedRole === 'doctor'
-              ? 'DOCTOR'
-              : determinedRole === 'admin'
-                ? 'ADMIN'
-                : 'PATIENT',
+          userId: actorUserId,
+          roleCode: user?.roleCode,
         },
       };
 
@@ -192,23 +184,20 @@ export class AppointmentNotificationPublisher {
           appointment.patientUserId === actorUserId,
       );
 
-      const normalizedRole = this.extractRoleCode(user, 'PATIENT');
-      const isDoctorCaller =
-        normalizedRole === 'DOCTOR' || normalizedRole === 'DOKTER';
-      const isStaffOrAdmin =
-        normalizedRole === 'ADMIN' ||
-        normalizedRole === 'STAF' ||
-        normalizedRole === 'STAFF';
-
-      const determinedRole = options.rescheduledByRole
-        ? options.rescheduledByRole
-        : isDoctorCaller
-          ? 'doctor'
-          : isPatientOwner
-            ? 'patient'
-            : isStaffOrAdmin
-              ? 'admin'
-              : 'patient';
+      const actorAudience: NotificationAudience =
+        user?.audience ??
+        (isPatientOwner
+          ? NOTIFICATION_AUDIENCE.EXTERNAL
+          : NOTIFICATION_AUDIENCE.INTERNAL);
+      const actorName =
+        user?.name ||
+        (actorAudience === NOTIFICATION_AUDIENCE.INTERNAL
+          ? 'Pihak Klinik'
+          : 'Pasien');
+      const actorRoleName =
+        user?.roleName ||
+        user?.role?.name ||
+        (actorAudience === NOTIFICATION_AUDIENCE.INTERNAL ? 'Klinik' : 'Pasien');
 
       const domainEvent: DomainEvent = {
         eventId: randomUUID(),
@@ -239,16 +228,13 @@ export class AppointmentNotificationPublisher {
           queueNumber: appointment.queueNumber,
           status: appointment.status,
           reason: options.reason || 'Reschedule jadwal janji temu',
-          rescheduledByRole: determinedRole,
+          rescheduledByAudience: actorAudience,
+          actorName,
+          actorRoleName,
         },
         actor: {
-          userId: user?.id || user?.sub,
-          roleCode:
-            determinedRole === 'doctor'
-              ? 'DOCTOR'
-              : determinedRole === 'admin'
-                ? 'ADMIN'
-                : 'PATIENT',
+          userId: actorUserId,
+          roleCode: user?.roleCode,
         },
       };
 
@@ -264,14 +250,16 @@ export class AppointmentNotificationPublisher {
     appointment: AppointmentEntity,
     changes: {
       doctorName?: string | null;
+      practitionerName?: string | null;
       roomName?: string | null;
-      type: 'doctor' | 'room';
+      type: 'practitioner' | 'doctor' | 'room';
     },
     user?: any,
   ): Promise<void> {
     if (!this.notificationPublisher) return;
 
     try {
+      const isRoom = changes.type === 'room';
       const domainEvent: DomainEvent = {
         eventId: randomUUID(),
         eventType: APPOINTMENT_EVENTS.ASSIGNMENT_UPDATED,
@@ -290,20 +278,18 @@ export class AppointmentNotificationPublisher {
           scheduledDate: appointment.appointmentDate,
           scheduledStartTime: appointment.scheduledStartTime,
           scheduledEndTime: appointment.scheduledEndTime,
-          changeType: changes.type,
+          changeType: isRoom ? 'room' : 'practitioner',
           status: appointment.status,
-          title:
-            changes.type === 'doctor'
-              ? 'Perubahan Dokter Janji Temu'
-              : 'Perubahan Ruangan Janji Temu',
-          message:
-            changes.type === 'doctor'
-              ? `Dokter janji temu Anda telah dialihkan ke ${appointment.doctorName || 'dokter baru'}.`
-              : `Ruangan janji temu Anda telah dialihkan ke ${appointment.roomName || 'ruangan baru'}.`,
+          title: isRoom
+            ? 'Perubahan Ruangan Janji Temu'
+            : 'Perubahan Praktisi Janji Temu',
+          message: isRoom
+            ? `Ruangan janji temu Anda telah dialihkan ke ${appointment.roomName || 'ruangan baru'}.`
+            : `Praktisi janji temu Anda telah dialihkan ke ${appointment.doctorName || changes.practitionerName || 'praktisi baru'}.`,
         },
         actor: {
           userId: user?.id || user?.sub,
-          roleCode: this.extractRoleCode(user, 'ADMIN'),
+          roleCode: user?.roleCode,
         },
       };
 
@@ -348,7 +334,7 @@ export class AppointmentNotificationPublisher {
         },
         actor: {
           userId: user?.id || user?.sub,
-          roleCode: this.extractRoleCode(user, 'PATIENT'),
+          roleCode: user?.roleCode,
         },
       };
 
@@ -407,7 +393,7 @@ export class AppointmentNotificationPublisher {
         },
         actor: {
           userId: user?.id || user?.sub,
-          roleCode: this.extractRoleCode(user, 'STAF'),
+          roleCode: user?.roleCode,
         },
       };
 
@@ -466,7 +452,7 @@ export class AppointmentNotificationPublisher {
         },
         actor: {
           userId: user?.id || user?.sub,
-          roleCode: this.extractRoleCode(user, 'STAF'),
+          roleCode: user?.roleCode,
         },
       };
 

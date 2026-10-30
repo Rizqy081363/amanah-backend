@@ -71,15 +71,6 @@ export const APPOINTMENT_CALL_REPOSITORY = Symbol(
   'APPOINTMENT_CALL_REPOSITORY',
 );
 
-export const CLINIC_ADMIN_STAFF_ROLE_CODES = [
-  'admin',
-  'staff_worker',
-  'staff_doctor',
-  'staff_midwife',
-  'staf',
-  'staff',
-] as const;
-
 export const DOCTOR_AVAILABILITY = {
   AVAILABLE: 'AVAILABLE',
   SCHEDULE_REQUIRED: 'SCHEDULE_REQUIRED',
@@ -92,7 +83,3 @@ export const SHIFT_EXCEPTION_TYPE = {
   LEAVE: 'leave',
   EXTRA: 'extra',
 } as const;
-
-import { STAFF_TYPES } from '../../../../common/constants/staff-types.constant';
-
-export const STAFF_TYPE = STAFF_TYPES;

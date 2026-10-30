@@ -1,11 +1,12 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, eq, gte, lte, sql } from 'drizzle-orm';
+import { and, asc, eq, gte, lte, not, sql } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../../database/drizzle/drizzle.provider';
 import {
   masterDays,
   medicalSpecialties,
   practitioners,
+  roles,
   sessionDefs,
   staffAttendanceRecords,
   staffProfiles,
@@ -96,17 +97,20 @@ export class AttendanceBffStatsDrizzleRepo {
       value: s.code,
     }));
 
-    // 2. Database-driven distinct staff categories from staff_profiles
-    const staffTypeRows = await this.db
-      .selectDistinct({ staffType: staffProfiles.staffType })
-      .from(staffProfiles);
+    // 2. Database-driven distinct staff categories from roles table (audience = 'internal')
+    const staffRoles = await this.db
+      .select({
+        id: roles.id,
+        code: roles.code,
+        name: roles.name,
+      })
+      .from(roles)
+      .where(and(eq(roles.audience, 'internal'), not(eq(roles.code, 'admin'))));
 
-    const categories = staffTypeRows
-      .filter((r: any) => Boolean(r.staffType))
-      .map((r: any) => ({
-        label: r.staffType,
-        value: r.staffType,
-      }));
+    const categories = staffRoles.map((r) => ({
+      label: r.name,
+      value: r.code,
+    }));
 
     // 3. Database & System-driven canonical attendance statuses
     const statuses = ATTENDANCE_STATUSES.map((st) => ({
@@ -146,12 +150,16 @@ export class AttendanceBffStatsDrizzleRepo {
         staffCode: staffProfiles.staffCode,
         fullName: staffProfiles.fullName,
         avatarUrl: staffProfiles.avatarUrl,
-        staffType: staffProfiles.staffType,
+        roleId: roles.id,
+        roleCode: roles.code,
+        roleName: roles.name,
+        isClinical: roles.isClinical,
         positionTitle: staffProfiles.positionTitle,
         specialtyName: medicalSpecialties.name,
         totalAttendance: sql<number>`COALESCE(COUNT(DISTINCT ${staffAttendanceRecords.attendanceDate}), 0)::int`,
       })
       .from(staffProfiles)
+      .leftJoin(roles, eq(roles.id, staffProfiles.roleId))
       .leftJoin(practitioners, eq(practitioners.staffProfileId, staffProfiles.id))
       .leftJoin(medicalSpecialties, eq(medicalSpecialties.id, practitioners.specialtyId))
       .leftJoin(
@@ -168,7 +176,10 @@ export class AttendanceBffStatsDrizzleRepo {
         staffProfiles.staffCode,
         staffProfiles.fullName,
         staffProfiles.avatarUrl,
-        staffProfiles.staffType,
+        roles.id,
+        roles.code,
+        roles.name,
+        roles.isClinical,
         staffProfiles.positionTitle,
         medicalSpecialties.name,
       )
@@ -179,10 +190,13 @@ export class AttendanceBffStatsDrizzleRepo {
       staffCode: r.staffCode,
       fullName: r.fullName,
       avatarUrl: r.avatarUrl,
-      staffType: r.staffType,
-      positionTitle: r.positionTitle,
-      specialtyName: r.specialtyName,
-      totalAttendance: Number(r.totalAttendance) || 0,
+      roleId: r.roleId || null,
+      roleCode: r.roleCode || null,
+      roleName: r.roleName || null,
+      isClinical: Boolean(r.isClinical),
+      positionTitle: r.positionTitle || null,
+      specialtyName: r.specialtyName || null,
+      totalAttendance: r.totalAttendance,
     }));
   }
 }

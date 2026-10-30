@@ -7,6 +7,10 @@ import {
   Optional,
 } from '@nestjs/common';
 import { inArray, sql } from 'drizzle-orm';
+import {
+  DEFAULT_NOTIFICATION_AUDIENCE,
+  isNotificationAudience,
+} from '../../../../common/constants/notification-audience.constants';
 import { NOTIFICATIONS_IN_APP_QUEUE } from '../../../../common/rabbitmq/rabbitmq.constants';
 import { RabbitMQService } from '../../../../common/rabbitmq/rabbitmq.service';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
@@ -130,12 +134,22 @@ export class InAppNotificationQueueWorker
             ? 'wallet'
             : 'calendar';
 
-      const audience = (content.data?.audience as any) || 'clinic';
+      const audience =
+        command.audience ??
+        (isNotificationAudience(content.data?.audience)
+          ? content.data.audience
+          : DEFAULT_NOTIFICATION_AUDIENCE);
+      const targetRoleId =
+        command.targetRoleId ??
+        (typeof content.data?.targetRoleId === 'string'
+          ? content.data.targetRoleId
+          : null);
 
       const persisted = await this.notificationRepo.createIfNotExists({
         idempotencyKey,
         category: command.category || 'shift',
         audience,
+        targetRoleId,
         title: content.title,
         body: content.body,
         senderName: 'Sistem Klinik',
@@ -175,6 +189,7 @@ export class InAppNotificationQueueWorker
         id: notifId,
         eventId: command.commandId,
         audience,
+        targetRoleId,
         recipientUserId: userId,
         type: command.category || command.sourceDomain,
         title: content.title,

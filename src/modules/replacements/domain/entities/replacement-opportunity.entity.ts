@@ -13,7 +13,6 @@ export class ReplacementOpportunityEntity {
   originalPractitionerId?: string | null;
   originalStaffName?: string;
   originalStaffRole?: string | null;
-  originalStaffType?: string | null;
   originalStaffAvatarUrl?: string | null;
   leaveReason?: string | null;
   claimedByStaffProfileId?: string | null;

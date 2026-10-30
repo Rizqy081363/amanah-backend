@@ -20,53 +20,17 @@ export const SYSTEM_ROLES = {
 
 export type SystemRole = (typeof SYSTEM_ROLES)[keyof typeof SYSTEM_ROLES];
 
-/**
- * Canonical role codes mapped 1-to-1 from PostgreSQL `roles` table.
- * Source of Truth: `SELECT code FROM roles;`
- */
-export const CANONICAL_ROLES = {
-  ADMIN: 'admin',
-  PATIENT: 'patient',
-  STAFF_DOCTOR: 'staff_doctor',
-  STAFF_MIDWIFE: 'staff_midwife',
-  STAFF_WORKER: 'staff_worker',
-} as const;
-
-export type CanonicalRole =
-  (typeof CANONICAL_ROLES)[keyof typeof CANONICAL_ROLES];
-
-/**
- * Functional role groupings based on operational domain responsibilities.
- */
-export const CLINIC_STAFF_ROLES = [
-  CANONICAL_ROLES.ADMIN,
-  CANONICAL_ROLES.STAFF_WORKER,
-  CANONICAL_ROLES.STAFF_DOCTOR,
-  CANONICAL_ROLES.STAFF_MIDWIFE,
-] as const;
-
-export const CHAT_SUPPORT_ROLES = [
-  CANONICAL_ROLES.ADMIN,
-  CANONICAL_ROLES.STAFF_WORKER,
-] as const;
-
-const CANONICAL_STAFF_ROLE_CODES = new Set<string>([
-  CANONICAL_ROLES.STAFF_DOCTOR,
-  CANONICAL_ROLES.STAFF_MIDWIFE,
-  CANONICAL_ROLES.STAFF_WORKER,
-]);
-
 export function resolveSystemRole(
   roleCode?: string | null,
   hasStaffProfile = false,
 ): SystemRole {
-  if (roleCode === CANONICAL_ROLES.ADMIN) {
+  if (roleCode === 'admin' || roleCode === 'ADMIN') {
     return SYSTEM_ROLES.ADMIN;
   }
-  if (
-    (roleCode && CANONICAL_STAFF_ROLE_CODES.has(roleCode)) ||
-    hasStaffProfile
-  ) {
+  if (roleCode === 'patient' || roleCode === 'PATIENT') {
+    return SYSTEM_ROLES.PATIENT;
+  }
+  if (hasStaffProfile || (roleCode && roleCode !== 'patient')) {
     return SYSTEM_ROLES.STAF;
   }
   return SYSTEM_ROLES.PATIENT;

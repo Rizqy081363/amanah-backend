@@ -10,7 +10,7 @@ interface DoctorCandidateItem {
   name: string;
   avatarUrl?: string | null;
   specialty: string;
-  staffType: string;
+  roleCode?: string;
   availability: DoctorAvailability;
   existingSessionId: string | null;
   currentQueueCount?: number;

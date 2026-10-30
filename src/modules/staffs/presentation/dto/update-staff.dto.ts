@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsBoolean, IsOptional, IsString, ValidateNested } from 'class-validator';
+import { IsBoolean, IsOptional, IsString, IsUUID, ValidateNested } from 'class-validator';
 
 export class UpdateStaffAddressDto {
   @ApiPropertyOptional()
@@ -84,13 +84,12 @@ export class UpdateStaffDto {
   phoneNumber?: string;
 
   @ApiPropertyOptional({
-    description: 'Tipe peran staf operasional: doctor, midwife, atau worker',
-    enum: ['doctor', 'midwife', 'worker'],
-    example: 'doctor',
+    description: 'ID Peran dinamis staf (FK ke tabel roles)',
+    example: 'b5119e8f-f3b9-41b6-a21d-6116e0b3e03f',
   })
-  @IsString()
+  @IsUUID()
   @IsOptional()
-  staffType?: 'doctor' | 'midwife' | 'worker';
+  roleId?: string;
 
   @ApiPropertyOptional({ example: 'Jakarta' })
   @IsString()

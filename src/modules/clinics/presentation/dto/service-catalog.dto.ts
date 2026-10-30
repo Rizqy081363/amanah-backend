@@ -24,11 +24,10 @@ export class ServiceCatalogItemDto {
   description?: string | null;
 
   @ApiProperty({
-    description: 'URL gambar thumbnail layanan',
-    required: false,
-    nullable: true,
+    description: 'Nama ikon Lucide layanan',
+    example: 'stethoscope',
   })
-  imageUrl?: string | null;
+  iconName: string;
 
   @ApiProperty({
     description: 'Kode spesialisasi',
@@ -38,11 +37,35 @@ export class ServiceCatalogItemDto {
   specialtyCode?: string | null;
 
   @ApiProperty({
-    description: 'Alur medis klinis',
+    description: 'ID formulir intake / rekam medis dinamis (UUID)',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+    nullable: true,
+    required: false,
+  })
+  intakeFormId?: string | null;
+
+  @ApiProperty({
+    description: 'Kode unik formulir intake (contoh: general, pregnancy, immunization)',
+    example: 'pregnancy',
+    nullable: true,
+    required: false,
+  })
+  intakeFormCode?: string | null;
+
+  @ApiProperty({
+    description: 'Nama formulir intake',
+    example: 'Pemeriksaan Ibu Hamil & ANC',
+    nullable: true,
+    required: false,
+  })
+  intakeFormName?: string | null;
+
+  @ApiProperty({
+    description: 'Alur medis klinis dinamis',
     example: 'general',
     nullable: true,
   })
-  medicalFlow?: 'general' | 'pregnancy' | 'immunization' | null;
+  medicalFlow?: string | null;
 
   @ApiProperty({ description: 'Urutan tampilan', example: 1 })
   displayOrder: number;
@@ -79,6 +102,12 @@ export class ServiceCategoryCatalogDto {
     example: 'Layanan Umum',
   })
   name: string;
+
+  @ApiProperty({
+    description: 'Nama ikon Lucide kategori',
+    example: 'folder',
+  })
+  iconName: string;
 
   @ApiProperty({
     description: 'Deskripsi kategori',

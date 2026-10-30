@@ -2,22 +2,21 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsArray,
-  IsIn,
   IsNumber,
   IsOptional,
   IsString,
+  IsUUID,
   Min,
   ValidateNested,
 } from 'class-validator';
 
 export class SingleRateDto {
   @ApiProperty({
-    example: 'doctor',
-    enum: ['doctor', 'midwife', 'worker'],
-    description: 'Kategori profesi staf',
+    example: 'b39c7891-3918-441d-9ec6-8f4e9f280e07',
+    description: 'ID Peran dari tabel roles di database',
   })
-  @IsIn(['doctor', 'midwife', 'worker'])
-  category: 'doctor' | 'midwife' | 'worker';
+  @IsUUID('4')
+  roleId: string;
 
   @ApiProperty({
     example: 150000,

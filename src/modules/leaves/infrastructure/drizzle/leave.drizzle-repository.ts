@@ -91,7 +91,7 @@ export class LeaveDrizzleRepository implements LeaveRepository {
       type: r.requestType,
       scope: r.scope || 'full_day',
       decisionSource: r.decisionSource || 'admin',
-      substituteStaffId: r.substitutePractitionerId || null,
+      substituteStaffId: r.substituteStaffProfileId || r.substitutePractitionerId || null,
       documentUrl: null,
       status: r.status,
       approvedBy: r.reviewedBy || null,
@@ -482,6 +482,17 @@ export class LeaveDrizzleRepository implements LeaveRepository {
       practitionerId = pract?.id || null;
     }
 
+    // Resolve substitutePractitionerId if substitute is clinical
+    let substitutePractitionerId: string | null = null;
+    if (data.substituteStaffId) {
+      const [subPract] = await this.db
+        .select({ id: practitioners.id })
+        .from(practitioners)
+        .where(eq(practitioners.staffProfileId, data.substituteStaffId))
+        .limit(1);
+      substitutePractitionerId = subPract?.id || null;
+    }
+
     const reqType = data.type;
 
     // Transactional Execution & Concurrency Serialization
@@ -620,7 +631,8 @@ export class LeaveDrizzleRepository implements LeaveRepository {
             reason: data.reason,
             scope: data.scope || 'full_day',
             decisionSource,
-            substitutePractitionerId: data.substituteStaffId || null,
+            substituteStaffProfileId: data.substituteStaffId || null,
+            substitutePractitionerId,
             status: initialStatus,
             reviewedAt:
               initialStatus === 'approved' ? new Date().toISOString() : null,
@@ -861,7 +873,11 @@ export class LeaveDrizzleRepository implements LeaveRepository {
     const records = await this.db.query.staffLeaveRequests.findMany({
       where: eq(staffLeaveRequests.status, 'pending'),
       with: {
-        staffProfile: true,
+        staffProfile: {
+          with: {
+            role: true,
+          },
+        },
         sessions: {
           with: {
             sessionDef: true,
@@ -879,7 +895,10 @@ export class LeaveDrizzleRepository implements LeaveRepository {
             fullName: r.staffProfile.fullName,
             profession: r.staffProfile.positionTitle,
             idCardNumber: r.staffProfile.staffCode,
-            staffType: r.staffProfile.staffType,
+            roleId: r.staffProfile.roleId,
+            roleCode: r.staffProfile.role?.code || null,
+            roleName: r.staffProfile.role?.name || null,
+            isClinical: r.staffProfile.role?.isClinical ?? false,
             avatarUrl: r.staffProfile.avatarUrl || null,
           }
         : null,
@@ -889,7 +908,11 @@ export class LeaveDrizzleRepository implements LeaveRepository {
   async findAll(filters?: LeaveFilterOptions): Promise<any[]> {
     const records = await this.db.query.staffLeaveRequests.findMany({
       with: {
-        staffProfile: true,
+        staffProfile: {
+          with: {
+            role: true,
+          },
+        },
         sessions: {
           with: {
             sessionDef: true,
@@ -903,8 +926,8 @@ export class LeaveDrizzleRepository implements LeaveRepository {
       .filter((r: any) => {
         if (filters?.status && r.status !== filters.status) return false;
         if (
-          filters?.staffType &&
-          r.staffProfile?.staffType !== filters.staffType
+          filters?.roleId &&
+          r.staffProfile?.roleId !== filters.roleId
         )
           return false;
         return true;
@@ -917,7 +940,10 @@ export class LeaveDrizzleRepository implements LeaveRepository {
               fullName: r.staffProfile.fullName,
               profession: r.staffProfile.positionTitle,
               idCardNumber: r.staffProfile.staffCode,
-              staffType: r.staffProfile.staffType,
+              roleId: r.staffProfile.roleId,
+              roleCode: r.staffProfile.role?.code || null,
+              roleName: r.staffProfile.role?.name || null,
+              isClinical: r.staffProfile.role?.isClinical ?? false,
               avatarUrl: r.staffProfile.avatarUrl || null,
             }
           : null,

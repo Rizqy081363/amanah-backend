@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import bcrypt from 'bcryptjs';
-import { and, asc, eq, inArray, or } from 'drizzle-orm';
+import { and, asc, eq, not, or } from 'drizzle-orm';
 import { RedisService } from '../../../common/redis/redis.service';
 import {
   IPasswordGenerator,
@@ -33,14 +33,8 @@ import {
 } from '../../../database/schema';
 import { MailService } from '../../../mail/mail.service';
 import {
-  BETTER_AUTH_STAFF_ROLES,
-  BetterAuthStaffRole,
   STAFF_INVITATION_STATUS,
-  STAFF_ROLE_CODES,
   STAFF_STATUS,
-  STAFF_TYPES,
-  StaffRoleCode,
-  StaffType,
 } from '../domain/constants/staff-invitation.constants';
 import {
   REALTIME_GATEWAY_PORT,
@@ -54,8 +48,7 @@ import {
   STAFF_INVITATION_REPOSITORY,
   StaffInvitationRepository,
 } from '../domain/repositories/staff-invitation.repository';
-import { InviteDoctorDto } from '../presentation/dto/invite-doctor.dto';
-import { InviteStaffDto } from '../presentation/dto/invite-staff.dto';
+import { InviteStaffUniversalDto } from '../presentation/dto/invite-staff-universal.dto';
 
 @Injectable()
 export class StaffInvitationService {
@@ -91,18 +84,28 @@ export class StaffInvitationService {
   }
 
   async getInvitationOptions(): Promise<{
+    roles: Array<{
+      id: string;
+      code: string;
+      name: string;
+      tier: string;
+      isClinical: boolean;
+      description: string | null;
+    }>;
     practitionerRoles: Array<{
+      id: string;
       code: string;
       name: string;
       description: string | null;
     }>;
     polyclinics: Array<{ id: string; name: string; code: string }>;
   }> {
-    const practitionerRoles = await this.db.query.roles.findMany({
-      where: inArray(roles.code, [
-        STAFF_ROLE_CODES.DOCTOR,
-        STAFF_ROLE_CODES.MIDWIFE,
-      ]),
+    const staffRoles = await this.db.query.roles.findMany({
+      where: and(
+        eq(roles.audience, 'internal'),
+        not(eq(roles.code, 'admin')),
+      ),
+      orderBy: [asc(roles.name)],
     });
 
     const polyclinics = await this.db.query.clinicUnits.findMany({
@@ -114,16 +117,22 @@ export class StaffInvitationService {
     });
 
     return {
-      practitionerRoles: practitionerRoles.map((r) => ({
+      roles: staffRoles.map((r) => ({
+        id: r.id,
         code: r.code,
-        name:
-          r.code === STAFF_ROLE_CODES.DOCTOR
-            ? 'Dokter'
-            : r.code === STAFF_ROLE_CODES.MIDWIFE
-              ? 'Bidan'
-              : r.name,
+        name: r.name,
+        tier: r.tier,
+        isClinical: r.isClinical,
         description: r.description,
       })),
+      practitionerRoles: staffRoles
+        .filter((r) => r.isClinical)
+        .map((r) => ({
+          id: r.id,
+          code: r.code,
+          name: r.name,
+          description: r.description,
+        })),
       polyclinics: polyclinics.map((p) => ({
         id: p.id,
         name: p.name,
@@ -132,8 +141,8 @@ export class StaffInvitationService {
     };
   }
 
-  async inviteDoctor(
-    dto: InviteDoctorDto,
+  async inviteStaffUniversal(
+    dto: InviteStaffUniversalDto,
     adminUserId: string,
   ): Promise<{
     invitation: StaffInvitationEntity;
@@ -141,7 +150,19 @@ export class StaffInvitationService {
     loginUrl: string;
   }> {
     const email = dto.email.toLowerCase().trim();
-    const doctorName = dto.fullName?.trim() || email.split('@')[0];
+    const staffName = dto.fullName?.trim() || email.split('@')[0];
+
+    // 1. Resolve role from DB (Single Source of Truth)
+    const targetRole = await this.db.query.roles.findFirst({
+      where: eq(roles.id, dto.roleId),
+    });
+    if (!targetRole) {
+      throw new NotFoundException(`Peran dengan ID ${dto.roleId} tidak ditemukan`);
+    }
+
+    const isClinical = targetRole.isClinical;
+    const roleCode = targetRole.code;
+    const roleTitle = targetRole.name;
 
     // Check for existing pending invitation and revoke if exists
     const existingPending = await this.invitationRepo.findPendingByEmail(email);
@@ -157,20 +178,7 @@ export class StaffInvitationService {
       this.getNowDate().getTime() + 7 * 24 * 60 * 60 * 1000,
     ); // 7 days
 
-    const roleCode: StaffRoleCode =
-      dto.roleCode === STAFF_ROLE_CODES.MIDWIFE
-        ? STAFF_ROLE_CODES.MIDWIFE
-        : STAFF_ROLE_CODES.DOCTOR;
-    const isMidwife = roleCode === STAFF_ROLE_CODES.MIDWIFE;
-    const staffType: StaffType = isMidwife
-      ? STAFF_TYPES.MIDWIFE
-      : STAFF_TYPES.DOCTOR;
-    const betterAuthRole: BetterAuthStaffRole = isMidwife
-      ? BETTER_AUTH_STAFF_ROLES.MIDWIFE
-      : BETTER_AUTH_STAFF_ROLES.DOCTOR;
-    const prefix = isMidwife ? 'BDN' : 'DOC';
-
-    // 1. Create or update user account
+    // 2. Create or update user account
     let userRecord = await this.db.query.users.findFirst({
       where: eq(users.email, email),
     });
@@ -179,7 +187,7 @@ export class StaffInvitationService {
       const [newUser] = await this.db
         .insert(users)
         .values({
-          name: doctorName,
+          name: staffName,
           email,
           emailVerified: true,
           phone: null,
@@ -199,10 +207,10 @@ export class StaffInvitationService {
       try {
         await this.db.insert(user).values({
           id: userRecord.id,
-          name: doctorName,
+          name: staffName,
           email,
           emailVerified: true,
-          role: betterAuthRole,
+          role: roleCode,
           banned: false,
         });
 
@@ -217,7 +225,6 @@ export class StaffInvitationService {
         // Better Auth parity
       }
     } else {
-      // Update existing credential account with new temporary password
       await this.db
         .update(authAccounts)
         .set({ passwordHash, updatedAt: this.getNowIso() })
@@ -243,40 +250,15 @@ export class StaffInvitationService {
       }
     }
 
-    // 2. Assign practitioner role in user_roles
-    const practitionerRole = await this.db.query.roles.findFirst({
-      where: eq(roles.code, roleCode),
+    // 3. Assign role in user_roles
+    await this.db
+      .delete(userRoles)
+      .where(eq(userRoles.userId, userRecord.id));
+    await this.db.insert(userRoles).values({
+      userId: userRecord.id,
+      roleId: targetRole.id,
+      assignedBy: adminUserId || null,
     });
-    if (practitionerRole) {
-      await this.db
-        .delete(userRoles)
-        .where(eq(userRoles.userId, userRecord.id));
-      await this.db.insert(userRoles).values({
-        userId: userRecord.id,
-        roleId: practitionerRole.id,
-        assignedBy: adminUserId || null,
-      });
-    }
-
-    // 3. Resolve clinical unit and canonical specialty from DB
-    const assignedUnit = dto.poliklinikId
-      ? await this.db.query.clinicUnits.findFirst({
-          where: eq(clinicUnits.id, dto.poliklinikId),
-        })
-      : null;
-
-    const isKiaPolyclinic = assignedUnit?.code === 'poli_kia';
-    const targetSpecialtyCode =
-      isMidwife || isKiaPolyclinic
-        ? MEDICAL_SPECIALTY_CODES.MATERNAL_CHILD_HEALTH
-        : MEDICAL_SPECIALTY_CODES.GENERAL_PRACTITIONER;
-
-    const matchedSpecialty = await this.db.query.medicalSpecialties.findFirst({
-      where: eq(medicalSpecialties.code, targetSpecialtyCode),
-    });
-
-    const canonicalPositionTitle =
-      matchedSpecialty?.name || (isMidwife ? 'Bidan' : 'Dokter');
 
     // 4. Create or update staff_profiles
     let staff = await this.db.query.staffProfiles.findFirst({
@@ -286,17 +268,18 @@ export class StaffInvitationService {
       ),
     });
 
+    const prefix = isClinical ? 'CLN' : 'STF';
     if (!staff) {
       const staffCode = `${prefix}-${Date.now().toString().slice(-4)}`;
       const [newStaff] = await this.db
         .insert(staffProfiles)
         .values({
           userId: userRecord.id,
+          roleId: targetRole.id,
           staffCode,
-          fullName: doctorName,
-          staffType,
-          positionTitle: canonicalPositionTitle,
-          primaryUnitId: dto.poliklinikId,
+          fullName: staffName,
+          positionTitle: roleTitle,
+          primaryUnitId: dto.poliklinikId || null,
           phone: null,
           email,
           status: STAFF_STATUS.INACTIVE,
@@ -307,10 +290,10 @@ export class StaffInvitationService {
       const [updated] = await this.db
         .update(staffProfiles)
         .set({
-          fullName: doctorName,
-          staffType,
-          primaryUnitId: dto.poliklinikId,
-          positionTitle: canonicalPositionTitle,
+          roleId: targetRole.id,
+          fullName: staffName,
+          positionTitle: roleTitle,
+          primaryUnitId: dto.poliklinikId || staff.primaryUnitId,
           status: STAFF_STATUS.INACTIVE,
           updatedAt: this.getNowIso(),
         })
@@ -319,8 +302,8 @@ export class StaffInvitationService {
       staff = updated;
     }
 
-    // 5. Create or update practitioners record (Clinical Practitioner)
-    if (staff) {
+    // 5. Clinical Practitioner record management
+    if (staff && isClinical) {
       const existingPractitioner = await this.db.query.practitioners.findFirst({
         where: eq(practitioners.staffProfileId, staff.id),
       });
@@ -328,8 +311,8 @@ export class StaffInvitationService {
       if (!existingPractitioner) {
         await this.db.insert(practitioners).values({
           staffProfileId: staff.id,
-          displayName: doctorName,
-          specialtyId: matchedSpecialty?.id || null,
+          displayName: staffName,
+          specialtyId: null,
           licenseNumber: null,
           isAcceptingAppointments: false,
         });
@@ -337,34 +320,32 @@ export class StaffInvitationService {
         await this.db
           .update(practitioners)
           .set({
-            displayName: doctorName,
-            specialtyId:
-              existingPractitioner.specialtyId || matchedSpecialty?.id || null,
-            isAcceptingAppointments: false,
+            displayName: staffName,
             updatedAt: this.getNowIso(),
           })
           .where(eq(practitioners.id, existingPractitioner.id));
       }
     }
 
-    // 5. Store staff_invitations record
+    // 6. Store staff_invitations record
     const invitation = await this.invitationRepo.create({
       email,
+      roleId: targetRole.id,
       roleCode,
-      staffType,
       tokenHash,
       temporaryPasswordHash: passwordHash,
       invitedBy: adminUserId,
       status: STAFF_INVITATION_STATUS.PENDING,
       expiresAt,
       metadata: {
-        fullName: doctorName,
-        poliklinikId: dto.poliklinikId,
+        fullName: staffName,
+        poliklinikId: dto.poliklinikId || null,
+        roleId: targetRole.id,
         roleCode,
       },
     });
 
-    // 6. Build login url & dispatch invitation email
+    // 7. Dispatch invitation email
     const frontendDomain =
       this.configService.get('app.frontendDomain', { infer: true }) || '';
     const loginUrl = `${frontendDomain}/auth/sign-in?email=${encodeURIComponent(email)}`;
@@ -373,8 +354,8 @@ export class StaffInvitationService {
       await this.mailService.sendStaffInvitation({
         to: email,
         data: {
-          name: doctorName,
-          roleTitle: canonicalPositionTitle,
+          name: staffName,
+          roleTitle,
           temporaryPassword,
           loginUrl,
           expiresAt: expiresAt.toLocaleDateString('id-ID', {
@@ -403,249 +384,8 @@ export class StaffInvitationService {
       const realtimePayload = {
         invitationId: invitation.id,
         email: invitation.email,
+        roleId: targetRole.id,
         roleCode: invitation.roleCode,
-        staffType: invitation.staffType,
-        fullName: doctorName,
-        status: invitation.status,
-        expiresAt:
-          invitation.expiresAt instanceof Date
-            ? invitation.expiresAt.toISOString()
-            : String(invitation.expiresAt),
-        createdAt: this.getNowIso(),
-      };
-      void this.realtimeGateway?.emitToRoom?.(
-        REALTIME_ROOMS.clinic,
-        'staff:invited',
-        realtimePayload,
-      );
-      void this.realtimeGateway?.emitToRole?.(
-        'admin',
-        'staff:invited',
-        realtimePayload,
-      );
-      void this.realtimeGateway?.emitToRole?.(
-        'admin',
-        'staff:updated',
-        realtimePayload,
-      );
-    } catch (realtimeErr) {
-      this.logger.warn(
-        `Failed to emit staff:invited realtime event: ${String(realtimeErr)}`,
-      );
-    }
-
-    return {
-      invitation,
-      temporaryPassword,
-      loginUrl,
-    };
-  }
-
-  async inviteStaff(
-    dto: InviteStaffDto,
-    adminUserId: string,
-  ): Promise<{
-    invitation: StaffInvitationEntity;
-    temporaryPassword: string;
-    loginUrl: string;
-  }> {
-    const email = dto.email.toLowerCase().trim();
-
-    // Check for existing pending invitation and revoke if exists
-    const existingPending = await this.invitationRepo.findPendingByEmail(email);
-    if (existingPending) {
-      await this.revokeInvitation(existingPending.id);
-    }
-
-    const temporaryPassword = this.passwordGenerator.generate(14);
-    const token = randomBytes(32).toString('hex');
-    const tokenHash = createHash('sha256').update(token).digest('hex');
-    const passwordHash = await bcrypt.hash(temporaryPassword, 10);
-    const expiresAt = new Date(
-      this.getNowDate().getTime() + 7 * 24 * 60 * 60 * 1000,
-    ); // 7 days
-
-    const roleCode: StaffRoleCode = STAFF_ROLE_CODES.WORKER;
-    const staffType: StaffType = STAFF_TYPES.WORKER;
-    const betterAuthRole: BetterAuthStaffRole = BETTER_AUTH_STAFF_ROLES.WORKER;
-    const roleTitle = 'Staf Operasional';
-    const staffName = dto.fullName?.trim() || email.split('@')[0];
-
-    // 1. Create or update user account
-    let userRecord = await this.db.query.users.findFirst({
-      where: eq(users.email, email),
-    });
-
-    if (!userRecord) {
-      const [newUser] = await this.db
-        .insert(users)
-        .values({
-          name: staffName,
-          email,
-          emailVerified: true,
-          phone: null,
-          status: USER_STATUS.ACTIVE,
-          preferredLocale: 'id-ID',
-        })
-        .returning();
-      userRecord = newUser;
-
-      await this.db.insert(authAccounts).values({
-        userId: userRecord.id,
-        providerId: 'credential',
-        accountId: email,
-        passwordHash,
-      });
-
-      try {
-        await this.db.insert(user).values({
-          id: userRecord.id,
-          name: staffName,
-          email,
-          emailVerified: true,
-          role: betterAuthRole,
-          banned: false,
-        });
-
-        await this.db.insert(account).values({
-          accountId: userRecord.id,
-          providerId: 'credential',
-          userId: userRecord.id,
-          password: passwordHash,
-          updatedAt: this.getNowIso(),
-        });
-      } catch {
-        // Better Auth parity
-      }
-    } else {
-      await this.db
-        .update(authAccounts)
-        .set({ passwordHash, updatedAt: this.getNowIso() })
-        .where(
-          and(
-            eq(authAccounts.userId, userRecord.id),
-            eq(authAccounts.providerId, 'credential'),
-          ),
-        );
-
-      try {
-        await this.db
-          .update(account)
-          .set({ password: passwordHash, updatedAt: this.getNowIso() })
-          .where(
-            and(
-              eq(account.userId, userRecord.id),
-              eq(account.providerId, 'credential'),
-            ),
-          );
-      } catch {
-        // Better Auth parity
-      }
-    }
-
-    // 2. Assign role in user_roles
-    const roleRecord = await this.db.query.roles.findFirst({
-      where: eq(roles.code, roleCode),
-    });
-    if (roleRecord) {
-      await this.db
-        .delete(userRoles)
-        .where(eq(userRoles.userId, userRecord.id));
-      await this.db.insert(userRoles).values({
-        userId: userRecord.id,
-        roleId: roleRecord.id,
-        assignedBy: adminUserId || null,
-      });
-    }
-
-    // 3. Create or update staff_profiles (independent operational worker, NO practitioner attachment)
-    let staff = await this.db.query.staffProfiles.findFirst({
-      where: or(
-        eq(staffProfiles.userId, userRecord.id),
-        eq(staffProfiles.email, email),
-      ),
-    });
-
-    if (!staff) {
-      const prefix = 'STF';
-      const staffCode = `${prefix}-${Date.now().toString().slice(-4)}`;
-      const [newStaff] = await this.db
-        .insert(staffProfiles)
-        .values({
-          userId: userRecord.id,
-          staffCode,
-          fullName: staffName,
-          staffType,
-          positionTitle: roleTitle,
-          primaryUnitId: null,
-          phone: null,
-          email,
-          status: STAFF_STATUS.INACTIVE,
-        })
-        .returning();
-      staff = newStaff;
-    } else {
-      const [updated] = await this.db
-        .update(staffProfiles)
-        .set({
-          fullName: staffName,
-          staffType,
-          positionTitle: roleTitle,
-          status: STAFF_STATUS.INACTIVE,
-          updatedAt: this.getNowIso(),
-        })
-        .where(eq(staffProfiles.id, staff.id))
-        .returning();
-      staff = updated;
-    }
-
-    // 4. Store staff_invitations record
-    const invitation = await this.invitationRepo.create({
-      email,
-      roleCode,
-      staffType,
-      tokenHash,
-      temporaryPasswordHash: passwordHash,
-      invitedBy: adminUserId,
-      status: STAFF_INVITATION_STATUS.PENDING,
-      expiresAt,
-      metadata: {
-        fullName: staffName,
-        roleCode,
-      },
-    });
-
-    // 5. Build login url & dispatch invitation email
-    const frontendDomain =
-      this.configService.get('app.frontendDomain', { infer: true }) || '';
-    const loginUrl = `${frontendDomain}/auth/sign-in?email=${encodeURIComponent(email)}`;
-
-    try {
-      await this.mailService.sendStaffInvitation({
-        to: email,
-        data: {
-          name: staffName,
-          roleTitle,
-          temporaryPassword,
-          loginUrl,
-          expiresAt: expiresAt.toLocaleDateString('id-ID', {
-            weekday: 'long',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-          }),
-        },
-      });
-    } catch (err) {
-      this.logger.error(`Failed to dispatch email to ${email}:`, err);
-    }
-
-    try {
-      const realtimePayload = {
-        invitationId: invitation.id,
-        email: invitation.email,
-        roleCode: invitation.roleCode,
-        staffType: invitation.staffType,
         fullName: staffName,
         status: invitation.status,
         expiresAt:
@@ -758,7 +498,7 @@ export class StaffInvitationService {
           })
           .where(eq(staffProfiles.id, staff.id));
 
-        // 5. If doctor, disable practitioner appointments
+        // 5. If clinical, disable practitioner appointments
         await this.db
           .update(practitioners)
           .set({

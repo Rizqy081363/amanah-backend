@@ -7,8 +7,49 @@ import {
   notificationRecipients,
   notifications,
 } from '../../../../database/schema';
-import { NotificationEntity } from '../../domain/entities/notification.entity';
-import { NotificationRepository } from '../../domain/repositories/notification.repository';
+import {
+  NotificationActionEntity,
+  NotificationEntity,
+  NotificationRecipientEntity,
+} from '../../domain/entities/notification.entity';
+import {
+  CreateIfNotExistsInput,
+  CreateNotificationInput,
+  NotificationRepository,
+} from '../../domain/repositories/notification.repository';
+
+const toNotificationEntity = (
+  row: typeof notifications.$inferSelect,
+  extra?: {
+    recipient?: NotificationRecipientEntity | null;
+    isRead?: boolean;
+    actions?: NotificationActionEntity[];
+  },
+): NotificationEntity => ({
+  id: row.id,
+  category: row.category,
+  audience: row.audience,
+  targetRoleId: row.targetRoleId,
+  title: row.title,
+  senderName: row.senderName,
+  senderRole: row.senderRole,
+  badgeIcon: row.badgeIcon,
+  metaIcon: row.metaIcon,
+  visualKey: row.visualKey,
+  body: row.body,
+  isUrgent: row.isUrgent,
+  sourceType: row.sourceType,
+  sourceId: row.sourceId,
+  idempotencyKey: row.idempotencyKey,
+  metadata: (row.metadata as Record<string, any>) ?? {},
+  createdBy: row.createdBy,
+  expiresAt: row.expiresAt,
+  createdAt: row.createdAt,
+  updatedAt: row.updatedAt,
+  recipient: extra?.recipient,
+  isRead: extra?.isRead ?? false,
+  actions: extra?.actions,
+});
 
 @Injectable()
 export class NotificationDrizzleRepository implements NotificationRepository {
@@ -69,25 +110,7 @@ export class NotificationDrizzleRepository implements NotificationRepository {
       .filter((r) => r.notification != null)
       .map((r) => {
         const notif = r.notification;
-        return {
-          id: notif.id,
-          category: notif.category,
-          audience: notif.audience as any,
-          title: notif.title,
-          senderName: notif.senderName,
-          senderRole: notif.senderRole,
-          badgeIcon: notif.badgeIcon,
-          metaIcon: notif.metaIcon,
-          visualKey: notif.visualKey,
-          body: notif.body,
-          isUrgent: notif.isUrgent,
-          sourceType: notif.sourceType,
-          sourceId: notif.sourceId,
-          metadata: (notif.metadata as Record<string, any>) ?? {},
-          createdBy: notif.createdBy,
-          expiresAt: notif.expiresAt,
-          createdAt: notif.createdAt,
-          updatedAt: notif.updatedAt,
+        return toNotificationEntity(notif, {
           isRead: r.readAt != null,
           recipient: {
             id: r.id,
@@ -109,7 +132,7 @@ export class NotificationDrizzleRepository implements NotificationRepository {
             metadata: (a.metadata as Record<string, any>) ?? {},
             createdAt: a.createdAt,
           })),
-        };
+        });
       });
 
     const [totalResult] = await this.db
@@ -161,44 +184,9 @@ export class NotificationDrizzleRepository implements NotificationRepository {
     return updated.length;
   }
 
-  async createNotification(data: {
-    category:
-      | 'clinical'
-      | 'system'
-      | 'announcement'
-      | 'billing'
-      | 'schedule'
-      | 'attendance'
-      | 'permission'
-      | 'appointment'
-      | 'promotion'
-      | 'lab_result'
-      | 'queue'
-      | 'shift'
-      | 'pharmacy'
-      | 'telemedicine'
-      | 'support'
-      | string;
-    title?: string;
-    body: string;
-    senderName?: string;
-    senderRole?: string;
-    isUrgent?: boolean;
-    recipientUserIds: string[];
-    actions?: Array<{
-      label: string;
-      actionKey: string;
-      actionType?:
-        | 'primary'
-        | 'secondary'
-        | 'warning'
-        | 'info'
-        | 'danger'
-        | 'link'
-        | string;
-      url?: string;
-    }>;
-  }): Promise<NotificationEntity> {
+  async createNotification(
+    data: CreateNotificationInput,
+  ): Promise<NotificationEntity> {
     const validCategories = [
       'appointment',
       'promotion',
@@ -229,6 +217,8 @@ export class NotificationDrizzleRepository implements NotificationRepository {
       .insert(notifications)
       .values({
         category: dbCategory,
+        audience: data.audience,
+        targetRoleId: data.targetRoleId,
         title: data.title ?? null,
         body: data.body,
         senderName: data.senderName ?? null,
@@ -270,43 +260,12 @@ export class NotificationDrizzleRepository implements NotificationRepository {
       );
     }
 
-    return {
-      id: notif.id,
-      category: notif.category,
-      title: notif.title,
-      body: notif.body,
-      isUrgent: notif.isUrgent,
-      senderName: notif.senderName,
-      senderRole: notif.senderRole,
-      createdAt: notif.createdAt,
-      updatedAt: notif.updatedAt,
-      isRead: false,
-    };
+    return toNotificationEntity(notif);
   }
 
-  async createIfNotExists(data: {
-    idempotencyKey?: string;
-    category: string;
-    audience?: 'patient' | 'clinic' | string;
-    title?: string | null;
-    body: string;
-    senderName?: string | null;
-    senderRole?: string | null;
-    badgeIcon?: string | null;
-    metaIcon?: string | null;
-    visualKey?: string | null;
-    isUrgent?: boolean;
-    sourceType?: string | null;
-    sourceId?: string | null;
-    metadata?: Record<string, any>;
-    recipientUserIds: string[];
-    actions?: Array<{
-      label: string;
-      actionKey: string;
-      actionType?: string;
-      url?: string;
-    }>;
-  }): Promise<NotificationEntity | null> {
+  async createIfNotExists(
+    data: CreateIfNotExistsInput,
+  ): Promise<NotificationEntity | null> {
     if (data.idempotencyKey) {
       const existing = await this.db.query.notifications.findFirst({
         where: eq(notifications.idempotencyKey, data.idempotencyKey),
@@ -346,7 +305,8 @@ export class NotificationDrizzleRepository implements NotificationRepository {
       const insertQuery = this.db.insert(notifications).values({
         idempotencyKey: data.idempotencyKey ?? null,
         category: dbCategory,
-        audience: data.audience ?? 'clinic',
+        audience: data.audience,
+        targetRoleId: data.targetRoleId,
         title: data.title ?? null,
         body: data.body,
         senderName: data.senderName ?? null,
@@ -408,26 +368,7 @@ export class NotificationDrizzleRepository implements NotificationRepository {
         );
       }
 
-      return {
-        id: notif.id,
-        category: notif.category,
-        audience: notif.audience as any,
-        title: notif.title,
-        body: notif.body,
-        isUrgent: notif.isUrgent,
-        senderName: notif.senderName,
-        senderRole: notif.senderRole,
-        badgeIcon: notif.badgeIcon,
-        metaIcon: notif.metaIcon,
-        visualKey: notif.visualKey,
-        sourceType: notif.sourceType,
-        sourceId: notif.sourceId,
-        idempotencyKey: notif.idempotencyKey,
-        metadata: (notif.metadata as Record<string, any>) ?? {},
-        createdAt: notif.createdAt,
-        updatedAt: notif.updatedAt,
-        isRead: false,
-      };
+      return toNotificationEntity(notif);
     } catch (error: any) {
       if (error?.code === '23505') {
         return null;

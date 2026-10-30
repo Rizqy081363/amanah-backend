@@ -17,7 +17,6 @@ import { DRIZZLE_SOURCE } from '../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../database/drizzle/drizzle.provider';
 import { users } from '../../database/schema';
 import { formatBloodTypeDisplay } from '../../modules/patients/domain/data/patient-reference.data';
-import { STAFF_ROLE_CODES, type StaffType } from '../../modules/staffs/domain/constants/staff-invitation.constants';
 import { DomainUnauthorizedException } from '../exceptions';
 import { RedisService } from '../redis/redis.service';
 import type { AuthenticatedUser } from './authenticated-user.interface';
@@ -89,12 +88,29 @@ export class HybridAuthGuard extends AuthGuard('jwt') implements CanActivate {
         with: {
           userRoles_userId: {
             with: {
-              role: true,
+              role: {
+                with: {
+                  rolePermissions: {
+                    with: {
+                      permission: true,
+                    },
+                  },
+                },
+              },
             },
           },
           staffProfiles: {
             with: {
               practitioners: true,
+              role: {
+                with: {
+                  rolePermissions: {
+                    with: {
+                      permission: true,
+                    },
+                  },
+                },
+              },
             },
           },
           patientProfiles: true,
@@ -112,10 +128,8 @@ export class HybridAuthGuard extends AuthGuard('jwt') implements CanActivate {
       if (primaryRole?.code === 'admin') {
         systemRole = SYSTEM_ROLES.ADMIN;
       } else if (
-        primaryRole?.code === STAFF_ROLE_CODES.DOCTOR ||
-        primaryRole?.code === STAFF_ROLE_CODES.MIDWIFE ||
-        primaryRole?.code === STAFF_ROLE_CODES.WORKER ||
-        (userRecord.staffProfiles && userRecord.staffProfiles.length > 0)
+        (userRecord.staffProfiles && userRecord.staffProfiles.length > 0) ||
+        (primaryRole && primaryRole.code !== 'patient')
       ) {
         systemRole = SYSTEM_ROLES.STAF;
       }
@@ -128,11 +142,30 @@ export class HybridAuthGuard extends AuthGuard('jwt') implements CanActivate {
         (systemRole === SYSTEM_ROLES.ADMIN
           ? 'admin'
           : systemRole === SYSTEM_ROLES.STAF
-            ? 'staff_worker'
+            ? 'worker'
             : 'patient');
 
       const staffProfile = userRecord.staffProfiles?.[0];
       const patientProfile = userRecord.patientProfiles?.[0];
+
+      const permissionSet = new Set<string>();
+      for (const ur of userRecord.userRoles_userId || []) {
+        for (const rp of ur.role?.rolePermissions || []) {
+          if (rp.permission?.code) permissionSet.add(rp.permission.code);
+        }
+      }
+      if (staffProfile?.role) {
+        for (const rp of staffProfile.role.rolePermissions || []) {
+          if (rp.permission?.code) permissionSet.add(rp.permission.code);
+        }
+      }
+
+      const isClinical =
+        staffProfile?.role?.isClinical ??
+        Boolean(staffProfile?.practitioners?.length);
+
+      const audience: 'internal' | 'external' =
+        primaryRole?.audience ?? (staffProfile ? 'internal' : 'external');
 
       const authenticatedUser: AuthenticatedUser = {
         id: userRecord.id,
@@ -141,15 +174,25 @@ export class HybridAuthGuard extends AuthGuard('jwt') implements CanActivate {
         systemRole,
         roleCode,
         roles: userRoleCodes.length > 0 ? userRoleCodes : [roleCode],
-        role: {
-          id: primaryRole?.id,
-          code: primaryRole?.code,
-          name: systemRole,
-        },
+        audience,
+        role: primaryRole
+          ? {
+              id: primaryRole.id,
+              code: primaryRole.code,
+              name: primaryRole.name,
+              tier: primaryRole.tier,
+              audience: primaryRole.audience,
+              isClinical: primaryRole.isClinical,
+            }
+          : null,
+        permissions: Array.from(permissionSet),
         staff: staffProfile
           ? {
               id: staffProfile.id,
-              staffType: staffProfile.staffType as StaffType,
+              roleId: staffProfile.roleId || staffProfile.role?.id || null,
+              roleCode: staffProfile.role?.code || null,
+              roleName: staffProfile.role?.name || null,
+              isClinical,
               practitionerId: staffProfile.practitioners?.[0]?.id || null,
               userId: userRecord.id,
               poliklinikId: staffProfile.primaryUnitId,

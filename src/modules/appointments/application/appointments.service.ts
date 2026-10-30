@@ -8,7 +8,8 @@ import {
   Optional,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { SYSTEM_ROLES, type AuthenticatedUser } from '../../../common/auth';
+import { type AuthenticatedUser } from '../../../common/auth';
+import { NOTIFICATION_AUDIENCE } from '../../../common/constants/notification-audience.constants';
 import { DEFAULT_PAGE_SIZE } from '../../../common/constants';
 import {
   AppointmentCreatedEvent,
@@ -356,7 +357,7 @@ export class AppointmentsService {
       throw new NotFoundException(`Janji temu dengan ID ${id} tidak ditemukan`);
     }
 
-    if (user && user.systemRole === SYSTEM_ROLES.PATIENT) {
+    if (user && user.audience === NOTIFICATION_AUDIENCE.EXTERNAL) {
       const isOwner =
         user.id === current.patientUserId ||
         user.id === current.parentUserId ||

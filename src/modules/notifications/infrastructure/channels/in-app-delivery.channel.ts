@@ -34,10 +34,8 @@ export class InAppDeliveryChannel implements DeliveryChannelAdapter {
         id: notification.id,
         eventId: notification.metadata?.eventId || notification.id,
         correlationId: notification.metadata?.correlationId,
-        audience:
-          (notification.audience as 'patient' | 'clinic') ||
-          (notification.metadata?.audience as 'patient' | 'clinic') ||
-          'clinic',
+        audience: notification.audience,
+        targetRoleId: notification.targetRoleId,
         recipientUserId,
         type: notification.metadata?.eventType || notification.category,
         title: notification.title || '',

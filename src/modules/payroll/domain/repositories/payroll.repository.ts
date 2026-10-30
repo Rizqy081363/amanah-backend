@@ -9,7 +9,10 @@ export interface PayrollSummary {
   staffCode?: string;
   fullName: string;
   avatarUrl?: string | null;
-  staffType: string;
+  roleId?: string;
+  roleCode?: string;
+  roleName?: string;
+  isClinical?: boolean;
   positionTitle?: string;
   departmentName?: string;
   practitionerId?: string | null;

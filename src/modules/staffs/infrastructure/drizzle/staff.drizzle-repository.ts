@@ -93,7 +93,10 @@ export class StaffDrizzleRepository implements StaffRepository {
       poliklinikName: (r as any).clinicUnit?.name || null,
       fullName: r.fullName,
       profession: r.positionTitle || '',
-      staffType: r.staffType,
+      roleId: r.roleId || null,
+      roleCode: (r as any).role?.code || null,
+      roleName: (r as any).role?.name || null,
+      isClinical: (r as any).role?.isClinical ?? Boolean(practitionerRecord),
       staffCode: r.staffCode,
       idCardNumber: r.staffCode,
       licenseNumber:
@@ -142,25 +145,17 @@ export class StaffDrizzleRepository implements StaffRepository {
   async create(
     data: Omit<StaffEntity, 'id' | 'createdAt' | 'updatedAt'>,
   ): Promise<StaffEntity> {
-    const staffTypeVal: 'doctor' | 'midwife' | 'worker' =
-      data.staffType ||
-      (data.profession?.toLowerCase().includes('bidan')
-        ? 'midwife'
-        : data.profession?.toLowerCase().includes('dokter')
-          ? 'doctor'
-          : 'worker');
-
     const staffCode = data.staffCode || '';
 
     const [record] = await this.db
       .insert(staffProfiles)
       .values({
         userId: data.userId || null,
+        roleId: data.roleId || null,
         primaryUnitId: data.poliklinikId || null,
         fullName: data.fullName,
         positionTitle: data.profession,
         staffCode,
-        staffType: staffTypeVal,
         birthPlace: data.birthPlace || null,
         birthDate: data.birthDate ? String(data.birthDate) : null,
         gender: data.gender || null,
@@ -316,8 +311,8 @@ export class StaffDrizzleRepository implements StaffRepository {
 
     const conditions = [];
 
-    if (options?.staffType) {
-      conditions.push(eq(staffProfiles.staffType, options.staffType as any));
+    if (options?.roleId) {
+      conditions.push(eq(staffProfiles.roleId, options.roleId));
     }
 
     if (options?.poliklinikId) {
@@ -434,7 +429,7 @@ export class StaffDrizzleRepository implements StaffRepository {
       for (const inv of pendingInvitations) {
         const invEmail = (inv.email || '').toLowerCase().trim();
         if (invEmail && !matchedEmails.has(invEmail)) {
-          if (options?.staffType && inv.staffType !== options.staffType) {
+          if (options?.roleId && inv.roleId !== options.roleId) {
             continue;
           }
           const invMeta = (inv.metadata as any) || {};
@@ -453,13 +448,9 @@ export class StaffDrizzleRepository implements StaffRepository {
             poliklinikId: invMeta.poliklinikId || '',
             poliklinikName: null,
             fullName: invName,
-            profession:
-              inv.staffType === 'doctor'
-                ? 'Dokter'
-                : inv.staffType === 'midwife'
-                  ? 'Bidan'
-                  : 'Staf Operasional',
-            staffType: inv.staffType,
+            profession: invMeta.roleTitle || inv.roleCode || 'Staf',
+            roleId: inv.roleId,
+            roleCode: inv.roleCode,
             staffCode: 'MENUNGGU',
             idCardNumber: '-',
             licenseNumber: null,
@@ -539,7 +530,7 @@ export class StaffDrizzleRepository implements StaffRepository {
     if (data.fullName !== undefined) updateValues.fullName = data.fullName;
     if (data.profession !== undefined)
       updateValues.positionTitle = data.profession;
-    if (data.staffType !== undefined) updateValues.staffType = data.staffType;
+    if (data.roleId !== undefined) updateValues.roleId = data.roleId;
     if (data.birthPlace !== undefined)
       updateValues.birthPlace = data.birthPlace;
     if (data.birthDate !== undefined) updateValues.birthDate = data.birthDate;

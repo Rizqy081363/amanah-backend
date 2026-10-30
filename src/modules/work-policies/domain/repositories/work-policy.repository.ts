@@ -21,7 +21,7 @@ export interface WorkPolicyRepository {
   getActiveCompensationRates(): Promise<CompensationRateEntity[]>;
   updateCompensationRates(
     rates: Array<{
-      category: 'doctor' | 'midwife' | 'worker';
+      roleId: string;
       hourlyRate: number;
       overtimeHourlyRate: number;
       notes?: string;

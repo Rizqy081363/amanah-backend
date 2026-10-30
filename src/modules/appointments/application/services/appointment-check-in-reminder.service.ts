@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { and, eq, isNotNull, like } from 'drizzle-orm';
+import { NOTIFICATION_AUDIENCE } from '../../../../common/constants/notification-audience.constants';
 import { ClinicConfigService } from '../../../../common/clinic-config';
 import { RedisService } from '../../../../common/redis/redis.service';
 import { ClinicTimeService } from '../../../../common/time/clinic-time.service';
@@ -8,6 +9,7 @@ import type { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provi
 import { appointments, notifications } from '../../../../database/schema';
 import { NotificationGatewayService } from '../../../notifications/application/services/notification-gateway.service';
 import { isAppointmentWithinCheckInWindow } from '../../domain/services/appointment-check-in-window.predicate';
+import { AppointmentRecipientResolver } from '../../infrastructure/resolvers/appointment-recipient.resolver';
 
 export interface ReminderEvaluationResult {
   processedCount: number;
@@ -27,6 +29,8 @@ export class AppointmentCheckInReminderService {
     private readonly notificationGateway: NotificationGatewayService,
     @Optional()
     private readonly redisService?: RedisService,
+    @Optional()
+    private readonly recipientResolver?: AppointmentRecipientResolver,
   ) {}
 
   /**
@@ -128,13 +132,14 @@ export class AppointmentCheckInReminderService {
         ? apt.scheduledStartTime.slice(0, 5)
         : '';
       const patientUserId = apt.patientProfile?.userId || apt.createdBy;
-      const doctorUserId = apt.practitioner?.staffProfile?.userId;
+      const practitionerUserId = apt.practitioner?.staffProfile?.userId;
 
-      // 3. Dispatch Patient-Specific Notification (Audience: 'patient')
+      // 3. Dispatch Patient-Specific Notification
       if (patientUserId) {
         await this.notificationGateway.dispatch({
           commandId: `${idempotencyBase}:patient`,
           sourceDomain: 'appointments',
+          audience: NOTIFICATION_AUDIENCE.EXTERNAL,
           target: {
             type: 'user',
             recipientUserIds: [patientUserId],
@@ -151,7 +156,6 @@ export class AppointmentCheckInReminderService {
               doctorName,
               roomName,
               serviceName,
-              audience: 'patient',
             },
           },
           channels: ['push', 'in_app'],
@@ -159,17 +163,18 @@ export class AppointmentCheckInReminderService {
         });
       }
 
-      // 4. Dispatch Clinical Notification to Assigned Doctor/Midwife (Audience: 'clinic')
-      if (doctorUserId) {
+      // 4. Dispatch Clinical Notification to Assigned Practitioner
+      if (practitionerUserId) {
         const patientName = apt.patientProfile?.fullName || 'Pasien';
         const mrn = apt.patientProfile?.medicalRecordNumber || '-';
 
         await this.notificationGateway.dispatch({
-          commandId: `${idempotencyBase}:doctor`,
+          commandId: `${idempotencyBase}:practitioner`,
           sourceDomain: 'appointments',
+          audience: NOTIFICATION_AUDIENCE.INTERNAL,
           target: {
             type: 'user',
-            recipientUserIds: [doctorUserId],
+            recipientUserIds: [practitionerUserId],
           },
           category: 'clinical',
           content: {
@@ -182,7 +187,6 @@ export class AppointmentCheckInReminderService {
               medicalRecordNumber: mrn,
               scheduledStartTime: apt.scheduledStartTime,
               roomId: apt.roomId,
-              audience: 'clinic',
             },
           },
           channels: ['in_app', 'push'],
@@ -190,33 +194,38 @@ export class AppointmentCheckInReminderService {
         });
       }
 
-      // 5. Dispatch Operational Announcement to Universal Staff (Zero PHI / PII Leakage)
+      // 5. Dispatch Operational Announcement to Authorized Staff (Zero PHI / PII Leakage)
       if (thresholds.operationalBroadcastEnabled) {
         const unitName = apt.clinicRoom?.clinicUnit?.name || serviceName;
+        const authorizedStaffUserIds = this.recipientResolver
+          ? await this.recipientResolver.resolveAdminAndStaffUserIds()
+          : [];
 
-        await this.notificationGateway.dispatch({
-          commandId: `${idempotencyBase}:staff`,
-          sourceDomain: 'appointments',
-          target: {
-            type: 'role',
-            roles: ['admin', 'staff_worker'],
-          },
-          category: 'queue',
-          content: {
-            title: 'Jendela Check-In Pelayanan Terbuka',
-            body: `Jendela check-in telah dibuka untuk sesi pelayanan di ${unitName} (${roomName}) pukul ${startTimeStr} WIB.`,
-            actionUrl: '/klinik/antrean',
-            data: {
-              appointmentId: apt.id,
-              serviceName: unitName,
-              roomName,
-              scheduledStartTime: apt.scheduledStartTime,
-              audience: 'clinic',
+        if (authorizedStaffUserIds.length > 0) {
+          await this.notificationGateway.dispatch({
+            commandId: `${idempotencyBase}:staff`,
+            sourceDomain: 'appointments',
+            audience: NOTIFICATION_AUDIENCE.INTERNAL,
+            target: {
+              type: 'user',
+              recipientUserIds: authorizedStaffUserIds,
             },
-          },
-          channels: ['in_app'],
-          priority: 'normal',
-        });
+            category: 'queue',
+            content: {
+              title: 'Jendela Check-In Pelayanan Terbuka',
+              body: `Jendela check-in telah dibuka untuk sesi pelayanan di ${unitName} (${roomName}) pukul ${startTimeStr} WIB.`,
+              actionUrl: '/klinik/antrean',
+              data: {
+                appointmentId: apt.id,
+                serviceName: unitName,
+                roomName,
+                scheduledStartTime: apt.scheduledStartTime,
+              },
+            },
+            channels: ['in_app'],
+            priority: 'normal',
+          });
+        }
       }
 
       if (this.redisService) {

@@ -12,7 +12,8 @@ export class LayananPoliEntity {
   poliklinikId: string;
   name: string;
   description?: string | null;
-  medicalFlow: 'pregnancy' | 'immunization' | 'general';
+  intakeFormId?: string | null;
+  medicalFlow?: string;
   isActive: boolean;
   createdAt: Date;
 }

@@ -512,7 +512,7 @@ export class AttendanceRosterLookupDrizzleRepo {
     staffCode: string;
     fullName: string;
     userId: string | null;
-    staffType?: string | null;
+    roleId?: string | null;
     positionTitle?: string | null;
     avatarUrl?: string | null;
     practitionerId?: string | null;
@@ -524,7 +524,7 @@ export class AttendanceRosterLookupDrizzleRepo {
         staffCode: staffProfiles.staffCode,
         fullName: staffProfiles.fullName,
         userId: staffProfiles.userId,
-        staffType: staffProfiles.staffType,
+        roleId: staffProfiles.roleId,
         positionTitle: staffProfiles.positionTitle,
         avatarUrl: staffProfiles.avatarUrl,
         practitionerId: practitioners.id,

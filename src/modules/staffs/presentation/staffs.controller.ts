@@ -327,7 +327,7 @@ export class StaffsController {
       poliklinikId: body.poliklinikId || '',
       fullName: body.fullName,
       profession: body.profession,
-      staffType: body.staffType || 'worker',
+      roleId: body.roleId || null,
       staffCode: body.staffCode || '',
       birthPlace: body.birthPlace,
       birthDate: body.birthDate,
@@ -353,14 +353,14 @@ export class StaffsController {
   })
   async getAllStaffs(
     @Query('status') status?: string,
-    @Query('staffType') staffType?: string,
+    @Query('roleId') roleId?: string,
     @Query('profession') profession?: string,
     @Query('poliklinikId') poliklinikId?: string,
     @Query('search') search?: string,
   ) {
     return this.staffRepo.findAll({
       status,
-      staffType,
+      roleId,
       profession,
       poliklinikId,
       search,

@@ -1,9 +1,11 @@
 import { SYSTEM_ROLES, type SystemRole } from '../../auth/constants/auth.constants';
-import { STAFF_TYPES, type StaffType } from '../constants/staff-types.constant';
 
 export interface AuthenticatedStaffProfile {
   id: string;
-  staffType: StaffType;
+  roleId: string | null;
+  roleCode: string | null;
+  roleName?: string | null;
+  isClinical: boolean;
   practitionerId: string | null;
   userId: string;
   poliklinikId?: string | null;
@@ -34,7 +36,10 @@ export interface AuthenticatedPatientProfile {
 interface AuthenticatedUserRole {
   id?: string;
   code?: string;
-  name: SystemRole;
+  name: string;
+  tier?: 'macro' | 'micro';
+  audience: 'internal' | 'external';
+  isClinical?: boolean;
 }
 
 export interface AuthenticatedUser {
@@ -44,7 +49,9 @@ export interface AuthenticatedUser {
   systemRole: SystemRole;
   roleCode: string;
   roles: string[];
-  role: AuthenticatedUserRole;
+  role: AuthenticatedUserRole | null;
+  audience: 'internal' | 'external';
+  permissions?: string[];
   staff: AuthenticatedStaffProfile | null;
   patient: AuthenticatedPatientProfile | null;
   session?: unknown;
@@ -67,47 +74,16 @@ export function isStaffUser(
 }
 
 /**
-/**
- * Type guard for Doctor staff principal.
- */
-export function isDoctorStaff(
-  user: AuthenticatedUser,
-): user is AuthenticatedUser & { staff: AuthenticatedStaffProfile & { staffType: typeof STAFF_TYPES.DOCTOR } } {
-  return isStaffUser(user) && user.staff.staffType === STAFF_TYPES.DOCTOR;
-}
-
-/**
- * Type guard for Midwife staff principal.
- */
-export function isMidwifeStaff(
-  user: AuthenticatedUser,
-): user is AuthenticatedUser & { staff: AuthenticatedStaffProfile & { staffType: typeof STAFF_TYPES.MIDWIFE } } {
-  return isStaffUser(user) && user.staff.staffType === STAFF_TYPES.MIDWIFE;
-}
-
-/**
- * Type guard for Operational Worker staff principal.
- */
-export function isWorkerStaff(
-  user: AuthenticatedUser,
-): user is AuthenticatedUser & { staff: AuthenticatedStaffProfile & { staffType: typeof STAFF_TYPES.WORKER } } {
-  return isStaffUser(user) && user.staff.staffType === STAFF_TYPES.WORKER;
-}
-
-/**
- * Type guard for Clinical staff (Doctor or Midwife).
+ * Type guard for Clinical staff (Doctor, Midwife, or any dynamic clinical role).
  */
 export function isClinicalStaff(
   user: AuthenticatedUser,
 ): user is AuthenticatedUser & {
-  staff: AuthenticatedStaffProfile & {
-    staffType: typeof STAFF_TYPES.DOCTOR | typeof STAFF_TYPES.MIDWIFE;
-  };
+  staff: AuthenticatedStaffProfile;
 } {
   return (
     isStaffUser(user) &&
-    (user.staff.staffType === STAFF_TYPES.DOCTOR ||
-      user.staff.staffType === STAFF_TYPES.MIDWIFE)
+    (user.staff.isClinical === true || Boolean(user.staff.practitionerId))
   );
 }
 

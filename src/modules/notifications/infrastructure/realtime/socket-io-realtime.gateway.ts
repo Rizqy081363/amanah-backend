@@ -12,12 +12,12 @@ import {
 import { createAdapter } from '@socket.io/redis-adapter';
 import type Redis from 'ioredis';
 import type { Server, Socket } from 'socket.io';
-import { CLINIC_STAFF_ROLES } from '../../../../auth/constants/auth.constants';
 import { REDIS_CLIENT } from '../../../../common/redis/redis.constants';
 import {
   buildOriginPolicy,
   isOriginAllowed,
 } from '../../../../config/origin-policy';
+import { NOTIFICATION_AUDIENCE } from '../../../../common/constants/notification-audience.constants';
 import { RealtimeTicketService } from '../../application/services/realtime-ticket.service';
 import { RealtimeGatewayPort } from '../../contracts/realtime-gateway.interface';
 import type { RealtimePrincipal } from '../../contracts/realtime-session.contract';
@@ -163,11 +163,8 @@ export class SocketIoRealtimeGateway
       }
     }
 
-    // 3. If user belongs to any clinic staff role, join clinic room
-    const isClinicStaff = roles.some((r) =>
-      (CLINIC_STAFF_ROLES as readonly string[]).includes(r),
-    );
-    if (isClinicStaff) {
+    // 3. If user is internal clinic staff/admin, join clinic room
+    if (principal.audience === 'internal') {
       await client.join(REALTIME_ROOMS.clinic);
     }
 
@@ -292,12 +289,13 @@ export class SocketIoRealtimeGateway
       isTyping: Boolean(data.isTyping),
     });
 
-    // Also broadcast to role:admin room if sender is patient
-    if (senderRole === 'patient') {
-      this.server.to('role:admin').emit('chat:typing', {
+    // Also broadcast to clinic room if sender is external audience (patient/client)
+    const principal: RealtimePrincipal | undefined = client.data?.user;
+    if (principal?.audience === NOTIFICATION_AUDIENCE.EXTERNAL) {
+      this.server.to(REALTIME_ROOMS.clinic).emit('chat:typing', {
         conversationId: data.conversationId,
         senderId,
-        senderRole: 'patient',
+        senderRole,
         isTyping: Boolean(data.isTyping),
       });
     }

@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { RedisService } from '../../../../common/redis/redis.service';
 import { ClinicTimeService } from '../../../../common/time/clinic-time.service';
+import { NOTIFICATION_AUDIENCE } from '../../../../common/constants/notification-audience.constants';
 import { QueueEventPublisher } from '../../../queue-engine/application/services/queue-event-publisher.service';
 import { DOMAIN_APPOINTMENT_STATUS } from '../../domain/constants/appointment-lifecycle.constants';
 import type { AppointmentEntity } from '../../domain/entities/appointment.entity';
@@ -98,16 +99,7 @@ export class PerformCheckInUseCase {
       throw new NotFoundException('Janji temu tidak ditemukan.');
     }
 
-    const userRole = (
-      actorUser?.systemRole ||
-      (typeof actorUser?.role === 'object' && actorUser?.role !== null
-        ? actorUser.role.code || actorUser.role.name
-        : actorUser?.role)
-    )
-      ?.toString()
-      .toUpperCase();
-
-    if (actorUser && userRole === 'PATIENT') {
+    if (actorUser && actorUser.audience === NOTIFICATION_AUDIENCE.EXTERNAL) {
       const callerUserId = actorUser.id || actorUser.sub;
       const isOwner =
         callerUserId === appointment.patientUserId ||

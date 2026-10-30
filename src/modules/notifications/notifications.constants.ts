@@ -1,3 +1,5 @@
+import { NotificationAudienceTarget } from '../../common/constants/notification-audience.constants';
+
 export const NOTIFICATION_REPOSITORY = Symbol.for('NOTIFICATION_REPOSITORY');
 export const NOTIFICATION_PUBLISHER = Symbol.for('NOTIFICATION_PUBLISHER');
 export const REALTIME_GATEWAY_PORT = Symbol.for('REALTIME_GATEWAY_PORT');
@@ -55,12 +57,11 @@ export const REALTIME_ROOMS = {
   clinic: 'room:clinic',
 } as const;
 
-export interface NotificationEnvelopeV2 {
+export interface NotificationEnvelopeV2 extends NotificationAudienceTarget {
   schemaVersion: 2;
   id: string;
   eventId: string;
   correlationId?: string;
-  audience: 'patient' | 'clinic';
   recipientUserId: string;
   type: string;
   title: string;

@@ -435,6 +435,13 @@
       "when": 1791345000000,
       "tag": "0061_add_replacement_cleanup_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1791346000000,
+      "tag": "0062_hierarchical_dynamic_rbac",
+      "breakpoints": true
     }
   ]
 }

@@ -113,10 +113,17 @@ export class AuthUserMapper {
     const primaryStaffAddress =
       s?.addresses?.find((a: any) => a.isPrimary) || s?.addresses?.[0];
 
+    const isClinical =
+      s?.role?.isClinical ?? Boolean(s?.practitioners?.length);
+
     const staff = s
       ? {
           id: s.id,
           userId: s.userId,
+          roleId: s.roleId || s.role?.id || null,
+          roleCode: s.role?.code || null,
+          roleName: s.role?.name || null,
+          isClinical,
           practitionerId: s.practitioners?.[0]?.id ?? null,
           poliklinikId: s.primaryUnitId ?? null,
           poliklinikName: s.clinicUnit?.name ?? null,
@@ -179,16 +186,38 @@ export class AuthUserMapper {
       needsOnboarding = !patient;
     }
 
+    const permissionSet = new Set<string>();
+    for (const ur of sanitizedUser.userRoles_userId || []) {
+      for (const rp of ur.role?.rolePermissions || []) {
+        if (rp.permission?.code) permissionSet.add(rp.permission.code);
+      }
+    }
+    if (s?.role) {
+      for (const rp of s.role.rolePermissions || []) {
+        if (rp.permission?.code) permissionSet.add(rp.permission.code);
+      }
+    }
+
+    const audience: 'internal' | 'external' =
+      primaryRole?.audience ?? (s ? 'internal' : 'external');
+
     return {
       ...sanitizedUser,
       avatarUrl: avatar.url,
       avatar,
       systemRole,
-      role: {
-        id: primaryRole?.id,
-        code: primaryRole?.code,
-        name: systemRole,
-      },
+      audience,
+      role: primaryRole
+        ? {
+            id: primaryRole.id,
+            code: primaryRole.code,
+            name: primaryRole.name,
+            tier: primaryRole.tier,
+            audience: primaryRole.audience,
+            isClinical: primaryRole.isClinical,
+          }
+        : null,
+      permissions: Array.from(permissionSet),
       staff,
       patient,
       needsOnboarding,

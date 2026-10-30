@@ -163,9 +163,9 @@ export class LeavesController {
     description: 'Filter status (pending, approved, rejected, cancelled)',
   })
   @ApiQuery({
-    name: 'staffType',
+    name: 'roleId',
     required: false,
-    description: 'Filter jenis staf (doctor, midwife, worker)',
+    description: 'Filter berdasarkan ID peran staf',
   })
   @ApiOkResponse({ description: 'Daftar seluruh cuti staf berhasil diambil' })
   async getAllLeaves(

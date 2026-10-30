@@ -16,7 +16,6 @@ import {
   replacementOpportunities,
   REPLACEMENT_OPPORTUNITY_STATUS,
 } from '../../../../database/schema';
-import { STAFF_TYPES } from '../../../../common/constants/staff-types.constant';
 import { ClinicTimeService } from '../../../../common/time/clinic-time.service';
 import { NotificationGatewayService } from '../../../notifications/application/services/notification-gateway.service';
 import { RealtimeGatewayPort } from '../../../notifications/contracts/realtime-gateway.interface';
@@ -61,9 +60,8 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
       originalStaffRole:
         r.originalPractitioner?.medicalSpecialty?.name ||
         r.originalStaffProfile?.positionTitle ||
-        r.originalStaffProfile?.staffType ||
+        (r.originalStaffProfile as any)?.role?.name ||
         null,
-      originalStaffType: r.originalStaffProfile?.staffType || null,
       originalStaffAvatarUrl: r.originalStaffProfile?.avatarUrl || null,
       leaveReason: r.leaveRequest?.reason || null,
       claimedByStaffProfileId: r.claimedByStaffProfileId || null,
@@ -72,7 +70,7 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
       claimedByRole:
         r.claimedByPractitioner?.medicalSpecialty?.name ||
         r.claimedByStaffProfile?.positionTitle ||
-        r.claimedByStaffProfile?.staffType ||
+        (r.claimedByStaffProfile as any)?.role?.name ||
         null,
       claimedByAvatarUrl: r.claimedByStaffProfile?.avatarUrl || null,
       claimedAt: r.claimedAt ? new Date(r.claimedAt) : null,
@@ -174,7 +172,9 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
         gte(replacementOpportunities.workDate, todayStr),
       ),
       with: {
-        originalStaffProfile: true,
+        originalStaffProfile: {
+          with: { role: true },
+        },
       },
       orderBy: [asc(replacementOpportunities.workDate)],
     });
@@ -184,7 +184,7 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
       {
         staffProfileId: string;
         fullName: string;
-        staffType: string;
+        roleCode: string | null;
         avatarUrl: string | null;
         opportunityCount: number;
         earliestDate: string;
@@ -205,7 +205,7 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
           staffMap.set(staff.id, {
             staffProfileId: staff.id,
             fullName: staff.fullName,
-            staffType: staff.staffType,
+            roleCode: (staff as any)?.role?.code || null,
             avatarUrl: staff.avatarUrl || null,
             opportunityCount: 0,
             earliestDate: wDate,
@@ -406,9 +406,11 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
     const [originalStaff, claimingStaff] = await Promise.all([
       this.db.query.staffProfiles.findFirst({
         where: eq(staffProfiles.id, existing.originalStaffProfileId),
+        with: { role: true, practitioners: true },
       }),
       this.db.query.staffProfiles.findFirst({
         where: eq(staffProfiles.id, staffProfileId),
+        with: { role: true, practitioners: true },
       }),
     ]);
 
@@ -423,11 +425,11 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
     }
 
     const isOriginalClinical =
-      originalStaff?.staffType === STAFF_TYPES.DOCTOR ||
-      originalStaff?.staffType === STAFF_TYPES.MIDWIFE;
+      originalStaff?.role?.isClinical ??
+      Boolean(originalStaff?.practitioners && originalStaff.practitioners.length > 0);
     const isClaimingClinical =
-      claimingStaff.staffType === STAFF_TYPES.DOCTOR ||
-      claimingStaff.staffType === STAFF_TYPES.MIDWIFE;
+      claimingStaff.role?.isClinical ??
+      Boolean(claimingStaff.practitioners && claimingStaff.practitioners.length > 0);
 
     if (isOriginalClinical && !isClaimingClinical) {
       throw new BadRequestException(
@@ -543,9 +545,11 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
     const [originalStaff, targetStaff] = await Promise.all([
       this.db.query.staffProfiles.findFirst({
         where: eq(staffProfiles.id, existing.originalStaffProfileId),
+        with: { role: true, practitioners: true },
       }),
       this.db.query.staffProfiles.findFirst({
         where: eq(staffProfiles.id, staffProfileId),
+        with: { role: true, practitioners: true },
       }),
     ]);
 
@@ -560,11 +564,11 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
     }
 
     const isOriginalClinical =
-      originalStaff?.staffType === STAFF_TYPES.DOCTOR ||
-      originalStaff?.staffType === STAFF_TYPES.MIDWIFE;
+      originalStaff?.role?.isClinical ??
+      Boolean(originalStaff?.practitioners && originalStaff.practitioners.length > 0);
     const isTargetClinical =
-      targetStaff.staffType === STAFF_TYPES.DOCTOR ||
-      targetStaff.staffType === STAFF_TYPES.MIDWIFE;
+      targetStaff.role?.isClinical ??
+      Boolean(targetStaff.practitioners && targetStaff.practitioners.length > 0);
 
     if (isOriginalClinical && !isTargetClinical) {
       throw new BadRequestException(

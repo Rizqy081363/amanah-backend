@@ -222,10 +222,9 @@ export class DailyLeavePayrollService {
           continue;
         }
 
-        const staffType = staff.staffType?.toLowerCase() || 'worker';
         const rateRow = rates.find(
-          (r) => r.category.toLowerCase() === staffType,
-        );
+          (r) => Boolean(staff.roleId && r.roleId === staff.roleId),
+        ) || rates[0];
         const hourlyRate = Number(rateRow?.hourlyRate ?? 0);
 
         // Calculate consolidated scheduled shift sessions for targetDate

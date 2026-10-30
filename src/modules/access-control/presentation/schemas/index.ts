@@ -1,0 +1,5 @@
+export * from './role-param.schema';
+export * from './create-role.schema';
+export * from './update-role.schema';
+export * from './assign-permissions.schema';
+export * from './permission-param.schema';

@@ -1,8 +1,7 @@
 import { Temporal } from '@js-temporal/polyfill';
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
-import { SYSTEM_ROLES } from '../../../../auth/constants/auth.constants';
+import { NOTIFICATION_AUDIENCE } from '../../../../common/constants/notification-audience.constants';
 import type { AuthenticatedUser } from '../../../../common/auth/authenticated-user.interface';
-import { isAdminUser } from '../../../../common/auth/authenticated-user.interface';
 import type { ClinicConfigService } from '../../../../common/clinic-config/clinic-config.service';
 import {
   DomainForbiddenException,
@@ -482,7 +481,7 @@ async function validateRescheduleAuthorization(
   userId: string,
   user?: AuthenticatedUser,
 ): Promise<{ isAdmin: boolean }> {
-  if (user && (isAdminUser(user) || user.systemRole === SYSTEM_ROLES.STAF)) {
+  if (user && user.audience === NOTIFICATION_AUDIENCE.INTERNAL) {
     return { isAdmin: true };
   }
 

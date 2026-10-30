@@ -12,7 +12,7 @@ import {
 import { formatBloodTypeDisplay } from '../../patients/domain/data/patient-reference.data';
 
 export interface FormRequirementResponse {
-  flow: 'immunization' | 'pregnancy' | 'general';
+  flow: string;
   serviceId: string;
   serviceName: string;
   isExistingPatient: boolean;
@@ -35,16 +35,12 @@ export class FormRequirementService {
     patientId?: string,
     user?: any,
   ): Promise<FormRequirementResponse> {
-    const [service] = await this.db
-      .select({
-        id: clinicServices.id,
-        name: clinicServices.name,
-        code: clinicServices.code,
-        medicalFlow: clinicServices.medicalFlow,
-      })
-      .from(clinicServices)
-      .where(eq(clinicServices.id, serviceId))
-      .limit(1);
+    const service = await this.db.query.clinicServices.findFirst({
+      where: eq(clinicServices.id, serviceId),
+      with: {
+        intakeForm: true,
+      },
+    });
 
     if (!service) {
       throw new NotFoundException({
@@ -53,12 +49,7 @@ export class FormRequirementService {
       });
     }
 
-    const flow =
-      service.medicalFlow === 'pregnancy'
-        ? 'pregnancy'
-        : service.medicalFlow === 'immunization'
-          ? 'immunization'
-          : 'general';
+    const flow = service.intakeForm?.code || 'general';
 
     if (!patientId) {
       return {

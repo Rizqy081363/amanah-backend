@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { asc, eq, or } from 'drizzle-orm';
+import { and, asc, eq, or } from 'drizzle-orm';
 import { RedisService } from '../../../../common/redis/redis.service';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
@@ -64,12 +64,7 @@ export class ClinicDrizzleRepository implements ClinicRepository {
         const records = await this.db.query.clinicUnits.findMany({
           where: eq(clinicUnits.isActive, true),
         });
-        const polis = records
-          .filter(
-            (u) => u.unitType === 'polyclinic' || u.code.startsWith('poli_'),
-          )
-          .map((r) => this.mapUnitToPoli(r));
-        return polis;
+        return records.map((r) => this.mapUnitToPoli(r));
       },
       600, // 10 minutes cache
     );
@@ -154,11 +149,6 @@ export class ClinicDrizzleRepository implements ClinicRepository {
         name: data.namaLayanan,
         description: data.deskripsi || null,
         codePrefix: prefix,
-        medicalFlow:
-          data.medicalFlow === 'pregnancy' ||
-          data.medicalFlow === 'immunization'
-            ? data.medicalFlow
-            : null,
         isBookable: true,
         isActive: true,
       })
@@ -170,7 +160,7 @@ export class ClinicDrizzleRepository implements ClinicRepository {
       poliklinikId,
       name: record.name,
       description: record.description || null,
-      medicalFlow: (record.medicalFlow as any) || 'general',
+      medicalFlow: (data.medicalFlow as any) || 'general',
       isActive: record.isActive,
       createdAt: new Date(record.createdAt),
     };
@@ -182,42 +172,38 @@ export class ClinicDrizzleRepository implements ClinicRepository {
     return this.redis.getOrSet(
       `clinics:layanan:poli:${poliklinikId}`,
       async () => {
-        const unit = await this.db.query.clinicUnits.findFirst({
-          where: eq(clinicUnits.id, poliklinikId),
+        const categories = await this.db.query.serviceCategories.findMany({
+          where: and(
+            eq(serviceCategories.unitId, poliklinikId),
+            eq(serviceCategories.isActive, true),
+          ),
+          with: {
+            clinicServices: {
+              where: eq(clinicServices.isActive, true),
+              orderBy: [asc(clinicServices.displayOrder)],
+              with: {
+                intakeForm: true,
+              },
+            },
+          },
         });
 
-        const allServices = await this.db.query.clinicServices.findMany({
-          where: eq(clinicServices.isActive, true),
-        });
-
-        let filtered = allServices;
-        if (unit?.code.includes('kia')) {
-          filtered = allServices.filter(
-            (s) =>
-              s.medicalFlow === 'pregnancy' ||
-              s.medicalFlow === 'immunization' ||
-              s.codePrefix === 'KIA' ||
-              s.codePrefix === 'IM',
-          );
-        } else if (unit?.code.includes('umum')) {
-          filtered = allServices.filter(
-            (s) =>
-              !s.medicalFlow ||
-              (s.medicalFlow as string) === 'general' ||
-              s.codePrefix === 'UM' ||
-              s.codePrefix === 'KD',
-          );
+        const services: LayananPoliEntity[] = [];
+        for (const cat of categories) {
+          for (const s of cat.clinicServices || []) {
+            services.push({
+              id: s.id,
+              poliklinikId,
+              name: s.name,
+              description: s.description || null,
+              intakeFormId: s.intakeFormId || null,
+              medicalFlow: s.intakeForm?.code || 'general',
+              isActive: s.isActive,
+              createdAt: new Date(s.createdAt),
+            });
+          }
         }
-
-        return filtered.map((r) => ({
-          id: r.id,
-          poliklinikId,
-          name: r.name,
-          description: r.description || null,
-          medicalFlow: (r.medicalFlow as any) || 'general',
-          isActive: r.isActive,
-          createdAt: new Date(r.createdAt),
-        }));
+        return services;
       },
       600,
     );
@@ -226,6 +212,9 @@ export class ClinicDrizzleRepository implements ClinicRepository {
   async findLayananById(id: string): Promise<LayananPoliEntity | null> {
     const record = await this.db.query.clinicServices.findFirst({
       where: eq(clinicServices.id, id),
+      with: {
+        intakeForm: true,
+      },
     });
     if (!record) return null;
     return {
@@ -233,7 +222,8 @@ export class ClinicDrizzleRepository implements ClinicRepository {
       poliklinikId: '',
       name: record.name,
       description: record.description || null,
-      medicalFlow: (record.medicalFlow as any) || 'general',
+      intakeFormId: record.intakeFormId || null,
+      medicalFlow: record.intakeForm?.code || 'general',
       isActive: record.isActive,
       createdAt: new Date(record.createdAt),
     };
@@ -243,21 +233,16 @@ export class ClinicDrizzleRepository implements ClinicRepository {
     id: string,
     data: Partial<LayananPoliEntity>,
   ): Promise<LayananPoliEntity | null> {
-    const updateValues: Record<string, any> = {
+    const updates: Record<string, any> = {
       updatedAt: new Date().toISOString(),
     };
-    if (data.name !== undefined) updateValues.name = data.name;
-    if (data.description !== undefined) updateValues.description = data.description;
-    if (data.medicalFlow !== undefined)
-      updateValues.medicalFlow =
-        data.medicalFlow === 'pregnancy' || data.medicalFlow === 'immunization'
-          ? data.medicalFlow
-          : null;
-    if (data.isActive !== undefined) updateValues.isActive = data.isActive;
+    if (data.name !== undefined) updates.name = data.name;
+    if (data.description !== undefined) updates.description = data.description;
+    if (data.isActive !== undefined) updates.isActive = data.isActive;
 
     const [updated] = await this.db
       .update(clinicServices)
-      .set(updateValues)
+      .set(updates)
       .where(eq(clinicServices.id, id))
       .returning();
 
@@ -271,7 +256,7 @@ export class ClinicDrizzleRepository implements ClinicRepository {
           poliklinikId: data.poliklinikId || '',
           name: updated.name,
           description: updated.description || null,
-          medicalFlow: (updated.medicalFlow as any) || 'general',
+          medicalFlow: (data.medicalFlow as any) || 'general',
           isActive: updated.isActive,
           createdAt: new Date(updated.createdAt),
         }
@@ -291,20 +276,16 @@ export class ClinicDrizzleRepository implements ClinicRepository {
     return this.redis.getOrSet(
       'clinics:catalog',
       async () => {
-        const units = await this.db.query.clinicUnits.findMany({
-          where: eq(clinicUnits.isActive, true),
-        });
-        const poliUmum = units.find((u) => u.code.includes('umum'));
-        const poliKia = units.find((u) => u.code.includes('kia'));
-
         const categories = await this.db.query.serviceCategories.findMany({
           where: eq(serviceCategories.isActive, true),
           orderBy: [asc(serviceCategories.displayOrder)],
           with: {
+            clinicUnit: true,
             clinicServices: {
               where: eq(clinicServices.isActive, true),
               orderBy: [asc(clinicServices.displayOrder)],
               with: {
+                intakeForm: true,
                 clinicServiceComplaints: {
                   orderBy: [asc(clinicServiceComplaints.displayOrder)],
                 },
@@ -314,17 +295,14 @@ export class ClinicDrizzleRepository implements ClinicRepository {
         });
 
         return categories.map((cat) => {
-          const isKia =
-            cat.code.includes('kebidanan') || cat.code.includes('kia');
-          const matchedUnit = isKia ? poliKia || poliUmum : poliUmum || poliKia;
-          const poliklinikId = matchedUnit?.id || '';
-          const poliklinikName =
-            matchedUnit?.name || (isKia ? 'Poli KIA' : 'Poli Umum');
+          const poliklinikId = cat.unitId || '';
+          const poliklinikName = cat.clinicUnit?.name || cat.name;
 
           return {
             id: cat.id,
             code: cat.code,
             name: cat.name,
+            iconName: cat.iconName || 'folder',
             description: cat.description || null,
             displayOrder: cat.displayOrder,
             poliklinikId,
@@ -335,9 +313,12 @@ export class ClinicDrizzleRepository implements ClinicRepository {
               name: srv.name,
               prefix: srv.codePrefix,
               description: srv.description || null,
-              imageUrl: srv.imageUrl || null,
+              iconName: srv.iconName || 'stethoscope',
               specialtyCode: srv.specialtyId || null,
-              medicalFlow: (srv.medicalFlow as any) || null,
+              intakeFormId: srv.intakeFormId || null,
+              intakeFormCode: srv.intakeForm?.code || null,
+              intakeFormName: srv.intakeForm?.name || null,
+              medicalFlow: (srv.intakeForm?.code as any) || null,
               displayOrder: srv.displayOrder,
               poliklinikId,
               poliklinikName,

@@ -21,6 +21,7 @@ import { HealthModule } from './health/health.module';
 import { HomeModule } from './home/home.module';
 import mailConfig from './mail/config/mail.config';
 import { MailModule } from './mail/mail.module';
+import { AccessControlModule } from './modules/access-control/access-control.module';
 import { AppointmentsModule } from './modules/appointments/appointments.module';
 import { AttendanceModule } from './modules/attendance/attendance.module';
 import { AuditModule } from './modules/audit/audit.module';
@@ -81,6 +82,7 @@ import { validateEnvironment } from './config/env';
     ClinicsModule,
     PatientsModule,
     StaffsModule,
+    AccessControlModule,
     SchedulesModule,
     AppointmentsModule,
     MedicalRecordsModule,

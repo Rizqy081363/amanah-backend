@@ -130,16 +130,12 @@ export class PatientAffiliationsController {
       });
     }
 
-    const [service] = await this.db
-      .select({
-        id: clinicServices.id,
-        name: clinicServices.name,
-        code: clinicServices.code,
-        medicalFlow: clinicServices.medicalFlow,
-      })
-      .from(clinicServices)
-      .where(eq(clinicServices.id, serviceId))
-      .limit(1);
+    const service = await this.db.query.clinicServices.findFirst({
+      where: eq(clinicServices.id, serviceId),
+      with: {
+        intakeForm: true,
+      },
+    });
 
     if (!service) {
       throw new NotFoundException({
@@ -148,19 +144,8 @@ export class PatientAffiliationsController {
       });
     }
 
-    const flow =
-      service.medicalFlow === 'pregnancy'
-        ? 'pregnancy'
-        : service.medicalFlow === 'immunization'
-          ? 'immunization'
-          : 'general';
-
-    const formType =
-      flow === 'pregnancy'
-        ? 'pregnancy'
-        : flow === 'immunization'
-          ? 'immunization'
-          : 'regular';
+    const flow = service.intakeForm?.code || 'general';
+    const formType = flow === 'general' ? 'regular' : flow;
 
     const rawAffiliations = await this.affiliationRepo.findByUserId(user.id);
     const hasExistingSelf = rawAffiliations.some(

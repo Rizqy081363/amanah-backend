@@ -23,6 +23,10 @@ import {
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core';
+import {
+  DEFAULT_NOTIFICATION_AUDIENCE,
+  NOTIFICATION_AUDIENCES,
+} from '../../common/constants/notification-audience.constants';
 
 const citext = customType<{ data: string; driverData: string }>({
   dataType() {
@@ -234,7 +238,6 @@ export const staffStatus = pgEnum('staff_status', [
   'inactive',
   'on_leave',
 ]);
-export const staffType = pgEnum('staff_type', ['doctor', 'midwife', 'worker']);
 export const supportTicketPriority = pgEnum('support_ticket_priority', [
   'low',
   'normal',
@@ -509,6 +512,14 @@ export const roles = pgTable(
     name: text().notNull(),
     description: text(),
     isSystem: boolean('is_system').default(false).notNull(),
+    parentRoleId: uuid('parent_role_id'),
+    tier: varchar('tier', { length: 20, enum: ['macro', 'micro'] })
+      .default('macro')
+      .notNull(),
+    audience: varchar('audience', { length: 20, enum: ['internal', 'external'] })
+      .default('internal')
+      .notNull(),
+    isClinical: boolean('is_clinical').default(false).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
       .notNull(),
@@ -518,7 +529,17 @@ export const roles = pgTable(
   },
   (table) => [
     unique('roles_code_key').on(table.code),
+    foreignKey({
+      columns: [table.parentRoleId],
+      foreignColumns: [table.id],
+      name: 'roles_parent_role_id_fkey',
+    }).onDelete('set null'),
+    index('roles_parent_role_id_idx').on(table.parentRoleId),
+    index('roles_tier_idx').on(table.tier),
+    index('roles_audience_idx').on(table.audience),
     check('roles_code_format', sql`code ~ '^[a-z][a-z0-9_]*$'::text`),
+    check('roles_tier_check', sql`tier IN ('macro', 'micro')`),
+    check('roles_audience_check', sql`audience IN ('internal', 'external')`),
   ],
 );
 
@@ -598,6 +619,7 @@ export const clinicUnits = pgTable(
     location: text(),
     floor: text(),
     queuePrefix: varchar('queue_prefix', { length: 8 }),
+    iconName: varchar('icon_name', { length: 64 }).default('building-2').notNull(),
     isActive: boolean('is_active').default(true).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
@@ -653,9 +675,11 @@ export const serviceCategories = pgTable(
   'service_categories',
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
+    unitId: uuid('unit_id'),
     code: text().notNull(),
     name: text().notNull(),
     codePrefix: varchar('code_prefix', { length: 8 }),
+    iconName: varchar('icon_name', { length: 64 }).default('folder').notNull(),
     description: text(),
     displayOrder: integer('display_order').default(0).notNull(),
     isActive: boolean('is_active').default(true).notNull(),
@@ -667,10 +691,48 @@ export const serviceCategories = pgTable(
       .notNull(),
   },
   (table) => [
+    index('service_categories_unit_idx').using(
+      'btree',
+      table.unitId.asc().nullsLast().op('uuid_ops'),
+    ),
+    foreignKey({
+      columns: [table.unitId],
+      foreignColumns: [clinicUnits.id],
+      name: 'service_categories_unit_id_fkey',
+    }).onDelete('set null'),
     unique('service_categories_code_key').on(table.code),
     check(
       'service_categories_code_format',
       sql`code ~ '^[a-z][a-z0-9_]*$'::text`,
+    ),
+  ],
+);
+
+export const clinicalIntakeForms = pgTable(
+  'clinical_intake_forms',
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    code: varchar('code', { length: 64 }).notNull(),
+    name: varchar('name', { length: 128 }).notNull(),
+    description: text(),
+    iconName: varchar('icon_name', { length: 64 }).default('clipboard-list').notNull(),
+    isActive: boolean('is_active').default(true).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    unique('clinical_intake_forms_code_key').on(table.code),
+    index('clinical_intake_forms_code_idx').using(
+      'btree',
+      table.code.asc().nullsLast().op('text_ops'),
+    ),
+    index('clinical_intake_forms_active_idx').using(
+      'btree',
+      table.isActive.asc().nullsLast().op('bool_ops'),
     ),
   ],
 );
@@ -681,14 +743,13 @@ export const clinicServices = pgTable(
     id: uuid().defaultRandom().primaryKey().notNull(),
     serviceCategoryId: uuid('service_category_id'),
     specialtyId: uuid('specialty_id'),
+    intakeFormId: uuid('intake_form_id'),
     code: text().notNull(),
     name: text().notNull(),
     shortName: text('short_name'),
     description: text(),
     codePrefix: varchar('code_prefix', { length: 8 }).notNull(),
-    medicalFlow: medicalFlowType('medical_flow'),
-    iconName: text('icon_name'),
-    imageUrl: text('image_url'),
+    iconName: text('icon_name').default('stethoscope'),
     displayOrder: integer('display_order').default(0).notNull(),
     isBookable: boolean('is_bookable').default(true).notNull(),
     isActive: boolean('is_active').default(true).notNull(),
@@ -704,6 +765,10 @@ export const clinicServices = pgTable(
       'btree',
       table.serviceCategoryId.asc().nullsLast().op('uuid_ops'),
     ),
+    index('clinic_services_intake_form_idx').using(
+      'btree',
+      table.intakeFormId.asc().nullsLast().op('uuid_ops'),
+    ),
     index('clinic_services_name_trgm_idx').using(
       'gin',
       table.name.asc().nullsLast().op('gin_trgm_ops'),
@@ -717,6 +782,11 @@ export const clinicServices = pgTable(
       columns: [table.specialtyId],
       foreignColumns: [medicalSpecialties.id],
       name: 'clinic_services_specialty_id_fkey',
+    }).onDelete('set null'),
+    foreignKey({
+      columns: [table.intakeFormId],
+      foreignColumns: [clinicalIntakeForms.id],
+      name: 'clinic_services_intake_form_id_fkey',
     }).onDelete('set null'),
     unique('clinic_services_code_key').on(table.code),
     check('clinic_services_code_format', sql`code ~ '^[a-z][a-z0-9_]*$'::text`),
@@ -1036,6 +1106,7 @@ export const staffProfiles = pgTable(
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
     userId: uuid('user_id'),
+    roleId: uuid('role_id'),
     primaryUnitId: uuid('primary_unit_id'),
     staffCode: text('staff_code').notNull(),
     fullName: text('full_name').notNull(),
@@ -1044,7 +1115,6 @@ export const staffProfiles = pgTable(
     gender: gender('gender'),
     nationalIdHash: text('national_id_hash'),
     nationalIdEncrypted: text('national_id_encrypted'),
-    staffType: staffType('staff_type').notNull(),
     status: staffStatus().default('active').notNull(),
     positionTitle: text('position_title'),
     departmentName: text('department_name'),
@@ -1065,15 +1135,12 @@ export const staffProfiles = pgTable(
       'gin',
       table.fullName.asc().nullsLast().op('gin_trgm_ops'),
     ),
-    index('staff_profiles_type_status_idx').using(
-      'btree',
-      table.staffType.asc().nullsLast().op('enum_ops'),
-      table.status.asc().nullsLast().op('enum_ops'),
-    ),
+    index('staff_profiles_status_idx').on(table.status),
     index('staff_profiles_unit_idx').using(
       'btree',
       table.primaryUnitId.asc().nullsLast().op('uuid_ops'),
     ),
+    index('staff_profiles_role_idx').on(table.roleId),
     index('staff_profiles_national_id_hash_idx')
       .on(table.nationalIdHash)
       .where(sql`national_id_hash IS NOT NULL`),
@@ -1081,6 +1148,11 @@ export const staffProfiles = pgTable(
       columns: [table.primaryUnitId],
       foreignColumns: [clinicUnits.id],
       name: 'staff_profiles_primary_unit_id_fkey',
+    }).onDelete('set null'),
+    foreignKey({
+      columns: [table.roleId],
+      foreignColumns: [roles.id],
+      name: 'staff_profiles_role_id_fkey',
     }).onDelete('set null'),
     foreignKey({
       columns: [table.userId],
@@ -1110,7 +1182,7 @@ export const staffInvitations = pgTable(
     id: uuid().defaultRandom().primaryKey().notNull(),
     email: citext('email').notNull(),
     roleCode: text('role_code').notNull(),
-    staffType: staffType('staff_type').notNull(),
+    roleId: uuid('role_id'),
     tokenHash: text('token_hash').notNull(),
     temporaryPasswordHash: text('temporary_password_hash'),
     invitedBy: uuid('invited_by'),
@@ -1136,6 +1208,7 @@ export const staffInvitations = pgTable(
     index('idx_staff_invitations_email').on(table.email),
     index('idx_staff_invitations_status').on(table.status),
     index('idx_staff_invitations_expires').on(table.expiresAt),
+    index('idx_staff_invitations_role').on(table.roleId),
     uniqueIndex('uq_staff_invitations_pending')
       .on(table.email, table.roleCode)
       .where(sql`status = 'pending'`),
@@ -1149,6 +1222,11 @@ export const staffInvitations = pgTable(
       foreignColumns: [users.id],
       name: 'staff_invitations_accepted_user_id_fkey',
     }).onDelete('set null'),
+    foreignKey({
+      columns: [table.roleId],
+      foreignColumns: [roles.id],
+      name: 'staff_invitations_role_id_fkey',
+    }).onDelete('cascade'),
     check(
       'staff_invitations_status_check',
       sql`status IN ('pending', 'accepted', 'expired', 'revoked')`,
@@ -1432,6 +1510,7 @@ export const staffLeaveRequests = pgTable(
     durationDays: integer('duration_days').notNull(),
     reason: text().notNull(),
     substitutePractitionerId: uuid('substitute_practitioner_id'),
+    substituteStaffProfileId: uuid('substitute_staff_profile_id'),
     substituteNameSnapshot: text('substitute_name_snapshot'),
     status: staffLeaveRequestStatus().default('pending').notNull(),
     scope: varchar('scope', { length: 20 }).default('full_day').notNull(),
@@ -1487,6 +1566,19 @@ export const staffLeaveRequests = pgTable(
       foreignColumns: [practitioners.id],
       name: 'staff_leave_requests_substitute_practitioner_id_fkey',
     }).onDelete('set null'),
+    foreignKey({
+      columns: [table.substituteStaffProfileId],
+      foreignColumns: [staffProfiles.id],
+      name: 'staff_leave_requests_substitute_staff_profile_id_fkey',
+    }).onDelete('set null'),
+    index('staff_leave_requests_substitute_staff_idx').using(
+      'btree',
+      table.substituteStaffProfileId.asc().nullsLast().op('uuid_ops'),
+    ),
+    check(
+      'staff_leave_requests_substitute_staff_not_self',
+      sql`(substitute_staff_profile_id IS NULL) OR (substitute_staff_profile_id <> staff_profile_id)`,
+    ),
     check(
       'staff_leave_requests_cancel_consistency',
       sql`((status = 'cancelled'::staff_leave_request_status) AND (cancelled_at IS NOT NULL)) OR (status <> 'cancelled'::staff_leave_request_status)`,
@@ -2254,7 +2346,13 @@ export const notifications = pgTable(
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
     category: notificationCategory().notNull(),
-    audience: text('audience').default('clinic'),
+    audience: varchar('audience', {
+      length: 20,
+      enum: NOTIFICATION_AUDIENCES,
+    })
+      .default(DEFAULT_NOTIFICATION_AUDIENCE)
+      .notNull(),
+    targetRoleId: uuid('target_role_id'),
     title: text(),
     senderName: text('sender_name'),
     senderRole: text('sender_role'),
@@ -2292,10 +2390,18 @@ export const notifications = pgTable(
         table.createdAt.desc().nullsFirst().op('timestamptz_ops'),
       )
       .where(sql`is_urgent`),
+    index('idx_notifications_target_role')
+      .on(table.targetRoleId)
+      .where(sql`target_role_id IS NOT NULL`),
     foreignKey({
       columns: [table.createdBy],
       foreignColumns: [users.id],
       name: 'notifications_created_by_fkey',
+    }).onDelete('set null'),
+    foreignKey({
+      columns: [table.targetRoleId],
+      foreignColumns: [roles.id],
+      name: 'notifications_target_role_id_fkey',
     }).onDelete('set null'),
     check(
       'notifications_body_not_blank',
@@ -2304,6 +2410,13 @@ export const notifications = pgTable(
     check(
       'notifications_metadata_object',
       sql`jsonb_typeof(metadata) = 'object'::text`,
+    ),
+    check(
+      'notifications_audience_check',
+      sql`${table.audience} IN (${sql.join(
+        NOTIFICATION_AUDIENCES.map((a) => sql.raw(`'${a}'`)),
+        sql`, `,
+      )})`,
     ),
   ],
 );

@@ -38,7 +38,15 @@ export class AuthAccountLifecycleService {
       with: {
         userRoles_userId: {
           with: {
-            role: true,
+            role: {
+              with: {
+                rolePermissions: {
+                  with: {
+                    permission: true,
+                  },
+                },
+              },
+            },
           },
         },
         staffProfiles: {
@@ -46,6 +54,15 @@ export class AuthAccountLifecycleService {
             practitioners: true,
             addresses: true,
             clinicUnit: true,
+            role: {
+              with: {
+                rolePermissions: {
+                  with: {
+                    permission: true,
+                  },
+                },
+              },
+            },
           },
         },
         patientProfiles: {

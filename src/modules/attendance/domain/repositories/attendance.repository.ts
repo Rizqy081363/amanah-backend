@@ -1,6 +1,5 @@
 import { AttendanceEntity } from '../entities/attendance.entity';
 import type { QrSessionEntity } from '../entities/qr-session.entity';
-import type { StaffType } from '../../../staffs/domain/constants/staff-invitation.constants';
 
 export const ATTENDANCE_REPOSITORY = 'ATTENDANCE_REPOSITORY';
 
@@ -21,7 +20,7 @@ export interface AttendanceExportCandidate {
   staffCode: string;
   fullName: string;
   avatarUrl: string | null;
-  staffType: StaffType;
+  roleCode?: string;
   positionTitle: string | null;
   specialtyName: string | null;
   totalAttendance: number;
@@ -235,7 +234,7 @@ export interface AttendanceRepository {
     staffCode: string;
     fullName: string;
     userId: string | null;
-    staffType?: string | null;
+    roleId?: string | null;
     positionTitle?: string | null;
     avatarUrl?: string | null;
     practitionerId?: string | null;

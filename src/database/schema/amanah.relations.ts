@@ -11,6 +11,7 @@ import {
   authTwoFactors,
   childImmunizationIntakes,
   clinicalEncounters,
+  clinicalIntakeForms,
   clinicRooms,
   clinicServiceComplaints,
   clinicServices,
@@ -162,9 +163,19 @@ export const userRolesRelations = relations(userRoles, ({ one }) => ({
   }),
 }));
 
-export const rolesRelations = relations(roles, ({ many }) => ({
+export const rolesRelations = relations(roles, ({ one, many }) => ({
   userRoles: many(userRoles),
   rolePermissions: many(rolePermissions),
+  parentRole: one(roles, {
+    fields: [roles.parentRoleId],
+    references: [roles.id],
+    relationName: 'roleHierarchy',
+  }),
+  childRoles: many(roles, {
+    relationName: 'roleHierarchy',
+  }),
+  staffProfiles: many(staffProfiles),
+  staffInvitations: many(staffInvitations),
 }));
 
 export const clinicRoomsRelations = relations(clinicRooms, ({ one, many }) => ({
@@ -181,10 +192,18 @@ export const clinicRoomsRelations = relations(clinicRooms, ({ one, many }) => ({
 
 export const clinicUnitsRelations = relations(clinicUnits, ({ many }) => ({
   clinicRooms: many(clinicRooms),
+  serviceCategories: many(serviceCategories),
   staffProfiles: many(staffProfiles),
   attendanceQrSessions: many(attendanceQrSessions),
   staffAttendanceRecords: many(staffAttendanceRecords),
 }));
+
+export const clinicalIntakeFormsRelations = relations(
+  clinicalIntakeForms,
+  ({ many }) => ({
+    clinicServices: many(clinicServices),
+  }),
+);
 
 export const clinicServicesRelations = relations(
   clinicServices,
@@ -197,6 +216,10 @@ export const clinicServicesRelations = relations(
       fields: [clinicServices.specialtyId],
       references: [medicalSpecialties.id],
     }),
+    intakeForm: one(clinicalIntakeForms, {
+      fields: [clinicServices.intakeFormId],
+      references: [clinicalIntakeForms.id],
+    }),
     clinicServiceComplaints: many(clinicServiceComplaints),
     appointments: many(appointments),
     queueTickets: many(queueTickets),
@@ -206,7 +229,11 @@ export const clinicServicesRelations = relations(
 
 export const serviceCategoriesRelations = relations(
   serviceCategories,
-  ({ many }) => ({
+  ({ one, many }) => ({
+    clinicUnit: one(clinicUnits, {
+      fields: [serviceCategories.unitId],
+      references: [clinicUnits.id],
+    }),
     clinicServices: many(clinicServices),
   }),
 );
@@ -316,6 +343,10 @@ export const staffProfilesRelations = relations(
       fields: [staffProfiles.userId],
       references: [users.id],
     }),
+    role: one(roles, {
+      fields: [staffProfiles.roleId],
+      references: [roles.id],
+    }),
     practitioners: many(practitioners),
     staffCredentials: many(staffCredentials),
     staffLeaveRequests: many(staffLeaveRequests),
@@ -348,6 +379,10 @@ export const staffInvitationsRelations = relations(
     acceptedUser: one(users, {
       fields: [staffInvitations.acceptedUserId],
       references: [users.id],
+    }),
+    role: one(roles, {
+      fields: [staffInvitations.roleId],
+      references: [roles.id],
     }),
   }),
 );
@@ -436,6 +471,11 @@ export const staffLeaveRequestsRelations = relations(
     staffProfile: one(staffProfiles, {
       fields: [staffLeaveRequests.staffProfileId],
       references: [staffProfiles.id],
+    }),
+    substituteStaffProfile: one(staffProfiles, {
+      fields: [staffLeaveRequests.substituteStaffProfileId],
+      references: [staffProfiles.id],
+      relationName: 'staffLeaveRequests_substituteStaffProfileId_staffProfiles_id',
     }),
     practitioner_substitutePractitionerId: one(practitioners, {
       fields: [staffLeaveRequests.substitutePractitionerId],
@@ -771,6 +811,10 @@ export const notificationsRelations = relations(
     user: one(users, {
       fields: [notifications.createdBy],
       references: [users.id],
+    }),
+    targetRole: one(roles, {
+      fields: [notifications.targetRoleId],
+      references: [roles.id],
     }),
     notificationActions: many(notificationActions),
     notificationRecipients: many(notificationRecipients),

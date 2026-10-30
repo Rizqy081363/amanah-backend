@@ -181,7 +181,7 @@ export class CandidateAssignmentService implements ICandidateAssignmentPort {
       {
         doctorName: updated.doctorName,
         roomName: updated.roomName,
-        type: 'doctor',
+        type: 'practitioner',
       },
       user,
     );

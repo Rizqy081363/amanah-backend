@@ -1,3 +1,4 @@
+import { NotificationAudienceTarget } from '../../../common/constants/notification-audience.constants';
 import {
   NotificationCategoryType,
   NotificationSourceDomain,
@@ -19,7 +20,8 @@ interface NotificationContent {
   data?: Record<string, unknown>;
 }
 
-export interface NotificationDispatchCommand {
+export interface NotificationDispatchCommand
+  extends Partial<NotificationAudienceTarget> {
   commandId: string;
   sourceDomain: NotificationSourceDomain | string;
   target: NotificationTarget;

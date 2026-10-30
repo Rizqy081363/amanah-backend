@@ -27,6 +27,7 @@ import {
 import { NotificationsController } from './presentation/notifications.controller';
 import { PushSubscriptionController } from './presentation/push-subscription.controller';
 import { RealtimeTicketController } from './presentation/realtime-ticket.controller';
+import { AdminBroadcastController } from './presentation/admin-broadcast.controller';
 import { NotificationRulesRegistry } from './registry/notification-rules-registry';
 
 @Global()
@@ -36,6 +37,7 @@ import { NotificationRulesRegistry } from './registry/notification-rules-registr
     NotificationsController,
     RealtimeTicketController,
     PushSubscriptionController,
+    AdminBroadcastController,
   ],
   providers: [
     RealtimeTicketService,

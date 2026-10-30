@@ -35,7 +35,10 @@ export class StaffEntity {
   poliklinikName?: string | null;
   fullName: string;
   profession: string;
-  staffType: 'doctor' | 'midwife' | 'worker';
+  roleId?: string | null;
+  roleCode?: string | null;
+  roleName?: string | null;
+  isClinical?: boolean;
   staffCode?: string;
   idCardNumber: string;
   licenseNumber?: string | null;

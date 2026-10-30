@@ -20,8 +20,8 @@ export class StaffInvitationDrizzleRepository
     return {
       id: r.id,
       email: r.email,
+      roleId: r.roleId,
       roleCode: r.roleCode,
-      staffType: r.staffType,
       tokenHash: r.tokenHash,
       temporaryPasswordHash: r.temporaryPasswordHash || null,
       invitedBy: r.invitedBy || null,
@@ -42,8 +42,8 @@ export class StaffInvitationDrizzleRepository
       .insert(staffInvitations)
       .values({
         email: data.email.toLowerCase().trim(),
+        roleId: data.roleId,
         roleCode: data.roleCode,
-        staffType: data.staffType,
         tokenHash: data.tokenHash,
         temporaryPasswordHash: data.temporaryPasswordHash || null,
         invitedBy: data.invitedBy || null,

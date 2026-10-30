@@ -23,9 +23,8 @@ import {
 } from '@nestjs/swagger';
 import { CurrentUser } from '../../../common/auth/current-user.decorator';
 import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
-import { Roles } from '../../../common/auth/roles.decorator';
-import { RolesGuard } from '../../../common/auth/roles.guard';
-import { SYSTEM_ROLES } from '../../../common/auth/roles.enum';
+import { PermissionsGuard } from '../../../common/auth/permissions.guard';
+import { RequirePermissions } from '../../../common/auth/permissions.decorator';
 import { AuthenticatedUser } from '../../../common/auth/authenticated-user.interface';
 import { AppointmentsService } from '../application/appointments.service';
 import { AppointmentCheckInReminderService } from '../application/services/appointment-check-in-reminder.service';
@@ -45,14 +44,14 @@ import { AppointmentDomainExceptionFilter } from './filters/appointment-domain-e
 
 @ApiTags('Admin Appointments (Manajemen Janji Temu & Antrean)')
 @ApiBearerAuth('access-token')
-@UseGuards(HybridAuthGuard, RolesGuard)
+@UseGuards(HybridAuthGuard, PermissionsGuard)
 @UseFilters(AppointmentDomainExceptionFilter)
-@Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+@RequirePermissions('appointments:manage')
 @ApiUnauthorizedResponse({
   description: 'Sesi autentikasi tidak valid atau token tidak disertakan',
 })
 @ApiForbiddenResponse({
-  description: 'Akses ditolak: Hanya administrator atau staf klinik',
+  description: 'Akses ditolak: Diperlukan izin appointments:manage',
 })
 @Controller({ path: 'admin/appointments', version: '1' })
 export class AdminAppointmentsController {

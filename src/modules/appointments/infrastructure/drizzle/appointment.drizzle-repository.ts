@@ -826,23 +826,28 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
       return Number(result?.val || 0) + 1;
     }
 
-    const unit = await this.db.query.clinicUnits.findFirst({
-      where: eq(clinicUnits.id, poliklinikId),
-    });
+    const rooms = await this.db
+      .select({ id: clinicRooms.id })
+      .from(clinicRooms)
+      .where(eq(clinicRooms.unitId, poliklinikId));
+    const roomIds = rooms.map((r) => r.id);
 
-    const isKia =
-      unit?.code === 'poli_kia' || unit?.name?.toLowerCase().includes('kia');
-    const catCode = isKia ? 'layanan_kebidanan' : 'layanan_umum';
     const category = await this.db.query.serviceCategories.findFirst({
-      where: eq(serviceCategories.code, catCode),
+      where: eq(serviceCategories.id, poliklinikId),
     });
 
-    const whereCondition = category
-      ? and(
-          eq(queueTickets.queueDate, date),
-          eq(queueTickets.categoryId, category.id),
-        )
-      : eq(queueTickets.queueDate, date);
+    const whereCondition =
+      roomIds.length > 0
+        ? and(
+            eq(queueTickets.queueDate, date),
+            inArray(queueTickets.roomId, roomIds),
+          )
+        : category
+          ? and(
+              eq(queueTickets.queueDate, date),
+              eq(queueTickets.categoryId, category.id),
+            )
+          : eq(queueTickets.queueDate, date);
 
     const [result] = await this.db
       .select({ val: count() })

@@ -6,7 +6,7 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
-import { SYSTEM_ROLES } from '../../../../common/auth/roles.enum';
+import { NOTIFICATION_AUDIENCE } from '../../../../common/constants/notification-audience.constants';
 import { RedisService } from '../../../../common/redis/redis.service';
 import { QueuePositionRecalculationService } from '../../../queue-engine/application/services/queue-position-recalculation.service';
 import { DOMAIN_APPOINTMENT_STATUS } from '../../domain/constants/appointment-lifecycle.constants';
@@ -50,7 +50,7 @@ export class CancelAppointmentUseCase {
     reason?: string,
     user?: any,
   ): Promise<AppointmentRecord> {
-    if (user && user.systemRole === SYSTEM_ROLES.PATIENT) {
+    if (user && user.audience === NOTIFICATION_AUDIENCE.EXTERNAL) {
       const existing = await this.appointmentRepo.findById(appointmentId);
       if (!existing) {
         throw new NotFoundException(

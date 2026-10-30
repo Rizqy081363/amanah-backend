@@ -49,13 +49,12 @@ export class CreateStaffDto {
   userId?: string;
 
   @ApiPropertyOptional({
-    description: 'Tipe peran staf operasional: doctor, midwife, atau worker',
-    enum: ['doctor', 'midwife', 'worker'],
-    example: 'doctor',
+    description: 'ID Peran dari tabel roles di database',
+    example: 'b39c7891-3918-441d-9ec6-8f4e9f280e07',
   })
   @IsString()
   @IsOptional()
-  staffType?: 'doctor' | 'midwife' | 'worker';
+  roleId?: string;
 
   @ApiPropertyOptional({ example: 'Jakarta' })
   @IsString()

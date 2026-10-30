@@ -2,6 +2,10 @@ import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { eq, sql } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import type { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
+import {
+  NOTIFICATION_AUDIENCE,
+  NotificationAudience,
+} from '../../../../common/constants/notification-audience.constants';
 import { roles, userRoles } from '../../../../database/schema';
 import { DeliveryChannelAdapter } from '../../contracts/delivery-channel.interface';
 import { DomainEvent } from '../../contracts/domain-event.interface';
@@ -78,11 +82,11 @@ export class NotificationOrchestratorService {
     const recipientId = intent.recipientUserId;
     if (!recipientId || typeof recipientId !== 'string') return;
 
-    // Invariant guard: Fail closed if recipient role is incompatible with audience
-    const roleCode = await this.getRecipientRole(recipientId);
-    if (!this.isAudienceRoleCompatible(intent.audience, roleCode)) {
+    // Invariant guard: Fail closed if recipient role audience is incompatible with intent audience
+    const recipientAudience = await this.getRecipientAudience(recipientId);
+    if (!this.isAudienceCompatible(intent.audience, recipientAudience)) {
       this.logger.warn(
-        `[INVARIANT GUARD] Dropped ${intent.audience} notification for recipient ${recipientId} (role=${roleCode ?? 'none'}). Fail-closed invariant triggered.`,
+        `[INVARIANT GUARD] Dropped ${intent.audience} notification for recipient ${recipientId} (recipientAudience=${recipientAudience ?? 'none'}). Fail-closed invariant triggered.`,
       );
       return;
     }
@@ -100,7 +104,9 @@ export class NotificationOrchestratorService {
         senderName: intent.senderName || 'Klinik Amanah',
         senderRole:
           intent.senderRole ||
-          (intent.audience === 'patient' ? 'Klinik' : 'Pendaftaran'),
+          (intent.audience === NOTIFICATION_AUDIENCE.EXTERNAL
+            ? 'Klinik'
+            : 'Pendaftaran'),
         badgeIcon: intent.badgeIcon || rule.badgeIcon,
         metaIcon: intent.metaIcon || rule.metaIcon,
         visualKey: intent.visualKey ?? null,
@@ -182,7 +188,7 @@ export class NotificationOrchestratorService {
         const persisted = await this.notificationRepo.createIfNotExists({
           idempotencyKey,
           category: rule.category,
-          audience: 'clinic',
+          audience: NOTIFICATION_AUDIENCE.INTERNAL,
           title,
           body,
           senderName: rule.senderName
@@ -229,39 +235,33 @@ export class NotificationOrchestratorService {
     }
   }
 
-  private async getRecipientRole(userId: string): Promise<string | null> {
+  private async getRecipientAudience(
+    userId: string,
+  ): Promise<NotificationAudience | null> {
     if (!this.db) return null;
     try {
       const records = await this.db
-        .select({ roleCode: sql`lower(${roles.code})` })
+        .select({ audience: roles.audience })
         .from(userRoles)
         .innerJoin(roles, sql`${userRoles.roleId} = ${roles.id}`)
         .where(eq(userRoles.userId, userId))
         .limit(1);
 
-      return (records[0]?.roleCode as string) || null;
+      return (records[0]?.audience as NotificationAudience) || null;
     } catch {
       return null;
     }
   }
 
-  private isAudienceRoleCompatible(
-    audience: 'patient' | 'clinic',
-    roleCode: string | null,
+  private isAudienceCompatible(
+    targetAudience: NotificationAudience,
+    recipientAudience: NotificationAudience | null,
   ): boolean {
-    const clinicRoles = [
-      'admin',
-      'staff_doctor',
-      'staff_midwife',
-      'staff_worker',
-      'frontdesk',
-    ];
-    if (audience === 'clinic') {
-      return Boolean(roleCode && clinicRoles.includes(roleCode.toLowerCase()));
+    if (targetAudience === NOTIFICATION_AUDIENCE.ALL) return true;
+    if (!recipientAudience) {
+      // Default unassigned user (e.g. registered patient) to external
+      return targetAudience === NOTIFICATION_AUDIENCE.EXTERNAL;
     }
-    if (audience === 'patient') {
-      return !roleCode || roleCode.toLowerCase() === 'patient';
-    }
-    return false;
+    return targetAudience === recipientAudience;
   }
 }

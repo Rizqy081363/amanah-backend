@@ -16,7 +16,8 @@ export interface AttendanceNotificationStaffInfo {
   fullName: string;
   staffCode: string;
   userId?: string | null;
-  staffType?: string | null;
+  roleId?: string | null;
+  roleCode?: string | null;
   positionTitle?: string | null;
   avatarUrl?: string | null;
   earnedAmount?: number;
@@ -45,8 +46,7 @@ export class AttendanceNotificationService {
       const staffName = staffInfo.fullName || '';
       const staffUserId = staffInfo.userId;
       const staffCode = staffInfo.staffCode || '';
-      const staffType = staffInfo.staffType || '';
-      const categoryLabel = staffInfo.positionTitle || staffType;
+      const categoryLabel = staffInfo.positionTitle || staffInfo.roleCode || '';
 
       // Determine the canonical event timestamp based on the recorded action:
       // For checkout, the event timestamp is checkOutAt; for checkin, it is checkInAt.

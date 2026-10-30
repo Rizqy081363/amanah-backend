@@ -76,7 +76,10 @@ export class GetDailyAttendanceBffUseCase {
         }
       }
 
-      const category = staff?.staffType || staff?.positionTitle || '';
+      const roleName = staff?.role?.name || staff?.positionTitle || '-';
+      const roleCode = staff?.role?.code || null;
+      const roleId = staff?.roleId || staff?.role?.id || null;
+      const isClinical = staff?.role?.isClinical ?? false;
 
       return {
         id: rec.id,
@@ -86,7 +89,11 @@ export class GetDailyAttendanceBffUseCase {
         avatar:
           staff?.avatarUrl ||
           (staff?.userId ? `/api/v1/users/${staff.userId}/avatar` : undefined),
-        kategori: category,
+        roleId,
+        roleCode,
+        roleName,
+        isClinical,
+        kategori: roleName,
         tanggal_presensi: rec.attendanceDate,
         waktu_presensi: checkInFormatted,
         checkInAt: rec.checkInAt ? new Date(rec.checkInAt).toISOString() : null,

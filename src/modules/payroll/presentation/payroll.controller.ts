@@ -32,7 +32,6 @@ import { Roles } from '../../../common/auth/roles.decorator';
 import { RolesGuard } from '../../../common/auth/roles.guard';
 import { SYSTEM_ROLES } from '../../../auth/constants/auth.constants';
 import { AuthenticatedUser } from '../../../common/auth/authenticated-user.interface';
-import { STAFF_TYPES } from '../../../common/constants/staff-types.constant';
 import { Idempotent } from '../../../common/decorators/idempotent.decorator';
 import { DailyLeavePayrollService } from '../application/services/daily-leave-payroll.service';
 import {
@@ -236,7 +235,8 @@ export class PayrollController {
         staffId: user.staff.id,
         staffCode: user.staff.staffCode || undefined,
         fullName: user.name,
-        staffType: user.staff.staffType || STAFF_TYPES.WORKER,
+        roleId: user.staff.roleId || undefined,
+        roleCode: user.staff.roleCode || undefined,
         positionTitle: user.staff.profession || undefined,
         departmentName: undefined,
         periodId,

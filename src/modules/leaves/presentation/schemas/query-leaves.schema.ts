@@ -7,11 +7,8 @@ export const QueryLeavesSchema = z.object({
       message: `Filter status harus salah satu dari: ${CANONICAL_LEAVE_STATUSES.join(', ')}`,
     })
     .optional(),
-  staffType: z
-    .enum(['doctor', 'midwife', 'worker'], {
-      message: "Filter jenis staf harus 'doctor', 'midwife', atau 'worker'",
-    })
-    .optional(),
+  roleId: z.string().uuid().optional(),
+  roleCode: z.string().optional(),
 });
 
 export type QueryLeavesInput = z.infer<typeof QueryLeavesSchema>;

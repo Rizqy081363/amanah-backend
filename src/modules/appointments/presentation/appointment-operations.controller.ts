@@ -20,6 +20,8 @@ import {
 } from '@nestjs/swagger';
 import { CurrentUser } from '../../../common/auth/current-user.decorator';
 import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
+import { PermissionsGuard } from '../../../common/auth/permissions.guard';
+import { RequirePermissions } from '../../../common/auth/permissions.decorator';
 import { Roles } from '../../../common/auth/roles.decorator';
 import { RolesGuard } from '../../../common/auth/roles.guard';
 import { SYSTEM_ROLES } from '../../../common/auth/roles.enum';
@@ -42,8 +44,8 @@ export class AppointmentOperationsController {
   ) {}
 
   @ApiBearerAuth('access-token')
-  @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('queue:serve')
   @Post(':id/start')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -53,14 +55,16 @@ export class AppointmentOperationsController {
   @ApiOkResponse({ description: 'Pemeriksaan dimulai' })
   @ApiNotFoundResponse({ description: 'Janji temu tidak ditemukan' })
   @ApiUnauthorizedResponse({ description: 'Token tidak valid' })
-  @ApiForbiddenResponse({ description: 'Akses ditolak' })
+  @ApiForbiddenResponse({
+    description: 'Akses ditolak: Diperlukan izin queue:serve',
+  })
   async startService(@Param('id') id: string, @CurrentUser() user?: AuthenticatedUser) {
     return this.startServiceUseCase.execute(id, user);
   }
 
   @ApiBearerAuth('access-token')
-  @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('queue:complete')
   @Post(':id/complete')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -71,7 +75,9 @@ export class AppointmentOperationsController {
   @ApiOkResponse({ description: 'Pemeriksaan selesai' })
   @ApiNotFoundResponse({ description: 'Janji temu tidak ditemukan' })
   @ApiUnauthorizedResponse({ description: 'Token tidak valid' })
-  @ApiForbiddenResponse({ description: 'Akses ditolak' })
+  @ApiForbiddenResponse({
+    description: 'Akses ditolak: Diperlukan izin queue:complete',
+  })
   async completeService(@Param('id') id: string, @CurrentUser() user?: AuthenticatedUser) {
     return this.completeServiceUseCase.execute(id, user);
   }
@@ -98,14 +104,17 @@ export class AppointmentOperationsController {
   }
 
   @ApiBearerAuth('access-token')
-  @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('appointments:manage')
   @Post('sweep-late')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Sapuan otomatis janji temu terlambat lebih dari 24 jam ke LATE',
   })
   @ApiOkResponse({ description: 'Sapuan lateness selesai dieksekusi' })
+  @ApiForbiddenResponse({
+    description: 'Akses ditolak: Diperlukan izin appointments:manage',
+  })
   async sweepLate() {
     const sweptCount = await this.sweepLateAppointmentsUseCase.execute();
     return { success: true, sweptCount };

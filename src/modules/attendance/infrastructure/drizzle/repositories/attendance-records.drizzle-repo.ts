@@ -245,10 +245,18 @@ export class AttendanceRecordsDrizzleRepo {
     return this.db.query.staffAttendanceRecords.findMany({
       where: eq(staffAttendanceRecords.attendanceDate, date),
       with: {
-        staffProfile: true,
+        staffProfile: {
+          with: {
+            role: true,
+          },
+        },
         replacementOpportunity: {
           with: {
-            originalStaffProfile: true,
+            originalStaffProfile: {
+              with: {
+                role: true,
+              },
+            },
           },
         },
       },

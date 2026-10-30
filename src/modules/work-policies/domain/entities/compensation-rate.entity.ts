@@ -1,6 +1,8 @@
 export class CompensationRateEntity {
   id: string;
-  category: 'doctor' | 'midwife' | 'worker';
+  roleId: string;
+  roleCode?: string | null;
+  roleName?: string | null;
   hourlyRate: number;
   overtimeHourlyRate: number;
   effectiveFrom: string;

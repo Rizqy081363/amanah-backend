@@ -4,7 +4,8 @@ export const STAFF_REPOSITORY = 'STAFF_REPOSITORY';
 
 export interface FindAllStaffOptions {
   status?: string;
-  staffType?: string;
+  roleId?: string;
+  roleCode?: string;
   profession?: string;
   poliklinikId?: string;
   search?: string;

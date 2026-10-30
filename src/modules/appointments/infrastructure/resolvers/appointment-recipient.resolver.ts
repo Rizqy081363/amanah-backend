@@ -1,14 +1,15 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
-import { eq, inArray, or, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, or } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import type { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
+  permissions,
   practitioners,
+  rolePermissions,
   roles,
   staffProfiles,
   userRoles,
 } from '../../../../database/schema';
-import { CLINIC_ADMIN_STAFF_ROLE_CODES } from '../../domain/constants/appointment-lifecycle.constants';
 
 @Injectable()
 export class AppointmentRecipientResolver {
@@ -21,11 +22,9 @@ export class AppointmentRecipientResolver {
   ) {}
 
   /**
-   * Resolves clinic recipients according to least privilege / need-to-know:
-   * 1. Clinic Admins (`admin`)
-   * 2. Clinic Frontdesk / Registration staff (`staff_worker`, `frontdesk`)
-   * 3. The specifically assigned Practitioner (`staffId`), if provided.
-   * Other doctors/midwives DO NOT receive the appointment notification.
+   * Resolves clinic recipients according to dynamic RBAC permissions and assignment:
+   * 1. Active internal staff whose role has appointment read/manage permissions
+   * 2. The specifically assigned Practitioner (staffId/practitionerId), if provided.
    */
   async resolveScopedClinicRecipients(
     assignedStaffId?: string | null,
@@ -35,20 +34,25 @@ export class AppointmentRecipientResolver {
     }
 
     try {
-      const adminWorkerRecords = await this.db
+      const authorizedStaff = await this.db
         .select({ userId: userRoles.userId })
         .from(userRoles)
-        .innerJoin(roles, sql`${userRoles.roleId} = ${roles.id}`)
+        .innerJoin(roles, eq(userRoles.roleId, roles.id))
+        .innerJoin(rolePermissions, eq(rolePermissions.roleId, roles.id))
+        .innerJoin(permissions, eq(rolePermissions.permissionId, permissions.id))
         .where(
-          inArray(sql`lower(${roles.code})`, [
-            'admin',
-            'staff_worker',
-            'frontdesk',
-          ]),
+          and(
+            eq(roles.audience, 'internal'),
+            isNull(userRoles.revokedAt),
+            inArray(permissions.code, [
+              'appointments:read',
+              'appointments:manage',
+            ]),
+          ),
         );
 
       const recipientIds = new Set<string>(
-        adminWorkerRecords
+        authorizedStaff
           .map((r) => r.userId)
           .filter((id): id is string => Boolean(id)),
       );
@@ -81,28 +85,10 @@ export class AppointmentRecipientResolver {
     }
   }
 
+  /**
+   * Resolves all active internal staff authorized to manage appointments.
+   */
   async resolveAdminAndStaffUserIds(): Promise<string[]> {
-    if (!this.db) {
-      return [];
-    }
-
-    try {
-      const records = await this.db
-        .select({ userId: userRoles.userId })
-        .from(userRoles)
-        .innerJoin(roles, sql`${userRoles.roleId} = ${roles.id}`)
-        .where(
-          inArray(
-            sql`lower(${roles.code})`,
-            CLINIC_ADMIN_STAFF_ROLE_CODES.map((code) => code.toLowerCase()),
-          ),
-        );
-
-      const userIds = records.map((r) => r.userId).filter(Boolean);
-      return Array.from(new Set(userIds));
-    } catch (error) {
-      this.logger.warn(`Failed to resolve admin and staff user IDs: ${error}`);
-      return [];
-    }
+    return this.resolveScopedClinicRecipients();
   }
 }

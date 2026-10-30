@@ -1,15 +1,15 @@
-import type { CanonicalRole } from '../../../auth/constants/auth.constants';
-
 export interface RealtimePrincipal {
   readonly userId: string;
-  readonly roleCode: CanonicalRole | string;
+  readonly roleCode: string;
   readonly roles: readonly string[];
+  readonly audience: 'internal' | 'external';
 }
 
 export interface RealtimeTicketPayload {
   readonly userId: string;
-  readonly roleCode: CanonicalRole | string;
+  readonly roleCode: string;
   readonly roles: readonly string[];
+  readonly audience: 'internal' | 'external';
   readonly issuedAt: number;
 }
 
@@ -17,6 +17,7 @@ export function createRealtimePrincipal(user: {
   id: string;
   roleCode: string;
   roles?: string[];
+  audience: 'internal' | 'external';
 }): RealtimePrincipal {
   return {
     userId: user.id,
@@ -25,5 +26,6 @@ export function createRealtimePrincipal(user: {
       Array.isArray(user.roles) && user.roles.length > 0
         ? user.roles
         : [user.roleCode],
+    audience: user.audience,
   };
 }

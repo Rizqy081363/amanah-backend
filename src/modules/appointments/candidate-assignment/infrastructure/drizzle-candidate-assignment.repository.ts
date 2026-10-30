@@ -185,6 +185,7 @@ export class DrizzleCandidateAssignmentRepository {
         staffProfile: {
           with: {
             clinicUnit: true,
+            role: true,
           },
         },
         medicalSpecialty: true,

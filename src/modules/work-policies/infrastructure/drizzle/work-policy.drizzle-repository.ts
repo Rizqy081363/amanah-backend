@@ -40,7 +40,9 @@ export class WorkPolicyDrizzleRepository implements WorkPolicyRepository {
   private mapCompensationRate(r: any): CompensationRateEntity {
     return {
       id: r.id,
-      category: r.category,
+      roleId: r.roleId,
+      roleCode: r.role?.code || null,
+      roleName: r.role?.name || null,
       hourlyRate: Number(r.hourlyRate),
       overtimeHourlyRate: Number(r.overtimeHourlyRate),
       effectiveFrom: r.effectiveFrom,
@@ -140,18 +142,19 @@ export class WorkPolicyDrizzleRepository implements WorkPolicyRepository {
   }
 
   async getActiveCompensationRates(): Promise<CompensationRateEntity[]> {
-    const records = await this.db
-      .select()
-      .from(compensationRates)
-      .where(eq(compensationRates.isActive, true))
-      .orderBy(compensationRates.category);
+    const records = await this.db.query.compensationRates.findMany({
+      where: eq(compensationRates.isActive, true),
+      with: {
+        role: true,
+      },
+    });
 
     return records.map((r) => this.mapCompensationRate(r));
   }
 
   async updateCompensationRates(
     rates: Array<{
-      category: 'doctor' | 'midwife' | 'worker';
+      roleId: string;
       hourlyRate: number;
       overtimeHourlyRate: number;
       notes?: string;
@@ -164,7 +167,7 @@ export class WorkPolicyDrizzleRepository implements WorkPolicyRepository {
         .from(compensationRates)
         .where(
           and(
-            eq(compensationRates.category, rate.category),
+            eq(compensationRates.roleId, rate.roleId),
             eq(compensationRates.isActive, true),
           ),
         )
@@ -182,7 +185,7 @@ export class WorkPolicyDrizzleRepository implements WorkPolicyRepository {
           .where(eq(compensationRates.id, existing.id));
       } else {
         await this.db.insert(compensationRates).values({
-          category: rate.category,
+          roleId: rate.roleId,
           hourlyRate: rate.hourlyRate.toString(),
           overtimeHourlyRate: rate.overtimeHourlyRate.toString(),
           notes: rate.notes || null,

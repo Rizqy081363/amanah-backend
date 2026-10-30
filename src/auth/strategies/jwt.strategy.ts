@@ -8,12 +8,10 @@ import { DRIZZLE_SOURCE } from '../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../database/drizzle/drizzle.provider';
 import { users } from '../../database/schema';
 import {
-  CANONICAL_ROLES,
   resolveSystemRole,
   SYSTEM_ROLES,
   type SystemRole,
 } from '../constants/auth.constants';
-import type { StaffType } from '../../common/constants/staff-types.constant';
 import { JwtPayloadType } from './types/jwt-payload.type';
 
 @Injectable()
@@ -40,12 +38,29 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       with: {
         userRoles_userId: {
           with: {
-            role: true,
+            role: {
+              with: {
+                rolePermissions: {
+                  with: {
+                    permission: true,
+                  },
+                },
+              },
+            },
           },
         },
         staffProfiles: {
           with: {
             practitioners: true,
+            role: {
+              with: {
+                rolePermissions: {
+                  with: {
+                    permission: true,
+                  },
+                },
+              },
+            },
           },
         },
         patientProfiles: true,
@@ -55,6 +70,9 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     if (!user) {
       throw new UnauthorizedException();
     }
+
+    const staffProfile = user.staffProfiles?.[0];
+    const patientProfile = user.patientProfiles?.[0];
 
     const primaryRole = user.userRoles_userId?.[0]?.role;
     const hasStaffProfiles = Boolean(
@@ -71,13 +89,29 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     const roleCode =
       primaryRole?.code ||
       (systemRole === SYSTEM_ROLES.ADMIN
-        ? CANONICAL_ROLES.ADMIN
+        ? 'admin'
         : systemRole === SYSTEM_ROLES.STAF
-          ? CANONICAL_ROLES.STAFF_WORKER
-          : CANONICAL_ROLES.PATIENT);
+          ? staffProfile?.role?.code || 'worker'
+          : 'patient');
 
-    const staffProfile = user.staffProfiles?.[0];
-    const patientProfile = user.patientProfiles?.[0];
+    const permissionSet = new Set<string>();
+    for (const ur of user.userRoles_userId || []) {
+      for (const rp of ur.role?.rolePermissions || []) {
+        if (rp.permission?.code) permissionSet.add(rp.permission.code);
+      }
+    }
+    if (staffProfile?.role) {
+      for (const rp of staffProfile.role.rolePermissions || []) {
+        if (rp.permission?.code) permissionSet.add(rp.permission.code);
+      }
+    }
+
+    const isClinical =
+      staffProfile?.role?.isClinical ??
+      Boolean(staffProfile?.practitioners?.length);
+
+    const audience: 'internal' | 'external' =
+      primaryRole?.audience ?? (staffProfile ? 'internal' : 'external');
 
     return {
       ...payload,
@@ -87,15 +121,25 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       systemRole,
       roleCode,
       roles: userRoleCodes.length > 0 ? userRoleCodes : [roleCode],
-      role: {
-        id: primaryRole?.id,
-        code: primaryRole?.code,
-        name: systemRole,
-      },
+      role: primaryRole
+        ? {
+            id: primaryRole.id,
+            code: primaryRole.code,
+            name: primaryRole.name,
+            tier: primaryRole.tier,
+            audience: primaryRole.audience,
+            isClinical: primaryRole.isClinical,
+          }
+        : null,
+      audience,
+      permissions: Array.from(permissionSet),
       staff: staffProfile
         ? {
             id: staffProfile.id,
-            staffType: staffProfile.staffType as StaffType,
+            roleId: staffProfile.roleId || staffProfile.role?.id || null,
+            roleCode: staffProfile.role?.code || null,
+            roleName: staffProfile.role?.name || null,
+            isClinical,
             practitionerId: staffProfile.practitioners?.[0]?.id || null,
             userId: user.id,
             poliklinikId: staffProfile.primaryUnitId,

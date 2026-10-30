@@ -1,3 +1,8 @@
+import {
+  NotificationAudience,
+  NotificationAudienceTarget,
+} from '../../../../common/constants/notification-audience.constants';
+
 export class NotificationActionEntity {
   id: string;
   notificationId: string;
@@ -20,10 +25,11 @@ export class NotificationRecipientEntity {
   createdAt: string;
 }
 
-export class NotificationEntity {
+export class NotificationEntity implements NotificationAudienceTarget {
   id: string;
   category: string;
-  audience?: 'patient' | 'clinic' | string | null;
+  audience: NotificationAudience;
+  targetRoleId?: string | null;
   title?: string | null;
   senderName?: string | null;
   senderRole?: string | null;

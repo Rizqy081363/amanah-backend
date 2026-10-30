@@ -1,6 +1,56 @@
+import { NotificationAudienceTarget } from '../../../../common/constants/notification-audience.constants';
+import {
+  NotificationCategoryType,
+  NOTIFICATION_REPOSITORY,
+} from '../../notifications.constants';
 import { NotificationEntity } from '../entities/notification.entity';
 
-export { NOTIFICATION_REPOSITORY } from '../../notifications.constants';
+export { NOTIFICATION_REPOSITORY };
+
+export interface NotificationActionInput {
+  label: string;
+  actionKey: string;
+  actionType?:
+    | 'primary'
+    | 'secondary'
+    | 'warning'
+    | 'info'
+    | 'danger'
+    | 'link'
+    | string;
+  url?: string;
+}
+
+export interface CreateNotificationInput
+  extends Partial<NotificationAudienceTarget> {
+  category: NotificationCategoryType | string;
+  title?: string;
+  body: string;
+  senderName?: string;
+  senderRole?: string;
+  isUrgent?: boolean;
+  recipientUserIds: string[];
+  actions?: NotificationActionInput[];
+}
+
+export interface CreateIfNotExistsInput
+  extends Partial<NotificationAudienceTarget> {
+  idempotencyKey?: string;
+  category: NotificationCategoryType | string;
+  title?: string | null;
+  body: string;
+  senderName?: string | null;
+  senderRole?: string | null;
+  badgeIcon?: string | null;
+  metaIcon?: string | null;
+  visualKey?: string | null;
+  isUrgent?: boolean;
+  sourceType?: string | null;
+  sourceId?: string | null;
+  metadata?: Record<string, any>;
+  recipientUserIds: string[];
+  actions?: NotificationActionInput[];
+}
 
 export abstract class NotificationRepository {
   abstract findMyNotifications(
@@ -20,66 +70,11 @@ export abstract class NotificationRepository {
 
   abstract markAllAsRead(userId: string): Promise<number>;
 
-  abstract createNotification(data: {
-    category:
-      | 'clinical'
-      | 'system'
-      | 'announcement'
-      | 'billing'
-      | 'schedule'
-      | 'attendance'
-      | 'permission'
-      | 'appointment'
-      | 'promotion'
-      | 'lab_result'
-      | 'queue'
-      | 'shift'
-      | 'pharmacy'
-      | 'telemedicine'
-      | 'support'
-      | string;
-    title?: string;
-    body: string;
-    senderName?: string;
-    senderRole?: string;
-    isUrgent?: boolean;
-    recipientUserIds: string[];
-    actions?: Array<{
-      label: string;
-      actionKey: string;
-      actionType?:
-        | 'primary'
-        | 'secondary'
-        | 'warning'
-        | 'info'
-        | 'danger'
-        | 'link'
-        | string;
-      url?: string;
-    }>;
-  }): Promise<NotificationEntity>;
+  abstract createNotification(
+    data: CreateNotificationInput,
+  ): Promise<NotificationEntity>;
 
-  abstract createIfNotExists(data: {
-    idempotencyKey?: string;
-    category: string;
-    audience?: 'patient' | 'clinic' | string;
-    title?: string | null;
-    body: string;
-    senderName?: string | null;
-    senderRole?: string | null;
-    badgeIcon?: string | null;
-    metaIcon?: string | null;
-    visualKey?: string | null;
-    isUrgent?: boolean;
-    sourceType?: string | null;
-    sourceId?: string | null;
-    metadata?: Record<string, any>;
-    recipientUserIds: string[];
-    actions?: Array<{
-      label: string;
-      actionKey: string;
-      actionType?: string;
-      url?: string;
-    }>;
-  }): Promise<NotificationEntity | null>;
+  abstract createIfNotExists(
+    data: CreateIfNotExistsInput,
+  ): Promise<NotificationEntity | null>;
 }

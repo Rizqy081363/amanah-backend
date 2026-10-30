@@ -403,7 +403,8 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
         staffProfileId: prac.staffProfileId,
         staffId: prac.staffProfileId,
         staffCode: prac.staffProfile?.staffCode || null,
-        staffType: prac.staffProfile?.staffType,
+        roleCode: (prac.staffProfile as any)?.role?.code ?? undefined,
+        isClinical: (prac.staffProfile as any)?.role?.isClinical ?? true,
         fullName: prac.staffProfile?.fullName || prac.displayName || '',
         specialty:
           prac.medicalSpecialty?.name ||

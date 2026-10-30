@@ -12,12 +12,18 @@ export class UpdateLayananDto {
   @IsOptional()
   deskripsi?: string;
 
-  @ApiPropertyOptional({
-    enum: ['general', 'pregnancy', 'immunization'],
-  })
-  @IsEnum(['general', 'pregnancy', 'immunization'])
+  @ApiPropertyOptional({ example: '123e4567-e89b-12d3-a456-426614174000', description: 'ID formulir intake (UUID)' })
+  @IsString()
   @IsOptional()
-  medicalFlow?: 'general' | 'pregnancy' | 'immunization';
+  intakeFormId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Kode alur medis klinis dinamis',
+    example: 'general',
+  })
+  @IsString()
+  @IsOptional()
+  medicalFlow?: string;
 
   @ApiPropertyOptional({ example: true })
   @IsBoolean()

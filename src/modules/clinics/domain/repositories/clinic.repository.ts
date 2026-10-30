@@ -24,7 +24,8 @@ export interface ClinicRepository {
     data: {
       namaLayanan: string;
       deskripsi?: string | null;
-      medicalFlow?: 'general' | 'pregnancy' | 'immunization';
+      intakeFormId?: string | null;
+      medicalFlow?: string;
     },
   ): Promise<LayananPoliEntity>;
   findLayananByPoliId(poliklinikId: string): Promise<LayananPoliEntity[]>;

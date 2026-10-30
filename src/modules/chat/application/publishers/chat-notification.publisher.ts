@@ -5,11 +5,9 @@ import {
   type DomainEvent,
   type NotificationPublisher,
 } from '../../../notifications/contracts/domain-event.interface';
+import { NOTIFICATION_AUDIENCE } from '../../../../common/constants/notification-audience.constants';
 import { NOTIFICATION_PUBLISHER } from '../../../notifications/notifications.constants';
-import {
-  CHAT_EVENTS,
-  CHAT_SUPPORT_ROLE_CODES,
-} from '../../domain/constants/chat-lifecycle.constants';
+import { CHAT_EVENTS } from '../../domain/constants/chat-lifecycle.constants';
 import { ChatMessageEntity } from '../../domain/entities/chat-message.entity';
 import { ConversationEntity } from '../../domain/entities/conversation.entity';
 
@@ -88,10 +86,10 @@ export class ChatNotificationPublisher {
             commandId: `chat-${message.id}-${Date.now()}`,
             sourceDomain: 'chat',
             target: {
-              type: 'role',
-              roles: Array.from(CHAT_SUPPORT_ROLE_CODES),
+              type: 'broadcast',
               excludedUserIds,
             },
+            audience: NOTIFICATION_AUDIENCE.INTERNAL,
             category: 'support',
             content: {
               title: `Pesan Chat: ${senderName}`,

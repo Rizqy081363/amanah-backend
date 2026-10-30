@@ -34,11 +34,14 @@ import {
 } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { SYSTEM_ROLES } from '../../../auth/constants/auth.constants';
+import { NOTIFICATION_AUDIENCE } from '../../../common/constants/notification-audience.constants';
 import type { AuthenticatedUser } from '../../../common/auth';
 import { CurrentUser } from '../../../common/auth/current-user.decorator';
 import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
 import { Roles } from '../../../common/auth/roles.decorator';
 import { RolesGuard } from '../../../common/auth/roles.guard';
+import { PermissionsGuard } from '../../../common/auth/permissions.guard';
+import { RequirePermissions } from '../../../common/auth/permissions.decorator';
 import { zodPipe } from '../../../common/validation';
 import { HttpCache } from '../../../common/decorators/http-cache.decorator';
 import { Idempotent } from '../../../common/decorators/idempotent.decorator';
@@ -104,8 +107,8 @@ export class AppointmentsController {
   }
 
   @ApiBearerAuth('access-token')
-  @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('appointments:read')
   @Get()
   @ApiOperation({
     summary: 'Mendapatkan daftar seluruh janji temu dengan filter dan paginasi',
@@ -114,14 +117,16 @@ export class AppointmentsController {
   })
   @ApiOkResponse({ description: 'Daftar janji temu berhasil diambil' })
   @ApiUnauthorizedResponse({ description: 'Sesi token tidak valid' })
-  @ApiForbiddenResponse({ description: 'Hanya Admin atau Staf yang diizinkan' })
+  @ApiForbiddenResponse({
+    description: 'Akses ditolak: Diperlukan izin appointments:read',
+  })
   async getAppointments(@Query() query: QueryAppointmentDto) {
     return this.appointmentsService.findAll(query);
   }
 
   @ApiBearerAuth('access-token')
-  @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('appointments:read')
   @Get('queue-navigation')
   @ApiOperation({
     summary:
@@ -134,7 +139,9 @@ export class AppointmentsController {
     type: QueueNavigationResponseDto,
   })
   @ApiUnauthorizedResponse({ description: 'Sesi token tidak valid' })
-  @ApiForbiddenResponse({ description: 'Hanya Admin atau Staf yang diizinkan' })
+  @ApiForbiddenResponse({
+    description: 'Akses ditolak: Diperlukan izin appointments:read',
+  })
   async getQueueNavigation(@Query() query: QueryQueueNavigationDto) {
     return this.appointmentsService.getQueueNavigation(query);
   }
@@ -259,8 +266,8 @@ export class AppointmentsController {
   }
 
   @ApiBearerAuth('access-token')
-  @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('appointments:read')
   @Get('doctor/processed')
   @ApiOperation({
     summary: 'Mendapatkan daftar antrean yang sedang dan telah diproses dokter',
@@ -315,7 +322,7 @@ export class AppointmentsController {
       throw new NotFoundException(`Kunjungan tidak ditemukan`);
     }
 
-    if (user.systemRole === SYSTEM_ROLES.PATIENT) {
+    if (user.audience === NOTIFICATION_AUDIENCE.EXTERNAL) {
       const isOwner =
         user.id === appointment.patientUserId ||
         user.id === appointment.parentUserId ||
@@ -372,8 +379,8 @@ export class AppointmentsController {
   }
 
   @ApiBearerAuth('access-token')
-  @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('appointments:manage')
   @Post(':id/check-in-qr')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -409,8 +416,8 @@ export class AppointmentsController {
   }
 
   @ApiBearerAuth('access-token')
-  @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('queue:call')
   @Patch(':id/call')
   @ApiOperation({
     summary: 'Staf/Dokter memanggil pasien ke ruang periksa (Mobile App)',
@@ -427,7 +434,9 @@ export class AppointmentsController {
   })
   @ApiNotFoundResponse({ description: 'Kunjungan tidak ditemukan' })
   @ApiUnauthorizedResponse({ description: 'Sesi token tidak valid' })
-  @ApiForbiddenResponse({ description: 'Hanya Staf/Dokter yang diizinkan' })
+  @ApiForbiddenResponse({
+    description: 'Akses ditolak: Diperlukan izin queue:call',
+  })
   async callPatient(
     @Param('id') id: string,
     @CurrentUser() user: any,
@@ -448,8 +457,8 @@ export class AppointmentsController {
   }
 
   @ApiBearerAuth('access-token')
-  @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('queue:complete')
   @Patch(':id/complete')
   @ApiOperation({
     summary: 'Menyelesaikan pemeriksaan pasien (Mobile App)',
@@ -593,8 +602,8 @@ export class AppointmentsController {
   }
 
   @ApiBearerAuth('access-token')
-  @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('appointments:manage')
   @Patch(':id/status')
   @ApiOperation({
     summary: 'Memperbarui status janji temu secara spesifik',
@@ -609,7 +618,9 @@ export class AppointmentsController {
   @ApiOkResponse({ description: 'Status kunjungan berhasil diperbarui' })
   @ApiNotFoundResponse({ description: 'Kunjungan tidak ditemukan' })
   @ApiUnauthorizedResponse({ description: 'Sesi token tidak valid' })
-  @ApiForbiddenResponse({ description: 'Hanya Admin atau Staf yang diizinkan' })
+  @ApiForbiddenResponse({
+    description: 'Akses ditolak: Diperlukan izin appointments:manage',
+  })
   @ApiUnprocessableEntityResponse({ description: 'Status baru tidak valid' })
   async updateStatus(
     @Param('id') id: string,
@@ -632,12 +643,12 @@ export class AppointmentsController {
   }
 
   @ApiBearerAuth('access-token')
-  @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles(SYSTEM_ROLES.ADMIN)
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('appointments:manage')
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
-    summary: 'Menghapus/Membatalkan data janji temu (Admin)',
+    summary: 'Menghapus/Membatalkan data janji temu (Admin/Staf)',
     description:
       'Soft delete data janji temu dari sistem manajemen antrean klinik.',
   })
@@ -649,7 +660,9 @@ export class AppointmentsController {
   @ApiNoContentResponse({ description: 'Janji temu berhasil dihapus' })
   @ApiNotFoundResponse({ description: 'Kunjungan tidak ditemukan' })
   @ApiUnauthorizedResponse({ description: 'Sesi token tidak valid' })
-  @ApiForbiddenResponse({ description: 'Hanya Admin yang diizinkan' })
+  @ApiForbiddenResponse({
+    description: 'Akses ditolak: Diperlukan izin appointments:manage',
+  })
   async deleteAppointment(@Param('id') id: string, @CurrentUser() user?: any) {
     await this.appointmentsService.delete(id, user);
   }

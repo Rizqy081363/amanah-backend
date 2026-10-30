@@ -24,7 +24,6 @@ import {
 } from '../../../database/schema';
 import {
   STAFF_INVITATION_STATUS,
-  STAFF_ROLE_CODES,
 } from '../../../modules/staffs/domain/constants/staff-invitation.constants';
 import {
   AUTH_ERROR_CODES,
@@ -296,10 +295,24 @@ export class AuthLoginService {
         accountId: verifiedGoogle.sub,
       });
 
-      const roleCode = pendingInvitation?.roleCode || STAFF_ROLE_CODES.WORKER;
-      const targetRole = await this.db.query.roles.findFirst({
-        where: eq(roles.code, roleCode),
-      });
+      let targetRole = pendingInvitation?.roleId
+        ? await this.db.query.roles.findFirst({
+            where: eq(roles.id, pendingInvitation.roleId),
+          })
+        : null;
+
+      if (!targetRole && pendingInvitation?.roleCode) {
+        targetRole = await this.db.query.roles.findFirst({
+          where: eq(roles.code, pendingInvitation.roleCode),
+        });
+      }
+
+      if (!targetRole) {
+        targetRole = await this.db.query.roles.findFirst({
+          where: eq(roles.code, 'worker'),
+        });
+      }
+
       if (targetRole) {
         await this.db.insert(userRoles).values({
           userId,

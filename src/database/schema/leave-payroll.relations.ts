@@ -1,6 +1,7 @@
 import { relations } from 'drizzle-orm/relations';
 import {
   practitioners,
+  roles,
   staffLeaveRequests,
   staffProfiles,
   users,
@@ -28,6 +29,10 @@ export const compensationRatesRelations = relations(
     user: one(users, {
       fields: [compensationRates.createdBy],
       references: [users.id],
+    }),
+    role: one(roles, {
+      fields: [compensationRates.roleId],
+      references: [roles.id],
     }),
   }),
 );

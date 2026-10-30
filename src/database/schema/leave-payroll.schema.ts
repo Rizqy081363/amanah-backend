@@ -15,6 +15,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import {
   practitioners,
+  roles,
   staffLeaveRequests,
   staffProfiles,
   users,
@@ -76,7 +77,7 @@ export const compensationRates = pgTable(
   'compensation_rates',
   {
     id: uuid('id').defaultRandom().primaryKey().notNull(),
-    category: varchar('category', { length: 30 }).notNull(), // 'doctor', 'midwife', 'worker'
+    roleId: uuid('role_id').references(() => roles.id, { onDelete: 'cascade' }),
     hourlyRate: numeric('hourly_rate', { precision: 12, scale: 2 })
       .default('0.00')
       .notNull(),
@@ -101,13 +102,9 @@ export const compensationRates = pgTable(
       .notNull(),
   },
   (table) => [
-    uniqueIndex('idx_compensation_rates_active_category')
-      .on(table.category)
+    uniqueIndex('idx_compensation_rates_active_role')
+      .on(table.roleId)
       .where(sql`is_active = TRUE`),
-    check(
-      'compensation_rates_category_check',
-      sql`${table.category} IN ('doctor', 'midwife', 'worker')`,
-    ),
     check(
       'compensation_rates_rates_check',
       sql`${table.hourlyRate} >= 0 AND ${table.overtimeHourlyRate} >= 0`,

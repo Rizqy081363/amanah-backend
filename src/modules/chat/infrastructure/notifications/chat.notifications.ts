@@ -1,4 +1,5 @@
 import { Injectable, Logger, OnModuleInit, Optional } from '@nestjs/common';
+import { NOTIFICATION_AUDIENCE } from '../../../../common/constants/notification-audience.constants';
 import { AppointmentRecipientResolver } from '../../../appointments/infrastructure/resolvers/appointment-recipient.resolver';
 import { NotificationIntent } from '../../../notifications/domain/entities/notification-rule.entity';
 import { NotificationRulesRegistry } from '../../../notifications/registry/notification-rules-registry';
@@ -43,7 +44,7 @@ export class ChatNotificationRules implements OnModuleInit {
 
             intents.push({
               recipientUserId: staffUserId,
-              audience: 'clinic',
+              audience: NOTIFICATION_AUDIENCE.INTERNAL,
               title: `Pesan Chat: ${payload.senderName || 'Pasien'}`,
               body:
                 payload.body && payload.body.length > 120
@@ -81,7 +82,7 @@ export class ChatNotificationRules implements OnModuleInit {
           if (!actor?.userId || actor.userId !== payload.patientUserId) {
             intents.push({
               recipientUserId: payload.patientUserId,
-              audience: 'patient',
+              audience: NOTIFICATION_AUDIENCE.EXTERNAL,
               title: 'Pesan Baru dari Klinik Amanah',
               body:
                 payload.body && payload.body.length > 120

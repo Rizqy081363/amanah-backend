@@ -100,42 +100,9 @@ export class AppointmentCreationHandler {
         with: {
           serviceCategory: true,
           medicalSpecialty: true,
+          intakeForm: true,
         },
       });
-
-      if (
-        clinicServiceRecord &&
-        (clinicServiceRecord.serviceCategory?.code === 'layanan_kebidanan' ||
-          clinicServiceRecord.medicalFlow === 'pregnancy' ||
-          clinicServiceRecord.medicalFlow === 'immunization')
-      ) {
-        const kiaUnit = await db.query.clinicUnits.findFirst({
-          where: eq(clinicUnits.code, 'poli_kia'),
-        });
-        if (kiaUnit) {
-          data.poliklinikId = kiaUnit.id;
-        }
-
-        if (practitionerId) {
-          const prac = await db.query.practitioners.findFirst({
-            where: eq(practitioners.id, practitionerId),
-            with: {
-              medicalSpecialty: true,
-              staffProfile: true,
-            },
-          });
-          const isMidwife = prac?.staffProfile?.staffType === 'midwife';
-          const isKiaSpecialty =
-            prac?.medicalSpecialty?.code ===
-            MEDICAL_SPECIALTY_CODES.MATERNAL_CHILD_HEALTH;
-          if (!isMidwife && !isKiaSpecialty) {
-            throw new DomainForbiddenException(
-              'Layanan KIA hanya dapat ditangani oleh Bidan atau Dokter Spesialis KIA',
-              'KIA_SPECIALTY_REQUIRED',
-            );
-          }
-        }
-      }
     }
 
     // Room and doctor assignment are runtime resources (assigned at call, not at booking)
@@ -226,7 +193,7 @@ export class AppointmentCreationHandler {
     }
 
     const effectiveMedicalFlow =
-      clinicServiceRecord?.medicalFlow || data.medicalFlow || null;
+      clinicServiceRecord?.intakeForm?.code || data.medicalFlow || null;
 
     const targetUnitId = data.poliklinikId;
     let unitPrefix: string | null = null;

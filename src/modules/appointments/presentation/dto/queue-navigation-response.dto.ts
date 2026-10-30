@@ -37,10 +37,10 @@ export class QueueNavigationUnitDto {
   @ApiProperty({ description: 'ID unit klinik / poliklinik (UUID)' })
   id: string;
 
-  @ApiProperty({ description: 'Kode unik unit (contoh: poli_umum)' })
+  @ApiProperty({ description: 'Kode unik unit' })
   code: string;
 
-  @ApiProperty({ description: 'Nama unit klinik (contoh: Poli Umum)' })
+  @ApiProperty({ description: 'Nama unit klinik' })
   name: string;
 
   @ApiProperty({

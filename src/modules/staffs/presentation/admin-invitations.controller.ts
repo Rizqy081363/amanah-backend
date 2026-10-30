@@ -26,24 +26,21 @@ import {
   AuthenticatedUser,
   CurrentUser,
   HybridAuthGuard,
-  Roles,
-  RolesGuard,
-  SYSTEM_ROLES,
+  PermissionsGuard,
+  RequirePermissions,
 } from '../../../common/auth';
 import { StaffInvitationService } from '../application/staff-invitation.service';
-import { InviteDoctorDto } from './dto/invite-doctor.dto';
-import { InviteStaffDto } from './dto/invite-staff.dto';
+import { InviteStaffUniversalDto } from './dto/invite-staff-universal.dto';
 
-@ApiTags('Admin Staff & Doctor Invitations')
+@ApiTags('Admin Staff Invitations')
 @ApiBearerAuth('access-token')
-@UseGuards(HybridAuthGuard, RolesGuard)
-@Roles(SYSTEM_ROLES.ADMIN)
+@UseGuards(HybridAuthGuard, PermissionsGuard)
 @ApiUnauthorizedResponse({
   description: 'Sesi autentikasi tidak valid atau token tidak disertakan',
 })
 @ApiForbiddenResponse({
   description:
-    'Akses ditolak: Hanya administrator yang dapat mengelola undangan',
+    'Akses ditolak: Pengguna tidak memiliki izin untuk mengelola undangan staf',
 })
 @Controller({ path: 'admin/invitations', version: '1' })
 export class AdminInvitationsController {
@@ -51,41 +48,26 @@ export class AdminInvitationsController {
     private readonly staffInvitationService: StaffInvitationService,
   ) {}
 
-  @Post('doctor')
+  @Post()
   @HttpCode(HttpStatus.CREATED)
+  @RequirePermissions('staff:invite')
   @ApiOperation({
-    summary: 'Undang dokter baru ke poliklinik (Admin)',
+    summary: 'Undang staf atau praktisi medis baru (Universal)',
     description:
-      'Membuat akun dokter, menetapkan peran staff_doctor, menghubungkan ke poliklinik, membuat praktisi medis, dan mengirim email kredensial login via Mailpit.',
+      'Mengundang staf atau praktisi baru berbasis pilihan roleId dari database. Secara otomatis membuat entitas praktisi jika peran bersifat klinis.',
   })
   @ApiCreatedResponse({
-    description: 'Undangan dokter berhasil dibuat dan email terkirim',
+    description: 'Undangan berhasil dibuat dan email terkirim',
   })
-  @ApiUnprocessableEntityResponse({
-    description: 'Data dokter atau email tidak valid',
-  })
-  async inviteDoctor(@CurrentUser() user: AuthenticatedUser, @Body() dto: InviteDoctorDto) {
-    return this.staffInvitationService.inviteDoctor(dto, user.id);
-  }
-
-  @Post('staff')
-  @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({
-    summary: 'Undang staf operasional atau bidan independen baru (Admin)',
-    description:
-      'Membuat akun staf/bidan operasional (bebas dari ikatan dokter), menetapkan peran, dan mengirim email kredensial login via Mailpit.',
-  })
-  @ApiCreatedResponse({
-    description: 'Undangan staf berhasil dibuat dan email terkirim',
-  })
-  @ApiUnprocessableEntityResponse({
-    description: 'Data staf atau email tidak valid',
-  })
-  async inviteStaff(@CurrentUser() user: AuthenticatedUser, @Body() dto: InviteStaffDto) {
-    return this.staffInvitationService.inviteStaff(dto, user.id);
+  async inviteUniversal(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: InviteStaffUniversalDto,
+  ) {
+    return this.staffInvitationService.inviteStaffUniversal(dto, user.id);
   }
 
   @Get('options')
+  @RequirePermissions('staff:invite')
   @ApiOperation({
     summary: 'Mendapatkan opsi dinamis form undangan (Peran Praktisi & Poliklinik)',
     description:
@@ -99,6 +81,7 @@ export class AdminInvitationsController {
   }
 
   @Get()
+  @RequirePermissions('staff:read')
   @ApiOperation({
     summary: 'Mendapatkan daftar seluruh undangan staf/dokter',
     description:
@@ -119,6 +102,7 @@ export class AdminInvitationsController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
+  @RequirePermissions('staff:manage')
   @ApiOperation({
     summary: 'Membatalkan (revoke) undangan staf/dokter',
   })

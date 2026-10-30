@@ -45,6 +45,7 @@ export class RealtimeTicketService {
       userId: principal.userId,
       roleCode: principal.roleCode,
       roles: principal.roles,
+      audience: principal.audience,
       issuedAt: Date.now(),
     };
 
@@ -109,6 +110,7 @@ export class RealtimeTicketService {
             userId: parsed.userId,
             roleCode: parsed.roleCode,
             roles: parsed.roles,
+            audience: parsed.audience,
           };
         }
         return null;
@@ -134,6 +136,7 @@ export class RealtimeTicketService {
       userId: entry.data.userId,
       roleCode: entry.data.roleCode,
       roles: entry.data.roles,
+      audience: entry.data.audience,
     };
   }
 

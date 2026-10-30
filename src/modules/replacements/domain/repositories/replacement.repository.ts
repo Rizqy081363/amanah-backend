@@ -15,7 +15,7 @@ export type ReplacementOpportunityFilter = {
 export interface ReplacementStaffFacetItem {
   staffProfileId: string;
   fullName: string;
-  staffType: string;
+  roleCode?: string | null;
   avatarUrl: string | null;
   opportunityCount: number;
   earliestDate: string;

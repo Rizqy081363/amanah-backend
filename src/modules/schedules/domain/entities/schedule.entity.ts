@@ -1,9 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import type { CanonicalStaffShift } from '../constants/schedule-shift.constants';
-import {
-  STAFF_TYPES,
-  type StaffType,
-} from '../../../../common/constants/staff-types.constant';
 
 export enum ScheduleOperationalStatus {
   OPEN = 'OPEN',
@@ -345,11 +341,14 @@ export class AdminDoctorScheduleCardEntity {
   staffCode?: string | null;
 
   @ApiPropertyOptional({
-    description: 'Tipe staf klinis (doctor, midwife, worker)',
-    enum: Object.values(STAFF_TYPES),
-    example: STAFF_TYPES.DOCTOR,
+    description: 'Kode peran staf (contoh: doctor, midwife, it_support)',
   })
-  staffType?: StaffType;
+  roleCode?: string;
+
+  @ApiPropertyOptional({
+    description: 'Flag penanda tenaga medis klinis',
+  })
+  isClinical?: boolean;
 
   @ApiProperty({ description: 'Nama lengkap dokter beserta gelar' })
   fullName: string;
@@ -594,11 +593,14 @@ export class AdminDoctorScheduleDetailData {
   staffCode?: string | null;
 
   @ApiPropertyOptional({
-    description: 'Tipe staf klinis (doctor, midwife, worker)',
-    enum: Object.values(STAFF_TYPES),
-    example: STAFF_TYPES.DOCTOR,
+    description: 'Kode peran staf (contoh: doctor, midwife, it_support)',
   })
-  staffType?: StaffType;
+  roleCode?: string;
+
+  @ApiPropertyOptional({
+    description: 'Flag penanda tenaga medis klinis',
+  })
+  isClinical?: boolean;
 
   @ApiProperty({ description: 'Nama dokter' })
   fullName: string;

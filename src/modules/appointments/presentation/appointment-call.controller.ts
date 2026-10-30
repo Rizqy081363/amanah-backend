@@ -26,9 +26,9 @@ import {
 } from '@nestjs/swagger';
 import { CurrentUser } from '../../../common/auth/current-user.decorator';
 import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
-import { Roles } from '../../../common/auth/roles.decorator';
-import { RolesGuard } from '../../../common/auth/roles.guard';
-import { SYSTEM_ROLES } from '../../../common/auth/roles.enum';
+import { PermissionsGuard } from '../../../common/auth/permissions.guard';
+import { RequirePermissions } from '../../../common/auth/permissions.decorator';
+import { NOTIFICATION_AUDIENCE } from '../../../common/constants/notification-audience.constants';
 import { AuthenticatedUser } from '../../../common/auth/authenticated-user.interface';
 import { AppointmentCallLifecycleService } from '../application/appointment-call-lifecycle.service';
 import { CallPatientUseCase } from '../application/use-cases/call-patient.use-case';
@@ -50,8 +50,8 @@ export class AppointmentCallController {
   ) {}
 
   @ApiBearerAuth('access-token')
-  @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('queue:call')
   @Post(':id/call')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -90,8 +90,8 @@ export class AppointmentCallController {
   }
 
   @ApiBearerAuth('access-token')
-  @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('queue:serve')
   @Post(':id/respond')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -118,8 +118,8 @@ export class AppointmentCallController {
   }
 
   @ApiBearerAuth('access-token')
-  @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF)
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('queue:skip')
   @Post(':id/no-show')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -150,8 +150,7 @@ export class AppointmentCallController {
   }
 
   @ApiBearerAuth('access-token')
-  @UseGuards(HybridAuthGuard, RolesGuard)
-  @Roles(SYSTEM_ROLES.ADMIN, SYSTEM_ROLES.STAF, SYSTEM_ROLES.PATIENT)
+  @UseGuards(HybridAuthGuard)
   @Get(':id/call-attempts')
   @ApiOperation({
     summary: 'Melihat riwayat percobaan pemanggilan pasien untuk appointment',
@@ -168,7 +167,7 @@ export class AppointmentCallController {
     @Param('id', new ParseUUIDPipe()) id: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    if (user.systemRole === SYSTEM_ROLES.PATIENT) {
+    if (user.audience === NOTIFICATION_AUDIENCE.EXTERNAL) {
       const details = await this.callRepo.getAppointmentWithDetails(id);
       if (!details) {
         throw new NotFoundException('Janji temu tidak ditemukan');

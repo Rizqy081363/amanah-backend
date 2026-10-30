@@ -46,14 +46,7 @@ export class AppointmentQueueNavigationService {
       .from(clinicUnits)
       .where(eq(clinicUnits.isActive, true));
 
-    // Focus on outpatient/clinical units (like poli_umum, poli_kia)
-    const clinicalUnits = unitsData.filter(
-      (u) =>
-        u.code.startsWith('poli_') ||
-        u.unitType === 'polyclinic' ||
-        u.unitType === 'emergency',
-    );
-    const activeUnits = clinicalUnits.length > 0 ? clinicalUnits : unitsData;
+    const activeUnits = unitsData;
 
     const doctorsData = await this.db
       .select({

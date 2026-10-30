@@ -6,3 +6,5 @@ export * from './roles.decorator';
 export * from './roles.guard';
 export * from './roles.enum';
 export * from './optional-hybrid-auth.guard';
+export * from './permissions.decorator';
+export * from './permissions.guard';

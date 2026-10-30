@@ -9,6 +9,7 @@ import { ClinicConfigService } from '../../../../common/clinic-config/clinic-con
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
+  roles,
   sessionDefs,
   staffAttendanceRecords,
   staffLeaveRequests,
@@ -20,7 +21,6 @@ import {
   payrollPeriods,
 } from '../../../../database/schema/leave-payroll.schema';
 import { calculateSessionNetHours } from '../../../schedules/domain/services/shift-duration.helper';
-import { STAFF_TYPES } from '../../../../common/constants/staff-types.constant';
 import { PAYROLL_PERIOD_STATUS } from '../../domain/constants/payroll.constants';
 import { PayrollEntryEntity } from '../../domain/entities/payroll-entry.entity';
 import { PayrollPeriodEntity } from '../../domain/entities/payroll-period.entity';
@@ -177,6 +177,7 @@ export class PayrollDrizzleRepository implements PayrollRepository {
 
     const staffList = await this.db.query.staffProfiles.findMany({
       with: {
+        role: true,
         practitioners: true,
       },
     });
@@ -239,7 +240,10 @@ export class PayrollDrizzleRepository implements PayrollRepository {
         staffCode: staff.staffCode || undefined,
         fullName: staff.fullName,
         avatarUrl: staff.avatarUrl || null,
-        staffType: staff.staffType,
+        roleId: staff.roleId || undefined,
+        roleCode: (staff as any).role?.code || undefined,
+        roleName: (staff as any).role?.name || undefined,
+        isClinical: (staff as any).role?.isClinical ?? false,
         positionTitle: staff.positionTitle || undefined,
         departmentName: staff.departmentName || undefined,
         practitionerId: staff.practitioners?.[0]?.id || null,
@@ -287,12 +291,15 @@ export class PayrollDrizzleRepository implements PayrollRepository {
       .from(compensationRates)
       .where(eq(compensationRates.isActive, true));
 
-    const rateMap = new Map<string, { hourly: number; overtime: number }>();
+    const rateByRole = new Map<string, { hourly: number; overtime: number }>();
     for (const r of rates) {
-      rateMap.set(r.category, {
+      const rateData = {
         hourly: Number(r.hourlyRate),
         overtime: Number(r.overtimeHourlyRate),
-      });
+      };
+      if (r.roleId) {
+        rateByRole.set(r.roleId, rateData);
+      }
     }
 
     // 2. Create or find payroll_period record
@@ -338,6 +345,7 @@ export class PayrollDrizzleRepository implements PayrollRepository {
       this.db.query.staffProfiles.findMany({
         where: eq(staffProfiles.status, 'active'),
         with: {
+          role: true,
           practitioners: true,
         },
       }),
@@ -380,8 +388,9 @@ export class PayrollDrizzleRepository implements PayrollRepository {
     );
 
     for (const staff of activeStaff) {
-      const staffType = (staff.staffType || STAFF_TYPES.WORKER).toLowerCase();
-      const rates = rateMap.get(staffType) ?? { hourly: 0, overtime: 0 };
+      const staffRate =
+        (staff.roleId ? rateByRole.get(staff.roleId) : undefined) ??
+        { hourly: 0, overtime: 0 };
 
       const practitionerId = staff.practitioners?.[0]?.id || null;
       const entriesToInsert: any[] = [];
@@ -401,7 +410,7 @@ export class PayrollDrizzleRepository implements PayrollRepository {
       for (const att of attendances) {
         const validatedHours = Number(att.validatedDurationHours) || 0;
         if (!att.isReplacement && validatedHours > 0) {
-          const shiftEarnings = validatedHours * rates.hourly;
+          const shiftEarnings = validatedHours * staffRate.hourly;
           entriesToInsert.push({
             payrollPeriodId: periodId,
             staffProfileId: staff.id,
@@ -410,9 +419,9 @@ export class PayrollDrizzleRepository implements PayrollRepository {
             sourceType: 'attendance',
             sourceId: att.id,
             quantityHours: validatedHours.toFixed(2),
-            hourlyRate: rates.hourly.toString(),
+            hourlyRate: staffRate.hourly.toString(),
             amount: shiftEarnings.toFixed(2),
-            description: `Pelayanan Klinis Terjadwal (${formatHours(validatedHours)} @ Rp${rates.hourly.toLocaleString('id-ID')}/jam)`,
+            description: `Pelayanan Klinis Terjadwal (${formatHours(validatedHours)} @ Rp${staffRate.hourly.toLocaleString('id-ID')}/jam)`,
           });
         }
       }
@@ -433,7 +442,7 @@ export class PayrollDrizzleRepository implements PayrollRepository {
       for (const l of leaves) {
         const leaveDays = l.durationDays || 1;
         const deductionHours = Number((leaveDays * defaultShiftNet).toFixed(2));
-        const deductionAmount = deductionHours * rates.hourly;
+        const deductionAmount = deductionHours * staffRate.hourly;
         entriesToInsert.push({
           payrollPeriodId: periodId,
           staffProfileId: staff.id,
@@ -442,7 +451,7 @@ export class PayrollDrizzleRepository implements PayrollRepository {
           sourceType: 'leave_request',
           sourceId: l.id,
           quantityHours: deductionHours.toFixed(2),
-          hourlyRate: rates.hourly.toString(),
+          hourlyRate: staffRate.hourly.toString(),
           amount: deductionAmount.toFixed(2),
           description: `Gaji di potong - Izin/cuti (${formatHours(deductionHours)})`,
         });
@@ -454,7 +463,7 @@ export class PayrollDrizzleRepository implements PayrollRepository {
         const repHours =
           Number(rep.validatedDurationHours) || getSessionNet(rep.sessionId);
         if (repHours > 0) {
-          const repAmount = repHours * rates.overtime;
+          const repAmount = repHours * staffRate.overtime;
           entriesToInsert.push({
             payrollPeriodId: periodId,
             staffProfileId: staff.id,
@@ -463,9 +472,9 @@ export class PayrollDrizzleRepository implements PayrollRepository {
             sourceType: 'attendance',
             sourceId: rep.id,
             quantityHours: repHours.toFixed(2),
-            hourlyRate: rates.overtime.toString(),
+            hourlyRate: staffRate.overtime.toString(),
             amount: repAmount.toFixed(2),
-            description: `Upah pengganti - Dinas pengganti/lembur (${formatHours(repHours)} x Rp ${rates.overtime.toLocaleString('id-ID')})`,
+            description: `Upah pengganti - Dinas pengganti/lembur (${formatHours(repHours)} x Rp ${staffRate.overtime.toLocaleString('id-ID')})`,
           });
         }
       }
@@ -515,7 +524,10 @@ export class PayrollDrizzleRepository implements PayrollRepository {
         staffCode: staff.staffCode || undefined,
         fullName: staff.fullName,
         avatarUrl: staff.avatarUrl || null,
-        staffType: staff.staffType,
+        roleId: staff.roleId || undefined,
+        roleCode: (staff as any).role?.code || undefined,
+        roleName: (staff as any).role?.name || undefined,
+        isClinical: (staff as any).role?.isClinical ?? false,
         positionTitle: staff.positionTitle || undefined,
         departmentName: staff.departmentName || undefined,
         practitionerId,
@@ -565,6 +577,7 @@ export class PayrollDrizzleRepository implements PayrollRepository {
       where: eq(staffProfiles.id, staffId),
       with: {
         practitioners: true,
+        role: true,
       },
       limit: 1,
     });
@@ -655,7 +668,8 @@ export class PayrollDrizzleRepository implements PayrollRepository {
       staffCode: staff.staffCode || undefined,
       fullName: staff.fullName,
       avatarUrl: staff.avatarUrl || null,
-      staffType: staff.staffType,
+      roleId: staff.roleId || undefined,
+      roleCode: (staff as any).role?.code || undefined,
       positionTitle: staff.positionTitle || undefined,
       departmentName: staff.departmentName || undefined,
       practitionerId: staff.practitioners?.[0]?.id || null,
@@ -867,18 +881,22 @@ export class PayrollDrizzleRepository implements PayrollRepository {
 
     // 2. Fetch staff profile & active compensation rate
     const [staff] = await this.db
-      .select()
+      .select({
+        id: staffProfiles.id,
+        roleId: staffProfiles.roleId,
+      })
       .from(staffProfiles)
       .where(eq(staffProfiles.id, input.staffProfileId))
       .limit(1);
 
-    const staffType = staff?.staffType?.toLowerCase() || STAFF_TYPES.WORKER;
     const rates = await this.db
       .select()
       .from(compensationRates)
       .where(eq(compensationRates.isActive, true));
 
-    const rateRow = rates.find((r) => r.category.toLowerCase() === staffType);
+    const rateRow = rates.find(
+      (r) => staff?.roleId && r.roleId === staff.roleId,
+    );
     const standardHourlyRate = Number(rateRow?.hourlyRate ?? 0);
     const overtimeHourlyRate = Number(rateRow?.overtimeHourlyRate ?? 0);
 
@@ -951,19 +969,27 @@ export class PayrollDrizzleRepository implements PayrollRepository {
   }
 
   async getPayrollFilterOptions(): Promise<PayrollFilterOptions> {
-    const periods = await this.db
-      .select({
-        id: payrollPeriods.id,
-        name: payrollPeriods.periodName,
-        status: payrollPeriods.status,
-        periodStart: payrollPeriods.periodStart,
-        periodEnd: payrollPeriods.periodEnd,
-      })
-      .from(payrollPeriods)
-      .orderBy(desc(payrollPeriods.periodStart));
+    const [periods, staffRoles] = await Promise.all([
+      this.db
+        .select({
+          id: payrollPeriods.id,
+          name: payrollPeriods.periodName,
+          status: payrollPeriods.status,
+          periodStart: payrollPeriods.periodStart,
+          periodEnd: payrollPeriods.periodEnd,
+        })
+        .from(payrollPeriods)
+        .orderBy(desc(payrollPeriods.periodStart)),
+      this.db
+        .select({
+          code: roles.code,
+        })
+        .from(roles)
+        .where(ne(roles.code, 'patient')),
+    ]);
 
     return {
-      categories: Object.values(STAFF_TYPES),
+      categories: staffRoles.map((r) => r.code),
       periods: periods.map((p) => ({
         ...p,
         status: p.status as any,

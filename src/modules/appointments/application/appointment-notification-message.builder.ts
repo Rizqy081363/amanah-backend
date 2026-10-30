@@ -77,17 +77,12 @@ export class AppointmentNotificationMessageBuilder {
       payload.queueNumber,
     );
     const patientName = payload.patientName || 'Pasien';
-    const doctorPrefix = payload.doctorName
-      ? payload.doctorName.startsWith('dr.') ||
-        payload.doctorName.startsWith('Dokter')
-        ? payload.doctorName
-        : `Dokter ${payload.doctorName}`
-      : 'Dokter';
+    const practitionerName = payload.doctorName || 'Praktisi';
 
     const location =
       payload.roomName || payload.poliklinikName || 'ruang periksa';
     const clinicTitle = 'Pemeriksaan Dimulai';
-    const clinicBody = `${doctorPrefix} sedang memproses pasien ${patientName} dengan nomor antrean ${queueNum}.`;
+    const clinicBody = `${practitionerName} sedang memproses pasien ${patientName} dengan nomor antrean ${queueNum}.`;
 
     return {
       clinicTitle,
