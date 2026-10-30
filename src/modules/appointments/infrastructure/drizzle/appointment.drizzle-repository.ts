@@ -72,12 +72,12 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
     if (this.clinicConfig) {
       try {
         return await this.clinicConfig.getCheckInWindowHours();
-      } catch (_) {}
+      } catch {}
     }
     if (this.policyReader) {
       try {
         return await this.policyReader.getCheckInWindowHours();
-      } catch (_) {}
+      } catch {}
     }
     return undefined;
   }
@@ -88,12 +88,12 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
     if (this.clinicConfig) {
       try {
         return await this.clinicConfig.getQueueThresholds();
-      } catch (_) {}
+      } catch {}
     }
     if (this.policyReader) {
       try {
         return await this.policyReader.getQueueThresholds();
-      } catch (_) {}
+      } catch {}
     }
     return undefined;
   }
@@ -134,7 +134,7 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
           )
           .catch(() => {});
       }
-    } catch (_) {}
+    } catch {}
   }
 
   private async mapAndSweep(

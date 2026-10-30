@@ -6,7 +6,6 @@ import {
   appointments,
   maternalAnamnesisResponses,
   maternalContraceptiveHistories,
-  maternalHealthConditionCatalog,
   maternalHealthConditionResponses,
   maternalHealthIntakes,
   maternalHusbandProfiles,

@@ -77,14 +77,14 @@ export class AppointmentHardenedDrizzleRepository
         const policy = await this.clinicConfig.getSchedulePolicy();
         this.cachedDurationMinutes = policy.defaultConsultationDurationMinutes;
         return this.cachedDurationMinutes;
-      } catch (_) {}
+      } catch {}
     }
     if (this.policyReader) {
       try {
         const policy = await this.policyReader.getClinicSchedulePolicy();
         this.cachedDurationMinutes = policy.durationMinutes;
         return this.cachedDurationMinutes;
-      } catch (_) {}
+      } catch {}
     }
     this.cachedDurationMinutes =
       CLINIC_POLICY_FALLBACK_CONFIG.consultationDurationMinutes;
@@ -188,7 +188,7 @@ export class AppointmentHardenedDrizzleRepository
           waitingPosition: input.queueNumber,
         });
       }
-    } catch (_) {}
+    } catch {}
 
     const full = await this.findById(inserted.id);
     return full!;
@@ -234,7 +234,7 @@ export class AppointmentHardenedDrizzleRepository
           updatedAt: new Date().toISOString(),
         })
         .where(eq(queueTickets.appointmentId, id));
-    } catch (_) {}
+    } catch {}
 
     const full = await this.findById(id);
     return full!;
@@ -412,7 +412,7 @@ export class AppointmentHardenedDrizzleRepository
         .update(queueTickets)
         .set(updateTicketPayload)
         .where(eq(queueTickets.appointmentId, input.id));
-    } catch (_) {}
+    } catch {}
 
     if (this.queuePositionRecalculationService && updated) {
       await this.queuePositionRecalculationService
@@ -558,7 +558,7 @@ export class AppointmentHardenedDrizzleRepository
     if (this.clinicConfig) {
       try {
         return await this.clinicConfig.getQueueThresholds();
-      } catch (_) {}
+      } catch {}
     }
     return undefined;
   }

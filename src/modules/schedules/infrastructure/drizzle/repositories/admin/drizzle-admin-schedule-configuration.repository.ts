@@ -21,7 +21,6 @@ import {
 } from '@database/schema';
 import {
   CreateSessionDefDto,
-  DeleteSessionDefDto,
   EvaluateScheduleImpactDto,
   ScheduleConfigurationImpactResultDto,
   SessionDefImpactDoctorDto,
@@ -45,7 +44,6 @@ import {
 } from '@modules/schedules/domain/services/shift-overlap.validator';
 import {
   reassignChronologicalSortOrders,
-  sortSessionsChronologically,
 } from '@modules/schedules/domain/services/session-chronology.service';
 import { and, asc, eq, ne } from 'drizzle-orm';
 import {

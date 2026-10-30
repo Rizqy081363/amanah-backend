@@ -106,7 +106,7 @@ export class AppointmentCheckInReminderService {
             skippedCount++;
             continue;
           }
-        } catch (_) {}
+        } catch {}
       }
 
       // 2. Check persistent DB deduplication

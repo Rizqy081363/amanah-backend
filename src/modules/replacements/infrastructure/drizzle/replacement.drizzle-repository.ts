@@ -249,7 +249,7 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
     };
   }
 
-  async cleanupExpiredOpportunities(leadHours: number = 2): Promise<number> {
+  async cleanupExpiredOpportunities(_leadHours: number = 2): Promise<number> {
     const todayStr = this.clinicTimeService.today();
     const nowTimeStr = new Date().toTimeString().substring(0, 8);
 

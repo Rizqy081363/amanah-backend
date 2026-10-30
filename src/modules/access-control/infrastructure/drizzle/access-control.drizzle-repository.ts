@@ -26,7 +26,6 @@ import {
 } from '../../domain/entities/role.entity';
 import {
   DEFAULT_ROLE_AUDIENCE,
-  ROLE_AUDIENCE,
 } from '../../../../common/constants/role-audience.constants';
 import { PermissionEntity } from '../../domain/entities/permission.entity';
 

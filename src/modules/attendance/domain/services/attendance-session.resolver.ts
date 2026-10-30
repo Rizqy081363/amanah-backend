@@ -59,7 +59,6 @@ export function resolveActiveSessionForCheckIn(
     candidateSessions,
     currentTime,
     checkInWindowMinutesBefore,
-    checkInWindowMinutesAfter,
     requestedShift,
     requestedSessionId,
     shiftHint,

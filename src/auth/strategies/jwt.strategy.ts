@@ -8,7 +8,6 @@ import { DRIZZLE_SOURCE } from '../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../database/drizzle/drizzle.provider';
 import { users } from '../../database/schema';
 import {
-  ROLE_AUDIENCE,
   type RoleAudience,
 } from '../../common/constants/role-audience.constants';
 import { JwtPayloadType } from './types/jwt-payload.type';

@@ -20,7 +20,6 @@ import {
   shiftExceptions,
   staffAttendanceRecords,
   staffLeaveRequests,
-  staffLeaveRequestType,
   staffProfiles,
   staffRosters,
 } from '../../../../database/schema';

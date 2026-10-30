@@ -217,7 +217,7 @@ export class AttendanceEligibilityService {
     return {
       isEligible: true,
       isReplacement,
-      replacementOpportunityId: isReplacement ? claimedReplacementId : null,
+      replacementOpportunityId,
       resolvedSession: activeResolution.session,
       qrSessionId,
     };

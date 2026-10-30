@@ -4,7 +4,6 @@ import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
   appointments,
   clinicClosures,
-  clinicRooms,
   doctorAssignments,
   queueTickets,
   sessionDefs,
@@ -28,7 +27,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 
 @Injectable()
 export class DrizzleAdminSessionMutationRepository {

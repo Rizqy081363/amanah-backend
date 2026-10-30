@@ -19,7 +19,6 @@ import { formatBloodTypeDisplay } from '../../modules/patients/domain/data/patie
 import { DomainUnauthorizedException } from '../exceptions';
 import { RedisService } from '../redis/redis.service';
 import {
-  ROLE_AUDIENCE,
   type RoleAudience,
 } from '../constants/role-audience.constants';
 import type { AuthenticatedUser } from './authenticated-user.interface';

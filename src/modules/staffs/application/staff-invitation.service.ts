@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import bcrypt from 'bcryptjs';
-import { and, asc, eq, not, or } from 'drizzle-orm';
+import { and, asc, eq, or } from 'drizzle-orm';
 import { RedisService } from '../../../common/redis/redis.service';
 import {
   IPasswordGenerator,
@@ -22,7 +22,6 @@ import {
   account,
   authAccounts,
   clinicUnits,
-  medicalSpecialties,
   practitioners,
   roles,
   session,

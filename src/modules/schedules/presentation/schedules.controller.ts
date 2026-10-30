@@ -76,15 +76,12 @@ import {
 import { BookedPatientsQueryDto } from './dto/booked-patients-query.dto';
 import { CalendarSummaryQueryDto } from './dto/calendar-summary-query.dto';
 import { CheckRescheduleEligibilityQueryDto } from './dto/check-reschedule-eligibility-query.dto';
-import { CreateScheduleDto } from './dto/create-schedule.dto';
 import { GetSessionPatientsQueryDto } from './dto/get-session-patients-query.dto';
-import { QueryScheduleDto } from './dto/query-schedule.dto';
 import { RescheduleAdminDoctorSessionDto } from './dto/reschedule-admin-doctor-session.dto';
 import { RoomReferenceQueryDto } from './dto/room-reference-query.dto';
 import { ScheduleCapacityQueryDto } from './dto/schedule-capacity-query.dto';
 import { ScheduleContextQueryDto } from './dto/schedule-context-query.dto';
 import { ScheduleProjectionQueryDto } from './dto/schedule-projection-query.dto';
-import { UpdateScheduleDto } from './dto/update-schedule.dto';
 
 @ApiTags('Schedules (Jadwal Dokter & Bidan)')
 @ApiBearerAuth('access-token')

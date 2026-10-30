@@ -7,14 +7,11 @@ import {
   practitioners,
   sessionDefs,
   shiftExceptions,
-  staffInvitations,
   staffLeaveRequests,
   replacementOpportunities,
-  REPLACEMENT_OPPORTUNITY_STATUS,
   ACTIVE_CLAIMED_REPLACEMENT_STATUSES,
 } from '@database/schema';
 import {
-  DEFAULT_CONSULTATION_DURATION_MINUTES,
   INACTIVE_APPOINTMENT_STATUSES,
 } from '@modules/schedules/domain/constants/schedule.constants';
 import { STAFF_STATUS } from '@modules/staffs/domain/constants/staff-invitation.constants';
@@ -72,7 +69,7 @@ export class DrizzleAdminDoctorScheduleListQuery {
     const [
       pracs,
       allAppointments,
-      clinicPolicy,
+      _clinicPolicy,
       allDoctorAssignments,
       allActiveSessionDefs,
       allShiftExceptions,
@@ -403,7 +400,6 @@ export class DrizzleAdminDoctorScheduleListQuery {
           : aggregateOpStatus;
       }
 
-      const isClosed = effectiveOpStatus === ScheduleOperationalStatus.CLOSED;
       const scheduleStatus = isPending
         ? ScheduleOperationalStatus.PENDING
         : isOnLeave

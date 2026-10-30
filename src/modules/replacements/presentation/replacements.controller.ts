@@ -41,7 +41,6 @@ import {
 } from './schemas/replacement-param.schema';
 import {
   REPLACEMENT_REPOSITORY,
-  type ReplacementOpportunityFilter,
   type ReplacementRepository,
 } from '../domain/repositories/replacement.repository';
 import { AssignReplacementDto } from './dto/assign-replacement.dto';

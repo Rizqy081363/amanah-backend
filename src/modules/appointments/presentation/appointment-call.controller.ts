@@ -84,7 +84,7 @@ export class AppointmentCallController {
     if (this.callPatientUseCase) {
       try {
         await this.callPatientUseCase.execute(id);
-      } catch (_) {}
+      } catch {}
     }
     return result;
   }
