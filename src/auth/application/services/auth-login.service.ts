@@ -127,7 +127,7 @@ export class AuthLoginService {
         throw new ForbiddenException({
           code: AUTH_ERROR_CODES.CLIENT_NOT_ALLOWED,
           message:
-            'Akun pasien tidak memiliki izin akses ke aplikasi internal staf/dokter.',
+            'Akses dibatasi. Akun dengan audiens eksternal tidak diizinkan masuk ke aplikasi internal klinik.',
         });
       }
     }
@@ -235,7 +235,7 @@ export class AuthLoginService {
         throw new ForbiddenException({
           code: AUTH_ERROR_CODES.NOT_AUTHORIZED,
           message:
-            'Akun Google ini belum terdaftar atau belum diundang sebagai staf/dokter klinik.',
+            'Akun Google ini belum terdaftar atau belum diundang sebagai staf klinik.',
         });
       }
 

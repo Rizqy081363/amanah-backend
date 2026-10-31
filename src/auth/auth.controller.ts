@@ -479,7 +479,8 @@ export class AuthController {
 
   @ApiBearerAuth('access-token')
   @Get('me/linked-providers')
-  @UseGuards(HybridAuthGuard)
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('profile:read')
   @ApiOperation({
     summary: 'Mendapatkan status metode login aktif pada akun saat ini',
     description:

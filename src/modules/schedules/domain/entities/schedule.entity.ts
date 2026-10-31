@@ -343,7 +343,7 @@ export class AdminDoctorScheduleCardEntity {
   staffCode?: string | null;
 
   @ApiPropertyOptional({
-    description: 'Kode peran staf (contoh: doctor, midwife, it_support)',
+    description: 'Kode peran staf (contoh: tabib, it_support, admin)',
     nullable: true,
   })
   roleCode?: string | null;
@@ -602,7 +602,7 @@ export class AdminDoctorScheduleDetailData {
   staffCode?: string | null;
 
   @ApiPropertyOptional({
-    description: 'Kode peran staf (contoh: doctor, midwife, it_support)',
+    description: 'Kode peran staf (contoh: tabib, it_support, admin)',
     nullable: true,
   })
   roleCode?: string | null;
