@@ -55,13 +55,13 @@ export class AppointmentRescheduleHandler {
       throw new EntityNotFoundException('Janji temu', appointmentId);
     }
 
-    const { isAdmin } = await validateRescheduleAuthorization(
+    const { isInternal } = await validateRescheduleAuthorization(
       db,
       apt,
       userId,
       user,
     );
-    await validateAppointmentStateForReschedule(db, apt, isAdmin);
+    await validateAppointmentStateForReschedule(db, apt, isInternal);
 
     const today = new Date().toISOString().split('T')[0];
     const categoryId = apt.clinicService?.serviceCategoryId || null;
@@ -200,13 +200,13 @@ export class AppointmentRescheduleHandler {
       oldDate = apt.scheduledDate;
       oldDoctorId = apt.practitionerId;
 
-      const { isAdmin } = await validateRescheduleAuthorization(
+      const { isInternal } = await validateRescheduleAuthorization(
         tx,
         apt,
         userId,
         user,
       );
-      await validateAppointmentStateForReschedule(tx, apt, isAdmin);
+      await validateAppointmentStateForReschedule(tx, apt, isInternal);
 
       let targetSessionDef: any = null;
       if (dto.target_session_id) {
@@ -480,13 +480,13 @@ async function validateRescheduleAuthorization(
   apt: typeof appointments.$inferSelect,
   userId: string,
   user?: AuthenticatedUser,
-): Promise<{ isAdmin: boolean }> {
+): Promise<{ isInternal: boolean }> {
   if (user && user.audience === NOTIFICATION_AUDIENCE.INTERNAL) {
-    return { isAdmin: true };
+    return { isInternal: true };
   }
 
   if (apt.createdBy === userId) {
-    return { isAdmin: false };
+    return { isInternal: false };
   }
 
   const affiliation = await db.query.patientAffiliations.findFirst({
@@ -496,7 +496,7 @@ async function validateRescheduleAuthorization(
     ),
   });
   if (affiliation) {
-    return { isAdmin: false };
+    return { isInternal: false };
   }
 
   const ownProfile = await db.query.patientProfiles.findFirst({
@@ -506,7 +506,7 @@ async function validateRescheduleAuthorization(
     ),
   });
   if (ownProfile) {
-    return { isAdmin: false };
+    return { isInternal: false };
   }
 
   throw new DomainForbiddenException(
@@ -517,7 +517,7 @@ async function validateRescheduleAuthorization(
 async function validateAppointmentStateForReschedule(
   db: DrizzleDatabase,
   apt: typeof appointments.$inferSelect,
-  isAdmin: boolean,
+  isInternal: boolean,
 ): Promise<void> {
   if (
     apt.status === DB_APPOINTMENT_STATUS.IN_SERVICE ||
@@ -532,7 +532,7 @@ async function validateAppointmentStateForReschedule(
     );
   }
 
-  if (!isAdmin) {
+  if (!isInternal) {
     if (apt.checkedInAt) {
       throw new DomainForbiddenException(
         'Pasien sudah melakukan check-in di klinik. Perubahan jadwal hanya dapat dilakukan oleh petugas klinik.',

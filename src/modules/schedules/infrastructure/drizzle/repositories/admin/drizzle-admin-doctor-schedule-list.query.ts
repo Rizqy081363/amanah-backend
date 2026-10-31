@@ -241,9 +241,7 @@ export class DrizzleAdminDoctorScheduleListQuery {
       const leaveType = approvedLeave?.requestType || null;
 
       const repOpp = allReplacementOpportunities.find(
-        (ro) =>
-          ro.originalPractitionerId === p.id ||
-          ro.originalStaffProfileId === p.staffProfileId,
+        (ro) => ro.originalStaffProfileId === p.staffProfileId,
       );
       const replacementStatus = repOpp?.status || null;
       const substituteDoctorName =
@@ -253,8 +251,7 @@ export class DrizzleAdminDoctorScheduleListQuery {
 
       const myClaimedReplacements = allReplacementOpportunities.filter(
         (ro) =>
-          (ro.claimedByPractitionerId === p.id ||
-            ro.claimedByStaffProfileId === p.staffProfileId) &&
+          ro.claimedByStaffProfileId === p.staffProfileId &&
           (ACTIVE_CLAIMED_REPLACEMENT_STATUSES as readonly string[]).includes(
             ro.status,
           ),

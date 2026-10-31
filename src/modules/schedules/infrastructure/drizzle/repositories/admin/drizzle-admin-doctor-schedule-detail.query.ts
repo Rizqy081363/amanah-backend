@@ -170,12 +170,10 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
       this.db.query.replacementOpportunities.findMany({
         where: and(
           or(
-            eq(replacementOpportunities.originalPractitionerId, prac.id),
             eq(
               replacementOpportunities.originalStaffProfileId,
               prac.staffProfileId,
             ),
-            eq(replacementOpportunities.claimedByPractitionerId, prac.id),
             eq(
               replacementOpportunities.claimedByStaffProfileId,
               prac.staffProfileId,

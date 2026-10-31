@@ -142,18 +142,14 @@ export class AttendanceController {
     @CurrentUser() user: AuthenticatedUser,
     @Body(zodPipe(CheckOutSchema)) body: CheckOutInput,
   ) {
-    const isAdmin = isAdminUser(user);
-    const isStaff = isStaffUser(user);
-
     let targetStaffId: string;
     let isAdministrativeEntry = false;
 
     // Explicitly distinguish self-service checkout from administrative intervention (Standing Rule #5)
-    if (body.staffId && (!isStaff || body.staffId !== user.staff?.id)) {
+    if (body.staffId && (!user.staff?.id || body.staffId !== user.staff.id)) {
       const canManage =
-        isAdmin ||
-        user.permissions?.includes('attendance:manage') ||
-        user.permissions?.includes('*');
+        isAdminUser(user) ||
+        (user.permissions?.includes('attendance:manage') ?? false);
       if (!canManage) {
         throw new DomainForbiddenException(
           'Hanya supervisor atau pengelola presensi yang dapat mencatat kepulangan staf lain.',
@@ -161,7 +157,7 @@ export class AttendanceController {
       }
       targetStaffId = body.staffId;
       isAdministrativeEntry = true;
-    } else if (isStaff) {
+    } else if (user.staff?.id) {
       targetStaffId = user.staff.id;
       isAdministrativeEntry = false;
     } else {

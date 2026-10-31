@@ -296,7 +296,9 @@ export class AuthLoginService {
         ? await this.db.query.roles.findFirst({
             where: eq(roles.id, pendingInvitation.roleId),
           })
-        : null;
+        : await this.db.query.roles.findFirst({
+            where: eq(roles.audience, ROLE_AUDIENCE.EXTERNAL),
+          });
 
       if (targetRole) {
         await this.db.insert(userRoles).values({

@@ -1,6 +1,7 @@
 import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import { patientProfiles } from '@database/schema';
 import { APPOINTMENT_EVENTS } from '@modules/appointments/domain/constants/appointment-lifecycle.constants';
+import { NOTIFICATION_AUDIENCE } from '@common/constants/notification-audience.constants';
 import {
   type DomainEvent,
   type NotificationPublisher,
@@ -94,10 +95,10 @@ export async function publishRescheduleNotifications(
         queueNumber: appt.bookingCode || null,
         status: appt.status,
         reason: notes || reason || 'Penyesuaian jadwal praktik dokter',
-        rescheduledByRole: 'admin',
+        rescheduledByAudience: NOTIFICATION_AUDIENCE.INTERNAL,
       },
       actor: {
-        roleCode: 'ADMIN',
+        audience: NOTIFICATION_AUDIENCE.INTERNAL,
       },
     };
 

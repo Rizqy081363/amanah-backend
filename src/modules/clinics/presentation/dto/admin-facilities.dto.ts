@@ -385,14 +385,6 @@ export class CreateClinicServiceDto {
   @MaxLength(8)
   codePrefix: string;
 
-  @ApiPropertyOptional({
-    enum: ['pregnancy', 'immunization'],
-    nullable: true,
-  })
-  @IsEnum(['pregnancy', 'immunization'])
-  @IsOptional()
-  medicalFlow?: 'pregnancy' | 'immunization' | null;
-
   @ApiPropertyOptional({ example: 'stethoscope', default: 'stethoscope' })
   @IsString()
   @MaxLength(64)
@@ -470,14 +462,6 @@ export class UpdateClinicServiceDto {
   @MaxLength(8)
   @IsOptional()
   codePrefix?: string;
-
-  @ApiPropertyOptional({
-    enum: ['pregnancy', 'immunization'],
-    nullable: true,
-  })
-  @IsEnum(['pregnancy', 'immunization'])
-  @IsOptional()
-  medicalFlow?: 'pregnancy' | 'immunization' | null;
 
   @ApiPropertyOptional({ example: 'stethoscope' })
   @IsString()

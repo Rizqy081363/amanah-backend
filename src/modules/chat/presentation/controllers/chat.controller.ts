@@ -20,6 +20,7 @@ import { CurrentUser, Public } from '../../../../common/auth';
 import { RealtimeTicketService } from '../../../notifications/application/services/realtime-ticket.service';
 import { createRealtimePrincipal } from '../../../notifications/contracts/realtime-session.contract';
 import { ChatService } from '../../application/services/chat.service';
+import { CHAT_SENDER_ROLE } from '../../domain/constants/chat-lifecycle.constants';
 import { ChatTicketDto } from '../dto/chat-ticket.dto';
 import { CreateConversationDto } from '../dto/create-conversation.dto';
 import { MessageQueryDto } from '../dto/message-query.dto';
@@ -85,7 +86,7 @@ export class ChatController {
     const result = await this.chatService.getConversationMessages(
       id,
       { cursor: query.cursor, limit: query.limit },
-      { userId: user?.id, guestId: query.guestId, isAdmin: false },
+      { userId: user?.id, guestId: query.guestId, audience: CHAT_SENDER_ROLE.EXTERNAL },
     );
 
     return {

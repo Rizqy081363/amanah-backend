@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import jwt from 'jsonwebtoken';
+import { ROLE_AUDIENCE } from '../../src/common/constants/role-audience.constants';
 import {
   createDbPool,
   getEnvValue,
@@ -206,14 +207,8 @@ async function main(): Promise<void> {
       }
     }
 
-    // Determine role code and macro systemRole for backwards compatibility
-    const roleCode = user.role_code || (user.staff_id ? 'staff' : 'patient');
-    const systemRole =
-      user.role_is_system
-        ? 'ADMIN'
-        : user.staff_id || user.role_audience === 'internal'
-          ? 'STAF'
-          : 'PATIENT';
+    const roleCode = user.role_code || null;
+    const systemRole = roleCode;
 
     const jwtSecret =
       args.secret || getEnvValue('AUTH_JWT_SECRET', 'secret');
@@ -251,7 +246,7 @@ async function main(): Promise<void> {
     console.log(` Name            : ${user.name}`);
     console.log(` Role Code       : ${roleCode}`);
     console.log(` Role Name       : ${user.role_name || '(none)'}`);
-    console.log(` Role Audience   : ${user.role_audience || (user.staff_id ? 'internal' : 'external')}`);
+    console.log(` Role Audience   : ${user.role_audience || '(unassigned)'}`);
     console.log(` System Role     : ${systemRole}`);
     console.log(` Permissions     : ${permissionCodes.length} assigned (${permissionCodes.includes('*') ? 'WILDCARD (*)' : permissionCodes.slice(0, 5).join(', ') + (permissionCodes.length > 5 ? '...' : '')})`);
     if (user.staff_id) {

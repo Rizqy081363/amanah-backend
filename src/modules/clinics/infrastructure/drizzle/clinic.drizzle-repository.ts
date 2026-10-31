@@ -98,7 +98,6 @@ export class ClinicDrizzleRepository implements ClinicRepository {
               name: s.name,
               description: s.description || null,
               intakeFormId: s.intakeFormId || null,
-              medicalFlow: s.intakeForm?.code || null,
               isActive: s.isActive,
               createdAt: new Date(s.createdAt),
             });
@@ -125,7 +124,6 @@ export class ClinicDrizzleRepository implements ClinicRepository {
       name: record.name,
       description: record.description || null,
       intakeFormId: record.intakeFormId || null,
-      medicalFlow: record.intakeForm?.code || null,
       isActive: record.isActive,
       createdAt: new Date(record.createdAt),
     };
@@ -177,7 +175,6 @@ export class ClinicDrizzleRepository implements ClinicRepository {
               intakeFormId: srv.intakeFormId || null,
               intakeFormCode: srv.intakeForm?.code || null,
               intakeFormName: srv.intakeForm?.name || null,
-              medicalFlow: (srv.intakeForm?.code as any) || null,
               displayOrder: srv.displayOrder,
               poliklinikId,
               poliklinikName,

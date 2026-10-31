@@ -90,7 +90,7 @@ export class LeaveDrizzleRepository implements LeaveRepository {
       type: r.requestType,
       scope: r.scope || 'full_day',
       decisionSource: r.decisionSource || 'admin',
-      substituteStaffId: r.substituteStaffProfileId || r.substitutePractitionerId || null,
+      substituteStaffId: r.substituteStaffProfileId || null,
       documentUrl: null,
       status: r.status,
       approvedBy: r.reviewedBy || null,
@@ -481,17 +481,6 @@ export class LeaveDrizzleRepository implements LeaveRepository {
       practitionerId = pract?.id || null;
     }
 
-    // Resolve substitutePractitionerId if substitute is clinical
-    let substitutePractitionerId: string | null = null;
-    if (data.substituteStaffId) {
-      const [subPract] = await this.db
-        .select({ id: practitioners.id })
-        .from(practitioners)
-        .where(eq(practitioners.staffProfileId, data.substituteStaffId))
-        .limit(1);
-      substitutePractitionerId = subPract?.id || null;
-    }
-
     const reqType = data.type;
 
     // Transactional Execution & Concurrency Serialization
@@ -631,7 +620,7 @@ export class LeaveDrizzleRepository implements LeaveRepository {
             scope: data.scope || 'full_day',
             decisionSource,
             substituteStaffProfileId: data.substituteStaffId || null,
-            substitutePractitionerId,
+            substitutePractitionerId: null,
             status: initialStatus,
             reviewedAt:
               initialStatus === 'approved' ? new Date().toISOString() : null,

@@ -16,7 +16,7 @@ import {
 import { ChatNotificationPublisher } from '../publishers/chat-notification.publisher';
 import { ChatMessageEntity } from '../../domain/entities/chat-message.entity';
 import { ConversationEntity } from '../../domain/entities/conversation.entity';
-import { CHAT_SENDER_ROLE } from '../../domain/constants/chat-lifecycle.constants';
+import { CHAT_SENDER_ROLE, type ChatSenderRole } from '../../domain/constants/chat-lifecycle.constants';
 import {
   AdminConversationQueryParams,
   CHAT_REPOSITORY,
@@ -81,7 +81,7 @@ export class ChatService {
   async getConversationMessages(
     conversationId: string,
     params: MessageQueryParams,
-    caller?: { userId?: string; guestId?: string; isAdmin?: boolean },
+    caller?: { userId?: string; guestId?: string; audience?: ChatSenderRole },
   ): Promise<PaginatedResult<ChatMessageEntity>> {
     const conversation =
       await this.chatRepo.findConversationById(conversationId);
@@ -91,7 +91,7 @@ export class ChatService {
       );
     }
 
-    if (!caller?.isAdmin) {
+    if (caller?.audience !== CHAT_SENDER_ROLE.INTERNAL) {
       if (conversation.userId && caller?.userId !== conversation.userId) {
         throw new ForbiddenException('Access denied to this conversation');
       }

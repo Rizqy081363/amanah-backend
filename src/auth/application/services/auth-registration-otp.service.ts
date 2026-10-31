@@ -12,6 +12,7 @@ import { JwtService } from '@nestjs/jwt';
 import bcrypt from 'bcryptjs';
 import { and, eq, sql } from 'drizzle-orm';
 import { AUTH_PROVIDER } from '../../../common/constants/auth-providers.constants';
+import { ROLE_AUDIENCE } from '../../../common/constants/role-audience.constants';
 import { RedisService } from '../../../common/redis/redis.service';
 import { AllConfigType } from '../../../config/config.type';
 import { DRIZZLE_SOURCE } from '../../../database/drizzle/drizzle.constants';
@@ -19,8 +20,10 @@ import { DrizzleDatabase } from '../../../database/drizzle/drizzle.provider';
 import {
   account,
   authAccounts,
+  roles,
   session,
   user,
+  userRoles,
   users,
 } from '../../../database/schema';
 import { MailService } from '../../../mail/mail.service';
@@ -80,6 +83,17 @@ export class AuthRegistrationOtpService {
       accountId: dto.email,
       passwordHash,
     });
+
+    const externalRole = await this.db.query.roles.findFirst({
+      where: eq(roles.audience, ROLE_AUDIENCE.EXTERNAL),
+    });
+
+    if (externalRole) {
+      await this.db.insert(userRoles).values({
+        userId: newUser.id,
+        roleId: externalRole.id,
+      });
+    }
 
     try {
       await this.db.insert(user).values({

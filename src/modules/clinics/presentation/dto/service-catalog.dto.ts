@@ -60,13 +60,6 @@ export class ServiceCatalogItemDto {
   })
   intakeFormName?: string | null;
 
-  @ApiProperty({
-    description: 'Alur medis klinis dinamis',
-    example: 'general',
-    nullable: true,
-  })
-  medicalFlow?: string | null;
-
   @ApiProperty({ description: 'Urutan tampilan', example: 1 })
   displayOrder: number;
 

@@ -9,6 +9,7 @@ export interface DomainEvent<TPayload = Record<string, unknown>> {
   actor?: {
     userId?: string;
     roleCode?: string;
+    audience?: string;
   };
 }
 

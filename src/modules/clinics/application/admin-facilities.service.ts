@@ -474,7 +474,6 @@ export class AdminFacilitiesService {
       shortName: s.shortName,
       description: s.description,
       codePrefix: s.codePrefix,
-      medicalFlow: s.intakeForm?.code || null,
       iconName: s.iconName,
       displayOrder: s.displayOrder,
       isBookable: s.isBookable,

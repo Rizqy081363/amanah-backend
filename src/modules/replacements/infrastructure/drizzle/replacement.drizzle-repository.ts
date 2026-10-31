@@ -63,7 +63,6 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
       originalStaffName: r.originalStaffProfile?.fullName || undefined,
       originalStaffRole:
         r.originalStaffProfile?.role?.name ||
-        r.originalPractitioner?.medicalSpecialty?.name ||
         r.originalStaffProfile?.positionTitle ||
         null,
       originalStaffAvatarUrl: r.originalStaffProfile?.avatarUrl || null,
@@ -429,26 +428,18 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
 
     if (isOriginalClinical && !isClaimingClinical) {
       throw new BadRequestException(
-        'Sesi dinas medis dokter/bidan hanya dapat digantikan oleh tenaga medis dokter/bidan',
+        'Sesi dinas klinis hanya dapat digantikan oleh tenaga klinis yang berwenang',
       );
     }
 
     if (!isOriginalClinical && isClaimingClinical) {
       throw new BadRequestException(
-        'Sesi dinas staf operasional hanya dapat digantikan oleh staf operasional',
+        'Sesi dinas non-klinis hanya dapat digantikan oleh staf non-klinis',
       );
     }
 
-    let resolvedPractitionerId = practitionerId || null;
-    if (!resolvedPractitionerId) {
-      const p = await this.db.query.practitioners.findFirst({
-        where: eq(practitioners.staffProfileId, staffProfileId),
-      });
-      if (p) {
-        resolvedPractitionerId = p.id;
-      }
-    }
-
+    const resolvedPractitionerId =
+      practitionerId || claimingStaff.practitioners?.[0]?.id || null;
     // Atomic claim with status check
     const [updated] = await this.db
       .update(replacementOpportunities)
@@ -558,26 +549,18 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
 
     if (isOriginalClinical && !isTargetClinical) {
       throw new BadRequestException(
-        'Sesi dinas medis dokter/bidan hanya dapat ditugaskan kepada tenaga medis dokter/bidan',
+        'Sesi dinas klinis hanya dapat ditugaskan kepada tenaga klinis yang berwenang',
       );
     }
 
     if (!isOriginalClinical && isTargetClinical) {
       throw new BadRequestException(
-        'Sesi dinas staf operasional hanya dapat ditugaskan kepada staf operasional',
+        'Sesi dinas non-klinis hanya dapat ditugaskan kepada staf non-klinis',
       );
     }
 
-    let resolvedPractitionerId = practitionerId || null;
-    if (!resolvedPractitionerId) {
-      const p = await this.db.query.practitioners.findFirst({
-        where: eq(practitioners.staffProfileId, staffProfileId),
-      });
-      if (p) {
-        resolvedPractitionerId = p.id;
-      }
-    }
-
+    const resolvedPractitionerId =
+      practitionerId || targetStaff.practitioners?.[0]?.id || null;
     const [updated] = await this.db
       .update(replacementOpportunities)
       .set({

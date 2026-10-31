@@ -244,7 +244,9 @@ export class PatientAffiliationsController {
       data: {
         serviceId: service.id,
         serviceName: service.name,
-        medicalFlow: flow,
+        intakeFormId: service.intakeFormId || null,
+        intakeFormCode: service.intakeForm?.code || null,
+        intakeFormName: service.intakeForm?.name || null,
         formType,
         allowedRelationships,
         patients: enrichedPatients,

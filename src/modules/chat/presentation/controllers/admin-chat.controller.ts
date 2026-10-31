@@ -21,6 +21,7 @@ import { CurrentUser } from '../../../../common/auth/current-user.decorator';
 import { HybridAuthGuard } from '../../../../common/auth/hybrid-auth.guard';
 import { PermissionsGuard, RequirePermissions } from '../../../../common/auth';
 import { ChatService } from '../../application/services/chat.service';
+import { CHAT_SENDER_ROLE } from '../../domain/constants/chat-lifecycle.constants';
 import { AdminConversationQueryDto } from '../dto/conversation-query.dto';
 import { MessageQueryDto } from '../dto/message-query.dto';
 import { SendMessageDto } from '../dto/send-message.dto';
@@ -69,7 +70,7 @@ export class AdminChatController {
     const result = await this.chatService.getConversationMessages(
       id,
       { cursor: query.cursor, limit: query.limit },
-      { isAdmin: true },
+      { audience: CHAT_SENDER_ROLE.INTERNAL },
     );
 
     return {
