@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray, not } from 'drizzle-orm';
 import { ClinicConfigService } from '../../../../common/clinic-config/clinic-config.service';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
@@ -43,6 +43,8 @@ export class WorkPolicyDrizzleRepository implements WorkPolicyRepository {
       roleId: r.roleId,
       roleCode: r.role?.code || null,
       roleName: r.role?.name || null,
+      roleTier: r.role?.tier || null,
+      roleIsClinical: r.role?.isClinical ?? null,
       hourlyRate: Number(r.hourlyRate),
       overtimeHourlyRate: Number(r.overtimeHourlyRate),
       effectiveFrom: r.effectiveFrom,
@@ -161,16 +163,39 @@ export class WorkPolicyDrizzleRepository implements WorkPolicyRepository {
     }>,
     updatedBy: string,
   ): Promise<CompensationRateEntity[]> {
+    const incomingRoleIds = new Set(rates.map((r) => r.roleId));
+    const now = new Date().toISOString();
+
+    // 1. Deactivate any active rates that were removed from the incoming configuration
+    if (incomingRoleIds.size > 0) {
+      await this.db
+        .update(compensationRates)
+        .set({
+          isActive: false,
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(compensationRates.isActive, true),
+            not(inArray(compensationRates.roleId, Array.from(incomingRoleIds))),
+          ),
+        );
+    } else {
+      await this.db
+        .update(compensationRates)
+        .set({
+          isActive: false,
+          updatedAt: now,
+        })
+        .where(eq(compensationRates.isActive, true));
+    }
+
+    // 2. Upsert active rates
     for (const rate of rates) {
       const [existing] = await this.db
         .select({ id: compensationRates.id })
         .from(compensationRates)
-        .where(
-          and(
-            eq(compensationRates.roleId, rate.roleId),
-            eq(compensationRates.isActive, true),
-          ),
-        )
+        .where(eq(compensationRates.roleId, rate.roleId))
         .limit(1);
 
       if (existing) {
@@ -180,7 +205,8 @@ export class WorkPolicyDrizzleRepository implements WorkPolicyRepository {
             hourlyRate: rate.hourlyRate.toString(),
             overtimeHourlyRate: rate.overtimeHourlyRate.toString(),
             notes: rate.notes || null,
-            updatedAt: new Date().toISOString(),
+            isActive: true,
+            updatedAt: now,
           })
           .where(eq(compensationRates.id, existing.id));
       } else {
