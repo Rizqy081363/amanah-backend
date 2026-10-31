@@ -21,7 +21,8 @@ import { RedisService } from '../redis/redis.service';
 import {
   ROLE_AUDIENCE,
   type RoleAudience,
-} from '../constants/role-audience.constants';
+  isAccountBlocked,
+} from '../constants';
 import type { AuthenticatedUser } from './authenticated-user.interface';
 import { IS_PUBLIC_KEY } from './public.decorator';
 
@@ -127,6 +128,12 @@ export class HybridAuthGuard extends AuthGuard('jwt') implements CanActivate {
       if (!userRecord) {
         throw new DomainUnauthorizedException(
           'Pengguna tidak ditemukan di database',
+        );
+      }
+
+      if (isAccountBlocked(userRecord.status)) {
+        throw new DomainUnauthorizedException(
+          'Akun Anda telah dinonaktifkan atau ditangguhkan.',
         );
       }
 

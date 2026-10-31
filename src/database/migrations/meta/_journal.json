@@ -491,6 +491,20 @@
       "when": 1791353000000,
       "tag": "0069_application_pages_and_role_page_access",
       "breakpoints": true
+    },
+    {
+      "idx": 70,
+      "version": "7",
+      "when": 1791354000000,
+      "tag": "0070_align_purge_user_systemic_with_active_schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1791355000000,
+      "tag": "0071_user_management_and_granular_permissions",
+      "breakpoints": true
     }
   ]
 }

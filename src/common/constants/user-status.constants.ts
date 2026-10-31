@@ -21,3 +21,11 @@ export const DEFAULT_USER_STATUS: UserStatus = USER_STATUS.PENDING_VERIFICATION;
 
 export const isUserStatus = (v: unknown): v is UserStatus =>
   typeof v === 'string' && (USER_STATUSES as readonly string[]).includes(v);
+
+export const BLOCKED_USER_STATUSES: readonly UserStatus[] = [
+  USER_STATUS.INACTIVE,
+  USER_STATUS.SUSPENDED,
+];
+
+export const isAccountBlocked = (status?: string | null): boolean =>
+  status === USER_STATUS.INACTIVE || status === USER_STATUS.SUSPENDED;

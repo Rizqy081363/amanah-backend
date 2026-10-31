@@ -34,7 +34,7 @@ export class AdminPagesController {
   constructor(private readonly service: AccessControlService) {}
 
   @Get()
-  @RequirePermissions('roles:read')
+  @RequirePermissions('pages:read', 'roles:read')
   @ApiOperation({
     summary: 'Mendapatkan seluruh daftar halaman aplikasi dan status ketersediaannya',
   })
@@ -43,7 +43,7 @@ export class AdminPagesController {
   }
 
   @Get('tree')
-  @RequirePermissions('roles:read')
+  @RequirePermissions('pages:read', 'roles:read')
   @ApiOperation({
     summary: 'Mendapatkan hierarki pohon halaman aplikasi (parent -> children)',
   })
@@ -53,7 +53,7 @@ export class AdminPagesController {
 
   @Patch(':id/toggle')
   @HttpCode(HttpStatus.OK)
-  @RequirePermissions('roles:manage')
+  @RequirePermissions('pages:manage', 'roles:manage')
   @ApiOperation({
     summary: 'Mengubah status aktif/nonaktif global halaman (CMS kill switch)',
   })

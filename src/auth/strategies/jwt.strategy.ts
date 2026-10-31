@@ -9,7 +9,8 @@ import { DrizzleDatabase } from '../../database/drizzle/drizzle.provider';
 import { users } from '../../database/schema';
 import {
   type RoleAudience,
-} from '../../common/constants/role-audience.constants';
+  isAccountBlocked,
+} from '../../common/constants';
 import { JwtPayloadType } from './types/jwt-payload.type';
 
 @Injectable()
@@ -67,6 +68,12 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
 
     if (!user) {
       throw new UnauthorizedException();
+    }
+
+    if (isAccountBlocked(user.status)) {
+      throw new UnauthorizedException(
+        'Sesi tidak valid: Akun Anda telah dinonaktifkan atau ditangguhkan.',
+      );
     }
 
     const staffProfile = user.staffProfiles?.[0];

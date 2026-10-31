@@ -40,6 +40,7 @@ import { QueueEngineModule } from './modules/queue-engine/queue-engine.module';
 import { SchedulesModule } from './modules/schedules/schedules.module';
 import { StaffsModule } from './modules/staffs/staffs.module';
 import { SupportTicketsModule } from './modules/support-tickets/support-tickets.module';
+import { UsersModule } from './modules/users/users.module';
 
 import { validateEnvironment } from './config/env';
 
@@ -95,6 +96,7 @@ import { validateEnvironment } from './config/env';
     SupportTicketsModule,
     QueueEngineModule,
     ChatModule,
+    UsersModule,
   ],
 })
 export class AppModule implements NestModule {

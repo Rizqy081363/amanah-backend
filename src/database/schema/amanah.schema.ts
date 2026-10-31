@@ -305,6 +305,8 @@ export const users = pgTable(
       'users_phone_not_blank',
       sql`(phone IS NULL) OR (length(TRIM(BOTH FROM phone)) > 0)`,
     ),
+    index('idx_users_status').on(table.status),
+    index('idx_users_name_lower').using('btree', sql`lower(${table.name})`),
   ],
 );
 
