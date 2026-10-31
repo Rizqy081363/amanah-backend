@@ -37,6 +37,9 @@ import { AuthResetPasswordOtpDto } from '../../dto/auth-reset-password-otp.dto';
 import { AuthVerifyOtpDto } from '../../dto/auth-verify-otp.dto';
 import { RequestEmailChangeDto } from '../../dto/request-email-change.dto';
 import { IdentityEnrollmentService } from './identity-enrollment.service';
+import { SocketIoRealtimeGateway } from '../../../modules/notifications/infrastructure/realtime/socket-io-realtime.gateway';
+import { REALTIME_ROOMS } from '../../../modules/notifications/notifications.constants';
+import { Optional } from '@nestjs/common';
 
 @Injectable()
 export class AuthRegistrationOtpService {
@@ -48,6 +51,8 @@ export class AuthRegistrationOtpService {
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,
     private readonly identityEnrollmentService: IdentityEnrollmentService,
+    @Optional()
+    private readonly realtimeGateway?: SocketIoRealtimeGateway,
   ) {}
 
   async register(dto: AuthRegisterLoginDto): Promise<void> {
@@ -94,6 +99,12 @@ export class AuthRegistrationOtpService {
       userId: newUser.id,
       roleId: externalRole.id,
     });
+
+    void this.realtimeGateway?.emitToRoom?.(
+      REALTIME_ROOMS.clinic,
+      'roles:updated',
+      { roleId: externalRole.id, action: 'user_registered' },
+    );
 
     try {
       await this.db.insert(user).values({

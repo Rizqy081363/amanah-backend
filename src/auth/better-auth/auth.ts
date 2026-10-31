@@ -192,9 +192,9 @@ export const auth = betterAuth({
         after: async (createdUser) => {
           const client = await pool.connect();
           try {
-            // Dynamically query external role from PostgreSQL
+            // Dynamically query external role from PostgreSQL (prioritize default if designated)
             const roleRes = await client.query(
-              `SELECT id, code, audience FROM roles WHERE audience = 'external' ORDER BY created_at ASC LIMIT 1`
+              `SELECT id, code, audience FROM roles WHERE audience = 'external' AND is_active = true ORDER BY is_default DESC, created_at ASC LIMIT 1`
             );
             const externalRole = roleRes.rows[0];
 
@@ -236,6 +236,44 @@ export const auth = betterAuth({
             } finally {
               client.release();
             }
+          }
+        },
+      },
+    },
+    session: {
+      create: {
+        after: async (createdSession) => {
+          const client = await pool.connect();
+          try {
+            // Auto-enroll orphaned external user if they registered prior to external role creation
+            const userRolesRes = await client.query(
+              `SELECT 1 FROM user_roles WHERE user_id = $1 LIMIT 1`,
+              [createdSession.userId]
+            );
+            if (userRolesRes.rowCount === 0) {
+              const staffRes = await client.query(
+                `SELECT 1 FROM staff_profiles WHERE user_id = $1 LIMIT 1`,
+                [createdSession.userId]
+              );
+              if (staffRes.rowCount === 0) {
+                const roleRes = await client.query(
+                  `SELECT id FROM roles WHERE audience = 'external' AND is_active = true ORDER BY is_default DESC, created_at ASC LIMIT 1`
+                );
+                const externalRole = roleRes.rows[0];
+                if (externalRole) {
+                  await client.query(
+                    `INSERT INTO user_roles (user_id, role_id)
+                     VALUES ($1, $2)
+                     ON CONFLICT DO NOTHING`,
+                    [createdSession.userId, externalRole.id]
+                  );
+                }
+              }
+            }
+          } catch (err) {
+            console.error('[BetterAuth:databaseHooks] Failed to auto-enroll session user:', err);
+          } finally {
+            client.release();
           }
         },
       },

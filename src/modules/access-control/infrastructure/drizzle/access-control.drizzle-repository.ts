@@ -53,19 +53,24 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
       },
     });
 
-    const staffCounts = await this.db
+    const userRoleCounts = await this.db
       .select({
-        roleId: staffProfiles.roleId,
-        count: sql<number>`count(*)::int`,
+        roleId: sql<string>`sub.role_id`,
+        count: sql<number>`count(DISTINCT sub.user_id)::int`,
       })
-      .from(staffProfiles)
-      .where(sql`${staffProfiles.roleId} IS NOT NULL`)
-      .groupBy(staffProfiles.roleId);
+      .from(
+        sql`(
+          SELECT role_id, user_id FROM user_roles WHERE revoked_at IS NULL
+          UNION
+          SELECT role_id, user_id FROM staff_profiles WHERE role_id IS NOT NULL AND user_id IS NOT NULL
+        ) as sub`,
+      )
+      .groupBy(sql`sub.role_id`);
 
-    const staffCountMap = new Map<string, number>();
-    for (const sc of staffCounts) {
-      if (sc.roleId) {
-        staffCountMap.set(sc.roleId, sc.count);
+    const userCountMap = new Map<string, number>();
+    for (const uc of userRoleCounts) {
+      if (uc.roleId) {
+        userCountMap.set(uc.roleId, uc.count);
       }
     }
 
@@ -136,7 +141,8 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
           updatedAt: p.updatedAt,
         })),
         effectivePermissionCodes: Array.from(effectivePermSet),
-        staffCount: staffCountMap.get(r.id) ?? 0,
+        userCount: userCountMap.get(r.id) ?? 0,
+        staffCount: userCountMap.get(r.id) ?? 0,
       };
     });
   }
@@ -189,6 +195,19 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
       currentParentId = parent.parentRoleId;
     }
 
+    const [userCountRes] = await this.db
+      .select({
+        count: sql<number>`count(DISTINCT sub.user_id)::int`,
+      })
+      .from(
+        sql`(
+          SELECT user_id FROM user_roles WHERE role_id = ${id} AND revoked_at IS NULL
+          UNION
+          SELECT user_id FROM staff_profiles WHERE role_id = ${id} AND user_id IS NOT NULL
+        ) as sub`,
+      );
+    const userCount = userCountRes?.count ?? 0;
+
     return {
       id: roleRecord.id,
       code: roleRecord.code,
@@ -228,6 +247,8 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
         updatedAt: p.updatedAt,
       })),
       effectivePermissionCodes: Array.from(effectivePermSet),
+      userCount,
+      staffCount: userCount,
     };
   }
 

@@ -25,5 +25,6 @@ export class RoleEntity {
   children?: RoleEntity[];
   permissions?: PermissionEntity[];
   effectivePermissionCodes?: string[];
+  userCount?: number;
   staffCount?: number;
 }

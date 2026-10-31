@@ -139,6 +139,7 @@ export async function inspectUserRecords(
     await checkCount('support_tickets (reported)', 'SELECT count(*) FROM support_tickets WHERE reporter_user_id = $1', [coreUserId]);
     await checkCount('support_ticket_messages', 'SELECT count(*) FROM support_ticket_messages WHERE sender_user_id = $1', [coreUserId]);
     await checkCount('conversation_participants', 'SELECT count(*) FROM conversation_participants WHERE user_id = $1', [coreUserId]);
+    await checkCount('conversations (as user)', 'SELECT count(*) FROM conversations WHERE user_id = $1', [coreUserId]);
     await checkCount('messages', 'SELECT count(*) FROM messages WHERE sender_user_id = $1', [coreUserId]);
     await checkCount('attendance_qr_sessions (created)', 'SELECT count(*) FROM attendance_qr_sessions WHERE created_by = $1', [coreUserId]);
     await checkCount('clinical_encounters (created)', 'SELECT count(*) FROM clinical_encounters WHERE created_by = $1', [coreUserId]);
@@ -158,6 +159,7 @@ export async function inspectUserRecords(
     await checkCount('practitioners', 'SELECT count(*) FROM practitioners WHERE id = $1', [practitionerId]);
     await checkCount('doctor_assignment', 'SELECT count(*) FROM doctor_assignment WHERE doctor_id = $1', [practitionerId]);
     await checkCount('shift_exception', 'SELECT count(*) FROM shift_exception WHERE doctor_id = $1', [practitionerId]);
+    await checkCount('clinic_closure (as doctor)', 'SELECT count(*) FROM clinic_closure WHERE doctor_id = $1', [practitionerId]);
     await checkCount('appointments (as doctor)', 'SELECT count(*) FROM appointments WHERE practitioner_id = $1', [practitionerId]);
     await checkCount('queue_tickets (as doctor)', 'SELECT count(*) FROM queue_tickets qt JOIN appointments a ON qt.appointment_id = a.id WHERE a.practitioner_id = $1', [practitionerId]);
   }

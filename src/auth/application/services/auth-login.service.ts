@@ -3,6 +3,7 @@ import {
   HttpStatus,
   Inject,
   Injectable,
+  Optional,
   UnauthorizedException,
   UnprocessableEntityException,
 } from '@nestjs/common';
@@ -38,6 +39,8 @@ import { RefreshResponseDto } from '../../dto/refresh-response.dto';
 import { GoogleTokenVerifierService } from '../../services/google-token-verifier.service';
 import { IdentityEnrollmentService } from './identity-enrollment.service';
 import { AuthUserMapper } from '../mappers/auth-user.mapper';
+import { SocketIoRealtimeGateway } from '../../../modules/notifications/infrastructure/realtime/socket-io-realtime.gateway';
+import { REALTIME_ROOMS } from '../../../modules/notifications/notifications.constants';
 
 @Injectable()
 export class AuthLoginService {
@@ -49,6 +52,8 @@ export class AuthLoginService {
     private readonly db: DrizzleDatabase,
     private readonly googleVerifier: GoogleTokenVerifierService,
     private readonly identityEnrollmentService: IdentityEnrollmentService,
+    @Optional()
+    private readonly realtimeGateway?: SocketIoRealtimeGateway,
   ) {}
 
   async validateLogin(loginDto: AuthEmailLoginDto): Promise<LoginResponseDto> {
@@ -120,13 +125,43 @@ export class AuthLoginService {
       });
     }
 
-    const primaryRole = user.userRoles_userId?.[0]?.role ?? null;
+    let primaryRole = user.userRoles_userId?.[0]?.role ?? null;
     if (!primaryRole || !primaryRole.isActive) {
-      throw new ForbiddenException({
-        code: 'AUTH_USER_HAS_NO_ROLE',
-        message:
-          'Akun Anda belum memiliki peran aktif di sistem klinik. Hubungi administrator klinik.',
-      });
+      const isStaff =
+        (user.staffProfiles && user.staffProfiles.length > 0) ||
+        loginDto.clientId === AUTH_SURFACES.MOBILE_INTERNAL;
+
+      if (!isStaff) {
+        try {
+          const targetRole =
+            await this.identityEnrollmentService.resolveExternalRegistrationRole();
+          await this.db
+            .insert(userRoles)
+            .values({
+              userId: user.id,
+              roleId: targetRole.id,
+            })
+            .onConflictDoNothing();
+          void this.realtimeGateway?.emitToRoom?.(
+            REALTIME_ROOMS.clinic,
+            'roles:updated',
+            { roleId: targetRole.id, action: 'user_enrolled' },
+          );
+          primaryRole = targetRole as any;
+        } catch {
+          throw new ForbiddenException({
+            code: 'AUTH_USER_HAS_NO_ROLE',
+            message:
+              'Akun Anda belum memiliki peran aktif di sistem klinik. Hubungi administrator klinik.',
+          });
+        }
+      } else {
+        throw new ForbiddenException({
+          code: 'AUTH_USER_HAS_NO_ROLE',
+          message:
+            'Akun Anda belum memiliki peran aktif di sistem klinik. Hubungi administrator klinik.',
+        });
+      }
     }
 
     const roleCode = primaryRole.code ?? null;
@@ -326,16 +361,51 @@ export class AuthLoginService {
         userId,
         roleId: targetRole.id,
       });
+      void this.realtimeGateway?.emitToRoom?.(
+        REALTIME_ROOMS.clinic,
+        'roles:updated',
+        { roleId: targetRole.id, action: 'user_registered' },
+      );
     } else {
       userId = userRecord.id;
 
-      const existingRole = userRecord.userRoles_userId?.[0]?.role ?? null;
+      let existingRole = userRecord.userRoles_userId?.[0]?.role ?? null;
       if (!existingRole || !existingRole.isActive) {
-        throw new ForbiddenException({
-          code: 'AUTH_USER_HAS_NO_ROLE',
-          message:
-            'Akun Anda belum memiliki peran aktif di sistem klinik. Hubungi administrator klinik.',
-        });
+        const isStaff =
+          (userRecord.staffProfiles && userRecord.staffProfiles.length > 0) ||
+          dto.clientId === AUTH_SURFACES.MOBILE_INTERNAL;
+
+        if (!isStaff) {
+          try {
+            const targetRole =
+              await this.identityEnrollmentService.resolveExternalRegistrationRole();
+            await this.db
+              .insert(userRoles)
+              .values({
+                userId,
+                roleId: targetRole.id,
+              })
+              .onConflictDoNothing();
+            void this.realtimeGateway?.emitToRoom?.(
+              REALTIME_ROOMS.clinic,
+              'roles:updated',
+              { roleId: targetRole.id, action: 'user_enrolled' },
+            );
+            existingRole = targetRole as any;
+          } catch {
+            throw new ForbiddenException({
+              code: 'AUTH_USER_HAS_NO_ROLE',
+              message:
+                'Akun Anda belum memiliki peran aktif di sistem klinik. Hubungi administrator klinik.',
+            });
+          }
+        } else {
+          throw new ForbiddenException({
+            code: 'AUTH_USER_HAS_NO_ROLE',
+            message:
+              'Akun Anda belum memiliki peran aktif di sistem klinik. Hubungi administrator klinik.',
+          });
+        }
       }
 
       const hasGoogleAccount = userRecord.authAccounts?.some(

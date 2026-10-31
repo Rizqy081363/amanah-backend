@@ -464,6 +464,11 @@ export class AuthStaffOnboardingService {
         'staff:updated',
         staffOnboardedPayload,
       );
+      void this.realtimeGateway?.emitToRoom?.(
+        REALTIME_ROOMS.clinic,
+        'roles:updated',
+        { roleId, action: 'staff_onboarded' },
+      );
       void this.realtimeGateway?.emitToUser?.(
         userRecord.id,
         'staff:onboarded',

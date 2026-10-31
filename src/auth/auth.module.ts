@@ -5,6 +5,7 @@ import { HybridAuthGuard } from '../common/auth/hybrid-auth.guard';
 import { MailModule } from '../mail/mail.module';
 import { AvatarModule } from '../modules/avatar/avatar.module';
 import { AccessControlModule } from '../modules/access-control/access-control.module';
+import { NotificationsModule } from '../modules/notifications/notifications.module';
 import { AuthAccountLifecycleService } from './application/services/auth-account-lifecycle.service';
 import { AuthLoginService } from './application/services/auth-login.service';
 import { AuthRegistrationOtpService } from './application/services/auth-registration-otp.service';
@@ -27,6 +28,7 @@ import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy';
     MailModule,
     AvatarModule,
     AccessControlModule,
+    NotificationsModule,
   ],
   controllers: [AuthController, BetterAuthController],
   providers: [

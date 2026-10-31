@@ -9,16 +9,17 @@ import {
 import { Reflector } from '@nestjs/core';
 import { AuthGuard } from '@nestjs/passport';
 import { fromNodeHeaders } from 'better-auth/node';
-import { eq } from 'drizzle-orm';
+import { and, asc, desc, eq } from 'drizzle-orm';
 import type { Request } from 'express';
 import { auth as betterAuth } from '../../auth/better-auth/auth';
 import { DRIZZLE_SOURCE } from '../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../database/drizzle/drizzle.provider';
-import { users } from '../../database/schema';
+import { roles, userRoles, users } from '../../database/schema';
 import { formatBloodTypeDisplay } from '../../modules/patients/domain/data/patient-reference.data';
 import { DomainUnauthorizedException } from '../exceptions';
 import { RedisService } from '../redis/redis.service';
 import {
+  ROLE_AUDIENCE,
   type RoleAudience,
 } from '../constants/role-audience.constants';
 import type { AuthenticatedUser } from './authenticated-user.interface';
@@ -44,6 +45,10 @@ export class HybridAuthGuard extends AuthGuard('jwt') implements CanActivate {
       return true;
     }
 
+    return this.authenticateRequest(context);
+  }
+
+  async authenticateRequest(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<Request>();
 
     const authHeader = request.headers.authorization;
@@ -127,8 +132,37 @@ export class HybridAuthGuard extends AuthGuard('jwt') implements CanActivate {
 
       const staffProfile = userRecord.staffProfiles?.[0];
       const patientProfile = userRecord.patientProfiles?.[0];
-      const primaryRole =
+      let primaryRole =
         userRecord.userRoles_userId?.[0]?.role ?? staffProfile?.role ?? null;
+
+      if (!primaryRole && !staffProfile) {
+        const activeExternalRole = await this.db.query.roles.findFirst({
+          where: and(
+            eq(roles.audience, ROLE_AUDIENCE.EXTERNAL),
+            eq(roles.isActive, true),
+          ),
+          orderBy: [desc(roles.isDefault), asc(roles.createdAt)],
+          with: {
+            rolePermissions: {
+              with: {
+                permission: true,
+              },
+            },
+          },
+        });
+
+        if (activeExternalRole) {
+          await this.db
+            .insert(userRoles)
+            .values({
+              userId: userRecord.id,
+              roleId: activeExternalRole.id,
+            })
+            .onConflictDoNothing();
+
+          primaryRole = activeExternalRole as any;
+        }
+      }
 
       const audience: RoleAudience | null =
         (primaryRole?.audience as RoleAudience) ?? null;
@@ -136,12 +170,20 @@ export class HybridAuthGuard extends AuthGuard('jwt') implements CanActivate {
       const userRoleCodes = (userRecord.userRoles_userId || [])
         .map((ur) => ur.role?.code)
         .filter((code): code is string => Boolean(code));
+      if (userRoleCodes.length === 0 && primaryRole?.code) {
+        userRoleCodes.push(primaryRole.code);
+      }
       const roleCode = primaryRole?.code ?? null;
       const systemRole = roleCode;
 
       const permissionSet = new Set<string>();
       for (const ur of userRecord.userRoles_userId || []) {
         for (const rp of ur.role?.rolePermissions || []) {
+          if (rp.permission?.code) permissionSet.add(rp.permission.code);
+        }
+      }
+      if (primaryRole && (primaryRole as any).rolePermissions) {
+        for (const rp of (primaryRole as any).rolePermissions) {
           if (rp.permission?.code) permissionSet.add(rp.permission.code);
         }
       }

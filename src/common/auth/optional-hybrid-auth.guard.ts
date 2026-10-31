@@ -24,7 +24,7 @@ export class OptionalHybridAuthGuard extends HybridAuthGuard {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     try {
-      return await super.canActivate(context);
+      return await this.authenticateRequest(context);
     } catch {
       const request = context.switchToHttp().getRequest<Request>();
       (request as any).user = null;

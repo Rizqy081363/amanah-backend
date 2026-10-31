@@ -36,7 +36,6 @@ export class ChatController {
   ) {}
 
   @Post('conversations')
-  @Public()
   @HttpCode(HttpStatus.OK)
   @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({
@@ -57,7 +56,6 @@ export class ChatController {
   }
 
   @Get('conversations/active')
-  @Public()
   @HttpCode(HttpStatus.OK)
   @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({
@@ -71,7 +69,6 @@ export class ChatController {
   }
 
   @Get('conversations/:id/messages')
-  @Public()
   @HttpCode(HttpStatus.OK)
   @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({
@@ -97,7 +94,6 @@ export class ChatController {
   }
 
   @Post('conversations/:id/messages')
-  @Public()
   @HttpCode(HttpStatus.CREATED)
   @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({
@@ -122,7 +118,6 @@ export class ChatController {
   }
 
   @Post('realtime-ticket')
-  @Public()
   @HttpCode(HttpStatus.OK)
   @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({
