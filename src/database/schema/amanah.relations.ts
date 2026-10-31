@@ -1,5 +1,6 @@
 import { relations } from 'drizzle-orm/relations';
 import {
+  applicationPages,
   appointmentCallAttempts,
   appointmentCheckIns,
   appointmentStatusEvents,
@@ -45,6 +46,7 @@ import {
   publicTestimonials,
   queueTickets,
   rolePermissions,
+  rolePageAccess,
   roles,
   scheduleRescheduleEvents,
   serviceCategories,
@@ -166,6 +168,7 @@ export const userRolesRelations = relations(userRoles, ({ one }) => ({
 export const rolesRelations = relations(roles, ({ one, many }) => ({
   userRoles: many(userRoles),
   rolePermissions: many(rolePermissions),
+  rolePageAccess: many(rolePageAccess),
   parentRole: one(roles, {
     fields: [roles.parentRoleId],
     references: [roles.id],
@@ -177,6 +180,35 @@ export const rolesRelations = relations(roles, ({ one, many }) => ({
   staffProfiles: many(staffProfiles),
   staffInvitations: many(staffInvitations),
 }));
+
+export const applicationPagesRelations = relations(
+  applicationPages,
+  ({ one, many }) => ({
+    parentPage: one(applicationPages, {
+      fields: [applicationPages.parentPageId],
+      references: [applicationPages.id],
+      relationName: 'pageHierarchy',
+    }),
+    childPages: many(applicationPages, {
+      relationName: 'pageHierarchy',
+    }),
+    rolePageAccess: many(rolePageAccess),
+  }),
+);
+
+export const rolePageAccessRelations = relations(
+  rolePageAccess,
+  ({ one }) => ({
+    role: one(roles, {
+      fields: [rolePageAccess.roleId],
+      references: [roles.id],
+    }),
+    page: one(applicationPages, {
+      fields: [rolePageAccess.pageId],
+      references: [applicationPages.id],
+    }),
+  }),
+);
 
 export const clinicRoomsRelations = relations(clinicRooms, ({ one, many }) => ({
   clinicUnit: one(clinicUnits, {

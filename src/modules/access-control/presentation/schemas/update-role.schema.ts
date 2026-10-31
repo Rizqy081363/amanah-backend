@@ -32,6 +32,12 @@ export const UpdateRoleSchema = z.object({
   isClinical: z
     .boolean({ message: 'Status klinis peran harus berupa boolean' })
     .optional(),
+  isActive: z
+    .boolean({ message: 'Status aktif peran harus berupa boolean' })
+    .optional(),
+  isDefault: z
+    .boolean({ message: 'Status peran default harus berupa boolean' })
+    .optional(),
 });
 
 export type UpdateRoleInput = z.infer<typeof UpdateRoleSchema>;

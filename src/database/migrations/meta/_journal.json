@@ -484,6 +484,13 @@
       "when": 1791352000000,
       "tag": "0068_chat_sender_audience",
       "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1791353000000,
+      "tag": "0069_application_pages_and_role_page_access",
+      "breakpoints": true
     }
   ]
 }

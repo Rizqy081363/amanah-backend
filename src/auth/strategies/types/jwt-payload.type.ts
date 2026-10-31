@@ -5,6 +5,7 @@ export type JwtPayloadType = {
   systemRole?: string;
   role?: any;
   sessionId?: string;
+  authVersion?: number;
   iat?: number;
   exp?: number;
 };

@@ -74,6 +74,23 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
 
     const primaryRole =
       user.userRoles_userId?.[0]?.role ?? staffProfile?.role ?? null;
+
+    if (!primaryRole || !primaryRole.isActive) {
+      throw new UnauthorizedException(
+        'Sesi tidak valid: Akun Anda tidak memiliki peran aktif di sistem.',
+      );
+    }
+
+    if (
+      payload.authVersion &&
+      user.authVersion &&
+      payload.authVersion !== user.authVersion
+    ) {
+      throw new UnauthorizedException(
+        'Sesi telah kedaluwarsa karena pembaruan hak akses. Silakan masuk kembali.',
+      );
+    }
+
     const userRoleCodes = (user.userRoles_userId || [])
       .map((ur) => ur.role?.code)
       .filter((code): code is string => Boolean(code));

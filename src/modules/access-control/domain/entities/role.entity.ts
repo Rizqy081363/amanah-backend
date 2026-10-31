@@ -17,6 +17,8 @@ export class RoleEntity {
   tier: RoleTier;
   audience: RoleAudience;
   isClinical: boolean;
+  isActive: boolean;
+  isDefault: boolean;
   createdAt: Date | string;
   updatedAt: Date | string;
   parentRole?: RoleEntity | null;

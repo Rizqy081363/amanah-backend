@@ -36,6 +36,7 @@ import { AuthGoogleLoginDto } from '../../dto/auth-google-login.dto';
 import { LoginResponseDto } from '../../dto/login-response.dto';
 import { RefreshResponseDto } from '../../dto/refresh-response.dto';
 import { GoogleTokenVerifierService } from '../../services/google-token-verifier.service';
+import { IdentityEnrollmentService } from './identity-enrollment.service';
 import { AuthUserMapper } from '../mappers/auth-user.mapper';
 
 @Injectable()
@@ -47,6 +48,7 @@ export class AuthLoginService {
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,
     private readonly googleVerifier: GoogleTokenVerifierService,
+    private readonly identityEnrollmentService: IdentityEnrollmentService,
   ) {}
 
   async validateLogin(loginDto: AuthEmailLoginDto): Promise<LoginResponseDto> {
@@ -119,8 +121,16 @@ export class AuthLoginService {
     }
 
     const primaryRole = user.userRoles_userId?.[0]?.role ?? null;
-    const roleCode = primaryRole?.code ?? null;
-    const isExternalAudience = primaryRole?.audience === ROLE_AUDIENCE.EXTERNAL;
+    if (!primaryRole || !primaryRole.isActive) {
+      throw new ForbiddenException({
+        code: 'AUTH_USER_HAS_NO_ROLE',
+        message:
+          'Akun Anda belum memiliki peran aktif di sistem klinik. Hubungi administrator klinik.',
+      });
+    }
+
+    const roleCode = primaryRole.code ?? null;
+    const isExternalAudience = primaryRole.audience === ROLE_AUDIENCE.EXTERNAL;
 
     if (loginDto.clientId === AUTH_SURFACES.MOBILE_INTERNAL) {
       if (isExternalAudience) {
@@ -271,6 +281,26 @@ export class AuthLoginService {
     let userId: string;
 
     if (!userRecord) {
+      let targetRole: any = null;
+      if (pendingInvitation?.roleId) {
+        targetRole = await this.db.query.roles.findFirst({
+          where: and(
+            eq(roles.id, pendingInvitation.roleId),
+            eq(roles.isActive, true),
+          ),
+        });
+        if (!targetRole) {
+          throw new ForbiddenException({
+            code: 'INVITATION_ROLE_INACTIVE',
+            message:
+              'Peran yang ditugaskan dalam undangan ini sudah tidak aktif atau telah dihapus.',
+          });
+        }
+      } else {
+        targetRole =
+          await this.identityEnrollmentService.resolveExternalRegistrationRole();
+      }
+
       const displayName = verifiedGoogle.name || email.split('@')[0];
       const [newUser] = await this.db
         .insert(users)
@@ -292,22 +322,21 @@ export class AuthLoginService {
         accountId: verifiedGoogle.sub,
       });
 
-      const targetRole = pendingInvitation?.roleId
-        ? await this.db.query.roles.findFirst({
-            where: eq(roles.id, pendingInvitation.roleId),
-          })
-        : await this.db.query.roles.findFirst({
-            where: eq(roles.audience, ROLE_AUDIENCE.EXTERNAL),
-          });
-
-      if (targetRole) {
-        await this.db.insert(userRoles).values({
-          userId,
-          roleId: targetRole.id,
-        });
-      }
+      await this.db.insert(userRoles).values({
+        userId,
+        roleId: targetRole.id,
+      });
     } else {
       userId = userRecord.id;
+
+      const existingRole = userRecord.userRoles_userId?.[0]?.role ?? null;
+      if (!existingRole || !existingRole.isActive) {
+        throw new ForbiddenException({
+          code: 'AUTH_USER_HAS_NO_ROLE',
+          message:
+            'Akun Anda belum memiliki peran aktif di sistem klinik. Hubungi administrator klinik.',
+        });
+      }
 
       const hasGoogleAccount = userRecord.authAccounts?.some(
         (acc) => acc.providerId === 'google',

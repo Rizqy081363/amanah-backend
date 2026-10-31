@@ -8,11 +8,14 @@ import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
+  applicationPages,
   permissions,
+  rolePageAccess,
   rolePermissions,
   roles,
   staffProfiles,
   userRoles,
+  users,
 } from '../../../../database/schema/amanah.schema';
 import {
   AccessControlRepository,
@@ -24,6 +27,7 @@ import {
   RoleEntity,
   RoleTier,
 } from '../../domain/entities/role.entity';
+import { ApplicationPageEntity } from '../../domain/entities/application-page.entity';
 import {
   DEFAULT_ROLE_AUDIENCE,
 } from '../../../../common/constants/role-audience.constants';
@@ -103,6 +107,8 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
         tier: r.tier as RoleTier,
         audience: (r.audience as RoleAudience) || DEFAULT_ROLE_AUDIENCE,
         isClinical: r.isClinical,
+        isActive: r.isActive,
+        isDefault: r.isDefault,
         createdAt: r.createdAt,
         updatedAt: r.updatedAt,
         parentRole: r.parentRole
@@ -116,6 +122,8 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
               tier: r.parentRole.tier as RoleTier,
               audience: (r.parentRole.audience as RoleAudience) || DEFAULT_ROLE_AUDIENCE,
               isClinical: r.parentRole.isClinical,
+              isActive: r.parentRole.isActive,
+              isDefault: r.parentRole.isDefault,
               createdAt: r.parentRole.createdAt,
               updatedAt: r.parentRole.updatedAt,
             }
@@ -191,6 +199,8 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
       tier: roleRecord.tier as RoleTier,
       audience: (roleRecord.audience as RoleAudience) || DEFAULT_ROLE_AUDIENCE,
       isClinical: roleRecord.isClinical,
+      isActive: roleRecord.isActive,
+      isDefault: roleRecord.isDefault,
       createdAt: roleRecord.createdAt,
       updatedAt: roleRecord.updatedAt,
       parentRole: roleRecord.parentRole
@@ -204,6 +214,8 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
             tier: roleRecord.parentRole.tier as RoleTier,
             audience: (roleRecord.parentRole.audience as RoleAudience) || DEFAULT_ROLE_AUDIENCE,
             isClinical: roleRecord.parentRole.isClinical,
+            isActive: roleRecord.parentRole.isActive,
+            isDefault: roleRecord.parentRole.isDefault,
             createdAt: roleRecord.parentRole.createdAt,
             updatedAt: roleRecord.parentRole.updatedAt,
           }
@@ -254,6 +266,13 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
       }
     }
 
+    if (data.isDefault) {
+      await this.db
+        .update(roles)
+        .set({ isDefault: false })
+        .where(eq(roles.audience, audience));
+    }
+
     const [inserted] = await this.db
       .insert(roles)
       .values({
@@ -264,9 +283,15 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
         tier: data.tier || (data.parentRoleId ? 'micro' : 'macro'),
         audience,
         isClinical,
+        isActive: data.isActive ?? true,
+        isDefault: data.isDefault ?? false,
         isSystem: false,
       })
       .returning();
+
+    if (data.pageIds && data.pageIds.length > 0) {
+      await this.assignPagesToRole(inserted.id, data.pageIds);
+    }
 
     if (data.permissionIds && data.permissionIds.length > 0) {
       await this.assignPermissionsToRole(inserted.id, data.permissionIds);
@@ -328,6 +353,14 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
       }
     }
 
+    if (data.isDefault) {
+      const targetAudience = (data.audience as RoleAudience) ?? existing.audience;
+      await this.db
+        .update(roles)
+        .set({ isDefault: false })
+        .where(eq(roles.audience, targetAudience));
+    }
+
     await this.db
       .update(roles)
       .set({
@@ -343,9 +376,25 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
         tier: data.tier ?? existing.tier,
         audience: (data.audience as RoleAudience) ?? existing.audience,
         isClinical: data.isClinical ?? existing.isClinical,
+        isActive: data.isActive ?? existing.isActive,
+        isDefault: data.isDefault ?? existing.isDefault,
         updatedAt: new Date().toISOString(),
       })
       .where(eq(roles.id, id));
+
+    // Instant session invalidation if active state toggled
+    if (data.isActive !== undefined && data.isActive !== existing.isActive) {
+      const userRoleLinks = await this.db.query.userRoles.findMany({
+        where: eq(userRoles.roleId, id),
+      });
+      const userIds = userRoleLinks.map((u) => u.userId);
+      if (userIds.length > 0) {
+        await this.db
+          .update(users)
+          .set({ authVersion: sql`auth_version + 1` })
+          .where(inArray(users.id, userIds));
+      }
+    }
 
     const updated = await this.findRoleById(id);
     return updated!;
@@ -587,5 +636,220 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
     }
 
     return Array.from(effectiveSet);
+  }
+
+  async findAllPages(): Promise<ApplicationPageEntity[]> {
+    const records = await this.db.query.applicationPages.findMany({
+      orderBy: [asc(applicationPages.audience), asc(applicationPages.displayOrder)],
+    });
+
+    const pageMap = new Map<string, typeof records[0]>();
+    for (const p of records) {
+      pageMap.set(p.id, p);
+    }
+
+    return records.map((p) => {
+      let effectiveEnabled = p.isEnabled;
+      let currentParentId = p.parentPageId;
+      while (currentParentId && pageMap.has(currentParentId)) {
+        const parent = pageMap.get(currentParentId)!;
+        if (!parent.isEnabled) {
+          effectiveEnabled = false;
+          break;
+        }
+        currentParentId = parent.parentPageId;
+      }
+
+      return {
+        id: p.id,
+        slug: p.slug,
+        name: p.name,
+        description: p.description,
+        routePath: p.routePath,
+        parentPageId: p.parentPageId,
+        audience: p.audience as RoleAudience,
+        isEnabled: p.isEnabled,
+        icon: p.icon,
+        displayOrder: p.displayOrder,
+        isSystem: p.isSystem,
+        createdAt: p.createdAt,
+        updatedAt: p.updatedAt,
+        effectiveEnabled,
+      };
+    });
+  }
+
+  async findPageTree(audience?: RoleAudience): Promise<ApplicationPageEntity[]> {
+    const all = await this.findAllPages();
+    const filtered = audience ? all.filter((p) => p.audience === audience) : all;
+
+    const parents = filtered.filter((p) => !p.parentPageId);
+    const childMap = new Map<string, ApplicationPageEntity[]>();
+    for (const p of filtered) {
+      if (p.parentPageId) {
+        if (!childMap.has(p.parentPageId)) {
+          childMap.set(p.parentPageId, []);
+        }
+        childMap.get(p.parentPageId)!.push(p);
+      }
+    }
+
+    for (const parent of parents) {
+      parent.children = childMap.get(parent.id) || [];
+    }
+
+    return parents;
+  }
+
+  async findPageById(id: string): Promise<ApplicationPageEntity | null> {
+    const p = await this.db.query.applicationPages.findFirst({
+      where: eq(applicationPages.id, id),
+    });
+    if (!p) return null;
+
+    let effectiveEnabled = p.isEnabled;
+    let currentParentId = p.parentPageId;
+    while (currentParentId) {
+      const parent = await this.db.query.applicationPages.findFirst({
+        where: eq(applicationPages.id, currentParentId),
+      });
+      if (!parent || !parent.isEnabled) {
+        effectiveEnabled = false;
+        break;
+      }
+      currentParentId = parent.parentPageId;
+    }
+
+    return {
+      id: p.id,
+      slug: p.slug,
+      name: p.name,
+      description: p.description,
+      routePath: p.routePath,
+      parentPageId: p.parentPageId,
+      audience: p.audience as RoleAudience,
+      isEnabled: p.isEnabled,
+      icon: p.icon,
+      displayOrder: p.displayOrder,
+      isSystem: p.isSystem,
+      createdAt: p.createdAt,
+      updatedAt: p.updatedAt,
+      effectiveEnabled,
+    };
+  }
+
+  async togglePageEnabled(id: string, isEnabled: boolean): Promise<ApplicationPageEntity> {
+    const existing = await this.findPageById(id);
+    if (!existing) {
+      throw new NotFoundException(`Halaman dengan ID ${id} tidak ditemukan`);
+    }
+
+    await this.db
+      .update(applicationPages)
+      .set({
+        isEnabled,
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(applicationPages.id, id));
+
+    return (await this.findPageById(id))!;
+  }
+
+  async findRolePageIds(roleId: string): Promise<string[]> {
+    const records = await this.db.query.rolePageAccess.findMany({
+      where: eq(rolePageAccess.roleId, roleId),
+    });
+    return records.map((r) => r.pageId);
+  }
+
+  async assignPagesToRole(roleId: string, pageIds: string[]): Promise<void> {
+    const role = await this.findRoleById(roleId);
+    if (!role) {
+      throw new NotFoundException('Peran tidak ditemukan');
+    }
+
+    await this.db.delete(rolePageAccess).where(eq(rolePageAccess.roleId, roleId));
+
+    if (pageIds.length > 0) {
+      const validPages = await this.db.query.applicationPages.findMany({
+        where: inArray(applicationPages.id, pageIds),
+      });
+
+      if (validPages.length > 0) {
+        await this.db.insert(rolePageAccess).values(
+          validPages.map((vp) => ({
+            roleId,
+            pageId: vp.id,
+          })),
+        );
+      }
+    }
+
+    const userRoleLinks = await this.db.query.userRoles.findMany({
+      where: eq(userRoles.roleId, roleId),
+    });
+    const userIds = userRoleLinks.map((u) => u.userId);
+    if (userIds.length > 0) {
+      await this.db
+        .update(users)
+        .set({ authVersion: sql`auth_version + 1` })
+        .where(inArray(users.id, userIds));
+    }
+  }
+
+  async getEffectiveRoutesForRole(roleId: string): Promise<string[]> {
+    const role = await this.findRoleById(roleId);
+    if (!role || !role.isActive) return [];
+
+    const allPages = await this.findAllPages();
+    const assignedPageIds = new Set(await this.findRolePageIds(roleId));
+
+    const isSuperAdmin = role.isSystem && role.code === 'admin';
+
+    const accessibleRoutes: string[] = [];
+    for (const p of allPages) {
+      if (p.routePath === '#') continue;
+      if (!p.effectiveEnabled) continue;
+
+      if (isSuperAdmin && p.audience === 'internal') {
+        accessibleRoutes.push(p.routePath);
+      } else if (assignedPageIds.has(p.id)) {
+        accessibleRoutes.push(p.routePath);
+      }
+    }
+
+    return Array.from(new Set(accessibleRoutes));
+  }
+
+  async getUserEffectiveRoutes(userId: string): Promise<string[]> {
+    const userRoleRecords = await this.db.query.userRoles.findMany({
+      where: and(
+        eq(userRoles.userId, userId),
+        sql`${userRoles.revokedAt} IS NULL`,
+      ),
+      with: { role: true },
+    });
+
+    const staffRecord = await this.db.query.staffProfiles.findFirst({
+      where: eq(staffProfiles.userId, userId),
+    });
+
+    const distinctRoleIds = new Set<string>();
+    for (const ur of userRoleRecords) {
+      if (ur.roleId) distinctRoleIds.add(ur.roleId);
+    }
+    if (staffRecord?.roleId) {
+      distinctRoleIds.add(staffRecord.roleId);
+    }
+
+    const routeSet = new Set<string>();
+    for (const rId of distinctRoleIds) {
+      const routes = await this.getEffectiveRoutesForRole(rId);
+      for (const r of routes) {
+        routeSet.add(r);
+      }
+    }
+
+    return Array.from(routeSet);
   }
 }

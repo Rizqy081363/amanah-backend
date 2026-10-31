@@ -8,6 +8,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -17,6 +18,8 @@ import { RequirePermissions } from '../../../common/auth/permissions.decorator';
 import { zodPipe } from '../../../common/validation';
 import { AccessControlService } from '../application/services/access-control.service';
 import {
+  AssignPagesInput,
+  AssignPagesSchema,
   AssignPermissionsInput,
   AssignPermissionsSchema,
   CreateRoleInput,
@@ -120,5 +123,32 @@ export class AdminRolesController {
     @Param(zodPipe(RolePermissionParamSchema)) param: RolePermissionParamInput,
   ) {
     return this.service.removePermissionFromRole(param.id, param.permissionId);
+  }
+
+  @Get(':id/pages')
+  @RequirePermissions('roles:read')
+  @ApiOperation({ summary: 'Mendapatkan daftar ID halaman aplikasi yang diakses oleh peran ini' })
+  async getRolePages(@Param(zodPipe(RoleParamSchema)) param: RoleParamInput) {
+    return this.service.getRolePageIds(param.id);
+  }
+
+  @Put(':id/pages')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions('roles:manage')
+  @ApiOperation({ summary: 'Menetapkan daftar halaman aplikasi ke suatu peran (bulk set)' })
+  async assignPages(
+    @Param(zodPipe(RoleParamSchema)) param: RoleParamInput,
+    @Body(zodPipe(AssignPagesSchema)) dto: AssignPagesInput,
+  ) {
+    return this.service.assignPagesToRole(param.id, dto.pageIds);
+  }
+
+  @Get(':id/effective-routes')
+  @RequirePermissions('roles:read')
+  @ApiOperation({ summary: 'Mendapatkan daftar rute efektif yang dapat diakses oleh peran ini' })
+  async getRoleEffectiveRoutes(
+    @Param(zodPipe(RoleParamSchema)) param: RoleParamInput,
+  ) {
+    return this.service.getRoleEffectiveRoutes(param.id);
   }
 }

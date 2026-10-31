@@ -279,6 +279,7 @@ export const users = pgTable(
       .default('id-ID')
       .notNull(),
     twoFactorEnabled: boolean('two_factor_enabled').default(false).notNull(),
+    authVersion: integer('auth_version').default(1).notNull(),
     lastLoginAt: timestamp('last_login_at', {
       withTimezone: true,
       mode: 'string',
@@ -520,6 +521,8 @@ export const roles = pgTable(
       .default('internal')
       .notNull(),
     isClinical: boolean('is_clinical').default(false).notNull(),
+    isActive: boolean('is_active').default(true).notNull(),
+    isDefault: boolean('is_default').default(false).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
       .notNull(),
@@ -537,6 +540,10 @@ export const roles = pgTable(
     index('roles_parent_role_id_idx').on(table.parentRoleId),
     index('roles_tier_idx').on(table.tier),
     index('roles_audience_idx').on(table.audience),
+    index('idx_roles_is_active').on(table.isActive),
+    uniqueIndex('idx_roles_default_audience')
+      .on(table.audience)
+      .where(sql`is_default = true AND is_active = true`),
     check('roles_code_format', sql`code ~ '^[a-z][a-z0-9_]*$'::text`),
     check('roles_tier_check', sql`tier IN ('macro', 'micro')`),
     check('roles_audience_check', sql`audience IN ('internal', 'external')`),
@@ -606,6 +613,72 @@ export const userRoles = pgTable(
       foreignColumns: [users.id],
       name: 'user_roles_user_id_fkey',
     }).onDelete('cascade'),
+  ],
+);
+
+export const applicationPages = pgTable(
+  'application_pages',
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    slug: varchar('slug', { length: 100 }).notNull(),
+    name: varchar('name', { length: 150 }).notNull(),
+    description: text(),
+    routePath: varchar('route_path', { length: 255 }).notNull(),
+    parentPageId: uuid('parent_page_id'),
+    audience: varchar('audience', { length: 20, enum: ['internal', 'external'] })
+      .default('internal')
+      .notNull(),
+    isEnabled: boolean('is_enabled').default(true).notNull(),
+    icon: varchar('icon', { length: 50 }),
+    displayOrder: integer('display_order').default(0).notNull(),
+    isSystem: boolean('is_system').default(false).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    unique('application_pages_slug_key').on(table.slug),
+    foreignKey({
+      columns: [table.parentPageId],
+      foreignColumns: [table.id],
+      name: 'application_pages_parent_page_id_fkey',
+    }).onDelete('cascade'),
+    index('idx_application_pages_parent').on(table.parentPageId),
+    index('idx_application_pages_audience').on(table.audience),
+    index('idx_application_pages_route_path').on(table.routePath),
+    index('idx_application_pages_is_enabled').on(table.isEnabled),
+    check('application_pages_audience_check', sql`audience IN ('internal', 'external')`),
+    check('application_pages_slug_format', sql`slug ~ '^[a-z][a-z0-9_.:-]*$'::text`),
+  ],
+);
+
+export const rolePageAccess = pgTable(
+  'role_page_access',
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    roleId: uuid('role_id').notNull(),
+    pageId: uuid('page_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    unique('role_page_access_role_page_unique').on(table.roleId, table.pageId),
+    foreignKey({
+      columns: [table.roleId],
+      foreignColumns: [roles.id],
+      name: 'role_page_access_role_id_fkey',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [table.pageId],
+      foreignColumns: [applicationPages.id],
+      name: 'role_page_access_page_id_fkey',
+    }).onDelete('cascade'),
+    index('idx_role_page_access_role_id').on(table.roleId),
+    index('idx_role_page_access_page_id').on(table.pageId),
   ],
 );
 

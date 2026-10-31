@@ -11,6 +11,7 @@ export class AuthUserMapper {
   static formatUser(
     userRecord: any,
     hasPendingInvitation = false,
+    accessibleRoutes: string[] = [],
   ): AuthUserResponseDto {
     const { authAccounts: _authAccounts, ...sanitizedUser } = userRecord;
 
@@ -215,6 +216,7 @@ export class AuthUserMapper {
           }
         : null,
       permissions: Array.from(permissionSet),
+      accessibleRoutes,
       staff,
       patient,
       needsOnboarding,

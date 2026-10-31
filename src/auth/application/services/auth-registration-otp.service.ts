@@ -36,6 +36,7 @@ import {
 import { AuthResetPasswordOtpDto } from '../../dto/auth-reset-password-otp.dto';
 import { AuthVerifyOtpDto } from '../../dto/auth-verify-otp.dto';
 import { RequestEmailChangeDto } from '../../dto/request-email-change.dto';
+import { IdentityEnrollmentService } from './identity-enrollment.service';
 
 @Injectable()
 export class AuthRegistrationOtpService {
@@ -46,6 +47,7 @@ export class AuthRegistrationOtpService {
     private readonly redisService: RedisService,
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,
+    private readonly identityEnrollmentService: IdentityEnrollmentService,
   ) {}
 
   async register(dto: AuthRegisterLoginDto): Promise<void> {
@@ -61,6 +63,10 @@ export class AuthRegistrationOtpService {
         },
       });
     }
+
+    // Enforce fail-closed identity enrollment before creating user record
+    const externalRole =
+      await this.identityEnrollmentService.resolveExternalRegistrationRole();
 
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(dto.password, salt);
@@ -84,16 +90,10 @@ export class AuthRegistrationOtpService {
       passwordHash,
     });
 
-    const externalRole = await this.db.query.roles.findFirst({
-      where: eq(roles.audience, ROLE_AUDIENCE.EXTERNAL),
+    await this.db.insert(userRoles).values({
+      userId: newUser.id,
+      roleId: externalRole.id,
     });
-
-    if (externalRole) {
-      await this.db.insert(userRoles).values({
-        userId: newUser.id,
-        roleId: externalRole.id,
-      });
-    }
 
     try {
       await this.db.insert(user).values({

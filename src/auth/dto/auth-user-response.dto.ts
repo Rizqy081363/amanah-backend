@@ -331,6 +331,12 @@ export class AuthUserResponseDto {
   permissions: string[];
 
   @ApiPropertyOptional({
+    type: [String],
+    description: 'Daftar route path halaman aplikasi yang diizinkan untuk diakses akun ini',
+  })
+  accessibleRoutes?: string[];
+
+  @ApiPropertyOptional({
     type: () => AuthStaffProfileDto,
     nullable: true,
     description: 'Data profil staf terhubung jika berstatus staf internal',

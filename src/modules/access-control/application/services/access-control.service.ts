@@ -5,8 +5,9 @@ import {
   CreateRoleInput,
   UpdateRoleInput,
 } from '../../domain/repositories/access-control.repository.interface';
-import { RoleEntity } from '../../domain/entities/role.entity';
+import { RoleAudience, RoleEntity } from '../../domain/entities/role.entity';
 import { PermissionEntity } from '../../domain/entities/permission.entity';
+import { ApplicationPageEntity } from '../../domain/entities/application-page.entity';
 
 @Injectable()
 export class AccessControlService {
@@ -85,5 +86,39 @@ export class AccessControlService {
 
   async getUserPermissions(userId: string): Promise<string[]> {
     return this.repository.getUserEffectivePermissions(userId);
+  }
+
+  async getAllPages(): Promise<ApplicationPageEntity[]> {
+    return this.repository.findAllPages();
+  }
+
+  async getPageTree(audience?: RoleAudience): Promise<ApplicationPageEntity[]> {
+    return this.repository.findPageTree(audience);
+  }
+
+  async togglePage(id: string, isEnabled: boolean): Promise<ApplicationPageEntity> {
+    return this.repository.togglePageEnabled(id, isEnabled);
+  }
+
+  async getRolePageIds(roleId: string): Promise<string[]> {
+    await this.getRoleById(roleId);
+    return this.repository.findRolePageIds(roleId);
+  }
+
+  async assignPagesToRole(
+    roleId: string,
+    pageIds: string[],
+  ): Promise<string[]> {
+    await this.getRoleById(roleId);
+    await this.repository.assignPagesToRole(roleId, pageIds);
+    return this.getRolePageIds(roleId);
+  }
+
+  async getUserEffectiveRoutes(userId: string): Promise<string[]> {
+    return this.repository.getUserEffectiveRoutes(userId);
+  }
+
+  async getRoleEffectiveRoutes(roleId: string): Promise<string[]> {
+    return this.repository.getEffectiveRoutesForRole(roleId);
   }
 }

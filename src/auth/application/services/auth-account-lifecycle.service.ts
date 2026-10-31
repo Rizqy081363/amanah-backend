@@ -31,6 +31,7 @@ import { LinkedProvidersResponseDto } from '../../dto/linked-providers-response.
 import { GoogleTokenVerifierService } from '../../services/google-token-verifier.service';
 import type { JwtPayloadType } from '../../strategies/types/jwt-payload.type';
 import { AuthUserMapper } from '../mappers/auth-user.mapper';
+import { AccessControlService } from '../../../modules/access-control/application/services/access-control.service';
 
 @Injectable()
 export class AuthAccountLifecycleService {
@@ -40,6 +41,7 @@ export class AuthAccountLifecycleService {
     private readonly redisService: RedisService,
     private readonly mailService: MailService,
     private readonly googleVerifier: GoogleTokenVerifierService,
+    private readonly accessControlService: AccessControlService,
   ) {}
 
   async me(userJwtPayload: any): Promise<AuthUserResponseDto | null> {
@@ -83,7 +85,13 @@ export class AuthAccountLifecycleService {
         },
       },
     });
-    return userRecord ? AuthUserMapper.formatUser(userRecord, false) : null;
+
+    if (!userRecord) return null;
+
+    const accessibleRoutes =
+      await this.accessControlService.getUserEffectiveRoutes(userRecord.id);
+
+    return AuthUserMapper.formatUser(userRecord, false, accessibleRoutes);
   }
 
   async update(

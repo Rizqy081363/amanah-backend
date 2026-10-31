@@ -4,9 +4,14 @@ import { AccessControlDrizzleRepository } from './infrastructure/drizzle/access-
 import { AccessControlService } from './application/services/access-control.service';
 import { AdminRolesController } from './presentation/admin-roles.controller';
 import { AdminPermissionsController } from './presentation/admin-permissions.controller';
+import { AdminPagesController } from './presentation/admin-pages.controller';
 
 @Module({
-  controllers: [AdminRolesController, AdminPermissionsController],
+  controllers: [
+    AdminRolesController,
+    AdminPermissionsController,
+    AdminPagesController,
+  ],
   providers: [
     AccessControlService,
     {

@@ -45,8 +45,20 @@ export const CreateRoleSchema = z.object({
     .boolean({ message: 'Status klinis peran harus berupa boolean' })
     .optional()
     .default(false),
+  isActive: z
+    .boolean({ message: 'Status aktif peran harus berupa boolean' })
+    .optional()
+    .default(true),
+  isDefault: z
+    .boolean({ message: 'Status peran default harus berupa boolean' })
+    .optional()
+    .default(false),
   permissionIds: z
     .array(z.string().uuid('Setiap ID perizinan harus berupa UUID yang valid'))
+    .optional()
+    .default([]),
+  pageIds: z
+    .array(z.string().uuid('Setiap ID halaman harus berupa UUID yang valid'))
     .optional()
     .default([]),
 });

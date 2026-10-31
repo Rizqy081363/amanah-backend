@@ -1,5 +1,6 @@
 import { RoleAudience, RoleEntity, RoleTier } from '../entities/role.entity';
 import { PermissionEntity } from '../entities/permission.entity';
+import { ApplicationPageEntity } from '../entities/application-page.entity';
 
 export const ACCESS_CONTROL_REPOSITORY = Symbol('ACCESS_CONTROL_REPOSITORY');
 
@@ -11,7 +12,10 @@ export interface CreateRoleInput {
   tier?: RoleTier;
   audience?: RoleAudience;
   isClinical?: boolean;
+  isActive?: boolean;
+  isDefault?: boolean;
   permissionIds?: string[];
+  pageIds?: string[];
 }
 
 export interface UpdateRoleInput {
@@ -21,6 +25,8 @@ export interface UpdateRoleInput {
   tier?: RoleTier;
   audience?: RoleAudience;
   isClinical?: boolean;
+  isActive?: boolean;
+  isDefault?: boolean;
 }
 
 export interface AccessControlRepository {
@@ -39,4 +45,12 @@ export interface AccessControlRepository {
   removePermissionFromRole(roleId: string, permissionId: string): Promise<void>;
   getEffectivePermissionsByRoleId(roleId: string): Promise<string[]>;
   getUserEffectivePermissions(userId: string): Promise<string[]>;
+  findAllPages(): Promise<ApplicationPageEntity[]>;
+  findPageTree(audience?: RoleAudience): Promise<ApplicationPageEntity[]>;
+  findPageById(id: string): Promise<ApplicationPageEntity | null>;
+  togglePageEnabled(id: string, isEnabled: boolean): Promise<ApplicationPageEntity>;
+  findRolePageIds(roleId: string): Promise<string[]>;
+  assignPagesToRole(roleId: string, pageIds: string[]): Promise<void>;
+  getEffectiveRoutesForRole(roleId: string): Promise<string[]>;
+  getUserEffectiveRoutes(userId: string): Promise<string[]>;
 }
