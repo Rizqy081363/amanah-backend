@@ -202,23 +202,6 @@ export class SocketIoRealtimeGateway
     return true;
   }
 
-  async emitToRole(
-    roleName: string,
-    event: string,
-    payload: unknown,
-  ): Promise<boolean> {
-    if (!this.server) {
-      this.logger.warn(
-        `Cannot emit event "${event}" to role ${roleName}: server not ready`,
-      );
-      return false;
-    }
-
-    const room = REALTIME_ROOMS.role(roleName);
-    this.server.to(room).emit(event, payload);
-    return true;
-  }
-
   async emitToRoom(
     roomName: string,
     event: string,
@@ -303,15 +286,6 @@ export class SocketIoRealtimeGateway
 
   isUserOnline(userId: string): boolean {
     return (this.userSockets.get(userId)?.size ?? 0) > 0;
-  }
-
-  isRoleOnline(roleName: string): boolean {
-    if (!this.server) {
-      return false;
-    }
-    const room = REALTIME_ROOMS.role(roleName);
-    const roomSockets = this.server.sockets?.adapter?.rooms?.get(room);
-    return (roomSockets?.size ?? 0) > 0;
   }
 
   isRoomOnline(roomName: string): boolean {

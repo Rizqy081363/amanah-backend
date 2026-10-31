@@ -105,21 +105,13 @@ export class InAppNotificationQueueWorker
     const targetUserIds = await this.resolveTargetUserIds(command);
     const { target, content } = command;
 
-    // 1. Broadcast domain-specific event to role or clinic rooms
+    // 1. Broadcast domain-specific event to internal clinic room if audience is internal
     if (command.audience === NOTIFICATION_AUDIENCE.INTERNAL) {
       await this.realtimeGateway.emitToRoom?.(
         REALTIME_ROOMS.clinic,
         `${command.sourceDomain}:updated`,
         content.data || {},
       );
-    } else if (target.type === 'role' && target.roles && target.roles.length > 0) {
-      for (const role of target.roles) {
-        await this.realtimeGateway.emitToRole(
-          role.toLowerCase(),
-          `${command.sourceDomain}:updated`,
-          content.data || {},
-        );
-      }
     }
 
     // 2. Broadcast domain-specific event directly to target user sockets
@@ -242,20 +234,6 @@ export class InAppNotificationQueueWorker
 
     if (target.type === 'user') {
       recipientIds = target.recipientUserIds || [];
-    } else if (
-      target.type === 'role' &&
-      target.roles &&
-      target.roles.length > 0 &&
-      this.db
-    ) {
-      const normalizedRoles = target.roles.map((r) => r.toLowerCase());
-      const rows = await this.db
-        .select({ userId: userRoles.userId })
-        .from(userRoles)
-        .innerJoin(roles, sql`${userRoles.roleId} = ${roles.id}`)
-        .where(inArray(sql`lower(${roles.code})`, normalizedRoles));
-
-      recipientIds = [...new Set(rows.map((r) => r.userId))];
     } else if (target.type === 'broadcast' && this.db) {
       if (command.audience === NOTIFICATION_AUDIENCE.INTERNAL) {
         const rows = await this.db

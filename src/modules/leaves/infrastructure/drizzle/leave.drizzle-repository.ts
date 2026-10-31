@@ -28,6 +28,7 @@ import {
   leaveRequestSessions,
   replacementOpportunities,
 } from '../../../../database/schema/leave-payroll.schema';
+import { NOTIFICATION_AUDIENCE } from '../../../../common/constants/notification-audience.constants';
 import { SHIFT_EXCEPTION_TYPE } from '../../../appointments/domain/constants/appointment-lifecycle.constants';
 import { NotificationGatewayService } from '../../../notifications/application/services/notification-gateway.service';
 import { LeaveEntity } from '../../domain/entities/leave.entity';
@@ -744,9 +745,9 @@ export class LeaveDrizzleRepository implements LeaveRepository {
         await this.notificationGateway.dispatch({
           commandId: `leave-${record.id}-${Date.now()}`,
           sourceDomain: 'leave',
+          audience: NOTIFICATION_AUDIENCE.INTERNAL,
           target: {
-            type: 'role',
-            roles: ['admin'],
+            type: 'broadcast',
           },
           category: 'shift',
           content: {
@@ -825,9 +826,9 @@ export class LeaveDrizzleRepository implements LeaveRepository {
         await this.notificationGateway.dispatch({
           commandId: `leave-cancel-${record.id}-${Date.now()}`,
           sourceDomain: 'leave',
+          audience: NOTIFICATION_AUDIENCE.INTERNAL,
           target: {
-            type: 'role',
-            roles: ['admin'],
+            type: 'broadcast',
           },
           category: 'shift',
           content: {

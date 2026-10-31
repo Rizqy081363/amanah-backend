@@ -54,7 +54,7 @@ export const REALTIME_EVENTS = {
 export const REALTIME_ROOMS = {
   user: (userId: string) => `user:${userId}`,
   role: (roleName: string) => `role:${roleName.toLowerCase()}`,
-  clinic: 'room:clinic',
+  clinic: 'audience:internal',
 } as const;
 
 export interface NotificationEnvelopeV2 extends NotificationAudienceTarget {

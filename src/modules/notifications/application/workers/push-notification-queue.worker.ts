@@ -7,10 +7,11 @@ import {
   OnModuleDestroy,
   OnModuleInit,
 } from '@nestjs/common';
-import { and, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { cert, getApps, initializeApp } from 'firebase-admin/app';
 import { getMessaging } from 'firebase-admin/messaging';
 import * as webpush from 'web-push';
+import { NOTIFICATION_AUDIENCE } from '../../../../common/constants/notification-audience.constants';
 import { NOTIFICATIONS_PUSH_QUEUE } from '../../../../common/rabbitmq/rabbitmq.constants';
 import { RabbitMQService } from '../../../../common/rabbitmq/rabbitmq.service';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
@@ -304,22 +305,19 @@ export class PushNotificationQueueWorker
 
     if (target.type === 'user') {
       recipientIds = target.recipientUserIds || [];
-    } else if (
-      target.type === 'role' &&
-      target.roles &&
-      target.roles.length > 0
-    ) {
-      const normalizedRoles = target.roles.map((r) => r.toLowerCase());
-      const rows = await this.db
-        .select({ userId: userRoles.userId })
-        .from(userRoles)
-        .innerJoin(roles, sql`${userRoles.roleId} = ${roles.id}`)
-        .where(inArray(sql`lower(${roles.code})`, normalizedRoles));
-
-      recipientIds = [...new Set(rows.map((r) => r.userId))];
     } else if (target.type === 'broadcast') {
-      const allSubs = await this.pushSubscriptionRepo.findAllActive();
-      recipientIds = [...new Set(allSubs.map((s) => s.userId))];
+      if (command.audience === NOTIFICATION_AUDIENCE.INTERNAL && this.db) {
+        const rows = await this.db
+          .select({ userId: userRoles.userId })
+          .from(userRoles)
+          .innerJoin(roles, sql`${userRoles.roleId} = ${roles.id}`)
+          .where(eq(roles.audience, NOTIFICATION_AUDIENCE.INTERNAL));
+
+        recipientIds = [...new Set(rows.map((r) => r.userId))];
+      } else {
+        const allSubs = await this.pushSubscriptionRepo.findAllActive();
+        recipientIds = [...new Set(allSubs.map((s) => s.userId))];
+      }
     }
 
     if (this.db) {

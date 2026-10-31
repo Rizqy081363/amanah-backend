@@ -9,7 +9,6 @@ type NotificationTargetType = 'user' | 'role' | 'broadcast';
 interface NotificationTarget {
   type: NotificationTargetType;
   recipientUserIds?: string[];
-  roles?: string[];
   roleId?: string;
   roleIds?: string[];
   excludedUserIds?: string[];

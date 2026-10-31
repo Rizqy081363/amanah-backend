@@ -808,9 +808,9 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
       await this.notificationGateway.dispatch({
         commandId: `rep-claim-admin-${opp.id}-${Date.now()}`,
         sourceDomain: 'replacement',
+        audience: NOTIFICATION_AUDIENCE.INTERNAL,
         target: {
-          type: 'role',
-          roles: ['admin'],
+          type: 'broadcast',
         },
         category: 'shift',
         content: {
