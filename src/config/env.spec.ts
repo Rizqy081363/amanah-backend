@@ -14,11 +14,15 @@ const VALID_BASE_CONFIG = {
   FRONTEND_DOMAIN: 'http://localhost:3000',
   BACKEND_DOMAIN: 'http://localhost:3001',
   BETTER_AUTH_URL: 'http://localhost:3001',
-  BETTER_AUTH_SECRET: 'a_very_long_valid_secret_with_more_than_32_characters_123',
+  BETTER_AUTH_SECRET:
+    'a_very_long_valid_secret_with_more_than_32_characters_123',
   AUTH_JWT_SECRET: 'another_super_secure_jwt_secret_32_characters_long_min',
-  AUTH_REFRESH_SECRET: 'refresh_secret_must_also_be_at_least_32_characters_long',
-  AUTH_FORGOT_SECRET: 'forgot_password_secret_is_also_32_characters_or_more_long',
-  AUTH_CONFIRM_EMAIL_SECRET: 'confirm_email_secret_is_very_long_and_at_least_32_chars',
+  AUTH_REFRESH_SECRET:
+    'refresh_secret_must_also_be_at_least_32_characters_long',
+  AUTH_FORGOT_SECRET:
+    'forgot_password_secret_is_also_32_characters_or_more_long',
+  AUTH_CONFIRM_EMAIL_SECRET:
+    'confirm_email_secret_is_very_long_and_at_least_32_chars',
   DATABASE_HOST: 'localhost',
   DATABASE_PORT: '5432',
   DATABASE_USERNAME: 'amanah',
@@ -62,7 +66,8 @@ describe('Enterprise Environment Validation (env.ts)', () => {
     const prodConfig = {
       ...VALID_BASE_CONFIG,
       NODE_ENV: NodeEnvironment.Production,
-      BETTER_AUTH_SECRET: 'amanah_better_auth_dev_secret_32_characters_minimum_len',
+      BETTER_AUTH_SECRET:
+        'amanah_better_auth_dev_secret_32_characters_minimum_len',
     };
 
     expect(() => validateEnvironment(prodConfig)).toThrow(
@@ -114,7 +119,8 @@ describe('Enterprise Environment Validation (env.ts)', () => {
   });
 
   it('should never expose the secret value in the error message', () => {
-    const secretValue = 'this_exact_secret_value_should_never_leak_in_error_message';
+    const secretValue =
+      'this_exact_secret_value_should_never_leak_in_error_message';
     const invalidConfig = {
       ...VALID_BASE_CONFIG,
       NODE_ENV: NodeEnvironment.Production,

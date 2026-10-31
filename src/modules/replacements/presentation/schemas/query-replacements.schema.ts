@@ -5,7 +5,12 @@ export const QueryReplacementsSchema = z.object({
   date: z
     .union([
       z.literal('all'),
-      z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Format tanggal harus YYYY-MM-DD atau all'),
+      z
+        .string()
+        .regex(
+          /^\d{4}-\d{2}-\d{2}$/,
+          'Format tanggal harus YYYY-MM-DD atau all',
+        ),
     ])
     .optional(),
   exactDate: z

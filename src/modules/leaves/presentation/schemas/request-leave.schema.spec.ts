@@ -35,7 +35,9 @@ describe('RequestLeaveSchema (Forward-Only Date & Scope Validation)', () => {
     });
     expect(result.success).toBe(false);
     if (!result.success) {
-      const issue = result.error.issues.find((i) => i.path.includes('startDate'));
+      const issue = result.error.issues.find((i) =>
+        i.path.includes('startDate'),
+      );
       expect(issue).toBeDefined();
       expect(issue?.message).toContain('tidak boleh di masa lalu');
     }
@@ -63,7 +65,9 @@ describe('RequestLeaveSchema (Forward-Only Date & Scope Validation)', () => {
     });
     expect(result.success).toBe(false);
     if (!result.success) {
-      const issue = result.error.issues.find((i) => i.path.includes('sessionIds'));
+      const issue = result.error.issues.find((i) =>
+        i.path.includes('sessionIds'),
+      );
       expect(issue).toBeDefined();
       expect(issue?.message).toContain('Sesi praktik harus dipilih');
     }
@@ -81,7 +85,9 @@ describe('RequestLeaveSchema (Forward-Only Date & Scope Validation)', () => {
     if (!result.success) {
       const issue = result.error.issues.find((i) => i.path.includes('endDate'));
       expect(issue).toBeDefined();
-      expect(issue?.message).toContain('hanya berlaku untuk 1 hari kerja yang sama');
+      expect(issue?.message).toContain(
+        'hanya berlaku untuk 1 hari kerja yang sama',
+      );
     }
   });
 

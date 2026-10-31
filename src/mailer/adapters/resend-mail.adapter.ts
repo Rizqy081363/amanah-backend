@@ -1,7 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { type CreateEmailOptions, Resend } from 'resend';
-import { MAIL_DEFAULTS, MAIL_PROVIDER_NAME } from '../../common/constants/mail.constants';
+import {
+  MAIL_DEFAULTS,
+  MAIL_PROVIDER_NAME,
+} from '../../common/constants/mail.constants';
 import { AllConfigType } from '../../config/config.type';
 import { MailDeliveryError } from '../errors/mail-delivery.error';
 import type { MailTransporterPort } from '../ports/mail-transporter.port';
@@ -24,11 +27,15 @@ export class ResendMailAdapter implements MailTransporterPort {
   }
 
   async send(payload: SendMailPayload): Promise<MailSentResult> {
-    const defaultFrom = `"${this.configService.get('mail.defaultName', {
-      infer: true,
-    }) || MAIL_DEFAULTS.APP_NAME}" <${this.configService.get('mail.defaultEmail', {
-      infer: true,
-    }) || MAIL_DEFAULTS.NOREPLY_EMAIL}>`;
+    const defaultFrom = `"${
+      this.configService.get('mail.defaultName', {
+        infer: true,
+      }) || MAIL_DEFAULTS.APP_NAME
+    }" <${
+      this.configService.get('mail.defaultEmail', {
+        infer: true,
+      }) || MAIL_DEFAULTS.NOREPLY_EMAIL
+    }>`;
 
     const from = payload.from || defaultFrom;
     const to = Array.isArray(payload.to) ? payload.to : [payload.to];
@@ -81,11 +88,7 @@ export class ResendMailAdapter implements MailTransporterPort {
       this.logger.error(
         `[${MAIL_PROVIDER_NAME.RESEND}] Unexpected transport failure for ${to.join(', ')}: ${errMessage}`,
       );
-      throw new MailDeliveryError(
-        errMessage,
-        MAIL_PROVIDER_NAME.RESEND,
-        err,
-      );
+      throw new MailDeliveryError(errMessage, MAIL_PROVIDER_NAME.RESEND, err);
     }
   }
 }

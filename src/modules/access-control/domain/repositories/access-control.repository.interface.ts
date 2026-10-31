@@ -40,7 +40,10 @@ export interface AccessControlRepository {
   findAllPermissions(): Promise<PermissionEntity[]>;
   findPermissionById(id: string): Promise<PermissionEntity | null>;
   findPermissionsGrouped(): Promise<Record<string, PermissionEntity[]>>;
-  assignPermissionsToRole(roleId: string, permissionIds: string[]): Promise<void>;
+  assignPermissionsToRole(
+    roleId: string,
+    permissionIds: string[],
+  ): Promise<void>;
   addPermissionToRole(roleId: string, permissionId: string): Promise<void>;
   removePermissionFromRole(roleId: string, permissionId: string): Promise<void>;
   getEffectivePermissionsByRoleId(roleId: string): Promise<string[]>;
@@ -48,7 +51,10 @@ export interface AccessControlRepository {
   findAllPages(): Promise<ApplicationPageEntity[]>;
   findPageTree(audience?: RoleAudience): Promise<ApplicationPageEntity[]>;
   findPageById(id: string): Promise<ApplicationPageEntity | null>;
-  togglePageEnabled(id: string, isEnabled: boolean): Promise<ApplicationPageEntity>;
+  togglePageEnabled(
+    id: string,
+    isEnabled: boolean,
+  ): Promise<ApplicationPageEntity>;
   findRolePageIds(roleId: string): Promise<string[]>;
   assignPagesToRole(roleId: string, pageIds: string[]): Promise<void>;
   getEffectiveRoutesForRole(roleId: string): Promise<string[]>;

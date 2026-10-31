@@ -32,7 +32,6 @@ export const ATTENDANCE_STATUS_VALUES = ATTENDANCE_STATUSES as unknown as [
   ...AttendanceStatus[],
 ];
 
-
 export function isValidShift(shift: string): boolean {
   return typeof shift === 'string' && shift.trim().length > 0;
 }
@@ -57,7 +56,9 @@ export function normalizeShift(rawShift?: string | null): string | undefined {
 /**
  * Normalizes status string safely, preserving domain validity without inventing values.
  */
-export function normalizeStatus(rawStatus?: string | null): AttendanceStatus | undefined {
+export function normalizeStatus(
+  rawStatus?: string | null,
+): AttendanceStatus | undefined {
   if (rawStatus) {
     const s = rawStatus.trim().toLowerCase();
     if (isValidStatus(s)) {

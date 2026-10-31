@@ -44,7 +44,9 @@ export const AdminBroadcastSchema = z
     }),
     targetRoleIds: z
       .array(
-        z.string().uuid('Setiap targetRoleId harus berupa format UUID yang valid'),
+        z
+          .string()
+          .uuid('Setiap targetRoleId harus berupa format UUID yang valid'),
       )
       .optional()
       .default([]),
@@ -52,10 +54,7 @@ export const AdminBroadcastSchema = z
       .enum(['system', 'announcement', 'shift', 'clinical'])
       .optional()
       .default('announcement'),
-    priority: z
-      .enum(['high', 'normal', 'low'])
-      .optional()
-      .default('normal'),
+    priority: z.enum(['high', 'normal', 'low']).optional().default('normal'),
     channels: z
       .array(z.enum(['in_app', 'push', 'email']))
       .optional()

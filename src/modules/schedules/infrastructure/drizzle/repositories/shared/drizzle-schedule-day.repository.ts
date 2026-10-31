@@ -118,10 +118,7 @@ export class DrizzleScheduleDayRepository {
 
       const hasSchedule = dayAssignments.length > 0;
       const isOnLeave = Boolean(leaveException || approvedLeave);
-      const leaveReason =
-        approvedLeave?.reason ||
-        leaveException?.note ||
-        null;
+      const leaveReason = approvedLeave?.reason || leaveException?.note || null;
       const sessionCount = dayAssignments.length;
       const bookedPatientCount = dayAppointments.length;
 

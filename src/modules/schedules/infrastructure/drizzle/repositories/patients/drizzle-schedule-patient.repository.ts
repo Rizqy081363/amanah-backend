@@ -30,7 +30,12 @@ import { BookedPatientMapper } from '@modules/schedules/infrastructure/drizzle/m
 import { PractitionerResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/practitioner.resolver';
 import type { GetAdminDoctorPatientsQueryDto } from '@modules/schedules/presentation/dto/get-admin-doctor-patients-query.dto';
 import type { GetSessionPatientsQueryDto } from '@modules/schedules/presentation/dto/get-session-patients-query.dto';
-import { Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  NotFoundException,
+  Optional,
+} from '@nestjs/common';
 import { isUUID } from 'class-validator';
 import {
   and,
@@ -337,7 +342,8 @@ export class DrizzleSchedulePatientRepository {
                   todayDateStr: this.clinicTimeService.today(),
                   currentTimeStr: this.clinicTimeService.getCurrentTimeString(),
                   arriveEarlyMinutes: thresholds?.arriveEarlyMinutes,
-                  overflowToleranceMinutes: thresholds?.overflowToleranceMinutes,
+                  overflowToleranceMinutes:
+                    thresholds?.overflowToleranceMinutes,
                 }).isOpen
               : true,
         });

@@ -15,6 +15,7 @@ import {
   clinicServiceComplaints,
   clinicServices,
   clinicUnits,
+  clinicUnitTypes,
   serviceCategories,
 } from '../../../database/schema';
 import {
@@ -22,11 +23,13 @@ import {
   CreateClinicServiceDto,
   CreateFacilityRoomDto,
   CreateFacilityUnitDto,
+  CreateFacilityUnitTypeDto,
   CreateServiceCategoryDto,
   UpdateClinicalIntakeFormDto,
   UpdateClinicServiceDto,
   UpdateFacilityRoomDto,
   UpdateFacilityUnitDto,
+  UpdateFacilityUnitTypeDto,
   UpdateServiceCategoryDto,
 } from '../presentation/dto/admin-facilities.dto';
 
@@ -47,8 +50,138 @@ export class AdminFacilitiesService {
         this.redisService.invalidateTags('clinics', 'catalog', 'schedule'),
       ]);
     } catch (err) {
-      this.logger.warn(`Failed to invalidate clinic facilities cache: ${String(err)}`);
+      this.logger.warn(
+        `Failed to invalidate clinic facilities cache: ${String(err)}`,
+      );
     }
+  }
+
+  // ==========================================
+  // 0. CLINIC UNIT TYPES (Master Tipe Unit)
+  // ==========================================
+
+  async getUnitTypes(): Promise<any[]> {
+    const types = await this.db.query.clinicUnitTypes.findMany({
+      orderBy: [asc(clinicUnitTypes.name)],
+      with: {
+        clinicUnits: true,
+      },
+    });
+
+    return types.map((t) => ({
+      id: t.id,
+      code: t.code,
+      name: t.name,
+      description: t.description,
+      iconName: t.iconName,
+      isActive: t.isActive,
+      unitCount: t.clinicUnits?.length || 0,
+      createdAt: t.createdAt,
+      updatedAt: t.updatedAt,
+    }));
+  }
+
+  async createUnitType(dto: CreateFacilityUnitTypeDto): Promise<any> {
+    const normalizedCode = dto.code.trim().toLowerCase().replace(/-/g, '_');
+
+    const existing = await this.db.query.clinicUnitTypes.findFirst({
+      where: eq(clinicUnitTypes.code, normalizedCode),
+    });
+    if (existing) {
+      throw new ConflictException(
+        `Tipe unit dengan kode '${normalizedCode}' sudah digunakan`,
+      );
+    }
+
+    const [created] = await this.db
+      .insert(clinicUnitTypes)
+      .values({
+        code: normalizedCode,
+        name: dto.name.trim(),
+        description: dto.description?.trim() || null,
+        iconName: dto.iconName?.trim() || 'building-2',
+        isActive: dto.isActive ?? true,
+      })
+      .returning();
+
+    await this.invalidateCache();
+    return created;
+  }
+
+  async updateUnitType(
+    id: string,
+    dto: UpdateFacilityUnitTypeDto,
+  ): Promise<any> {
+    const existing = await this.db.query.clinicUnitTypes.findFirst({
+      where: eq(clinicUnitTypes.id, id),
+    });
+    if (!existing) {
+      throw new NotFoundException(
+        `Tipe unit dengan ID '${id}' tidak ditemukan`,
+      );
+    }
+
+    const updates: Record<string, any> = {
+      updatedAt: new Date().toISOString(),
+    };
+    if (dto.name !== undefined) updates.name = dto.name.trim();
+    if (dto.code !== undefined) {
+      const normalizedCode = dto.code.trim().toLowerCase().replace(/-/g, '_');
+      if (normalizedCode !== existing.code) {
+        const duplicate = await this.db.query.clinicUnitTypes.findFirst({
+          where: eq(clinicUnitTypes.code, normalizedCode),
+        });
+        if (duplicate) {
+          throw new ConflictException(
+            `Tipe unit dengan kode '${normalizedCode}' sudah digunakan`,
+          );
+        }
+      }
+      updates.code = normalizedCode;
+    }
+    if (dto.description !== undefined)
+      updates.description = dto.description?.trim() || null;
+    if (dto.iconName !== undefined)
+      updates.iconName = dto.iconName?.trim() || 'building-2';
+    if (dto.isActive !== undefined) updates.isActive = dto.isActive;
+
+    const [updated] = await this.db
+      .update(clinicUnitTypes)
+      .set(updates)
+      .where(eq(clinicUnitTypes.id, id))
+      .returning();
+
+    await this.invalidateCache();
+    return updated;
+  }
+
+  async deleteUnitType(id: string): Promise<void> {
+    const existing = await this.db.query.clinicUnitTypes.findFirst({
+      where: eq(clinicUnitTypes.id, id),
+    });
+    if (!existing) {
+      throw new NotFoundException(
+        `Tipe unit dengan ID '${id}' tidak ditemukan`,
+      );
+    }
+
+    // Verify referential integrity with active units
+    const linkedUnits = await this.db.query.clinicUnits.findMany({
+      where: eq(clinicUnits.unitTypeId, id),
+    });
+    const activeUnits = linkedUnits.filter((u) => u.isActive);
+    if (activeUnits.length > 0) {
+      throw new ConflictException(
+        `Tipe unit tidak dapat dinonaktifkan karena masih digunakan oleh ${activeUnits.length} unit fasilitas aktif`,
+      );
+    }
+
+    await this.db
+      .update(clinicUnitTypes)
+      .set({ isActive: false, updatedAt: new Date().toISOString() })
+      .where(eq(clinicUnitTypes.id, id));
+
+    await this.invalidateCache();
   }
 
   // ==========================================
@@ -61,6 +194,7 @@ export class AdminFacilitiesService {
       with: {
         clinicRooms: true,
         serviceCategories: true,
+        clinicUnitType: true,
       },
     });
 
@@ -68,7 +202,16 @@ export class AdminFacilitiesService {
       id: u.id,
       code: u.code,
       name: u.name,
-      unitType: u.unitType,
+      unitTypeId: u.unitTypeId,
+      unitType: u.clinicUnitType
+        ? {
+            id: u.clinicUnitType.id,
+            code: u.clinicUnitType.code,
+            name: u.clinicUnitType.name,
+            iconName: u.clinicUnitType.iconName,
+          }
+        : null,
+      unitTypeName: u.clinicUnitType?.name || null,
       queuePrefix: u.queuePrefix,
       iconName: u.iconName,
       location: u.location,
@@ -82,13 +225,24 @@ export class AdminFacilitiesService {
   }
 
   async createUnit(dto: CreateFacilityUnitDto): Promise<any> {
+    const unitType = await this.db.query.clinicUnitTypes.findFirst({
+      where: eq(clinicUnitTypes.id, dto.unitTypeId),
+    });
+    if (!unitType) {
+      throw new NotFoundException(
+        `Tipe unit dengan ID '${dto.unitTypeId}' tidak ditemukan`,
+      );
+    }
+
     const normalizedCode = dto.code.trim().toLowerCase().replace(/-/g, '_');
 
     const existing = await this.db.query.clinicUnits.findFirst({
       where: eq(clinicUnits.code, normalizedCode),
     });
     if (existing) {
-      throw new ConflictException(`Unit dengan kode '${normalizedCode}' sudah digunakan`);
+      throw new ConflictException(
+        `Unit dengan kode '${normalizedCode}' sudah digunakan`,
+      );
     }
 
     const [created] = await this.db
@@ -96,7 +250,7 @@ export class AdminFacilitiesService {
       .values({
         code: normalizedCode,
         name: dto.name.trim(),
-        unitType: dto.unitType || 'polyclinic',
+        unitTypeId: dto.unitTypeId,
         queuePrefix: dto.queuePrefix?.trim() || null,
         iconName: dto.iconName?.trim() || 'building-2',
         location: dto.location?.trim() || null,
@@ -117,6 +271,17 @@ export class AdminFacilitiesService {
       throw new NotFoundException(`Unit dengan ID '${id}' tidak ditemukan`);
     }
 
+    if (dto.unitTypeId !== undefined) {
+      const unitType = await this.db.query.clinicUnitTypes.findFirst({
+        where: eq(clinicUnitTypes.id, dto.unitTypeId),
+      });
+      if (!unitType) {
+        throw new NotFoundException(
+          `Tipe unit dengan ID '${dto.unitTypeId}' tidak ditemukan`,
+        );
+      }
+    }
+
     const updates: Record<string, any> = {
       updatedAt: new Date().toISOString(),
     };
@@ -128,15 +293,20 @@ export class AdminFacilitiesService {
           where: eq(clinicUnits.code, normalizedCode),
         });
         if (duplicate) {
-          throw new ConflictException(`Unit dengan kode '${normalizedCode}' sudah digunakan`);
+          throw new ConflictException(
+            `Unit dengan kode '${normalizedCode}' sudah digunakan`,
+          );
         }
       }
       updates.code = normalizedCode;
     }
-    if (dto.unitType !== undefined) updates.unitType = dto.unitType;
-    if (dto.queuePrefix !== undefined) updates.queuePrefix = dto.queuePrefix?.trim() || null;
-    if (dto.iconName !== undefined) updates.iconName = dto.iconName?.trim() || 'building-2';
-    if (dto.location !== undefined) updates.location = dto.location?.trim() || null;
+    if (dto.unitTypeId !== undefined) updates.unitTypeId = dto.unitTypeId;
+    if (dto.queuePrefix !== undefined)
+      updates.queuePrefix = dto.queuePrefix?.trim() || null;
+    if (dto.iconName !== undefined)
+      updates.iconName = dto.iconName?.trim() || 'building-2';
+    if (dto.location !== undefined)
+      updates.location = dto.location?.trim() || null;
     if (dto.floor !== undefined) updates.floor = dto.floor?.trim() || null;
     if (dto.isActive !== undefined) updates.isActive = dto.isActive;
 
@@ -199,7 +369,9 @@ export class AdminFacilitiesService {
       where: eq(clinicUnits.id, dto.unitId),
     });
     if (!unit) {
-      throw new NotFoundException(`Unit induk dengan ID '${dto.unitId}' tidak ditemukan`);
+      throw new NotFoundException(
+        `Unit induk dengan ID '${dto.unitId}' tidak ditemukan`,
+      );
     }
 
     const normalizedCode = dto.code.trim().toLowerCase().replace(/-/g, '_');
@@ -207,7 +379,9 @@ export class AdminFacilitiesService {
       where: eq(clinicRooms.code, normalizedCode),
     });
     if (existing) {
-      throw new ConflictException(`Ruangan dengan kode '${normalizedCode}' sudah digunakan`);
+      throw new ConflictException(
+        `Ruangan dengan kode '${normalizedCode}' sudah digunakan`,
+      );
     }
 
     const [created] = await this.db
@@ -239,7 +413,9 @@ export class AdminFacilitiesService {
         where: eq(clinicUnits.id, dto.unitId),
       });
       if (!unit) {
-        throw new NotFoundException(`Unit induk dengan ID '${dto.unitId}' tidak ditemukan`);
+        throw new NotFoundException(
+          `Unit induk dengan ID '${dto.unitId}' tidak ditemukan`,
+        );
       }
     }
 
@@ -255,12 +431,15 @@ export class AdminFacilitiesService {
           where: eq(clinicRooms.code, normalizedCode),
         });
         if (duplicate) {
-          throw new ConflictException(`Ruangan dengan kode '${normalizedCode}' sudah digunakan`);
+          throw new ConflictException(
+            `Ruangan dengan kode '${normalizedCode}' sudah digunakan`,
+          );
         }
       }
       updates.code = normalizedCode;
     }
-    if (dto.location !== undefined) updates.location = dto.location?.trim() || null;
+    if (dto.location !== undefined)
+      updates.location = dto.location?.trim() || null;
     if (dto.floor !== undefined) updates.floor = dto.floor?.trim() || null;
     if (dto.isActive !== undefined) updates.isActive = dto.isActive;
 
@@ -295,10 +474,15 @@ export class AdminFacilitiesService {
   // ==========================================
 
   async getCategories(unitId?: string): Promise<any[]> {
-    const whereCondition = unitId ? eq(serviceCategories.unitId, unitId) : undefined;
+    const whereCondition = unitId
+      ? eq(serviceCategories.unitId, unitId)
+      : undefined;
     const categories = await this.db.query.serviceCategories.findMany({
       where: whereCondition,
-      orderBy: [asc(serviceCategories.displayOrder), asc(serviceCategories.name)],
+      orderBy: [
+        asc(serviceCategories.displayOrder),
+        asc(serviceCategories.name),
+      ],
       with: {
         clinicUnit: true,
         clinicServices: true,
@@ -328,7 +512,9 @@ export class AdminFacilitiesService {
         where: eq(clinicUnits.id, dto.unitId),
       });
       if (!unit) {
-        throw new NotFoundException(`Unit dengan ID '${dto.unitId}' tidak ditemukan`);
+        throw new NotFoundException(
+          `Unit dengan ID '${dto.unitId}' tidak ditemukan`,
+        );
       }
     }
 
@@ -337,7 +523,9 @@ export class AdminFacilitiesService {
       where: eq(serviceCategories.code, normalizedCode),
     });
     if (existing) {
-      throw new ConflictException(`Kategori dengan kode '${normalizedCode}' sudah digunakan`);
+      throw new ConflictException(
+        `Kategori dengan kode '${normalizedCode}' sudah digunakan`,
+      );
     }
 
     const [created] = await this.db
@@ -358,7 +546,10 @@ export class AdminFacilitiesService {
     return created;
   }
 
-  async updateCategory(id: string, dto: UpdateServiceCategoryDto): Promise<any> {
+  async updateCategory(
+    id: string,
+    dto: UpdateServiceCategoryDto,
+  ): Promise<any> {
     const existing = await this.db.query.serviceCategories.findFirst({
       where: eq(serviceCategories.id, id),
     });
@@ -371,7 +562,9 @@ export class AdminFacilitiesService {
         where: eq(clinicUnits.id, dto.unitId),
       });
       if (!unit) {
-        throw new NotFoundException(`Unit dengan ID '${dto.unitId}' tidak ditemukan`);
+        throw new NotFoundException(
+          `Unit dengan ID '${dto.unitId}' tidak ditemukan`,
+        );
       }
     }
 
@@ -387,14 +580,19 @@ export class AdminFacilitiesService {
           where: eq(serviceCategories.code, normalizedCode),
         });
         if (duplicate) {
-          throw new ConflictException(`Kategori dengan kode '${normalizedCode}' sudah digunakan`);
+          throw new ConflictException(
+            `Kategori dengan kode '${normalizedCode}' sudah digunakan`,
+          );
         }
       }
       updates.code = normalizedCode;
     }
-    if (dto.codePrefix !== undefined) updates.codePrefix = dto.codePrefix?.trim() || null;
-    if (dto.iconName !== undefined) updates.iconName = dto.iconName?.trim() || 'folder';
-    if (dto.description !== undefined) updates.description = dto.description?.trim() || null;
+    if (dto.codePrefix !== undefined)
+      updates.codePrefix = dto.codePrefix?.trim() || null;
+    if (dto.iconName !== undefined)
+      updates.iconName = dto.iconName?.trim() || 'folder';
+    if (dto.description !== undefined)
+      updates.description = dto.description?.trim() || null;
     if (dto.displayOrder !== undefined) updates.displayOrder = dto.displayOrder;
     if (dto.isActive !== undefined) updates.isActive = dto.isActive;
 
@@ -489,7 +687,9 @@ export class AdminFacilitiesService {
       where: eq(serviceCategories.id, dto.serviceCategoryId),
     });
     if (!category) {
-      throw new NotFoundException(`Kategori layanan dengan ID '${dto.serviceCategoryId}' tidak ditemukan`);
+      throw new NotFoundException(
+        `Kategori layanan dengan ID '${dto.serviceCategoryId}' tidak ditemukan`,
+      );
     }
 
     if (dto.intakeFormId) {
@@ -497,7 +697,9 @@ export class AdminFacilitiesService {
         where: eq(clinicalIntakeForms.id, dto.intakeFormId),
       });
       if (!form) {
-        throw new NotFoundException(`Formulir intake dengan ID '${dto.intakeFormId}' tidak ditemukan`);
+        throw new NotFoundException(
+          `Formulir intake dengan ID '${dto.intakeFormId}' tidak ditemukan`,
+        );
       }
     }
 
@@ -506,7 +708,9 @@ export class AdminFacilitiesService {
       where: eq(clinicServices.code, normalizedCode),
     });
     if (existing) {
-      throw new ConflictException(`Layanan dengan kode '${normalizedCode}' sudah digunakan`);
+      throw new ConflictException(
+        `Layanan dengan kode '${normalizedCode}' sudah digunakan`,
+      );
     }
 
     return await this.db.transaction(async (tx) => {
@@ -556,7 +760,9 @@ export class AdminFacilitiesService {
         where: eq(serviceCategories.id, dto.serviceCategoryId),
       });
       if (!category) {
-        throw new NotFoundException(`Kategori layanan dengan ID '${dto.serviceCategoryId}' tidak ditemukan`);
+        throw new NotFoundException(
+          `Kategori layanan dengan ID '${dto.serviceCategoryId}' tidak ditemukan`,
+        );
       }
     }
 
@@ -566,7 +772,9 @@ export class AdminFacilitiesService {
           where: eq(clinicalIntakeForms.id, dto.intakeFormId),
         });
         if (!form) {
-          throw new NotFoundException(`Formulir intake dengan ID '${dto.intakeFormId}' tidak ditemukan`);
+          throw new NotFoundException(
+            `Formulir intake dengan ID '${dto.intakeFormId}' tidak ditemukan`,
+          );
         }
       }
     }
@@ -574,9 +782,12 @@ export class AdminFacilitiesService {
     const updates: Record<string, any> = {
       updatedAt: new Date().toISOString(),
     };
-    if (dto.serviceCategoryId !== undefined) updates.serviceCategoryId = dto.serviceCategoryId;
-    if (dto.specialtyId !== undefined) updates.specialtyId = dto.specialtyId || null;
-    if (dto.intakeFormId !== undefined) updates.intakeFormId = dto.intakeFormId || null;
+    if (dto.serviceCategoryId !== undefined)
+      updates.serviceCategoryId = dto.serviceCategoryId;
+    if (dto.specialtyId !== undefined)
+      updates.specialtyId = dto.specialtyId || null;
+    if (dto.intakeFormId !== undefined)
+      updates.intakeFormId = dto.intakeFormId || null;
     if (dto.name !== undefined) updates.name = dto.name.trim();
     if (dto.code !== undefined) {
       const normalizedCode = dto.code.trim().toLowerCase().replace(/-/g, '_');
@@ -585,15 +796,21 @@ export class AdminFacilitiesService {
           where: eq(clinicServices.code, normalizedCode),
         });
         if (duplicate) {
-          throw new ConflictException(`Layanan dengan kode '${normalizedCode}' sudah digunakan`);
+          throw new ConflictException(
+            `Layanan dengan kode '${normalizedCode}' sudah digunakan`,
+          );
         }
       }
       updates.code = normalizedCode;
     }
-    if (dto.shortName !== undefined) updates.shortName = dto.shortName?.trim() || null;
-    if (dto.description !== undefined) updates.description = dto.description?.trim() || null;
-    if (dto.codePrefix !== undefined) updates.codePrefix = dto.codePrefix.trim().toUpperCase();
-    if (dto.iconName !== undefined) updates.iconName = dto.iconName?.trim() || 'stethoscope';
+    if (dto.shortName !== undefined)
+      updates.shortName = dto.shortName?.trim() || null;
+    if (dto.description !== undefined)
+      updates.description = dto.description?.trim() || null;
+    if (dto.codePrefix !== undefined)
+      updates.codePrefix = dto.codePrefix.trim().toUpperCase();
+    if (dto.iconName !== undefined)
+      updates.iconName = dto.iconName?.trim() || 'stethoscope';
     if (dto.displayOrder !== undefined) updates.displayOrder = dto.displayOrder;
     if (dto.isBookable !== undefined) updates.isBookable = dto.isBookable;
     if (dto.isActive !== undefined) updates.isActive = dto.isActive;
@@ -673,7 +890,9 @@ export class AdminFacilitiesService {
       where: eq(clinicalIntakeForms.code, normalizedCode),
     });
     if (existing) {
-      throw new ConflictException(`Formulir dengan kode '${normalizedCode}' sudah digunakan`);
+      throw new ConflictException(
+        `Formulir dengan kode '${normalizedCode}' sudah digunakan`,
+      );
     }
 
     const [created] = await this.db
@@ -710,13 +929,17 @@ export class AdminFacilitiesService {
           where: eq(clinicalIntakeForms.code, normalizedCode),
         });
         if (duplicate) {
-          throw new ConflictException(`Formulir dengan kode '${normalizedCode}' sudah digunakan`);
+          throw new ConflictException(
+            `Formulir dengan kode '${normalizedCode}' sudah digunakan`,
+          );
         }
       }
       updates.code = normalizedCode;
     }
-    if (dto.description !== undefined) updates.description = dto.description?.trim() || null;
-    if (dto.iconName !== undefined) updates.iconName = dto.iconName?.trim() || 'clipboard-list';
+    if (dto.description !== undefined)
+      updates.description = dto.description?.trim() || null;
+    if (dto.iconName !== undefined)
+      updates.iconName = dto.iconName?.trim() || 'clipboard-list';
     if (dto.isActive !== undefined) updates.isActive = dto.isActive;
 
     const [updated] = await this.db

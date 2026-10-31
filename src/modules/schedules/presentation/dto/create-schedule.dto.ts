@@ -1,12 +1,6 @@
-import {
-  type CanonicalStaffShift,
-} from '@modules/schedules/domain/constants/schedule-shift.constants';
+import { type CanonicalStaffShift } from '@modules/schedules/domain/constants/schedule-shift.constants';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import {
-  IsBoolean,
-  IsOptional,
-  IsString,
-} from 'class-validator';
+import { IsBoolean, IsOptional, IsString } from 'class-validator';
 
 export class CreateScheduleDto {
   @ApiPropertyOptional({

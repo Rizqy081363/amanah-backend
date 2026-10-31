@@ -8,7 +8,10 @@ import { and, eq } from 'drizzle-orm';
 import { ROLE_AUDIENCE } from '../../../common/constants/role-audience.constants';
 import { DRIZZLE_SOURCE } from '../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../database/drizzle/drizzle.provider';
-import { roles, staffInvitations } from '../../../database/schema/amanah.schema';
+import {
+  roles,
+  staffInvitations,
+} from '../../../database/schema/amanah.schema';
 import { STAFF_INVITATION_STATUS } from '../../../modules/staffs/domain/constants/staff-invitation.constants';
 
 @Injectable()

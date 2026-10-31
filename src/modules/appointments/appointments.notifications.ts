@@ -937,12 +937,16 @@ export class AppointmentsNotificationRules implements OnModuleInit {
       },
       titleTemplate: (payload: any) =>
         payload.title ||
-        (payload.changeType === 'doctor' || payload.changeType === 'practitioner'
+        (payload.changeType === 'doctor' ||
+        payload.changeType === 'practitioner'
           ? 'Perubahan Praktisi Janji Temu'
           : 'Perubahan Ruangan Janji Temu'),
       bodyTemplate: (payload: any) => {
         if (payload.message) return payload.message;
-        if (payload.changeType === 'doctor' || payload.changeType === 'practitioner') {
+        if (
+          payload.changeType === 'doctor' ||
+          payload.changeType === 'practitioner'
+        ) {
           return `Praktisi dialihkan ke ${payload.doctorName || payload.practitionerName || 'praktisi baru'}.`;
         }
         return `Ruangan dialihkan ke ${payload.roomName || 'ruangan baru'}.`;

@@ -1,5 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsIn, IsNotEmpty, IsObject, IsOptional, IsString } from 'class-validator';
+import {
+  IsIn,
+  IsNotEmpty,
+  IsObject,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 
 export class CreateExportDto {
   @ApiProperty({
@@ -23,7 +29,8 @@ export class CreateExportDto {
   format: 'csv' | 'xlsx' | 'pdf';
 
   @ApiProperty({
-    description: 'Parameter kueri filter spesifik modul (misal: periodId, startDate, endDate)',
+    description:
+      'Parameter kueri filter spesifik modul (misal: periodId, startDate, endDate)',
     example: { periodId: '312aa774-3e16-4573-8b53-85e8a101de17' },
     required: false,
   })

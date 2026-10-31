@@ -49,8 +49,7 @@ export class AdminDoctorRosterController {
 
   private assertDoctorAccess(id: string, user?: AuthenticatedUser) {
     if (!user || isAdminUser(user)) return;
-    const isOwner =
-      user.staff?.practitionerId === id || user.staff?.id === id;
+    const isOwner = user.staff?.practitionerId === id || user.staff?.id === id;
     if (!isOwner) {
       throw new DomainForbiddenException(
         'Akses ditolak: Anda hanya berwenang mengakses data jadwal dokter Anda sendiri',

@@ -1,5 +1,20 @@
-import { ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { and, count, desc, eq, gte, ilike, inArray, lte, or } from 'drizzle-orm';
+import {
+  ForbiddenException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import {
+  and,
+  count,
+  desc,
+  eq,
+  gte,
+  ilike,
+  inArray,
+  lte,
+  or,
+} from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
@@ -52,8 +67,7 @@ export class MaternalIntakeDrizzleRepository {
             undefined;
           targetMotherBirthDate = targetMotherBirthDate || patient.birthDate;
           targetPhone = targetPhone || patient.phone || '';
-          targetBloodType =
-            targetBloodType || patient.bloodType || 'unknown';
+          targetBloodType = targetBloodType || patient.bloodType || 'unknown';
         }
       }
 
@@ -412,60 +426,117 @@ export class MaternalIntakeDrizzleRepository {
 
       if (dto.motherName !== undefined) updateData.motherName = dto.motherName;
       if (dto.motherNik !== undefined) updateData.motherNik = dto.motherNik;
-      if (dto.motherBirthDate !== undefined) updateData.motherBirthDate = dto.motherBirthDate;
+      if (dto.motherBirthDate !== undefined)
+        updateData.motherBirthDate = dto.motherBirthDate;
       if (dto.motherAge !== undefined) updateData.motherAge = dto.motherAge;
-      if (dto.marriageOrder !== undefined) updateData.marriageOrder = dto.marriageOrder;
-      if (dto.marriageDate !== undefined) updateData.marriageDate = dto.marriageDate;
+      if (dto.marriageOrder !== undefined)
+        updateData.marriageOrder = dto.marriageOrder;
+      if (dto.marriageDate !== undefined)
+        updateData.marriageDate = dto.marriageDate;
       if (dto.motherJob !== undefined) updateData.motherJob = dto.motherJob;
-      if (dto.motherEducation !== undefined) updateData.motherEducation = dto.motherEducation;
+      if (dto.motherEducation !== undefined)
+        updateData.motherEducation = dto.motherEducation;
       if (dto.religion !== undefined) updateData.religion = dto.religion;
-      if (dto.phoneNumber !== undefined) updateData.phoneNumber = dto.phoneNumber;
-      if (dto.domicileAddress !== undefined) updateData.domicileAddress = dto.domicileAddress;
-      if (dto.identityCardAddress !== undefined) updateData.identityCardAddress = dto.identityCardAddress;
+      if (dto.phoneNumber !== undefined)
+        updateData.phoneNumber = dto.phoneNumber;
+      if (dto.domicileAddress !== undefined)
+        updateData.domicileAddress = dto.domicileAddress;
+      if (dto.identityCardAddress !== undefined)
+        updateData.identityCardAddress = dto.identityCardAddress;
       if (dto.dasawisma !== undefined) updateData.dasawisma = dto.dasawisma;
       if (dto.posyandu !== undefined) updateData.posyandu = dto.posyandu;
       if (dto.puskesmas !== undefined) updateData.puskesmas = dto.puskesmas;
 
-      if (dto.partnerName !== undefined) updateData.partnerName = dto.partnerName;
+      if (dto.partnerName !== undefined)
+        updateData.partnerName = dto.partnerName;
       if (dto.partnerNik !== undefined) updateData.partnerNik = dto.partnerNik;
-      if (dto.partnerBirthDate !== undefined) updateData.partnerBirthDate = dto.partnerBirthDate;
+      if (dto.partnerBirthDate !== undefined)
+        updateData.partnerBirthDate = dto.partnerBirthDate;
       if (dto.partnerAge !== undefined) updateData.partnerAge = dto.partnerAge;
       if (dto.partnerJob !== undefined) updateData.partnerJob = dto.partnerJob;
-      if (dto.partnerEducation !== undefined) updateData.partnerEducation = dto.partnerEducation;
-      if (dto.partnerBloodType !== undefined) updateData.partnerBloodType = dto.partnerBloodType;
+      if (dto.partnerEducation !== undefined)
+        updateData.partnerEducation = dto.partnerEducation;
+      if (dto.partnerBloodType !== undefined)
+        updateData.partnerBloodType = dto.partnerBloodType;
 
-      if (dto.heightCm !== undefined) updateData.heightCm = dto.heightCm !== null ? String(dto.heightCm) : null;
-      if (dto.prePregnancyWeightKg !== undefined) updateData.prePregnancyWeightKg = dto.prePregnancyWeightKg !== null ? String(dto.prePregnancyWeightKg) : null;
-      if (dto.upperArmCircumferenceCm !== undefined) updateData.upperArmCircumferenceCm = dto.upperArmCircumferenceCm !== null ? String(dto.upperArmCircumferenceCm) : null;
-      if (dto.initialBmi !== undefined) updateData.initialBmi = dto.initialBmi !== null ? String(dto.initialBmi) : null;
-      if (dto.tetanusStatus !== undefined) updateData.tetanusStatus = dto.tetanusStatus;
-      if (dto.motherBloodType !== undefined) updateData.motherBloodType = dto.motherBloodType;
+      if (dto.heightCm !== undefined)
+        updateData.heightCm =
+          dto.heightCm !== null ? String(dto.heightCm) : null;
+      if (dto.prePregnancyWeightKg !== undefined)
+        updateData.prePregnancyWeightKg =
+          dto.prePregnancyWeightKg !== null
+            ? String(dto.prePregnancyWeightKg)
+            : null;
+      if (dto.upperArmCircumferenceCm !== undefined)
+        updateData.upperArmCircumferenceCm =
+          dto.upperArmCircumferenceCm !== null
+            ? String(dto.upperArmCircumferenceCm)
+            : null;
+      if (dto.initialBmi !== undefined)
+        updateData.initialBmi =
+          dto.initialBmi !== null ? String(dto.initialBmi) : null;
+      if (dto.tetanusStatus !== undefined)
+        updateData.tetanusStatus = dto.tetanusStatus;
+      if (dto.motherBloodType !== undefined)
+        updateData.motherBloodType = dto.motherBloodType;
 
       if (dto.hpht !== undefined) updateData.hpht = dto.hpht;
-      if (dto.estimatedDueDate !== undefined) updateData.estimatedDueDate = dto.estimatedDueDate;
-      if (dto.gestationalAgeWeeks !== undefined) updateData.gestationalAgeWeeks = dto.gestationalAgeWeeks !== null ? String(dto.gestationalAgeWeeks) : null;
-      if (dto.gestationalAgeFormatted !== undefined) updateData.gestationalAgeFormatted = dto.gestationalAgeFormatted;
-      if (dto.currentComplaints !== undefined) updateData.currentComplaints = dto.currentComplaints;
+      if (dto.estimatedDueDate !== undefined)
+        updateData.estimatedDueDate = dto.estimatedDueDate;
+      if (dto.gestationalAgeWeeks !== undefined)
+        updateData.gestationalAgeWeeks =
+          dto.gestationalAgeWeeks !== null
+            ? String(dto.gestationalAgeWeeks)
+            : null;
+      if (dto.gestationalAgeFormatted !== undefined)
+        updateData.gestationalAgeFormatted = dto.gestationalAgeFormatted;
+      if (dto.currentComplaints !== undefined)
+        updateData.currentComplaints = dto.currentComplaints;
 
-      if (dto.gravidaCount !== undefined) updateData.gravidaCount = dto.gravidaCount;
-      if (dto.parityCount !== undefined) updateData.parityCount = dto.parityCount;
-      if (dto.abortionCount !== undefined) updateData.abortionCount = dto.abortionCount;
-      if (dto.livingChildrenCount !== undefined) updateData.livingChildrenCount = dto.livingChildrenCount;
-      if (dto.hasPreviousPregnancyHistory !== undefined) updateData.hasPreviousPregnancyHistory = dto.hasPreviousPregnancyHistory;
-      if (dto.hasContraceptionHistory !== undefined) updateData.hasContraceptionHistory = dto.hasContraceptionHistory;
+      if (dto.gravidaCount !== undefined)
+        updateData.gravidaCount = dto.gravidaCount;
+      if (dto.parityCount !== undefined)
+        updateData.parityCount = dto.parityCount;
+      if (dto.abortionCount !== undefined)
+        updateData.abortionCount = dto.abortionCount;
+      if (dto.livingChildrenCount !== undefined)
+        updateData.livingChildrenCount = dto.livingChildrenCount;
+      if (dto.hasPreviousPregnancyHistory !== undefined)
+        updateData.hasPreviousPregnancyHistory =
+          dto.hasPreviousPregnancyHistory;
+      if (dto.hasContraceptionHistory !== undefined)
+        updateData.hasContraceptionHistory = dto.hasContraceptionHistory;
 
-      if (dto.smokedBeforePregnancy !== undefined) updateData.smokedBeforePregnancy = dto.smokedBeforePregnancy;
-      if (dto.alcoholBeforePregnancy !== undefined) updateData.alcoholBeforePregnancy = dto.alcoholBeforePregnancy;
-      if (dto.irregularDietBeforePregnancy !== undefined) updateData.irregularDietBeforePregnancy = dto.irregularDietBeforePregnancy;
-      if (dto.reducedPhysicalActivityBeforePregnancy !== undefined) updateData.reducedPhysicalActivityBeforePregnancy = dto.reducedPhysicalActivityBeforePregnancy;
-      if (dto.unprescribedMedicationBeforePregnancy !== undefined) updateData.unprescribedMedicationBeforePregnancy = dto.unprescribedMedicationBeforePregnancy;
-      if (dto.concerningCosmeticUseBeforePregnancy !== undefined) updateData.concerningCosmeticUseBeforePregnancy = dto.concerningCosmeticUseBeforePregnancy;
-      if (dto.pesticideExposureBeforePregnancy !== undefined) updateData.pesticideExposureBeforePregnancy = dto.pesticideExposureBeforePregnancy;
-      if (dto.chemicalExposureBeforePregnancy !== undefined) updateData.chemicalExposureBeforePregnancy = dto.chemicalExposureBeforePregnancy;
-      if (dto.smokeExposureBeforePregnancy !== undefined) updateData.smokeExposureBeforePregnancy = dto.smokeExposureBeforePregnancy;
+      if (dto.smokedBeforePregnancy !== undefined)
+        updateData.smokedBeforePregnancy = dto.smokedBeforePregnancy;
+      if (dto.alcoholBeforePregnancy !== undefined)
+        updateData.alcoholBeforePregnancy = dto.alcoholBeforePregnancy;
+      if (dto.irregularDietBeforePregnancy !== undefined)
+        updateData.irregularDietBeforePregnancy =
+          dto.irregularDietBeforePregnancy;
+      if (dto.reducedPhysicalActivityBeforePregnancy !== undefined)
+        updateData.reducedPhysicalActivityBeforePregnancy =
+          dto.reducedPhysicalActivityBeforePregnancy;
+      if (dto.unprescribedMedicationBeforePregnancy !== undefined)
+        updateData.unprescribedMedicationBeforePregnancy =
+          dto.unprescribedMedicationBeforePregnancy;
+      if (dto.concerningCosmeticUseBeforePregnancy !== undefined)
+        updateData.concerningCosmeticUseBeforePregnancy =
+          dto.concerningCosmeticUseBeforePregnancy;
+      if (dto.pesticideExposureBeforePregnancy !== undefined)
+        updateData.pesticideExposureBeforePregnancy =
+          dto.pesticideExposureBeforePregnancy;
+      if (dto.chemicalExposureBeforePregnancy !== undefined)
+        updateData.chemicalExposureBeforePregnancy =
+          dto.chemicalExposureBeforePregnancy;
+      if (dto.smokeExposureBeforePregnancy !== undefined)
+        updateData.smokeExposureBeforePregnancy =
+          dto.smokeExposureBeforePregnancy;
 
-      if (dto.concerningEnvironmentNotes !== undefined) updateData.concerningEnvironmentNotes = dto.concerningEnvironmentNotes;
-      if (dto.allergyInfo !== undefined) updateData.allergyInfo = dto.allergyInfo;
+      if (dto.concerningEnvironmentNotes !== undefined)
+        updateData.concerningEnvironmentNotes = dto.concerningEnvironmentNotes;
+      if (dto.allergyInfo !== undefined)
+        updateData.allergyInfo = dto.allergyInfo;
       if (dto.otherNotes !== undefined) updateData.otherNotes = dto.otherNotes;
 
       await tx
@@ -477,9 +548,13 @@ export class MaternalIntakeDrizzleRepository {
       if (dto.husband || dto.partnerName) {
         const husbandName = dto.husband?.fullName || dto.partnerName;
         if (husbandName) {
-          const existingHusband = await tx.query.maternalHusbandProfiles.findFirst({
-            where: eq(maternalHusbandProfiles.maternalIntakeId, maternalIntakeId),
-          });
+          const existingHusband =
+            await tx.query.maternalHusbandProfiles.findFirst({
+              where: eq(
+                maternalHusbandProfiles.maternalIntakeId,
+                maternalIntakeId,
+              ),
+            });
 
           const husbandData = {
             maternalIntakeId,
@@ -509,7 +584,9 @@ export class MaternalIntakeDrizzleRepository {
       if (Array.isArray(dto.previousPregnancies)) {
         await tx
           .delete(maternalPreviousPregnancies)
-          .where(eq(maternalPreviousPregnancies.maternalIntakeId, maternalIntakeId));
+          .where(
+            eq(maternalPreviousPregnancies.maternalIntakeId, maternalIntakeId),
+          );
 
         if (dto.previousPregnancies.length > 0) {
           await tx.insert(maternalPreviousPregnancies).values(
@@ -518,14 +595,17 @@ export class MaternalIntakeDrizzleRepository {
               orderNumber: p.orderNumber || idx + 1,
               birthYear: p.birthYear || null,
               birthWeightGrams: p.birthWeightGrams || null,
-              birthLengthCm: p.birthLengthCm !== undefined && p.birthLengthCm !== null ? String(p.birthLengthCm) : null,
+              birthLengthCm:
+                p.birthLengthCm !== undefined && p.birthLengthCm !== null
+                  ? String(p.birthLengthCm)
+                  : null,
               childSex: p.childSex || null,
               gestationalAgeAtBirth: p.gestationalAgeAtBirth || null,
               birthAttendant: p.birthAttendant || null,
               deliveryMethod: p.deliveryMethod || null,
               deliveryPlace: p.deliveryPlace || null,
               complications: p.complications || null,
-            }))
+            })),
           );
         }
       }
@@ -534,7 +614,12 @@ export class MaternalIntakeDrizzleRepository {
       if (Array.isArray(dto.contraceptiveHistories)) {
         await tx
           .delete(maternalContraceptiveHistories)
-          .where(eq(maternalContraceptiveHistories.maternalIntakeId, maternalIntakeId));
+          .where(
+            eq(
+              maternalContraceptiveHistories.maternalIntakeId,
+              maternalIntakeId,
+            ),
+          );
 
         if (dto.contraceptiveHistories.length > 0) {
           await tx.insert(maternalContraceptiveHistories).values(
@@ -547,19 +632,30 @@ export class MaternalIntakeDrizzleRepository {
               stopDate: c.stopDate || null,
               problems: c.problems || null,
               sideEffects: c.sideEffects || null,
-            }))
+            })),
           );
         }
       }
 
       // 5. Health Conditions
-      if (Array.isArray(dto.healthConditions) && dto.healthConditions.length > 0) {
-        const conditions = await tx.query.maternalHealthConditionCatalog.findMany();
-        const cMap = new Map<string, string>(conditions.map((c) => [c.code, c.id]));
+      if (
+        Array.isArray(dto.healthConditions) &&
+        dto.healthConditions.length > 0
+      ) {
+        const conditions =
+          await tx.query.maternalHealthConditionCatalog.findMany();
+        const cMap = new Map<string, string>(
+          conditions.map((c) => [c.code, c.id]),
+        );
 
         await tx
           .delete(maternalHealthConditionResponses)
-          .where(eq(maternalHealthConditionResponses.maternalIntakeId, maternalIntakeId));
+          .where(
+            eq(
+              maternalHealthConditionResponses.maternalIntakeId,
+              maternalIntakeId,
+            ),
+          );
 
         const inserts = [];
         for (const cond of dto.healthConditions) {
@@ -591,8 +687,13 @@ export class MaternalIntakeDrizzleRepository {
           };
           await tx
             .update(medicalIntakeSubmissions)
-            .set({ answers: mergedAnswers, updatedAt: new Date().toISOString() })
-            .where(eq(medicalIntakeSubmissions.id, existing.intakeSubmissionId));
+            .set({
+              answers: mergedAnswers,
+              updatedAt: new Date().toISOString(),
+            })
+            .where(
+              eq(medicalIntakeSubmissions.id, existing.intakeSubmissionId),
+            );
         }
       }
 
@@ -776,4 +877,3 @@ export class MaternalIntakeDrizzleRepository {
     };
   }
 }
-

@@ -37,7 +37,9 @@ export interface ResolvedActiveSessionResult {
  * Converts a time string "HH:mm:ss" or "HH:mm" into total minutes from midnight.
  * Treats "24:00:00" as 1440 minutes (end of day).
  */
-export function timeStringToMinutes(timeStr: string | null | undefined): number {
+export function timeStringToMinutes(
+  timeStr: string | null | undefined,
+): number {
   if (!timeStr) return 0;
   const parts = timeStr.trim().split(':');
   const h = Number(parts[0]) || 0;
@@ -78,7 +80,8 @@ export function resolveActiveSessionForCheckIn(
     const startMinutes = timeStringToMinutes(session.startsAt);
     const rawEndMinutes = timeStringToMinutes(session.endsAt);
     const endMinutes = rawEndMinutes === 0 ? 1440 : rawEndMinutes;
-    const windowStart = (startMinutes - checkInWindowMinutesBefore + 1440) % 1440;
+    const windowStart =
+      (startMinutes - checkInWindowMinutesBefore + 1440) % 1440;
 
     const isOvernight = endMinutes < startMinutes;
     const isWindowPreMidnight = windowStart > startMinutes;
@@ -88,7 +91,8 @@ export function resolveActiveSessionForCheckIn(
 
     if (isOvernight || isWindowPreMidnight) {
       isWithinWindow = nowMinutes >= windowStart || nowMinutes <= endMinutes;
-      hasEnded = !isWithinWindow && (nowMinutes > endMinutes && nowMinutes < windowStart);
+      hasEnded =
+        !isWithinWindow && nowMinutes > endMinutes && nowMinutes < windowStart;
     } else {
       isWithinWindow = nowMinutes >= windowStart && nowMinutes <= endMinutes;
       hasEnded = nowMinutes > endMinutes;
@@ -101,7 +105,11 @@ export function resolveActiveSessionForCheckIn(
   if (requestedShift || requestedSessionId) {
     const matched = candidateSessions.find((s) => {
       if (requestedSessionId && s.sessionId === requestedSessionId) return true;
-      if (requestedShift && s.shift.toLowerCase() === requestedShift.toLowerCase()) return true;
+      if (
+        requestedShift &&
+        s.shift.toLowerCase() === requestedShift.toLowerCase()
+      )
+        return true;
       return false;
     });
 
@@ -134,7 +142,9 @@ export function resolveActiveSessionForCheckIn(
   }
 
   // 2. Dynamic Progressive Resolution: Check which candidate sessions have an open check-in window right now
-  const openSessions = candidateSessions.filter((s) => evaluateSessionWindow(s).isWithinWindow);
+  const openSessions = candidateSessions.filter(
+    (s) => evaluateSessionWindow(s).isWithinWindow,
+  );
 
   if (openSessions.length > 0) {
     // If shiftHint is provided and matches one of the open sessions, prioritize that session
@@ -150,7 +160,8 @@ export function resolveActiveSessionForCheckIn(
       selected = openSessions.reduce((prev, curr) => {
         const prevStart = timeStringToMinutes(prev.startsAt);
         const currStart = timeStringToMinutes(curr.startsAt);
-        return Math.abs(nowMinutes - currStart) < Math.abs(nowMinutes - prevStart)
+        return Math.abs(nowMinutes - currStart) <
+          Math.abs(nowMinutes - prevStart)
           ? curr
           : prev;
       });
@@ -173,7 +184,9 @@ export function resolveActiveSessionForCheckIn(
   }
 
   // 3. No session currently open: Determine if all scheduled sessions for today have expired
-  const allExpired = candidateSessions.every((s) => evaluateSessionWindow(s).hasEnded);
+  const allExpired = candidateSessions.every(
+    (s) => evaluateSessionWindow(s).hasEnded,
+  );
 
   if (allExpired) {
     throw new SessionExpiredException(

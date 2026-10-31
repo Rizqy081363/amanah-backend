@@ -15,7 +15,8 @@ export function createRequestLeaveSchema(minAllowedDate?: string) {
         .regex(/^\d{4}-\d{2}-\d{2}$/, 'Format endDate harus YYYY-MM-DD'),
       scope: z
         .enum(CANONICAL_LEAVE_SCOPES, {
-          message: 'Cakupan permohonan harus salah satu dari: session, full_day',
+          message:
+            'Cakupan permohonan harus salah satu dari: session, full_day',
         })
         .default('full_day'),
       sessionIds: z
@@ -45,7 +46,8 @@ export function createRequestLeaveSchema(minAllowedDate?: string) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ['startDate'],
-          message: 'Tanggal permohonan izin tidak boleh di masa lalu (minimal hari ini)',
+          message:
+            'Tanggal permohonan izin tidak boleh di masa lalu (minimal hari ini)',
         });
       }
 
@@ -53,7 +55,8 @@ export function createRequestLeaveSchema(minAllowedDate?: string) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ['endDate'],
-          message: 'Tanggal akhir cuti tidak boleh mendahului tanggal awal cuti',
+          message:
+            'Tanggal akhir cuti tidak boleh mendahului tanggal awal cuti',
         });
       }
 
@@ -70,7 +73,8 @@ export function createRequestLeaveSchema(minAllowedDate?: string) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
             path: ['endDate'],
-            message: 'Permohonan izin per sesi hanya berlaku untuk 1 hari kerja yang sama',
+            message:
+              'Permohonan izin per sesi hanya berlaku untuk 1 hari kerja yang sama',
           });
         }
       }

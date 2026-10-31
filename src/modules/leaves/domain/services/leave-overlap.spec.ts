@@ -18,7 +18,9 @@ function checkDateRangeOverlap(
   existing: ExistingLeave,
   newReq: { startDate: string; endDate: string },
 ): boolean {
-  return existing.startDate <= newReq.endDate && existing.endDate >= newReq.startDate;
+  return (
+    existing.startDate <= newReq.endDate && existing.endDate >= newReq.startDate
+  );
 }
 
 function checkLeaveConflict(

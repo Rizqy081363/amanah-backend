@@ -23,9 +23,7 @@ import {
   userRoles,
   users,
 } from '../../../database/schema';
-import {
-  STAFF_INVITATION_STATUS,
-} from '../../../modules/staffs/domain/constants/staff-invitation.constants';
+import { STAFF_INVITATION_STATUS } from '../../../modules/staffs/domain/constants/staff-invitation.constants';
 import {
   AUTH_ERROR_CODES,
   AUTH_SURFACES,
@@ -276,8 +274,7 @@ export class AuthLoginService {
       const isExistingStaff =
         firstUserRole?.role?.audience === ROLE_AUDIENCE.INTERNAL ||
         Boolean(
-          existingUser?.staffProfiles &&
-            existingUser.staffProfiles.length > 0,
+          existingUser?.staffProfiles && existingUser.staffProfiles.length > 0,
         );
 
       const pendingInvitation = await this.db.query.staffInvitations.findFirst({

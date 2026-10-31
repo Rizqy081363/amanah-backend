@@ -66,8 +66,10 @@ export class AttendanceRosterCandidateResolver {
     // 2. Tier 2: Check for individual custom rosters (Doctor or Staff)
     const isDoctorWithRoster = await repo.hasCustomDoctorRoster(staffId);
     if (isDoctorWithRoster) {
-      const doctorSessions =
-        await repo.findDoctorAssignmentsForDowDetailed(staffId, dow);
+      const doctorSessions = await repo.findDoctorAssignmentsForDowDetailed(
+        staffId,
+        dow,
+      );
       for (const s of doctorSessions) {
         if (!candidateSessions.some((c) => c.sessionId === s.sessionId)) {
           candidateSessions.push(s);

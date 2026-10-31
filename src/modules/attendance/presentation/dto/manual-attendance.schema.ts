@@ -1,7 +1,5 @@
 import { z } from 'zod';
-import {
-  ATTENDANCE_STATUS_VALUES,
-} from '../../domain/constants/attendance.constants';
+import { ATTENDANCE_STATUS_VALUES } from '../../domain/constants/attendance.constants';
 
 export const ManualAttendanceSchema = z.object({
   staffIdOrCode: z

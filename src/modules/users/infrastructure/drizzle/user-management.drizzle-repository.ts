@@ -6,7 +6,17 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { and, asc, count, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  or,
+  sql,
+} from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
@@ -353,7 +363,9 @@ export class UserManagementDrizzleRepository
     });
 
     if (!existing) {
-      throw new NotFoundException(`Pengguna dengan ID "${id}" tidak ditemukan.`);
+      throw new NotFoundException(
+        `Pengguna dengan ID "${id}" tidak ditemukan.`,
+      );
     }
 
     // Guard 1: Self-deactivation prevention
@@ -395,7 +407,10 @@ export class UserManagementDrizzleRepository
     const newEmailLower = input.email.toLowerCase().trim();
     if (newEmailLower !== existing.email.toLowerCase().trim()) {
       const emailConflict = await this.db.query.users.findFirst({
-        where: and(eq(users.email, newEmailLower as any), sql`id != ${id}::uuid`),
+        where: and(
+          eq(users.email, newEmailLower as any),
+          sql`id != ${id}::uuid`,
+        ),
       });
       if (emailConflict) {
         throw new ConflictException(
@@ -523,7 +538,9 @@ export class UserManagementDrizzleRepository
       where: eq(users.id, id),
     });
     if (!existingUser) {
-      throw new NotFoundException(`Pengguna dengan ID "${id}" tidak ditemukan.`);
+      throw new NotFoundException(
+        `Pengguna dengan ID "${id}" tidak ditemukan.`,
+      );
     }
 
     const isBlocking = isAccountBlocked(status);
@@ -699,7 +716,9 @@ export class UserManagementDrizzleRepository
       where: eq(users.id, id),
     });
     if (!existingUser) {
-      throw new NotFoundException(`Pengguna dengan ID "${id}" tidak ditemukan.`);
+      throw new NotFoundException(
+        `Pengguna dengan ID "${id}" tidak ditemukan.`,
+      );
     }
 
     const email = existingUser.email;
@@ -788,9 +807,7 @@ export class UserManagementDrizzleRepository
   }
 
   async getAllUserEmails(): Promise<Set<string>> {
-    const records = await this.db
-      .select({ email: users.email })
-      .from(users);
+    const records = await this.db.select({ email: users.email }).from(users);
 
     const set = new Set<string>();
     for (const r of records) {

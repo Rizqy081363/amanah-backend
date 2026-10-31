@@ -42,9 +42,7 @@ import {
   validateSessionDefsNonOverlap,
   validateWeeklyTemplatesNonOverlap,
 } from '@modules/schedules/domain/services/shift-overlap.validator';
-import {
-  reassignChronologicalSortOrders,
-} from '@modules/schedules/domain/services/session-chronology.service';
+import { reassignChronologicalSortOrders } from '@modules/schedules/domain/services/session-chronology.service';
 import { and, asc, eq, ne } from 'drizzle-orm';
 import {
   ClinicSettingCategory,
@@ -197,9 +195,7 @@ export class DrizzleAdminScheduleConfigurationRepository {
         const startTimeStr = sd.defaultStartsAt
           ? sd.defaultStartsAt.slice(0, 5)
           : '';
-        const endTimeStr = sd.defaultEndsAt
-          ? sd.defaultEndsAt.slice(0, 5)
-          : '';
+        const endTimeStr = sd.defaultEndsAt ? sd.defaultEndsAt.slice(0, 5) : '';
         const canonicalLabel = sd.label || sd.code;
         return {
           id: sd.id,
@@ -358,7 +354,9 @@ export class DrizzleAdminScheduleConfigurationRepository {
         }),
         ...(typeof def.icon === 'string' && { icon: def.icon }),
         ...(def.icon === null && { icon: null }),
-        ...(typeof normalizedSort === 'number' && { sortOrder: normalizedSort }),
+        ...(typeof normalizedSort === 'number' && {
+          sortOrder: normalizedSort,
+        }),
         ...(def.defaultStartsAt && { defaultStartsAt: def.defaultStartsAt }),
         ...(def.defaultEndsAt && { defaultEndsAt: def.defaultEndsAt }),
         updatedAt: now,
@@ -705,9 +703,7 @@ export class DrizzleAdminScheduleConfigurationRepository {
     const startTimeStr = dto.defaultStartsAt
       ? dto.defaultStartsAt.slice(0, 5)
       : '';
-    const endTimeStr = dto.defaultEndsAt
-      ? dto.defaultEndsAt.slice(0, 5)
-      : '';
+    const endTimeStr = dto.defaultEndsAt ? dto.defaultEndsAt.slice(0, 5) : '';
 
     return {
       id: createdId,
@@ -897,7 +893,9 @@ export class DrizzleAdminScheduleConfigurationRepository {
       .limit(1);
 
     if (!existing || existing.length === 0) {
-      throw new NotFoundException(`Shift operasional dengan ID '${id}' tidak ditemukan.`);
+      throw new NotFoundException(
+        `Shift operasional dengan ID '${id}' tidak ditemukan.`,
+      );
     }
 
     const current = existing[0];
@@ -939,7 +937,9 @@ export class DrizzleAdminScheduleConfigurationRepository {
       .limit(1);
 
     if (!existing || existing.length === 0) {
-      throw new NotFoundException(`Shift operasional dengan ID '${id}' tidak ditemukan.`);
+      throw new NotFoundException(
+        `Shift operasional dengan ID '${id}' tidak ditemukan.`,
+      );
     }
 
     const shift = existing[0];
@@ -958,9 +958,18 @@ export class DrizzleAdminScheduleConfigurationRepository {
         roomName: clinicRooms.name,
       })
       .from(doctorAssignments)
-      .innerJoin(practitioners, eq(doctorAssignments.doctorId, practitioners.id))
-      .leftJoin(medicalSpecialties, eq(practitioners.specialtyId, medicalSpecialties.id))
-      .leftJoin(clinicRooms, eq(doctorAssignments.preferredRoomId, clinicRooms.id))
+      .innerJoin(
+        practitioners,
+        eq(doctorAssignments.doctorId, practitioners.id),
+      )
+      .leftJoin(
+        medicalSpecialties,
+        eq(practitioners.specialtyId, medicalSpecialties.id),
+      )
+      .leftJoin(
+        clinicRooms,
+        eq(doctorAssignments.preferredRoomId, clinicRooms.id),
+      )
       .leftJoin(masterDays, eq(doctorAssignments.dow, masterDays.dow))
       .where(eq(doctorAssignments.sessionId, id));
 
@@ -979,7 +988,15 @@ export class DrizzleAdminScheduleConfigurationRepository {
       }
     >();
 
-    const DAY_NAMES = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+    const DAY_NAMES = [
+      'Minggu',
+      'Senin',
+      'Selasa',
+      'Rabu',
+      'Kamis',
+      'Jumat',
+      'Sabtu',
+    ];
 
     for (const a of assignments) {
       if (!doctorMap.has(a.doctorId)) {
@@ -992,7 +1009,8 @@ export class DrizzleAdminScheduleConfigurationRepository {
       }
 
       if (a.dow !== null && a.dow !== undefined) {
-        const resolvedDayName = a.dayName || DAY_NAMES[a.dow] || `Hari ${a.dow}`;
+        const resolvedDayName =
+          a.dayName || DAY_NAMES[a.dow] || `Hari ${a.dow}`;
         doctorMap.get(a.doctorId)!.activeDays.push({
           dow: a.dow,
           dayName: resolvedDayName,
@@ -1105,7 +1123,8 @@ export class DrizzleAdminScheduleConfigurationRepository {
           .select()
           .from(sessionDefs)
           .where(ne(sessionDefs.id, id));
-        const chronologicalRemaining = reassignChronologicalSortOrders(remaining);
+        const chronologicalRemaining =
+          reassignChronologicalSortOrders(remaining);
         const now = this.clinicTimeService
           ? this.clinicTimeService.nowDate().toISOString()
           : new Date().toISOString();
@@ -1194,6 +1213,4 @@ export class DrizzleAdminScheduleConfigurationRepository {
       message: `Shift '${shiftLabel}' berhasil dihapus.`,
     };
   }
-
-
 }

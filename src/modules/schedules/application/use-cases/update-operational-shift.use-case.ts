@@ -200,7 +200,8 @@ export class UpdateOperationalShiftUseCase {
           Boolean(def.defaultStartsAt) &&
           def.defaultStartsAt !== prev.defaultStartsAt;
         const hasEndShift =
-          Boolean(def.defaultEndsAt) && def.defaultEndsAt !== prev.defaultEndsAt;
+          Boolean(def.defaultEndsAt) &&
+          def.defaultEndsAt !== prev.defaultEndsAt;
 
         if (hasStartShift || hasEndShift) {
           shiftedSessions.push({

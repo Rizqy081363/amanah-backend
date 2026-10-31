@@ -225,9 +225,10 @@ export class DailyLeavePayrollService {
           continue;
         }
 
-        const rateRow = rates.find(
-          (r) => Boolean(staff.roleId && r.roleId === staff.roleId),
-        ) || rates[0];
+        const rateRow =
+          rates.find((r) =>
+            Boolean(staff.roleId && r.roleId === staff.roleId),
+          ) || rates[0];
         const hourlyRate = Number(rateRow?.hourlyRate ?? 0);
 
         // Calculate consolidated scheduled shift sessions for targetDate
@@ -587,9 +588,13 @@ export class DailyLeavePayrollService {
         'payroll:leave_deduction_applied',
         payload,
       );
-      void this.realtimeGateway.emitToRoom?.(REALTIME_ROOMS.clinic, 'payroll:refresh', {
-        date: targetDate,
-      });
+      void this.realtimeGateway.emitToRoom?.(
+        REALTIME_ROOMS.clinic,
+        'payroll:refresh',
+        {
+          date: targetDate,
+        },
+      );
     }
 
     // 2. In-App and Push Notification Center

@@ -24,19 +24,34 @@ import {
 import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
 import { PermissionsGuard } from '../../../common/auth/permissions.guard';
 import { RequirePermissions } from '../../../common/auth/permissions.decorator';
+import { zodPipe } from '../../../common/validation';
 import { AdminFacilitiesService } from '../application/admin-facilities.service';
 import {
   CreateClinicalIntakeFormDto,
   CreateClinicServiceDto,
   CreateFacilityRoomDto,
-  CreateFacilityUnitDto,
   CreateServiceCategoryDto,
   UpdateClinicalIntakeFormDto,
   UpdateClinicServiceDto,
   UpdateFacilityRoomDto,
-  UpdateFacilityUnitDto,
   UpdateServiceCategoryDto,
 } from './dto/admin-facilities.dto';
+import {
+  CreateFacilityUnitTypeSchema,
+  FacilityUnitTypeParamSchema,
+  type CreateFacilityUnitTypeInput,
+  type FacilityUnitTypeParamInput,
+  type UpdateFacilityUnitTypeInput,
+  UpdateFacilityUnitTypeSchema,
+} from './schemas/facility-unit-type.schema';
+import {
+  CreateFacilityUnitSchema,
+  FacilityUnitParamSchema,
+  type CreateFacilityUnitInput,
+  type FacilityUnitParamInput,
+  type UpdateFacilityUnitInput,
+  UpdateFacilityUnitSchema,
+} from './schemas/facility-unit.schema';
 
 @ApiTags('Admin Facilities Studio')
 @ApiBearerAuth('access-token')
@@ -47,13 +62,75 @@ export class AdminFacilitiesController {
   constructor(private readonly facilitiesService: AdminFacilitiesService) {}
 
   // ==========================================
+  // 0. CLINIC UNIT TYPES (Master Tipe Unit)
+  // ==========================================
+
+  @Get('unit-types')
+  @ApiOperation({
+    summary: 'Mendapatkan seluruh daftar tipe unit fasilitas (Admin)',
+    description:
+      'Mengambil seluruh master data tipe unit fasilitas beserta jumlah unit terhubung.',
+  })
+  @ApiOkResponse({ description: 'Daftar tipe unit fasilitas berhasil diambil' })
+  async getUnitTypes() {
+    return this.facilitiesService.getUnitTypes();
+  }
+
+  @Post('unit-types')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Menambahkan master tipe unit baru (Admin)',
+    description:
+      'Membuat tipe unit baru yang nantinya dapat diasosiasikan ke unit poliklinik.',
+  })
+  @ApiCreatedResponse({ description: 'Tipe unit fasilitas berhasil dibuat' })
+  async createUnitType(
+    @Body(zodPipe(CreateFacilityUnitTypeSchema))
+    body: CreateFacilityUnitTypeInput,
+  ) {
+    return this.facilitiesService.createUnitType(body);
+  }
+
+  @Patch('unit-types/:id')
+  @ApiOperation({
+    summary: 'Memperbarui master data tipe unit (Admin)',
+    description: 'Mengubah nama, kode, deskripsi, ikon, atau status tipe unit.',
+  })
+  @ApiParam({ name: 'id', description: 'ID unik tipe unit fasilitas' })
+  @ApiOkResponse({ description: 'Tipe unit fasilitas berhasil diperbarui' })
+  async updateUnitType(
+    @Param(zodPipe(FacilityUnitTypeParamSchema))
+    param: FacilityUnitTypeParamInput,
+    @Body(zodPipe(UpdateFacilityUnitTypeSchema))
+    body: UpdateFacilityUnitTypeInput,
+  ) {
+    return this.facilitiesService.updateUnitType(param.id, body);
+  }
+
+  @Delete('unit-types/:id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Menonaktifkan tipe unit fasilitas (Admin)',
+    description: 'Menonaktifkan master data tipe unit.',
+  })
+  @ApiParam({ name: 'id', description: 'ID unik tipe unit fasilitas' })
+  @ApiNoContentResponse({ description: 'Tipe unit berhasil dinonaktifkan' })
+  async deleteUnitType(
+    @Param(zodPipe(FacilityUnitTypeParamSchema))
+    param: FacilityUnitTypeParamInput,
+  ) {
+    await this.facilitiesService.deleteUnitType(param.id);
+  }
+
+  // ==========================================
   // 1. CLINIC UNITS (Poliklinik / Departemen)
   // ==========================================
 
   @Get('units')
   @ApiOperation({
     summary: 'Mendapatkan seluruh daftar unit poliklinik fasilitas (Admin)',
-    description: 'Mengambil seluruh unit dengan rincian jumlah ruangan dan kategori layanan.',
+    description:
+      'Mengambil seluruh unit dengan rincian jumlah ruangan dan kategori layanan.',
   })
   @ApiOkResponse({ description: 'Daftar unit fasilitas berhasil diambil' })
   async getUnits() {
@@ -67,7 +144,9 @@ export class AdminFacilitiesController {
     description: 'Membuat unit pelayanan baru dari kanvas kosong.',
   })
   @ApiCreatedResponse({ description: 'Unit fasilitas berhasil dibuat' })
-  async createUnit(@Body() body: CreateFacilityUnitDto) {
+  async createUnit(
+    @Body(zodPipe(CreateFacilityUnitSchema)) body: CreateFacilityUnitInput,
+  ) {
     return this.facilitiesService.createUnit(body);
   }
 
@@ -79,10 +158,10 @@ export class AdminFacilitiesController {
   @ApiParam({ name: 'id', description: 'ID unik unit fasilitas' })
   @ApiOkResponse({ description: 'Unit fasilitas berhasil diperbarui' })
   async updateUnit(
-    @Param('id') id: string,
-    @Body() body: UpdateFacilityUnitDto,
+    @Param(zodPipe(FacilityUnitParamSchema)) param: FacilityUnitParamInput,
+    @Body(zodPipe(UpdateFacilityUnitSchema)) body: UpdateFacilityUnitInput,
   ) {
-    return this.facilitiesService.updateUnit(id, body);
+    return this.facilitiesService.updateUnit(param.id, body);
   }
 
   @Delete('units/:id')
@@ -93,8 +172,10 @@ export class AdminFacilitiesController {
   })
   @ApiParam({ name: 'id', description: 'ID unik unit fasilitas' })
   @ApiNoContentResponse({ description: 'Unit berhasil dinonaktifkan' })
-  async deleteUnit(@Param('id') id: string) {
-    await this.facilitiesService.deleteUnit(id);
+  async deleteUnit(
+    @Param(zodPipe(FacilityUnitParamSchema)) param: FacilityUnitParamInput,
+  ) {
+    await this.facilitiesService.deleteUnit(param.id);
   }
 
   // ==========================================
@@ -104,9 +185,14 @@ export class AdminFacilitiesController {
   @Get('rooms')
   @ApiOperation({
     summary: 'Mendapatkan daftar ruangan periksa (Admin)',
-    description: 'Mengambil seluruh ruangan fisik periksa, dapat difilter per unit.',
+    description:
+      'Mengambil seluruh ruangan fisik periksa, dapat difilter per unit.',
   })
-  @ApiQuery({ name: 'unitId', required: false, description: 'Filter berdasarkan ID unit' })
+  @ApiQuery({
+    name: 'unitId',
+    required: false,
+    description: 'Filter berdasarkan ID unit',
+  })
   @ApiOkResponse({ description: 'Daftar ruangan berhasil diambil' })
   async getRooms(@Query('unitId') unitId?: string) {
     return this.facilitiesService.getRooms(unitId);
@@ -116,7 +202,8 @@ export class AdminFacilitiesController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Menambahkan ruangan periksa baru (Admin)',
-    description: 'Membuat ruangan baru yang terafiliasi dengan suatu unit poliklinik.',
+    description:
+      'Membuat ruangan baru yang terafiliasi dengan suatu unit poliklinik.',
   })
   @ApiCreatedResponse({ description: 'Ruangan berhasil dibuat' })
   async createRoom(@Body() body: CreateFacilityRoomDto) {
@@ -156,9 +243,14 @@ export class AdminFacilitiesController {
   @Get('categories')
   @ApiOperation({
     summary: 'Mendapatkan daftar kategori layanan (Admin)',
-    description: 'Mengambil seluruh kategori layanan medis, dapat difilter per unit.',
+    description:
+      'Mengambil seluruh kategori layanan medis, dapat difilter per unit.',
   })
-  @ApiQuery({ name: 'unitId', required: false, description: 'Filter berdasarkan ID unit' })
+  @ApiQuery({
+    name: 'unitId',
+    required: false,
+    description: 'Filter berdasarkan ID unit',
+  })
   @ApiOkResponse({ description: 'Daftar kategori berhasil diambil' })
   async getCategories(@Query('unitId') unitId?: string) {
     return this.facilitiesService.getCategories(unitId);
@@ -196,7 +288,9 @@ export class AdminFacilitiesController {
     description: 'Menonaktifkan kategori layanan.',
   })
   @ApiParam({ name: 'id', description: 'ID unik kategori layanan' })
-  @ApiNoContentResponse({ description: 'Kategori layanan berhasil dinonaktifkan' })
+  @ApiNoContentResponse({
+    description: 'Kategori layanan berhasil dinonaktifkan',
+  })
   async deleteCategory(@Param('id') id: string) {
     await this.facilitiesService.deleteCategory(id);
   }
@@ -208,10 +302,19 @@ export class AdminFacilitiesController {
   @Get('services')
   @ApiOperation({
     summary: 'Mendapatkan daftar layanan medis (Admin)',
-    description: 'Mengambil seluruh layanan tindakan medis, dapat difilter per kategori atau unit.',
+    description:
+      'Mengambil seluruh layanan tindakan medis, dapat difilter per kategori atau unit.',
   })
-  @ApiQuery({ name: 'categoryId', required: false, description: 'Filter berdasarkan ID kategori' })
-  @ApiQuery({ name: 'unitId', required: false, description: 'Filter berdasarkan ID unit' })
+  @ApiQuery({
+    name: 'categoryId',
+    required: false,
+    description: 'Filter berdasarkan ID kategori',
+  })
+  @ApiQuery({
+    name: 'unitId',
+    required: false,
+    description: 'Filter berdasarkan ID unit',
+  })
   @ApiOkResponse({ description: 'Daftar layanan medis berhasil diambil' })
   async getServices(
     @Query('categoryId') categoryId?: string,
@@ -224,7 +327,8 @@ export class AdminFacilitiesController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Menambahkan layanan medis baru (Admin)',
-    description: 'Membuat layanan tindakan medis dengan nama ikon dan keluhan bawaan.',
+    description:
+      'Membuat layanan tindakan medis dengan nama ikon dan keluhan bawaan.',
   })
   @ApiCreatedResponse({ description: 'Layanan medis berhasil dibuat' })
   async createService(@Body() body: CreateClinicServiceDto) {
@@ -234,7 +338,8 @@ export class AdminFacilitiesController {
   @Patch('services/:id')
   @ApiOperation({
     summary: 'Memperbarui data layanan medis (Admin)',
-    description: 'Mengubah nama, ikon, alur medis, atau daftar keluhan layanan.',
+    description:
+      'Mengubah nama, ikon, alur medis, atau daftar keluhan layanan.',
   })
   @ApiParam({ name: 'id', description: 'ID unik layanan medis' })
   @ApiOkResponse({ description: 'Layanan medis berhasil diperbarui' })
@@ -264,7 +369,8 @@ export class AdminFacilitiesController {
   @Get('forms')
   @ApiOperation({
     summary: 'Mendapatkan daftar formulir rekam medis / intake klinis (Admin)',
-    description: 'Mengambil seluruh master formulir intake yang dapat dikoneksikan ke layanan.',
+    description:
+      'Mengambil seluruh master formulir intake yang dapat dikoneksikan ke layanan.',
   })
   @ApiOkResponse({ description: 'Daftar formulir intake berhasil diambil' })
   async getForms() {
@@ -275,7 +381,8 @@ export class AdminFacilitiesController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Menambahkan master formulir intake klinis baru (Admin)',
-    description: 'Membuat definisi formulir intake baru yang nantinya dapat dikoneksikan ke layanan medis.',
+    description:
+      'Membuat definisi formulir intake baru yang nantinya dapat dikoneksikan ke layanan medis.',
   })
   @ApiCreatedResponse({ description: 'Formulir intake berhasil dibuat' })
   async createForm(@Body() body: CreateClinicalIntakeFormDto) {
@@ -303,7 +410,9 @@ export class AdminFacilitiesController {
     description: 'Menonaktifkan formulir intake dari sistem.',
   })
   @ApiParam({ name: 'id', description: 'ID unik formulir intake' })
-  @ApiNoContentResponse({ description: 'Formulir intake berhasil dinonaktifkan' })
+  @ApiNoContentResponse({
+    description: 'Formulir intake berhasil dinonaktifkan',
+  })
   async deleteForm(@Param('id') id: string) {
     await this.facilitiesService.deleteForm(id);
   }

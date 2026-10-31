@@ -35,7 +35,8 @@ export class GetDailyAttendanceBffUseCase {
       ? this.clinicTimeService
         ? this.clinicTimeService.normalizeDate(query.date)
         : query.date
-      : this.clinicTimeService?.today() ?? new Date().toISOString().split('T')[0];
+      : (this.clinicTimeService?.today() ??
+        new Date().toISOString().split('T')[0]);
 
     const targetDateObj = new Date(targetDate + 'T12:00:00Z');
     const dow = targetDateObj.getDay();
@@ -98,7 +99,9 @@ export class GetDailyAttendanceBffUseCase {
         tanggal_presensi: rec.attendanceDate,
         waktu_presensi: checkInFormatted,
         checkInAt: rec.checkInAt ? new Date(rec.checkInAt).toISOString() : null,
-        checkOutAt: rec.checkOutAt ? new Date(rec.checkOutAt).toISOString() : null,
+        checkOutAt: rec.checkOutAt
+          ? new Date(rec.checkOutAt).toISOString()
+          : null,
         status: status,
         shift: shift,
         shiftLabel: canonicalShiftLabel,
@@ -129,9 +132,7 @@ export class GetDailyAttendanceBffUseCase {
     }
 
     if (query.roleId && query.roleId !== 'all') {
-      tableRecords = tableRecords.filter(
-        (r) => r.roleId === query.roleId,
-      );
+      tableRecords = tableRecords.filter((r) => r.roleId === query.roleId);
     }
 
     if (query.category && query.category !== 'all') {
@@ -146,16 +147,12 @@ export class GetDailyAttendanceBffUseCase {
 
     if (query.status && query.status !== 'all') {
       const st = query.status.toLowerCase();
-      tableRecords = tableRecords.filter(
-        (r) => r.status.toLowerCase() === st,
-      );
+      tableRecords = tableRecords.filter((r) => r.status.toLowerCase() === st);
     }
 
     if (query.shift && query.shift !== 'all') {
       const sh = query.shift.toLowerCase();
-      tableRecords = tableRecords.filter(
-        (r) => r.shift.toLowerCase() === sh,
-      );
+      tableRecords = tableRecords.filter((r) => r.shift.toLowerCase() === sh);
     }
 
     // 6. Active QR Session config for Terminal (Decoupled read-model: outside shift hours returns dormant standby terminal)

@@ -47,7 +47,8 @@ export class AdminBroadcastController {
   @HttpCode(HttpStatus.OK)
   @RequirePermissions('notifications:broadcast')
   @ApiOperation({
-    summary: 'Menyiarkan notifikasi massal ke seluruh pengguna, internal staf, pasien, atau peran tertentu',
+    summary:
+      'Menyiarkan notifikasi massal ke seluruh pengguna, internal staf, pasien, atau peran tertentu',
     description:
       'Memungkinkan Admin mengirimkan pengumuman dinamis ke pengguna yang ditargetkan tanpa keterikatan pada peran statis.',
   })

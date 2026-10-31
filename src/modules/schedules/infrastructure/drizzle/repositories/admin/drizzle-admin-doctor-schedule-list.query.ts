@@ -11,9 +11,7 @@ import {
   replacementOpportunities,
   ACTIVE_CLAIMED_REPLACEMENT_STATUSES,
 } from '@database/schema';
-import {
-  INACTIVE_APPOINTMENT_STATUSES,
-} from '@modules/schedules/domain/constants/schedule.constants';
+import { INACTIVE_APPOINTMENT_STATUSES } from '@modules/schedules/domain/constants/schedule.constants';
 import { STAFF_STATUS } from '@modules/staffs/domain/constants/staff-invitation.constants';
 import {
   type AdminDoctorDailySession,
@@ -174,9 +172,7 @@ export class DrizzleAdminDoctorScheduleListQuery {
         !p.isAcceptingAppointments ||
         p.staffProfile?.status === STAFF_STATUS.INACTIVE;
       const effectiveCreatedAt =
-        p.createdAt ||
-        p.staffProfile?.createdAt ||
-        null;
+        p.createdAt || p.staffProfile?.createdAt || null;
 
       const doctorAssignmentsForP = allDoctorAssignments.filter(
         (da) => da.doctorId === p.id,
@@ -231,13 +227,15 @@ export class DrizzleAdminDoctorScheduleListQuery {
         .sort((a, b) => a.startTime.localeCompare(b.startTime)) as any;
 
       const approvedLeave = allApprovedLeaves.find(
-        (l) => l.practitionerId === p.id || l.staffProfileId === p.staffProfileId,
+        (l) =>
+          l.practitionerId === p.id || l.staffProfileId === p.staffProfileId,
       );
       const isOnLeave = Boolean(approvedLeave || activeLeave);
       const leaveReason = approvedLeave?.reason || activeLeave?.note || null;
       const leaveStart =
         approvedLeave?.startDate || (isOnLeave ? targetDate : null);
-      const leaveEnd = approvedLeave?.endDate || (isOnLeave ? targetDate : null);
+      const leaveEnd =
+        approvedLeave?.endDate || (isOnLeave ? targetDate : null);
       const leaveType = approvedLeave?.requestType || null;
 
       const repOpp = allReplacementOpportunities.find(
@@ -262,8 +260,7 @@ export class DrizzleAdminDoctorScheduleListQuery {
           (s: any) => s.id === rep.sessionId,
         );
         if (!alreadyInSessions && rep.sessionDef) {
-          const sStart =
-            rep.sessionDef.defaultStartsAt?.slice(0, 5) || '00:00';
+          const sStart = rep.sessionDef.defaultStartsAt?.slice(0, 5) || '00:00';
           const sEnd = rep.sessionDef.defaultEndsAt?.slice(0, 5) || '24:00';
           sessions.push({
             id: rep.sessionDef.id,
@@ -288,92 +285,94 @@ export class DrizzleAdminDoctorScheduleListQuery {
         ? `${p.clinicRoom.name}${p.clinicRoom.location ? `, ${p.clinicRoom.location}` : ''}`
         : '';
 
-      const dailySessions: AdminDoctorDailySession[] = sessions.map((s: any) => {
-        const sessionStart = s.startTime ? s.startTime.slice(0, 5) : '00:00';
-        const sessionEnd = s.endTime ? s.endTime.slice(0, 5) : '24:00';
-        const sessStart = s.startTime
-          ? s.startTime.length === 5
-            ? `${s.startTime}:00`
-            : s.startTime
-          : '00:00:00';
-        const sessEnd = s.endTime
-          ? s.endTime.length === 5
-            ? `${s.endTime}:00`
-            : s.endTime
-          : '24:00:00';
+      const dailySessions: AdminDoctorDailySession[] = sessions.map(
+        (s: any) => {
+          const sessionStart = s.startTime ? s.startTime.slice(0, 5) : '00:00';
+          const sessionEnd = s.endTime ? s.endTime.slice(0, 5) : '24:00';
+          const sessStart = s.startTime
+            ? s.startTime.length === 5
+              ? `${s.startTime}:00`
+              : s.startTime
+            : '00:00:00';
+          const sessEnd = s.endTime
+            ? s.endTime.length === 5
+              ? `${s.endTime}:00`
+              : s.endTime
+            : '24:00:00';
 
-        const matchingAppts = allAppointments.filter((a) =>
-          SchedulePatientEligibilityHelper.isEligibleForDoctorSession(
-            a,
-            s.practitionerId,
-            sessStart,
-            sessEnd,
-          ),
-        );
+          const matchingAppts = allAppointments.filter((a) =>
+            SchedulePatientEligibilityHelper.isEligibleForDoctorSession(
+              a,
+              s.practitionerId,
+              sessStart,
+              sessEnd,
+            ),
+          );
 
-        const roomName = s.clinicRoom
-          ? `${s.clinicRoom.name}${s.clinicRoom.location ? `, ${s.clinicRoom.location}` : ''}`
-          : defaultRoomName;
+          const roomName = s.clinicRoom
+            ? `${s.clinicRoom.name}${s.clinicRoom.location ? `, ${s.clinicRoom.location}` : ''}`
+            : defaultRoomName;
 
-        const repCoverage = myClaimedReplacements.find(
-          (ro) => ro.sessionId === s.id,
-        );
+          const repCoverage = myClaimedReplacements.find(
+            (ro) => ro.sessionId === s.id,
+          );
 
-        const sessionOpStatus = repCoverage
-          ? ScheduleOperationalStatus.REPLACEMENT
-          : resolveSessionOperationalStatus({
-              isClosedForLeave: isOnLeave,
-              persistedStatus: s.status,
-            });
+          const sessionOpStatus = repCoverage
+            ? ScheduleOperationalStatus.REPLACEMENT
+            : resolveSessionOperationalStatus({
+                isClosedForLeave: isOnLeave,
+                persistedStatus: s.status,
+              });
 
-        let closureReason: ScheduleClosureReason | null = null;
-        if (sessionOpStatus === ScheduleOperationalStatus.CLOSED) {
-          if (isOnLeave) {
-            closureReason = ScheduleClosureReason.DOCTOR_LEAVE;
-          } else if (s.closureReason) {
-            closureReason = s.closureReason;
-          } else {
-            closureReason = ScheduleClosureReason.ADMIN_OVERRIDE;
+          let closureReason: ScheduleClosureReason | null = null;
+          if (sessionOpStatus === ScheduleOperationalStatus.CLOSED) {
+            if (isOnLeave) {
+              closureReason = ScheduleClosureReason.DOCTOR_LEAVE;
+            } else if (s.closureReason) {
+              closureReason = s.closureReason;
+            } else {
+              closureReason = ScheduleClosureReason.ADMIN_OVERRIDE;
+            }
           }
-        }
 
-        const isRescheduleEligible =
-          !isOnLeave &&
-          sessionOpStatus !== ScheduleOperationalStatus.REPLACEMENT &&
-          closureReason !== ScheduleClosureReason.SHIFT_ENDED &&
-          closureReason !== ScheduleClosureReason.DOCTOR_LEAVE &&
-          closureReason !== ScheduleClosureReason.ADMIN_OVERRIDE;
-        const rescheduleIneligibilityReason = isOnLeave
-          ? 'Sesi tidak dapat di-reschedule karena dokter sedang cuti.'
-          : sessionOpStatus === ScheduleOperationalStatus.REPLACEMENT
-            ? 'Sesi ini adalah dinas pengganti dan tidak dapat di-reschedule.'
-            : closureReason === ScheduleClosureReason.SHIFT_ENDED
-              ? 'Sesi praktik telah berakhir untuk hari ini.'
-              : closureReason === ScheduleClosureReason.ADMIN_OVERRIDE
-                ? 'Sesi berstatus Tutup. Sesi yang sudah ditutup tidak dapat di-reschedule. Silakan gunakan menu Edit Jadwal untuk membuka sesi.'
-                : null;
+          const isRescheduleEligible =
+            !isOnLeave &&
+            sessionOpStatus !== ScheduleOperationalStatus.REPLACEMENT &&
+            closureReason !== ScheduleClosureReason.SHIFT_ENDED &&
+            closureReason !== ScheduleClosureReason.DOCTOR_LEAVE &&
+            closureReason !== ScheduleClosureReason.ADMIN_OVERRIDE;
+          const rescheduleIneligibilityReason = isOnLeave
+            ? 'Sesi tidak dapat di-reschedule karena dokter sedang cuti.'
+            : sessionOpStatus === ScheduleOperationalStatus.REPLACEMENT
+              ? 'Sesi ini adalah dinas pengganti dan tidak dapat di-reschedule.'
+              : closureReason === ScheduleClosureReason.SHIFT_ENDED
+                ? 'Sesi praktik telah berakhir untuk hari ini.'
+                : closureReason === ScheduleClosureReason.ADMIN_OVERRIDE
+                  ? 'Sesi berstatus Tutup. Sesi yang sudah ditutup tidak dapat di-reschedule. Silakan gunakan menu Edit Jadwal untuk membuka sesi.'
+                  : null;
 
-        return {
-          id: s.id,
-          sessionName: s.sessionLabel || s.sessionCode || 'Sesi',
-          startTime: sessionStart,
-          endTime: sessionEnd,
-          timeRange: `${sessionStart} - ${sessionEnd}`,
-          bookedPatients: matchingAppts.length,
-          sessionStatus: sessionOpStatus,
-          closureReason: closureReason,
-          roomName: roomName,
-          roomId: s.roomId || null,
-          isRescheduleEligible: isRescheduleEligible,
-          rescheduleIneligibilityReason: rescheduleIneligibilityReason,
-          isReplacement: Boolean(repCoverage || s.isReplacement),
-          replacedStaffName:
-            repCoverage?.originalStaffProfile?.fullName ||
-            s.replacedStaffName ||
-            null,
-          date: targetDate,
-        };
-      });
+          return {
+            id: s.id,
+            sessionName: s.sessionLabel || s.sessionCode || 'Sesi',
+            startTime: sessionStart,
+            endTime: sessionEnd,
+            timeRange: `${sessionStart} - ${sessionEnd}`,
+            bookedPatients: matchingAppts.length,
+            sessionStatus: sessionOpStatus,
+            closureReason: closureReason,
+            roomName: roomName,
+            roomId: s.roomId || null,
+            isRescheduleEligible: isRescheduleEligible,
+            rescheduleIneligibilityReason: rescheduleIneligibilityReason,
+            isReplacement: Boolean(repCoverage || s.isReplacement),
+            replacedStaffName:
+              repCoverage?.originalStaffProfile?.fullName ||
+              s.replacedStaffName ||
+              null,
+            date: targetDate,
+          };
+        },
+      );
 
       const sessionOpStatuses = dailySessions.map((s) => s.sessionStatus);
 
@@ -419,12 +418,10 @@ export class DrizzleAdminDoctorScheduleListQuery {
         if (isToday) {
           const liveSession = dailySessions.find(
             (s) =>
-              clinicNowTimeStr >= s.startTime &&
-              clinicNowTimeStr < s.endTime,
+              clinicNowTimeStr >= s.startTime && clinicNowTimeStr < s.endTime,
           );
           const nextSession = dailySessions.find(
-            (s) =>
-              clinicNowTimeStr < s.startTime,
+            (s) => clinicNowTimeStr < s.startTime,
           );
 
           upcomingSchedule =

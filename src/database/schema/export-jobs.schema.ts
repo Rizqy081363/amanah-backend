@@ -26,22 +26,32 @@ export const exportJobs = pgTable(
     parametersHash: text('parameters_hash'),
     status: varchar('status', { length: 32 }).default('queued').notNull(),
     totalRows: bigint('total_rows', { mode: 'number' }),
-    processedRows: bigint('processed_rows', { mode: 'number' }).default(0).notNull(),
+    processedRows: bigint('processed_rows', { mode: 'number' })
+      .default(0)
+      .notNull(),
     attempt: integer('attempt').default(0).notNull(),
     maxAttempts: integer('max_attempts').default(3).notNull(),
     errorCode: text('error_code'),
     errorMessage: text('error_message'),
-    fileId: uuid('file_id').references(() => files.id, { onDelete: 'set null' }),
+    fileId: uuid('file_id').references(() => files.id, {
+      onDelete: 'set null',
+    }),
     objectKey: text('object_key'),
     fileSize: bigint('file_size', { mode: 'number' }),
     parts: integer('parts').default(1).notNull(),
     idempotencyKey: text('idempotency_key'),
-    heartbeatAt: timestamp('heartbeat_at', { withTimezone: true, mode: 'string' }),
+    heartbeatAt: timestamp('heartbeat_at', {
+      withTimezone: true,
+      mode: 'string',
+    }),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
       .notNull(),
     startedAt: timestamp('started_at', { withTimezone: true, mode: 'string' }),
-    finishedAt: timestamp('finished_at', { withTimezone: true, mode: 'string' }),
+    finishedAt: timestamp('finished_at', {
+      withTimezone: true,
+      mode: 'string',
+    }),
     expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'string' }),
   },
   (table) => [

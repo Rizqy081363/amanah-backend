@@ -553,7 +553,8 @@ export class AppointmentHardenedDrizzleRepository
   }
 
   private async getQueueThresholds(): Promise<
-    { arriveEarlyMinutes?: number; overflowToleranceMinutes?: number } | undefined
+    | { arriveEarlyMinutes?: number; overflowToleranceMinutes?: number }
+    | undefined
   > {
     if (this.clinicConfig) {
       try {

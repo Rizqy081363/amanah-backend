@@ -158,8 +158,12 @@ export class AttendanceRosterLookupDrizzleRepo {
         id: staffRosters.id,
         sessionId: staffRosters.sessionId,
         shift: sessionDefs.code,
-        startsAt: sql<string | null>`COALESCE(${sessionSchedules.startsAt}, ${sessionDefs.defaultStartsAt})`,
-        endsAt: sql<string | null>`COALESCE(${sessionSchedules.endsAt}, ${sessionDefs.defaultEndsAt})`,
+        startsAt: sql<
+          string | null
+        >`COALESCE(${sessionSchedules.startsAt}, ${sessionDefs.defaultStartsAt})`,
+        endsAt: sql<
+          string | null
+        >`COALESCE(${sessionSchedules.endsAt}, ${sessionDefs.defaultEndsAt})`,
       })
       .from(staffRosters)
       .innerJoin(sessionDefs, eq(staffRosters.sessionId, sessionDefs.id))
@@ -198,8 +202,12 @@ export class AttendanceRosterLookupDrizzleRepo {
         id: doctorAssignments.id,
         sessionId: doctorAssignments.sessionId,
         shift: sessionDefs.code,
-        startsAt: sql<string | null>`COALESCE(${sessionSchedules.startsAt}, ${sessionDefs.defaultStartsAt})`,
-        endsAt: sql<string | null>`COALESCE(${sessionSchedules.endsAt}, ${sessionDefs.defaultEndsAt})`,
+        startsAt: sql<
+          string | null
+        >`COALESCE(${sessionSchedules.startsAt}, ${sessionDefs.defaultStartsAt})`,
+        endsAt: sql<
+          string | null
+        >`COALESCE(${sessionSchedules.endsAt}, ${sessionDefs.defaultEndsAt})`,
       })
       .from(doctorAssignments)
       .innerJoin(
@@ -273,9 +281,7 @@ export class AttendanceRosterLookupDrizzleRepo {
       );
   }
 
-  async findClinicWeeklyTemplateForDow(
-    dow: number,
-  ): Promise<
+  async findClinicWeeklyTemplateForDow(dow: number): Promise<
     Array<{
       id: string;
       sessionId: string;
@@ -289,8 +295,12 @@ export class AttendanceRosterLookupDrizzleRepo {
         id: sessionSchedules.id,
         sessionId: sessionSchedules.sessionId,
         shift: sessionDefs.code,
-        startsAt: sql<string | null>`COALESCE(${sessionSchedules.startsAt}, ${sessionDefs.defaultStartsAt})`,
-        endsAt: sql<string | null>`COALESCE(${sessionSchedules.endsAt}, ${sessionDefs.defaultEndsAt})`,
+        startsAt: sql<
+          string | null
+        >`COALESCE(${sessionSchedules.startsAt}, ${sessionDefs.defaultStartsAt})`,
+        endsAt: sql<
+          string | null
+        >`COALESCE(${sessionSchedules.endsAt}, ${sessionDefs.defaultEndsAt})`,
       })
       .from(sessionSchedules)
       .innerJoin(sessionDefs, eq(sessionSchedules.sessionId, sessionDefs.id))
@@ -320,8 +330,12 @@ export class AttendanceRosterLookupDrizzleRepo {
         id: replacementOpportunities.id,
         sessionId: replacementOpportunities.sessionId,
         shift: sessionDefs.code,
-        startsAt: sql<string | null>`COALESCE(${sessionSchedules.startsAt}, ${sessionDefs.defaultStartsAt})`,
-        endsAt: sql<string | null>`COALESCE(${sessionSchedules.endsAt}, ${sessionDefs.defaultEndsAt})`,
+        startsAt: sql<
+          string | null
+        >`COALESCE(${sessionSchedules.startsAt}, ${sessionDefs.defaultStartsAt})`,
+        endsAt: sql<
+          string | null
+        >`COALESCE(${sessionSchedules.endsAt}, ${sessionDefs.defaultEndsAt})`,
         originalStaffName: staffProfiles.fullName,
         originalStaffCode: staffProfiles.staffCode,
       })
@@ -506,9 +520,7 @@ export class AttendanceRosterLookupDrizzleRepo {
     return scheduledStaffIds.size;
   }
 
-  async resolveStaffByIdOrCode(
-    query: string,
-  ): Promise<{
+  async resolveStaffByIdOrCode(query: string): Promise<{
     id: string;
     staffCode: string;
     fullName: string;
@@ -541,10 +553,7 @@ export class AttendanceRosterLookupDrizzleRepo {
         practitioners,
         eq(practitioners.staffProfileId, staffProfiles.id),
       )
-      .leftJoin(
-        roles,
-        eq(roles.id, staffProfiles.roleId),
-      )
+      .leftJoin(roles, eq(roles.id, staffProfiles.roleId))
       .where(
         isUUID(q)
           ? or(
@@ -565,7 +574,12 @@ export class AttendanceRosterLookupDrizzleRepo {
   async resolveSessionDefByTime(
     hourOrTime: number | string | Date,
     windowMinutesBefore = 30,
-  ): Promise<{ id: string; code: string; defaultStartsAt: string | null; defaultEndsAt?: string | null } | null> {
+  ): Promise<{
+    id: string;
+    code: string;
+    defaultStartsAt: string | null;
+    defaultEndsAt?: string | null;
+  } | null> {
     let timeStr: string;
     if (hourOrTime instanceof Date) {
       const h = String(hourOrTime.getHours()).padStart(2, '0');
@@ -618,7 +632,12 @@ export class AttendanceRosterLookupDrizzleRepo {
 
   async resolveSessionDefByCode(
     sessionCode: string,
-  ): Promise<{ id: string; code: string; defaultStartsAt: string | null; defaultEndsAt?: string | null } | null> {
+  ): Promise<{
+    id: string;
+    code: string;
+    defaultStartsAt: string | null;
+    defaultEndsAt?: string | null;
+  } | null> {
     const defs = await this.db
       .select({
         id: sessionDefs.id,
@@ -635,7 +654,12 @@ export class AttendanceRosterLookupDrizzleRepo {
 
   async resolveSessionDefById(
     sessionId: string,
-  ): Promise<{ id: string; code: string; defaultStartsAt: string | null; defaultEndsAt?: string | null } | null> {
+  ): Promise<{
+    id: string;
+    code: string;
+    defaultStartsAt: string | null;
+    defaultEndsAt?: string | null;
+  } | null> {
     const defs = await this.db
       .select({
         id: sessionDefs.id,

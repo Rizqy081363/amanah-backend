@@ -71,10 +71,7 @@ const rawCorsOrigins = (env.APP_CORS_ORIGINS || '')
 const betterAuthOriginPolicy = buildOriginPolicy({
   appEnv: env.NODE_ENV || 'development',
   publicUrl: env.FRONTEND_DOMAIN,
-  extraOrigins: [
-    ...rawCorsOrigins,
-    env.BACKEND_DOMAIN || '',
-  ],
+  extraOrigins: [...rawCorsOrigins, env.BACKEND_DOMAIN || ''],
   devPatterns: devOriginPatterns,
 });
 
@@ -217,7 +214,7 @@ export const auth = betterAuth({
           try {
             // Dynamically query external role from PostgreSQL (prioritize default if designated)
             const roleRes = await client.query(
-              `SELECT id, code, name, audience FROM roles WHERE audience = 'external' AND is_active = true ORDER BY is_default DESC, created_at ASC LIMIT 1`
+              `SELECT id, code, name, audience FROM roles WHERE audience = 'external' AND is_active = true ORDER BY is_default DESC, created_at ASC LIMIT 1`,
             );
             const externalRole = roleRes.rows[0];
 
@@ -226,7 +223,7 @@ export const auth = betterAuth({
               `INSERT INTO users (id, name, email, email_verified, status)
                VALUES ($1, $2, $3, false, 'active')
                ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, email = EXCLUDED.email`,
-              [createdUser.id, createdUser.name, createdUser.email]
+              [createdUser.id, createdUser.name, createdUser.email],
             );
 
             // Dynamically assign external role if one exists
@@ -235,7 +232,7 @@ export const auth = betterAuth({
                 `INSERT INTO user_roles (user_id, role_id)
                  VALUES ($1, $2)
                  ON CONFLICT DO NOTHING`,
-                [createdUser.id, externalRole.id]
+                [createdUser.id, externalRole.id],
               );
 
               if (onBetterAuthUserCreated) {
@@ -259,7 +256,10 @@ export const auth = betterAuth({
               }
             }
           } catch (err) {
-            console.error('[BetterAuth:databaseHooks] Failed to sync created user to users/user_roles:', err);
+            console.error(
+              '[BetterAuth:databaseHooks] Failed to sync created user to users/user_roles:',
+              err,
+            );
           } finally {
             client.release();
           }
@@ -272,10 +272,13 @@ export const auth = betterAuth({
             try {
               await client.query(
                 `UPDATE users SET email_verified = true, updated_at = NOW() WHERE id = $1`,
-                [updatedUser.id]
+                [updatedUser.id],
               );
             } catch (err) {
-              console.error('[BetterAuth:databaseHooks] Failed to sync email verification update:', err);
+              console.error(
+                '[BetterAuth:databaseHooks] Failed to sync email verification update:',
+                err,
+              );
             } finally {
               client.release();
             }
@@ -291,16 +294,16 @@ export const auth = betterAuth({
             // Auto-enroll orphaned external user if they registered prior to external role creation
             const userRolesRes = await client.query(
               `SELECT 1 FROM user_roles WHERE user_id = $1 LIMIT 1`,
-              [createdSession.userId]
+              [createdSession.userId],
             );
             if (userRolesRes.rowCount === 0) {
               const staffRes = await client.query(
                 `SELECT 1 FROM staff_profiles WHERE user_id = $1 LIMIT 1`,
-                [createdSession.userId]
+                [createdSession.userId],
               );
               if (staffRes.rowCount === 0) {
                 const roleRes = await client.query(
-                  `SELECT id FROM roles WHERE audience = 'external' AND is_active = true ORDER BY is_default DESC, created_at ASC LIMIT 1`
+                  `SELECT id FROM roles WHERE audience = 'external' AND is_active = true ORDER BY is_default DESC, created_at ASC LIMIT 1`,
                 );
                 const externalRole = roleRes.rows[0];
                 if (externalRole) {
@@ -308,13 +311,16 @@ export const auth = betterAuth({
                     `INSERT INTO user_roles (user_id, role_id)
                      VALUES ($1, $2)
                      ON CONFLICT DO NOTHING`,
-                    [createdSession.userId, externalRole.id]
+                    [createdSession.userId, externalRole.id],
                   );
                 }
               }
             }
           } catch (err) {
-            console.error('[BetterAuth:databaseHooks] Failed to auto-enroll session user:', err);
+            console.error(
+              '[BetterAuth:databaseHooks] Failed to auto-enroll session user:',
+              err,
+            );
           } finally {
             client.release();
           }

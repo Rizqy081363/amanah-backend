@@ -283,7 +283,9 @@ export class AdminDoctorDailySession {
   })
   isRescheduleEligible: boolean;
 
-  @ApiPropertyOptional({ description: 'Flag apakah sesi ini merupakan dinas pengganti' })
+  @ApiPropertyOptional({
+    description: 'Flag apakah sesi ini merupakan dinas pengganti',
+  })
   isReplacement?: boolean;
 
   @ApiPropertyOptional({ description: 'Nama staf yang digantikan' })
@@ -349,7 +351,8 @@ export class AdminDoctorScheduleCardEntity {
   roleCode?: string | null;
 
   @ApiPropertyOptional({
-    description: 'Nama peran kanonik staf (contoh: Dokter Umum, Bidan, Tabib, Spesialis)',
+    description:
+      'Nama peran kanonik staf (contoh: Dokter Umum, Bidan, Tabib, Spesialis)',
     nullable: true,
   })
   roleName?: string | null;
@@ -608,7 +611,8 @@ export class AdminDoctorScheduleDetailData {
   roleCode?: string | null;
 
   @ApiPropertyOptional({
-    description: 'Nama peran kanonik staf (contoh: Dokter Umum, Bidan, Tabib, Spesialis)',
+    description:
+      'Nama peran kanonik staf (contoh: Dokter Umum, Bidan, Tabib, Spesialis)',
     nullable: true,
   })
   roleName?: string | null;
@@ -753,7 +757,12 @@ export class ClinicalPractitionerEntity {
   leave_reason?: string | null;
   is_replacement?: boolean;
   replacing_practitioner_name?: string | null;
-  attendance_status?: 'checked_in' | 'not_checked_in' | 'late' | 'on_leave' | 'absent';
+  attendance_status?:
+    | 'checked_in'
+    | 'not_checked_in'
+    | 'late'
+    | 'on_leave'
+    | 'absent';
   check_in_at?: string | null;
   attendance_warning?: string | null;
 }
@@ -1112,7 +1121,8 @@ export class AdminSessionPatientItem {
   @ApiPropertyOptional({
     type: [String],
     example: ['CALL', 'START_SERVICE', 'CANCEL', 'RESCHEDULE'],
-    description: 'Aksi yang diizinkan sesuai status janji temu dan konteks dokter',
+    description:
+      'Aksi yang diizinkan sesuai status janji temu dan konteks dokter',
   })
   allowedActions?: string[];
 }

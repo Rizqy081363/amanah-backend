@@ -25,7 +25,9 @@ export interface UserProvisionedPublishParams {
 
 @Injectable()
 export class UserProvisionedNotificationPublisher {
-  private readonly logger = new Logger(UserProvisionedNotificationPublisher.name);
+  private readonly logger = new Logger(
+    UserProvisionedNotificationPublisher.name,
+  );
 
   constructor(
     @Optional()
@@ -35,7 +37,9 @@ export class UserProvisionedNotificationPublisher {
     private readonly realtimeGateway?: SocketIoRealtimeGateway,
   ) {}
 
-  async publishUserProvisioned(params: UserProvisionedPublishParams): Promise<void> {
+  async publishUserProvisioned(
+    params: UserProvisionedPublishParams,
+  ): Promise<void> {
     const occurredAt = new Date().toISOString();
 
     // 1. Instant real-time role count update broadcast for connected admin windows
@@ -51,7 +55,9 @@ export class UserProvisionedNotificationPublisher {
         },
       );
     } catch (err) {
-      this.logger.warn(`Failed to broadcast roles:updated socket event: ${err}`);
+      this.logger.warn(
+        `Failed to broadcast roles:updated socket event: ${err}`,
+      );
     }
 
     // 2. Publish Domain Event via Redis Streams for persistent notification & toast delivery
@@ -84,7 +90,9 @@ export class UserProvisionedNotificationPublisher {
           `Published ${AUTH_EVENTS.USER_PROVISIONED} domain event [id: ${domainEvent.eventId}] for user ${params.userId}`,
         );
       } catch (error) {
-        this.logger.error(`Failed to publish user provisioned domain event: ${error}`);
+        this.logger.error(
+          `Failed to publish user provisioned domain event: ${error}`,
+        );
       }
     }
   }

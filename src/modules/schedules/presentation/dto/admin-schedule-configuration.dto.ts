@@ -94,7 +94,8 @@ export class UpdateSessionDefDto {
 
 export class CreateSessionDefDto {
   @ApiProperty({
-    description: 'Label tampilan manusiawi shift operasional (contoh: Sesi Pagi Buta)',
+    description:
+      'Label tampilan manusiawi shift operasional (contoh: Sesi Pagi Buta)',
     example: 'Sesi Pagi Buta',
   })
   @IsNotEmpty()
@@ -439,7 +440,8 @@ export class DeleteSessionDefDto {
 
 export class SessionDefImpactDoctorDayDto {
   @ApiProperty({
-    description: 'Hari praktik dalam sepekan (0 = Minggu, 1 = Senin, ..., 6 = Sabtu)',
+    description:
+      'Hari praktik dalam sepekan (0 = Minggu, 1 = Senin, ..., 6 = Sabtu)',
     example: 3,
   })
   @IsInt()
@@ -549,7 +551,8 @@ export class SessionDefImpactResultDto {
   weeklyTemplatesCount: number;
 
   @ApiProperty({
-    description: 'Apakah terdapat tiket antrean pasien yang terikat pada shift ini',
+    description:
+      'Apakah terdapat tiket antrean pasien yang terikat pada shift ini',
     example: false,
   })
   @IsBoolean()
@@ -562,4 +565,3 @@ export class SessionDefImpactResultDto {
   @IsInt()
   activeTicketsCount: number;
 }
-

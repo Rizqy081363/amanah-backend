@@ -28,9 +28,7 @@ import {
   RoleTier,
 } from '../../domain/entities/role.entity';
 import { ApplicationPageEntity } from '../../domain/entities/application-page.entity';
-import {
-  DEFAULT_ROLE_AUDIENCE,
-} from '../../../../common/constants/role-audience.constants';
+import { DEFAULT_ROLE_AUDIENCE } from '../../../../common/constants/role-audience.constants';
 import { PermissionEntity } from '../../domain/entities/permission.entity';
 
 @Injectable()
@@ -74,7 +72,7 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
       }
     }
 
-    const roleMap = new Map<string, typeof allRoles[0]>();
+    const roleMap = new Map<string, (typeof allRoles)[0]>();
     for (const r of allRoles) {
       roleMap.set(r.id, r);
     }
@@ -125,7 +123,9 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
               isSystem: r.parentRole.isSystem,
               parentRoleId: r.parentRole.parentRoleId,
               tier: r.parentRole.tier as RoleTier,
-              audience: (r.parentRole.audience as RoleAudience) || DEFAULT_ROLE_AUDIENCE,
+              audience:
+                (r.parentRole.audience as RoleAudience) ||
+                DEFAULT_ROLE_AUDIENCE,
               isClinical: r.parentRole.isClinical,
               isActive: r.parentRole.isActive,
               isDefault: r.parentRole.isDefault,
@@ -231,7 +231,9 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
             isSystem: roleRecord.parentRole.isSystem,
             parentRoleId: roleRecord.parentRole.parentRoleId,
             tier: roleRecord.parentRole.tier as RoleTier,
-            audience: (roleRecord.parentRole.audience as RoleAudience) || DEFAULT_ROLE_AUDIENCE,
+            audience:
+              (roleRecord.parentRole.audience as RoleAudience) ||
+              DEFAULT_ROLE_AUDIENCE,
             isClinical: roleRecord.parentRole.isClinical,
             isActive: roleRecord.parentRole.isActive,
             isDefault: roleRecord.parentRole.isDefault,
@@ -270,14 +272,17 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
       );
     }
 
-    let audience: RoleAudience = (data.audience as RoleAudience) || DEFAULT_ROLE_AUDIENCE;
+    let audience: RoleAudience =
+      (data.audience as RoleAudience) || DEFAULT_ROLE_AUDIENCE;
     let isClinical = Boolean(data.isClinical);
     if (data.parentRoleId) {
       const parent = await this.db.query.roles.findFirst({
         where: eq(roles.id, data.parentRoleId),
       });
       if (!parent) {
-        throw new NotFoundException('Peran induk (parent role) tidak ditemukan');
+        throw new NotFoundException(
+          'Peran induk (parent role) tidak ditemukan',
+        );
       }
       if (data.audience === undefined && parent.audience) {
         audience = parent.audience as RoleAudience;
@@ -430,7 +435,8 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
     }
 
     if (data.isDefault) {
-      const targetAudience = (data.audience as RoleAudience) ?? existing.audience;
+      const targetAudience =
+        (data.audience as RoleAudience) ?? existing.audience;
       await this.db
         .update(roles)
         .set({ isDefault: false })
@@ -485,9 +491,7 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
     }
 
     if (existing.isSystem) {
-      throw new BadRequestException(
-        'Peran sistem bawaan tidak dapat dihapus',
-      );
+      throw new BadRequestException('Peran sistem bawaan tidak dapat dihapus');
     }
 
     const [staffUsage] = await this.db
@@ -512,9 +516,7 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
       );
     }
 
-    await this.db
-      .delete(rolePermissions)
-      .where(eq(rolePermissions.roleId, id));
+    await this.db.delete(rolePermissions).where(eq(rolePermissions.roleId, id));
     await this.db.delete(userRoles).where(eq(userRoles.roleId, id));
     await this.db.delete(roles).where(eq(roles.id, id));
   }
@@ -719,10 +721,13 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
 
   async findAllPages(): Promise<ApplicationPageEntity[]> {
     const records = await this.db.query.applicationPages.findMany({
-      orderBy: [asc(applicationPages.audience), asc(applicationPages.displayOrder)],
+      orderBy: [
+        asc(applicationPages.audience),
+        asc(applicationPages.displayOrder),
+      ],
     });
 
-    const pageMap = new Map<string, typeof records[0]>();
+    const pageMap = new Map<string, (typeof records)[0]>();
     for (const p of records) {
       pageMap.set(p.id, p);
     }
@@ -758,9 +763,13 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
     });
   }
 
-  async findPageTree(audience?: RoleAudience): Promise<ApplicationPageEntity[]> {
+  async findPageTree(
+    audience?: RoleAudience,
+  ): Promise<ApplicationPageEntity[]> {
     const all = await this.findAllPages();
-    const filtered = audience ? all.filter((p) => p.audience === audience) : all;
+    const filtered = audience
+      ? all.filter((p) => p.audience === audience)
+      : all;
 
     const parents = filtered.filter((p) => !p.parentPageId);
     const childMap = new Map<string, ApplicationPageEntity[]>();
@@ -817,7 +826,10 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
     };
   }
 
-  async togglePageEnabled(id: string, isEnabled: boolean): Promise<ApplicationPageEntity> {
+  async togglePageEnabled(
+    id: string,
+    isEnabled: boolean,
+  ): Promise<ApplicationPageEntity> {
     const existing = await this.findPageById(id);
     if (!existing) {
       throw new NotFoundException(`Halaman dengan ID ${id} tidak ditemukan`);
@@ -847,7 +859,9 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
       throw new NotFoundException('Peran tidak ditemukan');
     }
 
-    await this.db.delete(rolePageAccess).where(eq(rolePageAccess.roleId, roleId));
+    await this.db
+      .delete(rolePageAccess)
+      .where(eq(rolePageAccess.roleId, roleId));
 
     if (pageIds.length > 0) {
       const validPages = await this.db.query.applicationPages.findMany({

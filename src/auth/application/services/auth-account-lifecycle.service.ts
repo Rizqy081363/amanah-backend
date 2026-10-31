@@ -14,12 +14,7 @@ import { AUTH_PROVIDER } from '../../../common/constants/auth-providers.constant
 import { RedisService } from '../../../common/redis/redis.service';
 import { DRIZZLE_SOURCE } from '../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../database/drizzle/drizzle.provider';
-import {
-  account,
-  authAccounts,
-  user,
-  users,
-} from '../../../database/schema';
+import { account, authAccounts, user, users } from '../../../database/schema';
 import { USER_STATUS } from '../../../common/constants/user-status.constants';
 import { MailService } from '../../../mail/mail.service';
 import { AuthUpdateDto } from '../../dto/auth-update.dto';
@@ -302,7 +297,9 @@ export class AuthAccountLifecycleService {
     };
   }
 
-  async getLinkedProviders(userId: string): Promise<LinkedProvidersResponseDto> {
+  async getLinkedProviders(
+    userId: string,
+  ): Promise<LinkedProvidersResponseDto> {
     const userRecord = await this.db.query.users.findFirst({
       where: eq(users.id, userId),
     });
@@ -316,7 +313,8 @@ export class AuthAccountLifecycleService {
     });
 
     const hasPassword = accounts.some(
-      (a) => a.providerId === AUTH_PROVIDER.CREDENTIAL && Boolean(a.passwordHash),
+      (a) =>
+        a.providerId === AUTH_PROVIDER.CREDENTIAL && Boolean(a.passwordHash),
     );
     const hasGoogle = accounts.some(
       (a) => a.providerId === AUTH_PROVIDER.GOOGLE,
@@ -416,7 +414,8 @@ export class AuthAccountLifecycleService {
 
     return {
       success: true,
-      message: 'Kata sandi berhasil diperbarui. Silakan login kembali dengan kata sandi baru.',
+      message:
+        'Kata sandi berhasil diperbarui. Silakan login kembali dengan kata sandi baru.',
     };
   }
 

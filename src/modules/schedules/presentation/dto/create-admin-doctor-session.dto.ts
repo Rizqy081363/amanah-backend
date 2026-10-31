@@ -1,11 +1,6 @@
 import { AdminScheduleStatusRequest } from '@modules/schedules/domain/schedule-status';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import {
-  IsEnum,
-  IsNotEmpty,
-  IsOptional,
-  IsString,
-} from 'class-validator';
+import { IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class CreateAdminDoctorSessionDto {
   @ApiProperty({

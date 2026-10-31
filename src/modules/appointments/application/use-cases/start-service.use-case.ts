@@ -94,10 +94,7 @@ export class StartServiceUseCase {
             patientName: updated.patientName,
             staffId: updated.practitionerId,
             doctorName:
-              updated.doctorName ||
-              user?.staff?.fullName ||
-              user?.name ||
-              null,
+              updated.doctorName || user?.staff?.fullName || user?.name || null,
             avatarUrl: updated.avatarUrl ?? null,
             roomName: updated.roomName || null,
             poliklinikName: updated.poliklinikName,

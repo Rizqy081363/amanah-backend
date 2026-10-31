@@ -8,9 +8,7 @@ import {
   ScheduleClosureReason,
   ScheduleOperationalStatus,
 } from '@modules/schedules/domain/entities/schedule.entity';
-import {
-  ScheduleSessionFactory,
-} from '@modules/schedules/domain/factories/schedule-session.factory';
+import { ScheduleSessionFactory } from '@modules/schedules/domain/factories/schedule-session.factory';
 import {
   resolveAggregateOperationalStatus,
   resolveSessionOperationalStatus,

@@ -29,13 +29,18 @@ export class MailerService {
     }
 
     const to = Array.isArray(mailOptions.to)
-      ? mailOptions.to.map((item) => (typeof item === 'string' ? item : item.address))
+      ? mailOptions.to.map((item) =>
+          typeof item === 'string' ? item : item.address,
+        )
       : typeof mailOptions.to === 'string'
         ? mailOptions.to
         : mailOptions.to?.address || '';
 
     const resolveAddress = (
-      input?: string | { address: string; name?: string } | Array<string | { address: string; name?: string }>,
+      input?:
+        | string
+        | { address: string; name?: string }
+        | Array<string | { address: string; name?: string }>,
     ): string | undefined => {
       if (!input) return undefined;
       if (typeof input === 'string') return input;
@@ -55,7 +60,9 @@ export class MailerService {
       from,
       subject: mailOptions.subject || '',
       text: typeof mailOptions.text === 'string' ? mailOptions.text : undefined,
-      html: html ?? (typeof mailOptions.text === 'string' ? mailOptions.text : undefined),
+      html:
+        html ??
+        (typeof mailOptions.text === 'string' ? mailOptions.text : undefined),
       replyTo,
     });
   }

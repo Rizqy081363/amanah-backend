@@ -195,9 +195,7 @@ export class AppointmentCreationHandler {
       clinicServiceRecord?.intakeForm?.code || data.medicalFlow || null;
 
     const targetUnitId =
-      data.poliklinikId ||
-      clinicServiceRecord?.serviceCategory?.unitId ||
-      null;
+      data.poliklinikId || clinicServiceRecord?.serviceCategory?.unitId || null;
     let unitPrefix: string | null = null;
     if (targetUnitId) {
       const unit = await db.query.clinicUnits.findFirst({

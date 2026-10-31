@@ -117,7 +117,9 @@ export class AppointmentNotificationPublisher {
       const actorRoleName =
         user?.roleName ||
         user?.role?.name ||
-        (actorAudience === NOTIFICATION_AUDIENCE.INTERNAL ? 'Klinik' : 'Pasien');
+        (actorAudience === NOTIFICATION_AUDIENCE.INTERNAL
+          ? 'Klinik'
+          : 'Pasien');
 
       const domainEvent: DomainEvent = {
         eventId: randomUUID(),
@@ -197,7 +199,9 @@ export class AppointmentNotificationPublisher {
       const actorRoleName =
         user?.roleName ||
         user?.role?.name ||
-        (actorAudience === NOTIFICATION_AUDIENCE.INTERNAL ? 'Klinik' : 'Pasien');
+        (actorAudience === NOTIFICATION_AUDIENCE.INTERNAL
+          ? 'Klinik'
+          : 'Pasien');
 
       const domainEvent: DomainEvent = {
         eventId: randomUUID(),

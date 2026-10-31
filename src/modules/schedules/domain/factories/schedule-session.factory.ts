@@ -172,7 +172,10 @@ export class ScheduleSessionFactory {
     startTime: string;
     endTime: string;
   } {
-    const def = ScheduleSessionFactory.resolveShiftDefinition(shift, customDefs);
+    const def = ScheduleSessionFactory.resolveShiftDefinition(
+      shift,
+      customDefs,
+    );
 
     return {
       label: def.label,

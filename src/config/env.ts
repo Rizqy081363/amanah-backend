@@ -17,11 +17,11 @@ import {
 export enum NodeEnvironment {
   Development = 'development',
   Production = 'production',
-  }
+}
 
 export enum AppRuntime {
   Container = 'container',
-  }
+}
 
 export enum MailDriver {
   Smtp = 'smtp',
@@ -73,11 +73,15 @@ export class EnvironmentVariables {
   BETTER_AUTH_URL: string;
 
   @IsString()
-  @MinLength(32, { message: 'BETTER_AUTH_SECRET must be at least 32 characters long' })
+  @MinLength(32, {
+    message: 'BETTER_AUTH_SECRET must be at least 32 characters long',
+  })
   BETTER_AUTH_SECRET: string;
 
   @IsString()
-  @MinLength(32, { message: 'AUTH_JWT_SECRET must be at least 32 characters long' })
+  @MinLength(32, {
+    message: 'AUTH_JWT_SECRET must be at least 32 characters long',
+  })
   AUTH_JWT_SECRET: string;
 
   @IsString()
@@ -85,7 +89,9 @@ export class EnvironmentVariables {
   AUTH_JWT_TOKEN_EXPIRES_IN: string = '8h';
 
   @IsString()
-  @MinLength(32, { message: 'AUTH_REFRESH_SECRET must be at least 32 characters long' })
+  @MinLength(32, {
+    message: 'AUTH_REFRESH_SECRET must be at least 32 characters long',
+  })
   AUTH_REFRESH_SECRET: string;
 
   @IsString()
@@ -93,7 +99,9 @@ export class EnvironmentVariables {
   AUTH_REFRESH_TOKEN_EXPIRES_IN: string = '30d';
 
   @IsString()
-  @MinLength(32, { message: 'AUTH_FORGOT_SECRET must be at least 32 characters long' })
+  @MinLength(32, {
+    message: 'AUTH_FORGOT_SECRET must be at least 32 characters long',
+  })
   AUTH_FORGOT_SECRET: string;
 
   @IsString()
@@ -101,7 +109,9 @@ export class EnvironmentVariables {
   AUTH_FORGOT_TOKEN_EXPIRES_IN: string = '30m';
 
   @IsString()
-  @MinLength(32, { message: 'AUTH_CONFIRM_EMAIL_SECRET must be at least 32 characters long' })
+  @MinLength(32, {
+    message: 'AUTH_CONFIRM_EMAIL_SECRET must be at least 32 characters long',
+  })
   AUTH_CONFIRM_EMAIL_SECRET: string;
 
   @IsString()
@@ -152,13 +162,15 @@ export class EnvironmentVariables {
 
   @IsString()
   @Matches(/^rediss?:\/\/.+/, {
-    message: 'REDIS_URL must be a valid redis:// or rediss:// connection string with database index',
+    message:
+      'REDIS_URL must be a valid redis:// or rediss:// connection string with database index',
   })
   REDIS_URL: string;
 
   @IsString()
   @Matches(/^amqps?:\/\/.+/, {
-    message: 'RABBITMQ_URL must be a valid amqp:// or amqps:// connection string',
+    message:
+      'RABBITMQ_URL must be a valid amqp:// or amqps:// connection string',
   })
   RABBITMQ_URL: string;
 
@@ -407,7 +419,9 @@ export function validateEnvironment(
   if (errors.length > 0) {
     const errorDetails = errors
       .map((e) => {
-        const constraints = e.constraints ? Object.values(e.constraints).join(', ') : 'Invalid property';
+        const constraints = e.constraints
+          ? Object.values(e.constraints).join(', ')
+          : 'Invalid property';
         return `[${e.property}]: ${constraints}`;
       })
       .join('; ');
@@ -464,8 +478,12 @@ export function validateEnvironment(
 
   if (validated.NODE_ENV === NodeEnvironment.Production) {
     if (validated.MAIL_DRIVER === MailDriver.Smtp) {
-      const isLoopback = containsLoopback(validated.SMTP_HOST || validated.MAIL_HOST || '');
-      const isMailpit = (validated.SMTP_HOST || validated.MAIL_HOST || '').toLowerCase().includes('mailpit');
+      const isLoopback = containsLoopback(
+        validated.SMTP_HOST || validated.MAIL_HOST || '',
+      );
+      const isMailpit = (validated.SMTP_HOST || validated.MAIL_HOST || '')
+        .toLowerCase()
+        .includes('mailpit');
       if (isLoopback || isMailpit) {
         throw new Error(
           'Environment validation failed: [MAIL_DRIVER] Local mailer (mailpit/smtp loopback) is not allowed in production mode. Set MAIL_DRIVER=resend with a valid RESEND_API_KEY.',

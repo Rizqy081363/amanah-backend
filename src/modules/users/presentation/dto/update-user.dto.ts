@@ -36,9 +36,7 @@ export const UpdateUserSchema = z.object({
     })
     .optional(),
   preferredLocale: z.string().trim().max(16).optional(),
-  roleIds: z
-    .array(z.string().uuid('Format ID peran tidak valid'))
-    .optional(),
+  roleIds: z.array(z.string().uuid('Format ID peran tidak valid')).optional(),
 });
 
 export type UpdateUserInput = z.infer<typeof UpdateUserSchema>;

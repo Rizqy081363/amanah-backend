@@ -19,7 +19,10 @@ export class ExportStorageService {
     }
   }
 
-  getSink(jobId: string, extension: string): { filePath: string; sink: fs.WriteStream; storageKey: string } {
+  getSink(
+    jobId: string,
+    extension: string,
+  ): { filePath: string; sink: fs.WriteStream; storageKey: string } {
     const filename = `${jobId}.${extension}`;
     const filePath = path.join(this.exportsDir, filename);
     const storageKey = `exports/${filename}`;

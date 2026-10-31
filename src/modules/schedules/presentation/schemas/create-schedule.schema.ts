@@ -11,7 +11,10 @@ export const CreateScheduleSchema = z.object({
   session: z.string().min(1, 'Sesi wajib diisi'),
   startTime: z
     .string()
-    .regex(/^\d{2}:\d{2}(:\d{2})?$/, 'Format startTime harus HH:mm atau HH:mm:ss')
+    .regex(
+      /^\d{2}:\d{2}(:\d{2})?$/,
+      'Format startTime harus HH:mm atau HH:mm:ss',
+    )
     .optional(),
   endTime: z
     .string()

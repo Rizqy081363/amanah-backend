@@ -1,8 +1,4 @@
-import {
-  Controller,
-  Get,
-  Param,
-} from '@nestjs/common';
+import { Controller, Get, Param } from '@nestjs/common';
 import {
   ApiNotFoundResponse,
   ApiOkResponse,
@@ -23,8 +19,7 @@ export class ClinicsController {
   @Public()
   @Get()
   @ApiOperation({
-    summary:
-      'Mendapatkan seluruh daftar unit poliklinik aktif',
+    summary: 'Mendapatkan seluruh daftar unit poliklinik aktif',
     description:
       'Endpoint publik untuk melihat poliklinik yang tersedia di klinik beserta status operasionalnya.',
   })

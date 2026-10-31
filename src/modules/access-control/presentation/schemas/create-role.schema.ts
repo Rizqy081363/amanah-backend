@@ -37,7 +37,8 @@ export const CreateRoleSchema = z.object({
     .optional(),
   audience: z
     .enum(ROLE_AUDIENCES, {
-      message: 'Audiens peran harus berupa "internal" (staf klinik) atau "external" (pasien)',
+      message:
+        'Audiens peran harus berupa "internal" (staf klinik) atau "external" (pasien)',
     })
     .optional()
     .default(DEFAULT_ROLE_AUDIENCE),

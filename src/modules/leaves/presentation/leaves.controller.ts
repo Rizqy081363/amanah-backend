@@ -134,7 +134,11 @@ export class LeavesController {
   }
 
   @Get('pending')
-  @RequirePermissions('attendance:review', 'attendance:approve', 'attendance:manage')
+  @RequirePermissions(
+    'attendance:review',
+    'attendance:approve',
+    'attendance:manage',
+  )
   @ApiOperation({
     summary:
       'Admin melihat daftar pengajuan cuti yang butuh persetujuan (Web Dashboard)',

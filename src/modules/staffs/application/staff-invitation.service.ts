@@ -104,8 +104,20 @@ export class StaffInvitationService {
       parentRoleId: string | null;
       description: string | null;
     }>;
-    polyclinics: Array<{ id: string; name: string; code: string; unitType?: string; iconName?: string }>;
-    clinicUnits: Array<{ id: string; name: string; code: string; unitType?: string; iconName?: string }>;
+    polyclinics: Array<{
+      id: string;
+      name: string;
+      code: string;
+      unitType?: string;
+      iconName?: string;
+    }>;
+    clinicUnits: Array<{
+      id: string;
+      name: string;
+      code: string;
+      unitType?: string;
+      iconName?: string;
+    }>;
   }> {
     const staffRoles = await this.db.query.roles.findMany({
       where: and(
@@ -118,13 +130,16 @@ export class StaffInvitationService {
     const activeClinicUnits = await this.db.query.clinicUnits.findMany({
       where: eq(clinicUnits.isActive, true),
       orderBy: [asc(clinicUnits.name)],
+      with: {
+        clinicUnitType: true,
+      },
     });
 
     const unitsMapped = activeClinicUnits.map((p) => ({
       id: p.id,
       name: p.name,
       code: p.code,
-      unitType: p.unitType,
+      unitType: p.clinicUnitType?.name,
       iconName: p.iconName,
     }));
 
@@ -169,7 +184,9 @@ export class StaffInvitationService {
       where: eq(roles.id, dto.roleId),
     });
     if (!targetRole) {
-      throw new NotFoundException(`Peran dengan ID ${dto.roleId} tidak ditemukan`);
+      throw new NotFoundException(
+        `Peran dengan ID ${dto.roleId} tidak ditemukan`,
+      );
     }
     if (!targetRole.isActive) {
       throw new BadRequestException(
@@ -270,9 +287,7 @@ export class StaffInvitationService {
     }
 
     // 3. Assign role in user_roles
-    await this.db
-      .delete(userRoles)
-      .where(eq(userRoles.userId, userRecord.id));
+    await this.db.delete(userRoles).where(eq(userRoles.userId, userRecord.id));
     await this.db.insert(userRoles).values({
       userId: userRecord.id,
       roleId: targetRole.id,

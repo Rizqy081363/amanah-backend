@@ -7,7 +7,10 @@ import {
 } from '../../../notifications/contracts/domain-event.interface';
 import { NOTIFICATION_AUDIENCE } from '../../../../common/constants/notification-audience.constants';
 import { NOTIFICATION_PUBLISHER } from '../../../notifications/notifications.constants';
-import { CHAT_EVENTS, CHAT_SENDER_ROLE } from '../../domain/constants/chat-lifecycle.constants';
+import {
+  CHAT_EVENTS,
+  CHAT_SENDER_ROLE,
+} from '../../domain/constants/chat-lifecycle.constants';
 import { ChatMessageEntity } from '../../domain/entities/chat-message.entity';
 import { ConversationEntity } from '../../domain/entities/conversation.entity';
 
@@ -68,7 +71,9 @@ export class ChatNotificationPublisher {
           `Published ${CHAT_EVENTS.MESSAGE_CREATED} domain event [id: ${domainEvent.eventId}]`,
         );
       } catch (error) {
-        this.logger.error(`Failed to publish chat message created event: ${error}`);
+        this.logger.error(
+          `Failed to publish chat message created event: ${error}`,
+        );
       }
     }
 
@@ -100,7 +105,10 @@ export class ChatNotificationPublisher {
             },
             channels: ['push'],
           });
-        } else if (message.senderRole === CHAT_SENDER_ROLE.INTERNAL && conversation.userId) {
+        } else if (
+          message.senderRole === CHAT_SENDER_ROLE.INTERNAL &&
+          conversation.userId
+        ) {
           await this.notificationGateway.dispatch({
             commandId: `chat-reply-${message.id}-${Date.now()}`,
             sourceDomain: 'chat',
@@ -123,7 +131,9 @@ export class ChatNotificationPublisher {
           });
         }
       } catch (gatewayError) {
-        this.logger.warn(`Failed to dispatch chat push command: ${gatewayError}`);
+        this.logger.warn(
+          `Failed to dispatch chat push command: ${gatewayError}`,
+        );
       }
     }
   }

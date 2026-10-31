@@ -10,11 +10,9 @@ export const TogglePageSchema = z.object({
 export type TogglePageInput = z.infer<typeof TogglePageSchema>;
 
 export const PageParamSchema = z.object({
-  id: z
-    .string()
-    .refine((val) => isUUID(val), {
-      message: 'ID halaman harus berupa format UUID yang valid',
-    }),
+  id: z.string().refine((val) => isUUID(val), {
+    message: 'ID halaman harus berupa format UUID yang valid',
+  }),
 });
 
 export type PageParamInput = z.infer<typeof PageParamSchema>;

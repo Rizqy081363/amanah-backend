@@ -1,12 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { ClinicConfigService } from '../../../../common/clinic-config/clinic-config.service';
-import { AttendanceStatus, normalizeStatus } from '../constants/attendance.constants';
+import {
+  AttendanceStatus,
+  normalizeStatus,
+} from '../constants/attendance.constants';
 
 @Injectable()
 export class AttendanceTimingService {
-  constructor(
-    private readonly clinicConfig: ClinicConfigService,
-  ) {}
+  constructor(private readonly clinicConfig: ClinicConfigService) {}
 
   async calculateTimingStatus(params: {
     checkInTime: Date;
@@ -22,8 +23,8 @@ export class AttendanceTimingService {
       }
     }
 
-    const lateThresholdMinutes =
-      (await this.clinicConfig.getAttendanceConfig()).lateToleranceMinutes;
+    const lateThresholdMinutes = (await this.clinicConfig.getAttendanceConfig())
+      .lateToleranceMinutes;
 
     let calculatedStatus: AttendanceStatus = 'present';
     let lateMinutes = 0;
@@ -73,7 +74,10 @@ export class AttendanceTimingService {
     let earlyMinutes = 0;
     let validatedDurationHours = scheduledShiftDurationHours;
 
-    const elapsedMs = Math.max(0, checkOutTime.getTime() - checkInTime.getTime());
+    const elapsedMs = Math.max(
+      0,
+      checkOutTime.getTime() - checkInTime.getTime(),
+    );
     const elapsedMinutes = Math.floor(elapsedMs / (1000 * 60));
 
     // Standardized billable duration calculation
@@ -81,7 +85,8 @@ export class AttendanceTimingService {
     if (elapsedMinutes >= minBillableShiftMinutes) {
       const roundedMinutes =
         roundingIncrementMinutes > 0
-          ? Math.floor(elapsedMinutes / roundingIncrementMinutes) * roundingIncrementMinutes
+          ? Math.floor(elapsedMinutes / roundingIncrementMinutes) *
+            roundingIncrementMinutes
           : elapsedMinutes;
       calculatedBillableHours = Number((roundedMinutes / 60).toFixed(2));
     }
@@ -120,7 +125,8 @@ export class AttendanceTimingService {
             scheduledShiftDurationHours * 60 - windowMinutesBefore,
           );
         const creditedHours =
-          overtimeEnabled && calculatedBillableHours > scheduledShiftDurationHours
+          overtimeEnabled &&
+          calculatedBillableHours > scheduledShiftDurationHours
             ? calculatedBillableHours
             : scheduledShiftDurationHours;
 
@@ -141,7 +147,8 @@ export class AttendanceTimingService {
         );
       } else {
         const creditedHours =
-          overtimeEnabled && calculatedBillableHours > scheduledShiftDurationHours
+          overtimeEnabled &&
+          calculatedBillableHours > scheduledShiftDurationHours
             ? calculatedBillableHours
             : scheduledShiftDurationHours;
         validatedDurationHours = creditedHours;

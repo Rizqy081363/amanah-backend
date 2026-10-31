@@ -90,18 +90,7 @@ export const bloodType = pgEnum('blood_type', [
   'o',
   'unknown',
 ]);
-export const clinicUnitType = pgEnum('clinic_unit_type', [
-  'department',
-  'polyclinic',
-  'ward',
-  'emergency',
-  'support',
-  'other',
-]);
-export const chatSenderRole = pgEnum('chat_sender_role', [
-  'customer',
-  'admin',
-]);
+export const chatSenderRole = pgEnum('chat_sender_role', ['customer', 'admin']);
 export const conversationParticipantRole = pgEnum(
   'conversation_participant_role',
   ['patient', 'staff', 'system'],
@@ -519,7 +508,10 @@ export const roles = pgTable(
     tier: varchar('tier', { length: 20, enum: ['macro', 'micro'] })
       .default('macro')
       .notNull(),
-    audience: varchar('audience', { length: 20, enum: ['internal', 'external'] })
+    audience: varchar('audience', {
+      length: 20,
+      enum: ['internal', 'external'],
+    })
       .default('internal')
       .notNull(),
     isClinical: boolean('is_clinical').default(false).notNull(),
@@ -627,7 +619,10 @@ export const applicationPages = pgTable(
     description: text(),
     routePath: varchar('route_path', { length: 255 }).notNull(),
     parentPageId: uuid('parent_page_id'),
-    audience: varchar('audience', { length: 20, enum: ['internal', 'external'] })
+    audience: varchar('audience', {
+      length: 20,
+      enum: ['internal', 'external'],
+    })
       .default('internal')
       .notNull(),
     isEnabled: boolean('is_enabled').default(true).notNull(),
@@ -652,8 +647,14 @@ export const applicationPages = pgTable(
     index('idx_application_pages_audience').on(table.audience),
     index('idx_application_pages_route_path').on(table.routePath),
     index('idx_application_pages_is_enabled').on(table.isEnabled),
-    check('application_pages_audience_check', sql`audience IN ('internal', 'external')`),
-    check('application_pages_slug_format', sql`slug ~ '^[a-z][a-z0-9_.:-]*$'::text`),
+    check(
+      'application_pages_audience_check',
+      sql`audience IN ('internal', 'external')`,
+    ),
+    check(
+      'application_pages_slug_format',
+      sql`slug ~ '^[a-z][a-z0-9_.:-]*$'::text`,
+    ),
   ],
 );
 
@@ -684,17 +685,16 @@ export const rolePageAccess = pgTable(
   ],
 );
 
-export const clinicUnits = pgTable(
-  'clinic_units',
+export const clinicUnitTypes = pgTable(
+  'clinic_unit_types',
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
     code: text().notNull(),
     name: text().notNull(),
-    unitType: clinicUnitType('unit_type').default('other').notNull(),
-    location: text(),
-    floor: text(),
-    queuePrefix: varchar('queue_prefix', { length: 8 }),
-    iconName: varchar('icon_name', { length: 64 }).default('building-2').notNull(),
+    description: text(),
+    iconName: varchar('icon_name', { length: 64 })
+      .default('building-2')
+      .notNull(),
     isActive: boolean('is_active').default(true).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
@@ -704,11 +704,44 @@ export const clinicUnits = pgTable(
       .notNull(),
   },
   (table) => [
-    index('clinic_units_type_active_idx').using(
-      'btree',
-      table.unitType.asc().nullsLast().op('bool_ops'),
-      table.isActive.asc().nullsLast().op('bool_ops'),
+    unique('clinic_unit_types_code_key').on(table.code),
+    check(
+      'clinic_unit_types_code_format',
+      sql`code ~ '^[a-z][a-z0-9_]*$'::text`,
     ),
+    check(
+      'clinic_unit_types_name_not_blank',
+      sql`length(TRIM(BOTH FROM name)) > 0`,
+    ),
+    index('idx_clinic_unit_types_is_active').on(table.isActive),
+  ],
+);
+
+export const clinicUnits = pgTable(
+  'clinic_units',
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    code: text().notNull(),
+    name: text().notNull(),
+    unitTypeId: uuid('unit_type_id')
+      .references(() => clinicUnitTypes.id, { onDelete: 'restrict' })
+      .notNull(),
+    location: text(),
+    floor: text(),
+    queuePrefix: varchar('queue_prefix', { length: 8 }),
+    iconName: varchar('icon_name', { length: 64 })
+      .default('building-2')
+      .notNull(),
+    isActive: boolean('is_active').default(true).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index('idx_clinic_units_unit_type_id').on(table.unitTypeId),
     unique('clinic_units_code_key').on(table.code),
     check('clinic_units_code_format', sql`code ~ '^[a-z][a-z0-9_]*$'::text`),
     check('clinic_units_name_not_blank', sql`length(TRIM(BOTH FROM name)) > 0`),
@@ -790,7 +823,9 @@ export const clinicalIntakeForms = pgTable(
     code: varchar('code', { length: 64 }).notNull(),
     name: varchar('name', { length: 128 }).notNull(),
     description: text(),
-    iconName: varchar('icon_name', { length: 64 }).default('clipboard-list').notNull(),
+    iconName: varchar('icon_name', { length: 64 })
+      .default('clipboard-list')
+      .notNull(),
     isActive: boolean('is_active').default(true).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
@@ -2729,7 +2764,9 @@ export const messages = pgTable(
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
     conversationId: uuid('conversation_id').notNull(),
-    senderRole: varchar('sender_role', { length: 20 }).default('external').notNull(),
+    senderRole: varchar('sender_role', { length: 20 })
+      .default('external')
+      .notNull(),
     senderUserId: uuid('sender_user_id'),
     senderType: messageSenderType('sender_type'),
     clientMessageId: uuid('client_message_id').defaultRandom().notNull(),

@@ -11,7 +11,10 @@ import {
   payrollEntries,
   payrollPeriods,
 } from '../../../../database/schema/leave-payroll.schema';
-import { ExportColumnDef, ExportSource } from '../../domain/export-source.interface';
+import {
+  ExportColumnDef,
+  ExportSource,
+} from '../../domain/export-source.interface';
 import {
   DailyMatrixItem,
   LeaveDeductionItem,
@@ -101,9 +104,24 @@ export class PayrollExportSource implements ExportSource {
       { header: 'Tahun', width: 'auto', align: 'center' },
       { header: 'Komponen Transaksi', width: 'auto', align: 'left' },
       { header: 'Jenis Transaksi', width: 'auto', align: 'left' },
-      { header: 'Kuantitas (Jam)', width: 'auto', align: 'right', format: 'decimal' },
-      { header: 'Tarif Satuan (Rp)', width: 'auto', align: 'right', format: 'currency' },
-      { header: 'Total Nominal (Rp)', width: 'auto', align: 'right', format: 'currency' },
+      {
+        header: 'Kuantitas (Jam)',
+        width: 'auto',
+        align: 'right',
+        format: 'decimal',
+      },
+      {
+        header: 'Tarif Satuan (Rp)',
+        width: 'auto',
+        align: 'right',
+        format: 'currency',
+      },
+      {
+        header: 'Total Nominal (Rp)',
+        width: 'auto',
+        align: 'right',
+        format: 'currency',
+      },
     ];
   }
 
@@ -275,8 +293,7 @@ export class PayrollExportSource implements ExportSource {
   }
 
   formatRow(row: any, index: number): (string | number | boolean | null)[] {
-    const componentLabel =
-      PAYROLL_COMPONENT_MAP[row.sourceType] ?? 'Kehadiran';
+    const componentLabel = PAYROLL_COMPONENT_MAP[row.sourceType] ?? 'Kehadiran';
     const entryTypeLabel =
       PAYROLL_ENTRY_TYPE_MAP[row.entryType] ?? 'Upah Pelayanan';
     const dateStr = row.entryDate ?? '-';
@@ -478,8 +495,12 @@ export class PayrollExportSource implements ExportSource {
         // Populate transparent leave deduction item
         const durationDays = Number(e.leaveDurationDays) || 1;
         const totalDeduction = Math.round(amt);
-        const dailyDeduction = Math.round(totalDeduction / Math.max(1, durationDays));
-        const hoursPerDay = Number((hrs / Math.max(1, durationDays)).toFixed(2));
+        const dailyDeduction = Math.round(
+          totalDeduction / Math.max(1, durationDays),
+        );
+        const hoursPerDay = Number(
+          (hrs / Math.max(1, durationDays)).toFixed(2),
+        );
 
         let dateRange = '-';
         if (e.leaveStartDate) {
@@ -576,7 +597,8 @@ export class PayrollExportSource implements ExportSource {
     // Convert component map to array
     const components: ReportSummaryItem[] = [];
     for (const [code, data] of componentAggMap.entries()) {
-      const avgRate = data.count > 0 ? Math.round(data.rateSum / data.count) : 0;
+      const avgRate =
+        data.count > 0 ? Math.round(data.rateSum / data.count) : 0;
       components.push({
         componentCode: code,
         componentLabel: data.label,

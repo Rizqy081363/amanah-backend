@@ -214,7 +214,8 @@ export class HybridAuthGuard extends AuthGuard('jwt') implements CanActivate {
         name: userRecord.name,
         systemRole,
         roleCode,
-        roles: userRoleCodes.length > 0 ? userRoleCodes : roleCode ? [roleCode] : [],
+        roles:
+          userRoleCodes.length > 0 ? userRoleCodes : roleCode ? [roleCode] : [],
         audience,
         role: primaryRole
           ? {

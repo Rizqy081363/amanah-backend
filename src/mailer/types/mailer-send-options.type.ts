@@ -1,5 +1,9 @@
 export type MailerSendMailOptions = {
-  to: string | string[] | { address: string; name?: string } | Array<{ address: string; name?: string }>;
+  to:
+    | string
+    | string[]
+    | { address: string; name?: string }
+    | Array<{ address: string; name?: string }>;
   from?: string | { address: string; name?: string };
   subject?: string;
   text?: string;

@@ -4,7 +4,9 @@ import type { AllConfigType } from '../../config/config.type';
 import { MailDeliveryError } from '../errors/mail-delivery.error';
 import { ResendMailAdapter } from './resend-mail.adapter';
 
-function createMockConfigService(apiKey?: string): ConfigService<AllConfigType> {
+function createMockConfigService(
+  apiKey?: string,
+): ConfigService<AllConfigType> {
   return {
     get: (key: string) => {
       if (key === 'mail.resendApiKey') return apiKey;
@@ -55,10 +57,14 @@ describe('ResendMailAdapter Contract & Verification', () => {
       expect(true).toBe(false); // Should not reach here
     } catch (err) {
       expect(err).toBeInstanceOf(MailDeliveryError);
-      expect((err as MailDeliveryError).message).toContain('The domain is not verified');
+      expect((err as MailDeliveryError).message).toContain(
+        'The domain is not verified',
+      );
       expect((err as MailDeliveryError).provider).toBe('Resend');
       // Ensure the API key is not present in the error
-      expect((err as MailDeliveryError).message).not.toContain('re_test_key_123');
+      expect((err as MailDeliveryError).message).not.toContain(
+        're_test_key_123',
+      );
     }
   });
 

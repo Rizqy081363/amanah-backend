@@ -171,7 +171,9 @@ export class XlsxExporter implements Exporter {
     sheet.addRow([]);
 
     // Row 6: Document Title (Centered)
-    const titleText = (await Promise.resolve(source.getTitle(ctx.params, ctx.userId))).toUpperCase();
+    const titleText = (
+      await Promise.resolve(source.getTitle(ctx.params, ctx.userId))
+    ).toUpperCase();
     const r6 = sheet.addRow([titleText]);
     sheet.mergeCells('A6:K6');
     r6.font = { bold: true, size: 11, color: { argb: 'FF0F172A' } };
@@ -269,13 +271,19 @@ export class XlsxExporter implements Exporter {
           cr.getCell(6).numFmt = '0.00';
           cr.getCell(6).alignment = { horizontal: 'right', vertical: 'middle' };
         } else {
-          cr.getCell(6).alignment = { horizontal: 'center', vertical: 'middle' };
+          cr.getCell(6).alignment = {
+            horizontal: 'center',
+            vertical: 'middle',
+          };
         }
         if (typeof comp.rate === 'number' && comp.rate > 0) {
           cr.getCell(8).numFmt = '#,##0';
           cr.getCell(8).alignment = { horizontal: 'right', vertical: 'middle' };
         } else {
-          cr.getCell(8).alignment = { horizontal: 'center', vertical: 'middle' };
+          cr.getCell(8).alignment = {
+            horizontal: 'center',
+            vertical: 'middle',
+          };
         }
         cr.getCell(10).numFmt = '#,##0';
         cr.getCell(10).alignment = { horizontal: 'right', vertical: 'middle' };
@@ -489,7 +497,12 @@ export class XlsxExporter implements Exporter {
           };
           cell.alignment = { vertical: 'middle' };
 
-          if (colNumber === 1 || colNumber === 4 || colNumber === 5 || colNumber === 6) {
+          if (
+            colNumber === 1 ||
+            colNumber === 4 ||
+            colNumber === 5 ||
+            colNumber === 6
+          ) {
             cell.alignment = { vertical: 'middle', horizontal: 'center' };
           } else if (colNumber === 9) {
             cell.numFmt = '0.00';
@@ -517,17 +530,32 @@ export class XlsxExporter implements Exporter {
         '',
         'TOTAL PENGGAJIAN',
         '',
-        { formula: `SUM(I${startDataRow}:I${endDataRow})`, result: aggregation.totals.totalHours || 0 },
+        {
+          formula: `SUM(I${startDataRow}:I${endDataRow})`,
+          result: aggregation.totals.totalHours || 0,
+        },
         '',
-        { formula: `SUM(K${startDataRow}:K${endDataRow})`, result: aggregation.totals.grossEarnings || 0 },
+        {
+          formula: `SUM(K${startDataRow}:K${endDataRow})`,
+          result: aggregation.totals.grossEarnings || 0,
+        },
       ]);
       totalRow.height = 24;
       totalRow.font = { bold: true, size: 10, color: { argb: 'FF1E3A8A' } };
-      totalRow.getCell(7).alignment = { horizontal: 'right', vertical: 'middle' };
+      totalRow.getCell(7).alignment = {
+        horizontal: 'right',
+        vertical: 'middle',
+      };
       totalRow.getCell(9).numFmt = '0.00';
-      totalRow.getCell(9).alignment = { horizontal: 'right', vertical: 'middle' };
+      totalRow.getCell(9).alignment = {
+        horizontal: 'right',
+        vertical: 'middle',
+      };
       totalRow.getCell(11).numFmt = '#,##0';
-      totalRow.getCell(11).alignment = { horizontal: 'right', vertical: 'middle' };
+      totalRow.getCell(11).alignment = {
+        horizontal: 'right',
+        vertical: 'middle',
+      };
       totalRow.eachCell((cell) => {
         cell.fill = {
           type: 'pattern',
@@ -663,7 +691,11 @@ export class XlsxExporter implements Exporter {
     ]);
     sheet.mergeCells(`H${signTitleRow.number}:K${signTitleRow.number}`);
     signTitleRow.getCell(8).alignment = { horizontal: 'center' };
-    signTitleRow.getCell(8).font = { size: 9, bold: true, color: { argb: 'FF0F172A' } };
+    signTitleRow.getCell(8).font = {
+      size: 9,
+      bold: true,
+      color: { argb: 'FF0F172A' },
+    };
 
     // Space for signature
     sheet.addRow([]);
@@ -685,14 +717,22 @@ export class XlsxExporter implements Exporter {
     ]);
     sheet.mergeCells(`H${signNameRow.number}:K${signNameRow.number}`);
     signNameRow.getCell(8).alignment = { horizontal: 'center' };
-    signNameRow.getCell(8).font = { size: 9.5, bold: true, color: { argb: 'FF0F172A' } };
+    signNameRow.getCell(8).font = {
+      size: 9.5,
+      bold: true,
+      color: { argb: 'FF0F172A' },
+    };
 
     sheet.addRow([]);
     const disclaimerRow = sheet.addRow([
       '* Dokumen ini di-generate otomatis oleh Sistem Informasi Amanah Healthcare dan sah sebagai bukti rekapitulasi resmi.',
     ]);
     sheet.mergeCells(`A${disclaimerRow.number}:K${disclaimerRow.number}`);
-    disclaimerRow.getCell(1).font = { size: 8, italic: true, color: { argb: 'FF94A3B8' } };
+    disclaimerRow.getCell(1).font = {
+      size: 8,
+      italic: true,
+      color: { argb: 'FF94A3B8' },
+    };
 
     return totalExported;
   }
@@ -706,8 +746,12 @@ export class XlsxExporter implements Exporter {
     ctx: ExportContext,
     progress: IProgressReporter,
   ): Promise<number> {
-    const columnDefs = source.getColumnDefs ? source.getColumnDefs(ctx.params) : null;
-    const headers = columnDefs ? columnDefs.map((c) => c.header) : source.getHeaders(ctx.params);
+    const columnDefs = source.getColumnDefs
+      ? source.getColumnDefs(ctx.params)
+      : null;
+    const headers = columnDefs
+      ? columnDefs.map((c) => c.header)
+      : source.getHeaders(ctx.params);
 
     const rawSheetTitle = source.getDetailsTitle
       ? await Promise.resolve(source.getDetailsTitle(ctx.params, ctx.userId))
@@ -782,14 +826,18 @@ export class XlsxExporter implements Exporter {
     sheet.addRow([]);
 
     // Row 6: Report Title (Centered)
-    const title = (await Promise.resolve(source.getTitle(ctx.params, ctx.userId))).toUpperCase();
+    const title = (
+      await Promise.resolve(source.getTitle(ctx.params, ctx.userId))
+    ).toUpperCase();
     const r6 = sheet.addRow([title, ...new Array(colCount - 1).fill('')]);
     sheet.mergeCells(6, 1, 6, colCount);
     r6.font = { bold: true, size: 11, color: { argb: 'FF0F172A' } };
     r6.alignment = { horizontal: 'center', vertical: 'middle' };
 
     // Row 7: Subtitle
-    const subtitle = source.getSubtitle ? await Promise.resolve(source.getSubtitle(ctx.params, ctx.userId)) : '';
+    const subtitle = source.getSubtitle
+      ? await Promise.resolve(source.getSubtitle(ctx.params, ctx.userId))
+      : '';
     if (subtitle) {
       const r7 = sheet.addRow([subtitle, ...new Array(colCount - 1).fill('')]);
       sheet.mergeCells(7, 1, 7, colCount);
@@ -873,7 +921,11 @@ export class XlsxExporter implements Exporter {
       `Total Data: ${totalExported} catatan`,
     ]);
     sheet.mergeCells(footerCountRow.number, 1, footerCountRow.number, colCount);
-    footerCountRow.getCell(1).font = { size: 9, bold: true, color: { argb: 'FF475569' } };
+    footerCountRow.getCell(1).font = {
+      size: 9,
+      bold: true,
+      color: { argb: 'FF475569' },
+    };
 
     return totalExported;
   }

@@ -90,8 +90,7 @@ import { ScheduleProjectionQueryDto } from './dto/schedule-projection-query.dto'
   description: 'Sesi autentikasi tidak valid atau token tidak disertakan',
 })
 @ApiForbiddenResponse({
-  description:
-    'Akses ditolak: Memerlukan izin modul jadwal untuk aksi ini',
+  description: 'Akses ditolak: Memerlukan izin modul jadwal untuk aksi ini',
 })
 @Controller({ path: 'schedules', version: '1' })
 export class SchedulesController {

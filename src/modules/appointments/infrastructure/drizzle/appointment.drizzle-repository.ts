@@ -83,7 +83,8 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
   }
 
   private async getQueueThresholds(): Promise<
-    { arriveEarlyMinutes?: number; overflowToleranceMinutes?: number } | undefined
+    | { arriveEarlyMinutes?: number; overflowToleranceMinutes?: number }
+    | undefined
   > {
     if (this.clinicConfig) {
       try {
@@ -265,9 +266,7 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
     }
 
     if (filters?.roomName) {
-      conditions.push(
-        ilike(clinicRooms.name, `%${filters.roomName.trim()}%`),
-      );
+      conditions.push(ilike(clinicRooms.name, `%${filters.roomName.trim()}%`));
     }
 
     // 5. Service Name filter
@@ -331,10 +330,7 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
     if (filters?.poliklinikName) {
       const pn = `%${filters.poliklinikName.trim()}%`;
       conditions.push(
-        or(
-          ilike(clinicUnits.name, pn),
-          ilike(clinicRooms.name, pn),
-        ),
+        or(ilike(clinicUnits.name, pn), ilike(clinicRooms.name, pn)),
       );
     }
 

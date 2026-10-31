@@ -563,7 +563,8 @@ export class AuthController {
   @UseGuards(HybridAuthGuard, PermissionsGuard)
   @RequirePermissions('profile:update')
   @ApiOperation({
-    summary: 'Matikan login kata sandi tradisional (Alih penuh ke Google OAuth)',
+    summary:
+      'Matikan login kata sandi tradisional (Alih penuh ke Google OAuth)',
     description:
       'Menghapus kredensial kata sandi tradisional setelah akun Google terhubung aktif, sehingga akun login secara murni passwordless via Google.',
   })
@@ -583,7 +584,8 @@ export class AuthController {
   @UseGuards(HybridAuthGuard, PermissionsGuard)
   @RequirePermissions('profile:update')
   @ApiOperation({
-    summary: 'Putuskan tautan Akun Google (Kembali murni ke email dan kata sandi)',
+    summary:
+      'Putuskan tautan Akun Google (Kembali murni ke email dan kata sandi)',
     description:
       'Melepas metode masuk Google OAuth dari akun. Wajib memiliki kata sandi aktif agar akun tidak terkunci.',
   })

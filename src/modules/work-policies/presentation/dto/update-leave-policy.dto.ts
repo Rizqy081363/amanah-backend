@@ -1,11 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import {
-  IsBoolean,
-  IsIn,
-  IsInt,
-  IsOptional,
-  Min,
-} from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsOptional, Min } from 'class-validator';
 
 export class UpdateLeavePolicyDto {
   @ApiPropertyOptional({
@@ -27,7 +21,8 @@ export class UpdateLeavePolicyDto {
 
   @ApiPropertyOptional({
     example: 3,
-    description: 'Batas maksimum hari cuti per bulan jika mode monthly_limit aktif',
+    description:
+      'Batas maksimum hari cuti per bulan jika mode monthly_limit aktif',
   })
   @IsInt()
   @Min(0)
@@ -46,7 +41,8 @@ export class UpdateLeavePolicyDto {
   @ApiPropertyOptional({
     example: 'non_overlapping',
     enum: ['non_overlapping', 'previous_period_must_finish'],
-    description: 'Kebijakan pengajuan periode cuti (fleksibel non-overlapping vs ketat periode sebelumnya harus selesai)',
+    description:
+      'Kebijakan pengajuan periode cuti (fleksibel non-overlapping vs ketat periode sebelumnya harus selesai)',
   })
   @IsIn(['non_overlapping', 'previous_period_must_finish'])
   @IsOptional()

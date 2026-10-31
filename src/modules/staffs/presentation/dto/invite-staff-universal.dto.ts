@@ -28,7 +28,8 @@ export class InviteStaffUniversalDto {
 
   @ApiPropertyOptional({
     example: 'd9b04fc2-5f36-4c4b-873b-e0c1f2b6e123',
-    description: 'ID Poliklinik utama (opsional untuk staf non-klinis, disarankan untuk praktisi medis)',
+    description:
+      'ID Poliklinik utama (opsional untuk staf non-klinis, disarankan untuk praktisi medis)',
   })
   @IsUUID('4', { message: 'ID Poliklinik harus UUID v4 valid' })
   @IsOptional()

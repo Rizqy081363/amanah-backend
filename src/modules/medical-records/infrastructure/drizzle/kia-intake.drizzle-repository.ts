@@ -1,6 +1,22 @@
-import { ForbiddenException, forwardRef, Inject, Injectable, Optional } from '@nestjs/common';
+import {
+  ForbiddenException,
+  forwardRef,
+  Inject,
+  Injectable,
+  Optional,
+} from '@nestjs/common';
 import { isUUID } from 'class-validator';
-import { and, count, desc, eq, gte, ilike, inArray, lte, or } from 'drizzle-orm';
+import {
+  and,
+  count,
+  desc,
+  eq,
+  gte,
+  ilike,
+  inArray,
+  lte,
+  or,
+} from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
@@ -266,7 +282,8 @@ export class KiaIntakeDrizzleRepository {
       if (dto.childSex !== undefined) updateData.childSex = dto.childSex;
       if (dto.childAgeFormatted !== undefined)
         updateData.childAgeFormatted = dto.childAgeFormatted;
-      if (dto.parentPhone !== undefined) updateData.parentPhone = dto.parentPhone;
+      if (dto.parentPhone !== undefined)
+        updateData.parentPhone = dto.parentPhone;
       if (dto.fatherName !== undefined) updateData.fatherName = dto.fatherName;
       if (dto.motherName !== undefined) updateData.motherName = dto.motherName;
       if (dto.childAddress !== undefined)
@@ -317,7 +334,8 @@ export class KiaIntakeDrizzleRepository {
             mergedAnswers.hasVaccineHistory = dto.hasVaccineHistory;
           if (dto.hasAllergyHistory !== undefined)
             mergedAnswers.hasAllergyHistory = dto.hasAllergyHistory;
-          if (dto.childName !== undefined) mergedAnswers.childName = dto.childName;
+          if (dto.childName !== undefined)
+            mergedAnswers.childName = dto.childName;
           if (dto.childNik !== undefined) mergedAnswers.childNik = dto.childNik;
           if (dto.childBirthDate !== undefined)
             mergedAnswers.childBirthDate = dto.childBirthDate;
@@ -337,8 +355,13 @@ export class KiaIntakeDrizzleRepository {
 
           await tx
             .update(medicalIntakeSubmissions)
-            .set({ answers: mergedAnswers, updatedAt: new Date().toISOString() })
-            .where(eq(medicalIntakeSubmissions.id, existing.intakeSubmissionId));
+            .set({
+              answers: mergedAnswers,
+              updatedAt: new Date().toISOString(),
+            })
+            .where(
+              eq(medicalIntakeSubmissions.id, existing.intakeSubmissionId),
+            );
         }
       }
     });
@@ -483,9 +506,7 @@ export class KiaIntakeDrizzleRepository {
       null;
 
     const rawRelType =
-      apptMetadata?.affiliationRelationship ||
-      aff?.relationshipType ||
-      '';
+      apptMetadata?.affiliationRelationship || aff?.relationshipType || '';
     const relType = rawRelType.toLowerCase();
 
     let relationshipContext: string | null = null;
@@ -597,7 +618,10 @@ export class KiaIntakeDrizzleRepository {
       queueNumber: fullAppt?.queueNumber || appt?.queueNumber || '-',
       scheduledDate: fullAppt?.appointmentDate || appt?.scheduledDate || null,
       appointmentDateFormatted:
-        fullAppt?.appointmentDateFormatted || fullAppt?.appointmentDate || appt?.scheduledDate || null,
+        fullAppt?.appointmentDateFormatted ||
+        fullAppt?.appointmentDate ||
+        appt?.scheduledDate ||
+        null,
       scheduledStartTime:
         fullAppt?.scheduledStartTime || appt?.scheduledStartTime || null,
       scheduledEndTime:
@@ -613,33 +637,23 @@ export class KiaIntakeDrizzleRepository {
         fullAppt?.doctorSpecialty ||
         appt?.practitioner?.medicalSpecialty?.name ||
         null,
-      roomName:
-        fullAppt?.roomName ||
-        appt?.clinicRoom?.name ||
-        null,
+      roomName: fullAppt?.roomName || appt?.clinicRoom?.name || null,
       poliklinikId: fullAppt?.poliklinikId || null,
-      poliklinikName:
-        fullAppt?.poliklinikName ||
-        null,
+      poliklinikName: fullAppt?.poliklinikName || null,
       layananId:
         fullAppt?.layananId ||
         appt?.serviceId ||
         appt?.clinicService?.id ||
         null,
-      layananName:
-        fullAppt?.layananName ||
-        appt?.clinicService?.name ||
-        null,
-      serviceName:
-        fullAppt?.layananName ||
-        appt?.clinicService?.name ||
-        null,
-      actualStartedAt: fullAppt?.actualStartedAt || appt?.actualStartedAt || null,
-      actualCompletedAt: fullAppt?.actualCompletedAt || appt?.actualCompletedAt || null,
+      layananName: fullAppt?.layananName || appt?.clinicService?.name || null,
+      serviceName: fullAppt?.layananName || appt?.clinicService?.name || null,
+      actualStartedAt:
+        fullAppt?.actualStartedAt || appt?.actualStartedAt || null,
+      actualCompletedAt:
+        fullAppt?.actualCompletedAt || appt?.actualCompletedAt || null,
       consultationDurationFormatted:
         fullAppt?.consultationDurationFormatted || null,
-      consultationElapsedSeconds:
-        fullAppt?.consultationElapsedSeconds || null,
+      consultationElapsedSeconds: fullAppt?.consultationElapsedSeconds || null,
       status: fullAppt?.status || appt?.status || 'BOOKED',
       rawStatus: fullAppt?.rawStatus || appt?.status || 'booked',
       complaint: fullAppt?.complaint || appt?.complaint || null,
@@ -710,8 +724,11 @@ export class KiaIntakeDrizzleRepository {
           ...baseAppointmentData,
           ...genericIntake,
           serviceName:
-            fullAppt?.layananName || genericIntake.appointment?.clinicService?.name,
-          patient: patientData || this.mapPatientProfile(genericIntake.patientProfile, fullAppt),
+            fullAppt?.layananName ||
+            genericIntake.appointment?.clinicService?.name,
+          patient:
+            patientData ||
+            this.mapPatientProfile(genericIntake.patientProfile, fullAppt),
         },
       };
     }
@@ -867,4 +884,3 @@ export class KiaIntakeDrizzleRepository {
     };
   }
 }
-

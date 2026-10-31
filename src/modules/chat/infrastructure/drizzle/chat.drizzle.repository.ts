@@ -117,7 +117,9 @@ export class ChatDrizzleRepository implements ChatRepositoryInterface {
       }
 
       if (!params.guestEmail) {
-        throw new Error('Guest email is required to create a guest conversation');
+        throw new Error(
+          'Guest email is required to create a guest conversation',
+        );
       }
 
       const [inserted] = await this.db

@@ -84,9 +84,7 @@ export async function publishRescheduleNotifications(
         patientUserId,
         patientName,
         doctorName:
-          practitioner.displayName ||
-          practitioner.staffProfile?.fullName ||
-          '',
+          practitioner.displayName || practitioner.staffProfile?.fullName || '',
         practitionerId: practitioner.id,
         targetDate,
         targetStartTime: `${apptStartTime}:00`,

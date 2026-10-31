@@ -3,7 +3,10 @@ import { NOTIFICATION_AUDIENCE } from '../../../../common/constants/notification
 import { AppointmentRecipientResolver } from '../../../appointments/infrastructure/resolvers/appointment-recipient.resolver';
 import { NotificationIntent } from '../../../notifications/domain/entities/notification-rule.entity';
 import { NotificationRulesRegistry } from '../../../notifications/registry/notification-rules-registry';
-import { CHAT_EVENTS, CHAT_SENDER_ROLE } from '../../domain/constants/chat-lifecycle.constants';
+import {
+  CHAT_EVENTS,
+  CHAT_SENDER_ROLE,
+} from '../../domain/constants/chat-lifecycle.constants';
 
 @Injectable()
 export class ChatNotificationRules implements OnModuleInit {
@@ -78,7 +81,10 @@ export class ChatNotificationRules implements OnModuleInit {
         }
 
         // 2. Admin Reply Alert for Registered Patient (Audience: NOTIFICATION_AUDIENCE.EXTERNAL)
-        if (payload.senderRole === CHAT_SENDER_ROLE.INTERNAL && payload.patientUserId) {
+        if (
+          payload.senderRole === CHAT_SENDER_ROLE.INTERNAL &&
+          payload.patientUserId
+        ) {
           if (!actor?.userId || actor.userId !== payload.patientUserId) {
             intents.push({
               recipientUserId: payload.patientUserId,

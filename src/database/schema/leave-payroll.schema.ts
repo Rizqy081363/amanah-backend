@@ -255,7 +255,10 @@ export const payrollPeriods = pgTable(
   },
   (table) => [
     index('idx_payroll_periods_dates').on(table.periodStart, table.periodEnd),
-    check('payroll_period_dates_check', sql`${table.periodEnd} >= ${table.periodStart}`),
+    check(
+      'payroll_period_dates_check',
+      sql`${table.periodEnd} >= ${table.periodStart}`,
+    ),
     check(
       'payroll_period_status_check',
       sql`${table.status} IN ('draft', 'calculated', 'finalized')`,

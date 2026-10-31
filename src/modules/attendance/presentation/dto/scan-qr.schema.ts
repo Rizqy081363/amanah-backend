@@ -1,7 +1,5 @@
 import { z } from 'zod';
-import {
-  ATTENDANCE_METHODS,
-} from '../../domain/constants/attendance.constants';
+import { ATTENDANCE_METHODS } from '../../domain/constants/attendance.constants';
 
 export const ScanQrSchema = z.object({
   qrToken: z

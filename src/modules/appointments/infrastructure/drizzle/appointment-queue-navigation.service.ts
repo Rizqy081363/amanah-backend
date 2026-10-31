@@ -41,7 +41,7 @@ export class AppointmentQueueNavigationService {
         code: clinicUnits.code,
         name: clinicUnits.name,
         queuePrefix: clinicUnits.queuePrefix,
-        unitType: clinicUnits.unitType,
+        unitTypeId: clinicUnits.unitTypeId,
       })
       .from(clinicUnits)
       .where(eq(clinicUnits.isActive, true));

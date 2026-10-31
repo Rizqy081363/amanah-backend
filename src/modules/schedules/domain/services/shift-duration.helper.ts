@@ -68,13 +68,10 @@ function calculateGrossHours(startsAt: string, endsAt: string): number {
  * Menghitung jam dinas bersih (net billable hours) yang diakui dan digaji
  * setelah dikurangi alokasi waktu istirahat yang tidak dibayar (unpaid break).
  */
-export function calculateSessionNetHours(params: SessionNetHoursParams): number {
-  const {
-    startsAt,
-    endsAt,
-    breakMinutes = 0,
-    isBreakPaid = false,
-  } = params;
+export function calculateSessionNetHours(
+  params: SessionNetHoursParams,
+): number {
+  const { startsAt, endsAt, breakMinutes = 0, isBreakPaid = false } = params;
 
   const grossHours = calculateGrossHours(startsAt, endsAt);
 
@@ -84,10 +81,7 @@ export function calculateSessionNetHours(params: SessionNetHoursParams): number 
   }
 
   const breakHours = breakMinutes / MINUTES_IN_AN_HOUR;
-  const netHours = Math.max(
-    MINIMUM_SESSION_NET_HOURS,
-    grossHours - breakHours,
-  );
+  const netHours = Math.max(MINIMUM_SESSION_NET_HOURS, grossHours - breakHours);
 
   return Number(netHours.toFixed(2));
 }

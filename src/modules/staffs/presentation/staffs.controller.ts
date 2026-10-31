@@ -125,11 +125,14 @@ export class StaffsController {
     if (body.phoneNumber !== undefined)
       updatePayload.phoneNumber = body.phoneNumber;
     if (body.photoUrl !== undefined) updatePayload.photoUrl = body.photoUrl;
-    if (body.birthPlace !== undefined) updatePayload.birthPlace = body.birthPlace;
+    if (body.birthPlace !== undefined)
+      updatePayload.birthPlace = body.birthPlace;
     if (body.birthDate !== undefined) updatePayload.birthDate = body.birthDate;
     if (body.gender !== undefined) updatePayload.gender = body.gender;
-    if (body.nationalId !== undefined) updatePayload.nationalId = body.nationalId;
-    if (body.licenseNumber !== undefined) updatePayload.licenseNumber = body.licenseNumber;
+    if (body.nationalId !== undefined)
+      updatePayload.nationalId = body.nationalId;
+    if (body.licenseNumber !== undefined)
+      updatePayload.licenseNumber = body.licenseNumber;
     if (body.address !== undefined) updatePayload.address = body.address;
     if (body.email !== undefined) updatePayload.email = body.email;
 

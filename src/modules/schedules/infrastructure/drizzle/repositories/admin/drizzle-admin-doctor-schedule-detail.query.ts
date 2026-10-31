@@ -261,7 +261,8 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
             : res.notes,
           closureReason: repCoverage ? null : res.closureReason,
           isReplacement: Boolean(repCoverage),
-          replacedStaffName: repCoverage?.originalStaffProfile?.fullName || null,
+          replacedStaffName:
+            repCoverage?.originalStaffProfile?.fullName || null,
         });
       }
 
@@ -270,8 +271,7 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
           (s) => s.scheduleDate === dayDate && s.id === rep.sessionId,
         );
         if (!alreadyIn && rep.sessionDef) {
-          const sStart =
-            rep.sessionDef.defaultStartsAt?.slice(0, 5) || '00:00';
+          const sStart = rep.sessionDef.defaultStartsAt?.slice(0, 5) || '00:00';
           const sEnd = rep.sessionDef.defaultEndsAt?.slice(0, 5) || '24:00';
           monthSessions.push({
             id: rep.sessionDef.id,
@@ -345,9 +345,7 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
 
     const isEvalOnLeave = Boolean(evalLeave || evalApprovedLeave);
     const evalLeaveReason =
-      evalApprovedLeave?.reason ||
-      evalLeave?.note ||
-      null;
+      evalApprovedLeave?.reason || evalLeave?.note || null;
     const evalLeaveStart =
       evalApprovedLeave?.startDate || (isEvalOnLeave ? evalDate : null);
     const evalLeaveEnd =
@@ -389,10 +387,7 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
       ? ScheduleOperationalStatus.PENDING
       : evalAggregateOpStatus;
 
-    const { dayMetrics } = buildTimelineAndMetrics(
-      [],
-      dailySessions,
-    );
+    const { dayMetrics } = buildTimelineAndMetrics([], dailySessions);
 
     return {
       success: true,
@@ -412,7 +407,9 @@ export class DrizzleAdminDoctorScheduleDetailQuery {
         email: prac.staffProfile?.email || null,
         phone: prac.staffProfile?.phone || null,
         practiceRoom:
-          dailySessions.length > 0 ? dailySessions[0].roomName : defaultRoomName,
+          dailySessions.length > 0
+            ? dailySessions[0].roomName
+            : defaultRoomName,
         avatar: ScheduleRecordMapper.toAvatarUrl(prac.staffProfile),
         scheduleMonth: `${targetYear}-${String(targetMonth).padStart(2, '0')}`,
         isOnLeave: isEvalOnLeave,

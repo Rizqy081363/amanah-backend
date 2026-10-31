@@ -1,10 +1,22 @@
-import { Inject, Injectable, Logger, OnModuleInit, Optional } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  OnModuleInit,
+  Optional,
+} from '@nestjs/common';
 import { and, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
 import { NOTIFICATION_AUDIENCE } from '../../../common/constants/notification-audience.constants';
 import { ROLE_AUDIENCE } from '../../../common/constants/role-audience.constants';
 import { DRIZZLE_SOURCE } from '../../../database/drizzle/drizzle.constants';
 import type { DrizzleDatabase } from '../../../database/drizzle/drizzle.provider';
-import { permissions, rolePermissions, roles, staffProfiles, userRoles } from '../../../database/schema';
+import {
+  permissions,
+  rolePermissions,
+  roles,
+  staffProfiles,
+  userRoles,
+} from '../../../database/schema';
 import { NotificationIntent } from '../../../modules/notifications/domain/entities/notification-rule.entity';
 import { NotificationRulesRegistry } from '../../../modules/notifications/registry/notification-rules-registry';
 import { AUTH_EVENTS } from '../../domain/constants/auth-events.constants';
@@ -51,7 +63,10 @@ export class UserProvisionedNotificationRules implements OnModuleInit {
             .from(userRoles)
             .innerJoin(roles, eq(userRoles.roleId, roles.id))
             .innerJoin(rolePermissions, eq(rolePermissions.roleId, roles.id))
-            .innerJoin(permissions, eq(rolePermissions.permissionId, permissions.id))
+            .innerJoin(
+              permissions,
+              eq(rolePermissions.permissionId, permissions.id),
+            )
             .where(
               and(
                 eq(roles.audience, ROLE_AUDIENCE.INTERNAL),
@@ -70,7 +85,10 @@ export class UserProvisionedNotificationRules implements OnModuleInit {
             .from(staffProfiles)
             .innerJoin(roles, eq(staffProfiles.roleId, roles.id))
             .innerJoin(rolePermissions, eq(rolePermissions.roleId, roles.id))
-            .innerJoin(permissions, eq(rolePermissions.permissionId, permissions.id))
+            .innerJoin(
+              permissions,
+              eq(rolePermissions.permissionId, permissions.id),
+            )
             .where(
               and(
                 eq(roles.audience, ROLE_AUDIENCE.INTERNAL),

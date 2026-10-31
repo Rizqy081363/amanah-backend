@@ -16,5 +16,8 @@ export const AuthResetPasswordSchema = z.object({
 });
 
 export const AuthConfirmEmailSchema = z.object({
-  hash: z.string().trim().min(1, { message: 'Hash verifikasi wajib disertakan' }),
+  hash: z
+    .string()
+    .trim()
+    .min(1, { message: 'Hash verifikasi wajib disertakan' }),
 });

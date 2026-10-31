@@ -13,7 +13,9 @@ export class AuthAvatarDto {
   })
   type: 'custom' | 'oauth' | 'initials';
 
-  @ApiProperty({ description: 'Menunjukkan apakah avatar berasal dari upload kustom' })
+  @ApiProperty({
+    description: 'Menunjukkan apakah avatar berasal dari upload kustom',
+  })
   hasCustomAvatar: boolean;
 
   @ApiPropertyOptional({
@@ -27,7 +29,9 @@ export class AuthRoleSummaryDto {
   @ApiProperty({ description: 'ID unik role (UUID)' })
   id: string;
 
-  @ApiProperty({ description: 'Kode unik role (misal: "admin", "doctor", "staff")' })
+  @ApiProperty({
+    description: 'Kode unik role (misal: "admin", "doctor", "staff")',
+  })
   code: string;
 
   @ApiProperty({ description: 'Nama resmi role' })
@@ -42,7 +46,9 @@ export class AuthRoleSummaryDto {
   })
   audience?: string | null;
 
-  @ApiProperty({ description: 'Menandakan apakah peran termasuk tenaga klinis medis' })
+  @ApiProperty({
+    description: 'Menandakan apakah peran termasuk tenaga klinis medis',
+  })
   isClinical: boolean;
 }
 
@@ -94,31 +100,54 @@ export class AuthStaffProfileDto {
   @ApiPropertyOptional({ nullable: true })
   roleName?: string | null;
 
-  @ApiProperty({ description: 'Menandakan apakah staf merupakan tenaga medis klinis' })
+  @ApiProperty({
+    description: 'Menandakan apakah staf merupakan tenaga medis klinis',
+  })
   isClinical: boolean;
 
-  @ApiPropertyOptional({ nullable: true, description: 'ID praktisi klinis jika ada' })
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'ID praktisi klinis jika ada',
+  })
   practitionerId?: string | null;
 
-  @ApiPropertyOptional({ nullable: true, description: 'ID unit poliklinik penempatan staf' })
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'ID unit poliklinik penempatan staf',
+  })
   poliklinikId?: string | null;
 
-  @ApiPropertyOptional({ nullable: true, description: 'Nama unit poliklinik penempatan staf' })
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'Nama unit poliklinik penempatan staf',
+  })
   poliklinikName?: string | null;
 
   @ApiProperty({ description: 'Nama lengkap staf beserta gelar' })
   fullName: string;
 
-  @ApiPropertyOptional({ nullable: true, description: 'Jabatan atau profesi staf' })
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'Jabatan atau profesi staf',
+  })
   profession?: string | null;
 
-  @ApiPropertyOptional({ nullable: true, description: 'Nomor induk staf / kode staf' })
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'Nomor induk staf / kode staf',
+  })
   staffCode?: string | null;
 
-  @ApiPropertyOptional({ nullable: true, description: 'Nomor Identitas Kependudukan (NIK)' })
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'Nomor Identitas Kependudukan (NIK)',
+  })
   nationalId?: string | null;
 
-  @ApiPropertyOptional({ nullable: true, description: 'Nomor identitas kartu (alias NIK)' })
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'Nomor identitas kartu (alias NIK)',
+  })
   idCardNumber?: string | null;
 
   @ApiPropertyOptional({ nullable: true })
@@ -189,7 +218,10 @@ export class AuthPatientProfileDto {
   @ApiProperty({ description: 'Nomor Rekam Medis (No RM)' })
   medicalRecordNumber: string;
 
-  @ApiPropertyOptional({ nullable: true, description: 'Nomor Induk Kependudukan (NIK)' })
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'Nomor Induk Kependudukan (NIK)',
+  })
   nik?: string | null;
 
   @ApiProperty({ description: 'Nama lengkap pasien' })
@@ -269,7 +301,10 @@ export class AuthUserResponseDto {
   @ApiProperty({ description: 'Alamat email akun' })
   email: string;
 
-  @ApiPropertyOptional({ nullable: true, description: 'Nomor telepon pengguna' })
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'Nomor telepon pengguna',
+  })
   phone?: string | null;
 
   @ApiProperty({ description: 'Status verifikasi email' })
@@ -281,7 +316,10 @@ export class AuthUserResponseDto {
   @ApiPropertyOptional({ nullable: true, description: 'URL avatar profil' })
   avatarUrl?: string | null;
 
-  @ApiProperty({ description: 'Status akun pengguna (active, suspended, pending_verification)' })
+  @ApiProperty({
+    description:
+      'Status akun pengguna (active, suspended, pending_verification)',
+  })
   status: string;
 
   @ApiProperty({ description: 'Bahasa antarmuka pilihan pengguna' })
@@ -332,7 +370,8 @@ export class AuthUserResponseDto {
 
   @ApiPropertyOptional({
     type: [String],
-    description: 'Daftar route path halaman aplikasi yang diizinkan untuk diakses akun ini',
+    description:
+      'Daftar route path halaman aplikasi yang diizinkan untuk diakses akun ini',
   })
   accessibleRoutes?: string[];
 
@@ -351,7 +390,8 @@ export class AuthUserResponseDto {
   patient?: AuthPatientProfileDto | null;
 
   @ApiProperty({
-    description: 'Menandakan akun baru yang membutuhkan alur onboarding data profil',
+    description:
+      'Menandakan akun baru yang membutuhkan alur onboarding data profil',
   })
   needsOnboarding: boolean;
 }

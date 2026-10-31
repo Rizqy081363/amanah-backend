@@ -7,7 +7,12 @@ interface AttendanceHistorySummaryDto {
   totalWorkHours: number;
   totalDays: number;
   periodLabel: string;
-  facets: Array<{ status: string; label: string; count: number; color: string }>;
+  facets: Array<{
+    status: string;
+    label: string;
+    count: number;
+    color: string;
+  }>;
 }
 
 export interface AttendanceHistoryResultDto {
@@ -57,7 +62,13 @@ export interface AttendanceBFFResponse {
     shifts: Array<{ label: string; value: string }>;
     statuses: Array<{ label: string; value: string }>;
     categories: Array<{ label: string; value: string }>;
-    roles?: Array<{ label: string; value: string; id: string; code: string; isClinical: boolean }>;
+    roles?: Array<{
+      label: string;
+      value: string;
+      id: string;
+      code: string;
+      isClinical: boolean;
+    }>;
   };
 }
 
@@ -196,9 +207,7 @@ export interface AttendanceRepository {
     }>
   >;
 
-  findClinicWeeklyTemplateForDow(
-    dow: number,
-  ): Promise<
+  findClinicWeeklyTemplateForDow(dow: number): Promise<
     Array<{
       id: string;
       sessionId: string;
@@ -228,9 +237,7 @@ export interface AttendanceRepository {
 
   findScheduledStaffCountByDow(dow: number): Promise<number>;
 
-  resolveStaffByIdOrCode(
-    query: string,
-  ): Promise<{
+  resolveStaffByIdOrCode(query: string): Promise<{
     id: string;
     staffCode: string;
     fullName: string;
@@ -247,24 +254,41 @@ export interface AttendanceRepository {
   resolveSessionDefByTime(
     hourOrTime: number | string | Date,
     windowMinutesBefore?: number,
-  ): Promise<{ id: string; code: string; defaultStartsAt: string | null; defaultEndsAt?: string | null } | null>;
+  ): Promise<{
+    id: string;
+    code: string;
+    defaultStartsAt: string | null;
+    defaultEndsAt?: string | null;
+  } | null>;
 
   resolveSessionDefByCode(
     sessionCode: string,
-  ): Promise<{ id: string; code: string; defaultStartsAt: string | null; defaultEndsAt?: string | null } | null>;
+  ): Promise<{
+    id: string;
+    code: string;
+    defaultStartsAt: string | null;
+    defaultEndsAt?: string | null;
+  } | null>;
 
   resolveSessionDefById(
     sessionId: string,
-  ): Promise<{ id: string; code: string; defaultStartsAt: string | null; defaultEndsAt?: string | null } | null>;
+  ): Promise<{
+    id: string;
+    code: string;
+    defaultStartsAt: string | null;
+    defaultEndsAt?: string | null;
+  } | null>;
 
   // Master days and historical trends from database
-  getMasterDays(): Promise<Array<{
-    dow: number;
-    code: string;
-    nameId: string;
-    shortNameId: string;
-    sortOrder: number;
-  }>>;
+  getMasterDays(): Promise<
+    Array<{
+      dow: number;
+      code: string;
+      nameId: string;
+      shortNameId: string;
+      sortOrder: number;
+    }>
+  >;
 
   findWeeklyAttendanceCounts(
     startDate: string,

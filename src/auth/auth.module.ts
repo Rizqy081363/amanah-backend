@@ -15,10 +15,7 @@ import { UserProvisionedNotificationPublisher } from './application/publishers/u
 import { UserProvisionedNotificationRules } from './infrastructure/notifications/user-provisioned.notifications';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
-import {
-  BetterAuthController,
-  BetterAuthGuard,
-} from './better-auth';
+import { BetterAuthController, BetterAuthGuard } from './better-auth';
 import { registerBetterAuthUserCreatedHook } from './better-auth/auth';
 import { GoogleTokenVerifierService } from './services/google-token-verifier.service';
 import { JwtStrategy } from './strategies/jwt.strategy';

@@ -1,4 +1,7 @@
-import { ClinicConfigService, QueueThresholdsData } from '@common/clinic-config';
+import {
+  ClinicConfigService,
+  QueueThresholdsData,
+} from '@common/clinic-config';
 import { Injectable } from '@nestjs/common';
 
 @Injectable()

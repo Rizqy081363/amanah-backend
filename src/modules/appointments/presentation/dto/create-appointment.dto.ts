@@ -7,9 +7,7 @@ import {
   IsUUID,
   Matches,
 } from 'class-validator';
-import {
-  type CanonicalStaffShift,
-} from '../../../schedules/domain/constants/schedule-shift.constants';
+import { type CanonicalStaffShift } from '../../../schedules/domain/constants/schedule-shift.constants';
 import type { CreateAppointmentInput } from './create-appointment.schema';
 
 export class CreateAppointmentDto implements CreateAppointmentInput {

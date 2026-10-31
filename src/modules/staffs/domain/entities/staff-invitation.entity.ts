@@ -1,6 +1,4 @@
-import type {
-  StaffInvitationStatus,
-} from '../constants/staff-invitation.constants';
+import type { StaffInvitationStatus } from '../constants/staff-invitation.constants';
 
 export class StaffInvitationEntity {
   id: string;

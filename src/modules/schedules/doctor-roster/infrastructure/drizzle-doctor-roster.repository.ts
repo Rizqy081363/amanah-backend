@@ -90,9 +90,7 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
     }
 
     if (!prac && !staffProfile) {
-      throw new NotFoundException(
-        `Staf dengan ID ${doctorId} tidak ditemukan`,
-      );
+      throw new NotFoundException(`Staf dengan ID ${doctorId} tidak ditemukan`);
     }
 
     const [allDays, allDefs, allSchedules, existingAssignments, allRooms] =
@@ -117,8 +115,7 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
         this.db.query.clinicRooms.findMany(),
       ]);
 
-    const doctorName =
-      prac?.displayName || staffProfile?.fullName || '';
+    const doctorName = prac?.displayName || staffProfile?.fullName || '';
     const specialization =
       prac?.medicalSpecialty?.name ||
       staffProfile?.clinicUnit?.name ||
@@ -236,9 +233,7 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
     }
 
     if (!prac && !staffProfile) {
-      throw new NotFoundException(
-        `Staf dengan ID ${doctorId} tidak ditemukan`,
-      );
+      throw new NotFoundException(`Staf dengan ID ${doctorId} tidak ditemukan`);
     }
 
     await this.db.transaction(async (tx) => {
@@ -292,7 +287,8 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
             dow: item.dow,
             action: 'assign_roster' as const,
             newStatus: item.isActive ? 'OPEN' : 'CLOSED',
-            reason: dto.reason || 'Pembaruan roster operasional mingguan dokter',
+            reason:
+              dto.reason || 'Pembaruan roster operasional mingguan dokter',
             metadata: {
               isActive: item.isActive,
               preferredRoomId: item.preferredRoomId || null,
@@ -327,9 +323,7 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
     }
 
     if (!prac && !staffProfile) {
-      throw new NotFoundException(
-        `Staf dengan ID ${doctorId} tidak ditemukan`,
-      );
+      throw new NotFoundException(`Staf dengan ID ${doctorId} tidak ditemukan`);
     }
 
     await this.db.transaction(async (tx) => {

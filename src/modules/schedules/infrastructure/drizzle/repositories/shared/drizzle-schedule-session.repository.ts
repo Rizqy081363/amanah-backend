@@ -57,11 +57,7 @@ export class DrizzleScheduleSessionRepository {
   ) {
     this.resolvedMySchedulesQuery =
       mySchedulesQuery ??
-      new DoctorMySchedulesQuery(
-        db,
-        practitionerResolver,
-        clinicTimeService,
-      );
+      new DoctorMySchedulesQuery(db, practitionerResolver, clinicTimeService);
   }
 
   async create(
@@ -86,7 +82,9 @@ export class DrizzleScheduleSessionRepository {
     const sessionLabel = sessionDef.label || sessionDef.code;
     const targetDate = data.scheduleDate;
     if (!targetDate) {
-      throw new BadRequestException('Tanggal jadwal (scheduleDate) wajib diisi');
+      throw new BadRequestException(
+        'Tanggal jadwal (scheduleDate) wajib diisi',
+      );
     }
     const defaultStartTime = data.startTime || sessionDef.defaultStartsAt;
     const defaultEndTime = data.endTime || sessionDef.defaultEndsAt;

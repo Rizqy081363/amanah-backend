@@ -4,7 +4,10 @@ export const UpdateScheduleSchema = z.object({
   session: z.string().optional(),
   startTime: z
     .string()
-    .regex(/^\d{2}:\d{2}(:\d{2})?$/, 'Format startTime harus HH:mm atau HH:mm:ss')
+    .regex(
+      /^\d{2}:\d{2}(:\d{2})?$/,
+      'Format startTime harus HH:mm atau HH:mm:ss',
+    )
     .optional(),
   endTime: z
     .string()

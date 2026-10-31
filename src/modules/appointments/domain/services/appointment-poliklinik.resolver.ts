@@ -59,7 +59,10 @@ export class AppointmentPoliklinikResolver {
       .from(serviceCategories)
       .innerJoin(clinicUnits, eq(serviceCategories.unitId, clinicUnits.id))
       .where(
-        and(eq(serviceCategories.isActive, true), eq(clinicUnits.isActive, true)),
+        and(
+          eq(serviceCategories.isActive, true),
+          eq(clinicUnits.isActive, true),
+        ),
       );
 
     this.categoryUnitMap.clear();

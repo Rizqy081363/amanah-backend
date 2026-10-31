@@ -29,10 +29,9 @@ export function buildOriginPolicy(cfg: {
 }): OriginPolicy {
   const isProd = cfg.appEnv === 'production';
   const devPatterns = (cfg.devPatterns || []).filter(Boolean);
-  const rawOrigins = [
-    cfg.publicUrl,
-    ...(cfg.extraOrigins || []),
-  ].filter((o): o is string => Boolean(o && o.trim()));
+  const rawOrigins = [cfg.publicUrl, ...(cfg.extraOrigins || [])].filter(
+    (o): o is string => Boolean(o && o.trim()),
+  );
 
   if (isProd && (devPatterns.length > 0 || rawOrigins.includes('*'))) {
     throw new Error(
@@ -75,5 +74,7 @@ export function isOriginAllowed(
   if (policy.exact.includes('*')) return true;
   if (policy.exact.includes(origin)) return true;
 
-  return policy.patterns.some((pattern) => matchesOriginPattern(origin, pattern));
+  return policy.patterns.some((pattern) =>
+    matchesOriginPattern(origin, pattern),
+  );
 }

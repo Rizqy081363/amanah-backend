@@ -1,19 +1,11 @@
-import {
-  Controller,
-  Get,
-  Param,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Param, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
 import { PermissionsGuard } from '../../../common/auth/permissions.guard';
 import { RequirePermissions } from '../../../common/auth/permissions.decorator';
 import { zodPipe } from '../../../common/validation';
 import { AccessControlService } from '../application/services/access-control.service';
-import {
-  PermissionParamInput,
-  PermissionParamSchema,
-} from './schemas';
+import { PermissionParamInput, PermissionParamSchema } from './schemas';
 
 @ApiTags('Admin Permissions Catalog')
 @ApiBearerAuth()
@@ -25,7 +17,8 @@ export class AdminPermissionsController {
   @Get()
   @RequirePermissions('roles:read')
   @ApiOperation({
-    summary: 'Mendapatkan seluruh katalog perizinan granular dalam sistem (flat list)',
+    summary:
+      'Mendapatkan seluruh katalog perizinan granular dalam sistem (flat list)',
   })
   async getAllPermissions() {
     return this.service.getAllPermissions();
@@ -34,7 +27,8 @@ export class AdminPermissionsController {
   @Get('grouped')
   @RequirePermissions('roles:read')
   @ApiOperation({
-    summary: 'Mendapatkan katalog perizinan granular yang dikelompokkan berdasarkan modul/fitur',
+    summary:
+      'Mendapatkan katalog perizinan granular yang dikelompokkan berdasarkan modul/fitur',
   })
   async getGroupedPermissions() {
     return this.service.getGroupedPermissions();

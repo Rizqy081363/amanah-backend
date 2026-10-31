@@ -21,7 +21,9 @@ export class GetAttendanceExportCandidatesUseCase {
     private readonly repo: AttendanceRepository,
   ) {}
 
-  async execute(monthParam?: string): Promise<GetAttendanceExportCandidatesResult> {
+  async execute(
+    monthParam?: string,
+  ): Promise<GetAttendanceExportCandidatesResult> {
     let year: number;
     let monthNum: number;
 

@@ -242,7 +242,8 @@ export class MedicalIntakesController {
   @Get('maternity/history')
   @RequirePermissions('records:read')
   @ApiOperation({
-    summary: 'Mendapatkan riwayat formulir kehamilan & persalinan dengan paginasi',
+    summary:
+      'Mendapatkan riwayat formulir kehamilan & persalinan dengan paginasi',
   })
   async getMaternalHistory(
     @Query() query: GetMaternalHistoryQueryDto,

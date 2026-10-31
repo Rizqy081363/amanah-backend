@@ -1,8 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
-import {
-  type CanonicalStaffShift,
-} from '../../../schedules/domain/constants/schedule-shift.constants';
+import { type CanonicalStaffShift } from '../../../schedules/domain/constants/schedule-shift.constants';
 import type { RescheduleAppointmentInput } from './reschedule-appointment.schema';
 
 export class RescheduleAppointmentDto implements RescheduleAppointmentInput {

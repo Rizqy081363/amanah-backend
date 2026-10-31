@@ -36,7 +36,8 @@ export class RescheduleJobDto {
   description: 'Sesi autentikasi tidak valid atau token tidak disertakan',
 })
 @ApiForbiddenResponse({
-  description: 'Akses ditolak: Hanya administrator yang diizinkan mengelola scheduler',
+  description:
+    'Akses ditolak: Hanya administrator yang diizinkan mengelola scheduler',
 })
 @Controller({ path: 'admin/scheduler', version: '1' })
 export class AdminSchedulerController {
@@ -69,7 +70,9 @@ export class AdminSchedulerController {
   })
   @ApiParam({ name: 'jobId', description: 'ID unik dari scheduled job' })
   @ApiOkResponse({ description: 'Job berhasil dipicu dan dieksekusi' })
-  async triggerJob(@Param('jobId') jobId: string): Promise<{ success: boolean; message: string }> {
+  async triggerJob(
+    @Param('jobId') jobId: string,
+  ): Promise<{ success: boolean; message: string }> {
     await this.scheduler.triggerJob(jobId);
     return {
       success: true,
@@ -91,7 +94,10 @@ export class AdminSchedulerController {
     @Param('jobId') jobId: string,
     @Body() dto: RescheduleJobDto,
   ): Promise<{ success: boolean; message: string }> {
-    const updated = await this.scheduler.rescheduleJob(jobId, dto.cronExpression);
+    const updated = await this.scheduler.rescheduleJob(
+      jobId,
+      dto.cronExpression,
+    );
     return {
       success: updated,
       message: updated

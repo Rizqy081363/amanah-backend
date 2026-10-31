@@ -87,8 +87,20 @@ export function validateSessionDefsNonOverlap(defs: ShiftTimeInterval[]): void {
           code: 'SHIFT_OVERLAP_CONFLICT',
           message: `Shift '${labelA}' (${a.startsAt.slice(0, 5)} - ${a.endsAt.slice(0, 5)}) bertabrakan dengan Shift '${labelB}' (${b.startsAt.slice(0, 5)} - ${b.endsAt.slice(0, 5)}). Jam shift operasional tidak boleh saling tumpang tindih.`,
           metadata: {
-            shiftA: { id: a.id, code: a.code, label: labelA, startsAt: a.startsAt, endsAt: a.endsAt },
-            shiftB: { id: b.id, code: b.code, label: labelB, startsAt: b.startsAt, endsAt: b.endsAt },
+            shiftA: {
+              id: a.id,
+              code: a.code,
+              label: labelA,
+              startsAt: a.startsAt,
+              endsAt: a.endsAt,
+            },
+            shiftB: {
+              id: b.id,
+              code: b.code,
+              label: labelB,
+              startsAt: b.startsAt,
+              endsAt: b.endsAt,
+            },
             overlapMinutes,
           },
         });

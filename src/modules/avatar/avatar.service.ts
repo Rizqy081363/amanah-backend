@@ -205,7 +205,10 @@ export class AvatarService {
     const defaultAvatarCandidates = [
       path.resolve(process.cwd(), 'data/uploads/avatars/default-avatar.png'),
       path.resolve(__dirname, 'assets/default-avatar.png'),
-      path.resolve(process.cwd(), 'src/modules/avatar/assets/default-avatar.png'),
+      path.resolve(
+        process.cwd(),
+        'src/modules/avatar/assets/default-avatar.png',
+      ),
     ];
 
     for (const candidate of defaultAvatarCandidates) {

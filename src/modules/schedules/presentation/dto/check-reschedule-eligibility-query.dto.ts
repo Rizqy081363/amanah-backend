@@ -1,5 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsDateString, IsNotEmpty, IsOptional, IsUUID, Matches } from 'class-validator';
+import {
+  IsDateString,
+  IsNotEmpty,
+  IsOptional,
+  IsUUID,
+  Matches,
+} from 'class-validator';
 
 export class CheckRescheduleEligibilityQueryDto {
   @ApiProperty({

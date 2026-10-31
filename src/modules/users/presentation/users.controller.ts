@@ -52,7 +52,8 @@ export class UsersController {
   @Get()
   @RequirePermissions('users:read')
   @ApiOperation({
-    summary: 'Mendapatkan daftar seluruh pengguna terdaftar (Role-Agnostic, Server-Side Paginated)',
+    summary:
+      'Mendapatkan daftar seluruh pengguna terdaftar (Role-Agnostic, Server-Side Paginated)',
   })
   async getUsers(@Query(zodPipe(QueryUsersSchema)) query: QueryUsersInput) {
     return this.service.findUsers(query);
@@ -61,7 +62,8 @@ export class UsersController {
   @Get('backup-drivers')
   @RequirePermissions('users:read')
   @ApiOperation({
-    summary: 'Mendapatkan daftar driver ekspor/impor cadangan pengguna yang didukung secara dinamis',
+    summary:
+      'Mendapatkan daftar driver ekspor/impor cadangan pengguna yang didukung secara dinamis',
   })
   async getBackupDrivers() {
     return this.service.getAvailableBackupDrivers();
@@ -70,7 +72,8 @@ export class UsersController {
   @Get('export')
   @RequirePermissions('users:export')
   @ApiOperation({
-    summary: 'Mengekspor berkas pencadangan data pengguna secara lengkap melalui driver terpilih',
+    summary:
+      'Mengekspor berkas pencadangan data pengguna secara lengkap melalui driver terpilih',
   })
   async exportUsers(
     @Query(zodPipe(ExportUsersQuerySchema)) query: ExportUsersQueryInput,
@@ -91,7 +94,8 @@ export class UsersController {
   @HttpCode(HttpStatus.OK)
   @RequirePermissions('users:restore')
   @ApiOperation({
-    summary: 'Melakukan validasi dan pratinjau berkas cadangan sebelum dieksekusi',
+    summary:
+      'Melakukan validasi dan pratinjau berkas cadangan sebelum dieksekusi',
   })
   async previewRestore(
     @Body(zodPipe(RestorePreviewSchema)) dto: RestorePreviewInput,
@@ -134,7 +138,8 @@ export class UsersController {
   @HttpCode(HttpStatus.OK)
   @RequirePermissions('users:delete')
   @ApiOperation({
-    summary: 'Menghapus permanen (purging sistemik) akun pengguna secara massal (Bulk)',
+    summary:
+      'Menghapus permanen (purging sistemik) akun pengguna secara massal (Bulk)',
   })
   async bulkPurgeUsers(
     @Body(zodPipe(BulkPurgeUsersSchema)) dto: BulkPurgeUsersInput,
@@ -146,7 +151,8 @@ export class UsersController {
   @Get('roles')
   @RequirePermissions('users:read')
   @ApiOperation({
-    summary: 'Mendapatkan daftar seluruh peran aktif untuk penugasan akun pengguna',
+    summary:
+      'Mendapatkan daftar seluruh peran aktif untuk penugasan akun pengguna',
   })
   async getAllActiveRoles() {
     return this.service.getAllActiveRoles();
@@ -157,9 +163,7 @@ export class UsersController {
   @ApiOperation({
     summary: 'Mendapatkan detail profil dan relasi akun pengguna tunggal',
   })
-  async getUserById(
-    @Param(zodPipe(UserParamSchema)) param: UserParamInput,
-  ) {
+  async getUserById(@Param(zodPipe(UserParamSchema)) param: UserParamInput) {
     return this.service.getUserById(param.id);
   }
 
@@ -204,7 +208,8 @@ export class UsersController {
   @HttpCode(HttpStatus.OK)
   @RequirePermissions('users:delete')
   @ApiOperation({
-    summary: 'Menghapus akun pengguna dan seluruh relasinya secara permanen (Purging Sistemik)',
+    summary:
+      'Menghapus akun pengguna dan seluruh relasinya secara permanen (Purging Sistemik)',
   })
   async purgeUser(
     @Param(zodPipe(UserParamSchema)) param: UserParamInput,
@@ -213,7 +218,8 @@ export class UsersController {
     const res = await this.service.purgeUser(param.id, user.id);
     return {
       success: true,
-      message: 'Akun pengguna dan seluruh datanya telah berhasil dihapus secara permanen dari sistem.',
+      message:
+        'Akun pengguna dan seluruh datanya telah berhasil dihapus secara permanen dari sistem.',
       details: res.details,
     };
   }

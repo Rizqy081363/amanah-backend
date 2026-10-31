@@ -21,7 +21,10 @@ export class DoctorRosterSessionDto {
   @IsString()
   sessionCode: string;
 
-  @ApiProperty({ example: 'Pagi', description: 'Label manusiawi sesi operasional' })
+  @ApiProperty({
+    example: 'Pagi',
+    description: 'Label manusiawi sesi operasional',
+  })
   @IsString()
   sessionLabel: string;
 

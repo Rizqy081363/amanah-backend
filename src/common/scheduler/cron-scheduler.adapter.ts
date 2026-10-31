@@ -129,10 +129,7 @@ export class CronSchedulerAdapter
     );
   }
 
-  async rescheduleJob(
-    jobId: string,
-    cronExpression: string,
-  ): Promise<boolean> {
+  async rescheduleJob(jobId: string, cronExpression: string): Promise<boolean> {
     const existing = this.jobRegistryMap.get(jobId);
     if (!existing) {
       this.logger.warn(`Cannot reschedule non-existent job "${jobId}".`);

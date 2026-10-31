@@ -152,7 +152,9 @@ export class ExportsService {
 
     const fileMeta = await this.storageService.getFileMetadata(job.fileId);
     if (!fileMeta || !fileMeta.exists) {
-      throw new NotFoundException('Exported physical file not found on storage');
+      throw new NotFoundException(
+        'Exported physical file not found on storage',
+      );
     }
 
     return {

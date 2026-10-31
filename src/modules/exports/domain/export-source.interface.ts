@@ -1,7 +1,13 @@
 import { PayrollReportAggregation } from './payroll-report.contract';
 
 type ColumnAlignment = 'left' | 'center' | 'right';
-type ColumnFormat = 'text' | 'number' | 'currency' | 'date' | 'time' | 'decimal';
+type ColumnFormat =
+  | 'text'
+  | 'number'
+  | 'currency'
+  | 'date'
+  | 'time'
+  | 'decimal';
 
 export interface ExportColumnDef {
   header: string;
@@ -12,9 +18,18 @@ export interface ExportColumnDef {
 
 export interface ExportSource {
   readonly type: string;
-  getTitle(params: Record<string, any>, userId?: string): string | Promise<string>;
-  getSubtitle?(params: Record<string, any>, userId?: string): string | Promise<string>;
-  getDetailsTitle?(params: Record<string, any>, userId?: string): string | Promise<string>;
+  getTitle(
+    params: Record<string, any>,
+    userId?: string,
+  ): string | Promise<string>;
+  getSubtitle?(
+    params: Record<string, any>,
+    userId?: string,
+  ): string | Promise<string>;
+  getDetailsTitle?(
+    params: Record<string, any>,
+    userId?: string,
+  ): string | Promise<string>;
   getHeaders(params: Record<string, any>): string[];
   getColumnDefs?(params: Record<string, any>): ExportColumnDef[];
   count(params: Record<string, any>, userId: string): Promise<number>;

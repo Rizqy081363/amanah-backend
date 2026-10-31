@@ -11,9 +11,7 @@ import {
   staffAttendanceRecords,
   staffProfiles,
 } from '../../../../../database/schema';
-import {
-  ATTENDANCE_STATUSES,
-} from '../../../domain/constants/attendance.constants';
+import { ATTENDANCE_STATUSES } from '../../../domain/constants/attendance.constants';
 import { ROLE_AUDIENCE } from '../../../../../common/constants/role-audience.constants';
 import { AttendanceExportCandidate } from '../../../domain/repositories/attendance.repository';
 
@@ -24,13 +22,15 @@ export class AttendanceBffStatsDrizzleRepo {
     private readonly db: DrizzleDatabase,
   ) {}
 
-  async getMasterDays(): Promise<Array<{
-    dow: number;
-    code: string;
-    nameId: string;
-    shortNameId: string;
-    sortOrder: number;
-  }>> {
+  async getMasterDays(): Promise<
+    Array<{
+      dow: number;
+      code: string;
+      nameId: string;
+      shortNameId: string;
+      sortOrder: number;
+    }>
+  > {
     const rows = await this.db
       .select({
         dow: masterDays.dow,
@@ -81,7 +81,13 @@ export class AttendanceBffStatsDrizzleRepo {
     shifts: Array<{ label: string; value: string }>;
     statuses: Array<{ label: string; value: string }>;
     categories: Array<{ label: string; value: string }>;
-    roles: Array<{ label: string; value: string; id: string; code: string; isClinical: boolean }>;
+    roles: Array<{
+      label: string;
+      value: string;
+      id: string;
+      code: string;
+      isClinical: boolean;
+    }>;
   }> {
     // 1. Database-driven active shifts from session_def
     const activeSessions = await this.db
@@ -171,8 +177,14 @@ export class AttendanceBffStatsDrizzleRepo {
       })
       .from(staffProfiles)
       .leftJoin(roles, eq(roles.id, staffProfiles.roleId))
-      .leftJoin(practitioners, eq(practitioners.staffProfileId, staffProfiles.id))
-      .leftJoin(medicalSpecialties, eq(medicalSpecialties.id, practitioners.specialtyId))
+      .leftJoin(
+        practitioners,
+        eq(practitioners.staffProfileId, staffProfiles.id),
+      )
+      .leftJoin(
+        medicalSpecialties,
+        eq(medicalSpecialties.id, practitioners.specialtyId),
+      )
       .leftJoin(
         staffAttendanceRecords,
         and(

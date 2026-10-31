@@ -40,7 +40,8 @@ export class ExportsController {
   @Post()
   @HttpCode(HttpStatus.ACCEPTED)
   @ApiOperation({
-    summary: 'Mengajukan permintaan ekspor berkas data asinkronus (202 Accepted)',
+    summary:
+      'Mengajukan permintaan ekspor berkas data asinkronus (202 Accepted)',
     description:
       'Mendaftarkan job ekspor ke antrean RabbitMQ, mengembalikan jobId untuk pelacakan progress via polling atau notifikasi FCM.',
   })
@@ -76,7 +77,8 @@ export class ExportsController {
 
   @Get('my-history')
   @ApiOperation({
-    summary: 'Melihat riwayat tugas ekspor berkas milik staf/user yang sedang login',
+    summary:
+      'Melihat riwayat tugas ekspor berkas milik staf/user yang sedang login',
   })
   @ApiOkResponse({ description: 'Daftar riwayat job ekspor berhasil diambil' })
   async getMyHistory(@CurrentUser() user: AuthenticatedUser) {
@@ -101,8 +103,12 @@ export class ExportsController {
     summary: 'Mengunduh berkas fisik laporan yang telah selesai digenerate',
   })
   @ApiOkResponse({ description: 'Aliran berkas biner (CSV / XLSX / PDF)' })
-  @ApiConflictResponse({ description: 'Job belum selesai atau berkas belum siap' })
-  @ApiNotFoundResponse({ description: 'Job ekspor atau berkas tidak ditemukan' })
+  @ApiConflictResponse({
+    description: 'Job belum selesai atau berkas belum siap',
+  })
+  @ApiNotFoundResponse({
+    description: 'Job ekspor atau berkas tidak ditemukan',
+  })
   async downloadFile(
     @Param('id') id: string,
     @CurrentUser() user: AuthenticatedUser,

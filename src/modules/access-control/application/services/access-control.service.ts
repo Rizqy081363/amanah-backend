@@ -1,4 +1,9 @@
-import { Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  NotFoundException,
+  Optional,
+} from '@nestjs/common';
 import {
   ACCESS_CONTROL_REPOSITORY,
   AccessControlRepository,
@@ -136,7 +141,10 @@ export class AccessControlService {
     return this.repository.findPageTree(audience);
   }
 
-  async togglePage(id: string, isEnabled: boolean): Promise<ApplicationPageEntity> {
+  async togglePage(
+    id: string,
+    isEnabled: boolean,
+  ): Promise<ApplicationPageEntity> {
     const page = await this.repository.togglePageEnabled(id, isEnabled);
     void this.realtimeGateway?.emitToRoom?.(
       REALTIME_ROOMS.clinic,

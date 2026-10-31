@@ -70,62 +70,98 @@ export class AuthStaffOnboardingDto {
   @IsString()
   nationalId?: string;
 
-  @ApiPropertyOptional({ example: 'Jawa Barat', description: 'Nama provinsi domisili' })
+  @ApiPropertyOptional({
+    example: 'Jawa Barat',
+    description: 'Nama provinsi domisili',
+  })
   @IsOptional()
   @IsString()
   provinsi?: string;
 
-  @ApiPropertyOptional({ example: '32', description: 'Kode identifikasi provinsi' })
+  @ApiPropertyOptional({
+    example: '32',
+    description: 'Kode identifikasi provinsi',
+  })
   @IsOptional()
   @IsString()
   provinsi_id?: string;
 
-  @ApiPropertyOptional({ example: '32', description: 'Alias camelCase kode provinsi' })
+  @ApiPropertyOptional({
+    example: '32',
+    description: 'Alias camelCase kode provinsi',
+  })
   @IsOptional()
   @IsString()
   provinsiId?: string;
 
-  @ApiPropertyOptional({ example: 'Kabupaten Bogor', description: 'Nama kabupaten/kota domisili' })
+  @ApiPropertyOptional({
+    example: 'Kabupaten Bogor',
+    description: 'Nama kabupaten/kota domisili',
+  })
   @IsOptional()
   @IsString()
   kabupaten?: string;
 
-  @ApiPropertyOptional({ example: '3201', description: 'Kode identifikasi kabupaten/kota' })
+  @ApiPropertyOptional({
+    example: '3201',
+    description: 'Kode identifikasi kabupaten/kota',
+  })
   @IsOptional()
   @IsString()
   kabupaten_id?: string;
 
-  @ApiPropertyOptional({ example: '3201', description: 'Alias camelCase kode kabupaten' })
+  @ApiPropertyOptional({
+    example: '3201',
+    description: 'Alias camelCase kode kabupaten',
+  })
   @IsOptional()
   @IsString()
   kabupatenId?: string;
 
-  @ApiPropertyOptional({ example: 'Cibinong', description: 'Nama kecamatan domisili' })
+  @ApiPropertyOptional({
+    example: 'Cibinong',
+    description: 'Nama kecamatan domisili',
+  })
   @IsOptional()
   @IsString()
   kecamatan?: string;
 
-  @ApiPropertyOptional({ example: '320101', description: 'Kode identifikasi kecamatan' })
+  @ApiPropertyOptional({
+    example: '320101',
+    description: 'Kode identifikasi kecamatan',
+  })
   @IsOptional()
   @IsString()
   kecamatan_id?: string;
 
-  @ApiPropertyOptional({ example: '320101', description: 'Alias camelCase kode kecamatan' })
+  @ApiPropertyOptional({
+    example: '320101',
+    description: 'Alias camelCase kode kecamatan',
+  })
   @IsOptional()
   @IsString()
   kecamatanId?: string;
 
-  @ApiPropertyOptional({ example: 'Pakansari', description: 'Nama kelurahan/desa domisili' })
+  @ApiPropertyOptional({
+    example: 'Pakansari',
+    description: 'Nama kelurahan/desa domisili',
+  })
   @IsOptional()
   @IsString()
   kelurahan?: string;
 
-  @ApiPropertyOptional({ example: '3201012001', description: 'Kode identifikasi kelurahan/desa' })
+  @ApiPropertyOptional({
+    example: '3201012001',
+    description: 'Kode identifikasi kelurahan/desa',
+  })
   @IsOptional()
   @IsString()
   kelurahan_id?: string;
 
-  @ApiPropertyOptional({ example: '3201012001', description: 'Alias camelCase kode kelurahan' })
+  @ApiPropertyOptional({
+    example: '3201012001',
+    description: 'Alias camelCase kode kelurahan',
+  })
   @IsOptional()
   @IsString()
   kelurahanId?: string;

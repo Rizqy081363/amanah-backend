@@ -7,10 +7,7 @@ import { AllConfigType } from '../../config/config.type';
 import { DRIZZLE_SOURCE } from '../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../database/drizzle/drizzle.provider';
 import { users } from '../../database/schema';
-import {
-  type RoleAudience,
-  isAccountBlocked,
-} from '../../common/constants';
+import { type RoleAudience, isAccountBlocked } from '../../common/constants';
 import { JwtPayloadType } from './types/jwt-payload.type';
 
 @Injectable()
@@ -134,7 +131,8 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       name: user.name,
       systemRole,
       roleCode,
-      roles: userRoleCodes.length > 0 ? userRoleCodes : roleCode ? [roleCode] : [],
+      roles:
+        userRoleCodes.length > 0 ? userRoleCodes : roleCode ? [roleCode] : [],
       role: primaryRole
         ? {
             id: primaryRole.id,

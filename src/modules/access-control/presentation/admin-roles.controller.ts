@@ -42,7 +42,8 @@ export class AdminRolesController {
   @Get()
   @RequirePermissions('roles:read')
   @ApiOperation({
-    summary: 'Mendapatkan seluruh daftar peran (macro & micro) dan hierarki perizinan',
+    summary:
+      'Mendapatkan seluruh daftar peran (macro & micro) dan hierarki perizinan',
   })
   async getAllRoles() {
     return this.service.getAllRoles();
@@ -51,7 +52,8 @@ export class AdminRolesController {
   @Get('tree')
   @RequirePermissions('roles:read')
   @ApiOperation({
-    summary: 'Mendapatkan hierarki pohon peran (macro -> micro) untuk Role Studio',
+    summary:
+      'Mendapatkan hierarki pohon peran (macro -> micro) untuk Role Studio',
   })
   async getRoleTree() {
     return this.service.getRoleTree();
@@ -68,7 +70,8 @@ export class AdminRolesController {
   @HttpCode(HttpStatus.CREATED)
   @RequirePermissions('roles:manage')
   @ApiOperation({
-    summary: 'Membuat peran dinamis baru (dapat menentukan induk dan perizinan)',
+    summary:
+      'Membuat peran dinamis baru (dapat menentukan induk dan perizinan)',
   })
   async createRole(@Body(zodPipe(CreateRoleSchema)) dto: CreateRoleInput) {
     return this.service.createRole(dto);
@@ -76,7 +79,9 @@ export class AdminRolesController {
 
   @Patch(':id')
   @RequirePermissions('roles:manage')
-  @ApiOperation({ summary: 'Memperbarui nama, deskripsi, status klinis, atau induk peran' })
+  @ApiOperation({
+    summary: 'Memperbarui nama, deskripsi, status klinis, atau induk peran',
+  })
   async updateRole(
     @Param(zodPipe(RoleParamSchema)) param: RoleParamInput,
     @Body(zodPipe(UpdateRoleSchema)) dto: UpdateRoleInput,
@@ -88,7 +93,8 @@ export class AdminRolesController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @RequirePermissions('roles:manage')
   @ApiOperation({
-    summary: 'Menghapus peran kustom (tidak dapat menghapus peran sistem/terpakai)',
+    summary:
+      'Menghapus peran kustom (tidak dapat menghapus peran sistem/terpakai)',
   })
   async deleteRole(@Param(zodPipe(RoleParamSchema)) param: RoleParamInput) {
     await this.service.deleteRole(param.id);
@@ -97,7 +103,9 @@ export class AdminRolesController {
   @Post(':id/permissions')
   @HttpCode(HttpStatus.OK)
   @RequirePermissions('roles:manage')
-  @ApiOperation({ summary: 'Menetapkan daftar izin langsung ke suatu peran (bulk set)' })
+  @ApiOperation({
+    summary: 'Menetapkan daftar izin langsung ke suatu peran (bulk set)',
+  })
   async assignPermissions(
     @Param(zodPipe(RoleParamSchema)) param: RoleParamInput,
     @Body(zodPipe(AssignPermissionsSchema)) dto: AssignPermissionsInput,
@@ -127,7 +135,10 @@ export class AdminRolesController {
 
   @Get(':id/pages')
   @RequirePermissions('roles:read')
-  @ApiOperation({ summary: 'Mendapatkan daftar ID halaman aplikasi yang diakses oleh peran ini' })
+  @ApiOperation({
+    summary:
+      'Mendapatkan daftar ID halaman aplikasi yang diakses oleh peran ini',
+  })
   async getRolePages(@Param(zodPipe(RoleParamSchema)) param: RoleParamInput) {
     return this.service.getRolePageIds(param.id);
   }
@@ -135,7 +146,9 @@ export class AdminRolesController {
   @Put(':id/pages')
   @HttpCode(HttpStatus.OK)
   @RequirePermissions('roles:manage')
-  @ApiOperation({ summary: 'Menetapkan daftar halaman aplikasi ke suatu peran (bulk set)' })
+  @ApiOperation({
+    summary: 'Menetapkan daftar halaman aplikasi ke suatu peran (bulk set)',
+  })
   async assignPages(
     @Param(zodPipe(RoleParamSchema)) param: RoleParamInput,
     @Body(zodPipe(AssignPagesSchema)) dto: AssignPagesInput,
@@ -145,7 +158,10 @@ export class AdminRolesController {
 
   @Get(':id/effective-routes')
   @RequirePermissions('roles:read')
-  @ApiOperation({ summary: 'Mendapatkan daftar rute efektif yang dapat diakses oleh peran ini' })
+  @ApiOperation({
+    summary:
+      'Mendapatkan daftar rute efektif yang dapat diakses oleh peran ini',
+  })
   async getRoleEffectiveRoutes(
     @Param(zodPipe(RoleParamSchema)) param: RoleParamInput,
   ) {

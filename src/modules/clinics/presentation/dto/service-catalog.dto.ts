@@ -45,7 +45,8 @@ export class ServiceCatalogItemDto {
   intakeFormId?: string | null;
 
   @ApiProperty({
-    description: 'Kode unik formulir intake (contoh: general, pregnancy, immunization)',
+    description:
+      'Kode unik formulir intake (contoh: general, pregnancy, immunization)',
     example: 'pregnancy',
     nullable: true,
     required: false,
@@ -69,7 +70,10 @@ export class ServiceCatalogItemDto {
   })
   poliklinikId: string;
 
-  @ApiProperty({ description: 'Nama poliklinik', example: 'Unit Layanan Primer' })
+  @ApiProperty({
+    description: 'Nama poliklinik',
+    example: 'Unit Layanan Primer',
+  })
   poliklinikName: string;
 
   @ApiProperty({
@@ -118,7 +122,10 @@ export class ServiceCategoryCatalogDto {
   })
   poliklinikId: string;
 
-  @ApiProperty({ description: 'Nama poliklinik induk', example: 'Unit Layanan Primer' })
+  @ApiProperty({
+    description: 'Nama poliklinik induk',
+    example: 'Unit Layanan Primer',
+  })
   poliklinikName: string;
 
   @ApiProperty({

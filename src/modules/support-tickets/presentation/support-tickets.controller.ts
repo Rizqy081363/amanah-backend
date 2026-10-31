@@ -24,7 +24,11 @@ import {
 } from '@nestjs/swagger';
 import { CurrentUser } from '../../../common/auth/current-user.decorator';
 import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
-import { isAdminUser, PermissionsGuard, RequirePermissions } from '../../../common/auth';
+import {
+  isAdminUser,
+  PermissionsGuard,
+  RequirePermissions,
+} from '../../../common/auth';
 import { AuthenticatedUser } from '../../../common/auth/authenticated-user.interface';
 import {
   SUPPORT_TICKET_REPOSITORY,

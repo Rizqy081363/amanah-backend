@@ -111,7 +111,10 @@ export class AppointmentCheckInReminderService {
 
       // 2. Check persistent DB deduplication
       const existingNotif = await this.db.query.notifications.findFirst({
-        where: like(notifications.idempotencyKey, `${idempotencyBase}:patient%`),
+        where: like(
+          notifications.idempotencyKey,
+          `${idempotencyBase}:patient%`,
+        ),
       });
 
       if (existingNotif) {

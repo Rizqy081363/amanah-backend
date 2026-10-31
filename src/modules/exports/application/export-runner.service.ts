@@ -80,11 +80,7 @@ export class ExportRunnerService {
         exporter.extension,
       );
 
-      const progress = new ProgressReporter(
-        this.redisService,
-        job.id,
-        total,
-      );
+      const progress = new ProgressReporter(this.redisService, job.id, total);
       await progress.flush('WRITING');
 
       const ctx: ExportContext = {
@@ -173,7 +169,10 @@ export class ExportRunnerService {
       };
 
       const pushRoutingKey = ROUTING_KEY_PUSH_PATTERN.replace('*', 'exports');
-      const inAppRoutingKey = ROUTING_KEY_IN_APP_PATTERN.replace('*', 'exports');
+      const inAppRoutingKey = ROUTING_KEY_IN_APP_PATTERN.replace(
+        '*',
+        'exports',
+      );
 
       await Promise.all([
         this.rabbitmqService.publish(
@@ -192,7 +191,10 @@ export class ExportRunnerService {
         `Successfully completed export job ${job.id} (${rowCount} rows, ${fileStats.size} bytes).`,
       );
     } catch (err: any) {
-      this.logger.error(`Export job ${jobId} failed: ${err.message}`, err.stack);
+      this.logger.error(
+        `Export job ${jobId} failed: ${err.message}`,
+        err.stack,
+      );
       await this.db
         .update(exportJobs)
         .set({

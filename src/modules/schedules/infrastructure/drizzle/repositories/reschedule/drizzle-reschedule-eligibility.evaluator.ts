@@ -258,9 +258,7 @@ export class DrizzleRescheduleEligibilityEvaluator {
     }
 
     const practitionerName =
-      practitioner.staffProfile?.fullName ||
-      practitioner.displayName ||
-      '';
+      practitioner.staffProfile?.fullName || practitioner.displayName || '';
 
     return {
       sessionId: effectiveSessionDef.id,

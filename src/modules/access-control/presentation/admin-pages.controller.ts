@@ -36,7 +36,8 @@ export class AdminPagesController {
   @Get()
   @RequirePermissions('pages:read', 'roles:read')
   @ApiOperation({
-    summary: 'Mendapatkan seluruh daftar halaman aplikasi dan status ketersediaannya',
+    summary:
+      'Mendapatkan seluruh daftar halaman aplikasi dan status ketersediaannya',
   })
   async getAllPages() {
     return this.service.getAllPages();

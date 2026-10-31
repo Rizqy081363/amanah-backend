@@ -89,7 +89,10 @@ export class AuthService {
     userPayload: JwtPayloadType,
     dto: AuthStaffOnboardingDto,
   ): Promise<AuthUserResponseDto | null> {
-    return this.staffOnboardingService.completeStaffOnboarding(userPayload, dto);
+    return this.staffOnboardingService.completeStaffOnboarding(
+      userPayload,
+      dto,
+    );
   }
 
   public me(userPayload: any): Promise<AuthUserResponseDto | null> {
@@ -155,15 +158,11 @@ export class AuthService {
     return this.accountLifecycleService.linkGoogleAccount(userId, dto);
   }
 
-  public unlinkCredential(
-    userId: string,
-  ): Promise<LinkedProvidersResponseDto> {
+  public unlinkCredential(userId: string): Promise<LinkedProvidersResponseDto> {
     return this.accountLifecycleService.unlinkCredential(userId);
   }
 
-  public unlinkGoogle(
-    userId: string,
-  ): Promise<LinkedProvidersResponseDto> {
+  public unlinkGoogle(userId: string): Promise<LinkedProvidersResponseDto> {
     return this.accountLifecycleService.unlinkGoogle(userId);
   }
 }

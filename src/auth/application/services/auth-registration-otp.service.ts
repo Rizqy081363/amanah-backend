@@ -328,7 +328,8 @@ export class AuthRegistrationOtpService {
       try {
         await this.mailService.send({
           to: payload.email,
-          subject: 'Pemberitahuan Keamanan: Alamat Email Akun Telah Dipindahkan',
+          subject:
+            'Pemberitahuan Keamanan: Alamat Email Akun Telah Dipindahkan',
           text: `Halo,\n\nAlamat email untuk akun Amanah Healthcare Anda telah berhasil dialihkan ke: ${emailToSet}.\n\nJika Anda tidak merasa mengajukan pemindahan ini, segera hubungi tim administrator sistem.`,
         });
       } catch {

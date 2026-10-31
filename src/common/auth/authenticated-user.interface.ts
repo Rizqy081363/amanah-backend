@@ -67,8 +67,7 @@ export interface AuthenticatedUser {
  */
 export function isAdminUser(user: AuthenticatedUser): boolean {
   return (
-    user.role?.isSystem === true ||
-    (user.permissions?.includes('*') ?? false)
+    user.role?.isSystem === true || (user.permissions?.includes('*') ?? false)
   );
 }
 

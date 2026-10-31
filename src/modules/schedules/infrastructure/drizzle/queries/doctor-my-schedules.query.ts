@@ -70,63 +70,59 @@ export class DoctorMySchedulesQuery {
     }
     const targetId = practitioner.id;
 
-    const [
-      assignments,
-      exceptions,
-      templateSchedules,
-      claimedReplacements,
-    ] = await Promise.all([
-      this.db.query.doctorAssignments.findMany({
-        where: eq(doctorAssignments.doctorId, targetId),
-        with: {
-          sessionDef: {
-            with: { schedules: true },
-          },
-          preferredRoom: {
-            with: { clinicUnit: true },
-          },
-          practitioner: {
-            with: {
-              staffProfile: {
-                with: { clinicUnit: true },
+    const [assignments, exceptions, templateSchedules, claimedReplacements] =
+      await Promise.all([
+        this.db.query.doctorAssignments.findMany({
+          where: eq(doctorAssignments.doctorId, targetId),
+          with: {
+            sessionDef: {
+              with: { schedules: true },
+            },
+            preferredRoom: {
+              with: { clinicUnit: true },
+            },
+            practitioner: {
+              with: {
+                staffProfile: {
+                  with: { clinicUnit: true },
+                },
               },
             },
           },
-        },
-      }),
-      this.db.query.shiftExceptions.findMany({
-        where: and(
-          eq(shiftExceptions.doctorId, targetId),
-          gte(shiftExceptions.serviceDate, startDate),
-          lte(shiftExceptions.serviceDate, endDate),
-        ),
-      }),
-      this.db.query.sessionSchedules.findMany({
-        where: eq(sessionSchedules.isActive, true),
-        with: {
-          sessionDef: true,
-        },
-      }),
-      this.db.query.replacementOpportunities.findMany({
-        where: and(
-          or(
-            eq(replacementOpportunities.claimedByPractitionerId, targetId),
-            eq(replacementOpportunities.claimedByStaffProfileId, staffId),
+        }),
+        this.db.query.shiftExceptions.findMany({
+          where: and(
+            eq(shiftExceptions.doctorId, targetId),
+            gte(shiftExceptions.serviceDate, startDate),
+            lte(shiftExceptions.serviceDate, endDate),
           ),
-          gte(replacementOpportunities.workDate, startDate),
-          lte(replacementOpportunities.workDate, endDate),
-          inArray(replacementOpportunities.status, [
-            ...ACTIVE_CLAIMED_REPLACEMENT_STATUSES,
-          ]),
-        ),
-        with: {
-          sessionDef: {
-            with: { schedules: true },
+        }),
+        this.db.query.sessionSchedules.findMany({
+          where: eq(sessionSchedules.isActive, true),
+          with: {
+            sessionDef: true,
           },
-          originalStaffProfile: true,
-        },
-      }),
-    ]);
+        }),
+        this.db.query.replacementOpportunities.findMany({
+          where: and(
+            or(
+              eq(replacementOpportunities.claimedByPractitionerId, targetId),
+              eq(replacementOpportunities.claimedByStaffProfileId, staffId),
+            ),
+            gte(replacementOpportunities.workDate, startDate),
+            lte(replacementOpportunities.workDate, endDate),
+            inArray(replacementOpportunities.status, [
+              ...ACTIVE_CLAIMED_REPLACEMENT_STATUSES,
+            ]),
+          ),
+          with: {
+            sessionDef: {
+              with: { schedules: true },
+            },
+            originalStaffProfile: true,
+          },
+        }),
+      ]);
 
     const results: ScheduleEntity[] = [];
     const startObj = new Date(startDate);
@@ -233,8 +229,7 @@ export class DoctorMySchedulesQuery {
 
       for (const rep of dayReplacements) {
         const existing = results.find(
-          (s) =>
-            s.scheduleDate === curDateStr && s.sessionId === rep.sessionId,
+          (s) => s.scheduleDate === curDateStr && s.sessionId === rep.sessionId,
         );
         if (existing) {
           existing.status = ScheduleOperationalStatus.REPLACEMENT;
@@ -453,8 +448,7 @@ export class DoctorMySchedulesQuery {
 
       for (const rep of dayReplacements) {
         const existing = results.find(
-          (s) =>
-            s.scheduleDate === curDateStr && s.sessionId === rep.sessionId,
+          (s) => s.scheduleDate === curDateStr && s.sessionId === rep.sessionId,
         );
         if (existing) {
           existing.status = ScheduleOperationalStatus.REPLACEMENT;

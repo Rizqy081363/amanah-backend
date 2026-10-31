@@ -55,7 +55,10 @@ export class AppointmentOperationsController {
   @ApiForbiddenResponse({
     description: 'Akses ditolak: Diperlukan izin queue:serve',
   })
-  async startService(@Param('id') id: string, @CurrentUser() user?: AuthenticatedUser) {
+  async startService(
+    @Param('id') id: string,
+    @CurrentUser() user?: AuthenticatedUser,
+  ) {
     return this.startServiceUseCase.execute(id, user);
   }
 
@@ -75,7 +78,10 @@ export class AppointmentOperationsController {
   @ApiForbiddenResponse({
     description: 'Akses ditolak: Diperlukan izin queue:complete',
   })
-  async completeService(@Param('id') id: string, @CurrentUser() user?: AuthenticatedUser) {
+  async completeService(
+    @Param('id') id: string,
+    @CurrentUser() user?: AuthenticatedUser,
+  ) {
     return this.completeServiceUseCase.execute(id, user);
   }
 

@@ -1,7 +1,4 @@
-import {
-  type AuthenticatedUser,
-  isAdminUser,
-} from '@common/auth';
+import { type AuthenticatedUser, isAdminUser } from '@common/auth';
 import {
   DomainForbiddenException,
   DomainValidationException,

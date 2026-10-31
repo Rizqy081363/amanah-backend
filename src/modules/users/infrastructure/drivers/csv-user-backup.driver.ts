@@ -142,7 +142,9 @@ export class CsvUserBackupDriver implements UserBackupDriver {
     const headerRow = rows[0].map((h) => h.toLowerCase().trim());
     const emailIdx = headerRow.findIndex((h) => h === 'email');
     const nameIdx = headerRow.findIndex((h) => h === 'name' || h === 'nama');
-    const phoneIdx = headerRow.findIndex((h) => h === 'phone' || h === 'telepon');
+    const phoneIdx = headerRow.findIndex(
+      (h) => h === 'phone' || h === 'telepon',
+    );
     const rolesIdx = headerRow.findIndex((h) => h === 'roles' || h === 'peran');
     const statusIdx = headerRow.findIndex((h) => h === 'status');
 

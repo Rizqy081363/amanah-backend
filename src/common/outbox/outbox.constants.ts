@@ -3,7 +3,7 @@
  */
 export enum OutboxStatus {
   PENDING = 'pending',
-  }
+}
 
 export const DEFAULT_OUTBOX_BATCH_SIZE = 20;
 export const MAX_OUTBOX_BATCH_SIZE = 100;

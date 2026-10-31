@@ -161,8 +161,8 @@ export class LeaveDrizzleRepository implements LeaveRepository {
         }
       } else {
         // Virtual Baseline: Doctor has no custom assignments, so they inherit the clinic master weekly template
-        const templateSchedules =
-          await this.db.query.sessionSchedules.findMany({
+        const templateSchedules = await this.db.query.sessionSchedules.findMany(
+          {
             where: and(
               eq(sessionSchedules.dow, dayOfWeek),
               eq(sessionSchedules.isActive, true),
@@ -170,7 +170,8 @@ export class LeaveDrizzleRepository implements LeaveRepository {
             with: {
               sessionDef: true,
             },
-          });
+          },
+        );
 
         rawSessions = templateSchedules
           .filter((ts) => ts.sessionDef && ts.sessionDef.isActive)
@@ -240,8 +241,7 @@ export class LeaveDrizzleRepository implements LeaveRepository {
 
       if (hasAnyCustomRoster) {
         const activeToday = allWorkerRosters.filter(
-          (r) =>
-            r.dow === dayOfWeek && r.isActive && r.sessionDef?.isActive,
+          (r) => r.dow === dayOfWeek && r.isActive && r.sessionDef?.isActive,
         );
 
         if (activeToday.length === 0) {
@@ -258,8 +258,8 @@ export class LeaveDrizzleRepository implements LeaveRepository {
         }
       } else {
         // Virtual Baseline: Worker has no custom roster, inherits master clinic weekly template
-        const templateSchedules =
-          await this.db.query.sessionSchedules.findMany({
+        const templateSchedules = await this.db.query.sessionSchedules.findMany(
+          {
             where: and(
               eq(sessionSchedules.dow, dayOfWeek),
               eq(sessionSchedules.isActive, true),
@@ -267,7 +267,8 @@ export class LeaveDrizzleRepository implements LeaveRepository {
             with: {
               sessionDef: true,
             },
-          });
+          },
+        );
 
         rawSessions = templateSchedules
           .filter((ts) => ts.sessionDef && ts.sessionDef.isActive)
@@ -308,7 +309,8 @@ export class LeaveDrizzleRepository implements LeaveRepository {
           const att = todayAttendances.find(
             (a) =>
               a.sessionId === s.sessionId ||
-              (a.shift && a.shift.toLowerCase() === s.sessionCode.toLowerCase()),
+              (a.shift &&
+                a.shift.toLowerCase() === s.sessionCode.toLowerCase()),
           );
 
           // 1. If staff has already checked out from this session, it cannot be requested as leave
@@ -329,7 +331,8 @@ export class LeaveDrizzleRepository implements LeaveRepository {
             if (endH === 24) endH = 0;
             const sessionEndDate = new Date(targetDate);
             sessionEndDate.setHours(endH, endM || 0, 0, 0);
-            if (endH === 0) sessionEndDate.setDate(sessionEndDate.getDate() + 1);
+            if (endH === 0)
+              sessionEndDate.setDate(sessionEndDate.getDate() + 1);
 
             if (now.getTime() > sessionEndDate.getTime()) {
               hasElapsedSessions = true;
@@ -514,7 +517,9 @@ export class LeaveDrizzleRepository implements LeaveRepository {
         // 3. Minimum Advance Notice (Lead Time) validation
         if (noticeDaysRequired > 0 && reqType !== 'sick_leave') {
           const [tYear, tMonth, tDay] = todayStr.split('-').map(Number);
-          const minDate = new Date(Date.UTC(tYear, tMonth - 1, tDay + noticeDaysRequired));
+          const minDate = new Date(
+            Date.UTC(tYear, tMonth - 1, tDay + noticeDaysRequired),
+          );
           const minDateStr = minDate.toISOString().slice(0, 10);
           if (data.startDate < minDateStr) {
             throw new BadRequestException(
@@ -556,8 +561,9 @@ export class LeaveDrizzleRepository implements LeaveRepository {
           }
 
           const additionalQuota =
-            policy.quotaCountingPolicy === 'per_session' && data.scope === 'session'
-              ? (data.sessionIds?.length || 1)
+            policy.quotaCountingPolicy === 'per_session' &&
+            data.scope === 'session'
+              ? data.sessionIds?.length || 1
               : policy.quotaCountingPolicy === 'per_session'
                 ? durationDays
                 : 1;
@@ -573,14 +579,15 @@ export class LeaveDrizzleRepository implements LeaveRepository {
 
         // 4. Strict Mode Protection (Policy B: previous_period_must_finish)
         if (periodPolicy === 'previous_period_must_finish') {
-          const activeOrFutureLeaves = await tx.query.staffLeaveRequests.findMany({
-            where: and(
-              eq(staffLeaveRequests.staffProfileId, data.staffId),
-              inArray(staffLeaveRequests.status, ['pending', 'approved']),
-              gte(staffLeaveRequests.endDate, todayStr),
-            ),
-            orderBy: [desc(staffLeaveRequests.endDate)],
-          });
+          const activeOrFutureLeaves =
+            await tx.query.staffLeaveRequests.findMany({
+              where: and(
+                eq(staffLeaveRequests.staffProfileId, data.staffId),
+                inArray(staffLeaveRequests.status, ['pending', 'approved']),
+                gte(staffLeaveRequests.endDate, todayStr),
+              ),
+              orderBy: [desc(staffLeaveRequests.endDate)],
+            });
 
           if (activeOrFutureLeaves.length > 0) {
             const latest = activeOrFutureLeaves[0];
@@ -983,10 +990,7 @@ export class LeaveDrizzleRepository implements LeaveRepository {
     return records
       .filter((r: any) => {
         if (filters?.status && r.status !== filters.status) return false;
-        if (
-          filters?.roleId &&
-          r.staffProfile?.roleId !== filters.roleId
-        )
+        if (filters?.roleId && r.staffProfile?.roleId !== filters.roleId)
           return false;
         return true;
       })

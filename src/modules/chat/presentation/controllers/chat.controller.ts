@@ -83,7 +83,11 @@ export class ChatController {
     const result = await this.chatService.getConversationMessages(
       id,
       { cursor: query.cursor, limit: query.limit },
-      { userId: user?.id, guestId: query.guestId, audience: CHAT_SENDER_ROLE.EXTERNAL },
+      {
+        userId: user?.id,
+        guestId: query.guestId,
+        audience: CHAT_SENDER_ROLE.EXTERNAL,
+      },
     );
 
     return {

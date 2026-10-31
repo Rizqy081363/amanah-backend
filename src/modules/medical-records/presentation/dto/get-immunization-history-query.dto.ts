@@ -3,14 +3,23 @@ import { Type } from 'class-transformer';
 import { IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
 
 export class GetImmunizationHistoryQueryDto {
-  @ApiPropertyOptional({ default: 1, minimum: 1, description: 'Halaman data (1-indexed)' })
+  @ApiPropertyOptional({
+    default: 1,
+    minimum: 1,
+    description: 'Halaman data (1-indexed)',
+  })
   @Type(() => Number)
   @IsInt()
   @Min(1)
   @IsOptional()
   page?: number = 1;
 
-  @ApiPropertyOptional({ default: 10, minimum: 1, maximum: 100, description: 'Jumlah data per halaman' })
+  @ApiPropertyOptional({
+    default: 10,
+    minimum: 1,
+    maximum: 100,
+    description: 'Jumlah data per halaman',
+  })
   @Type(() => Number)
   @IsInt()
   @Min(1)

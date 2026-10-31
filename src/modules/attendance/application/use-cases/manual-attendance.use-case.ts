@@ -47,7 +47,7 @@ export class ManualAttendanceUseCase {
       ? this.clinicTimeService
         ? this.clinicTimeService.normalizeDate(input.attendanceDate)
         : input.attendanceDate
-      : this.clinicTimeService?.today() ?? nowIso.split('T')[0];
+      : (this.clinicTimeService?.today() ?? nowIso.split('T')[0]);
 
     const targetDateObj = new Date(todayStr + 'T12:00:00Z');
     const dow = targetDateObj.getDay();

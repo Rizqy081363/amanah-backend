@@ -128,9 +128,7 @@ export class AttendanceEligibilityService {
           'Kode presensi dinas klinik wajib disertakan.',
         );
       }
-      throw new InvalidQrTokenException(
-        'Token QR presensi wajib disertakan.',
-      );
+      throw new InvalidQrTokenException('Token QR presensi wajib disertakan.');
     }
 
     // 2. Layer 2: Validasi Cuti / Izin Resmi
@@ -162,10 +160,8 @@ export class AttendanceEligibilityService {
 
     // 4. Layer 4: Resolusi Sesi Dinamis & Jendela Waktu
     const config = await this.clinicConfigService?.getAttendanceConfig();
-    const checkInWindowMinutesBefore =
-      config?.checkInWindowMinutesBefore ?? 30;
-    const checkInWindowMinutesAfter =
-      config?.checkInWindowMinutesAfter ?? 60;
+    const checkInWindowMinutesBefore = config?.checkInWindowMinutesBefore ?? 30;
+    const checkInWindowMinutesAfter = config?.checkInWindowMinutesAfter ?? 60;
 
     const activeResolution = resolveActiveSessionForCheckIn({
       candidateSessions,
@@ -211,7 +207,8 @@ export class AttendanceEligibilityService {
     );
 
     const replacementOpportunityId = isReplacement
-      ? activeResolution.session.replacementOpportunityId || claimedReplacementId
+      ? activeResolution.session.replacementOpportunityId ||
+        claimedReplacementId
       : null;
 
     return {
@@ -334,7 +331,9 @@ export class AttendanceEligibilityService {
     }
 
     if (!scheduledEndTime && existing.shift) {
-      const sessionDef = await this.repo.resolveSessionDefByCode(existing.shift);
+      const sessionDef = await this.repo.resolveSessionDefByCode(
+        existing.shift,
+      );
       if (sessionDef?.defaultEndsAt) {
         scheduledEndTime = sessionDef.defaultEndsAt;
       }
@@ -363,11 +362,7 @@ export class AttendanceEligibilityService {
     // 4. Layer 4: Penegakan Kewajiban Catatan Alasan untuk Kepulangan Lebih Awal (Semua Aktor)
     const notesTrimmed = notes?.trim() || null;
     if (timingEval.requiresNotes && !notesTrimmed) {
-      const ticket = this.ticketService.issueTicket(
-        staffId,
-        existing.id,
-        180,
-      );
+      const ticket = this.ticketService.issueTicket(staffId, existing.id, 180);
       throw new EarlyDepartureNotesRequiredException({
         checkoutTicket: ticket.ticket,
         expiresAt: ticket.expiresAt,

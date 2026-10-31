@@ -80,7 +80,10 @@ export class ScanAttendanceUseCase {
       notes: input.deviceInfo || null,
     });
 
-    if (eligibility.isReplacement && eligibility.resolvedSession.originalStaffName) {
+    if (
+      eligibility.isReplacement &&
+      eligibility.resolvedSession.originalStaffName
+    ) {
       record.replacedStaffName = eligibility.resolvedSession.originalStaffName;
       record.replacedStaffCode = eligibility.resolvedSession.originalStaffCode;
     }

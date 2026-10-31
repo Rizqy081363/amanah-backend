@@ -132,10 +132,7 @@ export class DrizzleClinicalPractitionerRepository {
       ]);
 
       const isOnLeave = Boolean(activeLeave || approvedLeave);
-      const leaveReason =
-        approvedLeave?.reason ||
-        activeLeave?.note ||
-        null;
+      const leaveReason = approvedLeave?.reason || activeLeave?.note || null;
       const isReplacement = Boolean(claimedByMe);
       const replacingPractitionerName =
         claimedByMe?.originalStaffProfile?.fullName || null;
@@ -148,7 +145,7 @@ export class DrizzleClinicalPractitionerRepository {
         : p.staffProfile?.clinicUnit?.name || '';
 
       const todayStr = this.clinicTimeService.today();
-    
+
       let attendanceStatus:
         | 'checked_in'
         | 'not_checked_in'

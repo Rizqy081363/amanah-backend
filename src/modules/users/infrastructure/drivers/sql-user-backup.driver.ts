@@ -143,7 +143,9 @@ export class SqlUserBackupDriver implements UserBackupDriver {
               roleCodes: [],
               status,
               action: 'update',
-              reasons: ['Email sudah terdaftar (akan diperbarui via ON CONFLICT).'],
+              reasons: [
+                'Email sudah terdaftar (akan diperbarui via ON CONFLICT).',
+              ],
             });
           } else {
             newCount++;
@@ -221,7 +223,10 @@ export class SqlUserBackupDriver implements UserBackupDriver {
           roleIds: [],
           status: (item.status as UserStatus) || USER_STATUS.ACTIVE,
         });
-      } else if (item.action === 'update' && context.duplicateStrategy === 'update') {
+      } else if (
+        item.action === 'update' &&
+        context.duplicateStrategy === 'update'
+      ) {
         toUpdate.push({
           email: item.email,
           name: item.name,

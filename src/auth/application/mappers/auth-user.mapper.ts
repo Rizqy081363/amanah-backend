@@ -118,8 +118,7 @@ export class AuthUserMapper {
     const primaryStaffAddress =
       s?.addresses?.find((a: any) => a.isPrimary) || s?.addresses?.[0];
 
-    const isClinical =
-      s?.role?.isClinical ?? Boolean(s?.practitioners?.length);
+    const isClinical = s?.role?.isClinical ?? Boolean(s?.practitioners?.length);
 
     const staff = s
       ? {
@@ -183,7 +182,8 @@ export class AuthUserMapper {
       } else if (!s || s.status === STAFF_STATUS.INACTIVE) {
         needsOnboarding = true;
       } else {
-        const hasAddress = primaryStaffAddress !== undefined && primaryStaffAddress !== null;
+        const hasAddress =
+          primaryStaffAddress !== undefined && primaryStaffAddress !== null;
         const hasDemographics = Boolean(s.birthDate && s.gender);
         needsOnboarding = !hasAddress || !hasDemographics;
       }

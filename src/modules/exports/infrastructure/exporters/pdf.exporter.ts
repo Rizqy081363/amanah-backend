@@ -139,7 +139,9 @@ export class PdfExporter implements Exporter {
       await progress.advance(batch.length);
     }
 
-    const title = await Promise.resolve(source.getTitle(ctx.params, ctx.userId));
+    const title = await Promise.resolve(
+      source.getTitle(ctx.params, ctx.userId),
+    );
     const isLandscape = headers.length > 6;
 
     const detailsTitle = source.getDetailsTitle
@@ -320,7 +322,11 @@ export class PdfExporter implements Exporter {
           { text: idx + 1, fontSize: 7.5, alignment: 'center' },
           { text: item.requestTypeLabel, fontSize: 7.5 },
           { text: item.dateRange, fontSize: 7.5, alignment: 'center' },
-          { text: `${item.durationDays} Hari`, fontSize: 7.5, alignment: 'center' },
+          {
+            text: `${item.durationDays} Hari`,
+            fontSize: 7.5,
+            alignment: 'center',
+          },
           {
             text: `${item.hoursPerDay.toFixed(2)} Jam`,
             fontSize: 7.5,
@@ -446,7 +452,10 @@ export class PdfExporter implements Exporter {
       defaultStyle: {
         font: 'Helvetica',
       },
-      background: (_currentPage: number, pageSize: { width: number; height: number }) => [
+      background: (
+        _currentPage: number,
+        pageSize: { width: number; height: number },
+      ) => [
         {
           svg: CLINIC_WATERMARK_SVG,
           width: 320,
@@ -514,11 +523,14 @@ export class PdfExporter implements Exporter {
                   color: '#0F172A',
                 },
                 {
-                  text: `Tanggal Cetak: ${new Date().toLocaleDateString('id-ID', {
-                    day: 'numeric',
-                    month: 'long',
-                    year: 'numeric',
-                  })}`,
+                  text: `Tanggal Cetak: ${new Date().toLocaleDateString(
+                    'id-ID',
+                    {
+                      day: 'numeric',
+                      month: 'long',
+                      year: 'numeric',
+                    },
+                  )}`,
                   fontSize: 7.5,
                   alignment: 'right',
                   color: '#64748B',
@@ -721,7 +733,9 @@ export class PdfExporter implements Exporter {
                           color: '#DC2626',
                         },
                         {
-                          text: formatRupiah(aggregation.totals.totalDeductions),
+                          text: formatRupiah(
+                            aggregation.totals.totalDeductions,
+                          ),
                           fontSize: 8.5,
                           bold: true,
                           alignment: 'right',

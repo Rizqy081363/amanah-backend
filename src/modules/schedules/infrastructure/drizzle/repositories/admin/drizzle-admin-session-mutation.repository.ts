@@ -61,9 +61,7 @@ export class DrizzleAdminSessionMutationRepository {
     const startTimeFormatted =
       body.startTime.length === 5 ? `${body.startTime}:00` : body.startTime;
     const endTimeFormatted =
-      body.endTime.length === 5
-        ? `${body.endTime}:00`
-        : body.endTime;
+      body.endTime.length === 5 ? `${body.endTime}:00` : body.endTime;
 
     await this.conflictQuery.checkConflicts(
       practitionerId,
@@ -89,7 +87,8 @@ export class DrizzleAdminSessionMutationRepository {
     if (!requestedStatus) {
       throw new BadRequestException({
         code: 'INVALID_SESSION_STATUS',
-        message: 'sessionStatus must use canonical values only: OPEN or CLOSED.',
+        message:
+          'sessionStatus must use canonical values only: OPEN or CLOSED.',
         metadata: { sessionStatus: body.sessionStatus },
       });
     }
@@ -131,7 +130,10 @@ export class DrizzleAdminSessionMutationRepository {
     };
   }
 
-  async deleteAdminDoctorSession(_id: string, _sessionId: string): Promise<any> {
+  async deleteAdminDoctorSession(
+    _id: string,
+    _sessionId: string,
+  ): Promise<any> {
     throw new ForbiddenException({
       code: 'ADMIN_SCHEDULE_DELETION_PROHIBITED',
       message:
@@ -150,9 +152,7 @@ export class DrizzleAdminSessionMutationRepository {
     }
 
     if (!isUuid(sessionId)) {
-      throw new BadRequestException(
-        `Format ID sesi ${sessionId} tidak valid`,
-      );
+      throw new BadRequestException(`Format ID sesi ${sessionId} tidak valid`);
     }
 
     let targetDate = this.clinicTimeService.today();

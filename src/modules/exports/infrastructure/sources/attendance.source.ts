@@ -13,7 +13,10 @@ import {
   userRoles,
   users,
 } from '../../../../database/schema';
-import { ExportColumnDef, ExportSource } from '../../domain/export-source.interface';
+import {
+  ExportColumnDef,
+  ExportSource,
+} from '../../domain/export-source.interface';
 import {
   AttendanceStatus,
   normalizeStatus,
@@ -36,7 +39,10 @@ export class AttendanceExportSource implements ExportSource {
     private readonly db: DrizzleDatabase,
   ) {}
 
-  async getTitle(params: Record<string, any>, userId?: string): Promise<string> {
+  async getTitle(
+    params: Record<string, any>,
+    userId?: string,
+  ): Promise<string> {
     if (params.staffName) {
       return `Laporan Rekapitulasi Presensi: ${params.staffName}`;
     }
@@ -55,10 +61,16 @@ export class AttendanceExportSource implements ExportSource {
     }
     const start = params.startDate ? `Mulai: ${params.startDate}` : '';
     const end = params.endDate ? `Sampai: ${params.endDate}` : '';
-    return [start, end].filter(Boolean).join(' | ') || 'Seluruh Arsip Presensi Terkalkulasi';
+    return (
+      [start, end].filter(Boolean).join(' | ') ||
+      'Seluruh Arsip Presensi Terkalkulasi'
+    );
   }
 
-  async getDetailsTitle(params: Record<string, any>, userId?: string): Promise<string> {
+  async getDetailsTitle(
+    params: Record<string, any>,
+    userId?: string,
+  ): Promise<string> {
     if (params.staffName) {
       return `RIWAYAT PRESENSI & KEHADIRAN: ${String(params.staffName).toUpperCase()}`;
     }
@@ -80,8 +92,18 @@ export class AttendanceExportSource implements ExportSource {
       { header: 'Shift Kerja', width: 'auto', align: 'center' },
       { header: 'Jam Masuk', width: 'auto', align: 'center' },
       { header: 'Jam Pulang', width: 'auto', align: 'center' },
-      { header: 'Keterlambatan (Mnt)', width: 'auto', align: 'right', format: 'number' },
-      { header: 'Durasi Efektif (Jam)', width: 'auto', align: 'right', format: 'decimal' },
+      {
+        header: 'Keterlambatan (Mnt)',
+        width: 'auto',
+        align: 'right',
+        format: 'number',
+      },
+      {
+        header: 'Durasi Efektif (Jam)',
+        width: 'auto',
+        align: 'right',
+        format: 'decimal',
+      },
       { header: 'Status Kehadiran', width: 'auto', align: 'center' },
       { header: 'Unit / Lokasi', width: 'auto', align: 'left' },
     ];
@@ -94,7 +116,11 @@ export class AttendanceExportSource implements ExportSource {
   private async resolveActorScope(
     userId: string,
     explicitStaffId?: string,
-  ): Promise<{ staffId: string | null; isClinicWide: boolean; staffName?: string }> {
+  ): Promise<{
+    staffId: string | null;
+    isClinicWide: boolean;
+    staffName?: string;
+  }> {
     // 1. Check if actor has admin role or attendance:review/attendance:manage permission
     const userRolePerms = await this.db
       .select({
@@ -176,10 +202,14 @@ export class AttendanceExportSource implements ExportSource {
       conditions.push(eq(staffAttendanceRecords.staffProfileId, scope.staffId));
     }
     if (params.startDate) {
-      conditions.push(gte(staffAttendanceRecords.attendanceDate, params.startDate));
+      conditions.push(
+        gte(staffAttendanceRecords.attendanceDate, params.startDate),
+      );
     }
     if (params.endDate) {
-      conditions.push(lte(staffAttendanceRecords.attendanceDate, params.endDate));
+      conditions.push(
+        lte(staffAttendanceRecords.attendanceDate, params.endDate),
+      );
     }
 
     const [result] = await this.db
@@ -205,13 +235,19 @@ export class AttendanceExportSource implements ExportSource {
     for (;;) {
       const conditions = [];
       if (scope.staffId) {
-        conditions.push(eq(staffAttendanceRecords.staffProfileId, scope.staffId));
+        conditions.push(
+          eq(staffAttendanceRecords.staffProfileId, scope.staffId),
+        );
       }
       if (params.startDate) {
-        conditions.push(gte(staffAttendanceRecords.attendanceDate, params.startDate));
+        conditions.push(
+          gte(staffAttendanceRecords.attendanceDate, params.startDate),
+        );
       }
       if (params.endDate) {
-        conditions.push(lte(staffAttendanceRecords.attendanceDate, params.endDate));
+        conditions.push(
+          lte(staffAttendanceRecords.attendanceDate, params.endDate),
+        );
       }
 
       const rows = await this.db
@@ -231,7 +267,10 @@ export class AttendanceExportSource implements ExportSource {
           staffCode: staffProfiles.staffCode,
         })
         .from(staffAttendanceRecords)
-        .leftJoin(staffProfiles, eq(staffAttendanceRecords.staffProfileId, staffProfiles.id))
+        .leftJoin(
+          staffProfiles,
+          eq(staffAttendanceRecords.staffProfileId, staffProfiles.id),
+        )
         .leftJoin(
           sessionDefs,
           or(
@@ -240,7 +279,10 @@ export class AttendanceExportSource implements ExportSource {
           ),
         )
         .where(conditions.length > 0 ? and(...conditions) : undefined)
-        .orderBy(desc(staffAttendanceRecords.attendanceDate), asc(staffAttendanceRecords.id))
+        .orderBy(
+          desc(staffAttendanceRecords.attendanceDate),
+          asc(staffAttendanceRecords.id),
+        )
         .limit(batchSize)
         .offset(offset);
 
@@ -256,14 +298,20 @@ export class AttendanceExportSource implements ExportSource {
       const d = new Date(ts);
       return isNaN(d.getTime())
         ? '-'
-        : d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false });
+        : d.toLocaleTimeString('id-ID', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+          });
     };
 
     // Database-driven canonical shift label
     const shiftLabel = row.sessionDefLabel || (row.shift ? row.shift : '-');
 
     const statusCode = normalizeStatus(row.status);
-    const statusLabel = statusCode ? EXPORT_STATUS_LABELS[statusCode] : (row.status || '-');
+    const statusLabel = statusCode
+      ? EXPORT_STATUS_LABELS[statusCode]
+      : row.status || '-';
 
     return [
       index,

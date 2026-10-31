@@ -14,5 +14,4 @@ export const STAFF_STATUS = {
   ON_LEAVE: 'on_leave',
 } as const;
 
-export type StaffStatus =
-  (typeof STAFF_STATUS)[keyof typeof STAFF_STATUS];
+export type StaffStatus = (typeof STAFF_STATUS)[keyof typeof STAFF_STATUS];

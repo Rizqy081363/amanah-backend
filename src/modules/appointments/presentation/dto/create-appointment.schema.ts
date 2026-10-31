@@ -16,10 +16,7 @@ export const CreateAppointmentSchema = z.object({
   visitType: z.enum(['new_visit', 'follow_up'], {
     message: 'Tipe kunjungan (visitType) harus new_visit atau follow_up',
   }),
-  complaint: z
-    .string()
-    .max(1000, 'Keluhan maksimal 1000 karakter')
-    .optional(),
+  complaint: z.string().max(1000, 'Keluhan maksimal 1000 karakter').optional(),
   sourceIntakeId: z
     .string()
     .uuid('sourceIntakeId harus berformat UUID')

@@ -280,9 +280,7 @@ export class AppointmentsController {
     @CurrentUser() user?: AuthenticatedUser,
   ) {
     const practitionerId =
-      queryDoctorId ||
-      user?.staff?.practitionerId ||
-      user?.staff?.id;
+      queryDoctorId || user?.staff?.practitionerId || user?.staff?.id;
     if (!practitionerId) {
       return [];
     }
@@ -560,11 +558,7 @@ export class AppointmentsController {
     @Param('id') id: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.appointmentsService.getRescheduleOptions(
-      id,
-      user.id,
-      user,
-    );
+    return this.appointmentsService.getRescheduleOptions(id, user.id, user);
   }
 
   @ApiBearerAuth('access-token')
@@ -591,12 +585,7 @@ export class AppointmentsController {
     @Body(zodPipe(RescheduleAppointmentSchema)) dto: RescheduleAppointmentDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.appointmentsService.reschedule(
-      id,
-      dto,
-      user.id,
-      user,
-    );
+    return this.appointmentsService.reschedule(id, dto, user.id, user);
   }
 
   @ApiBearerAuth('access-token')

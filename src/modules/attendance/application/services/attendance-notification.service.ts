@@ -91,7 +91,9 @@ export class AttendanceNotificationService {
         checkOutAt: record.checkOutAt ? record.checkOutAt.toISOString() : null,
         status: record.status,
         shift: record.shift,
-        validatedDurationHours: record.validatedDurationHours ? Number(record.validatedDurationHours) : 0,
+        validatedDurationHours: record.validatedDurationHours
+          ? Number(record.validatedDurationHours)
+          : 0,
         isReplacement: Boolean(record.isReplacement),
         isEarlyDeparture: Boolean(record.isEarlyDeparture),
         notes: record.notes || null,
@@ -102,19 +104,47 @@ export class AttendanceNotificationService {
       // 1. Scoped Realtime WebSocket Dispatch (Strictly Isolated to Clinic Staff & Admin)
       if (this.realtimeGateway) {
         // A. Target clinic staff room (Terminal & Clinic Operational Room)
-        void this.realtimeGateway.emitToRoom?.(REALTIME_ROOMS.clinic, 'attendance:recorded', payload);
-        void this.realtimeGateway.emitToRoom?.(REALTIME_ROOMS.clinic, `attendance:${action}`, payload);
+        void this.realtimeGateway.emitToRoom?.(
+          REALTIME_ROOMS.clinic,
+          'attendance:recorded',
+          payload,
+        );
+        void this.realtimeGateway.emitToRoom?.(
+          REALTIME_ROOMS.clinic,
+          `attendance:${action}`,
+          payload,
+        );
         if (record.isEarlyDeparture) {
-          void this.realtimeGateway.emitToRoom?.(REALTIME_ROOMS.clinic, 'attendance:early_departure', payload);
+          void this.realtimeGateway.emitToRoom?.(
+            REALTIME_ROOMS.clinic,
+            'attendance:early_departure',
+            payload,
+          );
         }
-        void this.realtimeGateway.emitToRoom?.(REALTIME_ROOMS.clinic, 'attendance:refresh', { date: record.attendanceDate });
+        void this.realtimeGateway.emitToRoom?.(
+          REALTIME_ROOMS.clinic,
+          'attendance:refresh',
+          { date: record.attendanceDate },
+        );
 
         // B. Target staff user personal room
         if (staffUserId) {
-          void this.realtimeGateway.emitToUser(staffUserId, 'attendance:recorded', payload);
-          void this.realtimeGateway.emitToUser(staffUserId, `attendance:${action}`, payload);
+          void this.realtimeGateway.emitToUser(
+            staffUserId,
+            'attendance:recorded',
+            payload,
+          );
+          void this.realtimeGateway.emitToUser(
+            staffUserId,
+            `attendance:${action}`,
+            payload,
+          );
           if (record.isEarlyDeparture) {
-            void this.realtimeGateway.emitToUser(staffUserId, 'attendance:early_departure', payload);
+            void this.realtimeGateway.emitToUser(
+              staffUserId,
+              'attendance:early_departure',
+              payload,
+            );
           }
         }
 
@@ -157,9 +187,13 @@ export class AttendanceNotificationService {
           'payroll:shift_earnings_recorded',
           payrollPayload,
         );
-        void this.realtimeGateway.emitToRoom?.(REALTIME_ROOMS.clinic, 'payroll:refresh', {
-          date: record.attendanceDate,
-        });
+        void this.realtimeGateway.emitToRoom?.(
+          REALTIME_ROOMS.clinic,
+          'payroll:refresh',
+          {
+            date: record.attendanceDate,
+          },
+        );
 
         this.logger.log(
           `[PayrollEDA] Dispatched realtime event: payroll:shift_earnings_recorded (staff=${staffName}, amount=${staffInfo.earnedAmount}, isReplacement=${Boolean(record.isReplacement)})`,

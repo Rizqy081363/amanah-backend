@@ -5,9 +5,7 @@ import {
 import { Temporal } from '@js-temporal/polyfill';
 import { filterEffectiveDoctorAssignments } from '@modules/schedules/domain/services/doctor-session-operational.resolver';
 import { Injectable } from '@nestjs/common';
-import {
-  isTerminalAppointmentStatus,
-} from '../../domain/constants/appointment-lifecycle.constants';
+import { isTerminalAppointmentStatus } from '../../domain/constants/appointment-lifecycle.constants';
 import {
   AppointmentNotFoundException,
   AppointmentTerminalStateException,
@@ -170,7 +168,9 @@ export class CandidateResolverService implements ICandidateResolverPort {
         : null;
 
       // Check attendance
-      const attRecord = staffProfId ? attendanceByStaffId.get(staffProfId) : null;
+      const attRecord = staffProfId
+        ? attendanceByStaffId.get(staffProfId)
+        : null;
       let attendanceStatus:
         | 'checked_in'
         | 'not_checked_in'
@@ -183,7 +183,8 @@ export class CandidateResolverService implements ICandidateResolverPort {
         attendanceStatus = 'on_leave';
       } else if (attRecord) {
         if (attRecord.checkInAt) {
-          attendanceStatus = attRecord.status === 'late' ? 'late' : 'checked_in';
+          attendanceStatus =
+            attRecord.status === 'late' ? 'late' : 'checked_in';
         } else {
           attendanceStatus = 'not_checked_in';
           attendanceWarning = 'Dokter belum melakukan presensi hari ini';

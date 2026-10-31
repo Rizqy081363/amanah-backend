@@ -8,5 +8,5 @@ export const CHAT_SENDER_ROLE = {
   EXTERNAL: 'external',
 } as const;
 
-export type ChatSenderRole = (typeof CHAT_SENDER_ROLE)[keyof typeof CHAT_SENDER_ROLE];
-
+export type ChatSenderRole =
+  (typeof CHAT_SENDER_ROLE)[keyof typeof CHAT_SENDER_ROLE];

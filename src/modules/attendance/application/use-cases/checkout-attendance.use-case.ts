@@ -55,7 +55,8 @@ export class CheckOutAttendanceUseCase {
       ? this.clinicTimeService
         ? this.clinicTimeService.normalizeDate(input.attendanceDate)
         : input.attendanceDate
-      : this.clinicTimeService?.today() ?? new Date().toISOString().split('T')[0];
+      : (this.clinicTimeService?.today() ??
+        new Date().toISOString().split('T')[0]);
 
     // 1. Authoritative Core Check-Out Eligibility & Verification (SSOT)
     // Validates existence, duplicate checkout, proximity proof, and early departure notes

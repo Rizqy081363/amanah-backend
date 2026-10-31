@@ -20,9 +20,7 @@ export interface VerifiedCredentialResult {
  */
 @Injectable()
 export class AttendanceCredentialValidator {
-  constructor(
-    private readonly ticketService: CheckoutTicketService,
-  ) {}
+  constructor(private readonly ticketService: CheckoutTicketService) {}
 
   /**
    * Sanitizes and parses raw token string, handling potential JSON wrapping.

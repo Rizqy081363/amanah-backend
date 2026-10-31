@@ -68,7 +68,8 @@ export class AdminInvitationsController {
   @Get('options')
   @RequirePermissions('staff:invite')
   @ApiOperation({
-    summary: 'Mendapatkan opsi dinamis form undangan (Peran Praktisi & Poliklinik)',
+    summary:
+      'Mendapatkan opsi dinamis form undangan (Peran Praktisi & Poliklinik)',
     description:
       'Mengambil daftar peran klinis praktisi medis dan poliklinik aktif langsung dari database.',
   })

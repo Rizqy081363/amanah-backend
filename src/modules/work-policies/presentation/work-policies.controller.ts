@@ -52,7 +52,8 @@ export class WorkPoliciesController {
       'Menampilkan leave_policy aktif, daftar tarif per jam dokter, bidan, staf operasional, dan parameter batas waktu presensi.',
   })
   @ApiOkResponse({
-    description: 'Kebijakan, tarif, dan parameter presensi aktif berhasil diambil',
+    description:
+      'Kebijakan, tarif, dan parameter presensi aktif berhasil diambil',
   })
   async getCurrent() {
     const [policy, rates, timing] = await Promise.all([

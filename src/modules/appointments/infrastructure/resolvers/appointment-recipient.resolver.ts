@@ -40,7 +40,10 @@ export class AppointmentRecipientResolver {
         .from(userRoles)
         .innerJoin(roles, eq(userRoles.roleId, roles.id))
         .innerJoin(rolePermissions, eq(rolePermissions.roleId, roles.id))
-        .innerJoin(permissions, eq(rolePermissions.permissionId, permissions.id))
+        .innerJoin(
+          permissions,
+          eq(rolePermissions.permissionId, permissions.id),
+        )
         .where(
           and(
             eq(roles.audience, ROLE_AUDIENCE.INTERNAL),

@@ -505,6 +505,13 @@
       "when": 1791355000000,
       "tag": "0071_user_management_and_granular_permissions",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1791356000000,
+      "tag": "0072_dynamic_clinic_unit_types",
+      "breakpoints": true
     }
   ]
 }

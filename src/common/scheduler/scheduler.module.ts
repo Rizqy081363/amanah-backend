@@ -8,11 +8,7 @@ import { AdminSchedulerController } from './presentation/admin-scheduler.control
 
 @Global()
 @Module({
-  imports: [
-    ScheduleModule.forRoot(),
-    ClinicConfigModule,
-    RedisModule,
-  ],
+  imports: [ScheduleModule.forRoot(), ClinicConfigModule, RedisModule],
   controllers: [AdminSchedulerController],
   providers: [
     CronSchedulerAdapter,

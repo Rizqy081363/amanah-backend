@@ -28,10 +28,5 @@
     "types": ["bun-types", "jest", "multer"]
   },
   "include": ["src/**/*"],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "**/*.spec.ts",
-    "test/**/*"
-  ]
+  "exclude": ["node_modules", "dist", "**/*.spec.ts", "test/**/*"]
 }

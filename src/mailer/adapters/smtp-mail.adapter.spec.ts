@@ -65,7 +65,9 @@ describe('SmtpMailAdapter Contract & Verification', () => {
       expect(true).toBe(false);
     } catch (err) {
       expect(err).toBeInstanceOf(MailDeliveryError);
-      expect((err as MailDeliveryError).message).toContain('Connection refused to SMTP 1025');
+      expect((err as MailDeliveryError).message).toContain(
+        'Connection refused to SMTP 1025',
+      );
       expect((err as MailDeliveryError).provider).toBe('SMTP/Mailpit');
     }
   });

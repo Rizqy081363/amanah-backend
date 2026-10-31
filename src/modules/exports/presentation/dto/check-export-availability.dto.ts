@@ -13,7 +13,8 @@ export class CheckExportAvailabilityDto {
 
   @ApiPropertyOptional({
     type: Object,
-    description: 'Parameter penyaringan data (misal: startDate, endDate, periodId)',
+    description:
+      'Parameter penyaringan data (misal: startDate, endDate, periodId)',
     example: { startDate: '2026-10-01', endDate: '2026-10-31' },
   })
   @IsObject()

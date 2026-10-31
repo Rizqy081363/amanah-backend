@@ -2,10 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { and, eq } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
-import {
-  sessionSchedules,
-  staffRosters,
-} from '../../../../database/schema';
+import { sessionSchedules, staffRosters } from '../../../../database/schema';
 import { StaffRosterEntity } from '../../domain/entities/staff-roster.entity';
 import { StaffRosterRepository } from '../../domain/repositories/staff-roster.repository';
 

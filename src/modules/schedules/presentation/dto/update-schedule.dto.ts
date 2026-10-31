@@ -1,6 +1,4 @@
-import {
-  type CanonicalStaffShift,
-} from '@modules/schedules/domain/constants/schedule-shift.constants';
+import { type CanonicalStaffShift } from '@modules/schedules/domain/constants/schedule-shift.constants';
 import { AdminScheduleStatusRequest } from '@modules/schedules/domain/schedule-status';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsBoolean, IsEnum, IsOptional, IsString } from 'class-validator';

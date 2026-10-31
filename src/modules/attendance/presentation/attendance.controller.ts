@@ -200,7 +200,11 @@ export class AttendanceController {
   }
 
   @Get('qr/active')
-  @RequirePermissions('attendance:submit', 'attendance:read', 'attendance:manage')
+  @RequirePermissions(
+    'attendance:submit',
+    'attendance:read',
+    'attendance:manage',
+  )
   @ApiOperation({
     summary: 'Mengambil informasi sesi QR aktif saat ini untuk terminal',
   })
@@ -255,7 +259,8 @@ export class AttendanceController {
   @Get('export-candidates')
   @RequirePermissions('attendance:review', 'attendance:manage')
   @ApiOperation({
-    summary: 'Daftar staf dan rekap total kehadiran bulanan untuk wizard ekspor',
+    summary:
+      'Daftar staf dan rekap total kehadiran bulanan untuk wizard ekspor',
     description:
       'Mengambil daftar staf aktif beserta spesialisasi dan total presensi pada bulan target untuk modalitas ekspor berkas.',
   })

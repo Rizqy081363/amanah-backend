@@ -76,10 +76,7 @@ export interface IUserManagementRepository {
     id: string,
     actorAdminId: string,
   ): Promise<{ success: boolean; details: any }>;
-  bulkPurgeUsers(
-    ids: string[],
-    actorAdminId: string,
-  ): Promise<BulkPurgeResult>;
+  bulkPurgeUsers(ids: string[], actorAdminId: string): Promise<BulkPurgeResult>;
   countActiveAdmins(excludeUserId?: string): Promise<number>;
   getAllActiveRoles(): Promise<UserRoleSummary[]>;
   getActiveRolesMap(): Promise<Map<string, string>>;

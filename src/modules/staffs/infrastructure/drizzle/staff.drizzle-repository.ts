@@ -508,9 +508,7 @@ export class StaffDrizzleRepository implements StaffRepository {
       };
       const diff = getPriority(b.status) - getPriority(a.status);
       if (diff !== 0) return diff;
-      return (
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      );
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
   }
 
@@ -588,23 +586,30 @@ export class StaffDrizzleRepository implements StaffRepository {
         [
           line1Val,
           data.address.villageName ? `Kel. ${data.address.villageName}` : null,
-          data.address.districtName ? `Kec. ${data.address.districtName}` : null,
+          data.address.districtName
+            ? `Kec. ${data.address.districtName}`
+            : null,
           data.address.regencyName,
           data.address.provinceName,
         ]
           .filter(Boolean)
-          .join(', ') || null;
+          .join(', ') ||
+        null;
 
       if (existingAddr) {
         await this.db
           .update(staffAddresses)
           .set({
-            provinceCode: data.address.provinceCode || existingAddr.provinceCode,
-            provinceName: data.address.provinceName || existingAddr.provinceName,
+            provinceCode:
+              data.address.provinceCode || existingAddr.provinceCode,
+            provinceName:
+              data.address.provinceName || existingAddr.provinceName,
             regencyCode: data.address.regencyCode || existingAddr.regencyCode,
             regencyName: data.address.regencyName || existingAddr.regencyName,
-            districtCode: data.address.districtCode || existingAddr.districtCode,
-            districtName: data.address.districtName || existingAddr.districtName,
+            districtCode:
+              data.address.districtCode || existingAddr.districtCode,
+            districtName:
+              data.address.districtName || existingAddr.districtName,
             villageCode: data.address.villageCode || existingAddr.villageCode,
             villageName: data.address.villageName || existingAddr.villageName,
             line1: line1Val,

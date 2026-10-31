@@ -115,14 +115,12 @@ export function resolveDoctorSessionOperability(
   // Time resolution: weekly template schedule -> def default time -> fallback to standard
   const rawStartTime =
     sched?.startsAt || sessionDef?.defaultStartsAt || '00:00';
-  const rawEndTime =
-    sched?.endsAt || sessionDef?.defaultEndsAt || '24:00';
+  const rawEndTime = sched?.endsAt || sessionDef?.defaultEndsAt || '24:00';
   const startTime = rawStartTime.slice(0, 5);
   const endTime = rawEndTime.slice(0, 5);
 
   // Label resolution directly from sessionDef
-  const sessionLabel =
-    (sessionDef as any)?.label || sessionDef?.code || 'Sesi';
+  const sessionLabel = (sessionDef as any)?.label || sessionDef?.code || 'Sesi';
 
   // 1. Master definition inactive: Shift does not operate anywhere in the clinic
   if (!isMasterDefActive) {
@@ -162,28 +160,13 @@ export function resolveDoctorSessionOperability(
     };
   }
 
-  const resolveActiveSessionWithTemporalCheck = (): DoctorSessionOperabilityResult => {
-    if (clinicTodayStr) {
-      const isPastDate = targetDate < clinicTodayStr;
-      const isToday = targetDate === clinicTodayStr;
+  const resolveActiveSessionWithTemporalCheck =
+    (): DoctorSessionOperabilityResult => {
+      if (clinicTodayStr) {
+        const isPastDate = targetDate < clinicTodayStr;
+        const isToday = targetDate === clinicTodayStr;
 
-      if (isPastDate) {
-        return {
-          isOperable: true,
-          isOpen: false,
-          status: 'closed',
-          closureReason: ScheduleClosureReason.SHIFT_ENDED,
-          notes: null,
-          startTime,
-          endTime,
-          sessionShift: shiftCode,
-          sessionLabel,
-        };
-      }
-
-      if (isToday && clinicNowTimeStr) {
-        const hasEnded = clinicNowTimeStr >= endTime;
-        if (hasEnded) {
+        if (isPastDate) {
           return {
             isOperable: true,
             isOpen: false,
@@ -197,35 +180,51 @@ export function resolveDoctorSessionOperability(
           };
         }
 
-        const notStarted = clinicNowTimeStr < startTime;
-        if (notStarted) {
-          return {
-            isOperable: true,
-            isOpen: false,
-            status: 'closed',
-            closureReason: ScheduleClosureReason.CLINIC_CLOSED,
-            notes: null,
-            startTime,
-            endTime,
-            sessionShift: shiftCode,
-            sessionLabel,
-          };
+        if (isToday && clinicNowTimeStr) {
+          const hasEnded = clinicNowTimeStr >= endTime;
+          if (hasEnded) {
+            return {
+              isOperable: true,
+              isOpen: false,
+              status: 'closed',
+              closureReason: ScheduleClosureReason.SHIFT_ENDED,
+              notes: null,
+              startTime,
+              endTime,
+              sessionShift: shiftCode,
+              sessionLabel,
+            };
+          }
+
+          const notStarted = clinicNowTimeStr < startTime;
+          if (notStarted) {
+            return {
+              isOperable: true,
+              isOpen: false,
+              status: 'closed',
+              closureReason: ScheduleClosureReason.CLINIC_CLOSED,
+              notes: null,
+              startTime,
+              endTime,
+              sessionShift: shiftCode,
+              sessionLabel,
+            };
+          }
         }
       }
-    }
 
-    return {
-      isOperable: true,
-      isOpen: true,
-      status: 'open',
-      closureReason: null,
-      notes: null,
-      startTime,
-      endTime,
-      sessionShift: shiftCode,
-      sessionLabel,
+      return {
+        isOperable: true,
+        isOpen: true,
+        status: 'open',
+        closureReason: null,
+        notes: null,
+        startTime,
+        endTime,
+        sessionShift: shiftCode,
+        sessionLabel,
+      };
     };
-  };
 
   // 3. Priority Resolution: Explicit Doctor Roster Override
   // If doctor has explicit assignment for this day of week (da.dow === targetDow),

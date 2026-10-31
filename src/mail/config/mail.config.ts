@@ -104,21 +104,23 @@ export default registerAs<MailConfig>('mail', () => {
     process.env.MAIL_FROM ||
     process.env.MAIL_DEFAULT_EMAIL ||
     MAIL_DEFAULTS.NOREPLY_EMAIL;
-  const defaultName =
-    process.env.MAIL_DEFAULT_NAME || MAIL_DEFAULTS.APP_NAME;
+  const defaultName = process.env.MAIL_DEFAULT_NAME || MAIL_DEFAULTS.APP_NAME;
   const ignoreTLS =
     process.env.MAIL_IGNORE_TLS === 'true' ||
     process.env.NODE_ENV === 'development';
   const requireTLS = process.env.MAIL_REQUIRE_TLS === 'true';
 
   const driverRaw = (
-    process.env.MAIL_DRIVER || env.MAIL_DRIVER || MAIL_DRIVER.SMTP
+    process.env.MAIL_DRIVER ||
+    env.MAIL_DRIVER ||
+    MAIL_DRIVER.SMTP
   )
     .toLowerCase()
     .trim();
   const driver: MailDriver =
     driverRaw === MAIL_DRIVER.RESEND ? MAIL_DRIVER.RESEND : MAIL_DRIVER.SMTP;
-  const resendApiKey = process.env.RESEND_API_KEY || env.RESEND_API_KEY || undefined;
+  const resendApiKey =
+    process.env.RESEND_API_KEY || env.RESEND_API_KEY || undefined;
 
   return {
     driver,

@@ -389,9 +389,9 @@ export class PayrollDrizzleRepository implements PayrollRepository {
     );
 
     for (const staff of activeStaff) {
-      const staffRate =
-        (staff.roleId ? rateByRole.get(staff.roleId) : undefined) ??
-        { hourly: 0, overtime: 0 };
+      const staffRate = (staff.roleId
+        ? rateByRole.get(staff.roleId)
+        : undefined) ?? { hourly: 0, overtime: 0 };
 
       const practitionerId = staff.practitioners?.[0]?.id || null;
       const entriesToInsert: any[] = [];

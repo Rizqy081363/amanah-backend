@@ -3,13 +3,15 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 export class LinkedProvidersResponseDto {
   @ApiProperty({
     type: [String],
-    description: 'Daftar provider autentikasi yang sedang terhubung ke akun (credential, google)',
+    description:
+      'Daftar provider autentikasi yang sedang terhubung ke akun (credential, google)',
     example: ['credential', 'google'],
   })
   linkedProviders: string[];
 
   @ApiProperty({
-    description: 'Menandakan apakah akun memiliki kredensial login kata sandi aktif',
+    description:
+      'Menandakan apakah akun memiliki kredensial login kata sandi aktif',
     example: true,
   })
   hasPassword: boolean;

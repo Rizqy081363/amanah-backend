@@ -11,7 +11,9 @@ import { AppointmentCheckInReminderService } from '../services/appointment-check
 export class AppointmentCheckInReminderScheduler
   implements OnApplicationBootstrap
 {
-  private readonly logger = new Logger(AppointmentCheckInReminderScheduler.name);
+  private readonly logger = new Logger(
+    AppointmentCheckInReminderScheduler.name,
+  );
 
   constructor(
     @Inject(SCHEDULER_PORT)

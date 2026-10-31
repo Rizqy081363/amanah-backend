@@ -1,8 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import {
-  type AuthenticatedUser,
-  isStaffUser,
-} from '../../../../common/auth';
+import { type AuthenticatedUser, isStaffUser } from '../../../../common/auth';
 import {
   DomainForbiddenException,
   EntityNotFoundException,

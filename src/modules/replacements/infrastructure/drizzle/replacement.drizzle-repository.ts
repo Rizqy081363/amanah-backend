@@ -363,9 +363,13 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
       .returning({ id: replacementOpportunities.id });
 
     void Promise.allSettled([
-      this.realtimeGateway?.emitToRoom?.(REALTIME_ROOMS.clinic, 'replacement:updated', {
-        status: REPLACEMENT_OPPORTUNITY_STATUS.CANCELLED,
-      }),
+      this.realtimeGateway?.emitToRoom?.(
+        REALTIME_ROOMS.clinic,
+        'replacement:updated',
+        {
+          status: REPLACEMENT_OPPORTUNITY_STATUS.CANCELLED,
+        },
+      ),
     ]);
 
     this.logger.log(
@@ -430,11 +434,15 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
     void this.dispatchNewOpportunityNotification(inserted.id, data.workDate);
 
     void Promise.allSettled([
-      this.realtimeGateway?.emitToRoom?.(REALTIME_ROOMS.clinic, 'replacement:updated', {
-        opportunityId: inserted.id,
-        status: REPLACEMENT_OPPORTUNITY_STATUS.OPEN,
-        workDate: data.workDate,
-      }),
+      this.realtimeGateway?.emitToRoom?.(
+        REALTIME_ROOMS.clinic,
+        'replacement:updated',
+        {
+          opportunityId: inserted.id,
+          status: REPLACEMENT_OPPORTUNITY_STATUS.OPEN,
+          workDate: data.workDate,
+        },
+      ),
     ]);
 
     return this.mapOpportunity(inserted);
@@ -511,10 +519,14 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
 
     const isOriginalClinical =
       originalStaff?.role?.isClinical ??
-      Boolean(originalStaff?.practitioners && originalStaff.practitioners.length > 0);
+      Boolean(
+        originalStaff?.practitioners && originalStaff.practitioners.length > 0,
+      );
     const isClaimingClinical =
       claimingStaff.role?.isClinical ??
-      Boolean(claimingStaff.practitioners && claimingStaff.practitioners.length > 0);
+      Boolean(
+        claimingStaff.practitioners && claimingStaff.practitioners.length > 0,
+      );
 
     if (isOriginalClinical && !isClaimingClinical) {
       throw new BadRequestException(
@@ -560,11 +572,15 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
     void this.dispatchClaimNotifications(opportunityId);
 
     void Promise.allSettled([
-      this.realtimeGateway?.emitToRoom?.(REALTIME_ROOMS.clinic, 'replacement:updated', {
-        opportunityId,
-        status: REPLACEMENT_OPPORTUNITY_STATUS.CLAIMED,
-        workDate: updated.workDate,
-      }),
+      this.realtimeGateway?.emitToRoom?.(
+        REALTIME_ROOMS.clinic,
+        'replacement:updated',
+        {
+          opportunityId,
+          status: REPLACEMENT_OPPORTUNITY_STATUS.CLAIMED,
+          workDate: updated.workDate,
+        },
+      ),
       this.realtimeGateway?.emitToRoom?.(
         REALTIME_ROOMS.clinic,
         'doctor_schedule:refresh',
@@ -632,10 +648,14 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
 
     const isOriginalClinical =
       originalStaff?.role?.isClinical ??
-      Boolean(originalStaff?.practitioners && originalStaff.practitioners.length > 0);
+      Boolean(
+        originalStaff?.practitioners && originalStaff.practitioners.length > 0,
+      );
     const isTargetClinical =
       targetStaff.role?.isClinical ??
-      Boolean(targetStaff.practitioners && targetStaff.practitioners.length > 0);
+      Boolean(
+        targetStaff.practitioners && targetStaff.practitioners.length > 0,
+      );
 
     if (isOriginalClinical && !isTargetClinical) {
       throw new BadRequestException(
@@ -671,11 +691,15 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
     void this.dispatchClaimNotifications(opportunityId);
 
     void Promise.allSettled([
-      this.realtimeGateway?.emitToRoom?.(REALTIME_ROOMS.clinic, 'replacement:updated', {
-        opportunityId,
-        status: REPLACEMENT_OPPORTUNITY_STATUS.CLAIMED,
-        workDate: updated.workDate,
-      }),
+      this.realtimeGateway?.emitToRoom?.(
+        REALTIME_ROOMS.clinic,
+        'replacement:updated',
+        {
+          opportunityId,
+          status: REPLACEMENT_OPPORTUNITY_STATUS.CLAIMED,
+          workDate: updated.workDate,
+        },
+      ),
       this.realtimeGateway?.emitToRoom?.(
         REALTIME_ROOMS.clinic,
         'doctor_schedule:refresh',
@@ -749,11 +773,15 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
     }
 
     void Promise.allSettled([
-      this.realtimeGateway?.emitToRoom?.(REALTIME_ROOMS.clinic, 'replacement:updated', {
-        opportunityId,
-        status: REPLACEMENT_OPPORTUNITY_STATUS.CANCELLED,
-        workDate: updated.workDate,
-      }),
+      this.realtimeGateway?.emitToRoom?.(
+        REALTIME_ROOMS.clinic,
+        'replacement:updated',
+        {
+          opportunityId,
+          status: REPLACEMENT_OPPORTUNITY_STATUS.CANCELLED,
+          workDate: updated.workDate,
+        },
+      ),
       this.realtimeGateway?.emitToRoom?.(
         REALTIME_ROOMS.clinic,
         'doctor_schedule:refresh',

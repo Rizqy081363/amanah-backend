@@ -16,7 +16,10 @@ import {
 import { ChatNotificationPublisher } from '../publishers/chat-notification.publisher';
 import { ChatMessageEntity } from '../../domain/entities/chat-message.entity';
 import { ConversationEntity } from '../../domain/entities/conversation.entity';
-import { CHAT_SENDER_ROLE, type ChatSenderRole } from '../../domain/constants/chat-lifecycle.constants';
+import {
+  CHAT_SENDER_ROLE,
+  type ChatSenderRole,
+} from '../../domain/constants/chat-lifecycle.constants';
 import {
   AdminConversationQueryParams,
   CHAT_REPOSITORY,

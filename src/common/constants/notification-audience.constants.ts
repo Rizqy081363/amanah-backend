@@ -14,9 +14,7 @@ export type NotificationAudience = (typeof NOTIFICATION_AUDIENCES)[number];
 export const DEFAULT_NOTIFICATION_AUDIENCE: NotificationAudience =
   NOTIFICATION_AUDIENCE.INTERNAL;
 
-export const isNotificationAudience = (
-  v: unknown,
-): v is NotificationAudience =>
+export const isNotificationAudience = (v: unknown): v is NotificationAudience =>
   typeof v === 'string' &&
   (NOTIFICATION_AUDIENCES as readonly string[]).includes(v);
 
