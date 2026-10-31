@@ -186,6 +186,61 @@ export const auth = betterAuth({
     },
     database: { generateId: 'uuid' },
   },
+  databaseHooks: {
+    user: {
+      create: {
+        after: async (createdUser) => {
+          const client = await pool.connect();
+          try {
+            // Dynamically query external role from PostgreSQL
+            const roleRes = await client.query(
+              `SELECT id, code, audience FROM roles WHERE audience = 'external' ORDER BY created_at ASC LIMIT 1`
+            );
+            const externalRole = roleRes.rows[0];
+
+            // Sync user to canonical 'users' table
+            await client.query(
+              `INSERT INTO users (id, name, email, email_verified, status)
+               VALUES ($1, $2, $3, false, 'active')
+               ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, email = EXCLUDED.email`,
+              [createdUser.id, createdUser.name, createdUser.email]
+            );
+
+            // Dynamically assign external role if one exists
+            if (externalRole) {
+              await client.query(
+                `INSERT INTO user_roles (user_id, role_id)
+                 VALUES ($1, $2)
+                 ON CONFLICT DO NOTHING`,
+                [createdUser.id, externalRole.id]
+              );
+            }
+          } catch (err) {
+            console.error('[BetterAuth:databaseHooks] Failed to sync created user to users/user_roles:', err);
+          } finally {
+            client.release();
+          }
+        },
+      },
+      update: {
+        after: async (updatedUser) => {
+          if (updatedUser.emailVerified) {
+            const client = await pool.connect();
+            try {
+              await client.query(
+                `UPDATE users SET email_verified = true, updated_at = NOW() WHERE id = $1`,
+                [updatedUser.id]
+              );
+            } catch (err) {
+              console.error('[BetterAuth:databaseHooks] Failed to sync email verification update:', err);
+            } finally {
+              client.release();
+            }
+          }
+        },
+      },
+    },
+  },
   plugins: [
     adminPlugin({
       ac,

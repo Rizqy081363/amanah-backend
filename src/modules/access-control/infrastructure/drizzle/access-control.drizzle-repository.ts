@@ -270,6 +270,27 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
 
     if (data.permissionIds && data.permissionIds.length > 0) {
       await this.assignPermissionsToRole(inserted.id, data.permissionIds);
+    } else if (audience === 'external') {
+      const defaultExternalPermCodes = [
+        'app:access',
+        'appointments:book',
+        'appointments:read',
+        'notifications:read',
+        'patients:register',
+        'profile:read',
+        'profile:update',
+        'queue:read',
+        'records:read',
+      ];
+      const defaultPerms = await this.db.query.permissions.findMany({
+        where: inArray(permissions.code, defaultExternalPermCodes),
+      });
+      if (defaultPerms.length > 0) {
+        await this.assignPermissionsToRole(
+          inserted.id,
+          defaultPerms.map((p) => p.id),
+        );
+      }
     }
 
     const created = await this.findRoleById(inserted.id);
@@ -366,6 +387,10 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
       );
     }
 
+    await this.db
+      .delete(rolePermissions)
+      .where(eq(rolePermissions.roleId, id));
+    await this.db.delete(userRoles).where(eq(userRoles.roleId, id));
     await this.db.delete(roles).where(eq(roles.id, id));
   }
 
