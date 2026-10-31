@@ -55,9 +55,14 @@ export class AdminFacilitiesController {
     summary: 'Mendapatkan seluruh daftar unit poliklinik fasilitas (Admin)',
     description: 'Mengambil seluruh unit dengan rincian jumlah ruangan dan kategori layanan.',
   })
+  @ApiQuery({ name: 'search', required: false, description: 'Filter pencarian nama atau kode' })
+  @ApiQuery({ name: 'status', required: false, description: 'Filter status (active/inactive)' })
   @ApiOkResponse({ description: 'Daftar unit fasilitas berhasil diambil' })
-  async getUnits() {
-    return this.facilitiesService.getUnits();
+  async getUnits(
+    @Query('search') search?: string,
+    @Query('status') status?: string,
+  ) {
+    return this.facilitiesService.getUnits(search, status);
   }
 
   @Post('units')
@@ -107,9 +112,15 @@ export class AdminFacilitiesController {
     description: 'Mengambil seluruh ruangan fisik periksa, dapat difilter per unit.',
   })
   @ApiQuery({ name: 'unitId', required: false, description: 'Filter berdasarkan ID unit' })
+  @ApiQuery({ name: 'search', required: false, description: 'Filter pencarian nama atau kode' })
+  @ApiQuery({ name: 'status', required: false, description: 'Filter status (active/inactive)' })
   @ApiOkResponse({ description: 'Daftar ruangan berhasil diambil' })
-  async getRooms(@Query('unitId') unitId?: string) {
-    return this.facilitiesService.getRooms(unitId);
+  async getRooms(
+    @Query('unitId') unitId?: string,
+    @Query('search') search?: string,
+    @Query('status') status?: string,
+  ) {
+    return this.facilitiesService.getRooms(unitId, search, status);
   }
 
   @Post('rooms')
@@ -159,9 +170,15 @@ export class AdminFacilitiesController {
     description: 'Mengambil seluruh kategori layanan medis, dapat difilter per unit.',
   })
   @ApiQuery({ name: 'unitId', required: false, description: 'Filter berdasarkan ID unit' })
+  @ApiQuery({ name: 'search', required: false, description: 'Filter pencarian nama atau kode' })
+  @ApiQuery({ name: 'status', required: false, description: 'Filter status (active/inactive)' })
   @ApiOkResponse({ description: 'Daftar kategori berhasil diambil' })
-  async getCategories(@Query('unitId') unitId?: string) {
-    return this.facilitiesService.getCategories(unitId);
+  async getCategories(
+    @Query('unitId') unitId?: string,
+    @Query('search') search?: string,
+    @Query('status') status?: string,
+  ) {
+    return this.facilitiesService.getCategories(unitId, search, status);
   }
 
   @Post('categories')
@@ -212,12 +229,16 @@ export class AdminFacilitiesController {
   })
   @ApiQuery({ name: 'categoryId', required: false, description: 'Filter berdasarkan ID kategori' })
   @ApiQuery({ name: 'unitId', required: false, description: 'Filter berdasarkan ID unit' })
+  @ApiQuery({ name: 'search', required: false, description: 'Filter pencarian nama atau kode' })
+  @ApiQuery({ name: 'status', required: false, description: 'Filter status (active/inactive)' })
   @ApiOkResponse({ description: 'Daftar layanan medis berhasil diambil' })
   async getServices(
     @Query('categoryId') categoryId?: string,
     @Query('unitId') unitId?: string,
+    @Query('search') search?: string,
+    @Query('status') status?: string,
   ) {
-    return this.facilitiesService.getServices(categoryId, unitId);
+    return this.facilitiesService.getServices(categoryId, unitId, search, status);
   }
 
   @Post('services')
@@ -266,9 +287,14 @@ export class AdminFacilitiesController {
     summary: 'Mendapatkan daftar formulir rekam medis / intake klinis (Admin)',
     description: 'Mengambil seluruh master formulir intake yang dapat dikoneksikan ke layanan.',
   })
+  @ApiQuery({ name: 'search', required: false, description: 'Filter pencarian nama atau kode' })
+  @ApiQuery({ name: 'status', required: false, description: 'Filter status (active/inactive)' })
   @ApiOkResponse({ description: 'Daftar formulir intake berhasil diambil' })
-  async getForms() {
-    return this.facilitiesService.getForms();
+  async getForms(
+    @Query('search') search?: string,
+    @Query('status') status?: string,
+  ) {
+    return this.facilitiesService.getForms(search, status);
   }
 
   @Post('forms')
