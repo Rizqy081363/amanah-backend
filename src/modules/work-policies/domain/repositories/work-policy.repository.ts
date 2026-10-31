@@ -14,6 +14,7 @@ export interface WorkPolicyRepository {
         | 'monthlyLimit'
         | 'quotaCountingPolicy'
         | 'periodPolicy'
+        | 'noticeDaysRequired'
       >
     >,
     updatedBy: string,

@@ -5,6 +5,7 @@ export class LeavePolicyEntity {
   monthlyLimit: number;
   quotaCountingPolicy: 'per_request' | 'per_session';
   periodPolicy: 'non_overlapping' | 'previous_period_must_finish';
+  noticeDaysRequired: number;
   isActive: boolean;
   effectiveFrom: string;
   effectiveTo?: string | null;

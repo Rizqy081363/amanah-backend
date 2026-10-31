@@ -7,15 +7,18 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
+import { Temporal } from '@js-temporal/polyfill';
 import { and, asc, desc, eq, gte, inArray, lte } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
   practitioners,
+  sessionDefs,
   staffProfiles,
   replacementOpportunities,
   REPLACEMENT_OPPORTUNITY_STATUS,
 } from '../../../../database/schema';
+import { ClinicConfigService } from '../../../../common/clinic-config/clinic-config.service';
 import { ClinicTimeService } from '../../../../common/time/clinic-time.service';
 import { NotificationGatewayService } from '../../../notifications/application/services/notification-gateway.service';
 import { RealtimeGatewayPort } from '../../../notifications/contracts/realtime-gateway.interface';
@@ -41,12 +44,44 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,
     private readonly clinicTimeService: ClinicTimeService,
+    private readonly clinicConfigService: ClinicConfigService,
     @Optional()
     private readonly notificationGateway?: NotificationGatewayService,
     @Optional()
     @Inject(REALTIME_GATEWAY_PORT)
     private readonly realtimeGateway?: RealtimeGatewayPort,
   ) {}
+
+  /**
+   * Pure temporal predicate: Checks whether a replacement opportunity is already expired
+   * according to clinic timezone and dynamic leadHours (replacement.auto_expire_hours_before_shift).
+   */
+  private isOpportunityExpired(
+    workDate: string,
+    startsAt?: string | null,
+    leadHours: number = 2,
+  ): boolean {
+    if (!startsAt) return false;
+    try {
+      const timePart = startsAt.length === 5 ? `${startsAt}:00` : startsAt;
+      const tz = this.clinicTimeService.getTimezone();
+      const shiftStartZdt = Temporal.PlainDateTime.from(
+        `${workDate}T${timePart}`,
+      ).toZonedDateTime(tz);
+      const shiftStartInstant = shiftStartZdt.toInstant();
+      const expireInstant = shiftStartInstant.subtract({ hours: leadHours });
+      const nowInstant = this.clinicTimeService.nowInstant();
+      return Temporal.Instant.compare(nowInstant, expireInstant) >= 0;
+    } catch {
+      const todayStr = this.clinicTimeService.today();
+      if (workDate < todayStr) return true;
+      if (workDate === todayStr) {
+        const nowTimeStr = this.clinicTimeService.getCurrentTimeString();
+        return startsAt <= nowTimeStr;
+      }
+      return false;
+    }
+  }
 
   private mapOpportunity(r: any): ReplacementOpportunityEntity {
     return {
@@ -155,7 +190,20 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
       orderBy: [desc(replacementOpportunities.workDate)],
     });
 
-    return records.map((r) => this.mapOpportunity(r));
+    const mapped = records.map((r) => this.mapOpportunity(r));
+
+    // When querying open opportunities, dynamically exclude opportunities that have expired
+    if (statusFilter === 'open') {
+      const leadHours = await this.clinicConfigService
+        .getNumber('replacement.auto_expire_hours_before_shift')
+        .catch(() => 2);
+      return mapped.filter(
+        (opp) =>
+          !this.isOpportunityExpired(opp.workDate, opp.startTime, leadHours),
+      );
+    }
+
+    return mapped;
   }
 
   async findOpenOpportunities(
@@ -182,9 +230,24 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
         originalStaffProfile: {
           with: { role: true },
         },
+        sessionDef: true,
       },
       orderBy: [asc(replacementOpportunities.workDate)],
     });
+
+    const leadHours = await this.clinicConfigService
+      .getNumber('replacement.auto_expire_hours_before_shift')
+      .catch(() => 2);
+
+    // Strictly filter out shifts that are already within the leadHours expiration window
+    const validOpenRecords = openRecords.filter(
+      (r) =>
+        !this.isOpportunityExpired(
+          r.workDate,
+          r.sessionDef?.defaultStartsAt || null,
+          leadHours,
+        ),
+    );
 
     const staffMap = new Map<
       string,
@@ -201,7 +264,7 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
 
     const dateMap = new Map<string, number>();
 
-    for (const record of openRecords) {
+    for (const record of validOpenRecords) {
       const staff = record.originalStaffProfile;
       const wDate = record.workDate;
 
@@ -244,13 +307,18 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
     return {
       distinctStaff,
       availableDates,
-      totalOpenOpportunities: openRecords.length,
+      totalOpenOpportunities: validOpenRecords.length,
     };
   }
 
-  async cleanupExpiredOpportunities(_leadHours: number = 2): Promise<number> {
+  async cleanupExpiredOpportunities(leadHours?: number): Promise<number> {
+    const effectiveLeadHours =
+      leadHours !== undefined
+        ? leadHours
+        : await this.clinicConfigService
+            .getNumber('replacement.auto_expire_hours_before_shift')
+            .catch(() => 2);
     const todayStr = this.clinicTimeService.today();
-    const nowTimeStr = new Date().toTimeString().substring(0, 8);
 
     const candidateRecords =
       await this.db.query.replacementOpportunities.findMany({
@@ -269,13 +337,14 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
     const expiredIds: string[] = [];
 
     for (const rec of candidateRecords) {
-      if (rec.workDate < todayStr) {
+      if (
+        this.isOpportunityExpired(
+          rec.workDate,
+          rec.sessionDef?.defaultStartsAt || null,
+          effectiveLeadHours,
+        )
+      ) {
         expiredIds.push(rec.id);
-      } else if (rec.workDate === todayStr && rec.sessionDef) {
-        const startsAt = rec.sessionDef.defaultStartsAt;
-        if (startsAt && startsAt <= nowTimeStr) {
-          expiredIds.push(rec.id);
-        }
       }
     }
 
@@ -287,7 +356,7 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
       .update(replacementOpportunities)
       .set({
         status: REPLACEMENT_OPPORTUNITY_STATUS.CANCELLED,
-        notes: 'System: Expired unclaimed replacement opportunity',
+        notes: `System: Auto-expired unclaimed opportunity (${effectiveLeadHours}h lead-time before shift start)`,
         updatedAt: new Date().toISOString(),
       })
       .where(inArray(replacementOpportunities.id, expiredIds))
@@ -300,7 +369,7 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
     ]);
 
     this.logger.log(
-      `[Cleanup] Automatically expired and cancelled ${updated.length} past replacement opportunities.`,
+      `[Cleanup] Automatically expired and cancelled ${updated.length} past replacement opportunities (leadHours=${effectiveLeadHours}).`,
     );
 
     return updated.length;
@@ -395,6 +464,27 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
     if (existing.status !== REPLACEMENT_OPPORTUNITY_STATUS.OPEN) {
       throw new ConflictException(
         'Peluang pengganti ini sudah diambil oleh rekan lain atau tidak lagi terbuka',
+      );
+    }
+
+    // Dynamic lead hours expiration validation
+    const leadHours = await this.clinicConfigService
+      .getNumber('replacement.auto_expire_hours_before_shift')
+      .catch(() => 2);
+
+    const sessionDefRecord = await this.db.query.sessionDefs.findFirst({
+      where: eq(sessionDefs.id, existing.sessionId),
+    });
+
+    if (
+      this.isOpportunityExpired(
+        existing.workDate,
+        sessionDefRecord?.defaultStartsAt || null,
+        leadHours,
+      )
+    ) {
+      throw new BadRequestException(
+        `Peluang jadwal pengganti telah kedaluwarsa (${leadHours} jam sebelum jadwal dinas dimulai).`,
       );
     }
 
