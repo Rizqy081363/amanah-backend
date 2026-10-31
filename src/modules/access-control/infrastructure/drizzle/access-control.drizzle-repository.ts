@@ -523,7 +523,7 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
   async getEffectivePermissionsByRoleId(roleId: string): Promise<string[]> {
     const role = await this.findRoleById(roleId);
     if (!role) return [];
-    if (role.code === 'admin') {
+    if (role.isSystem) {
       const allPerms = await this.findAllPermissions();
       return allPerms.map((p) => p.code);
     }

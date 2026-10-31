@@ -292,17 +292,11 @@ export class AuthLoginService {
         accountId: verifiedGoogle.sub,
       });
 
-      let targetRole = pendingInvitation?.roleId
+      const targetRole = pendingInvitation?.roleId
         ? await this.db.query.roles.findFirst({
             where: eq(roles.id, pendingInvitation.roleId),
           })
         : null;
-
-      if (!targetRole && pendingInvitation?.roleCode) {
-        targetRole = await this.db.query.roles.findFirst({
-          where: eq(roles.code, pendingInvitation.roleCode),
-        });
-      }
 
       if (targetRole) {
         await this.db.insert(userRoles).values({

@@ -114,7 +114,7 @@ async function bootstrap() {
   const options = new DocumentBuilder()
     .setTitle('Amanah Healthcare API')
     .setDescription(
-      'Enterprise Backend API for Amanah Clinic (Poli Umum, Poli KIA, Staff Mobile App, Admin Dashboard)',
+      'Enterprise Backend API for Amanah Healthcare (Dynamic Facilities, Staff Mobile App, Admin Dashboard)',
     )
     .setVersion('1.0')
     .addBearerAuth(

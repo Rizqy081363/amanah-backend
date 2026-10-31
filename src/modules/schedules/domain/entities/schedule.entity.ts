@@ -343,7 +343,7 @@ export class AdminDoctorScheduleCardEntity {
   staffCode?: string | null;
 
   @ApiPropertyOptional({
-    description: 'Kode peran staf (contoh: tabib, it_support, admin)',
+    description: 'Kode peran staf (contoh: tabib, operasional, admin)',
     nullable: true,
   })
   roleCode?: string | null;
@@ -602,7 +602,7 @@ export class AdminDoctorScheduleDetailData {
   staffCode?: string | null;
 
   @ApiPropertyOptional({
-    description: 'Kode peran staf (contoh: tabib, it_support, admin)',
+    description: 'Kode peran staf (contoh: tabib, operasional, admin)',
     nullable: true,
   })
   roleCode?: string | null;
@@ -1070,16 +1070,16 @@ export class AdminSessionPatientItem {
   })
   chiefComplaint: string | null;
 
-  @ApiPropertyOptional({ example: 'Ruang Poli Umum 1' })
+  @ApiPropertyOptional({ example: 'Ruang Konsultasi 1' })
   clinicRoomName?: string;
 
-  @ApiProperty({ nullable: true, example: 'Ruang Poli Umum 1' })
+  @ApiProperty({ nullable: true, example: 'Ruang Konsultasi 1' })
   roomName: string | null;
 
   @ApiProperty({ nullable: true, example: 'Gedung Utama' })
   roomLocation: string | null;
 
-  @ApiProperty({ nullable: true, example: 'Poli Umum' })
+  @ApiProperty({ nullable: true, example: 'Unit Layanan 1' })
   poliklinikName: string | null;
 
   @ApiProperty({ example: 'Pemeriksaan Baru' })
@@ -1121,7 +1121,7 @@ export class AdminSessionPatientsClinicRoom {
   @ApiProperty({ example: 'e4b2d189-9a71-46f9-8d77-628a8d11e5a1' })
   id: string;
 
-  @ApiProperty({ example: 'Ruang Poli Umum 1' })
+  @ApiProperty({ example: 'Ruang Konsultasi 1' })
   name: string;
 
   @ApiProperty({ nullable: true, example: 'Lantai 1' })

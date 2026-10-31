@@ -110,7 +110,6 @@ export class AttendanceExportSource implements ExportSource {
 
     const isPrivileged = userRolePerms.some(
       (r) =>
-        r.roleCode === 'admin' ||
         r.permCode === 'attendance:review' ||
         r.permCode === 'attendance:manage' ||
         r.permCode === '*',

@@ -44,6 +44,7 @@ interface AuthenticatedUserRole {
   tier?: RoleTier;
   audience: RoleAudience;
   isClinical?: boolean;
+  isSystem?: boolean;
 }
 
 export interface AuthenticatedUser {
@@ -65,7 +66,10 @@ export interface AuthenticatedUser {
  * Type guard for Admin principal (Super Administrator or wildcard permission holder).
  */
 export function isAdminUser(user: AuthenticatedUser): boolean {
-  return user.roleCode === 'admin' || (user.permissions?.includes('*') ?? false);
+  return (
+    user.role?.isSystem === true ||
+    (user.permissions?.includes('*') ?? false)
+  );
 }
 
 /**
@@ -75,20 +79,6 @@ export function isStaffUser(
   user: AuthenticatedUser,
 ): user is AuthenticatedUser & { staff: AuthenticatedStaffProfile } {
   return user.audience === ROLE_AUDIENCE.INTERNAL && user.staff !== null;
-}
-
-/**
- * Type guard for Clinical staff (Doctor, Midwife, or any dynamic clinical role).
- */
-export function isClinicalStaff(
-  user: AuthenticatedUser,
-): user is AuthenticatedUser & {
-  staff: AuthenticatedStaffProfile;
-} {
-  return (
-    isStaffUser(user) &&
-    (user.staff.isClinical === true || Boolean(user.staff.practitionerId))
-  );
 }
 
 /**

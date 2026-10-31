@@ -13,7 +13,7 @@ export class QueryClinicAnalyticsDto {
   year?: number;
 
   @ApiPropertyOptional({
-    example: 'POLI-ANAK',
+    example: 'UNIT-KONSULTASI',
     description: 'ID atau kode unit poliklinik untuk filter statistik spesifik',
   })
   @IsString()

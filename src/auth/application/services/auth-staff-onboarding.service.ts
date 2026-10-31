@@ -146,13 +146,6 @@ export class AuthStaffOnboardingService {
       if (invRole) {
         effectiveRole = invRole;
       }
-    } else if (pendingInvitation?.roleCode) {
-      const invRole = await this.db.query.roles.findFirst({
-        where: eq(roles.code, pendingInvitation.roleCode),
-      });
-      if (invRole) {
-        effectiveRole = invRole;
-      }
     }
 
     const roleCode = effectiveRole?.code ?? null;

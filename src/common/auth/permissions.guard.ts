@@ -39,7 +39,7 @@ export class PermissionsGuard implements CanActivate {
     }
 
     // Super Administrator or wildcard permission holder has full access
-    if (user.roleCode === 'admin' || user.permissions?.includes('*')) {
+    if (user.role?.isSystem || user.permissions?.includes('*')) {
       return true;
     }
 

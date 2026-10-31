@@ -161,6 +161,7 @@ async function main(): Promise<void> {
         COALESCE(r_ur.code, r_sp.code) as role_code, 
         COALESCE(r_ur.name, r_sp.name) as role_name,
         COALESCE(r_ur.audience, r_sp.audience) as role_audience,
+        COALESCE(r_ur.is_system, r_sp.is_system, false) as role_is_system,
         sp.id as staff_id,
         sp.position_title,
         sp.staff_code,
@@ -208,7 +209,7 @@ async function main(): Promise<void> {
     // Determine role code and macro systemRole for backwards compatibility
     const roleCode = user.role_code || (user.staff_id ? 'staff' : 'patient');
     const systemRole =
-      roleCode === 'admin'
+      user.role_is_system
         ? 'ADMIN'
         : user.staff_id || user.role_audience === 'internal'
           ? 'STAF'

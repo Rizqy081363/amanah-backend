@@ -8,11 +8,7 @@ import {
   CLINIC_REPOSITORY,
   ClinicRepository,
 } from '../domain/repositories/clinic.repository';
-import { CreateClinicDto } from '../presentation/dto/create-clinic.dto';
-import { CreateLayananDto } from '../presentation/dto/create-layanan.dto';
 import { ServiceCatalogResponseDto } from '../presentation/dto/service-catalog.dto';
-import { UpdateClinicDto } from '../presentation/dto/update-clinic.dto';
-import { UpdateLayananDto } from '../presentation/dto/update-layanan.dto';
 
 const CLINIC_CACHE_TTL_SECONDS = 300; // 5 minutes catalog cache
 const CLINIC_CACHE_PREFIX = 'clinics';
@@ -51,32 +47,6 @@ export class ClinicsService {
     return clinic;
   }
 
-  async createPoliklinik(dto: CreateClinicDto): Promise<PoliklinikEntity> {
-    const created = await this.clinicRepo.createPoliklinik(dto);
-    await this.invalidateClinicsCache();
-    return created;
-  }
-
-  async updatePoliklinik(
-    id: string,
-    dto: UpdateClinicDto,
-  ): Promise<PoliklinikEntity> {
-    const updated = await this.clinicRepo.updatePoliklinik(id, dto);
-    if (!updated) {
-      throw new NotFoundException(`Poliklinik dengan ID ${id} tidak ditemukan`);
-    }
-    await this.invalidateClinicsCache();
-    return updated;
-  }
-
-  async deletePoliklinik(id: string): Promise<void> {
-    const success = await this.clinicRepo.deletePoliklinik(id);
-    if (!success) {
-      throw new NotFoundException(`Poliklinik dengan ID ${id} tidak ditemukan`);
-    }
-    await this.invalidateClinicsCache();
-  }
-
   async findLayananByPoliId(
     poliklinikId: string,
   ): Promise<LayananPoliEntity[]> {
@@ -96,35 +66,6 @@ export class ClinicsService {
     return layanan;
   }
 
-  async createLayanan(
-    poliklinikId: string,
-    dto: CreateLayananDto,
-  ): Promise<LayananPoliEntity> {
-    const created = await this.clinicRepo.createLayanan(poliklinikId, dto);
-    await this.invalidateClinicsCache();
-    return created;
-  }
-
-  async updateLayanan(
-    id: string,
-    dto: UpdateLayananDto,
-  ): Promise<LayananPoliEntity> {
-    const updated = await this.clinicRepo.updateLayanan(id, dto);
-    if (!updated) {
-      throw new NotFoundException(`Layanan dengan ID ${id} tidak ditemukan`);
-    }
-    await this.invalidateClinicsCache();
-    return updated;
-  }
-
-  async deleteLayanan(id: string): Promise<void> {
-    const success = await this.clinicRepo.deleteLayanan(id);
-    if (!success) {
-      throw new NotFoundException(`Layanan dengan ID ${id} tidak ditemukan`);
-    }
-    await this.invalidateClinicsCache();
-  }
-
   async getCatalog(): Promise<ServiceCatalogResponseDto> {
     const categories = await this.clinicRepo.getCatalog();
     return {
@@ -133,7 +74,7 @@ export class ClinicsService {
     };
   }
 
-  private async invalidateClinicsCache(): Promise<void> {
+  async invalidateClinicsCache(): Promise<void> {
     try {
       await Promise.all([
         this.redisService.deleteByPrefix(CLINIC_CACHE_PREFIX),

@@ -456,7 +456,7 @@ export class SessionDefImpactDoctorDayDto {
 
   @ApiPropertyOptional({
     description: 'Nama ruangan praktik preferensi',
-    example: 'Ruang Poli Umum 1',
+    example: 'Ruang Konsultasi 1',
   })
   @IsOptional()
   @IsString()

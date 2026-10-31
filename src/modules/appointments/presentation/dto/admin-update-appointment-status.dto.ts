@@ -20,7 +20,7 @@ export class AdminUpdateAppointmentStatusDto {
 
   @ApiPropertyOptional({
     description: 'Catatan atau alasan perubahan status',
-    example: 'Pasien dipanggil masuk ke Ruang Poli Umum 1',
+    example: 'Pasien dipanggil masuk ke Ruang Konsultasi 1',
   })
   @IsOptional()
   @IsString()

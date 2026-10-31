@@ -10,7 +10,7 @@ export enum TicketPriorityEnum {
 
 export class CreateSupportTicketDto {
   @ApiProperty({
-    example: 'Scanner QR poliklinik anak lambat membaca kode',
+    example: 'Scanner QR presensi lambat membaca kode',
     description: 'Judul ringkas kendala teknis yang dilaporkan',
   })
   @IsString()
@@ -19,7 +19,7 @@ export class CreateSupportTicketDto {
 
   @ApiPropertyOptional({
     example:
-      'Kamera scanner di tablet poli anak membutuhkan waktu lebih dari 10 detik atau blank saat memindai QR presensi.',
+      'Kamera scanner di tablet presensi membutuhkan waktu lebih dari 10 detik atau blank saat memindai QR presensi.',
     description: 'Penjelasan detail mengenai kendala teknis yang dialami',
   })
   @IsString()

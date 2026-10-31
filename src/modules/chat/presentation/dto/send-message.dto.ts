@@ -11,7 +11,7 @@ import {
 export class SendMessageDto {
   @ApiProperty({
     description: 'Text content of the chat message',
-    example: 'Halo, apakah poli anak buka hari ini?',
+    example: 'Halo, apakah layanan spesialis buka hari ini?',
     maxLength: 4000,
   })
   @IsString()

@@ -170,9 +170,9 @@ export class AuthUserMapper {
       : null;
 
     let needsOnboarding = false;
-    if (roleCode === 'admin') {
+    if (role?.isSystem) {
       needsOnboarding = false;
-    } else if (audience === ROLE_AUDIENCE.INTERNAL || Boolean(s)) {
+    } else if (audience === ROLE_AUDIENCE.INTERNAL || s) {
       if (hasPendingInvitation) {
         needsOnboarding = true;
       } else if (!s || s.status === STAFF_STATUS.INACTIVE) {

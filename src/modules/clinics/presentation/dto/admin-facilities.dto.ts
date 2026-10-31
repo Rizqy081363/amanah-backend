@@ -14,13 +14,13 @@ import {
 } from 'class-validator';
 
 export class CreateFacilityUnitDto {
-  @ApiProperty({ example: 'Poli Umum', description: 'Nama unit atau poliklinik' })
+  @ApiProperty({ example: 'Unit Konsultasi 1', description: 'Nama unit atau poliklinik' })
   @IsString()
   @IsNotEmpty({ message: 'Nama unit tidak boleh kosong' })
   name: string;
 
   @ApiProperty({
-    example: 'poli_umum',
+    example: 'unit_konsultasi_1',
     description: 'Kode unik unit (huruf kecil, angka, underscore)',
   })
   @IsString()
@@ -67,12 +67,12 @@ export class CreateFacilityUnitDto {
 }
 
 export class UpdateFacilityUnitDto {
-  @ApiPropertyOptional({ example: 'Poli Umum & Anak' })
+  @ApiPropertyOptional({ example: 'Unit Konsultasi Terpadu' })
   @IsString()
   @IsOptional()
   name?: string;
 
-  @ApiPropertyOptional({ example: 'poli_umum' })
+  @ApiPropertyOptional({ example: 'unit_terpadu' })
   @IsString()
   @IsOptional()
   @Matches(/^[a-z][a-z0-9_]*$/, {

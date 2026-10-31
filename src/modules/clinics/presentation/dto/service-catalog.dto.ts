@@ -76,7 +76,7 @@ export class ServiceCatalogItemDto {
   })
   poliklinikId: string;
 
-  @ApiProperty({ description: 'Nama poliklinik', example: 'Poli Umum' })
+  @ApiProperty({ description: 'Nama poliklinik', example: 'Unit Layanan Primer' })
   poliklinikName: string;
 
   @ApiProperty({
@@ -125,7 +125,7 @@ export class ServiceCategoryCatalogDto {
   })
   poliklinikId: string;
 
-  @ApiProperty({ description: 'Nama poliklinik induk', example: 'Poli Umum' })
+  @ApiProperty({ description: 'Nama poliklinik induk', example: 'Unit Layanan Primer' })
   poliklinikName: string;
 
   @ApiProperty({
