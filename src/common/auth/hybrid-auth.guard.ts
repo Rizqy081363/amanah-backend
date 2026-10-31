@@ -132,8 +132,12 @@ export class HybridAuthGuard extends AuthGuard('jwt') implements CanActivate {
 
       const staffProfile = userRecord.staffProfiles?.[0];
       const patientProfile = userRecord.patientProfiles?.[0];
+      const activeUserRoles = (userRecord.userRoles_userId || []).filter(
+        (ur) => ur.role?.isActive,
+      );
       let primaryRole =
-        userRecord.userRoles_userId?.[0]?.role ?? staffProfile?.role ?? null;
+        activeUserRoles[0]?.role ??
+        (staffProfile?.role?.isActive ? staffProfile.role : null);
 
       if (!primaryRole && !staffProfile) {
         const activeExternalRole = await this.db.query.roles.findFirst({
@@ -167,7 +171,7 @@ export class HybridAuthGuard extends AuthGuard('jwt') implements CanActivate {
       const audience: RoleAudience | null =
         (primaryRole?.audience as RoleAudience) ?? null;
 
-      const userRoleCodes = (userRecord.userRoles_userId || [])
+      const userRoleCodes = activeUserRoles
         .map((ur) => ur.role?.code)
         .filter((code): code is string => Boolean(code));
       if (userRoleCodes.length === 0 && primaryRole?.code) {
@@ -177,7 +181,7 @@ export class HybridAuthGuard extends AuthGuard('jwt') implements CanActivate {
       const systemRole = roleCode;
 
       const permissionSet = new Set<string>();
-      for (const ur of userRecord.userRoles_userId || []) {
+      for (const ur of activeUserRoles) {
         for (const rp of ur.role?.rolePermissions || []) {
           if (rp.permission?.code) permissionSet.add(rp.permission.code);
         }
@@ -187,7 +191,7 @@ export class HybridAuthGuard extends AuthGuard('jwt') implements CanActivate {
           if (rp.permission?.code) permissionSet.add(rp.permission.code);
         }
       }
-      if (staffProfile?.role) {
+      if (staffProfile?.role?.isActive) {
         for (const rp of staffProfile.role.rolePermissions || []) {
           if (rp.permission?.code) permissionSet.add(rp.permission.code);
         }

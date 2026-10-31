@@ -83,6 +83,29 @@ const trustedOrigins = [
   ...betterAuthOriginPolicy.patterns,
 ];
 
+export type BetterAuthUserCreatedParams = {
+  userId: string;
+  name: string;
+  email: string;
+  roleId: string;
+  roleName: string;
+  roleCode: string;
+  audience: string;
+  avatarUrl?: string | null;
+};
+
+export type BetterAuthUserCreatedCallback = (
+  params: BetterAuthUserCreatedParams,
+) => Promise<void> | void;
+
+let onBetterAuthUserCreated: BetterAuthUserCreatedCallback | null = null;
+
+export function registerBetterAuthUserCreatedHook(
+  cb: BetterAuthUserCreatedCallback,
+): void {
+  onBetterAuthUserCreated = cb;
+}
+
 export const auth = betterAuth({
   appName: 'Amanah Healthcare',
   baseURL: {
@@ -194,7 +217,7 @@ export const auth = betterAuth({
           try {
             // Dynamically query external role from PostgreSQL (prioritize default if designated)
             const roleRes = await client.query(
-              `SELECT id, code, audience FROM roles WHERE audience = 'external' AND is_active = true ORDER BY is_default DESC, created_at ASC LIMIT 1`
+              `SELECT id, code, name, audience FROM roles WHERE audience = 'external' AND is_active = true ORDER BY is_default DESC, created_at ASC LIMIT 1`
             );
             const externalRole = roleRes.rows[0];
 
@@ -214,6 +237,26 @@ export const auth = betterAuth({
                  ON CONFLICT DO NOTHING`,
                 [createdUser.id, externalRole.id]
               );
+
+              if (onBetterAuthUserCreated) {
+                try {
+                  await onBetterAuthUserCreated({
+                    userId: createdUser.id,
+                    name: createdUser.name,
+                    email: createdUser.email,
+                    roleId: externalRole.id,
+                    roleName: externalRole.name,
+                    roleCode: externalRole.code,
+                    audience: externalRole.audience,
+                    avatarUrl: createdUser.image,
+                  });
+                } catch (publishErr) {
+                  console.error(
+                    '[BetterAuth:databaseHooks] Failed to publish user provisioned event:',
+                    publishErr,
+                  );
+                }
+              }
             }
           } catch (err) {
             console.error('[BetterAuth:databaseHooks] Failed to sync created user to users/user_roles:', err);

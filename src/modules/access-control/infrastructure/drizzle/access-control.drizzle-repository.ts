@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { and, asc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
@@ -374,6 +374,61 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
       }
     }
 
+    // Administrative Lockout Prevention:
+    // If deactivating a role, ensure that at least one other active user retains the 'roles:manage' permission.
+    if (data.isActive === false && existing.isActive === true) {
+      const currentRolePerms = await this.getEffectivePermissionsByRoleId(id);
+      if (currentRolePerms.includes('roles:manage')) {
+        const allRoles = await this.findAllRoles();
+        const otherManagerRoleIds = allRoles
+          .filter(
+            (r) =>
+              r.id !== id &&
+              r.isActive &&
+              r.effectivePermissionCodes?.includes('roles:manage'),
+          )
+          .map((r) => r.id);
+
+        let otherActiveManagersCount = 0;
+        if (otherManagerRoleIds.length > 0) {
+          const userRoleManagers = await this.db
+            .select({ userId: userRoles.userId })
+            .from(userRoles)
+            .where(
+              and(
+                inArray(userRoles.roleId, otherManagerRoleIds),
+                isNull(userRoles.revokedAt),
+              ),
+            );
+
+          const staffManagers = await this.db
+            .select({ userId: staffProfiles.userId })
+            .from(staffProfiles)
+            .where(
+              and(
+                inArray(staffProfiles.roleId, otherManagerRoleIds),
+                isNotNull(staffProfiles.userId),
+              ),
+            );
+
+          const distinctManagerIds = new Set<string>();
+          for (const ur of userRoleManagers) {
+            if (ur.userId) distinctManagerIds.add(ur.userId);
+          }
+          for (const sp of staffManagers) {
+            if (sp.userId) distinctManagerIds.add(sp.userId);
+          }
+          otherActiveManagersCount = distinctManagerIds.size;
+        }
+
+        if (otherActiveManagersCount === 0) {
+          throw new BadRequestException(
+            'Tidak dapat menonaktifkan peran ini karena ini adalah satu-satunya peran aktif yang memiliki hak akses manajemen peran (roles:manage). Tindakan ini dicegah untuk menghindari administrative lockout.',
+          );
+        }
+      }
+    }
+
     if (data.isDefault) {
       const targetAudience = (data.audience as RoleAudience) ?? existing.audience;
       await this.db
@@ -617,7 +672,7 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
 
   async getEffectivePermissionsByRoleId(roleId: string): Promise<string[]> {
     const role = await this.findRoleById(roleId);
-    if (!role) return [];
+    if (!role || !role.isActive) return [];
     if (role.isSystem) {
       const allPerms = await this.findAllPermissions();
       return allPerms.map((p) => p.code);
@@ -642,10 +697,13 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
 
     const distinctRoleIds = new Set<string>();
     for (const ur of userRoleRecords) {
-      if (ur.roleId) distinctRoleIds.add(ur.roleId);
+      if (ur.roleId && ur.role?.isActive) distinctRoleIds.add(ur.roleId);
     }
     if (staffRecord?.roleId) {
-      distinctRoleIds.add(staffRecord.roleId);
+      const staffRole = await this.findRoleById(staffRecord.roleId);
+      if (staffRole?.isActive) {
+        distinctRoleIds.add(staffRecord.roleId);
+      }
     }
 
     const effectiveSet = new Set<string>();

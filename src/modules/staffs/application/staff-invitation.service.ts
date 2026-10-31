@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 import {
+  BadRequestException,
   Inject,
   Injectable,
   Logger,
@@ -41,6 +42,7 @@ import {
   REALTIME_ROOMS,
 } from '../../notifications/notifications.constants';
 import { SocketIoRealtimeGateway } from '../../notifications/infrastructure/realtime/socket-io-realtime.gateway';
+import { UserProvisionedNotificationPublisher } from '../../../auth/application/publishers/user-provisioned-notification.publisher';
 import { USER_STATUS } from '../../../common/constants/user-status.constants';
 import { StaffInvitationEntity } from '../domain/entities/staff-invitation.entity';
 import {
@@ -70,6 +72,8 @@ export class StaffInvitationService {
     private readonly realtimeGateway?: SocketIoRealtimeGateway,
     @Optional()
     private readonly clinicTimeService?: ClinicTimeService,
+    @Optional()
+    private readonly userProvisionedNotificationPublisher?: UserProvisionedNotificationPublisher,
   ) {}
 
   private getNowDate(): Date {
@@ -104,7 +108,10 @@ export class StaffInvitationService {
     clinicUnits: Array<{ id: string; name: string; code: string; unitType?: string; iconName?: string }>;
   }> {
     const staffRoles = await this.db.query.roles.findMany({
-      where: eq(roles.audience, ROLE_AUDIENCE.INTERNAL),
+      where: and(
+        eq(roles.audience, ROLE_AUDIENCE.INTERNAL),
+        eq(roles.isActive, true),
+      ),
       orderBy: [asc(roles.name)],
     });
 
@@ -164,6 +171,11 @@ export class StaffInvitationService {
     if (!targetRole) {
       throw new NotFoundException(`Peran dengan ID ${dto.roleId} tidak ditemukan`);
     }
+    if (!targetRole.isActive) {
+      throw new BadRequestException(
+        'Peran yang dipilih sedang dinonaktifkan dan tidak dapat digunakan untuk penugasan undangan baru.',
+      );
+    }
 
     const isClinical = targetRole.isClinical;
     const roleCode = targetRole.code;
@@ -184,11 +196,13 @@ export class StaffInvitationService {
     ); // 7 days
 
     // 2. Create or update user account
+    let isNewUserCreated = false;
     let userRecord = await this.db.query.users.findFirst({
       where: eq(users.email, email),
     });
 
     if (!userRecord) {
+      isNewUserCreated = true;
       const [newUser] = await this.db
         .insert(users)
         .values({
@@ -410,6 +424,25 @@ export class StaffInvitationService {
         'staff:updated',
         realtimePayload,
       );
+
+      if (isNewUserCreated && this.userProvisionedNotificationPublisher) {
+        void this.userProvisionedNotificationPublisher.publishUserProvisioned({
+          userId: userRecord.id,
+          name: staffName,
+          email,
+          roleId: targetRole.id,
+          roleName: targetRole.name,
+          roleCode: targetRole.code,
+          audience: targetRole.audience,
+          actorUserId: adminUserId,
+        });
+      } else {
+        void this.realtimeGateway?.emitToRoom?.(
+          REALTIME_ROOMS.clinic,
+          'roles:updated',
+          { roleId: targetRole.id, action: 'staff_invited' },
+        );
+      }
     } catch (realtimeErr) {
       this.logger.warn(
         `Failed to emit staff:invited realtime event: ${String(realtimeErr)}`,

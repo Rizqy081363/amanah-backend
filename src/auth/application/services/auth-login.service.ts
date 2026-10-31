@@ -38,6 +38,7 @@ import { LoginResponseDto } from '../../dto/login-response.dto';
 import { RefreshResponseDto } from '../../dto/refresh-response.dto';
 import { GoogleTokenVerifierService } from '../../services/google-token-verifier.service';
 import { IdentityEnrollmentService } from './identity-enrollment.service';
+import { UserProvisionedNotificationPublisher } from '../publishers/user-provisioned-notification.publisher';
 import { AuthUserMapper } from '../mappers/auth-user.mapper';
 import { SocketIoRealtimeGateway } from '../../../modules/notifications/infrastructure/realtime/socket-io-realtime.gateway';
 import { REALTIME_ROOMS } from '../../../modules/notifications/notifications.constants';
@@ -54,6 +55,8 @@ export class AuthLoginService {
     private readonly identityEnrollmentService: IdentityEnrollmentService,
     @Optional()
     private readonly realtimeGateway?: SocketIoRealtimeGateway,
+    @Optional()
+    private readonly userProvisionedNotificationPublisher?: UserProvisionedNotificationPublisher,
   ) {}
 
   async validateLogin(loginDto: AuthEmailLoginDto): Promise<LoginResponseDto> {
@@ -125,7 +128,8 @@ export class AuthLoginService {
       });
     }
 
-    let primaryRole = user.userRoles_userId?.[0]?.role ?? null;
+    let primaryRole =
+      user.userRoles_userId?.find((ur) => ur.role?.isActive)?.role ?? null;
     if (!primaryRole || !primaryRole.isActive) {
       const isStaff =
         (user.staffProfiles && user.staffProfiles.length > 0) ||
@@ -162,6 +166,14 @@ export class AuthLoginService {
             'Akun Anda belum memiliki peran aktif di sistem klinik. Hubungi administrator klinik.',
         });
       }
+    }
+
+    if (!primaryRole) {
+      throw new ForbiddenException({
+        code: 'AUTH_USER_HAS_NO_ROLE',
+        message:
+          'Akun Anda belum memiliki peran aktif di sistem klinik. Hubungi administrator klinik.',
+      });
     }
 
     const roleCode = primaryRole.code ?? null;
@@ -361,15 +373,31 @@ export class AuthLoginService {
         userId,
         roleId: targetRole.id,
       });
-      void this.realtimeGateway?.emitToRoom?.(
-        REALTIME_ROOMS.clinic,
-        'roles:updated',
-        { roleId: targetRole.id, action: 'user_registered' },
-      );
+
+      if (this.userProvisionedNotificationPublisher) {
+        void this.userProvisionedNotificationPublisher.publishUserProvisioned({
+          userId,
+          name: displayName,
+          email,
+          roleId: targetRole.id,
+          roleName: targetRole.name,
+          roleCode: targetRole.code,
+          audience: targetRole.audience,
+          avatarUrl: verifiedGoogle.picture || null,
+        });
+      } else {
+        void this.realtimeGateway?.emitToRoom?.(
+          REALTIME_ROOMS.clinic,
+          'roles:updated',
+          { roleId: targetRole.id, action: 'user_registered' },
+        );
+      }
     } else {
       userId = userRecord.id;
 
-      let existingRole = userRecord.userRoles_userId?.[0]?.role ?? null;
+      let existingRole =
+        userRecord.userRoles_userId?.find((ur) => ur.role?.isActive)?.role ??
+        null;
       if (!existingRole || !existingRole.isActive) {
         const isStaff =
           (userRecord.staffProfiles && userRecord.staffProfiles.length > 0) ||

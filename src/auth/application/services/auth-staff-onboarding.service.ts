@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Inject,
   Injectable,
   Logger,
@@ -144,8 +145,22 @@ export class AuthStaffOnboardingService {
         where: eq(roles.id, pendingInvitation.roleId),
       });
       if (invRole) {
+        if (!invRole.isActive) {
+          throw new ForbiddenException({
+            code: 'INVITATION_ROLE_INACTIVE',
+            message:
+              'Peran yang ditugaskan dalam undangan ini sudah tidak aktif atau telah dihapus.',
+          });
+        }
         effectiveRole = invRole;
       }
+    }
+
+    if (effectiveRole && !effectiveRole.isActive) {
+      throw new ForbiddenException({
+        code: 'ROLE_INACTIVE',
+        message: 'Peran akun Anda saat ini sedang dinonaktifkan.',
+      });
     }
 
     const roleCode = effectiveRole?.code ?? null;

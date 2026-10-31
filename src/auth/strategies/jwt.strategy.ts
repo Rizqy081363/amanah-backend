@@ -72,10 +72,14 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     const staffProfile = user.staffProfiles?.[0];
     const patientProfile = user.patientProfiles?.[0];
 
+    const activeUserRoles = (user.userRoles_userId || []).filter(
+      (ur) => ur.role?.isActive,
+    );
     const primaryRole =
-      user.userRoles_userId?.[0]?.role ?? staffProfile?.role ?? null;
+      activeUserRoles[0]?.role ??
+      (staffProfile?.role?.isActive ? staffProfile.role : null);
 
-    if (!primaryRole || !primaryRole.isActive) {
+    if (!primaryRole) {
       throw new UnauthorizedException(
         'Sesi tidak valid: Akun Anda tidak memiliki peran aktif di sistem.',
       );
@@ -91,19 +95,19 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       );
     }
 
-    const userRoleCodes = (user.userRoles_userId || [])
+    const userRoleCodes = activeUserRoles
       .map((ur) => ur.role?.code)
       .filter((code): code is string => Boolean(code));
     const roleCode = primaryRole?.code ?? null;
     const systemRole = roleCode;
 
     const permissionSet = new Set<string>();
-    for (const ur of user.userRoles_userId || []) {
+    for (const ur of activeUserRoles) {
       for (const rp of ur.role?.rolePermissions || []) {
         if (rp.permission?.code) permissionSet.add(rp.permission.code);
       }
     }
-    if (staffProfile?.role) {
+    if (staffProfile?.role?.isActive) {
       for (const rp of staffProfile.role.rolePermissions || []) {
         if (rp.permission?.code) permissionSet.add(rp.permission.code);
       }

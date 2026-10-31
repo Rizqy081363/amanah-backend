@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import {
   ACCESS_CONTROL_REPOSITORY,
   AccessControlRepository,
@@ -8,12 +8,16 @@ import {
 import { RoleAudience, RoleEntity } from '../../domain/entities/role.entity';
 import { PermissionEntity } from '../../domain/entities/permission.entity';
 import { ApplicationPageEntity } from '../../domain/entities/application-page.entity';
+import { SocketIoRealtimeGateway } from '../../../notifications/infrastructure/realtime/socket-io-realtime.gateway';
+import { REALTIME_ROOMS } from '../../../notifications/notifications.constants';
 
 @Injectable()
 export class AccessControlService {
   constructor(
     @Inject(ACCESS_CONTROL_REPOSITORY)
     private readonly repository: AccessControlRepository,
+    @Optional()
+    private readonly realtimeGateway?: SocketIoRealtimeGateway,
   ) {}
 
   async getAllRoles(): Promise<RoleEntity[]> {
@@ -33,15 +37,36 @@ export class AccessControlService {
   }
 
   async createRole(data: CreateRoleInput): Promise<RoleEntity> {
-    return this.repository.createRole(data);
+    const created = await this.repository.createRole(data);
+    void this.realtimeGateway?.emitToRoom?.(
+      REALTIME_ROOMS.clinic,
+      'roles:updated',
+      { roleId: created.id, action: 'created' },
+    );
+    return created;
   }
 
   async updateRole(id: string, data: UpdateRoleInput): Promise<RoleEntity> {
-    return this.repository.updateRole(id, data);
+    const updated = await this.repository.updateRole(id, data);
+    void this.realtimeGateway?.emitToRoom?.(
+      REALTIME_ROOMS.clinic,
+      'roles:updated',
+      {
+        roleId: id,
+        action: data.isActive !== undefined ? 'toggled' : 'updated',
+        isActive: updated.isActive,
+      },
+    );
+    return updated;
   }
 
   async deleteRole(id: string): Promise<void> {
-    return this.repository.deleteRole(id);
+    await this.repository.deleteRole(id);
+    void this.realtimeGateway?.emitToRoom?.(
+      REALTIME_ROOMS.clinic,
+      'roles:updated',
+      { roleId: id, action: 'deleted' },
+    );
   }
 
   async getAllPermissions(): Promise<PermissionEntity[]> {
@@ -65,6 +90,11 @@ export class AccessControlService {
     permissionIds: string[],
   ): Promise<RoleEntity> {
     await this.repository.assignPermissionsToRole(roleId, permissionIds);
+    void this.realtimeGateway?.emitToRoom?.(
+      REALTIME_ROOMS.clinic,
+      'roles:updated',
+      { roleId, action: 'permissions_assigned' },
+    );
     return this.getRoleById(roleId);
   }
 
@@ -73,6 +103,11 @@ export class AccessControlService {
     permissionId: string,
   ): Promise<RoleEntity> {
     await this.repository.addPermissionToRole(roleId, permissionId);
+    void this.realtimeGateway?.emitToRoom?.(
+      REALTIME_ROOMS.clinic,
+      'roles:updated',
+      { roleId, action: 'permission_added' },
+    );
     return this.getRoleById(roleId);
   }
 
@@ -81,6 +116,11 @@ export class AccessControlService {
     permissionId: string,
   ): Promise<RoleEntity> {
     await this.repository.removePermissionFromRole(roleId, permissionId);
+    void this.realtimeGateway?.emitToRoom?.(
+      REALTIME_ROOMS.clinic,
+      'roles:updated',
+      { roleId, action: 'permission_removed' },
+    );
     return this.getRoleById(roleId);
   }
 
@@ -97,7 +137,13 @@ export class AccessControlService {
   }
 
   async togglePage(id: string, isEnabled: boolean): Promise<ApplicationPageEntity> {
-    return this.repository.togglePageEnabled(id, isEnabled);
+    const page = await this.repository.togglePageEnabled(id, isEnabled);
+    void this.realtimeGateway?.emitToRoom?.(
+      REALTIME_ROOMS.clinic,
+      'roles:updated',
+      { pageId: id, action: 'page_toggled' },
+    );
+    return page;
   }
 
   async getRolePageIds(roleId: string): Promise<string[]> {
@@ -111,6 +157,11 @@ export class AccessControlService {
   ): Promise<string[]> {
     await this.getRoleById(roleId);
     await this.repository.assignPagesToRole(roleId, pageIds);
+    void this.realtimeGateway?.emitToRoom?.(
+      REALTIME_ROOMS.clinic,
+      'roles:updated',
+      { roleId, action: 'pages_assigned' },
+    );
     return this.getRolePageIds(roleId);
   }
 

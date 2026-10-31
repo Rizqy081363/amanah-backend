@@ -15,10 +15,14 @@ export class AuthUserMapper {
   ): AuthUserResponseDto {
     const { authAccounts: _authAccounts, ...sanitizedUser } = userRecord;
 
+    const activeRoles = (sanitizedUser.userRoles_userId || []).filter(
+      (ur: any) => ur.role?.isActive,
+    );
     const role =
-      sanitizedUser.userRoles_userId?.[0]?.role ??
-      sanitizedUser.staffProfiles?.[0]?.role ??
-      null;
+      activeRoles[0]?.role ??
+      (sanitizedUser.staffProfiles?.[0]?.role?.isActive
+        ? sanitizedUser.staffProfiles[0].role
+        : null);
     const roleCode = role?.code ?? null;
     const audience: RoleAudience | null = role?.audience ?? null;
     const s = sanitizedUser.staffProfiles?.[0];
@@ -188,12 +192,12 @@ export class AuthUserMapper {
     }
 
     const permissionSet = new Set<string>();
-    for (const ur of sanitizedUser.userRoles_userId || []) {
+    for (const ur of activeRoles) {
       for (const rp of ur.role?.rolePermissions || []) {
         if (rp.permission?.code) permissionSet.add(rp.permission.code);
       }
     }
-    if (s?.role) {
+    if (s?.role?.isActive) {
       for (const rp of s.role.rolePermissions || []) {
         if (rp.permission?.code) permissionSet.add(rp.permission.code);
       }

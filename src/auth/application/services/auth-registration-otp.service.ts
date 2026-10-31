@@ -37,6 +37,7 @@ import { AuthResetPasswordOtpDto } from '../../dto/auth-reset-password-otp.dto';
 import { AuthVerifyOtpDto } from '../../dto/auth-verify-otp.dto';
 import { RequestEmailChangeDto } from '../../dto/request-email-change.dto';
 import { IdentityEnrollmentService } from './identity-enrollment.service';
+import { UserProvisionedNotificationPublisher } from '../publishers/user-provisioned-notification.publisher';
 import { SocketIoRealtimeGateway } from '../../../modules/notifications/infrastructure/realtime/socket-io-realtime.gateway';
 import { REALTIME_ROOMS } from '../../../modules/notifications/notifications.constants';
 import { Optional } from '@nestjs/common';
@@ -53,6 +54,8 @@ export class AuthRegistrationOtpService {
     private readonly identityEnrollmentService: IdentityEnrollmentService,
     @Optional()
     private readonly realtimeGateway?: SocketIoRealtimeGateway,
+    @Optional()
+    private readonly userProvisionedNotificationPublisher?: UserProvisionedNotificationPublisher,
   ) {}
 
   async register(dto: AuthRegisterLoginDto): Promise<void> {
@@ -100,11 +103,24 @@ export class AuthRegistrationOtpService {
       roleId: externalRole.id,
     });
 
-    void this.realtimeGateway?.emitToRoom?.(
-      REALTIME_ROOMS.clinic,
-      'roles:updated',
-      { roleId: externalRole.id, action: 'user_registered' },
-    );
+    if (this.userProvisionedNotificationPublisher) {
+      void this.userProvisionedNotificationPublisher.publishUserProvisioned({
+        userId: newUser.id,
+        name: fullName,
+        email: dto.email,
+        roleId: externalRole.id,
+        roleName: externalRole.name,
+        roleCode: externalRole.code,
+        audience: externalRole.audience,
+        avatarUrl: null,
+      });
+    } else {
+      void this.realtimeGateway?.emitToRoom?.(
+        REALTIME_ROOMS.clinic,
+        'roles:updated',
+        { roleId: externalRole.id, action: 'user_registered' },
+      );
+    }
 
     try {
       await this.db.insert(user).values({

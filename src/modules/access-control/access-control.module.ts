@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { ACCESS_CONTROL_REPOSITORY } from './domain/repositories/access-control.repository.interface';
 import { AccessControlDrizzleRepository } from './infrastructure/drizzle/access-control.drizzle-repository';
 import { AccessControlService } from './application/services/access-control.service';
@@ -7,6 +8,7 @@ import { AdminPermissionsController } from './presentation/admin-permissions.con
 import { AdminPagesController } from './presentation/admin-pages.controller';
 
 @Module({
+  imports: [NotificationsModule],
   controllers: [
     AdminRolesController,
     AdminPermissionsController,
