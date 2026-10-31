@@ -405,13 +405,8 @@ export class StaffInvitationService {
         'staff:invited',
         realtimePayload,
       );
-      void this.realtimeGateway?.emitToRole?.(
-        'admin',
-        'staff:invited',
-        realtimePayload,
-      );
-      void this.realtimeGateway?.emitToRole?.(
-        'admin',
+      void this.realtimeGateway?.emitToRoom?.(
+        REALTIME_ROOMS.clinic,
         'staff:updated',
         realtimePayload,
       );
@@ -534,13 +529,8 @@ export class StaffInvitationService {
         'staff:invitation_revoked',
         realtimePayload,
       );
-      void this.realtimeGateway?.emitToRole?.(
-        'admin',
-        'staff:invitation_revoked',
-        realtimePayload,
-      );
-      void this.realtimeGateway?.emitToRole?.(
-        'admin',
+      void this.realtimeGateway?.emitToRoom?.(
+        REALTIME_ROOMS.clinic,
         'staff:updated',
         realtimePayload,
       );

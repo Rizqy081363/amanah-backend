@@ -109,15 +109,7 @@ export class AttendanceNotificationService {
         }
         void this.realtimeGateway.emitToRoom?.(REALTIME_ROOMS.clinic, 'attendance:refresh', { date: record.attendanceDate });
 
-        // B. Target admin role room (Admin Web & Supervisors)
-        void this.realtimeGateway.emitToRole('admin', 'attendance:recorded', payload);
-        void this.realtimeGateway.emitToRole('admin', `attendance:${action}`, payload);
-        if (record.isEarlyDeparture) {
-          void this.realtimeGateway.emitToRole('admin', 'attendance:early_departure', payload);
-        }
-        void this.realtimeGateway.emitToRole('admin', 'attendance:refresh', { date: record.attendanceDate });
-
-        // C. Target staff user personal room
+        // B. Target staff user personal room
         if (staffUserId) {
           void this.realtimeGateway.emitToUser(staffUserId, 'attendance:recorded', payload);
           void this.realtimeGateway.emitToUser(staffUserId, `attendance:${action}`, payload);
@@ -160,14 +152,11 @@ export class AttendanceNotificationService {
             payrollPayload,
           );
         }
-        void this.realtimeGateway.emitToRole(
-          'admin',
+        void this.realtimeGateway.emitToRoom?.(
+          REALTIME_ROOMS.clinic,
           'payroll:shift_earnings_recorded',
           payrollPayload,
         );
-        void this.realtimeGateway.emitToRole('admin', 'payroll:refresh', {
-          date: record.attendanceDate,
-        });
         void this.realtimeGateway.emitToRoom?.(REALTIME_ROOMS.clinic, 'payroll:refresh', {
           date: record.attendanceDate,
         });
@@ -204,9 +193,9 @@ export class AttendanceNotificationService {
           commandId: `att-admin-${action}-${record.id}-${Date.now()}`,
           sourceDomain: NOTIFICATION_SOURCE_DOMAINS.ATTENDANCE,
           channels: ['in_app'],
+          audience: 'internal',
           target: {
-            type: 'role',
-            roles: ['admin'],
+            type: 'broadcast',
           },
           category: 'shift',
           content: {

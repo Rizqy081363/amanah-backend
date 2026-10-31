@@ -185,11 +185,6 @@ export class ChatService {
           'chat:message',
           message,
         );
-        await this.realtimeGateway.emitToRole?.(
-          'admin',
-          'chat:message',
-          message,
-        );
         const recipient = caller?.userId || caller?.guestId;
         if (recipient) {
           await this.realtimeGateway.emitToUser(
@@ -341,13 +336,10 @@ export class ChatService {
   isAdminOnline(): boolean {
     if (
       !this.realtimeGateway ||
-      typeof this.realtimeGateway.isRoleOnline !== 'function'
+      typeof this.realtimeGateway.isRoomOnline !== 'function'
     ) {
       return false;
     }
-    return (
-      this.realtimeGateway.isRoleOnline('admin') ||
-      this.realtimeGateway.isRoleOnline('staf')
-    );
+    return this.realtimeGateway.isRoomOnline(REALTIME_ROOMS.clinic);
   }
 }

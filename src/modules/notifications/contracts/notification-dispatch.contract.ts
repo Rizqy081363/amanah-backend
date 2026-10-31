@@ -10,6 +10,8 @@ interface NotificationTarget {
   type: NotificationTargetType;
   recipientUserIds?: string[];
   roles?: string[];
+  roleId?: string;
+  roleIds?: string[];
   excludedUserIds?: string[];
 }
 

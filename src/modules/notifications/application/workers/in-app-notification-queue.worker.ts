@@ -6,7 +6,7 @@ import {
   OnModuleInit,
   Optional,
 } from '@nestjs/common';
-import { eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import {
   DEFAULT_NOTIFICATION_AUDIENCE,
   NOTIFICATION_AUDIENCE,
@@ -26,6 +26,7 @@ import {
   NotificationEnvelopeV2,
   REALTIME_EVENTS,
   REALTIME_GATEWAY_PORT,
+  REALTIME_ROOMS,
 } from '../../notifications.constants';
 
 @Injectable()
@@ -104,8 +105,14 @@ export class InAppNotificationQueueWorker
     const targetUserIds = await this.resolveTargetUserIds(command);
     const { target, content } = command;
 
-    // 1. Broadcast domain-specific event to role rooms if target is role
-    if (target.type === 'role' && target.roles && target.roles.length > 0) {
+    // 1. Broadcast domain-specific event to role or clinic rooms
+    if (command.audience === NOTIFICATION_AUDIENCE.INTERNAL) {
+      await this.realtimeGateway.emitToRoom?.(
+        REALTIME_ROOMS.clinic,
+        `${command.sourceDomain}:updated`,
+        content.data || {},
+      );
+    } else if (target.type === 'role' && target.roles && target.roles.length > 0) {
       for (const role of target.roles) {
         await this.realtimeGateway.emitToRole(
           role.toLowerCase(),
@@ -258,6 +265,29 @@ export class InAppNotificationQueueWorker
           .where(eq(roles.audience, NOTIFICATION_AUDIENCE.INTERNAL));
 
         recipientIds = [...new Set(rows.map((r) => r.userId))];
+      }
+    }
+
+    if (this.db) {
+      const targetRoleIds = [
+        command.targetRoleId,
+        target.roleId,
+        ...(target.roleIds || []),
+      ].filter((id): id is string => Boolean(id));
+
+      if (targetRoleIds.length > 0) {
+        const rows = await this.db
+          .select({ userId: userRoles.userId })
+          .from(userRoles)
+          .where(
+            and(
+              inArray(userRoles.roleId, targetRoleIds),
+              sql`${userRoles.revokedAt} IS NULL`,
+            ),
+          );
+        recipientIds = [
+          ...new Set([...recipientIds, ...rows.map((r) => r.userId)]),
+        ];
       }
     }
 

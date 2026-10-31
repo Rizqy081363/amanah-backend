@@ -314,6 +314,14 @@ export class SocketIoRealtimeGateway
     return (roomSockets?.size ?? 0) > 0;
   }
 
+  isRoomOnline(roomName: string): boolean {
+    if (!this.server) {
+      return false;
+    }
+    const roomSockets = this.server.sockets?.adapter?.rooms?.get(roomName);
+    return (roomSockets?.size ?? 0) > 0;
+  }
+
   getConnectedUserCount(): number {
     return this.userSockets.size;
   }

@@ -582,15 +582,10 @@ export class DailyLeavePayrollService {
           payload,
         );
       }
-      void this.realtimeGateway.emitToRole?.(
-        'admin',
+      void this.realtimeGateway.emitToRoom?.(
+        REALTIME_ROOMS.clinic,
         'payroll:leave_deduction_applied',
         payload,
-      );
-      void this.realtimeGateway.emitToRole?.(
-        'admin',
-        'payroll:refresh',
-        { date: targetDate },
       );
       void this.realtimeGateway.emitToRoom?.(REALTIME_ROOMS.clinic, 'payroll:refresh', {
         date: targetDate,

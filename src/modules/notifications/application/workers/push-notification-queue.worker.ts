@@ -7,7 +7,7 @@ import {
   OnModuleDestroy,
   OnModuleInit,
 } from '@nestjs/common';
-import { inArray, sql } from 'drizzle-orm';
+import { and, inArray, sql } from 'drizzle-orm';
 import { cert, getApps, initializeApp } from 'firebase-admin/app';
 import { getMessaging } from 'firebase-admin/messaging';
 import * as webpush from 'web-push';
@@ -320,6 +320,29 @@ export class PushNotificationQueueWorker
     } else if (target.type === 'broadcast') {
       const allSubs = await this.pushSubscriptionRepo.findAllActive();
       recipientIds = [...new Set(allSubs.map((s) => s.userId))];
+    }
+
+    if (this.db) {
+      const targetRoleIds = [
+        command.targetRoleId,
+        target.roleId,
+        ...(target.roleIds || []),
+      ].filter((id): id is string => Boolean(id));
+
+      if (targetRoleIds.length > 0) {
+        const rows = await this.db
+          .select({ userId: userRoles.userId })
+          .from(userRoles)
+          .where(
+            and(
+              inArray(userRoles.roleId, targetRoleIds),
+              sql`${userRoles.revokedAt} IS NULL`,
+            ),
+          );
+        recipientIds = [
+          ...new Set([...recipientIds, ...rows.map((r) => r.userId)]),
+        ];
+      }
     }
 
     if (target.excludedUserIds && target.excludedUserIds.length > 0) {

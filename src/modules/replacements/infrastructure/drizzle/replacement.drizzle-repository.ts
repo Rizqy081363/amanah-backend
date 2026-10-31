@@ -298,9 +298,6 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
       this.realtimeGateway?.emitToRoom?.(REALTIME_ROOMS.clinic, 'replacement:updated', {
         status: REPLACEMENT_OPPORTUNITY_STATUS.CANCELLED,
       }),
-      this.realtimeGateway?.emitToRole?.('admin', 'replacement:updated', {
-        status: REPLACEMENT_OPPORTUNITY_STATUS.CANCELLED,
-      }),
     ]);
 
     this.logger.log(
@@ -366,11 +363,6 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
 
     void Promise.allSettled([
       this.realtimeGateway?.emitToRoom?.(REALTIME_ROOMS.clinic, 'replacement:updated', {
-        opportunityId: inserted.id,
-        status: REPLACEMENT_OPPORTUNITY_STATUS.OPEN,
-        workDate: data.workDate,
-      }),
-      this.realtimeGateway?.emitToRole?.('admin', 'replacement:updated', {
         opportunityId: inserted.id,
         status: REPLACEMENT_OPPORTUNITY_STATUS.OPEN,
         workDate: data.workDate,
@@ -488,11 +480,6 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
 
     void Promise.allSettled([
       this.realtimeGateway?.emitToRoom?.(REALTIME_ROOMS.clinic, 'replacement:updated', {
-        opportunityId,
-        status: REPLACEMENT_OPPORTUNITY_STATUS.CLAIMED,
-        workDate: updated.workDate,
-      }),
-      this.realtimeGateway?.emitToRole?.('admin', 'replacement:updated', {
         opportunityId,
         status: REPLACEMENT_OPPORTUNITY_STATUS.CLAIMED,
         workDate: updated.workDate,
@@ -616,11 +603,6 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
         status: REPLACEMENT_OPPORTUNITY_STATUS.CLAIMED,
         workDate: updated.workDate,
       }),
-      this.realtimeGateway?.emitToRole?.('admin', 'replacement:updated', {
-        opportunityId,
-        status: REPLACEMENT_OPPORTUNITY_STATUS.CLAIMED,
-        workDate: updated.workDate,
-      }),
       this.realtimeGateway?.emitToRoom?.(
         REALTIME_ROOMS.clinic,
         'doctor_schedule:refresh',
@@ -695,11 +677,6 @@ export class ReplacementDrizzleRepository implements ReplacementRepository {
 
     void Promise.allSettled([
       this.realtimeGateway?.emitToRoom?.(REALTIME_ROOMS.clinic, 'replacement:updated', {
-        opportunityId,
-        status: REPLACEMENT_OPPORTUNITY_STATUS.CANCELLED,
-        workDate: updated.workDate,
-      }),
-      this.realtimeGateway?.emitToRole?.('admin', 'replacement:updated', {
         opportunityId,
         status: REPLACEMENT_OPPORTUNITY_STATUS.CANCELLED,
         workDate: updated.workDate,

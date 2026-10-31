@@ -18,4 +18,5 @@ export abstract class RealtimeGatewayPort {
   abstract getConnectedUserCount(): number;
   abstract isUserOnline(userId: string): boolean;
   abstract isRoleOnline?(roleName: string): boolean;
+  abstract isRoomOnline?(roomName: string): boolean;
 }
