@@ -11,6 +11,13 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import bcrypt from 'bcryptjs';
 import { and, eq } from 'drizzle-orm';
+import {
+  AUTH_ERROR_CODES,
+  AUTH_PROVIDER,
+  AUTH_SURFACES,
+  ROLE_AUDIENCE,
+  USER_STATUS,
+} from '../../../common/constants';
 import { RedisService } from '../../../common/redis/redis.service';
 import { AllConfigType } from '../../../config/config.type';
 import { DRIZZLE_SOURCE } from '../../../database/drizzle/drizzle.constants';
@@ -23,23 +30,17 @@ import {
   userRoles,
   users,
 } from '../../../database/schema';
+import { SocketIoRealtimeGateway } from '../../../modules/notifications/infrastructure/realtime/socket-io-realtime.gateway';
+import { REALTIME_ROOMS } from '../../../modules/notifications/notifications.constants';
 import { STAFF_INVITATION_STATUS } from '../../../modules/staffs/domain/constants/staff-invitation.constants';
-import {
-  AUTH_ERROR_CODES,
-  AUTH_SURFACES,
-  ROLE_AUDIENCE,
-  USER_STATUS,
-} from '../../../common/constants';
 import { AuthEmailLoginDto } from '../../dto/auth-email-login.dto';
 import { AuthGoogleLoginDto } from '../../dto/auth-google-login.dto';
 import { LoginResponseDto } from '../../dto/login-response.dto';
 import { RefreshResponseDto } from '../../dto/refresh-response.dto';
 import { GoogleTokenVerifierService } from '../../services/google-token-verifier.service';
-import { IdentityEnrollmentService } from './identity-enrollment.service';
-import { UserProvisionedNotificationPublisher } from '../publishers/user-provisioned-notification.publisher';
 import { AuthUserMapper } from '../mappers/auth-user.mapper';
-import { SocketIoRealtimeGateway } from '../../../modules/notifications/infrastructure/realtime/socket-io-realtime.gateway';
-import { REALTIME_ROOMS } from '../../../modules/notifications/notifications.constants';
+import { UserProvisionedNotificationPublisher } from '../publishers/user-provisioned-notification.publisher';
+import { IdentityEnrollmentService } from './identity-enrollment.service';
 
 @Injectable()
 export class AuthLoginService {
@@ -128,7 +129,7 @@ export class AuthLoginService {
 
     let primaryRole =
       user.userRoles_userId?.find((ur) => ur.role?.isActive)?.role ?? null;
-    if (!primaryRole || !primaryRole.isActive) {
+    if (!primaryRole?.isActive) {
       const isStaff =
         (user.staffProfiles && user.staffProfiles.length > 0) ||
         loginDto.clientId === AUTH_SURFACES.MOBILE_INTERNAL;
@@ -301,19 +302,39 @@ export class AuthLoginService {
       }
     }
 
-    // 2. Lookup existing user record
-    const userRecord = await this.db.query.users.findFirst({
-      where: eq(users.email, email),
-      with: {
-        authAccounts: true,
-        userRoles_userId: {
-          with: {
-            role: true,
-          },
-        },
-        staffProfiles: true,
-      },
+    // 2. Lookup existing user record (by linked Google sub first, then by email)
+    const linkedAuthAccount = await this.db.query.authAccounts.findFirst({
+      where: and(
+        eq(authAccounts.providerId, AUTH_PROVIDER.GOOGLE),
+        eq(authAccounts.accountId, verifiedGoogle.sub),
+      ),
     });
+
+    const userRecord = linkedAuthAccount
+      ? await this.db.query.users.findFirst({
+          where: eq(users.id, linkedAuthAccount.userId),
+          with: {
+            authAccounts: true,
+            userRoles_userId: {
+              with: {
+                role: true,
+              },
+            },
+            staffProfiles: true,
+          },
+        })
+      : await this.db.query.users.findFirst({
+          where: eq(users.email, email),
+          with: {
+            authAccounts: true,
+            userRoles_userId: {
+              with: {
+                role: true,
+              },
+            },
+            staffProfiles: true,
+          },
+        });
 
     const pendingInvitation = await this.db.query.staffInvitations.findFirst({
       where: and(
@@ -395,7 +416,7 @@ export class AuthLoginService {
       let existingRole =
         userRecord.userRoles_userId?.find((ur) => ur.role?.isActive)?.role ??
         null;
-      if (!existingRole || !existingRole.isActive) {
+      if (!existingRole?.isActive) {
         const isStaff =
           (userRecord.staffProfiles && userRecord.staffProfiles.length > 0) ||
           dto.clientId === AUTH_SURFACES.MOBILE_INTERNAL;
@@ -444,16 +465,20 @@ export class AuthLoginService {
         });
       }
 
-      if (verifiedGoogle.picture && !userRecord.avatarUrl) {
-        await this.db
-          .update(users)
-          .set({
-            avatarUrl: verifiedGoogle.picture,
-            emailVerified: true,
-            updatedAt: new Date().toISOString(),
-          })
-          .where(eq(users.id, userId));
+      const userUpdates: Record<string, any> = {
+        updatedAt: new Date().toISOString(),
+      };
+
+      if (verifiedGoogle.name && verifiedGoogle.name.trim() !== '') {
+        userUpdates.name = verifiedGoogle.name.trim();
       }
+
+      if (verifiedGoogle.picture) {
+        userUpdates.avatarUrl = verifiedGoogle.picture;
+        userUpdates.emailVerified = true;
+      }
+
+      await this.db.update(users).set(userUpdates).where(eq(users.id, userId));
     }
 
     await this.db

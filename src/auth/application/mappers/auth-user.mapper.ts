@@ -1,10 +1,10 @@
-import { NameInitialsHelper } from '../../../common/utils/name-initials.helper';
-import { formatBloodTypeDisplay } from '../../../modules/patients/domain/data/patient-reference.data';
-import { STAFF_STATUS } from '../../../modules/staffs/domain/constants/staff-invitation.constants';
 import {
   ROLE_AUDIENCE,
   type RoleAudience,
 } from '../../../common/constants/role-audience.constants';
+import { NameInitialsHelper } from '../../../common/utils/name-initials.helper';
+import { formatBloodTypeDisplay } from '../../../modules/patients/domain/data/patient-reference.data';
+import { STAFF_STATUS } from '../../../modules/staffs/domain/constants/staff-invitation.constants';
 import { AuthUserResponseDto } from '../../dto/auth-user-response.dto';
 
 export class AuthUserMapper {
@@ -203,6 +203,10 @@ export class AuthUserMapper {
       }
     }
 
+    const hasGoogle = Boolean(
+      userRecord.authAccounts?.some((acc: any) => acc.providerId === 'google'),
+    );
+
     return {
       ...sanitizedUser,
       avatarUrl: avatar.url,
@@ -224,6 +228,7 @@ export class AuthUserMapper {
       staff,
       patient,
       needsOnboarding,
+      hasGoogle,
     };
   }
 }

@@ -394,4 +394,9 @@ export class AuthUserResponseDto {
       'Menandakan akun baru yang membutuhkan alur onboarding data profil',
   })
   needsOnboarding: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Menandakan apakah akun tertaut dengan Google OAuth',
+  })
+  hasGoogle?: boolean;
 }
