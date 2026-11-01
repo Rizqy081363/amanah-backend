@@ -59,6 +59,14 @@ import {
   BulkFacilityActionSchema,
   type BulkFacilityActionInput,
 } from './schemas/facility-bulk.schema';
+import {
+  CreateFacilityRelationshipSchema,
+  FacilityRelationshipParamSchema,
+  type CreateFacilityRelationshipInput,
+  type FacilityRelationshipParamInput,
+  type UpdateFacilityRelationshipInput,
+  UpdateFacilityRelationshipSchema,
+} from './schemas/facility-relationship.schema';
 
 @ApiTags('Admin Facilities Studio')
 @ApiBearerAuth('access-token')
@@ -534,7 +542,89 @@ export class AdminFacilitiesController {
   }
 
   // ==========================================
-  // 6. BULK FACILITY ACTIONS
+  // 6. PATIENT RELATIONSHIPS (Relasi Pasien)
+  // ==========================================
+
+  @Get('relationships')
+  @ApiOperation({
+    summary: 'Mendapatkan seluruh master data tipe relasi pasien (Admin)',
+    description:
+      'Mengambil seluruh tipe relasi pasien beserta jumlah afiliasi terhubung.',
+  })
+  @ApiOkResponse({
+    description: 'Daftar tipe relasi pasien berhasil diambil',
+  })
+  async getRelationships() {
+    return this.facilitiesService.getRelationships();
+  }
+
+  @Post('relationships')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Menambahkan master tipe relasi pasien baru (Admin)',
+    description:
+      'Membuat tipe relasi baru yang dapat dipilih pasien saat registrasi/booking.',
+  })
+  @ApiCreatedResponse({ description: 'Tipe relasi pasien berhasil dibuat' })
+  async createRelationship(
+    @Body(zodPipe(CreateFacilityRelationshipSchema))
+    body: CreateFacilityRelationshipInput,
+  ) {
+    return this.facilitiesService.createRelationship(body);
+  }
+
+  @Patch('relationships/:id')
+  @ApiOperation({
+    summary: 'Memperbarui master data tipe relasi pasien (Admin)',
+    description:
+      'Mengubah nama, kode, deskripsi, ikon, urutan, atau status relasi.',
+  })
+  @ApiParam({ name: 'id', description: 'ID unik tipe relasi pasien' })
+  @ApiOkResponse({ description: 'Tipe relasi pasien berhasil diperbarui' })
+  async updateRelationship(
+    @Param(zodPipe(FacilityRelationshipParamSchema))
+    param: FacilityRelationshipParamInput,
+    @Body(zodPipe(UpdateFacilityRelationshipSchema))
+    body: UpdateFacilityRelationshipInput,
+  ) {
+    return this.facilitiesService.updateRelationship(param.id, body);
+  }
+
+  @Patch('relationships/:id/default')
+  @ApiOperation({
+    summary: 'Menjadikan tipe relasi sebagai relasi utama sistem / default (Admin)',
+    description:
+      'Menetapkan satu relasi sebagai relasi sistem (Akun Utama) dan menonaktifkan status sistem pada relasi lainnya secara transaksional.',
+  })
+  @ApiParam({ name: 'id', description: 'ID unik tipe relasi pasien' })
+  @ApiOkResponse({ description: 'Relasi berhasil ditetapkan sebagai default sistem' })
+  async setDefaultRelationship(
+    @Param(zodPipe(FacilityRelationshipParamSchema))
+    param: FacilityRelationshipParamInput,
+  ) {
+    return this.facilitiesService.setDefaultRelationship(param.id);
+  }
+
+  @Delete('relationships/:id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Menghapus permanen master tipe relasi pasien (Admin)',
+    description:
+      'Menghapus fisik tipe relasi jika bukan relasi sistem dan tidak digunakan.',
+  })
+  @ApiParam({ name: 'id', description: 'ID unik tipe relasi pasien' })
+  @ApiNoContentResponse({
+    description: 'Tipe relasi berhasil dihapus permanen',
+  })
+  async deleteRelationship(
+    @Param(zodPipe(FacilityRelationshipParamSchema))
+    param: FacilityRelationshipParamInput,
+  ) {
+    await this.facilitiesService.deleteRelationship(param.id);
+  }
+
+  // ==========================================
+  // 7. BULK FACILITY ACTIONS
   // ==========================================
 
   @Post('bulk')

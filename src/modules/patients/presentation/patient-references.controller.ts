@@ -4,11 +4,10 @@ import { asc, eq } from 'drizzle-orm';
 import { Public } from '../../../common/auth';
 import { DRIZZLE_SOURCE } from '../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../database/drizzle/drizzle.provider';
-import { occupations } from '../../../database/schema';
+import { occupations, patientRelationshipTypes } from '../../../database/schema';
 import {
   BACKEND_BLOOD_TYPE_OPTIONS,
   BACKEND_GENDER_OPTIONS,
-  BACKEND_RELATIONSHIP_OPTIONS,
   BACKEND_STATUS_OPTIONS,
 } from '../domain/data/patient-reference.data';
 import { IndonesianRegionService } from '../infrastructure/services/indonesian-region.service';
@@ -58,10 +57,24 @@ export class PatientReferencesController {
   @Get('relationships')
   @ApiOperation({ summary: 'Mendapatkan referensi hubungan pasien keluarga' })
   @ApiResponse({ status: 200, description: 'Daftar hubungan afiliasi pasien' })
-  getRelationships() {
+  async getRelationships() {
+    const list = await this.db.query.patientRelationshipTypes.findMany({
+      where: eq(patientRelationshipTypes.isActive, true),
+      orderBy: [
+        asc(patientRelationshipTypes.displayOrder),
+        asc(patientRelationshipTypes.name),
+      ],
+    });
+
     return {
       success: true,
-      data: BACKEND_RELATIONSHIP_OPTIONS,
+      data: list.map((r) => ({
+        id: r.id,
+        value: r.code,
+        label: r.name,
+        description: r.description,
+        icon: r.iconName,
+      })),
     };
   }
 
@@ -154,10 +167,17 @@ export class PatientReferencesController {
     description: 'Kumpulan referensi formulir pendaftaran',
   })
   async getAllFormOptions() {
-    const [occupationsList, provinces] = await Promise.all([
+    const [occupationsList, relationshipsList, provinces] = await Promise.all([
       this.db.query.occupations.findMany({
         where: eq(occupations.isActive, true),
         orderBy: [asc(occupations.displayOrder), asc(occupations.name)],
+      }),
+      this.db.query.patientRelationshipTypes.findMany({
+        where: eq(patientRelationshipTypes.isActive, true),
+        orderBy: [
+          asc(patientRelationshipTypes.displayOrder),
+          asc(patientRelationshipTypes.name),
+        ],
       }),
       this.regionService.getProvinces(),
     ]);
@@ -168,7 +188,13 @@ export class PatientReferencesController {
         bloodTypes: BACKEND_BLOOD_TYPE_OPTIONS,
         genders: BACKEND_GENDER_OPTIONS,
         statuses: BACKEND_STATUS_OPTIONS,
-        relationships: BACKEND_RELATIONSHIP_OPTIONS,
+        relationships: relationshipsList.map((r) => ({
+          id: r.id,
+          value: r.code,
+          label: r.name,
+          description: r.description,
+          icon: r.iconName,
+        })),
         provinces,
         occupations: occupationsList.map((occ) => ({
           id: occ.id,

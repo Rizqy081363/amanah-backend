@@ -12,6 +12,7 @@ import {
   ilike,
   inArray,
   isNull,
+  ne,
   or,
   sql,
   type SQL,
@@ -31,6 +32,8 @@ import {
   clinicUnitCategoryMappings,
   clinicUnits,
   clinicUnitTypes,
+  patientAffiliations,
+  patientRelationshipTypes,
   practitioners,
   queueTickets,
   serviceCategories,
@@ -52,6 +55,24 @@ import {
   UpdateServiceCategoryDto,
 } from '../presentation/dto/admin-facilities.dto';
 import type { BulkFacilityActionInput } from '../presentation/schemas/facility-bulk.schema';
+import type {
+  CreateFacilityRelationshipInput,
+  UpdateFacilityRelationshipInput,
+} from '../presentation/schemas/facility-relationship.schema';
+
+export interface AdminRelationshipResponse {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  iconName: string;
+  displayOrder: number;
+  isActive: boolean;
+  isSystem: boolean;
+  usageCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export interface AdminServiceCategoryResponse {
   id: string;
@@ -1785,7 +1806,228 @@ export class AdminFacilitiesService {
   }
 
   // ==========================================
-  // 6. BULK FACILITY ACTIONS
+  // 6. PATIENT RELATIONSHIP TYPES (Relasi Pasien)
+  // ==========================================
+
+  async getRelationships(): Promise<AdminRelationshipResponse[]> {
+    const list = await this.db.query.patientRelationshipTypes.findMany({
+      orderBy: [
+        asc(patientRelationshipTypes.displayOrder),
+        asc(patientRelationshipTypes.name),
+      ],
+      with: {
+        affiliations: true,
+      },
+    });
+
+    return list.map((item) => ({
+      id: item.id,
+      code: item.code,
+      name: item.name,
+      description: item.description,
+      iconName: item.iconName,
+      displayOrder: item.displayOrder,
+      isActive: item.isActive,
+      isSystem: item.isSystem,
+      usageCount: item.affiliations?.length || 0,
+      createdAt: item.createdAt,
+      updatedAt: item.updatedAt,
+    }));
+  }
+
+  async createRelationship(
+    dto: CreateFacilityRelationshipInput,
+  ): Promise<typeof patientRelationshipTypes.$inferSelect> {
+    const finalCode = await this.resolveUniqueCode(
+      dto.code,
+      dto.name,
+      'rel',
+      async (code) => {
+        const found = await this.db.query.patientRelationshipTypes.findFirst({
+          where: eq(patientRelationshipTypes.code, code),
+        });
+        return Boolean(found);
+      },
+    );
+
+    const shouldBeSystem = Boolean(dto.isSystem);
+    if (shouldBeSystem) {
+      await this.db
+        .update(patientRelationshipTypes)
+        .set({ isSystem: false, updatedAt: new Date().toISOString() });
+    }
+
+    const [created] = await this.db
+      .insert(patientRelationshipTypes)
+      .values({
+        code: finalCode,
+        name: dto.name.trim(),
+        description: dto.description?.trim() || null,
+        iconName: dto.iconName?.trim() || 'user',
+        displayOrder: dto.displayOrder ?? 0,
+        isActive: dto.isActive ?? true,
+        isSystem: shouldBeSystem,
+      })
+      .returning();
+
+    await this.invalidateCache();
+    return created;
+  }
+
+  async updateRelationship(
+    id: string,
+    dto: UpdateFacilityRelationshipInput,
+  ): Promise<typeof patientRelationshipTypes.$inferSelect> {
+    const existing = await this.db.query.patientRelationshipTypes.findFirst({
+      where: eq(patientRelationshipTypes.id, id),
+    });
+    if (!existing) {
+      throw new NotFoundException(
+        `Relasi pasien dengan ID '${id}' tidak ditemukan`,
+      );
+    }
+
+    const updates: Partial<typeof patientRelationshipTypes.$inferInsert> = {
+      updatedAt: new Date().toISOString(),
+    };
+    if (dto.name !== undefined) updates.name = dto.name.trim();
+
+    // Auto re-slugging: jika kode tidak ditentukan manual dan nama berubah, buat slug baru yang selaras
+    if (
+      dto.code === undefined &&
+      dto.name !== undefined &&
+      dto.name.trim() !== existing.name
+    ) {
+      const newDerivedCode = await this.resolveUniqueCode(
+        undefined,
+        dto.name.trim(),
+        'rel',
+        async (candidate) => {
+          const found = await this.db.query.patientRelationshipTypes.findFirst({
+            where: and(
+              eq(patientRelationshipTypes.code, candidate),
+              ne(patientRelationshipTypes.id, id),
+            ),
+          });
+          return Boolean(found);
+        },
+      );
+      updates.code = newDerivedCode;
+    } else if (dto.code !== undefined) {
+      const normalizedCode = dto.code.trim().toLowerCase().replace(/-/g, '_');
+      if (normalizedCode !== existing.code) {
+        const duplicate =
+          await this.db.query.patientRelationshipTypes.findFirst({
+            where: and(
+              eq(patientRelationshipTypes.code, normalizedCode),
+              ne(patientRelationshipTypes.id, id),
+            ),
+          });
+        if (duplicate) {
+          throw new ConflictException(
+            `Relasi pasien dengan kode '${normalizedCode}' sudah digunakan`,
+          );
+        }
+      }
+      updates.code = normalizedCode;
+    }
+
+    if (dto.description !== undefined)
+      updates.description = dto.description?.trim() || null;
+    if (dto.iconName !== undefined)
+      updates.iconName = dto.iconName?.trim() || 'user';
+    if (dto.displayOrder !== undefined) updates.displayOrder = dto.displayOrder;
+    if (dto.isActive !== undefined) updates.isActive = dto.isActive;
+
+    if (dto.isSystem !== undefined) {
+      if (dto.isSystem) {
+        await this.db
+          .update(patientRelationshipTypes)
+          .set({ isSystem: false, updatedAt: new Date().toISOString() })
+          .where(ne(patientRelationshipTypes.id, id));
+        updates.isSystem = true;
+      } else {
+        updates.isSystem = false;
+      }
+    }
+
+    const [updated] = await this.db
+      .update(patientRelationshipTypes)
+      .set(updates)
+      .where(eq(patientRelationshipTypes.id, id))
+      .returning();
+
+    await this.invalidateCache();
+    return updated;
+  }
+
+  async setDefaultRelationship(
+    id: string,
+  ): Promise<typeof patientRelationshipTypes.$inferSelect> {
+    const existing = await this.db.query.patientRelationshipTypes.findFirst({
+      where: eq(patientRelationshipTypes.id, id),
+    });
+    if (!existing) {
+      throw new NotFoundException(
+        `Relasi pasien dengan ID '${id}' tidak ditemukan`,
+      );
+    }
+
+    return await this.db.transaction(async (tx) => {
+      await tx
+        .update(patientRelationshipTypes)
+        .set({ isSystem: false, updatedAt: new Date().toISOString() })
+        .where(ne(patientRelationshipTypes.id, id));
+
+      const [updated] = await tx
+        .update(patientRelationshipTypes)
+        .set({
+          isSystem: true,
+          isActive: true,
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(patientRelationshipTypes.id, id))
+        .returning();
+
+      await this.invalidateCache();
+      return updated;
+    });
+  }
+
+  async deleteRelationship(id: string): Promise<void> {
+    const existing = await this.db.query.patientRelationshipTypes.findFirst({
+      where: eq(patientRelationshipTypes.id, id),
+    });
+    if (!existing) {
+      throw new NotFoundException(
+        `Relasi pasien dengan ID '${id}' tidak ditemukan`,
+      );
+    }
+
+    if (existing.isSystem) {
+      throw new ConflictException(
+        `Relasi sistem '${existing.name}' dilindungi dan tidak dapat dihapus permanen.`,
+      );
+    }
+
+    const linkedAffiliations = await this.db.query.patientAffiliations.findMany({
+      where: eq(patientAffiliations.relationshipTypeId, id),
+    });
+    if (linkedAffiliations.length > 0) {
+      throw new ConflictException(
+        `Ups! Relasi ini tidak dapat dihapus karena masih digunakan oleh ${linkedAffiliations.length} data afiliasi pasien.`,
+      );
+    }
+
+    await this.db
+      .delete(patientRelationshipTypes)
+      .where(eq(patientRelationshipTypes.id, id));
+
+    await this.invalidateCache();
+  }
+
+  // ==========================================
+  // 7. BULK FACILITY ACTIONS
   // ==========================================
 
   async bulkAction(
@@ -2059,6 +2301,43 @@ export class AdminFacilitiesService {
         await this.db
           .delete(clinicalIntakeForms)
           .where(inArray(clinicalIntakeForms.id, ids));
+      }
+    } else if (resource === 'relationships') {
+      if (action === 'activate') {
+        await this.db
+          .update(patientRelationshipTypes)
+          .set({ isActive: true, updatedAt: now })
+          .where(inArray(patientRelationshipTypes.id, ids));
+      } else if (action === 'deactivate') {
+        await this.db
+          .update(patientRelationshipTypes)
+          .set({ isActive: false, updatedAt: now })
+          .where(inArray(patientRelationshipTypes.id, ids));
+      } else {
+        // action === 'delete' (Hard Purge)
+        const items = await this.db.query.patientRelationshipTypes.findMany({
+          where: inArray(patientRelationshipTypes.id, ids),
+        });
+        const systemItem = items.find((i) => i.isSystem);
+        if (systemItem) {
+          throw new ConflictException(
+            `Relasi sistem '${systemItem.name}' dilindungi dan tidak dapat dihapus.`,
+          );
+        }
+
+        const linkedAffiliations =
+          await this.db.query.patientAffiliations.findMany({
+            where: inArray(patientAffiliations.relationshipTypeId, ids),
+          });
+        if (linkedAffiliations.length > 0) {
+          throw new ConflictException(
+            `Ups! Relasi yang dipilih masih digunakan oleh ${linkedAffiliations.length} data afiliasi pasien.`,
+          );
+        }
+
+        await this.db
+          .delete(patientRelationshipTypes)
+          .where(inArray(patientRelationshipTypes.id, ids));
       }
     }
 

@@ -7,6 +7,7 @@ export const FACILITY_RESOURCES = [
   'categories',
   'services',
   'forms',
+  'relationships',
 ] as const;
 
 export const FACILITY_ACTIONS = ['activate', 'deactivate', 'delete'] as const;

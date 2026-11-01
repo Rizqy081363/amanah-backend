@@ -17,21 +17,21 @@ export class CreatePatientAffiliationDto {
   @IsOptional()
   patientId?: string;
 
+  @ApiPropertyOptional({
+    example: '9635a49e-5252-4035-a454-6d0893844d8c',
+    description: 'ID master data tipe relasi (UUID) jika diketahui',
+  })
+  @IsString()
+  @IsOptional()
+  relationshipTypeId?: string;
+
   @ApiProperty({
-    example: 'parent',
-    enum: ['self', 'parent', 'child', 'spouse', 'relative', 'friend', 'other'],
-    description: 'Tipe hubungan keluarga / kerabat',
+    example: 'spouse',
+    description: 'Kode atau tipe hubungan keluarga / kerabat',
   })
   @IsNotEmpty({ message: 'Pilih tipe hubungan' })
-  @IsIn(['self', 'parent', 'child', 'spouse', 'relative', 'friend', 'other'])
-  relationshipType:
-    | 'self'
-    | 'parent'
-    | 'child'
-    | 'spouse'
-    | 'relative'
-    | 'friend'
-    | 'other';
+  @IsString()
+  relationshipType: string;
 
   @ApiPropertyOptional({
     example: 'Ibu Kandung',

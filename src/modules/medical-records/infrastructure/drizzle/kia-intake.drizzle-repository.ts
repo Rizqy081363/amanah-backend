@@ -506,36 +506,36 @@ export class KiaIntakeDrizzleRepository {
       null;
 
     const rawRelType =
-      apptMetadata?.affiliationRelationship || aff?.relationshipType || '';
-    const relType = rawRelType.toLowerCase();
+      apptMetadata?.affiliationRelationship ||
+      aff?.relationshipType?.code ||
+      aff?.relationshipType ||
+      '';
+    const relType =
+      typeof rawRelType === 'string' ? rawRelType.toLowerCase() : '';
+
+    const isPrimaryAccount = Boolean(
+      profile.user?.id ||
+        aff?.isPrimary ||
+        aff?.relationshipType?.isSystem ||
+        relType === 'self' ||
+        relType === 'diri_sendiri',
+    );
 
     let relationshipContext: string | null = null;
-    if (relType) {
-      if (relType === 'self') {
-        relationshipContext = 'Akun Utama (Diri Sendiri)';
-      } else if (accountHolderName) {
-        if (relType === 'child') {
-          relationshipContext = `Anak dari ${accountHolderName}`;
-        } else if (relType === 'spouse') {
-          relationshipContext = `Pasangan dari ${accountHolderName}`;
-        } else if (relType === 'parent') {
-          relationshipContext = `Orang tua dari ${accountHolderName}`;
-        } else if (relType === 'relative') {
-          relationshipContext = `Kerabat dari ${accountHolderName}`;
-        } else {
-          relationshipContext = aff?.relationLabel
-            ? `${aff.relationLabel} dari ${accountHolderName}`
-            : `Keluarga dari ${accountHolderName}`;
-        }
-      } else {
-        if (relType === 'child') relationshipContext = 'Anak';
-        else if (relType === 'spouse') relationshipContext = 'Pasangan';
-        else if (relType === 'parent') relationshipContext = 'Orang Tua';
-        else if (relType === 'relative') relationshipContext = 'Kerabat';
-        else relationshipContext = aff?.relationLabel || 'Afiliasi Keluarga';
-      }
-    } else if (profile.user?.id) {
+    if (isPrimaryAccount) {
       relationshipContext = 'Akun Utama (Diri Sendiri)';
+    } else {
+      const relationshipName =
+        aff?.relationLabel ||
+        aff?.relationshipType?.name ||
+        apptMetadata?.affiliationRelationship ||
+        'Keluarga';
+
+      if (accountHolderName) {
+        relationshipContext = `${relationshipName} dari ${accountHolderName}`;
+      } else {
+        relationshipContext = relationshipName;
+      }
     }
 
     return {
@@ -589,6 +589,7 @@ export class KiaIntakeDrizzleRepository {
             patientAffiliations: {
               with: {
                 user: true,
+                relationshipType: true,
               },
             },
             patientAllergies: true,
@@ -700,6 +701,7 @@ export class KiaIntakeDrizzleRepository {
               patientAffiliations: {
                 with: {
                   user: true,
+                  relationshipType: true,
                 },
               },
               patientAllergies: true,

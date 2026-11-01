@@ -10,7 +10,8 @@ export const PATIENT_AFFILIATION_REPOSITORY = Symbol(
 export interface CreateAffiliationParams {
   userId: string;
   patientId: string;
-  relationshipType: PatientRelationshipType;
+  relationshipTypeId?: string;
+  relationshipType?: PatientRelationshipType;
   relationLabel?: string | null;
   isPrimary?: boolean;
 }

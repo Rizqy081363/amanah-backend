@@ -88,15 +88,6 @@ export function normalizeBloodTypeToDb(
   return UNKNOWN_BLOOD_TYPE;
 }
 
-export const BACKEND_RELATIONSHIP_OPTIONS: ReferenceOption[] = [
-  { label: 'self', value: 'self' },
-  { label: 'child', value: 'child' },
-  { label: 'spouse', value: 'spouse' },
-  { label: 'parent', value: 'parent' },
-  { label: 'relative', value: 'relative' },
-  { label: 'other', value: 'other' },
-];
-
 export const BACKEND_STATUS_OPTIONS: ReferenceOption[] = [
   {
     label: 'active',

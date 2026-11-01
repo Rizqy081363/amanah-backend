@@ -25,6 +25,7 @@ import {
   patientAffiliations,
   patientEmergencyContacts,
   patientProfiles,
+  patientRelationshipTypes,
   users,
 } from '../../../../database/schema';
 import {
@@ -257,14 +258,18 @@ export class PatientDrizzleRepository implements PatientRepository {
     const affiliationAsChild = await this.db
       .select({
         userId: patientAffiliations.userId,
-        relationshipType: patientAffiliations.relationshipType,
+        relationshipType: patientRelationshipTypes.code,
         relationLabel: patientAffiliations.relationLabel,
       })
       .from(patientAffiliations)
+      .leftJoin(
+        patientRelationshipTypes,
+        eq(patientAffiliations.relationshipTypeId, patientRelationshipTypes.id),
+      )
       .where(
         and(
           eq(patientAffiliations.patientId, id),
-          ne(patientAffiliations.relationshipType, 'self'),
+          eq(patientAffiliations.isPrimary, false),
         ),
       )
       .limit(1);
@@ -659,7 +664,7 @@ export class PatientDrizzleRepository implements PatientRepository {
       EXISTS (
         SELECT 1 FROM patient_affiliations pa
         WHERE pa.patient_id = ${patientProfiles.id}
-          AND (pa.relationship_type = 'self' OR pa.is_primary = true)
+          AND pa.is_primary = true
       )
       OR NOT EXISTS (
         SELECT 1 FROM patient_affiliations pa
@@ -865,33 +870,34 @@ export class PatientDrizzleRepository implements PatientRepository {
         isAffiliateChild: sql<boolean>`EXISTS (
           SELECT 1 FROM patient_affiliations pa
           WHERE pa.patient_id = patient_profiles.id
-            AND pa.relationship_type != 'self'
             AND pa.is_primary = false
         )`,
         relType: sql<string | null>`(
-          SELECT relationship_type::text FROM patient_affiliations pa
+          SELECT prt.code FROM patient_affiliations pa
+          JOIN patient_relationship_types prt ON prt.id = pa.relationship_type_id
           WHERE pa.patient_id = patient_profiles.id
-          ORDER BY is_primary DESC, created_at DESC
+          ORDER BY pa.is_primary DESC, pa.created_at DESC
           LIMIT 1
         )`,
         relLabel: sql<string | null>`(
-          SELECT relation_label FROM patient_affiliations pa
+          SELECT COALESCE(pa.relation_label, prt.name) FROM patient_affiliations pa
+          JOIN patient_relationship_types prt ON prt.id = pa.relationship_type_id
           WHERE pa.patient_id = patient_profiles.id
-          ORDER BY is_primary DESC, created_at DESC
+          ORDER BY pa.is_primary DESC, pa.created_at DESC
           LIMIT 1
         )`,
         masterPatientId: sql<string | null>`(
           SELECT mp.id FROM patient_affiliations pa
-          JOIN patient_affiliations mpa ON mpa.user_id = pa.user_id AND (mpa.relationship_type = 'self' OR mpa.is_primary = true)
+          JOIN patient_affiliations mpa ON mpa.user_id = pa.user_id AND mpa.is_primary = true
           JOIN patient_profiles mp ON mp.id = mpa.patient_id
-          WHERE pa.patient_id = patient_profiles.id AND pa.relationship_type != 'self'
+          WHERE pa.patient_id = patient_profiles.id AND pa.is_primary = false
           LIMIT 1
         )`,
         masterPatientName: sql<string | null>`(
           SELECT mp.full_name FROM patient_affiliations pa
-          JOIN patient_affiliations mpa ON mpa.user_id = pa.user_id AND (mpa.relationship_type = 'self' OR mpa.is_primary = true)
+          JOIN patient_affiliations mpa ON mpa.user_id = pa.user_id AND mpa.is_primary = true
           JOIN patient_profiles mp ON mp.id = mpa.patient_id
-          WHERE pa.patient_id = patient_profiles.id AND pa.relationship_type != 'self'
+          WHERE pa.patient_id = patient_profiles.id AND pa.is_primary = false
           LIMIT 1
         )`,
         affCount: sql<number>`(
@@ -968,7 +974,7 @@ export class PatientDrizzleRepository implements PatientRepository {
         hasOwnAccount: Boolean(r.hasOwnAccount ?? r.userId),
         affiliateCount: 0,
         relationshipType:
-          relType || r.relationshipType || (isMaster ? 'self' : null),
+          relType || r.relationshipType || (isMaster ? 'primary' : null),
         relationLabel:
           relLabel || r.relationLabel || (isMaster ? 'Akun Utama' : null),
         masterPatientId: masterPatientId || null,
@@ -1023,8 +1029,11 @@ export class PatientDrizzleRepository implements PatientRepository {
             email: sql<
               string | null
             >`COALESCE(${patientProfiles.email}, (SELECT email FROM users WHERE users.id = patient_profiles.user_id))`,
-            relationshipType: patientAffiliations.relationshipType,
-            relationLabel: patientAffiliations.relationLabel,
+            relationshipTypeId: patientAffiliations.relationshipTypeId,
+            relationshipType: patientRelationshipTypes.code,
+            relationLabel: sql<
+              string | null
+            >`COALESCE(${patientAffiliations.relationLabel}, ${patientRelationshipTypes.name})`,
             hasOwnAccount: sql<boolean>`${patientProfiles.userId} IS NOT NULL`,
             fullAddress: sql<string | null>`(
               SELECT COALESCE(full_address, line1)
@@ -1064,10 +1073,17 @@ export class PatientDrizzleRepository implements PatientRepository {
             patientProfiles,
             eq(patientProfiles.id, patientAffiliations.patientId),
           )
+          .leftJoin(
+            patientRelationshipTypes,
+            eq(
+              patientAffiliations.relationshipTypeId,
+              patientRelationshipTypes.id,
+            ),
+          )
           .where(
             and(
               inArray(patientAffiliations.userId, userIds),
-              sql`${patientAffiliations.patientId} != (SELECT pa2.patient_id FROM patient_affiliations pa2 WHERE pa2.user_id = patient_affiliations.user_id AND (pa2.relationship_type = 'self' OR pa2.is_primary = true) LIMIT 1)`,
+              eq(patientAffiliations.isPrimary, false),
             ),
           )
           .orderBy(patientAffiliations.createdAt);

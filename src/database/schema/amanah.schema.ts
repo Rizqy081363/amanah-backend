@@ -167,15 +167,6 @@ export const notificationCategory = pgEnum('notification_category', [
   'support',
   'system',
 ]);
-export const patientRelationshipType = pgEnum('patient_relationship_type', [
-  'self',
-  'parent',
-  'child',
-  'spouse',
-  'relative',
-  'friend',
-  'other',
-]);
 export const patientStatus = pgEnum('patient_status', ['active', 'inactive']);
 export const queuePriority = pgEnum('queue_priority', [
   'regular',
@@ -1130,6 +1121,39 @@ export const patientProfiles = pgTable(
   ],
 );
 
+export const patientRelationshipTypes = pgTable(
+  'patient_relationship_types',
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    code: text().notNull(),
+    name: text().notNull(),
+    description: text(),
+    iconName: varchar('icon_name', { length: 64 }).default('user').notNull(),
+    displayOrder: integer('display_order').default(0).notNull(),
+    isActive: boolean('is_active').default(true).notNull(),
+    isSystem: boolean('is_system').default(false).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    unique('patient_relationship_types_code_key').on(table.code),
+    check(
+      'patient_relationship_types_code_format',
+      sql`code ~ '^[a-z][a-z0-9_]*$'::text`,
+    ),
+    check(
+      'patient_relationship_types_name_not_blank',
+      sql`length(TRIM(BOTH FROM name)) > 0`,
+    ),
+    index('idx_patient_relationship_types_is_active').on(table.isActive),
+    index('idx_patient_relationship_types_display_order').on(table.displayOrder),
+  ],
+);
+
 export const patientAffiliations = pgTable(
   'patient_affiliations',
   {
@@ -1140,9 +1164,9 @@ export const patientAffiliations = pgTable(
     patientId: uuid('patient_id')
       .notNull()
       .references(() => patientProfiles.id, { onDelete: 'cascade' }),
-    relationshipType: patientRelationshipType('relationship_type')
-      .default('self')
-      .notNull(),
+    relationshipTypeId: uuid('relationship_type_id')
+      .notNull()
+      .references(() => patientRelationshipTypes.id, { onDelete: 'restrict' }),
     relationLabel: text('relation_label'),
     isPrimary: boolean('is_primary').default(false).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
@@ -1159,6 +1183,9 @@ export const patientAffiliations = pgTable(
     ),
     index('patient_affiliations_user_id_idx').on(table.userId),
     index('patient_affiliations_patient_id_idx').on(table.patientId),
+    index('idx_patient_affiliations_relationship_type_id').on(
+      table.relationshipTypeId,
+    ),
   ],
 );
 

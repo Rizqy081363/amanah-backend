@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class PatientDirectoryItemDto {
   @ApiProperty({ description: 'ID unik pasien (UUID)' })
@@ -80,10 +80,15 @@ export class PatientDirectoryItemDto {
   @ApiProperty({ description: 'Jumlah pasien afiliasi di bawah akun ini' })
   affiliateCount: number;
 
+  @ApiPropertyOptional({
+    description: 'ID master data tipe relasi keluarga jika pasien ini merupakan afiliasi',
+    nullable: true,
+  })
+  relationshipTypeId?: string | null;
+
   @ApiProperty({
     description: 'Tipe relasi keluarga jika pasien ini merupakan afiliasi',
     nullable: true,
-    enum: ['self', 'parent', 'child', 'spouse', 'relative', 'friend', 'other'],
   })
   relationshipType?: string | null;
 

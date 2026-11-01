@@ -21,7 +21,7 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
-import { desc, eq, ilike } from 'drizzle-orm';
+import { asc, desc, eq, ilike } from 'drizzle-orm';
 import {
   AuthenticatedUser,
   CurrentUser,
@@ -37,6 +37,7 @@ import {
   maternalHealthIntakes,
   patientAddresses,
   patientProfiles,
+  patientRelationshipTypes,
 } from '../../../database/schema';
 import { normalizeBloodTypeToDb } from '../domain/data/patient-reference.data';
 import {
@@ -80,17 +81,7 @@ function mapEnrichedPatient(
     phone: p?.phone || null,
     email: p?.email || null,
     relationship: aff.relationshipType,
-    relationshipLabel:
-      aff.relationLabel ||
-      (aff.relationshipType === 'self'
-        ? 'Diri Sendiri'
-        : aff.relationshipType === 'spouse'
-          ? 'Pasangan'
-          : aff.relationshipType === 'child'
-            ? 'Anak Kandung'
-            : aff.relationshipType === 'parent'
-              ? 'Orang Tua'
-              : aff.relationshipType),
+    relationshipLabel: aff.relationLabel || aff.relationshipType,
     occupationName: p?.occupation || null,
     status: pStatus,
     hasExistingIntake: forceIntakeTrue ? true : Boolean(latestIntake),
@@ -147,33 +138,40 @@ export class PatientAffiliationsController {
     const formType = flow === 'general' ? 'regular' : flow;
 
     const rawAffiliations = await this.affiliationRepo.findByUserId(user.id);
-    const hasExistingSelf = rawAffiliations.some(
-      (aff) => aff.relationshipType === 'self' || aff.isPrimary,
-    );
+    const hasExistingPrimary = rawAffiliations.some((aff) => aff.isPrimary);
 
-    let allowedRelationships: { value: string; label: string }[] = [];
+    const activeRelationshipTypes =
+      await this.db.query.patientRelationshipTypes.findMany({
+        where: eq(patientRelationshipTypes.isActive, true),
+        orderBy: [
+          asc(patientRelationshipTypes.displayOrder),
+          asc(patientRelationshipTypes.name),
+        ],
+      });
+
+    let allowedRelationships = activeRelationshipTypes.map((t) => ({
+      id: t.id,
+      value: t.code,
+      label: t.name,
+      iconName: t.iconName,
+      description: t.description || undefined,
+    }));
+
+    if (hasExistingPrimary) {
+      const systemType = activeRelationshipTypes.find((t) => t.isSystem);
+      if (systemType) {
+        allowedRelationships = allowedRelationships.filter(
+          (r) => r.id !== systemType.id,
+        );
+      }
+    }
+
     let enrichedPatients: any[] = [];
 
     if (flow === 'pregnancy') {
-      allowedRelationships = [
-        { value: 'self', label: 'Diri Sendiri' },
-        { value: 'spouse', label: 'Pasangan' },
-        { value: 'parent', label: 'Ibu Kandung' },
-        { value: 'sibling', label: 'Saudara Perempuan' },
-        { value: 'relative', label: 'Kerabat' },
-      ];
-      if (hasExistingSelf) {
-        allowedRelationships = allowedRelationships.filter(
-          (r) => r.value !== 'self',
-        );
-      }
-
       const validAffiliations = rawAffiliations.filter((aff) => {
         const pGender = aff.patient?.gender;
-        if (pGender === 'male') {
-          return false;
-        }
-        return true;
+        return pGender !== 'male';
       });
 
       enrichedPatients = await Promise.all(
@@ -192,15 +190,8 @@ export class PatientAffiliationsController {
         }),
       );
     } else if (flow === 'immunization') {
-      allowedRelationships = [
-        { value: 'child', label: 'Anak Kandung' },
-        { value: 'relative', label: 'Kerabat / Anak Asuh' },
-      ];
-
       const validAffiliations = rawAffiliations.filter(
-        (aff) =>
-          aff.relationshipType === 'child' ||
-          aff.relationshipType === 'relative',
+        (aff) => !aff.isPrimary,
       );
 
       enrichedPatients = await Promise.all(
@@ -219,21 +210,6 @@ export class PatientAffiliationsController {
         }),
       );
     } else {
-      allowedRelationships = [
-        { value: 'self', label: 'Diri Sendiri' },
-        { value: 'spouse', label: 'Pasangan' },
-        { value: 'child', label: 'Anak Kandung' },
-        { value: 'parent', label: 'Orang Tua' },
-        { value: 'sibling', label: 'Saudara Kandung' },
-        { value: 'relative', label: 'Kerabat' },
-      ];
-
-      if (hasExistingSelf) {
-        allowedRelationships = allowedRelationships.filter(
-          (r) => r.value !== 'self',
-        );
-      }
-
       enrichedPatients = rawAffiliations.map((aff) =>
         mapEnrichedPatient(aff, null, true),
       );
@@ -285,17 +261,15 @@ export class PatientAffiliationsController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: CreatePatientAffiliationDto,
   ) {
-    if (dto.relationshipType === 'self' || dto.isPrimary) {
+    if (dto.isPrimary) {
       const existingUserAffiliations = await this.affiliationRepo.findByUserId(
         user.id,
       );
-      const hasSelf = existingUserAffiliations.some(
-        (aff) => aff.relationshipType === 'self' || aff.isPrimary,
-      );
-      if (hasSelf) {
+      const hasPrimary = existingUserAffiliations.some((aff) => aff.isPrimary);
+      if (hasPrimary) {
         throw new ConflictException({
-          code: 'SELF_PROFILE_EXISTS',
-          message: 'Profil untuk diri sendiri sudah terdaftar pada akun Anda.',
+          code: 'PRIMARY_PROFILE_EXISTS',
+          message: 'Profil akun utama sudah terdaftar pada akun Anda.',
         });
       }
     }
@@ -378,7 +352,7 @@ export class PatientAffiliationsController {
         const [newProfile] = await this.db
           .insert(patientProfiles)
           .values({
-            userId: dto.relationshipType === 'self' ? user.id : null,
+            userId: dto.isPrimary ? user.id : null,
             occupationId: dto.occupationId || null,
             medicalRecordNumber: rmNumber,
             nationalIdEncrypted: dto.nik,
@@ -434,6 +408,7 @@ export class PatientAffiliationsController {
     const createdAffiliation = await this.affiliationRepo.create({
       userId: user.id,
       patientId: targetPatientId,
+      relationshipTypeId: dto.relationshipTypeId,
       relationshipType: dto.relationshipType,
       relationLabel: dto.relationLabel || null,
       isPrimary: dto.isPrimary ?? false,

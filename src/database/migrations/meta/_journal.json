@@ -526,6 +526,13 @@
       "when": 1791358000000,
       "tag": "0074_clinic_unit_category_mappings",
       "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1791359000000,
+      "tag": "0075_patient_relationship_types",
+      "breakpoints": true
     }
   ]
 }

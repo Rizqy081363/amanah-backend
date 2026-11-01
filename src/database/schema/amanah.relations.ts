@@ -39,6 +39,7 @@ import {
   patientAllergies,
   patientEmergencyContacts,
   patientProfiles,
+  patientRelationshipTypes,
   patientTimelineEvents,
   permissions,
   practitionerAvailability,
@@ -362,6 +363,13 @@ export const patientProfilesRelations = relations(
   }),
 );
 
+export const patientRelationshipTypesRelations = relations(
+  patientRelationshipTypes,
+  ({ many }) => ({
+    affiliations: many(patientAffiliations),
+  }),
+);
+
 export const patientAffiliationsRelations = relations(
   patientAffiliations,
   ({ one }) => ({
@@ -372,6 +380,10 @@ export const patientAffiliationsRelations = relations(
     patientProfile: one(patientProfiles, {
       fields: [patientAffiliations.patientId],
       references: [patientProfiles.id],
+    }),
+    relationshipType: one(patientRelationshipTypes, {
+      fields: [patientAffiliations.relationshipTypeId],
+      references: [patientRelationshipTypes.id],
     }),
   }),
 );
