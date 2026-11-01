@@ -51,7 +51,7 @@ export class AuthAccountLifecycleService {
     private readonly configService: ConfigService<AllConfigType>,
   ) {}
 
-  async me(userJwtPayload: any): Promise<AuthUserResponseDto | null> {
+  async me(userJwtPayload: JwtPayloadType): Promise<AuthUserResponseDto | null> {
     const userRecord = await this.db.query.users.findFirst({
       where: eq(users.id, userJwtPayload.id),
       with: {

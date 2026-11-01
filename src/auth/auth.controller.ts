@@ -411,14 +411,15 @@ export class AuthController {
   public async logout(
     @Request() request: RequestWithUser<JwtPayloadType>,
   ): Promise<void> {
-    const authHeader = (request as any).headers?.authorization;
+    const rawHeader = request.headers.authorization;
+    const authHeader = Array.isArray(rawHeader) ? rawHeader[0] : rawHeader;
     const token =
       typeof authHeader === 'string' && authHeader.startsWith('Bearer ')
         ? authHeader.slice(7).trim()
         : undefined;
 
     await this.service.logout({
-      sessionId: (request as any).session?.id || request.user?.sessionId,
+      sessionId: request.user?.sessionId,
       userId: request.user?.id,
       token,
     });
@@ -670,7 +671,10 @@ export class AuthController {
     return this.service.purgeAccount(request.user);
   }
 
-  private async handleAvatarUpload(user: any, file?: Express.Multer.File) {
+  private async handleAvatarUpload(
+    user: JwtPayloadType,
+    file?: Express.Multer.File,
+  ) {
     if (!file || !file.buffer) {
       throw new BadRequestException('Berkas gambar (file) wajib disertakan');
     }
@@ -706,7 +710,7 @@ export class AuthController {
   })
   @HttpCode(HttpStatus.OK)
   public async uploadAvatarPatch(
-    @CurrentUser() user: any,
+    @CurrentUser() user: JwtPayloadType,
     @UploadedFile() file?: Express.Multer.File,
   ) {
     return this.handleAvatarUpload(user, file);
@@ -741,7 +745,7 @@ export class AuthController {
   })
   @HttpCode(HttpStatus.OK)
   public async uploadAvatarPost(
-    @CurrentUser() user: any,
+    @CurrentUser() user: JwtPayloadType,
     @UploadedFile() file?: Express.Multer.File,
   ) {
     return this.handleAvatarUpload(user, file);

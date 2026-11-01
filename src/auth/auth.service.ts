@@ -97,7 +97,7 @@ export class AuthService {
     );
   }
 
-  public me(userPayload: any): Promise<AuthUserResponseDto | null> {
+  public me(userPayload: JwtPayloadType): Promise<AuthUserResponseDto | null> {
     return this.accountLifecycleService.me(userPayload);
   }
 

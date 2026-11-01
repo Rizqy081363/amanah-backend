@@ -48,12 +48,13 @@ export class GoogleTokenVerifierService {
         }
 
         return this.verify(tokens.id_token);
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (err instanceof UnauthorizedException) {
           throw err;
         }
+        const errMsg = err instanceof Error ? err.message : String(err);
         this.logger.warn(
-          `Failed to exchange Google OAuth code: ${err?.message}`,
+          `Failed to exchange Google OAuth code: ${errMsg}`,
         );
         throw new UnauthorizedException({
           code: AUTH_ERROR_CODES.INVALID_TOKEN,
@@ -112,11 +113,12 @@ export class GoogleTokenVerifierService {
         picture: payload.picture,
         emailVerified: Boolean(payload.email_verified),
       };
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (err instanceof UnauthorizedException) {
         throw err;
       }
-      this.logger.warn(`Failed to verify Google ID token: ${err?.message}`);
+      const errMsg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`Failed to verify Google ID token: ${errMsg}`);
       throw new UnauthorizedException({
         code: AUTH_ERROR_CODES.INVALID_TOKEN,
         message: 'Verifikasi token Google gagal atau kedaluwarsa',

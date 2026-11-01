@@ -204,11 +204,13 @@ export class AuthUserMapper {
     }
 
     const hasGoogle = Boolean(
-      userRecord.authAccounts?.some((acc: any) => acc.providerId === 'google'),
+      userRecord.authAccounts?.some(
+        (acc: { providerId?: string | null }) => acc.providerId === 'google',
+      ),
     );
     const hasPassword = Boolean(
       userRecord.authAccounts?.some(
-        (acc: any) =>
+        (acc: { providerId?: string | null; passwordHash?: string | null }) =>
           acc.providerId === 'credential' &&
           typeof acc.passwordHash === 'string' &&
           acc.passwordHash.trim().length > 0,

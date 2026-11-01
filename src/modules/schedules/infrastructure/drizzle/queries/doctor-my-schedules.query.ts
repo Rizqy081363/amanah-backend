@@ -10,6 +10,7 @@ import {
   staffRosters,
   replacementOpportunities,
   ACTIVE_CLAIMED_REPLACEMENT_STATUSES,
+  clinicUnits,
 } from '@database/schema';
 import { SHIFT_EXCEPTION_TYPE } from '@modules/appointments/domain/constants/appointment-lifecycle.constants';
 import {
@@ -216,7 +217,7 @@ export class DoctorMySchedulesQuery {
               createdAt: ts.sessionDef.createdAt,
               updatedAt: ts.sessionDef.updatedAt,
               practitioner,
-              clinicRoom: (practitioner as any)?.clinicRoom || null,
+              clinicRoom: practitioner?.clinicRoom || null,
               clinicService: null,
             }),
           );
@@ -271,7 +272,7 @@ export class DoctorMySchedulesQuery {
               createdAt: rep.createdAt,
               updatedAt: rep.updatedAt,
               practitioner,
-              clinicRoom: (practitioner as any)?.clinicRoom || null,
+              clinicRoom: practitioner?.clinicRoom || null,
               clinicService: null,
               isReplacement: true,
               replacedStaffName: rep.originalStaffProfile?.fullName || null,
@@ -289,7 +290,9 @@ export class DoctorMySchedulesQuery {
   }
 
   private async executeForWorker(
-    staffProfile: any,
+    staffProfile: typeof staffProfiles.$inferSelect & {
+      clinicUnit?: typeof clinicUnits.$inferSelect | null;
+    },
     startDate: string,
     endDate: string,
   ): Promise<ScheduleEntity[]> {

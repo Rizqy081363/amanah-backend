@@ -152,22 +152,17 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
       },
     });
 
-    let staffProfile: any = null;
-    let isClinical = false;
-
-    if (prac) {
-      staffProfile = prac.staffProfile;
-      isClinical = true;
-    } else {
-      staffProfile = await this.db.query.staffProfiles.findFirst({
+    const isClinical = Boolean(prac);
+    const staffProfile =
+      prac?.staffProfile ??
+      (await this.db.query.staffProfiles.findFirst({
         where: eq(staffProfiles.id, doctorId),
         with: {
           clinicUnit: true,
         },
-      });
-    }
+      }));
 
-    if (!prac && !staffProfile) {
+    if (!staffProfile) {
       throw new NotFoundException(`Staf dengan ID ${doctorId} tidak ditemukan`);
     }
 
@@ -249,7 +244,7 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
 
         const preferredRoomId =
           (assignment && 'preferredRoomId' in assignment
-            ? (assignment as any).preferredRoomId
+            ? (assignment as { preferredRoomId?: string | null }).preferredRoomId
             : null) || null;
         const preferredRoomName = preferredRoomId
           ? roomMap.get(preferredRoomId) || null
@@ -306,16 +301,13 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
       },
     });
 
-    let staffProfile: any = null;
-    if (prac) {
-      staffProfile = prac.staffProfile;
-    } else {
-      staffProfile = await this.db.query.staffProfiles.findFirst({
+    const staffProfile =
+      prac?.staffProfile ??
+      (await this.db.query.staffProfiles.findFirst({
         where: eq(staffProfiles.id, doctorId),
-      });
-    }
+      }));
 
-    if (!prac && !staffProfile) {
+    if (!staffProfile) {
       throw new NotFoundException(`Staf dengan ID ${doctorId} tidak ditemukan`);
     }
 
@@ -333,7 +325,7 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
       const activeSessionDefs = await tx.query.sessionDefs.findMany({
         where: eq(sessionDefs.isActive, true),
       });
-      const activeSessionIds = new Set(activeSessionDefs.map((s: any) => s.id));
+      const activeSessionIds = new Set(activeSessionDefs.map((s) => s.id));
 
       const validItems = dto.assignments.filter((a) =>
         activeSessionIds.has(a.sessionId),
@@ -410,16 +402,13 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
       },
     });
 
-    let staffProfile: any = null;
-    if (prac) {
-      staffProfile = prac.staffProfile;
-    } else {
-      staffProfile = await this.db.query.staffProfiles.findFirst({
+    const staffProfile =
+      prac?.staffProfile ??
+      (await this.db.query.staffProfiles.findFirst({
         where: eq(staffProfiles.id, doctorId),
-      });
-    }
+      }));
 
-    if (!prac && !staffProfile) {
+    if (!staffProfile) {
       throw new NotFoundException(`Staf dengan ID ${doctorId} tidak ditemukan`);
     }
 
@@ -438,7 +427,7 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
         // 3. Restore default generic assignments (dow = null) so doctor adheres to clinic weekly master template
         if (activeSessionDefs.length > 0) {
           await tx.insert(doctorAssignments).values(
-            activeSessionDefs.map((def: any) => ({
+            activeSessionDefs.map((def) => ({
               doctorId: prac.id,
               sessionId: def.id,
               dow: null,
@@ -451,7 +440,7 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
         // 4. Record audit history
         if (activeSessionDefs.length > 0) {
           await tx.insert(doctorScheduleStatusHistory).values(
-            activeSessionDefs.map((def: any) => ({
+            activeSessionDefs.map((def) => ({
               doctorId: prac.id,
               sessionId: def.id,
               dow: null,

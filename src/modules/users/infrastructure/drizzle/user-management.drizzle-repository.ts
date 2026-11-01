@@ -412,7 +412,7 @@ export class UserManagementDrizzleRepository
 
     await this.db.transaction(async (tx) => {
       // 1. Update users table
-      const userUpdate: any = {
+      const userUpdate: Record<string, unknown> = {
         name: input.name,
         email: preservedEmail,
         updatedAt: nowStr,
@@ -426,7 +426,7 @@ export class UserManagementDrizzleRepository
       await tx.update(users).set(userUpdate).where(eq(users.id, id));
 
       // 2. Update Better-Auth user table
-      const betterAuthUpdate: any = {
+      const betterAuthUpdate: Record<string, unknown> = {
         name: input.name,
         email: preservedEmail,
         updatedAt: nowStr,
