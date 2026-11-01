@@ -1,10 +1,10 @@
-import { NameInitialsHelper } from '../../../common/utils/name-initials.helper';
-import { formatBloodTypeDisplay } from '../../../modules/patients/domain/data/patient-reference.data';
-import { STAFF_STATUS } from '../../../modules/staffs/domain/constants/staff-invitation.constants';
 import {
   ROLE_AUDIENCE,
   type RoleAudience,
 } from '../../../common/constants/role-audience.constants';
+import { NameInitialsHelper } from '../../../common/utils/name-initials.helper';
+import { formatBloodTypeDisplay } from '../../../modules/patients/domain/data/patient-reference.data';
+import { STAFF_STATUS } from '../../../modules/staffs/domain/constants/staff-invitation.constants';
 import { AuthUserResponseDto } from '../../dto/auth-user-response.dto';
 
 export class AuthUserMapper {
@@ -174,7 +174,7 @@ export class AuthUserMapper {
       : null;
 
     let needsOnboarding = false;
-    if (role?.isSystem) {
+    if (role?.code === 'admin' && !s) {
       needsOnboarding = false;
     } else if (audience === ROLE_AUDIENCE.INTERNAL || s) {
       if (hasPendingInvitation) {
@@ -203,6 +203,25 @@ export class AuthUserMapper {
       }
     }
 
+    const hasGoogle = Boolean(
+      userRecord.authAccounts?.some((acc: any) => acc.providerId === 'google'),
+    );
+    const hasPassword = Boolean(
+      userRecord.authAccounts?.some(
+        (acc: any) =>
+          acc.providerId === 'credential' &&
+          typeof acc.passwordHash === 'string' &&
+          acc.passwordHash.trim().length > 0,
+      ),
+    );
+    const providersSet = new Set<string>();
+    for (const acc of userRecord.authAccounts || []) {
+      if (acc.providerId) {
+        providersSet.add(acc.providerId);
+      }
+    }
+    const linkedProviders = Array.from(providersSet);
+
     return {
       ...sanitizedUser,
       avatarUrl: avatar.url,
@@ -224,6 +243,9 @@ export class AuthUserMapper {
       staff,
       patient,
       needsOnboarding,
+      hasGoogle,
+      hasPassword,
+      linkedProviders,
     };
   }
 }

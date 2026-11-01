@@ -233,7 +233,7 @@ export class PatientAffiliationsController {
   }
 
   @Get('me')
-  @RequirePermissions('profile:read', 'patients:read')
+  @RequirePermissions('profile:read')
   @ApiOperation({
     summary: 'Mendapatkan seluruh daftar pasien berafiliasi untuk akun login',
     description:
@@ -422,7 +422,7 @@ export class PatientAffiliationsController {
   }
 
   @Delete(':patientId')
-  @RequirePermissions('patients:manage', 'profile:update')
+  @RequirePermissions('profile:update')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Menghapus hubungan relasi pasien dari akun login',

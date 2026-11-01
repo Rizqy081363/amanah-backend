@@ -11,6 +11,13 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import bcrypt from 'bcryptjs';
 import { and, eq } from 'drizzle-orm';
+import {
+  AUTH_ERROR_CODES,
+  AUTH_PROVIDER,
+  AUTH_SURFACES,
+  ROLE_AUDIENCE,
+  USER_STATUS,
+} from '../../../common/constants';
 import { RedisService } from '../../../common/redis/redis.service';
 import { AllConfigType } from '../../../config/config.type';
 import { DRIZZLE_SOURCE } from '../../../database/drizzle/drizzle.constants';
@@ -23,23 +30,17 @@ import {
   userRoles,
   users,
 } from '../../../database/schema';
+import { SocketIoRealtimeGateway } from '../../../modules/notifications/infrastructure/realtime/socket-io-realtime.gateway';
+import { REALTIME_ROOMS } from '../../../modules/notifications/notifications.constants';
 import { STAFF_INVITATION_STATUS } from '../../../modules/staffs/domain/constants/staff-invitation.constants';
-import {
-  AUTH_ERROR_CODES,
-  AUTH_SURFACES,
-  ROLE_AUDIENCE,
-  USER_STATUS,
-} from '../../../common/constants';
 import { AuthEmailLoginDto } from '../../dto/auth-email-login.dto';
 import { AuthGoogleLoginDto } from '../../dto/auth-google-login.dto';
 import { LoginResponseDto } from '../../dto/login-response.dto';
 import { RefreshResponseDto } from '../../dto/refresh-response.dto';
 import { GoogleTokenVerifierService } from '../../services/google-token-verifier.service';
-import { IdentityEnrollmentService } from './identity-enrollment.service';
-import { UserProvisionedNotificationPublisher } from '../publishers/user-provisioned-notification.publisher';
 import { AuthUserMapper } from '../mappers/auth-user.mapper';
-import { SocketIoRealtimeGateway } from '../../../modules/notifications/infrastructure/realtime/socket-io-realtime.gateway';
-import { REALTIME_ROOMS } from '../../../modules/notifications/notifications.constants';
+import { UserProvisionedNotificationPublisher } from '../publishers/user-provisioned-notification.publisher';
+import { IdentityEnrollmentService } from './identity-enrollment.service';
 
 @Injectable()
 export class AuthLoginService {
@@ -64,7 +65,15 @@ export class AuthLoginService {
         authAccounts: true,
         userRoles_userId: {
           with: {
-            role: true,
+            role: {
+              with: {
+                rolePermissions: {
+                  with: {
+                    permission: true,
+                  },
+                },
+              },
+            },
           },
         },
         staffProfiles: {
@@ -128,7 +137,7 @@ export class AuthLoginService {
 
     let primaryRole =
       user.userRoles_userId?.find((ur) => ur.role?.isActive)?.role ?? null;
-    if (!primaryRole || !primaryRole.isActive) {
+    if (!primaryRole?.isActive) {
       const isStaff =
         (user.staffProfiles && user.staffProfiles.length > 0) ||
         loginDto.clientId === AUTH_SURFACES.MOBILE_INTERNAL;
@@ -202,6 +211,7 @@ export class AuthLoginService {
       {
         id: user.id,
         email: user.email,
+        authVersion: user.authVersion,
         roleCode,
         systemRole: roleCode,
         role: primaryRole
@@ -242,11 +252,18 @@ export class AuthLoginService {
       },
     );
 
+    const pendingInvitation = await this.db.query.staffInvitations.findFirst({
+      where: and(
+        eq(staffInvitations.email, loginDto.email.toLowerCase().trim()),
+        eq(staffInvitations.status, STAFF_INVITATION_STATUS.PENDING),
+      ),
+    });
+
     return {
       token,
       refreshToken,
       tokenExpires: Date.now() + 86400000,
-      user: AuthUserMapper.formatUser(user, false),
+      user: AuthUserMapper.formatUser(user, Boolean(pendingInvitation)),
     };
   }
 
@@ -256,33 +273,55 @@ export class AuthLoginService {
     const verifiedGoogle = await this.googleVerifier.verify(dto.idToken);
     const email = verifiedGoogle.email.toLowerCase().trim();
 
-    // 1. Surface Gate for Mobile Internal (Strict Default-Deny):
-    if (dto.clientId === AUTH_SURFACES.MOBILE_INTERNAL) {
-      const existingUser = await this.db.query.users.findFirst({
-        where: eq(users.email, email),
-        with: {
-          userRoles_userId: {
-            with: {
-              role: true,
-            },
-          },
-          staffProfiles: true,
-        },
-      });
+    // 1. Lookup existing user record (by linked Google sub first, then by email)
+    const linkedAuthAccount = await this.db.query.authAccounts.findFirst({
+      where: and(
+        eq(authAccounts.providerId, AUTH_PROVIDER.GOOGLE),
+        eq(authAccounts.accountId, verifiedGoogle.sub),
+      ),
+    });
 
-      const firstUserRole = existingUser?.userRoles_userId?.[0];
+    const userRecord = linkedAuthAccount
+      ? await this.db.query.users.findFirst({
+          where: eq(users.id, linkedAuthAccount.userId),
+          with: {
+            authAccounts: true,
+            userRoles_userId: {
+              with: {
+                role: true,
+              },
+            },
+            staffProfiles: true,
+          },
+        })
+      : await this.db.query.users.findFirst({
+          where: eq(users.email, email),
+          with: {
+            authAccounts: true,
+            userRoles_userId: {
+              with: {
+                role: true,
+              },
+            },
+            staffProfiles: true,
+          },
+        });
+
+    const pendingInvitation = await this.db.query.staffInvitations.findFirst({
+      where: and(
+        eq(staffInvitations.email, email),
+        eq(staffInvitations.status, STAFF_INVITATION_STATUS.PENDING),
+      ),
+    });
+
+    // 2. Surface Gate for Mobile Internal (Strict Default-Deny):
+    if (dto.clientId === AUTH_SURFACES.MOBILE_INTERNAL) {
+      const firstUserRole = userRecord?.userRoles_userId?.[0];
       const isExistingStaff =
         firstUserRole?.role?.audience === ROLE_AUDIENCE.INTERNAL ||
         Boolean(
-          existingUser?.staffProfiles && existingUser.staffProfiles.length > 0,
+          userRecord?.staffProfiles && userRecord.staffProfiles.length > 0,
         );
-
-      const pendingInvitation = await this.db.query.staffInvitations.findFirst({
-        where: and(
-          eq(staffInvitations.email, email),
-          eq(staffInvitations.status, STAFF_INVITATION_STATUS.PENDING),
-        ),
-      });
 
       // Default-Deny: If not active staff AND not in pending invitations -> 403 NOT_AUTHORIZED with ZERO DB writes
       if (!isExistingStaff && !pendingInvitation) {
@@ -293,34 +332,13 @@ export class AuthLoginService {
         });
       }
 
-      if (existingUser && existingUser.status === USER_STATUS.INACTIVE) {
+      if (userRecord && userRecord.status === USER_STATUS.INACTIVE) {
         throw new ForbiddenException({
           code: AUTH_ERROR_CODES.ACCOUNT_INACTIVE,
           message: 'Akun telah dinonaktifkan atau undangan telah dibatalkan.',
         });
       }
     }
-
-    // 2. Lookup existing user record
-    const userRecord = await this.db.query.users.findFirst({
-      where: eq(users.email, email),
-      with: {
-        authAccounts: true,
-        userRoles_userId: {
-          with: {
-            role: true,
-          },
-        },
-        staffProfiles: true,
-      },
-    });
-
-    const pendingInvitation = await this.db.query.staffInvitations.findFirst({
-      where: and(
-        eq(staffInvitations.email, email),
-        eq(staffInvitations.status, STAFF_INVITATION_STATUS.PENDING),
-      ),
-    });
 
     let userId: string;
 
@@ -395,7 +413,7 @@ export class AuthLoginService {
       let existingRole =
         userRecord.userRoles_userId?.find((ur) => ur.role?.isActive)?.role ??
         null;
-      if (!existingRole || !existingRole.isActive) {
+      if (!existingRole?.isActive) {
         const isStaff =
           (userRecord.staffProfiles && userRecord.staffProfiles.length > 0) ||
           dto.clientId === AUTH_SURFACES.MOBILE_INTERNAL;
@@ -444,16 +462,20 @@ export class AuthLoginService {
         });
       }
 
-      if (verifiedGoogle.picture && !userRecord.avatarUrl) {
-        await this.db
-          .update(users)
-          .set({
-            avatarUrl: verifiedGoogle.picture,
-            emailVerified: true,
-            updatedAt: new Date().toISOString(),
-          })
-          .where(eq(users.id, userId));
+      const userUpdates: Record<string, any> = {
+        updatedAt: new Date().toISOString(),
+      };
+
+      if (verifiedGoogle.name && verifiedGoogle.name.trim() !== '') {
+        userUpdates.name = verifiedGoogle.name.trim();
       }
+
+      if (verifiedGoogle.picture) {
+        userUpdates.avatarUrl = verifiedGoogle.picture;
+        userUpdates.emailVerified = true;
+      }
+
+      await this.db.update(users).set(userUpdates).where(eq(users.id, userId));
     }
 
     await this.db
@@ -470,7 +492,15 @@ export class AuthLoginService {
         authAccounts: true,
         userRoles_userId: {
           with: {
-            role: true,
+            role: {
+              with: {
+                rolePermissions: {
+                  with: {
+                    permission: true,
+                  },
+                },
+              },
+            },
           },
         },
         staffProfiles: {
@@ -505,6 +535,7 @@ export class AuthLoginService {
       {
         id: completeUser.id,
         email: completeUser.email,
+        authVersion: completeUser.authVersion,
         roleCode,
         role: primaryRole
           ? {
@@ -560,7 +591,15 @@ export class AuthLoginService {
       with: {
         userRoles_userId: {
           with: {
-            role: true,
+            role: {
+              with: {
+                rolePermissions: {
+                  with: {
+                    permission: true,
+                  },
+                },
+              },
+            },
           },
         },
         staffProfiles: {
@@ -592,6 +631,7 @@ export class AuthLoginService {
       {
         id: user.id,
         email: user.email,
+        authVersion: user.authVersion,
         roleCode,
         role: primaryRole
           ? {

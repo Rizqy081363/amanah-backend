@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Inject,
   Injectable,
@@ -8,7 +9,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { isUUID } from 'class-validator';
-import { and, eq, or, sql } from 'drizzle-orm';
+import { and, eq, ne, or, sql } from 'drizzle-orm';
 import { RedisService } from '../../../common/redis/redis.service';
 import { ClinicTimeService } from '../../../common/time/clinic-time.service';
 import { DRIZZLE_SOURCE } from '../../../database/drizzle/drizzle.constants';
@@ -39,6 +40,7 @@ import {
 import { SocketIoRealtimeGateway } from '../../../modules/notifications/infrastructure/realtime/socket-io-realtime.gateway';
 import { NotificationGatewayService } from '../../../modules/notifications/application/services/notification-gateway.service';
 import type { NotificationRepository } from '../../../modules/notifications/domain/repositories/notification.repository';
+import { AccessControlService } from '../../../modules/access-control/application/services/access-control.service';
 import { AuthStaffOnboardingDto } from '../../dto/auth-staff-onboarding.dto';
 import { AuthUserResponseDto } from '../../dto/auth-user-response.dto';
 import type { JwtPayloadType } from '../../strategies/types/jwt-payload.type';
@@ -62,6 +64,8 @@ export class AuthStaffOnboardingService {
     private readonly notificationRepo?: NotificationRepository,
     @Optional()
     private readonly clinicTimeService?: ClinicTimeService,
+    @Optional()
+    private readonly accessControlService?: AccessControlService,
   ) {}
 
   private getNowDate(): Date {
@@ -178,6 +182,20 @@ export class AuthStaffOnboardingService {
       dto.poliklinikId,
     );
     const userAvatarUrl = userRecord.avatarUrl?.trim() || null;
+
+    const resolvedPhone = dto.phoneNumber?.trim() || userRecord.phone || null;
+    if (resolvedPhone) {
+      const existingPhoneUser = await this.db.query.users.findFirst({
+        where: and(eq(users.phone, resolvedPhone), ne(users.id, userRecord.id)),
+      });
+      if (existingPhoneUser) {
+        throw new ConflictException({
+          code: 'PHONE_ALREADY_EXISTS',
+          message:
+            'Nomor telepon sudah terdaftar pada akun lain. Silakan gunakan nomor telepon lain.',
+        });
+      }
+    }
 
     await this.db.transaction(async (tx) => {
       // 1. Update Better Auth "user" table
@@ -428,9 +446,18 @@ export class AuthStaffOnboardingService {
     const updatedUser = await this.db.query.users.findFirst({
       where: eq(users.id, userJwtPayload.id),
       with: {
+        authAccounts: true,
         userRoles_userId: {
           with: {
-            role: true,
+            role: {
+              with: {
+                rolePermissions: {
+                  with: {
+                    permission: true,
+                  },
+                },
+              },
+            },
           },
         },
         staffProfiles: {
@@ -438,6 +465,15 @@ export class AuthStaffOnboardingService {
             practitioners: true,
             addresses: true,
             clinicUnit: true,
+            role: {
+              with: {
+                rolePermissions: {
+                  with: {
+                    permission: true,
+                  },
+                },
+              },
+            },
           },
         },
         patientProfiles: {
@@ -552,6 +588,18 @@ export class AuthStaffOnboardingService {
       );
     }
 
-    return updatedUser ? AuthUserMapper.formatUser(updatedUser, false) : null;
+    let accessibleRoutes: string[] = [];
+    if (this.accessControlService && userRecord?.id) {
+      try {
+        accessibleRoutes =
+          await this.accessControlService.getUserEffectiveRoutes(userRecord.id);
+      } catch {
+        // Safe fallback
+      }
+    }
+
+    return updatedUser
+      ? AuthUserMapper.formatUser(updatedUser, false, accessibleRoutes)
+      : null;
   }
 }

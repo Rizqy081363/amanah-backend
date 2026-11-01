@@ -403,21 +403,9 @@ export class UserManagementDrizzleRepository
       }
     }
 
-    // Guard 3: Email conflict check
-    const newEmailLower = input.email.toLowerCase().trim();
-    if (newEmailLower !== existing.email.toLowerCase().trim()) {
-      const emailConflict = await this.db.query.users.findFirst({
-        where: and(
-          eq(users.email, newEmailLower as any),
-          sql`id != ${id}::uuid`,
-        ),
-      });
-      if (emailConflict) {
-        throw new ConflictException(
-          `Email "${input.email}" sudah digunakan oleh akun lain.`,
-        );
-      }
-    }
+    // Security Invariant: Administrator cannot change an existing user's account email.
+    // The account email is owned by the user and preserved as existing.email.
+    const preservedEmail = existing.email;
 
     const nowStr = new Date().toISOString();
     const isBlocking = input.status ? isAccountBlocked(input.status) : false;
@@ -426,7 +414,7 @@ export class UserManagementDrizzleRepository
       // 1. Update users table
       const userUpdate: any = {
         name: input.name,
-        email: newEmailLower as any,
+        email: preservedEmail,
         updatedAt: nowStr,
         authVersion: sql`auth_version + 1`,
       };
@@ -440,7 +428,7 @@ export class UserManagementDrizzleRepository
       // 2. Update Better-Auth user table
       const betterAuthUpdate: any = {
         name: input.name,
-        email: newEmailLower,
+        email: preservedEmail,
         updatedAt: nowStr,
       };
       if (input.status) {
@@ -501,9 +489,6 @@ export class UserManagementDrizzleRepository
 
     // 4. Redis cache eviction & session invalidation
     await this.redisService.purgeUserData(id, existing.email);
-    if (newEmailLower !== existing.email.toLowerCase().trim()) {
-      await this.redisService.purgeUserData(id, newEmailLower);
-    }
 
     const updated = await this.findById(id);
     if (!updated) {

@@ -101,7 +101,18 @@ export class ProblemDetailsFilter implements ExceptionFilter {
         // Handle class-validator errors from validationOptions
         if (resObj.errors && typeof resObj.errors === 'object') {
           invalidParams = this.extractValidationErrors(resObj.errors);
-          detail = 'Form validation failed for one or more fields.';
+          if (typeof resObj.detail === 'string') {
+            detail = resObj.detail;
+          } else if (
+            typeof resObj.message === 'string' &&
+            resObj.message !== 'Unprocessable Entity Exception'
+          ) {
+            detail = resObj.message;
+          } else if (invalidParams.length === 1 && invalidParams[0].reason) {
+            detail = invalidParams[0].reason;
+          } else {
+            detail = 'Form validation failed for one or more fields.';
+          }
           code = 'VALIDATION_FAILED';
         } else if (Array.isArray(resObj.invalidParams)) {
           invalidParams = resObj.invalidParams;

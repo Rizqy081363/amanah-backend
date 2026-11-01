@@ -14,10 +14,18 @@ import {
 import {
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
   Optional,
 } from '@nestjs/common';
 import { asc, count, desc, eq, or } from 'drizzle-orm';
+import { NotificationGatewayService } from '../../../notifications/application/services/notification-gateway.service';
+import { SocketIoRealtimeGateway } from '../../../notifications/infrastructure/realtime/socket-io-realtime.gateway';
+import {
+  NOTIFICATION_SOURCE_DOMAINS,
+  REALTIME_GATEWAY_PORT,
+  REALTIME_ROOMS,
+} from '../../../notifications/notifications.constants';
 import {
   DoctorRosterDayDto,
   DoctorRosterOverviewResponse,
@@ -33,12 +41,19 @@ import {
 
 @Injectable()
 export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
+  private readonly logger = new Logger(DrizzleDoctorRosterRepository.name);
+
   constructor(
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,
     @Optional()
     @Inject(RedisService)
     private readonly redisService?: RedisService,
+    @Optional()
+    @Inject(REALTIME_GATEWAY_PORT)
+    private readonly realtimeGateway?: SocketIoRealtimeGateway,
+    @Optional()
+    private readonly notificationGateway?: NotificationGatewayService,
   ) {}
 
   private async invalidateScheduleCaches(): Promise<void> {
@@ -53,6 +68,69 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
       );
     } catch {
       return;
+    }
+  }
+
+  private async notifyScheduleUpdate(
+    doctorId: string,
+    staffProfileId: string,
+    userId?: string | null,
+    targetName?: string,
+  ): Promise<void> {
+    const nowIso = new Date().toISOString();
+    const eventPayload = {
+      doctorId,
+      staffProfileId,
+      userId: userId || null,
+      action: 'schedule_updated',
+      updatedAt: nowIso,
+    };
+
+    // 1. Emit Scoped Real-time WebSocket Event
+    try {
+      this.realtimeGateway?.emitToRoom?.(
+        REALTIME_ROOMS.clinic,
+        'schedules:updated',
+        eventPayload,
+      );
+      if (userId) {
+        this.realtimeGateway?.emitToUser?.(
+          userId,
+          'schedules:updated',
+          eventPayload,
+        );
+      }
+    } catch (err) {
+      this.logger.warn(`Failed to emit schedules:updated socket event: ${String(err)}`);
+    }
+
+    // 2. Dispatch Background FCM Push & In-App Notification
+    if (userId && this.notificationGateway) {
+      try {
+        await this.notificationGateway.dispatch({
+          commandId: `schedule-update-${userId}-${Date.now()}`,
+          sourceDomain: NOTIFICATION_SOURCE_DOMAINS.ATTENDANCE,
+          channels: ['push', 'in_app'],
+          target: {
+            type: 'user',
+            recipientUserIds: [userId],
+          },
+          category: 'shift',
+          content: {
+            title: 'Jadwal Kerja Diperbarui',
+            body: `Halo ${targetName || 'Staf'}, konfigurasi jadwal kerja operasional Anda telah diperbarui.`,
+            actionUrl: '/home',
+            data: {
+              category: 'schedule_updated',
+              doctorId,
+              staffProfileId,
+              timestamp: nowIso,
+            },
+          },
+        });
+      } catch (pushErr) {
+        this.logger.warn(`Failed to dispatch schedule update push: ${String(pushErr)}`);
+      }
     }
   }
 
@@ -223,10 +301,15 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
         eq(practitioners.id, doctorId),
         eq(practitioners.staffProfileId, doctorId),
       ),
+      with: {
+        staffProfile: true,
+      },
     });
 
     let staffProfile: any = null;
-    if (!prac) {
+    if (prac) {
+      staffProfile = prac.staffProfile;
+    } else {
       staffProfile = await this.db.query.staffProfiles.findFirst({
         where: eq(staffProfiles.id, doctorId),
       });
@@ -301,6 +384,15 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
 
     await this.invalidateScheduleCaches();
 
+    const effectiveStaffUserId = staffProfile?.userId;
+    const effectiveStaffName = prac?.displayName || staffProfile?.fullName;
+    await this.notifyScheduleUpdate(
+      prac ? prac.id : staffProfile.id,
+      staffProfile?.id || prac?.staffProfileId || '',
+      effectiveStaffUserId,
+      effectiveStaffName,
+    );
+
     return this.getDoctorRoster(prac ? prac.id : staffProfile.id);
   }
 
@@ -313,10 +405,15 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
         eq(practitioners.id, doctorId),
         eq(practitioners.staffProfileId, doctorId),
       ),
+      with: {
+        staffProfile: true,
+      },
     });
 
     let staffProfile: any = null;
-    if (!prac) {
+    if (prac) {
+      staffProfile = prac.staffProfile;
+    } else {
       staffProfile = await this.db.query.staffProfiles.findFirst({
         where: eq(staffProfiles.id, doctorId),
       });
@@ -378,6 +475,15 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
 
     await this.invalidateScheduleCaches();
 
+    const effectiveStaffUserId = staffProfile?.userId;
+    const effectiveStaffName = prac?.displayName || staffProfile?.fullName;
+    await this.notifyScheduleUpdate(
+      prac ? prac.id : staffProfile.id,
+      staffProfile?.id || prac?.staffProfileId || '',
+      effectiveStaffUserId,
+      effectiveStaffName,
+    );
+
     return this.getDoctorRoster(prac ? prac.id : staffProfile.id);
   }
 
@@ -386,9 +492,18 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
     limit = 20,
     offset = 0,
   ): Promise<DoctorScheduleHistoryResponse> {
+    const prac = await this.db.query.practitioners.findFirst({
+      where: or(
+        eq(practitioners.id, doctorId),
+        eq(practitioners.staffProfileId, doctorId),
+      ),
+    });
+
+    const targetDoctorId = prac ? prac.id : doctorId;
+
     const [rows, totalResult] = await Promise.all([
       this.db.query.doctorScheduleStatusHistory.findMany({
-        where: eq(doctorScheduleStatusHistory.doctorId, doctorId),
+        where: eq(doctorScheduleStatusHistory.doctorId, targetDoctorId),
         with: {
           sessionDef: true,
           masterDay: true,
@@ -401,7 +516,7 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
       this.db
         .select({ value: count() })
         .from(doctorScheduleStatusHistory)
-        .where(eq(doctorScheduleStatusHistory.doctorId, doctorId)),
+        .where(eq(doctorScheduleStatusHistory.doctorId, targetDoctorId)),
     ]);
 
     const total = totalResult[0]?.value ?? 0;

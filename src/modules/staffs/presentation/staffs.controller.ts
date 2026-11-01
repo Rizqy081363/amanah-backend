@@ -51,6 +51,10 @@ import {
   STAFF_ROSTER_REPOSITORY,
   StaffRosterRepository,
 } from '../domain/repositories/staff-roster.repository';
+import {
+  DOCTOR_ROSTER_REPOSITORY,
+  DoctorRosterRepository,
+} from '../../schedules/doctor-roster/domain/doctor-roster.repository';
 import { CreateCredentialDto } from './dto/create-credential.dto';
 import { CreateStaffDto } from './dto/create-staff.dto';
 import { BulkReplaceRosterDto } from './dto/staff-roster.dto';
@@ -73,11 +77,13 @@ export class StaffsController {
     private readonly staffRepo: StaffRepository,
     @Inject(STAFF_ROSTER_REPOSITORY)
     private readonly rosterRepo: StaffRosterRepository,
+    @Inject(DOCTOR_ROSTER_REPOSITORY)
+    private readonly doctorRosterRepo: DoctorRosterRepository,
     private readonly avatarService: AvatarService,
   ) {}
 
   @Get('me')
-  @RequirePermissions('profile:read', 'staff:read')
+  @RequirePermissions('profile:read')
   @ApiOperation({
     summary: 'Mendapatkan profil dan Kartu ID digital staf login',
     description:
@@ -98,7 +104,7 @@ export class StaffsController {
   }
 
   @Patch('me')
-  @RequirePermissions('profile:update', 'staff:manage')
+  @RequirePermissions('profile:update')
   @ApiOperation({
     summary: 'Memperbarui profil staf login saat ini (Self-Update)',
     description:
@@ -134,14 +140,15 @@ export class StaffsController {
     if (body.licenseNumber !== undefined)
       updatePayload.licenseNumber = body.licenseNumber;
     if (body.address !== undefined) updatePayload.address = body.address;
-    if (body.email !== undefined) updatePayload.email = body.email;
+    // Security Invariant: Email perubahan wajib melalui siklus OTP (/auth/me/request-email-change & verify-email-change)
+    // Email kanonikal tidak boleh diubah melalui update profil umum.
 
     const updated = await this.staffRepo.update(staff.id, updatePayload);
     return updated;
   }
 
   @Patch('me/avatar')
-  @RequirePermissions('profile:update', 'staff:manage')
+  @RequirePermissions('profile:update')
   @UseInterceptors(
     FileInterceptor('file', {
       limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
@@ -177,7 +184,7 @@ export class StaffsController {
   }
 
   @Post('me/avatar')
-  @RequirePermissions('profile:update', 'staff:manage')
+  @RequirePermissions('profile:update')
   @UseInterceptors(
     FileInterceptor('file', {
       limits: { fileSize: 5 * 1024 * 1024 },
@@ -208,7 +215,7 @@ export class StaffsController {
   }
 
   @Get('me/credentials')
-  @RequirePermissions('profile:read', 'staff:read')
+  @RequirePermissions('profile:read')
   @ApiOperation({
     summary: 'Melihat kredensial legalitas staf yang sedang login (SIP/STR)',
     description:
@@ -229,7 +236,7 @@ export class StaffsController {
   }
 
   @Post('me/credentials')
-  @RequirePermissions('profile:update', 'staff:manage')
+  @RequirePermissions('profile:update')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Menambahkan kredensial SIP/STR untuk staf yang sedang login',
@@ -252,7 +259,7 @@ export class StaffsController {
   }
 
   @Patch('me/credentials/:credentialId')
-  @RequirePermissions('profile:update', 'staff:manage')
+  @RequirePermissions('profile:update')
   @ApiOperation({
     summary: 'Memperbarui kredensial SIP/STR staf login',
     description:
@@ -283,7 +290,7 @@ export class StaffsController {
   }
 
   @Delete('me/credentials/:credentialId')
-  @RequirePermissions('profile:update', 'staff:manage')
+  @RequirePermissions('profile:update')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Menghapus kredensial SIP/STR staf login',
@@ -415,7 +422,7 @@ export class StaffsController {
   }
 
   @Patch(':id')
-  @RequirePermissions('staff:manage', 'profile:update')
+  @RequirePermissions('staff:manage')
   @ApiOperation({
     summary: 'Memperbarui data profil staf (Admin / Staf Pemilik)',
     description:
@@ -445,7 +452,11 @@ export class StaffsController {
       );
     }
 
-    const updated = await this.staffRepo.update(id, body);
+    // Security Invariant: Administrator cannot change an existing employee's account email.
+    // Strip email from body to preserve canonical account identity.
+    const { email: _emailToIgnore, ...safeBody } = body;
+
+    const updated = await this.staffRepo.update(id, safeBody);
     if (!updated) {
       throw new NotFoundException(`Staf dengan ID ${id} tidak ditemukan`);
     }
@@ -575,7 +586,7 @@ export class StaffsController {
   }
 
   @Post(':id/credentials')
-  @RequirePermissions('staff:manage', 'profile:update')
+  @RequirePermissions('staff:manage')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Menambahkan kredensial SIP/STR untuk staf',
@@ -609,7 +620,7 @@ export class StaffsController {
   }
 
   @Patch(':id/credentials/:credentialId')
-  @RequirePermissions('staff:manage', 'profile:update')
+  @RequirePermissions('staff:manage')
   @ApiOperation({
     summary:
       'Memperbarui kredensial SIP/STR staf berdasarkan ID staf dan ID kredensial',
@@ -651,7 +662,7 @@ export class StaffsController {
   }
 
   @Delete(':id/credentials/:credentialId')
-  @RequirePermissions('staff:manage', 'profile:update')
+  @RequirePermissions('staff:manage')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Menghapus kredensial SIP/STR staf berdasarkan ID',
@@ -737,12 +748,25 @@ export class StaffsController {
   async updateStaffRoster(
     @Param('id') id: string,
     @Body() body: BulkReplaceRosterDto,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
     const staff = await this.staffRepo.findById(id);
     if (!staff) {
       throw new NotFoundException(`Staf dengan ID ${id} tidak ditemukan`);
     }
-    return this.rosterRepo.bulkReplace(id, body.rosters);
+    await this.doctorRosterRepo.updateDoctorRoster(
+      id,
+      {
+        assignments: body.rosters.map((r) => ({
+          dow: r.dow,
+          sessionId: r.sessionId,
+          isActive: true,
+        })),
+        reason: 'Pembaruan roster melalui manajemen staf',
+      },
+      user?.id,
+    );
+    return this.rosterRepo.findByStaffProfileId(id);
   }
 
   @Delete(':id/roster/:rosterId')
@@ -786,12 +810,15 @@ export class StaffsController {
   @ApiOkResponse({
     description: 'Roster staf berhasil direset ke template master jadwal',
   })
-  async resetStaffRoster(@Param('id') id: string) {
+  async resetStaffRoster(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     const staff = await this.staffRepo.findById(id);
     if (!staff) {
       throw new NotFoundException(`Staf dengan ID ${id} tidak ditemukan`);
     }
-    await this.rosterRepo.deleteByStaffProfileId(id);
+    await this.doctorRosterRepo.resetDoctorRoster(id, user?.id);
     return this.rosterRepo.findByStaffProfileId(id);
   }
 }

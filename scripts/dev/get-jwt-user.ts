@@ -156,6 +156,7 @@ async function main(): Promise<void> {
       SELECT 
         u.id, 
         u.email, 
+        u.auth_version,
         u.name, 
         u.phone,
         COALESCE(r_ur.id, r_sp.id) as role_id, 
@@ -218,6 +219,7 @@ async function main(): Promise<void> {
     const payload = {
       id: user.id,
       email: user.email,
+      authVersion: user.auth_version,
       roleCode,
       systemRole,
       role: user.role_id

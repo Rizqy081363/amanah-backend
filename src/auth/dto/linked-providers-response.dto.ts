@@ -27,4 +27,11 @@ export class LinkedProvidersResponseDto {
     example: 'admin@amanah.com',
   })
   email: string;
+
+  @ApiPropertyOptional({
+    description: 'Google Client ID resmi dari backend untuk inisiasi OAuth',
+    example:
+      '649477011186-augsamgganq024tesomp0c8rvgs9c7ua.apps.googleusercontent.com',
+  })
+  googleClientId?: string;
 }

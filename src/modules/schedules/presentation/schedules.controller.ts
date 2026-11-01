@@ -122,29 +122,36 @@ export class SchedulesController {
     user: AuthenticatedUser,
     requestedStaffId?: string,
   ): string {
-    if (isAdminUser(user)) {
-      if (!requestedStaffId) {
-        throw new DomainValidationException(
-          'Parameter staffId wajib disertakan ketika diakses oleh akun Administrator non-praktisi',
+    const hasManagePermission =
+      isAdminUser(user) ||
+      (user.permissions?.includes('schedules:manage') ?? false) ||
+      (user.permissions?.includes('*') ?? false);
+
+    if (requestedStaffId) {
+      if (
+        !hasManagePermission &&
+        user.staff &&
+        requestedStaffId !== user.staff.id &&
+        requestedStaffId !== user.staff.practitionerId
+      ) {
+        throw new DomainForbiddenException(
+          'Akses ditolak: Staf hanya dapat mengakses jadwal untuk akun sendiri',
         );
       }
       return requestedStaffId;
     }
-    if (!isStaffUser(user)) {
-      throw new DomainForbiddenException('User bukan staf terdaftar');
+
+    if (isStaffUser(user)) {
+      return user.staff.practitionerId || user.staff.id;
     }
-    const staffId = user.staff.practitionerId || user.staff.id;
-    if (
-      requestedStaffId &&
-      requestedStaffId !== staffId &&
-      requestedStaffId !== user.staff.id &&
-      requestedStaffId !== user.staff.practitionerId
-    ) {
-      throw new DomainForbiddenException(
-        'Akses ditolak: Staf hanya dapat mengakses jadwal untuk akun sendiri',
+
+    if (hasManagePermission) {
+      throw new DomainValidationException(
+        'Parameter staffId wajib disertakan ketika diakses oleh akun Administrator non-praktisi',
       );
     }
-    return staffId;
+
+    throw new DomainForbiddenException('User bukan staf terdaftar');
   }
 
   @Post()

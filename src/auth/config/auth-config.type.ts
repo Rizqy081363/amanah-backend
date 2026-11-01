@@ -12,4 +12,5 @@ export type AuthConfig = {
   resetPasswordPath: string;
   uniformErrors: boolean;
   googleClientId?: string;
+  googleClientSecret?: string;
 };

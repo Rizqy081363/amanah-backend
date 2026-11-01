@@ -61,16 +61,16 @@
     "infra:ps": "bun ./scripts/infra/infra.ts ps",
     "infra:logs": "bun ./scripts/infra/infra.ts logs",
     "seed:create:relational": "hygen seeds create-relational",
-    "postseed:create:relational": "npm run lint:fix",
+    "postseed:create:relational": "bun run lint:fix",
     "generate:resource:relational": "hygen generate relational-resource",
-    "postgenerate:resource:relational": "npm run lint:fix",
+    "postgenerate:resource:relational": "bun run lint:fix",
     "generate:resource:all-db": "hygen generate all-db-resource",
-    "postgenerate:resource:all-db": "npm run lint:fix",
+    "postgenerate:resource:all-db": "bun run lint:fix",
     "add:property:to-all-db": "hygen property add-to-all-db",
-    "postadd:property:to-all-db": "npm run lint:fix",
+    "postadd:property:to-all-db": "bun run lint:fix",
     "add:property:to-relational": "hygen property add-to-relational",
-    "postadd:property:to-relational": "npm run lint:fix",
-    "app:config": "ts-node -r tsconfig-paths/register ./.install-scripts/index.ts && npm install && npm run lint:fix",
+    "postadd:property:to-relational": "bun run lint:fix",
+    "app:config": "ts-node -r tsconfig-paths/register ./.install-scripts/index.ts && bun install && bun run lint:fix",
     "seed:run:relational": "bun run db:seed:dev",
     "prebuild": "rimraf dist",
     "build": "nest build",
@@ -252,7 +252,7 @@
   },
   "engines": {
     "node": ">=16.0.0",
-    "npm": ">=8.0.0"
+    "bun": ">=1.0.0"
   },
   "release-it": {
     "git": {
