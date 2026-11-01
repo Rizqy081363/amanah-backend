@@ -508,8 +508,10 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
       throw new NotFoundException('Peran tidak ditemukan');
     }
 
-    if (existing.isSystem) {
-      throw new BadRequestException('Peran sistem bawaan tidak dapat dihapus');
+    if (existing.code === 'admin' || existing.code === 'super_admin') {
+      throw new BadRequestException(
+        'Peran administrator utama sistem tidak dapat dihapus',
+      );
     }
 
     const [staffUsage] = await this.db
@@ -693,7 +695,7 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
   async getEffectivePermissionsByRoleId(roleId: string): Promise<string[]> {
     const role = await this.findRoleById(roleId);
     if (!role || !role.isActive) return [];
-    if (role.isSystem) {
+    if (role.code === 'admin' || role.code === 'super_admin') {
       const allPerms = await this.findAllPermissions();
       return allPerms.map((p) => p.code);
     }
