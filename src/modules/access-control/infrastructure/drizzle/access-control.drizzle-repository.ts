@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { and, asc, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
+import { CanonicalSlugHelper } from '@common/utils';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
@@ -263,13 +264,30 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
   }
 
   async createRole(data: CreateRoleInput): Promise<RoleEntity> {
-    const existing = await this.db.query.roles.findFirst({
-      where: eq(roles.code, data.code),
-    });
-    if (existing) {
-      throw new BadRequestException(
-        `Peran dengan kode '${data.code}' sudah terdaftar`,
-      );
+    const rawCode = data.code?.trim();
+    let finalCode: string;
+
+    if (rawCode) {
+      const existing = await this.db.query.roles.findFirst({
+        where: eq(roles.code, rawCode),
+      });
+      if (existing) {
+        throw new BadRequestException(
+          `Peran dengan kode '${rawCode}' sudah terdaftar`,
+        );
+      }
+      finalCode = rawCode;
+    } else {
+      const baseCode = CanonicalSlugHelper.toSnakeCase(data.name, 'role');
+      finalCode = baseCode;
+      let counter = 1;
+      while (
+        await this.db.query.roles.findFirst({
+          where: eq(roles.code, finalCode),
+        })
+      ) {
+        finalCode = `${baseCode}_${counter++}`;
+      }
     }
 
     let audience: RoleAudience =
@@ -302,7 +320,7 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
     const [inserted] = await this.db
       .insert(roles)
       .values({
-        code: data.code,
+        code: finalCode,
         name: data.name,
         description: data.description || null,
         parentRoleId: data.parentRoleId || null,

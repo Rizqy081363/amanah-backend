@@ -48,12 +48,12 @@ export class ClinicsController {
   @Public()
   @Get('services/catalog')
   @ApiOperation({
-    summary: 'Mendapatkan seluruh katalog kategori dan layanan klinik (SSOT)',
+    summary: 'Mendapatkan seluruh katalog kategori dan services klinik (SSOT)',
     description:
-      'Mengambil hierarki kategori layanan beserta daftar tindakan medis, poliklinik tujuan, dan pilihan keluhan bawaan.',
+      'Mengambil hierarki kategori beserta daftar services, poliklinik tujuan, dan pilihan keluhan bawaan.',
   })
   @ApiOkResponse({
-    description: 'Katalog layanan berhasil diambil',
+    description: 'Katalog services berhasil diambil',
     type: ServiceCatalogResponseDto,
   })
   @HttpCache({ ttlSeconds: 300, tags: ['clinics', 'catalog'] })
@@ -86,16 +86,16 @@ export class ClinicsController {
   @Public()
   @Get(':id/layanan')
   @ApiOperation({
-    summary: 'Mendapatkan daftar layanan/tindakan berdasarkan ID poliklinik',
+    summary: 'Mendapatkan daftar services berdasarkan ID poliklinik',
     description:
-      'Mengambil seluruh layanan yang disediakan oleh poliklinik spesifik.',
+      'Mengambil seluruh services yang disediakan oleh poliklinik spesifik.',
   })
   @ApiParam({
     name: 'id',
     description: 'ID unik poliklinik',
     example: 'cd44dd7d-07a9-4e31-9441-3e0e02ddebb1',
   })
-  @ApiOkResponse({ description: 'Daftar layanan berhasil diambil' })
+  @ApiOkResponse({ description: 'Daftar services berhasil diambil' })
   @HttpCache({ ttlSeconds: 300, tags: ['clinics'] })
   async getLayananByPoli(@Param('id') id: string) {
     return this.clinicsService.findLayananByPoliId(id);
@@ -104,16 +104,16 @@ export class ClinicsController {
   @Public()
   @Get('poliklinik/:id/services')
   @ApiOperation({
-    summary: 'Mendapatkan daftar layanan berdasarkan ID poliklinik (Alias)',
+    summary: 'Mendapatkan daftar services berdasarkan ID poliklinik (Alias)',
     description:
-      'Alias rute publik untuk mendapatkan daftar tindakan medis poliklinik.',
+      'Alias rute publik untuk mendapatkan daftar services poliklinik.',
   })
   @ApiParam({
     name: 'id',
     description: 'ID unik poliklinik',
     example: 'cd44dd7d-07a9-4e31-9441-3e0e02ddebb1',
   })
-  @ApiOkResponse({ description: 'Daftar layanan berhasil diambil' })
+  @ApiOkResponse({ description: 'Daftar services berhasil diambil' })
   @HttpCache({ ttlSeconds: 300, tags: ['clinics'] })
   async getServicesByPoli(@Param('id') id: string) {
     return this.clinicsService.findLayananByPoliId(id);

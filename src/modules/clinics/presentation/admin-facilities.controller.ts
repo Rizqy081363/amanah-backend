@@ -6,6 +6,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
@@ -114,11 +115,11 @@ export class AdminFacilitiesController {
   @Delete('unit-types/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
-    summary: 'Menonaktifkan tipe unit fasilitas (Admin)',
-    description: 'Menonaktifkan master data tipe unit.',
+    summary: 'Menghapus permanen tipe unit fasilitas (Admin)',
+    description: 'Menghapus fisik master data tipe unit dari basis data jika tidak memiliki unit fasilitas terhubung.',
   })
   @ApiParam({ name: 'id', description: 'ID unik tipe unit fasilitas' })
-  @ApiNoContentResponse({ description: 'Tipe unit berhasil dinonaktifkan' })
+  @ApiNoContentResponse({ description: 'Tipe unit berhasil dihapus permanen' })
   async deleteUnitType(
     @Param(zodPipe(FacilityUnitTypeParamSchema))
     param: FacilityUnitTypeParamInput,
@@ -176,11 +177,11 @@ export class AdminFacilitiesController {
   @Delete('units/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
-    summary: 'Menonaktifkan unit fasilitas (Admin)',
-    description: 'Menonaktifkan unit poliklinik dari operasional.',
+    summary: 'Menghapus permanen unit fasilitas (Admin)',
+    description: 'Menghapus fisik unit poliklinik dari basis data jika tidak memiliki relasi aktif.',
   })
   @ApiParam({ name: 'id', description: 'ID unik unit fasilitas' })
-  @ApiNoContentResponse({ description: 'Unit berhasil dinonaktifkan' })
+  @ApiNoContentResponse({ description: 'Unit berhasil dihapus permanen' })
   async deleteUnit(
     @Param(zodPipe(FacilityUnitParamSchema)) param: FacilityUnitParamInput,
   ) {
@@ -241,7 +242,7 @@ export class AdminFacilitiesController {
   @ApiParam({ name: 'id', description: 'ID unik ruangan' })
   @ApiOkResponse({ description: 'Ruangan berhasil diperbarui' })
   async updateRoom(
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
     @Body() body: UpdateFacilityRoomDto,
   ) {
     return this.facilitiesService.updateRoom(id, body);
@@ -250,12 +251,12 @@ export class AdminFacilitiesController {
   @Delete('rooms/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
-    summary: 'Menonaktifkan ruangan periksa (Admin)',
-    description: 'Menonaktifkan ruangan periksa dari sistem.',
+    summary: 'Menghapus permanen ruangan periksa (Admin)',
+    description: 'Menghapus fisik ruangan periksa dari basis data jika tidak memiliki janji temu terhubung.',
   })
   @ApiParam({ name: 'id', description: 'ID unik ruangan' })
-  @ApiNoContentResponse({ description: 'Ruangan berhasil dinonaktifkan' })
-  async deleteRoom(@Param('id') id: string) {
+  @ApiNoContentResponse({ description: 'Ruangan berhasil dihapus permanen' })
+  async deleteRoom(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
     await this.facilitiesService.deleteRoom(id);
   }
 
@@ -312,7 +313,7 @@ export class AdminFacilitiesController {
   @ApiParam({ name: 'id', description: 'ID unik kategori layanan' })
   @ApiOkResponse({ description: 'Kategori layanan berhasil diperbarui' })
   async updateCategory(
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
     @Body() body: UpdateServiceCategoryDto,
   ) {
     return this.facilitiesService.updateCategory(id, body);
@@ -321,26 +322,26 @@ export class AdminFacilitiesController {
   @Delete('categories/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
-    summary: 'Menonaktifkan kategori layanan (Admin)',
-    description: 'Menonaktifkan kategori layanan.',
+    summary: 'Menghapus permanen kategori layanan (Admin)',
+    description: 'Menghapus fisik kategori layanan dari basis data jika tidak memiliki service medis terhubung.',
   })
   @ApiParam({ name: 'id', description: 'ID unik kategori layanan' })
   @ApiNoContentResponse({
-    description: 'Kategori layanan berhasil dinonaktifkan',
+    description: 'Kategori layanan berhasil dihapus permanen',
   })
-  async deleteCategory(@Param('id') id: string) {
+  async deleteCategory(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
     await this.facilitiesService.deleteCategory(id);
   }
 
   // ==========================================
-  // 4. CLINIC SERVICES (Layanan Medis)
+  // 4. CLINIC SERVICES
   // ==========================================
 
   @Get('services')
   @ApiOperation({
-    summary: 'Mendapatkan daftar layanan medis (Admin)',
+    summary: 'Mendapatkan daftar services (Admin)',
     description:
-      'Mengambil seluruh layanan tindakan medis, dapat difilter per kategori atau unit.',
+      'Mengambil seluruh services, dapat difilter per kategori atau unit.',
   })
   @ApiQuery({
     name: 'categoryId',
@@ -362,7 +363,7 @@ export class AdminFacilitiesController {
     required: false,
     description: 'Filter status (active/inactive)',
   })
-  @ApiOkResponse({ description: 'Daftar layanan medis berhasil diambil' })
+  @ApiOkResponse({ description: 'Daftar services berhasil diambil' })
   async getServices(
     @Query('categoryId') categoryId?: string,
     @Query('unitId') unitId?: string,
@@ -375,25 +376,25 @@ export class AdminFacilitiesController {
   @Post('services')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
-    summary: 'Menambahkan layanan medis baru (Admin)',
+    summary: 'Menambahkan services baru (Admin)',
     description:
-      'Membuat layanan tindakan medis dengan nama ikon dan keluhan bawaan.',
+      'Membuat services dengan nama ikon dan keluhan bawaan.',
   })
-  @ApiCreatedResponse({ description: 'Layanan medis berhasil dibuat' })
+  @ApiCreatedResponse({ description: 'Services berhasil dibuat' })
   async createService(@Body() body: CreateClinicServiceDto) {
     return this.facilitiesService.createService(body);
   }
 
   @Patch('services/:id')
   @ApiOperation({
-    summary: 'Memperbarui data layanan medis (Admin)',
+    summary: 'Memperbarui data services (Admin)',
     description:
-      'Mengubah nama, ikon, alur medis, atau daftar keluhan layanan.',
+      'Mengubah nama, ikon, alur medis, atau daftar keluhan services.',
   })
-  @ApiParam({ name: 'id', description: 'ID unik layanan medis' })
-  @ApiOkResponse({ description: 'Layanan medis berhasil diperbarui' })
+  @ApiParam({ name: 'id', description: 'ID unik services' })
+  @ApiOkResponse({ description: 'Services berhasil diperbarui' })
   async updateService(
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
     @Body() body: UpdateClinicServiceDto,
   ) {
     return this.facilitiesService.updateService(id, body);
@@ -402,12 +403,12 @@ export class AdminFacilitiesController {
   @Delete('services/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
-    summary: 'Menonaktifkan layanan medis (Admin)',
-    description: 'Menonaktifkan layanan medis dari operasional klinik.',
+    summary: 'Menghapus permanen services (Admin)',
+    description: 'Menghapus fisik services dari basis data jika tidak memiliki riwayat pemeriksaan atau janji temu aktif.',
   })
-  @ApiParam({ name: 'id', description: 'ID unik layanan medis' })
-  @ApiNoContentResponse({ description: 'Layanan medis berhasil dinonaktifkan' })
-  async deleteService(@Param('id') id: string) {
+  @ApiParam({ name: 'id', description: 'ID unik services' })
+  @ApiNoContentResponse({ description: 'Services berhasil dihapus permanen' })
+  async deleteService(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
     await this.facilitiesService.deleteService(id);
   }
 
@@ -451,7 +452,7 @@ export class AdminFacilitiesController {
   @ApiParam({ name: 'id', description: 'ID unik formulir intake' })
   @ApiOkResponse({ description: 'Formulir intake berhasil diperbarui' })
   async updateForm(
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
     @Body() body: UpdateClinicalIntakeFormDto,
   ) {
     return this.facilitiesService.updateForm(id, body);
@@ -460,14 +461,14 @@ export class AdminFacilitiesController {
   @Delete('forms/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
-    summary: 'Menonaktifkan master formulir intake (Admin)',
-    description: 'Menonaktifkan formulir intake dari sistem.',
+    summary: 'Menghapus permanen master formulir intake (Admin)',
+    description: 'Menghapus fisik formulir intake dari basis data jika tidak terhubung ke service medis aktif.',
   })
   @ApiParam({ name: 'id', description: 'ID unik formulir intake' })
   @ApiNoContentResponse({
-    description: 'Formulir intake berhasil dinonaktifkan',
+    description: 'Formulir intake berhasil dihapus permanen',
   })
-  async deleteForm(@Param('id') id: string) {
+  async deleteForm(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
     await this.facilitiesService.deleteForm(id);
   }
 

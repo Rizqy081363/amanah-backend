@@ -87,7 +87,7 @@ export class QueryMedicalRecordDto {
   endDate?: string;
 
   @ApiPropertyOptional({
-    description: 'Pencarian bebas di keluhan, diagnosis, atau tindakan',
+    description: 'Pencarian bebas di keluhan, diagnosis, atau services',
   })
   @IsString()
   @IsOptional()

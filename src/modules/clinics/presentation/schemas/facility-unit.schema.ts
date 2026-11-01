@@ -9,12 +9,12 @@ export const CreateFacilityUnitSchema = z.object({
   code: z
     .string()
     .trim()
-    .min(1, 'Kode unit tidak boleh kosong')
     .regex(
       /^[a-z][a-z0-9_]*$/,
       'Kode unit harus diawali huruf kecil dan hanya berisi huruf, angka, atau underscore',
     )
-    .max(64, 'Kode unit maksimal 64 karakter'),
+    .max(64, 'Kode unit maksimal 64 karakter')
+    .optional(),
   unitTypeId: z.string().uuid('ID tipe unit harus berupa UUID v4 yang valid'),
   queuePrefix: z
     .string()

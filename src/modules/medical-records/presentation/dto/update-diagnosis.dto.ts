@@ -36,7 +36,7 @@ export class UpdateDiagnosisDto {
 
   @ApiPropertyOptional({
     example: 'Injeksi Ondansetron 4mg IV, rehidrasi RL 500ml',
-    description: 'Tindakan medis yang dilakukan',
+    description: 'Services yang dilakukan',
   })
   @IsString()
   @IsOptional()

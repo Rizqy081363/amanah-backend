@@ -5,7 +5,7 @@ import { ApplicationPageEntity } from '../entities/application-page.entity';
 export const ACCESS_CONTROL_REPOSITORY = Symbol('ACCESS_CONTROL_REPOSITORY');
 
 export interface CreateRoleInput {
-  code: string;
+  code?: string;
   name: string;
   description?: string | null;
   parentRoleId?: string | null;

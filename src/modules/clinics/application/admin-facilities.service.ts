@@ -6,17 +6,23 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { and, asc, eq, ilike, inArray, or } from 'drizzle-orm';
+import { CanonicalSlugHelper } from '@common/utils';
 import { RedisService } from '../../../common/redis/redis.service';
 import { DRIZZLE_SOURCE } from '../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../database/drizzle/drizzle.provider';
 import {
+  appointments,
+  clinicalEncounters,
   clinicalIntakeForms,
   clinicRooms,
   clinicServiceComplaints,
   clinicServices,
   clinicUnits,
   clinicUnitTypes,
+  practitioners,
+  queueTickets,
   serviceCategories,
+  staffProfiles,
 } from '../../../database/schema';
 import {
   CreateClinicalIntakeFormDto,
@@ -48,6 +54,10 @@ export class AdminFacilitiesService {
     try {
       await Promise.all([
         this.redisService.deleteByPrefix('clinics'),
+        this.redisService.deleteByPrefix('facilities'),
+        this.redisService.deleteByPrefix('appointments'),
+        this.redisService.deleteByPrefix('doctor-schedules'),
+        this.redisService.deleteByPrefix('queue'),
         this.redisService.invalidateTags('clinics', 'catalog', 'schedule'),
       ]);
     } catch (err) {
@@ -55,6 +65,36 @@ export class AdminFacilitiesService {
         `Failed to invalidate clinic facilities cache: ${String(err)}`,
       );
     }
+  }
+
+  /**
+   * Resolves a canonical, collision-free code for clinical facilities.
+   * If explicit code is provided, verifies uniqueness or throws ConflictException.
+   * If omitted, automatically generates a safe snake_case slug from name and disambiguates duplicates (_2, _3).
+   */
+  private async resolveUniqueCode(
+    preferredCode: string | undefined,
+    name: string,
+    fallbackPrefix: string,
+    existsFn: (candidate: string) => Promise<boolean>,
+  ): Promise<string> {
+    if (preferredCode && preferredCode.trim()) {
+      const explicitCode = CanonicalSlugHelper.toSnakeCase(preferredCode, fallbackPrefix);
+      const exists = await existsFn(explicitCode);
+      if (exists) {
+        throw new ConflictException(`Kode '${explicitCode}' sudah digunakan`);
+      }
+      return explicitCode;
+    }
+
+    const baseCode = CanonicalSlugHelper.toSnakeCase(name, fallbackPrefix);
+    let candidate = baseCode;
+    let counter = 1;
+    while (await existsFn(candidate)) {
+      counter++;
+      candidate = `${baseCode}_${counter}`;
+    }
+    return candidate;
   }
 
   // ==========================================
@@ -83,21 +123,22 @@ export class AdminFacilitiesService {
   }
 
   async createUnitType(dto: CreateFacilityUnitTypeDto): Promise<any> {
-    const normalizedCode = dto.code.trim().toLowerCase().replace(/-/g, '_');
-
-    const existing = await this.db.query.clinicUnitTypes.findFirst({
-      where: eq(clinicUnitTypes.code, normalizedCode),
-    });
-    if (existing) {
-      throw new ConflictException(
-        `Tipe unit dengan kode '${normalizedCode}' sudah digunakan`,
-      );
-    }
+    const finalCode = await this.resolveUniqueCode(
+      dto.code,
+      dto.name,
+      'unit_type',
+      async (code) => {
+        const found = await this.db.query.clinicUnitTypes.findFirst({
+          where: eq(clinicUnitTypes.code, code),
+        });
+        return Boolean(found);
+      },
+    );
 
     const [created] = await this.db
       .insert(clinicUnitTypes)
       .values({
-        code: normalizedCode,
+        code: finalCode,
         name: dto.name.trim(),
         description: dto.description?.trim() || null,
         iconName: dto.iconName?.trim() || 'building-2',
@@ -166,20 +207,18 @@ export class AdminFacilitiesService {
       );
     }
 
-    // Verify referential integrity with active units
+    // Verify referential integrity with child clinic units
     const linkedUnits = await this.db.query.clinicUnits.findMany({
       where: eq(clinicUnits.unitTypeId, id),
     });
-    const activeUnits = linkedUnits.filter((u) => u.isActive);
-    if (activeUnits.length > 0) {
+    if (linkedUnits.length > 0) {
       throw new ConflictException(
-        `Tipe unit tidak dapat dinonaktifkan karena masih digunakan oleh ${activeUnits.length} unit fasilitas aktif`,
+        `Ups! Klasifikasi ini tidak dapat dihapus karena masih digunakan oleh ${linkedUnits.length} poliklinik/departemen. Pindahkan atau hapus poliklinik terkait terlebih dahulu.`,
       );
     }
 
     await this.db
-      .update(clinicUnitTypes)
-      .set({ isActive: false, updatedAt: new Date().toISOString() })
+      .delete(clinicUnitTypes)
       .where(eq(clinicUnitTypes.id, id));
 
     await this.invalidateCache();
@@ -245,24 +284,28 @@ export class AdminFacilitiesService {
       );
     }
 
-    const normalizedCode = dto.code.trim().toLowerCase().replace(/-/g, '_');
+    const finalCode = await this.resolveUniqueCode(
+      dto.code,
+      dto.name,
+      'unit',
+      async (code) => {
+        const found = await this.db.query.clinicUnits.findFirst({
+          where: eq(clinicUnits.code, code),
+        });
+        return Boolean(found);
+      },
+    );
 
-    const existing = await this.db.query.clinicUnits.findFirst({
-      where: eq(clinicUnits.code, normalizedCode),
-    });
-    if (existing) {
-      throw new ConflictException(
-        `Unit dengan kode '${normalizedCode}' sudah digunakan`,
-      );
-    }
+    const finalPrefix =
+      dto.queuePrefix?.trim() || CanonicalSlugHelper.toPrefix(dto.name, 4);
 
     const [created] = await this.db
       .insert(clinicUnits)
       .values({
-        code: normalizedCode,
+        code: finalCode,
         name: dto.name.trim(),
         unitTypeId: dto.unitTypeId,
-        queuePrefix: dto.queuePrefix?.trim() || null,
+        queuePrefix: finalPrefix || null,
         iconName: dto.iconName?.trim() || 'building-2',
         location: dto.location?.trim() || null,
         floor: dto.floor?.trim() || null,
@@ -312,8 +355,13 @@ export class AdminFacilitiesService {
       updates.code = normalizedCode;
     }
     if (dto.unitTypeId !== undefined) updates.unitTypeId = dto.unitTypeId;
-    if (dto.queuePrefix !== undefined)
-      updates.queuePrefix = dto.queuePrefix?.trim() || null;
+    if (dto.queuePrefix !== undefined) {
+      updates.queuePrefix =
+        dto.queuePrefix?.trim() ||
+        CanonicalSlugHelper.toPrefix(updates.name || existing.name, 4);
+    } else if (!existing.queuePrefix && updates.name) {
+      updates.queuePrefix = CanonicalSlugHelper.toPrefix(updates.name, 4);
+    }
     if (dto.iconName !== undefined)
       updates.iconName = dto.iconName?.trim() || 'building-2';
     if (dto.location !== undefined)
@@ -339,10 +387,35 @@ export class AdminFacilitiesService {
       throw new NotFoundException(`Unit dengan ID '${id}' tidak ditemukan`);
     }
 
-    await this.db
-      .update(clinicUnits)
-      .set({ isActive: false, updatedAt: new Date().toISOString() })
-      .where(eq(clinicUnits.id, id));
+    // Verify referential integrity with child rooms, categories, and assigned staff
+    const [linkedRooms, linkedCats, linkedStaff] = await Promise.all([
+      this.db.query.clinicRooms.findMany({ where: eq(clinicRooms.unitId, id) }),
+      this.db.query.serviceCategories.findMany({
+        where: eq(serviceCategories.unitId, id),
+      }),
+      this.db.query.staffProfiles.findMany({
+        where: eq(staffProfiles.primaryUnitId, id),
+      }),
+    ]);
+
+    if (
+      linkedRooms.length > 0 ||
+      linkedCats.length > 0 ||
+      linkedStaff.length > 0
+    ) {
+      const reasons: string[] = [];
+      if (linkedRooms.length > 0)
+        reasons.push(`${linkedRooms.length} ruang periksa`);
+      if (linkedCats.length > 0)
+        reasons.push(`${linkedCats.length} kelompok layanan`);
+      if (linkedStaff.length > 0)
+        reasons.push(`${linkedStaff.length} staf terkait`);
+      throw new ConflictException(
+        `Ups! Poliklinik ini tidak dapat dihapus karena masih terhubung dengan ${reasons.join(', ')}. Lepaskan keterkaitan terlebih dahulu.`,
+      );
+    }
+
+    await this.db.delete(clinicUnits).where(eq(clinicUnits.id, id));
 
     await this.invalidateCache();
   }
@@ -394,21 +467,23 @@ export class AdminFacilitiesService {
       );
     }
 
-    const normalizedCode = dto.code.trim().toLowerCase().replace(/-/g, '_');
-    const existing = await this.db.query.clinicRooms.findFirst({
-      where: eq(clinicRooms.code, normalizedCode),
-    });
-    if (existing) {
-      throw new ConflictException(
-        `Ruangan dengan kode '${normalizedCode}' sudah digunakan`,
-      );
-    }
+    const finalCode = await this.resolveUniqueCode(
+      dto.code,
+      dto.name,
+      'room',
+      async (code) => {
+        const found = await this.db.query.clinicRooms.findFirst({
+          where: eq(clinicRooms.code, code),
+        });
+        return Boolean(found);
+      },
+    );
 
     const [created] = await this.db
       .insert(clinicRooms)
       .values({
         unitId: dto.unitId,
-        code: normalizedCode,
+        code: finalCode,
         name: dto.name.trim(),
         location: dto.location?.trim() || null,
         floor: dto.floor?.trim() || null,
@@ -481,10 +556,31 @@ export class AdminFacilitiesService {
       throw new NotFoundException(`Ruangan dengan ID '${id}' tidak ditemukan`);
     }
 
-    await this.db
-      .update(clinicRooms)
-      .set({ isActive: false, updatedAt: new Date().toISOString() })
-      .where(eq(clinicRooms.id, id));
+    // Verify referential integrity with appointments, queue tickets, and doctor assignment
+    const [linkedAppointments, linkedTickets, linkedDoctors] =
+      await Promise.all([
+        this.db.query.appointments.findMany({
+          where: eq(appointments.roomId, id),
+        }),
+        this.db.query.queueTickets.findMany({
+          where: eq(queueTickets.roomId, id),
+        }),
+        this.db.query.practitioners.findMany({
+          where: eq(practitioners.defaultRoomId, id),
+        }),
+      ]);
+
+    if (
+      linkedAppointments.length > 0 ||
+      linkedTickets.length > 0 ||
+      linkedDoctors.length > 0
+    ) {
+      throw new ConflictException(
+        'Ups! Ruang periksa ini tidak dapat dihapus karena memiliki riwayat janji temu atau penugasan dokter.',
+      );
+    }
+
+    await this.db.delete(clinicRooms).where(eq(clinicRooms.id, id));
 
     await this.invalidateCache();
   }
@@ -554,23 +650,28 @@ export class AdminFacilitiesService {
       }
     }
 
-    const normalizedCode = dto.code.trim().toLowerCase().replace(/-/g, '_');
-    const existing = await this.db.query.serviceCategories.findFirst({
-      where: eq(serviceCategories.code, normalizedCode),
-    });
-    if (existing) {
-      throw new ConflictException(
-        `Kategori dengan kode '${normalizedCode}' sudah digunakan`,
-      );
-    }
+    const finalCode = await this.resolveUniqueCode(
+      dto.code,
+      dto.name,
+      'category',
+      async (code) => {
+        const found = await this.db.query.serviceCategories.findFirst({
+          where: eq(serviceCategories.code, code),
+        });
+        return Boolean(found);
+      },
+    );
+
+    const finalPrefix =
+      dto.codePrefix?.trim() || CanonicalSlugHelper.toPrefix(dto.name, 4);
 
     const [created] = await this.db
       .insert(serviceCategories)
       .values({
         unitId: dto.unitId || null,
-        code: normalizedCode,
+        code: finalCode,
         name: dto.name.trim(),
-        codePrefix: dto.codePrefix?.trim() || null,
+        codePrefix: finalPrefix || null,
         iconName: dto.iconName?.trim() || 'folder',
         description: dto.description?.trim() || null,
         displayOrder: dto.displayOrder ?? 0,
@@ -650,9 +751,18 @@ export class AdminFacilitiesService {
       throw new NotFoundException(`Kategori dengan ID '${id}' tidak ditemukan`);
     }
 
+    // Verify referential integrity with services under this category
+    const linkedServices = await this.db.query.clinicServices.findMany({
+      where: eq(clinicServices.serviceCategoryId, id),
+    });
+    if (linkedServices.length > 0) {
+      throw new ConflictException(
+        `Ups! Kelompok layanan ini tidak dapat dihapus karena masih memuat ${linkedServices.length} service medis. Pindahkan atau hapus service terkait terlebih dahulu.`,
+      );
+    }
+
     await this.db
-      .update(serviceCategories)
-      .set({ isActive: false, updatedAt: new Date().toISOString() })
+      .delete(serviceCategories)
       .where(eq(serviceCategories.id, id));
 
     await this.invalidateCache();
@@ -759,15 +869,21 @@ export class AdminFacilitiesService {
       }
     }
 
-    const normalizedCode = dto.code.trim().toLowerCase().replace(/-/g, '_');
-    const existing = await this.db.query.clinicServices.findFirst({
-      where: eq(clinicServices.code, normalizedCode),
-    });
-    if (existing) {
-      throw new ConflictException(
-        `Layanan dengan kode '${normalizedCode}' sudah digunakan`,
-      );
-    }
+    const finalCode = await this.resolveUniqueCode(
+      dto.code,
+      dto.name,
+      'service',
+      async (code) => {
+        const found = await this.db.query.clinicServices.findFirst({
+          where: eq(clinicServices.code, code),
+        });
+        return Boolean(found);
+      },
+    );
+
+    const finalPrefix = (
+      dto.codePrefix?.trim() || CanonicalSlugHelper.toPrefix(dto.name, 4)
+    ).toUpperCase();
 
     return await this.db.transaction(async (tx) => {
       const [created] = await tx
@@ -776,11 +892,11 @@ export class AdminFacilitiesService {
           serviceCategoryId: dto.serviceCategoryId,
           specialtyId: dto.specialtyId || null,
           intakeFormId: dto.intakeFormId || null,
-          code: normalizedCode,
+          code: finalCode,
           name: dto.name.trim(),
           shortName: dto.shortName?.trim() || null,
           description: dto.description?.trim() || null,
-          codePrefix: dto.codePrefix.trim().toUpperCase(),
+          codePrefix: finalPrefix,
           iconName: dto.iconName?.trim() || 'stethoscope',
           displayOrder: dto.displayOrder ?? 0,
           isBookable: dto.isBookable ?? true,
@@ -907,10 +1023,29 @@ export class AdminFacilitiesService {
       throw new NotFoundException(`Layanan dengan ID '${id}' tidak ditemukan`);
     }
 
-    await this.db
-      .update(clinicServices)
-      .set({ isActive: false, updatedAt: new Date().toISOString() })
-      .where(eq(clinicServices.id, id));
+    // Verify referential integrity with appointments and clinical encounters
+    const [linkedAppointments, linkedEncounters] = await Promise.all([
+      this.db.query.appointments.findMany({
+        where: eq(appointments.serviceId, id),
+      }),
+      this.db.query.clinicalEncounters.findMany({
+        where: eq(clinicalEncounters.serviceId, id),
+      }),
+    ]);
+
+    if (linkedAppointments.length > 0 || linkedEncounters.length > 0) {
+      throw new ConflictException(
+        'Ups! Service medis ini tidak dapat dihapus karena sudah memiliki riwayat pendaftaran atau rekam medis pasien.',
+      );
+    }
+
+    await this.db.transaction(async (tx) => {
+      await tx
+        .delete(clinicServiceComplaints)
+        .where(eq(clinicServiceComplaints.serviceId, id));
+
+      await tx.delete(clinicServices).where(eq(clinicServices.id, id));
+    });
 
     await this.invalidateCache();
   }
@@ -951,20 +1086,22 @@ export class AdminFacilitiesService {
   }
 
   async createForm(dto: CreateClinicalIntakeFormDto): Promise<any> {
-    const normalizedCode = dto.code.trim().toLowerCase().replace(/-/g, '_');
-    const existing = await this.db.query.clinicalIntakeForms.findFirst({
-      where: eq(clinicalIntakeForms.code, normalizedCode),
-    });
-    if (existing) {
-      throw new ConflictException(
-        `Formulir dengan kode '${normalizedCode}' sudah digunakan`,
-      );
-    }
+    const finalCode = await this.resolveUniqueCode(
+      dto.code,
+      dto.name,
+      'form',
+      async (code) => {
+        const found = await this.db.query.clinicalIntakeForms.findFirst({
+          where: eq(clinicalIntakeForms.code, code),
+        });
+        return Boolean(found);
+      },
+    );
 
     const [created] = await this.db
       .insert(clinicalIntakeForms)
       .values({
-        code: normalizedCode,
+        code: finalCode,
         name: dto.name.trim(),
         description: dto.description?.trim() || null,
         iconName: dto.iconName?.trim() || 'clipboard-list',
@@ -1026,9 +1163,18 @@ export class AdminFacilitiesService {
       throw new NotFoundException(`Formulir dengan ID '${id}' tidak ditemukan`);
     }
 
+    // Verify referential integrity with services linked to this intake form
+    const linkedServices = await this.db.query.clinicServices.findMany({
+      where: eq(clinicServices.intakeFormId, id),
+    });
+    if (linkedServices.length > 0) {
+      throw new ConflictException(
+        `Ups! Formulir ini tidak dapat dihapus karena masih dihubungkan ke ${linkedServices.length} service medis.`,
+      );
+    }
+
     await this.db
-      .update(clinicalIntakeForms)
-      .set({ isActive: false, updatedAt: new Date().toISOString() })
+      .delete(clinicalIntakeForms)
       .where(eq(clinicalIntakeForms.id, id));
 
     await this.invalidateCache();
@@ -1050,20 +1196,32 @@ export class AdminFacilitiesService {
           .update(clinicUnitTypes)
           .set({ isActive: true, updatedAt: now })
           .where(inArray(clinicUnitTypes.id, ids));
-      } else {
-        // Deactivate or Delete: Check referential integrity with active units
+      } else if (action === 'deactivate') {
         const linkedUnits = await this.db.query.clinicUnits.findMany({
           where: inArray(clinicUnits.unitTypeId, ids),
         });
         const activeUnits = linkedUnits.filter((u) => u.isActive);
         if (activeUnits.length > 0) {
           throw new ConflictException(
-            `Gagal memproses aksi: ${activeUnits.length} unit fasilitas aktif masih terhubung dengan tipe unit yang dipilih.`,
+            `Ups! Gagal menonaktifkan: ${activeUnits.length} unit fasilitas aktif masih terhubung dengan tipe unit yang dipilih.`,
           );
         }
         await this.db
           .update(clinicUnitTypes)
           .set({ isActive: false, updatedAt: now })
+          .where(inArray(clinicUnitTypes.id, ids));
+      } else {
+        // action === 'delete' (Hard Purge)
+        const linkedUnits = await this.db.query.clinicUnits.findMany({
+          where: inArray(clinicUnits.unitTypeId, ids),
+        });
+        if (linkedUnits.length > 0) {
+          throw new ConflictException(
+            `Ups! Gagal menghapus permanen: ${linkedUnits.length} unit fasilitas masih terhubung dengan klasifikasi yang dipilih. Pindahkan atau hapus unit terkait terlebih dahulu.`,
+          );
+        }
+        await this.db
+          .delete(clinicUnitTypes)
           .where(inArray(clinicUnitTypes.id, ids));
       }
     } else if (resource === 'units') {
@@ -1085,8 +1243,8 @@ export class AdminFacilitiesService {
           .update(clinicUnits)
           .set({ isActive: true, updatedAt: now })
           .where(inArray(clinicUnits.id, ids));
-      } else {
-        // Deactivate or Delete: cascade deactivation to linked rooms & categories
+      } else if (action === 'deactivate') {
+        // Cascade deactivation to linked rooms & categories
         await this.db
           .update(clinicUnits)
           .set({ isActive: false, updatedAt: now })
@@ -1099,6 +1257,31 @@ export class AdminFacilitiesService {
           .update(serviceCategories)
           .set({ isActive: false, updatedAt: now })
           .where(inArray(serviceCategories.unitId, ids));
+      } else {
+        // action === 'delete' (Hard Purge)
+        const [linkedRooms, linkedCats, linkedStaff] = await Promise.all([
+          this.db.query.clinicRooms.findMany({
+            where: inArray(clinicRooms.unitId, ids),
+          }),
+          this.db.query.serviceCategories.findMany({
+            where: inArray(serviceCategories.unitId, ids),
+          }),
+          this.db.query.staffProfiles.findMany({
+            where: inArray(staffProfiles.primaryUnitId, ids),
+          }),
+        ]);
+        if (
+          linkedRooms.length > 0 ||
+          linkedCats.length > 0 ||
+          linkedStaff.length > 0
+        ) {
+          throw new ConflictException(
+            `Ups! Gagal menghapus permanen: unit terpilih masih terhubung dengan ${linkedRooms.length} ruangan, ${linkedCats.length} kelompok layanan, atau ${linkedStaff.length} staf. Lepaskan keterkaitan terlebih dahulu.`,
+          );
+        }
+        await this.db
+          .delete(clinicUnits)
+          .where(inArray(clinicUnits.id, ids));
       }
     } else if (resource === 'rooms') {
       if (action === 'activate') {
@@ -1118,10 +1301,36 @@ export class AdminFacilitiesService {
           .update(clinicRooms)
           .set({ isActive: true, updatedAt: now })
           .where(inArray(clinicRooms.id, ids));
-      } else {
+      } else if (action === 'deactivate') {
         await this.db
           .update(clinicRooms)
           .set({ isActive: false, updatedAt: now })
+          .where(inArray(clinicRooms.id, ids));
+      } else {
+        // action === 'delete' (Hard Purge)
+        const [linkedAppointments, linkedTickets, linkedDoctors] =
+          await Promise.all([
+            this.db.query.appointments.findMany({
+              where: inArray(appointments.roomId, ids),
+            }),
+            this.db.query.queueTickets.findMany({
+              where: inArray(queueTickets.roomId, ids),
+            }),
+            this.db.query.practitioners.findMany({
+              where: inArray(practitioners.defaultRoomId, ids),
+            }),
+          ]);
+        if (
+          linkedAppointments.length > 0 ||
+          linkedTickets.length > 0 ||
+          linkedDoctors.length > 0
+        ) {
+          throw new ConflictException(
+            'Ups! Beberapa ruangan tidak dapat dihapus permanen karena memiliki riwayat janji temu atau penugasan dokter.',
+          );
+        }
+        await this.db
+          .delete(clinicRooms)
           .where(inArray(clinicRooms.id, ids));
       }
     } else if (resource === 'categories') {
@@ -1142,7 +1351,7 @@ export class AdminFacilitiesService {
           .update(serviceCategories)
           .set({ isActive: true, updatedAt: now })
           .where(inArray(serviceCategories.id, ids));
-      } else {
+      } else if (action === 'deactivate') {
         await this.db
           .update(serviceCategories)
           .set({ isActive: false, updatedAt: now })
@@ -1152,6 +1361,19 @@ export class AdminFacilitiesService {
           .update(clinicServices)
           .set({ isActive: false, updatedAt: now })
           .where(inArray(clinicServices.serviceCategoryId, ids));
+      } else {
+        // action === 'delete' (Hard Purge)
+        const linkedServices = await this.db.query.clinicServices.findMany({
+          where: inArray(clinicServices.serviceCategoryId, ids),
+        });
+        if (linkedServices.length > 0) {
+          throw new ConflictException(
+            `Ups! Gagal menghapus permanen: ${linkedServices.length} service medis masih berada di dalam kelompok layanan terpilih.`,
+          );
+        }
+        await this.db
+          .delete(serviceCategories)
+          .where(inArray(serviceCategories.id, ids));
       }
     } else if (resource === 'services') {
       if (action === 'activate') {
@@ -1171,11 +1393,34 @@ export class AdminFacilitiesService {
           .update(clinicServices)
           .set({ isActive: true, updatedAt: now })
           .where(inArray(clinicServices.id, ids));
-      } else {
+      } else if (action === 'deactivate') {
         await this.db
           .update(clinicServices)
           .set({ isActive: false, updatedAt: now })
           .where(inArray(clinicServices.id, ids));
+      } else {
+        // action === 'delete' (Hard Purge)
+        const [linkedAppointments, linkedEncounters] = await Promise.all([
+          this.db.query.appointments.findMany({
+            where: inArray(appointments.serviceId, ids),
+          }),
+          this.db.query.clinicalEncounters.findMany({
+            where: inArray(clinicalEncounters.serviceId, ids),
+          }),
+        ]);
+        if (linkedAppointments.length > 0 || linkedEncounters.length > 0) {
+          throw new ConflictException(
+            'Ups! Beberapa service medis tidak dapat dihapus permanen karena memiliki riwayat pendaftaran atau rekam medis pasien.',
+          );
+        }
+        await this.db.transaction(async (tx) => {
+          await tx
+            .delete(clinicServiceComplaints)
+            .where(inArray(clinicServiceComplaints.serviceId, ids));
+          await tx
+            .delete(clinicServices)
+            .where(inArray(clinicServices.id, ids));
+        });
       }
     } else if (resource === 'forms') {
       if (action === 'activate') {
@@ -1183,8 +1428,7 @@ export class AdminFacilitiesService {
           .update(clinicalIntakeForms)
           .set({ isActive: true, updatedAt: now })
           .where(inArray(clinicalIntakeForms.id, ids));
-      } else {
-        // Deactivate or Delete: verify no active service relies on this intake form
+      } else if (action === 'deactivate') {
         const linkedServices = await this.db.query.clinicServices.findMany({
           where: inArray(clinicServices.intakeFormId, ids),
         });
@@ -1198,6 +1442,19 @@ export class AdminFacilitiesService {
           .update(clinicalIntakeForms)
           .set({ isActive: false, updatedAt: now })
           .where(inArray(clinicalIntakeForms.id, ids));
+      } else {
+        // action === 'delete' (Hard Purge)
+        const linkedServices = await this.db.query.clinicServices.findMany({
+          where: inArray(clinicServices.intakeFormId, ids),
+        });
+        if (linkedServices.length > 0) {
+          throw new ConflictException(
+            `Ups! Gagal menghapus permanen: ${linkedServices.length} service medis masih terhubung ke formulir pengkajian terpilih.`,
+          );
+        }
+        await this.db
+          .delete(clinicalIntakeForms)
+          .where(inArray(clinicalIntakeForms.id, ids));
       }
     }
 
@@ -1208,7 +1465,7 @@ export class AdminFacilitiesService {
         ? 'diaktifkan'
         : action === 'deactivate'
           ? 'dinonaktifkan'
-          : 'dihapus';
+          : 'dihapus permanen';
 
     return {
       success: true,

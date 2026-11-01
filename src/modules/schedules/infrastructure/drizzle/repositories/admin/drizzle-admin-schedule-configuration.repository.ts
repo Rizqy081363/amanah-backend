@@ -1,5 +1,6 @@
 import { ClinicConfigService } from '@common/clinic-config';
 import { ClinicTimeService } from '@common/time/clinic-time.service';
+import { CanonicalSlugHelper } from '@common/utils';
 import { ISchedulerPort, SCHEDULER_PORT } from '@common/scheduler';
 import { RedisService } from '@common/redis/redis.service';
 import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
@@ -565,11 +566,10 @@ export class DrizzleAdminScheduleConfigurationRepository {
     const rawCode =
       dto.code && dto.code.trim() !== ''
         ? dto.code.trim().toLowerCase()
-        : dto.label
-            .trim()
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, '_')
-            .replace(/^_+|_+$/g, '');
+        : CanonicalSlugHelper.toSnakeCase(dto.label, 'shift');
+    const finalPrefix = (
+      dto.codePrefix?.trim() || CanonicalSlugHelper.toPrefix(dto.label, 3)
+    ).toUpperCase();
 
     // Check duplicate code
     const existing = await this.db
@@ -656,7 +656,7 @@ export class DrizzleAdminScheduleConfigurationRepository {
           code: rawCode,
           label: dto.label,
           labelKey: `session.${rawCode}`,
-          codePrefix: dto.codePrefix.toUpperCase(),
+          codePrefix: finalPrefix,
           icon: dto.icon || null,
           sortOrder,
           isActive,
@@ -712,7 +712,7 @@ export class DrizzleAdminScheduleConfigurationRepository {
       label: dto.label,
       timeRange:
         startTimeStr && endTimeStr ? `${startTimeStr} - ${endTimeStr}` : '',
-      codePrefix: dto.codePrefix.toUpperCase(),
+      codePrefix: finalPrefix,
       icon: dto.icon || null,
       sortOrder,
       isActive,

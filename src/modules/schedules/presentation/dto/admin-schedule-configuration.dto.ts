@@ -110,16 +110,16 @@ export class CreateSessionDefDto {
   @IsString()
   code?: string;
 
-  @ApiProperty({
-    description: 'Prefix kartu antrean (1-4 karakter alfanumerik kapital)',
+  @ApiPropertyOptional({
+    description: 'Prefix kartu antrean (1-4 karakter alfanumerik kapital). Jika kosong dibuat otomatis dari inisial label.',
     example: 'PB',
   })
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
   @Matches(/^[A-Za-z0-9]{1,4}$/, {
     message: 'codePrefix must be 1-4 alphanumeric characters',
   })
-  codePrefix: string;
+  codePrefix?: string;
 
   @ApiProperty({
     description: 'Waktu mulai standar (HH:mm atau HH:mm:ss)',

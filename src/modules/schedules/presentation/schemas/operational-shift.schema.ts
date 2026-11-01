@@ -7,11 +7,12 @@ export const CreateSessionDefSchema = z.object({
     .min(1, 'Label shift tidak boleh kosong'),
   code: z.string().trim().optional(),
   codePrefix: z
-    .string({ message: 'Singkatan / kode huruf wajib diisi' })
+    .string()
     .trim()
     .min(1, 'Singkatan minimal 1 karakter')
     .max(4, 'Singkatan maksimal 4 karakter')
-    .regex(/^[A-Za-z0-9]{1,4}$/, 'codePrefix harus 1-4 karakter alfanumerik'),
+    .regex(/^[A-Za-z0-9]{1,4}$/, 'codePrefix harus 1-4 karakter alfanumerik')
+    .optional(),
   defaultStartsAt: z
     .string({ message: 'Jam mulai wajib diisi' })
     .regex(

@@ -6,14 +6,15 @@ import {
 
 export const CreateRoleSchema = z.object({
   code: z
-    .string({ message: 'Kode peran wajib diisi' })
+    .string()
     .trim()
     .min(2, 'Kode peran minimal 2 karakter')
     .max(50, 'Kode peran maksimal 50 karakter')
     .regex(
       /^[a-z][a-z0-9_]*$/,
       'Kode peran harus dalam format snake_case huruf kecil (contoh: receptionist_lead)',
-    ),
+    )
+    .optional(),
   name: z
     .string({ message: 'Nama tampilan peran wajib diisi' })
     .trim()

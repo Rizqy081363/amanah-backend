@@ -231,7 +231,7 @@ export class CreateMedicalRecordDto {
   // SOAP - Plan
   @ApiPropertyOptional({
     example: 'USG Kandungan dasar, konseling nutrisi porsi kecil tapi sering.',
-    description: 'Tindakan medis dan edukasi pasien',
+    description: 'Services dan edukasi pasien',
   })
   @IsString()
   @IsOptional()

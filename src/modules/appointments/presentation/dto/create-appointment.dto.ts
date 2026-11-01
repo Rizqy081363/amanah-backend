@@ -29,7 +29,7 @@ export class CreateAppointmentDto implements CreateAppointmentInput {
   poliklinikId: string;
 
   @ApiProperty({
-    description: 'ID Layanan/Tindakan yang dipilih',
+    description: 'ID services yang dipilih',
     example: '123e4567-e89b-12d3-a456-426614174002',
   })
   @IsUUID()

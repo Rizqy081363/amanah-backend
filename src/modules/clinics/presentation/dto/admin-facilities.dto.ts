@@ -21,17 +21,17 @@ export class CreateFacilityUnitTypeDto {
   @IsNotEmpty({ message: 'Nama tipe unit tidak boleh kosong' })
   name: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     example: 'poliklinik_rawat_jalan',
-    description: 'Kode unik tipe unit (huruf kecil, angka, underscore)',
+    description: 'Kode unik tipe unit (huruf kecil, angka, underscore). Jika kosong dibuat otomatis dari nama.',
   })
   @IsString()
-  @IsNotEmpty({ message: 'Kode tipe unit tidak boleh kosong' })
+  @IsOptional()
   @Matches(/^[a-z][a-z0-9_]*$/, {
     message:
       'Kode tipe unit harus diawali huruf kecil dan hanya berisi huruf, angka, atau underscore',
   })
-  code: string;
+  code?: string;
 
   @ApiPropertyOptional({ example: 'Unit pelayanan rawat jalan poliklinik' })
   @IsString()
@@ -91,17 +91,17 @@ export class CreateFacilityUnitDto {
   @IsNotEmpty({ message: 'Nama unit tidak boleh kosong' })
   name: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     example: 'unit_konsultasi_1',
-    description: 'Kode unik unit (huruf kecil, angka, underscore)',
+    description: 'Kode unik unit (huruf kecil, angka, underscore). Jika kosong dibuat otomatis dari nama.',
   })
   @IsString()
-  @IsNotEmpty({ message: 'Kode unit tidak boleh kosong' })
+  @IsOptional()
   @Matches(/^[a-z][a-z0-9_]*$/, {
     message:
       'Kode unit harus diawali huruf kecil dan hanya berisi huruf, angka, atau underscore',
   })
-  code: string;
+  code?: string;
 
   @ApiProperty({
     example: 'a0000000-0000-0000-0000-000000000001',
@@ -204,12 +204,15 @@ export class CreateFacilityRoomDto {
   @IsNotEmpty({ message: 'Nama ruangan tidak boleh kosong' })
   name: string;
 
-  @ApiProperty({ example: 'room_pu_1' })
+  @ApiPropertyOptional({
+    example: 'room_pu_1',
+    description: 'Kode ruangan. Jika kosong dibuat otomatis dari nama.',
+  })
   @IsString()
-  @IsNotEmpty({ message: 'Kode ruangan tidak boleh kosong' })
-  code: string;
+  @IsOptional()
+  code?: string;
 
-  @ApiPropertyOptional({ example: 'Samping Ruang Tindakan' })
+  @ApiPropertyOptional({ example: 'Samping Ruang Konsultasi' })
   @IsString()
   @IsOptional()
   location?: string;
@@ -241,7 +244,7 @@ export class UpdateFacilityRoomDto {
   @IsOptional()
   code?: string;
 
-  @ApiPropertyOptional({ example: 'Samping Ruang Tindakan' })
+  @ApiPropertyOptional({ example: 'Samping Ruang Konsultasi' })
   @IsString()
   @IsOptional()
   location?: string;
@@ -270,14 +273,17 @@ export class CreateServiceCategoryDto {
   @IsNotEmpty({ message: 'Nama kategori tidak boleh kosong' })
   name: string;
 
-  @ApiProperty({ example: 'layanan_umum' })
+  @ApiPropertyOptional({
+    example: 'layanan_umum',
+    description: 'Kode kategori. Jika kosong dibuat otomatis dari nama.',
+  })
   @IsString()
-  @IsNotEmpty({ message: 'Kode kategori tidak boleh kosong' })
+  @IsOptional()
   @Matches(/^[a-z][a-z0-9_]*$/, {
     message:
       'Kode kategori harus diawali huruf kecil dan hanya berisi huruf, angka, atau underscore',
   })
-  code: string;
+  code?: string;
 
   @ApiPropertyOptional({ example: 'UM' })
   @IsString()
@@ -360,18 +366,18 @@ export class UpdateServiceCategoryDto {
 }
 
 export class CreateClinicalIntakeFormDto {
-  @ApiProperty({
+  @ApiPropertyOptional({
     example: 'pregnancy',
     description:
-      'Kode unik formulir (contoh: general, pregnancy, immunization, dental_screening)',
+      'Kode unik formulir (contoh: general, pregnancy, immunization). Jika kosong dibuat otomatis dari nama.',
   })
   @IsString()
-  @IsNotEmpty({ message: 'Kode formulir tidak boleh kosong' })
+  @IsOptional()
   @Matches(/^[a-z][a-z0-9_]*$/, {
     message:
       'Kode formulir harus diawali huruf kecil dan hanya berisi huruf, angka, atau underscore',
   })
-  code: string;
+  code?: string;
 
   @ApiProperty({ example: 'Pemeriksaan Ibu Hamil & ANC' })
   @IsString()
@@ -454,14 +460,14 @@ export class CreateClinicServiceDto {
   @IsNotEmpty({ message: 'Nama layanan tidak boleh kosong' })
   name: string;
 
-  @ApiProperty({ example: 'pemeriksaan_dokter_umum' })
+  @ApiPropertyOptional({ example: 'pemeriksaan_dokter_umum', description: 'Kode layanan. Jika kosong dibuat otomatis dari nama.' })
   @IsString()
-  @IsNotEmpty({ message: 'Kode layanan tidak boleh kosong' })
+  @IsOptional()
   @Matches(/^[a-z][a-z0-9_]*$/, {
     message:
       'Kode layanan harus diawali huruf kecil dan hanya berisi huruf, angka, atau underscore',
   })
-  code: string;
+  code?: string;
 
   @ApiPropertyOptional({ example: 'Periksa Umum' })
   @IsString()
@@ -475,11 +481,11 @@ export class CreateClinicServiceDto {
   @IsOptional()
   description?: string;
 
-  @ApiProperty({ example: 'UM', description: 'Prefix antrean layanan' })
+  @ApiPropertyOptional({ example: 'UM', description: 'Prefix antrean layanan. Jika kosong dibuat otomatis dari inisial nama.' })
   @IsString()
-  @IsNotEmpty({ message: 'Code prefix tidak boleh kosong' })
+  @IsOptional()
   @MaxLength(8)
-  codePrefix: string;
+  codePrefix?: string;
 
   @ApiPropertyOptional({ example: 'stethoscope', default: 'stethoscope' })
   @IsString()

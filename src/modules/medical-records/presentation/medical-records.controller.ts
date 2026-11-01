@@ -254,7 +254,7 @@ export class MedicalRecordsController {
   @RequirePermissions('records:write')
   @ApiOperation({
     summary: 'Memperbarui data rekam medis klinis',
-    description: 'Mengubah catatan anamnesis SOAP atau catatan tindakan medis.',
+    description: 'Mengubah catatan anamnesis SOAP atau catatan services.',
   })
   @ApiParam({
     name: 'id',
