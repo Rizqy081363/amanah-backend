@@ -32,6 +32,7 @@ import {
   UpdateFacilityUnitTypeDto,
   UpdateServiceCategoryDto,
 } from '../presentation/dto/admin-facilities.dto';
+import type { BulkFacilityActionInput } from '../presentation/schemas/facility-bulk.schema';
 
 @Injectable()
 export class AdminFacilitiesService {
@@ -966,5 +967,188 @@ export class AdminFacilitiesService {
       .where(eq(clinicalIntakeForms.id, id));
 
     await this.invalidateCache();
+  }
+
+  // ==========================================
+  // 6. BULK FACILITY ACTIONS
+  // ==========================================
+
+  async bulkAction(
+    dto: BulkFacilityActionInput,
+  ): Promise<{ success: boolean; affectedCount: number; message: string }> {
+    const { resource, action, ids } = dto;
+    const now = new Date().toISOString();
+
+    if (resource === 'unit-types') {
+      if (action === 'activate') {
+        await this.db
+          .update(clinicUnitTypes)
+          .set({ isActive: true, updatedAt: now })
+          .where(inArray(clinicUnitTypes.id, ids));
+      } else {
+        // Deactivate or Delete: Check referential integrity with active units
+        const linkedUnits = await this.db.query.clinicUnits.findMany({
+          where: inArray(clinicUnits.unitTypeId, ids),
+        });
+        const activeUnits = linkedUnits.filter((u) => u.isActive);
+        if (activeUnits.length > 0) {
+          throw new ConflictException(
+            `Gagal memproses aksi: ${activeUnits.length} unit fasilitas aktif masih terhubung dengan tipe unit yang dipilih.`,
+          );
+        }
+        await this.db
+          .update(clinicUnitTypes)
+          .set({ isActive: false, updatedAt: now })
+          .where(inArray(clinicUnitTypes.id, ids));
+      }
+    } else if (resource === 'units') {
+      if (action === 'activate') {
+        // Ensure parent unit type is active
+        const unitsToActivate = await this.db.query.clinicUnits.findMany({
+          where: inArray(clinicUnits.id, ids),
+          with: { clinicUnitType: true },
+        });
+        const inactiveParent = unitsToActivate.find(
+          (u) => u.clinicUnitType && !u.clinicUnitType.isActive,
+        );
+        if (inactiveParent) {
+          throw new ConflictException(
+            `Unit '${inactiveParent.name}' tidak dapat diaktifkan karena tipe unit '${inactiveParent.clinicUnitType?.name}' sedang nonaktif.`,
+          );
+        }
+        await this.db
+          .update(clinicUnits)
+          .set({ isActive: true, updatedAt: now })
+          .where(inArray(clinicUnits.id, ids));
+      } else {
+        // Deactivate or Delete: cascade deactivation to linked rooms & categories
+        await this.db
+          .update(clinicUnits)
+          .set({ isActive: false, updatedAt: now })
+          .where(inArray(clinicUnits.id, ids));
+        await this.db
+          .update(clinicRooms)
+          .set({ isActive: false, updatedAt: now })
+          .where(inArray(clinicRooms.unitId, ids));
+        await this.db
+          .update(serviceCategories)
+          .set({ isActive: false, updatedAt: now })
+          .where(inArray(serviceCategories.unitId, ids));
+      }
+    } else if (resource === 'rooms') {
+      if (action === 'activate') {
+        const roomsToActivate = await this.db.query.clinicRooms.findMany({
+          where: inArray(clinicRooms.id, ids),
+          with: { clinicUnit: true },
+        });
+        const inactiveParent = roomsToActivate.find(
+          (r) => r.clinicUnit && !r.clinicUnit.isActive,
+        );
+        if (inactiveParent) {
+          throw new ConflictException(
+            `Ruangan '${inactiveParent.name}' tidak dapat diaktifkan karena unit induk '${inactiveParent.clinicUnit?.name}' sedang nonaktif.`,
+          );
+        }
+        await this.db
+          .update(clinicRooms)
+          .set({ isActive: true, updatedAt: now })
+          .where(inArray(clinicRooms.id, ids));
+      } else {
+        await this.db
+          .update(clinicRooms)
+          .set({ isActive: false, updatedAt: now })
+          .where(inArray(clinicRooms.id, ids));
+      }
+    } else if (resource === 'categories') {
+      if (action === 'activate') {
+        const catsToActivate = await this.db.query.serviceCategories.findMany({
+          where: inArray(serviceCategories.id, ids),
+          with: { clinicUnit: true },
+        });
+        const inactiveParent = catsToActivate.find(
+          (c) => c.clinicUnit && !c.clinicUnit.isActive,
+        );
+        if (inactiveParent) {
+          throw new ConflictException(
+            `Kategori '${inactiveParent.name}' tidak dapat diaktifkan karena unit induk '${inactiveParent.clinicUnit?.name}' sedang nonaktif.`,
+          );
+        }
+        await this.db
+          .update(serviceCategories)
+          .set({ isActive: true, updatedAt: now })
+          .where(inArray(serviceCategories.id, ids));
+      } else {
+        await this.db
+          .update(serviceCategories)
+          .set({ isActive: false, updatedAt: now })
+          .where(inArray(serviceCategories.id, ids));
+        // Cascade deactivation to services under these categories
+        await this.db
+          .update(clinicServices)
+          .set({ isActive: false, updatedAt: now })
+          .where(inArray(clinicServices.serviceCategoryId, ids));
+      }
+    } else if (resource === 'services') {
+      if (action === 'activate') {
+        const servsToActivate = await this.db.query.clinicServices.findMany({
+          where: inArray(clinicServices.id, ids),
+          with: { serviceCategory: true },
+        });
+        const inactiveParent = servsToActivate.find(
+          (s) => s.serviceCategory && !s.serviceCategory.isActive,
+        );
+        if (inactiveParent) {
+          throw new ConflictException(
+            `Layanan '${inactiveParent.name}' tidak dapat diaktifkan karena kategori '${inactiveParent.serviceCategory?.name}' sedang nonaktif.`,
+          );
+        }
+        await this.db
+          .update(clinicServices)
+          .set({ isActive: true, updatedAt: now })
+          .where(inArray(clinicServices.id, ids));
+      } else {
+        await this.db
+          .update(clinicServices)
+          .set({ isActive: false, updatedAt: now })
+          .where(inArray(clinicServices.id, ids));
+      }
+    } else if (resource === 'forms') {
+      if (action === 'activate') {
+        await this.db
+          .update(clinicalIntakeForms)
+          .set({ isActive: true, updatedAt: now })
+          .where(inArray(clinicalIntakeForms.id, ids));
+      } else {
+        // Deactivate or Delete: verify no active service relies on this intake form
+        const linkedServices = await this.db.query.clinicServices.findMany({
+          where: inArray(clinicServices.intakeFormId, ids),
+        });
+        const activeServices = linkedServices.filter((s) => s.isActive);
+        if (activeServices.length > 0) {
+          throw new ConflictException(
+            `Formulir intake tidak dapat dinonaktifkan karena masih digunakan oleh ${activeServices.length} layanan medis aktif.`,
+          );
+        }
+        await this.db
+          .update(clinicalIntakeForms)
+          .set({ isActive: false, updatedAt: now })
+          .where(inArray(clinicalIntakeForms.id, ids));
+      }
+    }
+
+    await this.invalidateCache();
+
+    const actionText =
+      action === 'activate'
+        ? 'diaktifkan'
+        : action === 'deactivate'
+          ? 'dinonaktifkan'
+          : 'dihapus';
+
+    return {
+      success: true,
+      affectedCount: ids.length,
+      message: `Berhasil memproses ${ids.length} data fasilitas (${actionText}).`,
+    };
   }
 }

@@ -197,6 +197,7 @@ export class StaffInvitationService {
     const isClinical = targetRole.isClinical;
     const roleCode = targetRole.code;
     const roleTitle = targetRole.name;
+    const positionTitle = dto.positionTitle?.trim() || roleTitle;
 
     // Check for existing pending invitation and revoke if exists
     const existingPending = await this.invitationRepo.findPendingByEmail(email);
@@ -313,7 +314,7 @@ export class StaffInvitationService {
           roleId: targetRole.id,
           staffCode,
           fullName: staffName,
-          positionTitle: roleTitle,
+          positionTitle,
           primaryUnitId: targetUnitId,
           phone: null,
           email,
@@ -327,7 +328,7 @@ export class StaffInvitationService {
         .set({
           roleId: targetRole.id,
           fullName: staffName,
-          positionTitle: roleTitle,
+          positionTitle,
           primaryUnitId: targetUnitId || staff.primaryUnitId,
           status: STAFF_STATUS.INACTIVE,
           updatedAt: this.getNowIso(),
@@ -377,6 +378,7 @@ export class StaffInvitationService {
         poliklinikId: dto.poliklinikId || null,
         roleId: targetRole.id,
         roleCode,
+        positionTitle,
       },
     });
 
@@ -390,7 +392,7 @@ export class StaffInvitationService {
         to: email,
         data: {
           name: staffName,
-          roleTitle,
+          roleTitle: positionTitle || roleTitle,
           temporaryPassword,
           loginUrl,
           expiresAt: expiresAt.toLocaleDateString('id-ID', {

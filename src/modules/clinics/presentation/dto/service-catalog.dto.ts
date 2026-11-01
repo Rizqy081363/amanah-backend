@@ -65,6 +65,12 @@ export class ServiceCatalogItemDto {
   displayOrder: number;
 
   @ApiProperty({
+    description: 'ID kategori layanan induk (UUID)',
+    example: '123e4567-e89b-12d3-a456-426614174002',
+  })
+  categoryId: string;
+
+  @ApiProperty({
     description: 'ID poliklinik tujuan',
     example: '53fa8088-46c8-4611-9dea-99a54f4a45ab',
   })
@@ -82,6 +88,12 @@ export class ServiceCatalogItemDto {
     example: ['Demam dan menggigil', 'Flu, batuk, dan pilek'],
   })
   complaints: string[];
+
+  @ApiProperty({
+    description: 'Apakah layanan dapat dibooking online',
+    example: true,
+  })
+  isBookable: boolean;
 }
 
 export class ServiceCategoryCatalogDto {

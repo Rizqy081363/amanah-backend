@@ -50,4 +50,13 @@ export class InviteStaffUniversalDto {
   @IsString()
   @IsOptional()
   fullName?: string;
+
+  @ApiPropertyOptional({
+    example: 'Bidan Koordinator KIA / Dokter Penanggung Jawab Pelayanan',
+    description:
+      'Profesi atau jabatan spesifik staf di klinik (opsional, default: nama peran terpilih)',
+  })
+  @IsString({ message: 'Jabatan staf harus berupa teks' })
+  @IsOptional()
+  positionTitle?: string;
 }

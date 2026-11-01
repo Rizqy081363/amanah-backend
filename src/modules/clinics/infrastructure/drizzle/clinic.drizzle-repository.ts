@@ -14,6 +14,7 @@ import {
 } from '../../domain/entities/clinic.entity';
 import { ClinicRepository } from '../../domain/repositories/clinic.repository';
 import type { ServiceCategoryCatalogDto } from '../../presentation/dto/service-catalog.dto';
+import { ServiceCategoryCatalogSchema } from '../../presentation/schemas/service-catalog.schema';
 
 @Injectable()
 export class ClinicDrizzleRepository implements ClinicRepository {
@@ -139,7 +140,10 @@ export class ClinicDrizzleRepository implements ClinicRepository {
           with: {
             clinicUnit: true,
             clinicServices: {
-              where: eq(clinicServices.isActive, true),
+              where: and(
+                eq(clinicServices.isActive, true),
+                eq(clinicServices.isBookable, true),
+              ),
               orderBy: [asc(clinicServices.displayOrder)],
               with: {
                 intakeForm: true,
@@ -151,39 +155,51 @@ export class ClinicDrizzleRepository implements ClinicRepository {
           },
         });
 
-        return categories.map((cat) => {
-          const poliklinikId = cat.unitId || '';
-          const poliklinikName = cat.clinicUnit?.name || cat.name;
+        // Filter out categories whose affiliated unit is explicitly inactive
+        const operationalCategories = categories.filter(
+          (cat) => !cat.clinicUnit || cat.clinicUnit.isActive,
+        );
 
-          return {
-            id: cat.id,
-            code: cat.code,
-            name: cat.name,
-            iconName: cat.iconName || 'folder',
-            description: cat.description || null,
-            displayOrder: cat.displayOrder,
-            poliklinikId,
-            poliklinikName,
-            services: (cat.clinicServices || []).map((srv) => ({
-              id: srv.id,
-              code: srv.code,
-              name: srv.name,
-              prefix: srv.codePrefix,
-              description: srv.description || null,
-              iconName: srv.iconName || 'stethoscope',
-              specialtyCode: srv.specialtyId || null,
-              intakeFormId: srv.intakeFormId || null,
-              intakeFormCode: srv.intakeForm?.code || null,
-              intakeFormName: srv.intakeForm?.name || null,
-              displayOrder: srv.displayOrder,
+        const mapped: ServiceCategoryCatalogDto[] = operationalCategories.map(
+          (cat) => {
+            const poliklinikId = cat.unitId || '';
+            const poliklinikName = cat.clinicUnit?.name || cat.name;
+
+            return {
+              id: cat.id,
+              code: cat.code,
+              name: cat.name,
+              iconName: cat.iconName || 'folder',
+              description: cat.description || null,
+              displayOrder: cat.displayOrder,
               poliklinikId,
               poliklinikName,
-              complaints: (srv.clinicServiceComplaints || []).map(
-                (c: any) => c.complaintText,
-              ),
-            })),
-          };
-        });
+              services: (cat.clinicServices || []).map((srv) => ({
+                id: srv.id,
+                code: srv.code,
+                name: srv.name,
+                prefix: srv.codePrefix,
+                description: srv.description || null,
+                iconName: srv.iconName || 'stethoscope',
+                specialtyCode: srv.specialtyId || null,
+                intakeFormId: srv.intakeFormId || null,
+                intakeFormCode: srv.intakeForm?.code || null,
+                intakeFormName: srv.intakeForm?.name || null,
+                displayOrder: srv.displayOrder,
+                categoryId: cat.id,
+                poliklinikId,
+                poliklinikName,
+                complaints: (srv.clinicServiceComplaints || []).map(
+                  (c: any) => c.complaintText,
+                ),
+                isBookable: srv.isBookable,
+              })),
+            };
+          },
+        );
+
+        // Strict Zod runtime contract validation (fail-fast SSOT)
+        return ServiceCategoryCatalogSchema.array().parse(mapped);
       },
       300,
     );

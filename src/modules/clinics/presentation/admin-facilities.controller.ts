@@ -52,6 +52,10 @@ import {
   type UpdateFacilityUnitInput,
   UpdateFacilityUnitSchema,
 } from './schemas/facility-unit.schema';
+import {
+  BulkFacilityActionSchema,
+  type BulkFacilityActionInput,
+} from './schemas/facility-bulk.schema';
 
 @ApiTags('Admin Facilities Studio')
 @ApiBearerAuth('access-token')
@@ -415,5 +419,23 @@ export class AdminFacilitiesController {
   })
   async deleteForm(@Param('id') id: string) {
     await this.facilitiesService.deleteForm(id);
+  }
+
+  // ==========================================
+  // 6. BULK FACILITY ACTIONS
+  // ==========================================
+
+  @Post('bulk')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Eksekusi aksi massal fasilitas klinik (Admin)',
+    description:
+      'Menonaktifkan, mengaktifkan, atau menghapus beberapa entitas fasilitas sekaligus dengan validasi relasional.',
+  })
+  @ApiOkResponse({ description: 'Aksi massal berhasil dieksekusi' })
+  async bulkAction(
+    @Body(zodPipe(BulkFacilityActionSchema)) body: BulkFacilityActionInput,
+  ) {
+    return this.facilitiesService.bulkAction(body);
   }
 }
