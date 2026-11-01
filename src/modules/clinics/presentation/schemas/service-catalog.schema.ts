@@ -13,8 +13,8 @@ export const ServiceCatalogItemSchema = z.object({
   intakeFormName: z.string().nullable().optional(),
   displayOrder: z.number().int().nonnegative().default(0),
   categoryId: z.string().uuid('ID kategori harus berupa UUID v4'),
-  poliklinikId: z.string().uuid('ID poliklinik harus berupa UUID v4'),
-  poliklinikName: z.string().min(1, 'Nama poliklinik wajib diisi'),
+  poliklinikId: z.string().uuid('ID poliklinik harus berupa UUID v4').nullable().optional(),
+  poliklinikName: z.string().nullable().optional(),
   complaints: z.array(z.string()).default([]),
   isBookable: z.boolean().default(true),
 });
@@ -28,8 +28,17 @@ export const ServiceCategoryCatalogSchema = z.object({
   iconName: z.string().default('folder'),
   description: z.string().nullable().optional(),
   displayOrder: z.number().int().nonnegative().default(0),
-  poliklinikId: z.string().uuid('ID poliklinik harus berupa UUID v4'),
-  poliklinikName: z.string().min(1, 'Nama poliklinik wajib diisi'),
+  poliklinikId: z.string().uuid('ID poliklinik harus berupa UUID v4').nullable().optional(),
+  poliklinikName: z.string().nullable().optional(),
+  unitIds: z.array(z.string().uuid()).default([]),
+  units: z
+    .array(
+      z.object({
+        id: z.string().uuid(),
+        name: z.string(),
+      }),
+    )
+    .default([]),
   services: z.array(ServiceCatalogItemSchema).default([]),
 });
 

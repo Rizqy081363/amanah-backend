@@ -32,6 +32,8 @@ import {
   CreateClinicServiceDto,
   CreateFacilityRoomDto,
   CreateServiceCategoryDto,
+  LinkCategoriesToUnitDto,
+  LinkServicesToCategoryDto,
   UpdateClinicalIntakeFormDto,
   UpdateClinicServiceDto,
   UpdateFacilityRoomDto,
@@ -188,6 +190,35 @@ export class AdminFacilitiesController {
     await this.facilitiesService.deleteUnit(param.id);
   }
 
+  @Post('units/:id/categories')
+  @ApiOperation({
+    summary: 'Menautkan kategori layanan ke unit poliklinik (Admin)',
+    description: 'Menambahkan relasi kategori layanan ke unit poliklinik.',
+  })
+  @ApiParam({ name: 'id', description: 'ID unik unit fasilitas' })
+  @ApiOkResponse({ description: 'Kategori berhasil ditautkan ke unit' })
+  async linkCategoriesToUnit(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Body() body: LinkCategoriesToUnitDto,
+  ) {
+    return this.facilitiesService.linkCategoriesToUnit(id, body);
+  }
+
+  @Delete('units/:id/categories/:categoryId')
+  @ApiOperation({
+    summary: 'Melepas relasi kategori layanan dari unit poliklinik (Admin)',
+    description: 'Menghapus relasi mapping kategori layanan dari unit fasilitas.',
+  })
+  @ApiParam({ name: 'id', description: 'ID unik unit fasilitas' })
+  @ApiParam({ name: 'categoryId', description: 'ID unik kategori layanan' })
+  @ApiOkResponse({ description: 'Relasi kategori berhasil dilepas dari unit' })
+  async unlinkCategoryFromUnit(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Param('categoryId', new ParseUUIDPipe({ version: '4' })) categoryId: string,
+  ) {
+    return this.facilitiesService.unlinkCategoryFromUnit(id, categoryId);
+  }
+
   // ==========================================
   // 2. CLINIC ROOMS (Ruang Periksa)
   // ==========================================
@@ -331,6 +362,36 @@ export class AdminFacilitiesController {
   })
   async deleteCategory(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
     await this.facilitiesService.deleteCategory(id);
+  }
+
+  @Post('categories/:id/services')
+  @ApiOperation({
+    summary: 'Menautkan service medis ke kategori layanan (Admin)',
+    description: 'Menambahkan relasi service medis ke kategori layanan.',
+  })
+  @ApiParam({ name: 'id', description: 'ID unik kategori layanan' })
+  @ApiOkResponse({ description: 'Service berhasil ditautkan ke kategori' })
+  async linkServicesToCategory(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Body() body: LinkServicesToCategoryDto,
+  ) {
+    return this.facilitiesService.linkServicesToCategory(id, body.serviceIds);
+  }
+
+  @Delete('categories/:id/services/:serviceId')
+  @ApiOperation({
+    summary: 'Melepas relasi service medis dari kategori layanan (Admin)',
+    description:
+      'Menghapus relasi mapping antara kategori layanan dan service medis tanpa menghapus service itu sendiri.',
+  })
+  @ApiParam({ name: 'id', description: 'ID unik kategori layanan' })
+  @ApiParam({ name: 'serviceId', description: 'ID unik service medis' })
+  @ApiOkResponse({ description: 'Relasi service berhasil dilepas dari kategori' })
+  async unlinkServiceFromCategory(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Param('serviceId', new ParseUUIDPipe({ version: '4' })) serviceId: string,
+  ) {
+    return this.facilitiesService.unlinkServiceFromCategory(id, serviceId);
   }
 
   // ==========================================

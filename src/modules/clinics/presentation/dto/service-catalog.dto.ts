@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class ServiceCatalogItemDto {
   @ApiProperty({
@@ -70,17 +70,19 @@ export class ServiceCatalogItemDto {
   })
   categoryId: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     description: 'ID poliklinik tujuan',
     example: '53fa8088-46c8-4611-9dea-99a54f4a45ab',
+    nullable: true,
   })
-  poliklinikId: string;
+  poliklinikId?: string | null;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     description: 'Nama poliklinik',
     example: 'Unit Layanan Primer',
+    nullable: true,
   })
-  poliklinikName: string;
+  poliklinikName?: string | null;
 
   @ApiProperty({
     description: 'Daftar pilihan keluhan utama bawaan',
@@ -128,17 +130,31 @@ export class ServiceCategoryCatalogDto {
   @ApiProperty({ description: 'Urutan tampilan', example: 1 })
   displayOrder: number;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     description: 'ID poliklinik induk',
     example: '53fa8088-46c8-4611-9dea-99a54f4a45ab',
+    nullable: true,
   })
-  poliklinikId: string;
+  poliklinikId?: string | null;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     description: 'Nama poliklinik induk',
     example: 'Unit Layanan Primer',
+    nullable: true,
   })
-  poliklinikName: string;
+  poliklinikName?: string | null;
+
+  @ApiPropertyOptional({
+    description: 'Daftar ID poliklinik terafiliasi (UUID)',
+    type: [String],
+  })
+  unitIds?: string[];
+
+  @ApiPropertyOptional({
+    description: 'Daftar ringkas poliklinik terafiliasi',
+    type: 'array',
+  })
+  units?: Array<{ id: string; name: string }>;
 
   @ApiProperty({
     description: 'Daftar layanan di dalam kategori',

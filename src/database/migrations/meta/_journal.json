@@ -512,6 +512,20 @@
       "when": 1791356000000,
       "tag": "0072_dynamic_clinic_unit_types",
       "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1791357000000,
+      "tag": "0073_clinic_service_category_mappings",
+      "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1791358000000,
+      "tag": "0074_clinic_unit_category_mappings",
+      "breakpoints": true
     }
   ]
 }

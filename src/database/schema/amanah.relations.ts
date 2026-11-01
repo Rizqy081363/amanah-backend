@@ -14,8 +14,10 @@ import {
   clinicalEncounters,
   clinicalIntakeForms,
   clinicRooms,
+  clinicServiceCategoryMappings,
   clinicServiceComplaints,
   clinicServices,
+  clinicUnitCategoryMappings,
   clinicUnits,
   clinicUnitTypes,
   conversationParticipants,
@@ -237,6 +239,7 @@ export const clinicUnitsRelations = relations(clinicUnits, ({ one, many }) => ({
   }),
   clinicRooms: many(clinicRooms),
   serviceCategories: many(serviceCategories),
+  categoryMappings: many(clinicUnitCategoryMappings),
   staffProfiles: many(staffProfiles),
   attendanceQrSessions: many(attendanceQrSessions),
   staffAttendanceRecords: many(staffAttendanceRecords),
@@ -265,6 +268,7 @@ export const clinicServicesRelations = relations(
       references: [clinicalIntakeForms.id],
     }),
     clinicServiceComplaints: many(clinicServiceComplaints),
+    categoryMappings: many(clinicServiceCategoryMappings),
     appointments: many(appointments),
     queueTickets: many(queueTickets),
     clinicalEncounters: many(clinicalEncounters),
@@ -279,6 +283,36 @@ export const serviceCategoriesRelations = relations(
       references: [clinicUnits.id],
     }),
     clinicServices: many(clinicServices),
+    serviceMappings: many(clinicServiceCategoryMappings),
+    unitMappings: many(clinicUnitCategoryMappings),
+  }),
+);
+
+export const clinicUnitCategoryMappingsRelations = relations(
+  clinicUnitCategoryMappings,
+  ({ one }) => ({
+    unit: one(clinicUnits, {
+      fields: [clinicUnitCategoryMappings.unitId],
+      references: [clinicUnits.id],
+    }),
+    category: one(serviceCategories, {
+      fields: [clinicUnitCategoryMappings.categoryId],
+      references: [serviceCategories.id],
+    }),
+  }),
+);
+
+export const clinicServiceCategoryMappingsRelations = relations(
+  clinicServiceCategoryMappings,
+  ({ one }) => ({
+    service: one(clinicServices, {
+      fields: [clinicServiceCategoryMappings.serviceId],
+      references: [clinicServices.id],
+    }),
+    category: one(serviceCategories, {
+      fields: [clinicServiceCategoryMappings.categoryId],
+      references: [serviceCategories.id],
+    }),
   }),
 );
 

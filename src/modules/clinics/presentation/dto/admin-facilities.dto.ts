@@ -262,11 +262,20 @@ export class UpdateFacilityRoomDto {
 
 export class CreateServiceCategoryDto {
   @ApiPropertyOptional({
-    description: 'ID poliklinik / unit terafiliasi (UUID)',
+    description: 'ID poliklinik / unit terafiliasi utama (UUID)',
   })
   @IsUUID('4')
   @IsOptional()
   unitId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Daftar ID poliklinik / unit terafiliasi (UUID)',
+    type: [String],
+  })
+  @IsArray()
+  @IsUUID('4', { each: true, message: 'Setiap Unit ID harus berupa UUID v4 yang valid' })
+  @IsOptional()
+  unitIds?: string[];
 
   @ApiProperty({ example: 'Layanan Pemeriksaan Umum' })
   @IsString()
@@ -316,11 +325,20 @@ export class CreateServiceCategoryDto {
 
 export class UpdateServiceCategoryDto {
   @ApiPropertyOptional({
-    description: 'ID poliklinik / unit terafiliasi (UUID)',
+    description: 'ID poliklinik / unit terafiliasi utama (UUID)',
   })
   @IsUUID('4')
   @IsOptional()
   unitId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Daftar ID poliklinik / unit terafiliasi (UUID)',
+    type: [String],
+  })
+  @IsArray()
+  @IsUUID('4', { each: true, message: 'Setiap Unit ID harus berupa UUID v4 yang valid' })
+  @IsOptional()
+  unitIds?: string[];
 
   @ApiPropertyOptional({ example: 'Layanan Pemeriksaan Umum' })
   @IsString()
@@ -363,6 +381,26 @@ export class UpdateServiceCategoryDto {
   @IsBoolean()
   @IsOptional()
   isActive?: boolean;
+}
+
+export class LinkServicesToCategoryDto {
+  @ApiProperty({
+    description: 'Daftar ID service medis yang akan ditautkan ke kategori (UUID)',
+    type: [String],
+  })
+  @IsArray()
+  @IsUUID('4', { each: true, message: 'Setiap Service ID harus berupa UUID v4 yang valid' })
+  serviceIds: string[];
+}
+
+export class LinkCategoriesToUnitDto {
+  @ApiProperty({
+    description: 'Daftar ID kategori layanan yang akan ditautkan ke poliklinik (UUID)',
+    type: [String],
+  })
+  @IsArray()
+  @IsUUID('4', { each: true, message: 'Setiap Category ID harus berupa UUID v4 yang valid' })
+  categoryIds: string[];
 }
 
 export class CreateClinicalIntakeFormDto {
@@ -438,10 +476,19 @@ export class UpdateClinicalIntakeFormDto {
 }
 
 export class CreateClinicServiceDto {
-  @ApiProperty({ description: 'ID kategori layanan (UUID)' })
+  @ApiPropertyOptional({ description: 'ID kategori layanan utama (UUID)' })
   @IsUUID('4', { message: 'Category ID harus berupa UUID v4 yang valid' })
-  @IsNotEmpty()
-  serviceCategoryId: string;
+  @IsOptional()
+  serviceCategoryId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Daftar ID kategori layanan yang terhubung (UUID)',
+    type: [String],
+  })
+  @IsArray()
+  @IsUUID('4', { each: true, message: 'Setiap Category ID harus berupa UUID v4 yang valid' })
+  @IsOptional()
+  categoryIds?: string[];
 
   @ApiPropertyOptional({ description: 'ID spesialisasi medis (UUID)' })
   @IsUUID('4')
@@ -521,10 +568,19 @@ export class CreateClinicServiceDto {
 }
 
 export class UpdateClinicServiceDto {
-  @ApiPropertyOptional({ description: 'ID kategori layanan (UUID)' })
+  @ApiPropertyOptional({ description: 'ID kategori layanan utama (UUID)' })
   @IsUUID('4')
   @IsOptional()
   serviceCategoryId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Daftar ID kategori layanan yang terhubung (UUID)',
+    type: [String],
+  })
+  @IsArray()
+  @IsUUID('4', { each: true, message: 'Setiap Category ID harus berupa UUID v4 yang valid' })
+  @IsOptional()
+  categoryIds?: string[];
 
   @ApiPropertyOptional({ description: 'ID spesialisasi medis (UUID)' })
   @IsUUID('4')

@@ -907,6 +907,80 @@ export const clinicServices = pgTable(
   ],
 );
 
+export const clinicServiceCategoryMappings = pgTable(
+  'clinic_service_category_mappings',
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    serviceId: uuid('service_id').notNull(),
+    categoryId: uuid('category_id').notNull(),
+    isPrimary: boolean('is_primary').default(false).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index('idx_clinic_service_category_mappings_service').using(
+      'btree',
+      table.serviceId.asc().nullsLast().op('uuid_ops'),
+    ),
+    index('idx_clinic_service_category_mappings_category').using(
+      'btree',
+      table.categoryId.asc().nullsLast().op('uuid_ops'),
+    ),
+    foreignKey({
+      columns: [table.serviceId],
+      foreignColumns: [clinicServices.id],
+      name: 'clinic_service_category_mappings_service_id_fkey',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [table.categoryId],
+      foreignColumns: [serviceCategories.id],
+      name: 'clinic_service_category_mappings_category_id_fkey',
+    }).onDelete('cascade'),
+    unique('uq_clinic_service_category_mapping').on(
+      table.serviceId,
+      table.categoryId,
+    ),
+  ],
+);
+
+export const clinicUnitCategoryMappings = pgTable(
+  'clinic_unit_category_mappings',
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    unitId: uuid('unit_id').notNull(),
+    categoryId: uuid('category_id').notNull(),
+    isPrimary: boolean('is_primary').default(false).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index('idx_clinic_unit_category_mappings_unit').using(
+      'btree',
+      table.unitId.asc().nullsLast().op('uuid_ops'),
+    ),
+    index('idx_clinic_unit_category_mappings_category').using(
+      'btree',
+      table.categoryId.asc().nullsLast().op('uuid_ops'),
+    ),
+    foreignKey({
+      columns: [table.unitId],
+      foreignColumns: [clinicUnits.id],
+      name: 'clinic_unit_category_mappings_unit_id_fkey',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [table.categoryId],
+      foreignColumns: [serviceCategories.id],
+      name: 'clinic_unit_category_mappings_category_id_fkey',
+    }).onDelete('cascade'),
+    unique('clinic_unit_category_mappings_unique').on(
+      table.unitId,
+      table.categoryId,
+    ),
+  ],
+);
+
 export const medicalSpecialties = pgTable(
   'medical_specialties',
   {

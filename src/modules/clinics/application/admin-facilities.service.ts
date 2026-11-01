@@ -5,7 +5,17 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { and, asc, eq, ilike, inArray, or } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  eq,
+  ilike,
+  inArray,
+  isNull,
+  or,
+  sql,
+  type SQL,
+} from 'drizzle-orm';
 import { CanonicalSlugHelper } from '@common/utils';
 import { RedisService } from '../../../common/redis/redis.service';
 import { DRIZZLE_SOURCE } from '../../../database/drizzle/drizzle.constants';
@@ -15,8 +25,10 @@ import {
   clinicalEncounters,
   clinicalIntakeForms,
   clinicRooms,
+  clinicServiceCategoryMappings,
   clinicServiceComplaints,
   clinicServices,
+  clinicUnitCategoryMappings,
   clinicUnits,
   clinicUnitTypes,
   practitioners,
@@ -31,6 +43,7 @@ import {
   CreateFacilityUnitDto,
   CreateFacilityUnitTypeDto,
   CreateServiceCategoryDto,
+  LinkCategoriesToUnitDto,
   UpdateClinicalIntakeFormDto,
   UpdateClinicServiceDto,
   UpdateFacilityRoomDto,
@@ -39,6 +52,125 @@ import {
   UpdateServiceCategoryDto,
 } from '../presentation/dto/admin-facilities.dto';
 import type { BulkFacilityActionInput } from '../presentation/schemas/facility-bulk.schema';
+
+export interface AdminServiceCategoryResponse {
+  id: string;
+  unitId: string | null;
+  unitName: string | null;
+  unitIds: string[];
+  units: Array<{ id: string; name: string }>;
+  code: string;
+  name: string;
+  codePrefix: string | null;
+  iconName: string;
+  description: string | null;
+  displayOrder: number;
+  isActive: boolean;
+  serviceCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminClinicServiceResponse {
+  id: string;
+  serviceCategoryId: string | null;
+  categoryIds: string[];
+  categories: Array<{
+    id: string;
+    name: string;
+    code: string;
+    unitId: string | null;
+    unitName: string | null;
+    isPrimary: boolean;
+  }>;
+  categoryName: string | null;
+  unitId: string | null;
+  unitName: string | null;
+  specialtyId: string | null;
+  intakeFormId: string | null;
+  intakeFormCode: string | null;
+  intakeFormName: string | null;
+  name: string;
+  code: string;
+  shortName: string | null;
+  description: string | null;
+  codePrefix: string;
+  iconName: string | null;
+  displayOrder: number;
+  isBookable: boolean;
+  isActive: boolean;
+  complaints: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminUnitResponse {
+  id: string;
+  code: string;
+  name: string;
+  unitTypeId: string;
+  unitType: {
+    id: string;
+    code: string;
+    name: string;
+    iconName: string;
+  } | null;
+  unitTypeName: string | null;
+  queuePrefix: string | null;
+  iconName: string;
+  location: string | null;
+  floor: string | null;
+  isActive: boolean;
+  roomCount: number;
+  categoryCount: number;
+  categoryIds: string[];
+  categories: Array<{
+    id: string;
+    name: string;
+    code: string;
+    iconName: string;
+    isPrimary: boolean;
+  }>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminUnitTypeResponse {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  iconName: string;
+  isActive: boolean;
+  unitCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminRoomResponse {
+  id: string;
+  unitId: string | null;
+  unitName: string | null;
+  code: string;
+  name: string;
+  location: string | null;
+  floor: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminFormResponse {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  iconName: string;
+  isActive: boolean;
+  serviceCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
 
 @Injectable()
 export class AdminFacilitiesService {
@@ -58,6 +190,7 @@ export class AdminFacilitiesService {
         this.redisService.deleteByPrefix('appointments'),
         this.redisService.deleteByPrefix('doctor-schedules'),
         this.redisService.deleteByPrefix('queue'),
+        this.redisService.deleteByPrefix('httpcache'),
         this.redisService.invalidateTags('clinics', 'catalog', 'schedule'),
       ]);
     } catch (err) {
@@ -101,7 +234,7 @@ export class AdminFacilitiesService {
   // 0. CLINIC UNIT TYPES (Master Tipe Unit)
   // ==========================================
 
-  async getUnitTypes(): Promise<any[]> {
+  async getUnitTypes(): Promise<AdminUnitTypeResponse[]> {
     const types = await this.db.query.clinicUnitTypes.findMany({
       orderBy: [asc(clinicUnitTypes.name)],
       with: {
@@ -122,7 +255,9 @@ export class AdminFacilitiesService {
     }));
   }
 
-  async createUnitType(dto: CreateFacilityUnitTypeDto): Promise<any> {
+  async createUnitType(
+    dto: CreateFacilityUnitTypeDto,
+  ): Promise<typeof clinicUnitTypes.$inferSelect> {
     const finalCode = await this.resolveUniqueCode(
       dto.code,
       dto.name,
@@ -153,7 +288,7 @@ export class AdminFacilitiesService {
   async updateUnitType(
     id: string,
     dto: UpdateFacilityUnitTypeDto,
-  ): Promise<any> {
+  ): Promise<typeof clinicUnitTypes.$inferSelect> {
     const existing = await this.db.query.clinicUnitTypes.findFirst({
       where: eq(clinicUnitTypes.id, id),
     });
@@ -163,7 +298,7 @@ export class AdminFacilitiesService {
       );
     }
 
-    const updates: Record<string, any> = {
+    const updates: Partial<typeof clinicUnitTypes.$inferInsert> = {
       updatedAt: new Date().toISOString(),
     };
     if (dto.name !== undefined) updates.name = dto.name.trim();
@@ -228,15 +363,19 @@ export class AdminFacilitiesService {
   // 1. CLINIC UNITS
   // ==========================================
 
-  async getUnits(search?: string, status?: string): Promise<any[]> {
-    const conditions: any[] = [];
+  async getUnits(
+    search?: string,
+    status?: string,
+  ): Promise<AdminUnitResponse[]> {
+    const conditions: Array<SQL | undefined> = [];
     if (status === 'active') conditions.push(eq(clinicUnits.isActive, true));
     if (status === 'inactive') conditions.push(eq(clinicUnits.isActive, false));
     if (search?.trim()) {
       const term = `%${search.trim()}%`;
       conditions.push(or(ilike(clinicUnits.name, term), ilike(clinicUnits.code, term)));
     }
-    const whereCondition = conditions.length > 0 ? and(...conditions) : undefined;
+    const validConditions = conditions.filter((c): c is SQL => Boolean(c));
+    const whereCondition = validConditions.length > 0 ? and(...validConditions) : undefined;
 
     const units = await this.db.query.clinicUnits.findMany({
       where: whereCondition,
@@ -244,37 +383,88 @@ export class AdminFacilitiesService {
       with: {
         clinicRooms: true,
         serviceCategories: true,
+        categoryMappings: {
+          with: {
+            category: true,
+          },
+        },
         clinicUnitType: true,
       },
     });
 
-    return units.map((u) => ({
-      id: u.id,
-      code: u.code,
-      name: u.name,
-      unitTypeId: u.unitTypeId,
-      unitType: u.clinicUnitType
-        ? {
-            id: u.clinicUnitType.id,
-            code: u.clinicUnitType.code,
-            name: u.clinicUnitType.name,
-            iconName: u.clinicUnitType.iconName,
-          }
-        : null,
-      unitTypeName: u.clinicUnitType?.name || null,
-      queuePrefix: u.queuePrefix,
-      iconName: u.iconName,
-      location: u.location,
-      floor: u.floor,
-      isActive: u.isActive,
-      roomCount: u.clinicRooms?.length || 0,
-      categoryCount: u.serviceCategories?.length || 0,
-      createdAt: u.createdAt,
-      updatedAt: u.updatedAt,
-    }));
+    return units.map((u) => {
+      const categoriesMap = new Map<
+        string,
+        {
+          id: string;
+          name: string;
+          code: string;
+          iconName: string;
+          isPrimary: boolean;
+        }
+      >();
+
+      for (const cat of u.serviceCategories || []) {
+        if (!categoriesMap.has(cat.id)) {
+          categoriesMap.set(cat.id, {
+            id: cat.id,
+            name: cat.name,
+            code: cat.code,
+            iconName: cat.iconName || 'folder',
+            isPrimary: true,
+          });
+        }
+      }
+
+      for (const mapping of u.categoryMappings || []) {
+        if (mapping.category && !categoriesMap.has(mapping.categoryId)) {
+          categoriesMap.set(mapping.categoryId, {
+            id: mapping.category.id,
+            name: mapping.category.name,
+            code: mapping.category.code,
+            iconName: mapping.category.iconName || 'folder',
+            isPrimary: Boolean(mapping.isPrimary),
+          });
+        }
+      }
+
+      const categories = Array.from(categoriesMap.values()).sort((a, b) =>
+        a.name.localeCompare(b.name),
+      );
+      const categoryIds = Array.from(categoriesMap.keys());
+
+      return {
+        id: u.id,
+        code: u.code,
+        name: u.name,
+        unitTypeId: u.unitTypeId,
+        unitType: u.clinicUnitType
+          ? {
+              id: u.clinicUnitType.id,
+              code: u.clinicUnitType.code,
+              name: u.clinicUnitType.name,
+              iconName: u.clinicUnitType.iconName,
+            }
+          : null,
+        unitTypeName: u.clinicUnitType?.name || null,
+        queuePrefix: u.queuePrefix,
+        iconName: u.iconName,
+        location: u.location,
+        floor: u.floor,
+        isActive: u.isActive,
+        roomCount: u.clinicRooms?.length || 0,
+        categoryCount: categoriesMap.size,
+        categoryIds,
+        categories,
+        createdAt: u.createdAt,
+        updatedAt: u.updatedAt,
+      };
+    });
   }
 
-  async createUnit(dto: CreateFacilityUnitDto): Promise<any> {
+  async createUnit(
+    dto: CreateFacilityUnitDto,
+  ): Promise<typeof clinicUnits.$inferSelect> {
     const unitType = await this.db.query.clinicUnitTypes.findFirst({
       where: eq(clinicUnitTypes.id, dto.unitTypeId),
     });
@@ -317,7 +507,10 @@ export class AdminFacilitiesService {
     return created;
   }
 
-  async updateUnit(id: string, dto: UpdateFacilityUnitDto): Promise<any> {
+  async updateUnit(
+    id: string,
+    dto: UpdateFacilityUnitDto,
+  ): Promise<typeof clinicUnits.$inferSelect> {
     const existing = await this.db.query.clinicUnits.findFirst({
       where: eq(clinicUnits.id, id),
     });
@@ -336,7 +529,7 @@ export class AdminFacilitiesService {
       }
     }
 
-    const updates: Record<string, any> = {
+    const updates: Partial<typeof clinicUnits.$inferInsert> = {
       updatedAt: new Date().toISOString(),
     };
     if (dto.name !== undefined) updates.name = dto.name.trim();
@@ -424,8 +617,12 @@ export class AdminFacilitiesService {
   // 2. CLINIC ROOMS
   // ==========================================
 
-  async getRooms(unitId?: string, search?: string, status?: string): Promise<any[]> {
-    const conditions: any[] = [];
+  async getRooms(
+    unitId?: string,
+    search?: string,
+    status?: string,
+  ): Promise<AdminRoomResponse[]> {
+    const conditions: Array<SQL | undefined> = [];
     if (unitId) conditions.push(eq(clinicRooms.unitId, unitId));
     if (status === 'active') conditions.push(eq(clinicRooms.isActive, true));
     if (status === 'inactive') conditions.push(eq(clinicRooms.isActive, false));
@@ -433,7 +630,9 @@ export class AdminFacilitiesService {
       const term = `%${search.trim()}%`;
       conditions.push(or(ilike(clinicRooms.name, term), ilike(clinicRooms.code, term)));
     }
-    const whereCondition = conditions.length > 0 ? and(...conditions) : undefined;
+    const validConditions = conditions.filter((c): c is SQL => Boolean(c));
+    const whereCondition =
+      validConditions.length > 0 ? and(...validConditions) : undefined;
 
     const rooms = await this.db.query.clinicRooms.findMany({
       where: whereCondition,
@@ -457,7 +656,9 @@ export class AdminFacilitiesService {
     }));
   }
 
-  async createRoom(dto: CreateFacilityRoomDto): Promise<any> {
+  async createRoom(
+    dto: CreateFacilityRoomDto,
+  ): Promise<typeof clinicRooms.$inferSelect> {
     const unit = await this.db.query.clinicUnits.findFirst({
       where: eq(clinicUnits.id, dto.unitId),
     });
@@ -495,7 +696,10 @@ export class AdminFacilitiesService {
     return created;
   }
 
-  async updateRoom(id: string, dto: UpdateFacilityRoomDto): Promise<any> {
+  async updateRoom(
+    id: string,
+    dto: UpdateFacilityRoomDto,
+  ): Promise<typeof clinicRooms.$inferSelect> {
     const existing = await this.db.query.clinicRooms.findFirst({
       where: eq(clinicRooms.id, id),
     });
@@ -514,7 +718,7 @@ export class AdminFacilitiesService {
       }
     }
 
-    const updates: Record<string, any> = {
+    const updates: Partial<typeof clinicRooms.$inferInsert> = {
       updatedAt: new Date().toISOString(),
     };
     if (dto.unitId !== undefined) updates.unitId = dto.unitId;
@@ -593,9 +797,22 @@ export class AdminFacilitiesService {
     unitId?: string,
     search?: string,
     status?: string,
-  ): Promise<any[]> {
-    const conditions: any[] = [];
-    if (unitId) conditions.push(eq(serviceCategories.unitId, unitId));
+  ): Promise<AdminServiceCategoryResponse[]> {
+    const conditions: Array<SQL | undefined> = [];
+    if (unitId) {
+      const mappings = await this.db.query.clinicUnitCategoryMappings.findMany({
+        where: eq(clinicUnitCategoryMappings.unitId, unitId),
+      });
+      const mappedCatIds = mappings.map((m) => m.categoryId);
+      conditions.push(
+        or(
+          eq(serviceCategories.unitId, unitId),
+          mappedCatIds.length > 0
+            ? inArray(serviceCategories.id, mappedCatIds)
+            : sql`false`,
+        ),
+      );
+    }
     if (status === 'active') conditions.push(eq(serviceCategories.isActive, true));
     if (status === 'inactive') conditions.push(eq(serviceCategories.isActive, false));
     if (search?.trim()) {
@@ -607,8 +824,9 @@ export class AdminFacilitiesService {
         ),
       );
     }
+    const validConditions = conditions.filter((c): c is SQL => Boolean(c));
     const whereCondition =
-      conditions.length > 0 ? and(...conditions) : undefined;
+      validConditions.length > 0 ? and(...validConditions) : undefined;
     const categories = await this.db.query.serviceCategories.findMany({
       where: whereCondition,
       orderBy: [
@@ -618,35 +836,71 @@ export class AdminFacilitiesService {
       with: {
         clinicUnit: true,
         clinicServices: true,
+        serviceMappings: true,
+        unitMappings: {
+          with: {
+            unit: true,
+          },
+        },
       },
     });
 
-    return categories.map((c) => ({
-      id: c.id,
-      unitId: c.unitId,
-      unitName: c.clinicUnit?.name || null,
-      code: c.code,
-      name: c.name,
-      codePrefix: c.codePrefix,
-      iconName: c.iconName,
-      description: c.description,
-      displayOrder: c.displayOrder,
-      isActive: c.isActive,
-      serviceCount: c.clinicServices?.length || 0,
-      createdAt: c.createdAt,
-      updatedAt: c.updatedAt,
-    }));
+    return categories.map((c) => {
+      const directServices = c.clinicServices || [];
+      const mappedServiceIds = (c.serviceMappings || []).map((m) => m.serviceId);
+      const allServiceIds = new Set([
+        ...directServices.map((s) => s.id),
+        ...mappedServiceIds,
+      ]);
+
+      const directUnit = c.clinicUnit ? [c.clinicUnit] : [];
+      const mappedUnits = (c.unitMappings || [])
+        .map((m) => m.unit)
+        .filter((u): u is NonNullable<typeof c.clinicUnit> => Boolean(u));
+      const unitsMap = new Map<string, { id: string; name: string }>();
+      for (const u of [...directUnit, ...mappedUnits]) {
+        if (u?.id && !unitsMap.has(u.id)) {
+          unitsMap.set(u.id, { id: u.id, name: u.name });
+        }
+      }
+      const unitsList = Array.from(unitsMap.values());
+      const unitIds = unitsList.map((u) => u.id);
+
+      return {
+        id: c.id,
+        unitId: c.unitId,
+        unitName: c.clinicUnit?.name || (unitsList.length > 0 ? unitsList[0].name : null),
+        unitIds,
+        units: unitsList,
+        code: c.code,
+        name: c.name,
+        codePrefix: c.codePrefix,
+        iconName: c.iconName,
+        description: c.description,
+        displayOrder: c.displayOrder,
+        isActive: c.isActive,
+        serviceCount: allServiceIds.size,
+        createdAt: c.createdAt,
+        updatedAt: c.updatedAt,
+      };
+    });
   }
 
-  async createCategory(dto: CreateServiceCategoryDto): Promise<any> {
-    if (dto.unitId) {
-      const unit = await this.db.query.clinicUnits.findFirst({
-        where: eq(clinicUnits.id, dto.unitId),
+  async createCategory(
+    dto: CreateServiceCategoryDto,
+  ): Promise<typeof serviceCategories.$inferSelect> {
+    const rawUnitIds = dto.unitIds?.filter((id): id is string => Boolean(id)) || [];
+    const primaryUnitId = dto.unitId ?? (rawUnitIds.length > 0 ? rawUnitIds[0] : null);
+    const allUnitIds = Array.from(
+      new Set([primaryUnitId, ...rawUnitIds].filter((id): id is string => Boolean(id))),
+    );
+
+    if (allUnitIds.length > 0) {
+      const validUnits = await this.db.query.clinicUnits.findMany({
+        where: inArray(clinicUnits.id, allUnitIds),
       });
-      if (!unit) {
-        throw new NotFoundException(
-          `Unit dengan ID '${dto.unitId}' tidak ditemukan`,
-        );
+      if (validUnits.length !== allUnitIds.length) {
+        throw new NotFoundException('Satu atau lebih unit poliklinik tidak ditemukan');
       }
     }
 
@@ -665,28 +919,40 @@ export class AdminFacilitiesService {
     const finalPrefix =
       dto.codePrefix?.trim() || CanonicalSlugHelper.toPrefix(dto.name, 4);
 
-    const [created] = await this.db
-      .insert(serviceCategories)
-      .values({
-        unitId: dto.unitId || null,
-        code: finalCode,
-        name: dto.name.trim(),
-        codePrefix: finalPrefix || null,
-        iconName: dto.iconName?.trim() || 'folder',
-        description: dto.description?.trim() || null,
-        displayOrder: dto.displayOrder ?? 0,
-        isActive: dto.isActive ?? true,
-      })
-      .returning();
+    return await this.db.transaction(async (tx) => {
+      const [created] = await tx
+        .insert(serviceCategories)
+        .values({
+          unitId: primaryUnitId,
+          code: finalCode,
+          name: dto.name.trim(),
+          codePrefix: finalPrefix || null,
+          iconName: dto.iconName?.trim() || 'folder',
+          description: dto.description?.trim() || null,
+          displayOrder: dto.displayOrder ?? 0,
+          isActive: dto.isActive ?? true,
+        })
+        .returning();
 
-    await this.invalidateCache();
-    return created;
+      if (allUnitIds.length > 0) {
+        await tx.insert(clinicUnitCategoryMappings).values(
+          allUnitIds.map((uId) => ({
+            unitId: uId,
+            categoryId: created.id,
+            isPrimary: uId === primaryUnitId,
+          })),
+        );
+      }
+
+      await this.invalidateCache();
+      return created;
+    });
   }
 
   async updateCategory(
     id: string,
     dto: UpdateServiceCategoryDto,
-  ): Promise<any> {
+  ): Promise<typeof serviceCategories.$inferSelect> {
     const existing = await this.db.query.serviceCategories.findFirst({
       where: eq(serviceCategories.id, id),
     });
@@ -694,21 +960,35 @@ export class AdminFacilitiesService {
       throw new NotFoundException(`Kategori dengan ID '${id}' tidak ditemukan`);
     }
 
-    if (dto.unitId) {
-      const unit = await this.db.query.clinicUnits.findFirst({
-        where: eq(clinicUnits.id, dto.unitId),
+    let allUnitIds: string[] | undefined;
+    let primaryUnitId: string | null | undefined;
+    if (dto.unitIds !== undefined) {
+      const rawUnitIds = dto.unitIds.filter((id): id is string => Boolean(id));
+      primaryUnitId =
+        dto.unitId !== undefined
+          ? (dto.unitId ?? null)
+          : (rawUnitIds.length > 0 ? rawUnitIds[0] : null);
+      allUnitIds = Array.from(
+        new Set([primaryUnitId, ...rawUnitIds].filter((id): id is string => Boolean(id))),
+      );
+    } else if (dto.unitId !== undefined) {
+      primaryUnitId = dto.unitId ?? null;
+      allUnitIds = primaryUnitId ? [primaryUnitId] : [];
+    }
+
+    if (allUnitIds && allUnitIds.length > 0) {
+      const validUnits = await this.db.query.clinicUnits.findMany({
+        where: inArray(clinicUnits.id, allUnitIds),
       });
-      if (!unit) {
-        throw new NotFoundException(
-          `Unit dengan ID '${dto.unitId}' tidak ditemukan`,
-        );
+      if (validUnits.length !== allUnitIds.length) {
+        throw new NotFoundException('Satu atau lebih unit poliklinik tidak ditemukan');
       }
     }
 
-    const updates: Record<string, any> = {
+    const updates: Partial<typeof serviceCategories.$inferInsert> = {
       updatedAt: new Date().toISOString(),
     };
-    if (dto.unitId !== undefined) updates.unitId = dto.unitId || null;
+    if (primaryUnitId !== undefined) updates.unitId = primaryUnitId;
     if (dto.name !== undefined) updates.name = dto.name.trim();
     if (dto.code !== undefined) {
       const normalizedCode = dto.code.trim().toLowerCase().replace(/-/g, '_');
@@ -733,14 +1013,223 @@ export class AdminFacilitiesService {
     if (dto.displayOrder !== undefined) updates.displayOrder = dto.displayOrder;
     if (dto.isActive !== undefined) updates.isActive = dto.isActive;
 
-    const [updated] = await this.db
-      .update(serviceCategories)
-      .set(updates)
-      .where(eq(serviceCategories.id, id))
-      .returning();
+    return await this.db.transaction(async (tx) => {
+      const [updated] = await tx
+        .update(serviceCategories)
+        .set(updates)
+        .where(eq(serviceCategories.id, id))
+        .returning();
+
+      if (allUnitIds !== undefined) {
+        await tx
+          .delete(clinicUnitCategoryMappings)
+          .where(eq(clinicUnitCategoryMappings.categoryId, id));
+
+        if (allUnitIds.length > 0) {
+          await tx.insert(clinicUnitCategoryMappings).values(
+            allUnitIds.map((uId) => ({
+              unitId: uId,
+              categoryId: id,
+              isPrimary: uId === primaryUnitId,
+            })),
+          );
+        }
+      }
+
+      await this.invalidateCache();
+      return updated;
+    });
+  }
+
+  async linkServicesToCategory(
+    categoryId: string,
+    serviceIds: string[],
+  ): Promise<{ linked: number }> {
+    const category = await this.db.query.serviceCategories.findFirst({
+      where: eq(serviceCategories.id, categoryId),
+    });
+    if (!category) {
+      throw new NotFoundException(
+        `Kategori dengan ID '${categoryId}' tidak ditemukan`,
+      );
+    }
+
+    if (!serviceIds || serviceIds.length === 0) {
+      return { linked: 0 };
+    }
+
+    let linkedCount = 0;
+    for (const serviceId of serviceIds) {
+      const existing =
+        await this.db.query.clinicServiceCategoryMappings.findFirst({
+          where: and(
+            eq(clinicServiceCategoryMappings.categoryId, categoryId),
+            eq(clinicServiceCategoryMappings.serviceId, serviceId),
+          ),
+        });
+      if (!existing) {
+        await this.db.insert(clinicServiceCategoryMappings).values({
+          categoryId,
+          serviceId,
+          isPrimary: false,
+        });
+        linkedCount++;
+      }
+    }
 
     await this.invalidateCache();
-    return updated;
+    return { linked: linkedCount };
+  }
+
+  async unlinkServiceFromCategory(
+    categoryId: string,
+    serviceId: string,
+  ): Promise<{ unlinked: boolean }> {
+    const category = await this.db.query.serviceCategories.findFirst({
+      where: eq(serviceCategories.id, categoryId),
+    });
+    if (!category) {
+      throw new NotFoundException(
+        `Kategori dengan ID '${categoryId}' tidak ditemukan`,
+      );
+    }
+
+    await this.db
+      .delete(clinicServiceCategoryMappings)
+      .where(
+        and(
+          eq(clinicServiceCategoryMappings.categoryId, categoryId),
+          eq(clinicServiceCategoryMappings.serviceId, serviceId),
+        ),
+      );
+
+    const service = await this.db.query.clinicServices.findFirst({
+      where: eq(clinicServices.id, serviceId),
+      with: {
+        categoryMappings: true,
+      },
+    });
+
+    if (service && service.serviceCategoryId === categoryId) {
+      const nextCategory = service.categoryMappings?.[0]?.categoryId || null;
+      await this.db
+        .update(clinicServices)
+        .set({ serviceCategoryId: nextCategory })
+        .where(eq(clinicServices.id, serviceId));
+    }
+
+    await this.invalidateCache();
+    return { unlinked: true };
+  }
+
+  async linkCategoriesToUnit(
+    unitId: string,
+    dto: LinkCategoriesToUnitDto,
+  ): Promise<{ linked: number }> {
+    const unit = await this.db.query.clinicUnits.findFirst({
+      where: eq(clinicUnits.id, unitId),
+    });
+    if (!unit) {
+      throw new NotFoundException(
+        `Unit poliklinik dengan ID '${unitId}' tidak ditemukan`,
+      );
+    }
+
+    const uniqueCategoryIds = Array.from(
+      new Set(dto.categoryIds.filter((id): id is string => Boolean(id))),
+    );
+    if (uniqueCategoryIds.length === 0) {
+      return { linked: 0 };
+    }
+
+    const validCategories = await this.db.query.serviceCategories.findMany({
+      where: inArray(serviceCategories.id, uniqueCategoryIds),
+    });
+    if (validCategories.length !== uniqueCategoryIds.length) {
+      throw new NotFoundException(
+        'Satu atau lebih kelompok layanan tidak ditemukan',
+      );
+    }
+
+    const existingMappings =
+      await this.db.query.clinicUnitCategoryMappings.findMany({
+        where: and(
+          eq(clinicUnitCategoryMappings.unitId, unitId),
+          inArray(clinicUnitCategoryMappings.categoryId, uniqueCategoryIds),
+        ),
+      });
+
+    const alreadyMappedCategoryIds = new Set(
+      existingMappings.map((m) => m.categoryId),
+    );
+    const toInsert = uniqueCategoryIds
+      .filter((catId) => !alreadyMappedCategoryIds.has(catId))
+      .map((categoryId) => {
+        const cat = validCategories.find((c) => c.id === categoryId);
+        const isPrimary = cat?.unitId === unitId;
+        return {
+          unitId,
+          categoryId,
+          isPrimary,
+        };
+      });
+
+    if (toInsert.length > 0) {
+      await this.db.insert(clinicUnitCategoryMappings).values(toInsert);
+    }
+
+    await this.invalidateCache();
+    return { linked: toInsert.length };
+  }
+
+  async unlinkCategoryFromUnit(
+    unitId: string,
+    categoryId: string,
+  ): Promise<{ unlinked: boolean }> {
+    const unit = await this.db.query.clinicUnits.findFirst({
+      where: eq(clinicUnits.id, unitId),
+    });
+    if (!unit) {
+      throw new NotFoundException(
+        `Unit poliklinik dengan ID '${unitId}' tidak ditemukan`,
+      );
+    }
+
+    const category = await this.db.query.serviceCategories.findFirst({
+      where: eq(serviceCategories.id, categoryId),
+    });
+    if (!category) {
+      throw new NotFoundException(
+        `Kelompok layanan dengan ID '${categoryId}' tidak ditemukan`,
+      );
+    }
+
+    await this.db
+      .delete(clinicUnitCategoryMappings)
+      .where(
+        and(
+          eq(clinicUnitCategoryMappings.unitId, unitId),
+          eq(clinicUnitCategoryMappings.categoryId, categoryId),
+        ),
+      );
+
+    if (category.unitId === unitId) {
+      const remainingMapping =
+        await this.db.query.clinicUnitCategoryMappings.findFirst({
+          where: eq(clinicUnitCategoryMappings.categoryId, categoryId),
+        });
+
+      await this.db
+        .update(serviceCategories)
+        .set({
+          unitId: remainingMapping ? remainingMapping.unitId : null,
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(serviceCategories.id, categoryId));
+    }
+
+    await this.invalidateCache();
+    return { unlinked: true };
   }
 
   async deleteCategory(id: string): Promise<void> {
@@ -777,18 +1266,39 @@ export class AdminFacilitiesService {
     unitId?: string,
     search?: string,
     status?: string,
-  ): Promise<any[]> {
-    const conditions: any[] = [];
+  ): Promise<AdminClinicServiceResponse[]> {
+    const conditions: Array<SQL | undefined> = [];
 
     if (categoryId) {
-      conditions.push(eq(clinicServices.serviceCategoryId, categoryId));
+      const mapped = await this.db.query.clinicServiceCategoryMappings.findMany({
+        where: eq(clinicServiceCategoryMappings.categoryId, categoryId),
+      });
+      const sIds = mapped.map((m) => m.serviceId);
+      conditions.push(
+        or(
+          eq(clinicServices.serviceCategoryId, categoryId),
+          sIds.length > 0 ? inArray(clinicServices.id, sIds) : sql`false`,
+        ),
+      );
     } else if (unitId) {
       const unitCategories = await this.db.query.serviceCategories.findMany({
-        where: eq(serviceCategories.unitId, unitId),
+        where: or(
+          eq(serviceCategories.unitId, unitId),
+          isNull(serviceCategories.unitId),
+        ),
       });
       const catIds = unitCategories.map((c) => c.id);
       if (catIds.length === 0) return [];
-      conditions.push(inArray(clinicServices.serviceCategoryId, catIds));
+      const mapped = await this.db.query.clinicServiceCategoryMappings.findMany({
+        where: inArray(clinicServiceCategoryMappings.categoryId, catIds),
+      });
+      const sIds = mapped.map((m) => m.serviceId);
+      conditions.push(
+        or(
+          inArray(clinicServices.serviceCategoryId, catIds),
+          sIds.length > 0 ? inArray(clinicServices.id, sIds) : sql`false`,
+        ),
+      );
     }
 
     if (status === 'active') conditions.push(eq(clinicServices.isActive, true));
@@ -804,7 +1314,9 @@ export class AdminFacilitiesService {
       );
     }
 
-    const whereCondition = conditions.length > 0 ? and(...conditions) : undefined;
+    const validConditions = conditions.filter((c): c is SQL => Boolean(c));
+    const whereCondition =
+      validConditions.length > 0 ? and(...validConditions) : undefined;
 
     const services = await this.db.query.clinicServices.findMany({
       where: whereCondition,
@@ -815,6 +1327,15 @@ export class AdminFacilitiesService {
             clinicUnit: true,
           },
         },
+        categoryMappings: {
+          with: {
+            category: {
+              with: {
+                clinicUnit: true,
+              },
+            },
+          },
+        },
         intakeForm: true,
         clinicServiceComplaints: {
           orderBy: [asc(clinicServiceComplaints.displayOrder)],
@@ -822,40 +1343,67 @@ export class AdminFacilitiesService {
       },
     });
 
-    return services.map((s) => ({
-      id: s.id,
-      serviceCategoryId: s.serviceCategoryId,
-      categoryName: s.serviceCategory?.name || null,
-      unitId: s.serviceCategory?.unitId || null,
-      unitName: s.serviceCategory?.clinicUnit?.name || null,
-      specialtyId: s.specialtyId,
-      intakeFormId: s.intakeFormId || null,
-      intakeFormCode: s.intakeForm?.code || null,
-      intakeFormName: s.intakeForm?.name || null,
-      hasIntakeForm: Boolean(s.intakeFormId),
-      code: s.code,
-      name: s.name,
-      shortName: s.shortName,
-      description: s.description,
-      codePrefix: s.codePrefix,
-      iconName: s.iconName,
-      displayOrder: s.displayOrder,
-      isBookable: s.isBookable,
-      isActive: s.isActive,
-      complaints: (s.clinicServiceComplaints || []).map((c) => c.complaintText),
-      createdAt: s.createdAt,
-      updatedAt: s.updatedAt,
-    }));
+    return services.map((s) => {
+      const mappings = s.categoryMappings || [];
+      const categories = mappings.map((m) => ({
+        id: m.category.id,
+        name: m.category.name,
+        code: m.category.code,
+        unitId: m.category.unitId || null,
+        unitName: m.category.clinicUnit?.name || null,
+        isPrimary: m.isPrimary,
+      }));
+      const categoryIds = categories.map((c) => c.id);
+      if (categoryIds.length === 0 && s.serviceCategoryId) {
+        categoryIds.push(s.serviceCategoryId);
+      }
+
+      return {
+        id: s.id,
+        serviceCategoryId: s.serviceCategoryId,
+        categoryIds,
+        categories,
+        categoryName: s.serviceCategory?.name || null,
+        unitId: s.serviceCategory?.unitId || null,
+        unitName: s.serviceCategory?.clinicUnit?.name || null,
+        specialtyId: s.specialtyId,
+        intakeFormId: s.intakeFormId || null,
+        intakeFormCode: s.intakeForm?.code || null,
+        intakeFormName: s.intakeForm?.name || null,
+        hasIntakeForm: Boolean(s.intakeFormId),
+        code: s.code,
+        name: s.name,
+        shortName: s.shortName,
+        description: s.description,
+        codePrefix: s.codePrefix,
+        iconName: s.iconName,
+        displayOrder: s.displayOrder,
+        isBookable: s.isBookable,
+        isActive: s.isActive,
+        complaints: (s.clinicServiceComplaints || []).map((c) => c.complaintText),
+        createdAt: s.createdAt,
+        updatedAt: s.updatedAt,
+      };
+    });
   }
 
-  async createService(dto: CreateClinicServiceDto): Promise<any> {
-    const category = await this.db.query.serviceCategories.findFirst({
-      where: eq(serviceCategories.id, dto.serviceCategoryId),
+  async createService(
+    dto: CreateClinicServiceDto,
+  ): Promise<typeof clinicServices.$inferSelect> {
+    const rawCategoryIds = dto.categoryIds?.filter(Boolean) || [];
+    const primaryCategoryId = dto.serviceCategoryId || rawCategoryIds[0];
+    if (!primaryCategoryId) {
+      throw new NotFoundException('Setidaknya pilih satu kelompok layanan');
+    }
+    const finalCategoryIds = Array.from(
+      new Set([primaryCategoryId, ...rawCategoryIds].filter(Boolean) as string[]),
+    );
+
+    const categories = await this.db.query.serviceCategories.findMany({
+      where: inArray(serviceCategories.id, finalCategoryIds),
     });
-    if (!category) {
-      throw new NotFoundException(
-        `Kategori layanan dengan ID '${dto.serviceCategoryId}' tidak ditemukan`,
-      );
+    if (categories.length === 0) {
+      throw new NotFoundException('Kategori layanan tidak ditemukan');
     }
 
     if (dto.intakeFormId) {
@@ -889,7 +1437,7 @@ export class AdminFacilitiesService {
       const [created] = await tx
         .insert(clinicServices)
         .values({
-          serviceCategoryId: dto.serviceCategoryId,
+          serviceCategoryId: primaryCategoryId,
           specialtyId: dto.specialtyId || null,
           intakeFormId: dto.intakeFormId || null,
           code: finalCode,
@@ -903,6 +1451,16 @@ export class AdminFacilitiesService {
           isActive: dto.isActive ?? true,
         })
         .returning();
+
+      if (finalCategoryIds.length > 0) {
+        await tx.insert(clinicServiceCategoryMappings).values(
+          finalCategoryIds.map((catId) => ({
+            serviceId: created.id,
+            categoryId: catId,
+            isPrimary: catId === primaryCategoryId,
+          })),
+        );
+      }
 
       if (dto.complaints && dto.complaints.length > 0) {
         await tx.insert(clinicServiceComplaints).values(
@@ -919,7 +1477,10 @@ export class AdminFacilitiesService {
     });
   }
 
-  async updateService(id: string, dto: UpdateClinicServiceDto): Promise<any> {
+  async updateService(
+    id: string,
+    dto: UpdateClinicServiceDto,
+  ): Promise<typeof clinicServices.$inferSelect> {
     const existing = await this.db.query.clinicServices.findFirst({
       where: eq(clinicServices.id, id),
     });
@@ -927,13 +1488,20 @@ export class AdminFacilitiesService {
       throw new NotFoundException(`Layanan dengan ID '${id}' tidak ditemukan`);
     }
 
-    if (dto.serviceCategoryId) {
+    const rawCategoryIds = dto.categoryIds?.filter(Boolean);
+    const primaryCategoryId =
+      dto.serviceCategoryId ||
+      (rawCategoryIds && rawCategoryIds.length > 0
+        ? rawCategoryIds[0]
+        : undefined);
+
+    if (primaryCategoryId) {
       const category = await this.db.query.serviceCategories.findFirst({
-        where: eq(serviceCategories.id, dto.serviceCategoryId),
+        where: eq(serviceCategories.id, primaryCategoryId),
       });
       if (!category) {
         throw new NotFoundException(
-          `Kategori layanan dengan ID '${dto.serviceCategoryId}' tidak ditemukan`,
+          `Kategori layanan dengan ID '${primaryCategoryId}' tidak ditemukan`,
         );
       }
     }
@@ -951,11 +1519,11 @@ export class AdminFacilitiesService {
       }
     }
 
-    const updates: Record<string, any> = {
+    const updates: Partial<typeof clinicServices.$inferInsert> = {
       updatedAt: new Date().toISOString(),
     };
-    if (dto.serviceCategoryId !== undefined)
-      updates.serviceCategoryId = dto.serviceCategoryId;
+    if (primaryCategoryId !== undefined)
+      updates.serviceCategoryId = primaryCategoryId;
     if (dto.specialtyId !== undefined)
       updates.specialtyId = dto.specialtyId || null;
     if (dto.intakeFormId !== undefined)
@@ -993,6 +1561,32 @@ export class AdminFacilitiesService {
         .set(updates)
         .where(eq(clinicServices.id, id))
         .returning();
+
+      if (rawCategoryIds !== undefined || dto.serviceCategoryId !== undefined) {
+        const newCatIds = Array.from(
+          new Set(
+            [
+              primaryCategoryId || existing.serviceCategoryId,
+              ...(rawCategoryIds || []),
+            ].filter(Boolean) as string[],
+          ),
+        );
+
+        if (newCatIds.length > 0) {
+          await tx
+            .delete(clinicServiceCategoryMappings)
+            .where(eq(clinicServiceCategoryMappings.serviceId, id));
+
+          await tx.insert(clinicServiceCategoryMappings).values(
+            newCatIds.map((catId) => ({
+              serviceId: id,
+              categoryId: catId,
+              isPrimary:
+                catId === (primaryCategoryId || existing.serviceCategoryId),
+            })),
+          );
+        }
+      }
 
       if (dto.complaints !== undefined) {
         await tx
@@ -1054,15 +1648,20 @@ export class AdminFacilitiesService {
   // 5. CLINICAL INTAKE FORMS (Dynamic Registry)
   // ==========================================
 
-  async getForms(search?: string, status?: string): Promise<any[]> {
-    const conditions: any[] = [];
+  async getForms(
+    search?: string,
+    status?: string,
+  ): Promise<AdminFormResponse[]> {
+    const conditions: Array<SQL | undefined> = [];
     if (status === 'active') conditions.push(eq(clinicalIntakeForms.isActive, true));
     if (status === 'inactive') conditions.push(eq(clinicalIntakeForms.isActive, false));
     if (search?.trim()) {
       const term = `%${search.trim()}%`;
       conditions.push(or(ilike(clinicalIntakeForms.name, term), ilike(clinicalIntakeForms.code, term)));
     }
-    const whereCondition = conditions.length > 0 ? and(...conditions) : undefined;
+    const validConditions = conditions.filter((c): c is SQL => Boolean(c));
+    const whereCondition =
+      validConditions.length > 0 ? and(...validConditions) : undefined;
 
     const forms = await this.db.query.clinicalIntakeForms.findMany({
       where: whereCondition,
@@ -1085,7 +1684,9 @@ export class AdminFacilitiesService {
     }));
   }
 
-  async createForm(dto: CreateClinicalIntakeFormDto): Promise<any> {
+  async createForm(
+    dto: CreateClinicalIntakeFormDto,
+  ): Promise<typeof clinicalIntakeForms.$inferSelect> {
     const finalCode = await this.resolveUniqueCode(
       dto.code,
       dto.name,
@@ -1113,7 +1714,10 @@ export class AdminFacilitiesService {
     return created;
   }
 
-  async updateForm(id: string, dto: UpdateClinicalIntakeFormDto): Promise<any> {
+  async updateForm(
+    id: string,
+    dto: UpdateClinicalIntakeFormDto,
+  ): Promise<typeof clinicalIntakeForms.$inferSelect> {
     const existing = await this.db.query.clinicalIntakeForms.findFirst({
       where: eq(clinicalIntakeForms.id, id),
     });
@@ -1121,7 +1725,7 @@ export class AdminFacilitiesService {
       throw new NotFoundException(`Formulir dengan ID '${id}' tidak ditemukan`);
     }
 
-    const updates: Record<string, any> = {
+    const updates: Partial<typeof clinicalIntakeForms.$inferInsert> = {
       updatedAt: new Date().toISOString(),
     };
     if (dto.name !== undefined) updates.name = dto.name.trim();

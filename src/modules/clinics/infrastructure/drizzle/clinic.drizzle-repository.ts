@@ -1,9 +1,12 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, eq, or } from 'drizzle-orm';
+import { and, asc, eq, isNull, or } from 'drizzle-orm';
 import { RedisService } from '../../../../common/redis/redis.service';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import type { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
+  clinicalIntakeForms,
+  clinicServiceCategoryMappings,
+  clinicServiceComplaints,
   clinicServices,
   clinicUnits,
   serviceCategories,
@@ -16,6 +19,23 @@ import { ClinicRepository } from '../../domain/repositories/clinic.repository';
 import type { ServiceCategoryCatalogDto } from '../../presentation/dto/service-catalog.dto';
 import { ServiceCategoryCatalogSchema } from '../../presentation/schemas/service-catalog.schema';
 
+type ServiceWithRelations = typeof clinicServices.$inferSelect & {
+  intakeForm?: typeof clinicalIntakeForms.$inferSelect | null;
+  clinicServiceComplaints?: Array<typeof clinicServiceComplaints.$inferSelect>;
+};
+
+type ServiceCategoryWithRelations = typeof serviceCategories.$inferSelect & {
+  clinicUnit?: typeof clinicUnits.$inferSelect | null;
+  unitMappings?: Array<{
+    unitId: string;
+    unit?: typeof clinicUnits.$inferSelect | null;
+  }>;
+  clinicServices?: ServiceWithRelations[];
+  serviceMappings?: Array<{
+    service?: ServiceWithRelations | null;
+  }>;
+};
+
 @Injectable()
 export class ClinicDrizzleRepository implements ClinicRepository {
   constructor(
@@ -24,7 +44,7 @@ export class ClinicDrizzleRepository implements ClinicRepository {
     private readonly redis: RedisService,
   ) {}
 
-  private mapUnitToPoli(r: any): PoliklinikEntity {
+  private mapUnitToPoli(r: typeof clinicUnits.$inferSelect): PoliklinikEntity {
     return {
       id: r.id,
       code: r.code,
@@ -76,7 +96,10 @@ export class ClinicDrizzleRepository implements ClinicRepository {
       async () => {
         const categories = await this.db.query.serviceCategories.findMany({
           where: and(
-            eq(serviceCategories.unitId, poliklinikId),
+            or(
+              eq(serviceCategories.unitId, poliklinikId),
+              isNull(serviceCategories.unitId),
+            ),
             eq(serviceCategories.isActive, true),
           ),
           with: {
@@ -114,14 +137,20 @@ export class ClinicDrizzleRepository implements ClinicRepository {
     const record = await this.db.query.clinicServices.findFirst({
       where: eq(clinicServices.id, id),
       with: {
-        serviceCategory: true,
+        serviceCategory: {
+          with: {
+            unitMappings: true,
+          },
+        },
         intakeForm: true,
       },
     });
     if (!record) return null;
+    const cat = record.serviceCategory;
+    const resolvedUnitId = cat?.unitId || cat?.unitMappings?.[0]?.unitId || '';
     return {
       id: record.id,
-      poliklinikId: record.serviceCategory?.unitId || '',
+      poliklinikId: resolvedUnitId,
       name: record.name,
       description: record.description || null,
       intakeFormId: record.intakeFormId || null,
@@ -139,6 +168,11 @@ export class ClinicDrizzleRepository implements ClinicRepository {
           orderBy: [asc(serviceCategories.displayOrder)],
           with: {
             clinicUnit: true,
+            unitMappings: {
+              with: {
+                unit: true,
+              },
+            },
             clinicServices: {
               where: and(
                 eq(clinicServices.isActive, true),
@@ -152,6 +186,18 @@ export class ClinicDrizzleRepository implements ClinicRepository {
                 },
               },
             },
+            serviceMappings: {
+              with: {
+                service: {
+                  with: {
+                    intakeForm: true,
+                    clinicServiceComplaints: {
+                      orderBy: [asc(clinicServices.displayOrder)],
+                    },
+                  },
+                },
+              },
+            },
           },
         });
 
@@ -160,43 +206,78 @@ export class ClinicDrizzleRepository implements ClinicRepository {
           (cat) => !cat.clinicUnit || cat.clinicUnit.isActive,
         );
 
-        const mapped: ServiceCategoryCatalogDto[] = operationalCategories.map(
-          (cat) => {
-            const poliklinikId = cat.unitId || '';
-            const poliklinikName = cat.clinicUnit?.name || cat.name;
+        const mapped: ServiceCategoryCatalogDto[] = (
+          operationalCategories as unknown as ServiceCategoryWithRelations[]
+        ).map((cat) => {
+          const directUnitId = cat.unitId ? [cat.unitId] : [];
+          const mappedUnitIds = (cat.unitMappings || []).map((m) => m.unitId);
+          const unitIds = Array.from(new Set([...directUnitId, ...mappedUnitIds]));
 
-            return {
-              id: cat.id,
-              code: cat.code,
-              name: cat.name,
-              iconName: cat.iconName || 'folder',
-              description: cat.description || null,
-              displayOrder: cat.displayOrder,
+          const unitsMap = new Map<string, { id: string; name: string }>();
+          if (cat.unitId && cat.clinicUnit) {
+            unitsMap.set(cat.unitId, { id: cat.unitId, name: cat.clinicUnit.name });
+          }
+          for (const m of cat.unitMappings || []) {
+            if (m.unit && !unitsMap.has(m.unitId)) {
+              unitsMap.set(m.unitId, { id: m.unitId, name: m.unit.name });
+            }
+          }
+          const units = Array.from(unitsMap.values());
+
+          const poliklinikId = cat.unitId || unitIds[0] || null;
+          const poliklinikName = cat.clinicUnit?.name || units[0]?.name || cat.name;
+
+          const directServices: ServiceWithRelations[] = cat.clinicServices || [];
+          const mappedServices: ServiceWithRelations[] = (cat.serviceMappings || [])
+            .map((m) => m.service)
+            .filter(
+              (s): s is ServiceWithRelations =>
+                Boolean(s && s.isActive === true && s.isBookable === true),
+            );
+
+          const allServicesMap = new Map<string, ServiceWithRelations>();
+          for (const s of [...directServices, ...mappedServices]) {
+            if (!allServicesMap.has(s.id)) {
+              allServicesMap.set(s.id, s);
+            }
+          }
+          const uniqueServices = Array.from(allServicesMap.values()).sort(
+            (a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0),
+          );
+
+          return {
+            id: cat.id,
+            code: cat.code,
+            name: cat.name,
+            iconName: cat.iconName || 'folder',
+            description: cat.description || null,
+            displayOrder: cat.displayOrder,
+            poliklinikId,
+            poliklinikName,
+            unitIds,
+            units,
+            services: uniqueServices.map((srv: ServiceWithRelations) => ({
+              id: srv.id,
+              code: srv.code,
+              name: srv.name,
+              prefix: srv.codePrefix,
+              description: srv.description || null,
+              iconName: srv.iconName || 'stethoscope',
+              specialtyCode: srv.specialtyId || null,
+              intakeFormId: srv.intakeFormId || null,
+              intakeFormCode: srv.intakeForm?.code || null,
+              intakeFormName: srv.intakeForm?.name || null,
+              displayOrder: srv.displayOrder,
+              categoryId: cat.id,
               poliklinikId,
               poliklinikName,
-              services: (cat.clinicServices || []).map((srv) => ({
-                id: srv.id,
-                code: srv.code,
-                name: srv.name,
-                prefix: srv.codePrefix,
-                description: srv.description || null,
-                iconName: srv.iconName || 'stethoscope',
-                specialtyCode: srv.specialtyId || null,
-                intakeFormId: srv.intakeFormId || null,
-                intakeFormCode: srv.intakeForm?.code || null,
-                intakeFormName: srv.intakeForm?.name || null,
-                displayOrder: srv.displayOrder,
-                categoryId: cat.id,
-                poliklinikId,
-                poliklinikName,
-                complaints: (srv.clinicServiceComplaints || []).map(
-                  (c: any) => c.complaintText,
-                ),
-                isBookable: srv.isBookable,
-              })),
-            };
-          },
-        );
+              complaints: (srv.clinicServiceComplaints || []).map(
+                (c) => c.complaintText,
+              ),
+              isBookable: srv.isBookable,
+            })),
+          };
+        });
 
         // Strict Zod runtime contract validation (fail-fast SSOT)
         return ServiceCategoryCatalogSchema.array().parse(mapped);
