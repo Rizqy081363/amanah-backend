@@ -5,7 +5,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, ilike, inArray, or } from 'drizzle-orm';
 import { RedisService } from '../../../common/redis/redis.service';
 import { DRIZZLE_SOURCE } from '../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../database/drizzle/drizzle.provider';
@@ -189,8 +189,18 @@ export class AdminFacilitiesService {
   // 1. CLINIC UNITS
   // ==========================================
 
-  async getUnits(): Promise<any[]> {
+  async getUnits(search?: string, status?: string): Promise<any[]> {
+    const conditions: any[] = [];
+    if (status === 'active') conditions.push(eq(clinicUnits.isActive, true));
+    if (status === 'inactive') conditions.push(eq(clinicUnits.isActive, false));
+    if (search?.trim()) {
+      const term = `%${search.trim()}%`;
+      conditions.push(or(ilike(clinicUnits.name, term), ilike(clinicUnits.code, term)));
+    }
+    const whereCondition = conditions.length > 0 ? and(...conditions) : undefined;
+
     const units = await this.db.query.clinicUnits.findMany({
+      where: whereCondition,
       orderBy: [asc(clinicUnits.name)],
       with: {
         clinicRooms: true,
@@ -341,8 +351,17 @@ export class AdminFacilitiesService {
   // 2. CLINIC ROOMS
   // ==========================================
 
-  async getRooms(unitId?: string): Promise<any[]> {
-    const whereCondition = unitId ? eq(clinicRooms.unitId, unitId) : undefined;
+  async getRooms(unitId?: string, search?: string, status?: string): Promise<any[]> {
+    const conditions: any[] = [];
+    if (unitId) conditions.push(eq(clinicRooms.unitId, unitId));
+    if (status === 'active') conditions.push(eq(clinicRooms.isActive, true));
+    if (status === 'inactive') conditions.push(eq(clinicRooms.isActive, false));
+    if (search?.trim()) {
+      const term = `%${search.trim()}%`;
+      conditions.push(or(ilike(clinicRooms.name, term), ilike(clinicRooms.code, term)));
+    }
+    const whereCondition = conditions.length > 0 ? and(...conditions) : undefined;
+
     const rooms = await this.db.query.clinicRooms.findMany({
       where: whereCondition,
       orderBy: [asc(clinicRooms.name)],
@@ -474,10 +493,26 @@ export class AdminFacilitiesService {
   // 3. SERVICE CATEGORIES
   // ==========================================
 
-  async getCategories(unitId?: string): Promise<any[]> {
-    const whereCondition = unitId
-      ? eq(serviceCategories.unitId, unitId)
-      : undefined;
+  async getCategories(
+    unitId?: string,
+    search?: string,
+    status?: string,
+  ): Promise<any[]> {
+    const conditions: any[] = [];
+    if (unitId) conditions.push(eq(serviceCategories.unitId, unitId));
+    if (status === 'active') conditions.push(eq(serviceCategories.isActive, true));
+    if (status === 'inactive') conditions.push(eq(serviceCategories.isActive, false));
+    if (search?.trim()) {
+      const term = `%${search.trim()}%`;
+      conditions.push(
+        or(
+          ilike(serviceCategories.name, term),
+          ilike(serviceCategories.code, term),
+        ),
+      );
+    }
+    const whereCondition =
+      conditions.length > 0 ? and(...conditions) : undefined;
     const categories = await this.db.query.serviceCategories.findMany({
       where: whereCondition,
       orderBy: [
@@ -627,19 +662,39 @@ export class AdminFacilitiesService {
   // 4. CLINIC SERVICES
   // ==========================================
 
-  async getServices(categoryId?: string, unitId?: string): Promise<any[]> {
-    let whereCondition: any = undefined;
+  async getServices(
+    categoryId?: string,
+    unitId?: string,
+    search?: string,
+    status?: string,
+  ): Promise<any[]> {
+    const conditions: any[] = [];
 
     if (categoryId) {
-      whereCondition = eq(clinicServices.serviceCategoryId, categoryId);
+      conditions.push(eq(clinicServices.serviceCategoryId, categoryId));
     } else if (unitId) {
       const unitCategories = await this.db.query.serviceCategories.findMany({
         where: eq(serviceCategories.unitId, unitId),
       });
       const catIds = unitCategories.map((c) => c.id);
       if (catIds.length === 0) return [];
-      whereCondition = inArray(clinicServices.serviceCategoryId, catIds);
+      conditions.push(inArray(clinicServices.serviceCategoryId, catIds));
     }
+
+    if (status === 'active') conditions.push(eq(clinicServices.isActive, true));
+    if (status === 'inactive') conditions.push(eq(clinicServices.isActive, false));
+    if (search?.trim()) {
+      const term = `%${search.trim()}%`;
+      conditions.push(
+        or(
+          ilike(clinicServices.name, term),
+          ilike(clinicServices.code, term),
+          ilike(clinicServices.shortName, term),
+        ),
+      );
+    }
+
+    const whereCondition = conditions.length > 0 ? and(...conditions) : undefined;
 
     const services = await this.db.query.clinicServices.findMany({
       where: whereCondition,
@@ -864,8 +919,18 @@ export class AdminFacilitiesService {
   // 5. CLINICAL INTAKE FORMS (Dynamic Registry)
   // ==========================================
 
-  async getForms(): Promise<any[]> {
+  async getForms(search?: string, status?: string): Promise<any[]> {
+    const conditions: any[] = [];
+    if (status === 'active') conditions.push(eq(clinicalIntakeForms.isActive, true));
+    if (status === 'inactive') conditions.push(eq(clinicalIntakeForms.isActive, false));
+    if (search?.trim()) {
+      const term = `%${search.trim()}%`;
+      conditions.push(or(ilike(clinicalIntakeForms.name, term), ilike(clinicalIntakeForms.code, term)));
+    }
+    const whereCondition = conditions.length > 0 ? and(...conditions) : undefined;
+
     const forms = await this.db.query.clinicalIntakeForms.findMany({
+      where: whereCondition,
       orderBy: [asc(clinicalIntakeForms.name)],
       with: {
         clinicServices: true,
