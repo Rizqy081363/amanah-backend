@@ -3,6 +3,7 @@ import { CryptoPasswordGeneratorService } from '../../common/services/crypto-pas
 import { PASSWORD_GENERATOR_TOKEN } from '../../common/services/password-generator.interface';
 import { MailModule } from '../../mail/mail.module';
 import { AvatarModule } from '../avatar/avatar.module';
+import { DoctorRosterModule } from '../schedules/doctor-roster/doctor-roster.module';
 import { StaffInvitationService } from './application/staff-invitation.service';
 import { STAFF_REPOSITORY } from './domain/repositories/staff.repository';
 import { STAFF_INVITATION_REPOSITORY } from './domain/repositories/staff-invitation.repository';
@@ -14,7 +15,7 @@ import { AdminInvitationsController } from './presentation/admin-invitations.con
 import { StaffsController } from './presentation/staffs.controller';
 
 @Module({
-  imports: [AvatarModule, MailModule],
+  imports: [AvatarModule, MailModule, DoctorRosterModule],
   controllers: [StaffsController, AdminInvitationsController],
   providers: [
     {

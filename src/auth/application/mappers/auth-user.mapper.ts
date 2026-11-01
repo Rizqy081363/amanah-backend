@@ -174,7 +174,7 @@ export class AuthUserMapper {
       : null;
 
     let needsOnboarding = false;
-    if (role?.isSystem) {
+    if (role?.code === 'admin' && !s) {
       needsOnboarding = false;
     } else if (audience === ROLE_AUDIENCE.INTERNAL || s) {
       if (hasPendingInvitation) {
@@ -206,6 +206,21 @@ export class AuthUserMapper {
     const hasGoogle = Boolean(
       userRecord.authAccounts?.some((acc: any) => acc.providerId === 'google'),
     );
+    const hasPassword = Boolean(
+      userRecord.authAccounts?.some(
+        (acc: any) =>
+          acc.providerId === 'credential' &&
+          typeof acc.passwordHash === 'string' &&
+          acc.passwordHash.trim().length > 0,
+      ),
+    );
+    const providersSet = new Set<string>();
+    for (const acc of userRecord.authAccounts || []) {
+      if (acc.providerId) {
+        providersSet.add(acc.providerId);
+      }
+    }
+    const linkedProviders = Array.from(providersSet);
 
     return {
       ...sanitizedUser,
@@ -229,6 +244,8 @@ export class AuthUserMapper {
       patient,
       needsOnboarding,
       hasGoogle,
+      hasPassword,
+      linkedProviders,
     };
   }
 }

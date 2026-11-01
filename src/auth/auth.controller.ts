@@ -57,6 +57,7 @@ import { AuthStaffOnboardingDto } from './dto/auth-staff-onboarding.dto';
 import { AuthUpdateDto } from './dto/auth-update.dto';
 import { AuthUserResponseDto } from './dto/auth-user-response.dto';
 import { AuthVerifyOtpDto } from './dto/auth-verify-otp.dto';
+import { ChangeEmailGoogleDto } from './dto/change-email-google.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { DeleteAccountResponseDto } from './dto/delete-account-response.dto';
 import { LinkGoogleDto } from './dto/link-google.dto';
@@ -64,6 +65,7 @@ import { LinkedProvidersResponseDto } from './dto/linked-providers-response.dto'
 import { LoginResponseDto } from './dto/login-response.dto';
 import { RefreshResponseDto } from './dto/refresh-response.dto';
 import { RequestEmailChangeDto } from './dto/request-email-change.dto';
+import { VerifyEmailChangeDto } from './dto/verify-email-change.dto';
 import {
   AuthConfirmEmailSchema,
   AuthEmailLoginSchema,
@@ -77,9 +79,11 @@ import {
   AuthStaffOnboardingSchema,
   AuthUpdateSchema,
   AuthVerifyOtpSchema,
+  ChangeEmailGoogleSchema,
   ChangePasswordSchema,
   LinkGoogleSchema,
   RequestEmailChangeSchema,
+  VerifyEmailChangeSchema,
 } from './presentation/schemas';
 import type { JwtPayloadType } from './strategies/types/jwt-payload.type';
 import type { JwtRefreshPayloadType } from './strategies/types/jwt-refresh-payload.type';
@@ -524,10 +528,10 @@ export class AuthController {
   @ApiOperation({
     summary: 'Ajukan permintaan perubahan alamat email akun',
     description:
-      'Mengirimkan tautan dan token verifikasi ke alamat email baru untuk menyelesaikan alur pemindahan email.',
+      'Mengirimkan kode OTP 6-digit ke alamat email baru untuk menyelesaikan alur pemindahan email.',
   })
   @ApiOkResponse({
-    description: 'Tautan konfirmasi berhasil dikirim ke alamat email baru',
+    description: 'Kode OTP verifikasi berhasil dikirim ke alamat email baru',
   })
   @HttpCode(HttpStatus.OK)
   public requestEmailChange(
@@ -535,6 +539,48 @@ export class AuthController {
     @Body(zodPipe(RequestEmailChangeSchema)) dto: RequestEmailChangeDto,
   ): Promise<{ success: boolean; message: string }> {
     return this.service.requestEmailChange(request.user.id, dto);
+  }
+
+  @ApiBearerAuth('access-token')
+  @Post('me/verify-email-change')
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('profile:update')
+  @ApiOperation({
+    summary: 'Verifikasi kode OTP dan selesaikan perubahan alamat email akun',
+    description:
+      'Memvalidasi kode OTP 6-digit yang dikirimkan ke email baru, mengalihkan alamat email kanonikal di basis data, dan mencabut seluruh sesi login lama.',
+  })
+  @ApiOkResponse({
+    description: 'Email akun berhasil diperbarui dan sesi lama dinonaktifkan',
+  })
+  @HttpCode(HttpStatus.OK)
+  public verifyEmailChange(
+    @Request() request: RequestWithUser<JwtPayloadType>,
+    @Body(zodPipe(VerifyEmailChangeSchema)) dto: VerifyEmailChangeDto,
+  ): Promise<{ success: boolean; message: string }> {
+    return this.service.verifyEmailChange(request.user.id, dto);
+  }
+
+  @ApiBearerAuth('access-token')
+  @Post('me/change-email-google')
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('profile:update')
+  @ApiOperation({
+    summary:
+      'Alihkan email akun dan tautan Akun Google menggunakan Google OAuth',
+    description:
+      'Memverifikasi ID token dari Google Account Chooser secara langsung, memeriksa benturan identitas Google (sub) dan email baru dengan pengguna lain, mengalihkan alamat email kanonikal akun dan tautan Google, serta mencabut seluruh sesi login lama demi keamanan.',
+  })
+  @ApiOkResponse({
+    description:
+      'Alamat email akun dan Akun Google berhasil dialihkan. Seluruh sesi login sebelumnya telah dinonaktifkan.',
+  })
+  @HttpCode(HttpStatus.OK)
+  public changeEmailWithGoogle(
+    @Request() request: RequestWithUser<JwtPayloadType>,
+    @Body(zodPipe(ChangeEmailGoogleSchema)) dto: ChangeEmailGoogleDto,
+  ): Promise<{ success: boolean; message: string }> {
+    return this.service.changeEmailWithGoogle(request.user.id, dto);
   }
 
   @ApiBearerAuth('access-token')

@@ -550,7 +550,7 @@ export class StaffDrizzleRepository implements StaffRepository {
       updateValues.nationalIdHash = data.nationalId;
       updateValues.nationalIdEncrypted = data.nationalId;
     }
-    if (data.email !== undefined) updateValues.email = data.email;
+    // Note: staffProfiles.email is authoritative only through the account identity lifecycle.
     if (data.phoneNumber !== undefined) updateValues.phone = data.phoneNumber;
     if (data.poliklinikId !== undefined)
       updateValues.primaryUnitId = data.poliklinikId;

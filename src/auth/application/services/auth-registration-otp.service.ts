@@ -5,12 +5,14 @@ import {
   HttpStatus,
   Inject,
   Injectable,
+  NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import bcrypt from 'bcryptjs';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, isNull, sql } from 'drizzle-orm';
+import { createHash, randomInt } from 'node:crypto';
 import { AUTH_PROVIDER } from '../../../common/constants/auth-providers.constants';
 import { ROLE_AUDIENCE } from '../../../common/constants/role-audience.constants';
 import { RedisService } from '../../../common/redis/redis.service';
@@ -20,8 +22,11 @@ import { DrizzleDatabase } from '../../../database/drizzle/drizzle.provider';
 import {
   account,
   authAccounts,
+  authSessions,
+  authVerifications,
   roles,
   session,
+  staffProfiles,
   user,
   userRoles,
   users,
@@ -36,6 +41,7 @@ import {
 import { AuthResetPasswordOtpDto } from '../../dto/auth-reset-password-otp.dto';
 import { AuthVerifyOtpDto } from '../../dto/auth-verify-otp.dto';
 import { RequestEmailChangeDto } from '../../dto/request-email-change.dto';
+import { VerifyEmailChangeDto } from '../../dto/verify-email-change.dto';
 import { IdentityEnrollmentService } from './identity-enrollment.service';
 import { UserProvisionedNotificationPublisher } from '../publishers/user-provisioned-notification.publisher';
 import { SocketIoRealtimeGateway } from '../../../modules/notifications/infrastructure/realtime/socket-io-realtime.gateway';
@@ -179,12 +185,7 @@ export class AuthRegistrationOtpService {
     });
 
     if (!userRecord) {
-      throw new UnprocessableEntityException({
-        status: HttpStatus.UNPROCESSABLE_ENTITY,
-        errors: {
-          user: 'Pengguna tidak ditemukan',
-        },
-      });
+      throw new NotFoundException('Pengguna tidak ditemukan');
     }
 
     const newEmail = dto.newEmail.trim().toLowerCase();
@@ -203,6 +204,20 @@ export class AuthRegistrationOtpService {
       );
     }
 
+    // Cooldown check (60s) via Redis
+    const cooldownKey = `email_change_cooldown:${userId}`;
+    const inCooldown = await this.redisService.getString(cooldownKey);
+    if (inCooldown) {
+      throw new HttpException(
+        {
+          message:
+            'Mohon tunggu 60 detik sebelum mengajukan kode OTP perubahan email baru.',
+          code: 'COOLDOWN_ACTIVE',
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
     const credentialAcc = await this.db.query.authAccounts.findFirst({
       where: and(
         eq(authAccounts.userId, userId),
@@ -210,48 +225,284 @@ export class AuthRegistrationOtpService {
       ),
     });
 
-    if (credentialAcc?.passwordHash) {
-      if (!dto.currentPassword) {
-        throw new BadRequestException(
-          'Kata sandi saat ini wajib diisi untuk mengonfirmasi perubahan alamat email.',
-        );
-      }
-      const isPasswordValid = await bcrypt.compare(
-        dto.currentPassword,
-        credentialAcc.passwordHash,
+    if (!credentialAcc?.passwordHash) {
+      throw new BadRequestException(
+        'Akun ini terhubung menggunakan Google OAuth tanpa kata sandi lokal. Silakan gunakan opsi Ganti Akun Google untuk memperbarui email Anda.',
       );
-      if (!isPasswordValid) {
-        throw new UnprocessableEntityException({
-          status: HttpStatus.UNPROCESSABLE_ENTITY,
-          errors: {
-            currentPassword: 'Kata sandi saat ini tidak cocok',
-          },
-        });
-      }
     }
 
-    const hash = await this.jwtService.signAsync(
-      {
-        id: userRecord.id,
-        email: userRecord.email,
-        newEmail,
-      },
-      {
-        secret: this.configService.getOrThrow('auth.confirmEmailSecret', {
-          infer: true,
-        }),
-        expiresIn: '24h',
-      },
+    if (!dto.currentPassword) {
+      throw new UnprocessableEntityException({
+        status: HttpStatus.UNPROCESSABLE_ENTITY,
+        message:
+          'Kata sandi saat ini wajib diisi untuk mengonfirmasi perubahan alamat email.',
+        errors: {
+          currentPassword:
+            'Kata sandi saat ini wajib diisi untuk mengonfirmasi perubahan alamat email.',
+        },
+      });
+    }
+    const isPasswordValid = await bcrypt.compare(
+      dto.currentPassword,
+      credentialAcc.passwordHash,
     );
+    if (!isPasswordValid) {
+      throw new UnprocessableEntityException({
+        status: HttpStatus.UNPROCESSABLE_ENTITY,
+        message: 'Kata sandi saat ini tidak cocok',
+        errors: {
+          currentPassword: 'Kata sandi saat ini tidak cocok',
+        },
+      });
+    }
 
-    await this.mailService.confirmNewEmail({
+
+
+    // Generate 6-digit numeric OTP
+    const otp = randomInt(100000, 1000000).toString();
+    const identifierHash = createHash('sha256')
+      .update(`${userId}:${newEmail}`)
+      .digest('hex');
+    const valueHash = await bcrypt.hash(otp, 10);
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+
+    // Clean up any stale email_change verification for this identifier
+    await this.db
+      .delete(authVerifications)
+      .where(
+        and(
+          eq(authVerifications.identifierHash, identifierHash),
+          eq(authVerifications.purpose, 'email_change'),
+        ),
+      );
+
+    // Insert new pending OTP record
+    await this.db.insert(authVerifications).values({
+      identifierHash,
+      valueHash,
+      purpose: 'email_change',
+      expiresAt,
+      attemptCount: 0,
+    });
+
+    // Set cooldown in Redis
+    await this.redisService.setString(cooldownKey, '1', 60);
+
+    // Send email with OTP
+    await this.mailService.send({
       to: newEmail,
-      data: { hash },
+      subject: 'Kode OTP Perubahan Email - Amanah Healthcare',
+      text: `Halo,\n\nGunakan kode OTP berikut untuk mengonfirmasi pemindahan alamat email akun Amanah Healthcare Anda:\n\nKode OTP: ${otp}\n(Berlaku 5 menit)\n\nJika Anda tidak merasa mengajukan perubahan ini, abaikan email ini.`,
+      html: `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 8px; background-color: #ffffff;">
+          <h2 style="color: #0f172a; margin-top: 0;">Verifikasi Perubahan Email</h2>
+          <p style="color: #475569; font-size: 15px; line-height: 1.5;">Gunakan kode OTP berikut untuk mengonfirmasi pemindahan alamat email akun Amanah Healthcare Anda ke alamat ini:</p>
+          <div style="background-color: #f1f5f9; border-radius: 6px; padding: 16px; text-align: center; margin: 24px 0;">
+            <span style="font-family: monospace; font-size: 32px; font-weight: bold; letter-spacing: 6px; color: #0284c7;">${otp}</span>
+          </div>
+          <p style="color: #64748b; font-size: 13px; line-height: 1.4;">Kode OTP ini berlaku selama <strong>5 menit</strong>. Jangan berikan kode ini kepada siapapun.</p>
+          <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
+          <p style="color: #94a3b8; font-size: 12px; margin-bottom: 0;">Amanah Healthcare — Sistem Informasi & Operasional Klinik Terpadu</p>
+        </div>
+      `,
     });
 
     return {
       success: true,
-      message: `Tautan konfirmasi telah dikirim ke ${newEmail}. Silakan periksa kotak masuk untuk menyelesaikan perubahan email.`,
+      message: `Kode OTP verifikasi telah dikirim ke ${newEmail}. Silakan periksa kotak masuk untuk menyelesaikan perubahan email.`,
+    };
+  }
+
+  async verifyEmailChange(
+    userId: string,
+    dto: VerifyEmailChangeDto,
+  ): Promise<{ success: boolean; message: string }> {
+    const userRecord = await this.db.query.users.findFirst({
+      where: eq(users.id, userId),
+    });
+
+    if (!userRecord) {
+      throw new NotFoundException('Pengguna tidak ditemukan');
+    }
+
+    const newEmail = dto.newEmail.trim().toLowerCase();
+    const conflictUser = await this.db.query.users.findFirst({
+      where: and(eq(users.email, newEmail), sql`id != ${userId}::uuid`),
+    });
+
+    if (conflictUser) {
+      throw new ConflictException(
+        'Alamat email tersebut sudah terdaftar pada akun lain di sistem.',
+      );
+    }
+
+    const identifierHash = createHash('sha256')
+      .update(`${userId}:${newEmail}`)
+      .digest('hex');
+
+    const verificationRecord = await this.db.query.authVerifications.findFirst({
+      where: and(
+        eq(authVerifications.identifierHash, identifierHash),
+        eq(authVerifications.purpose, 'email_change'),
+        isNull(authVerifications.consumedAt),
+      ),
+      orderBy: [desc(authVerifications.createdAt)],
+    });
+
+    if (!verificationRecord) {
+      throw new BadRequestException(
+        'Permintaan verifikasi perubahan email tidak ditemukan atau telah kedaluwarsa. Silakan ajukan ulang.',
+      );
+    }
+
+    if (new Date(verificationRecord.expiresAt) < new Date()) {
+      throw new BadRequestException(
+        'Kode OTP telah kedaluwarsa. Silakan minta kode OTP baru.',
+      );
+    }
+
+    if (verificationRecord.attemptCount >= 5) {
+      throw new BadRequestException(
+        'Batas percobaan verifikasi telah terlampaui. Silakan minta kode OTP baru.',
+      );
+    }
+
+    const isValidOtp = await bcrypt.compare(
+      dto.otp.trim(),
+      verificationRecord.valueHash,
+    );
+
+    if (!isValidOtp) {
+      await this.db
+        .update(authVerifications)
+        .set({
+          attemptCount: sql`attempt_count + 1`,
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(authVerifications.id, verificationRecord.id));
+
+      throw new UnprocessableEntityException({
+        status: HttpStatus.UNPROCESSABLE_ENTITY,
+        errors: {
+          otp: 'Kode OTP yang dimasukkan tidak cocok.',
+        },
+      });
+    }
+
+    const oldEmail = userRecord.email;
+    const nowIso = new Date().toISOString();
+
+    await this.db.transaction(async (tx) => {
+      // 1. Update authoritative users table (email, verified, increment auth_version)
+      await tx
+        .update(users)
+        .set({
+          email: newEmail,
+          emailVerified: true,
+          authVersion: sql`auth_version + 1`,
+          updatedAt: nowIso,
+        })
+        .where(eq(users.id, userId));
+
+      // 2. Update credential auth_accounts (if user has credential provider)
+      await tx
+        .update(authAccounts)
+        .set({
+          accountId: newEmail,
+          updatedAt: nowIso,
+        })
+        .where(
+          and(
+            eq(authAccounts.userId, userId),
+            eq(authAccounts.providerId, AUTH_PROVIDER.CREDENTIAL),
+          ),
+        );
+
+      // 3. Update Better-Auth tables
+      try {
+        await tx
+          .update(user)
+          .set({
+            email: newEmail,
+            updatedAt: nowIso,
+          })
+          .where(eq(user.id, userId));
+
+        await tx
+          .update(account)
+          .set({
+            accountId: newEmail,
+            updatedAt: nowIso,
+          })
+          .where(
+            and(
+              eq(account.userId, userId),
+              eq(account.providerId, AUTH_PROVIDER.CREDENTIAL),
+            ),
+          );
+      } catch {
+        // Non-blocking
+      }
+
+      // 4. Update staff_profiles table (synced by userId)
+      await tx
+        .update(staffProfiles)
+        .set({
+          email: newEmail,
+          updatedAt: nowIso,
+        })
+        .where(eq(staffProfiles.userId, userId));
+
+      // 5. Revoke all active sessions in auth_sessions
+      await tx
+        .update(authSessions)
+        .set({
+          revokedAt: nowIso,
+        })
+        .where(
+          and(
+            eq(authSessions.userId, userId),
+            isNull(authSessions.revokedAt),
+          ),
+        );
+
+      // 6. Delete Better-Auth sessions
+      try {
+        await tx.delete(session).where(eq(session.userId, userId));
+      } catch {
+        // Non-blocking
+      }
+
+      // 7. Mark verification as consumed
+      await tx
+        .update(authVerifications)
+        .set({
+          consumedAt: nowIso,
+          updatedAt: nowIso,
+        })
+        .where(eq(authVerifications.id, verificationRecord.id));
+    });
+
+    // 8. Purge Redis user data & permission caches
+    await this.redisService.purgeUserData(userId, oldEmail);
+    await this.redisService.purgeUserData(userId, newEmail);
+
+    // 9. Send security alert notification to old email
+    try {
+      await this.mailService.send({
+        to: oldEmail,
+        subject:
+          'Pemberitahuan Keamanan: Alamat Email Akun Telah Dipindahkan',
+        text: `Halo ${userRecord.name},\n\nAlamat email untuk akun Amanah Healthcare Anda telah berhasil dialihkan ke: ${newEmail}.\n\nSeluruh sesi login sebelumnya telah dinonaktifkan demi keamanan akun Anda. Jika Anda tidak merasa melakukan tindakan ini, segera hubungi tim administrator sistem.`,
+      });
+    } catch {
+      // Non-blocking
+    }
+
+    return {
+      success: true,
+      message:
+        'Alamat email akun berhasil diperbarui. Seluruh sesi login sebelumnya telah dinonaktifkan demi keamanan. Silakan masuk kembali.',
     };
   }
 

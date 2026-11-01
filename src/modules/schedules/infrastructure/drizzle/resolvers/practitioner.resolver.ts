@@ -24,7 +24,17 @@ export class PractitionerResolver {
           eq(practitioners.staffProfileId, staffOrPractitionerId),
         ),
         with: {
-          staffProfile: true,
+          staffProfile: {
+            with: {
+              clinicUnit: true,
+              role: true,
+            },
+          },
+          clinicRoom: {
+            with: {
+              clinicUnit: true,
+            },
+          },
           medicalSpecialty: true,
         },
       });
@@ -40,7 +50,17 @@ export class PractitionerResolver {
       return this.db.query.practitioners.findFirst({
         where: eq(practitioners.staffProfileId, matchedStaff.id),
         with: {
-          staffProfile: true,
+          staffProfile: {
+            with: {
+              clinicUnit: true,
+              role: true,
+            },
+          },
+          clinicRoom: {
+            with: {
+              clinicUnit: true,
+            },
+          },
           medicalSpecialty: true,
         },
       });

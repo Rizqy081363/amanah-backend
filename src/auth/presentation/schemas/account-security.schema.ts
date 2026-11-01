@@ -16,7 +16,38 @@ export const RequestEmailChangeSchema = z.object({
   currentPassword: z.string().optional(),
 });
 
+export const VerifyEmailChangeSchema = z.object({
+  newEmail: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .email({ message: 'Format email baru tidak valid' }),
+  otp: z
+    .string()
+    .trim()
+    .length(6, { message: 'Kode OTP harus berupa 6 digit angka' })
+    .regex(/^\d{6}$/, { message: 'Kode OTP hanya boleh berisi angka' }),
+});
+
 export const LinkGoogleSchema = z
+  .object({
+    idToken: z
+      .string()
+      .trim()
+      .min(1, { message: 'Google ID token tidak boleh kosong' })
+      .optional(),
+    code: z
+      .string()
+      .trim()
+      .min(1, { message: 'Authorization code tidak boleh kosong' })
+      .optional(),
+    redirectUri: z.string().trim().min(1).optional(),
+  })
+  .refine((data) => Boolean(data.idToken || data.code), {
+    message: 'Google ID token atau Authorization Code wajib disertakan',
+    path: ['idToken'],
+  });
+export const ChangeEmailGoogleSchema = z
   .object({
     idToken: z
       .string()

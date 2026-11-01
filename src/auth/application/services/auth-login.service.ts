@@ -65,7 +65,15 @@ export class AuthLoginService {
         authAccounts: true,
         userRoles_userId: {
           with: {
-            role: true,
+            role: {
+              with: {
+                rolePermissions: {
+                  with: {
+                    permission: true,
+                  },
+                },
+              },
+            },
           },
         },
         staffProfiles: {
@@ -203,6 +211,7 @@ export class AuthLoginService {
       {
         id: user.id,
         email: user.email,
+        authVersion: user.authVersion,
         roleCode,
         systemRole: roleCode,
         role: primaryRole
@@ -243,11 +252,18 @@ export class AuthLoginService {
       },
     );
 
+    const pendingInvitation = await this.db.query.staffInvitations.findFirst({
+      where: and(
+        eq(staffInvitations.email, loginDto.email.toLowerCase().trim()),
+        eq(staffInvitations.status, STAFF_INVITATION_STATUS.PENDING),
+      ),
+    });
+
     return {
       token,
       refreshToken,
       tokenExpires: Date.now() + 86400000,
-      user: AuthUserMapper.formatUser(user, false),
+      user: AuthUserMapper.formatUser(user, Boolean(pendingInvitation)),
     };
   }
 
@@ -257,52 +273,7 @@ export class AuthLoginService {
     const verifiedGoogle = await this.googleVerifier.verify(dto.idToken);
     const email = verifiedGoogle.email.toLowerCase().trim();
 
-    // 1. Surface Gate for Mobile Internal (Strict Default-Deny):
-    if (dto.clientId === AUTH_SURFACES.MOBILE_INTERNAL) {
-      const existingUser = await this.db.query.users.findFirst({
-        where: eq(users.email, email),
-        with: {
-          userRoles_userId: {
-            with: {
-              role: true,
-            },
-          },
-          staffProfiles: true,
-        },
-      });
-
-      const firstUserRole = existingUser?.userRoles_userId?.[0];
-      const isExistingStaff =
-        firstUserRole?.role?.audience === ROLE_AUDIENCE.INTERNAL ||
-        Boolean(
-          existingUser?.staffProfiles && existingUser.staffProfiles.length > 0,
-        );
-
-      const pendingInvitation = await this.db.query.staffInvitations.findFirst({
-        where: and(
-          eq(staffInvitations.email, email),
-          eq(staffInvitations.status, STAFF_INVITATION_STATUS.PENDING),
-        ),
-      });
-
-      // Default-Deny: If not active staff AND not in pending invitations -> 403 NOT_AUTHORIZED with ZERO DB writes
-      if (!isExistingStaff && !pendingInvitation) {
-        throw new ForbiddenException({
-          code: AUTH_ERROR_CODES.NOT_AUTHORIZED,
-          message:
-            'Akun Google ini belum terdaftar atau belum diundang sebagai staf klinik.',
-        });
-      }
-
-      if (existingUser && existingUser.status === USER_STATUS.INACTIVE) {
-        throw new ForbiddenException({
-          code: AUTH_ERROR_CODES.ACCOUNT_INACTIVE,
-          message: 'Akun telah dinonaktifkan atau undangan telah dibatalkan.',
-        });
-      }
-    }
-
-    // 2. Lookup existing user record (by linked Google sub first, then by email)
+    // 1. Lookup existing user record (by linked Google sub first, then by email)
     const linkedAuthAccount = await this.db.query.authAccounts.findFirst({
       where: and(
         eq(authAccounts.providerId, AUTH_PROVIDER.GOOGLE),
@@ -342,6 +313,32 @@ export class AuthLoginService {
         eq(staffInvitations.status, STAFF_INVITATION_STATUS.PENDING),
       ),
     });
+
+    // 2. Surface Gate for Mobile Internal (Strict Default-Deny):
+    if (dto.clientId === AUTH_SURFACES.MOBILE_INTERNAL) {
+      const firstUserRole = userRecord?.userRoles_userId?.[0];
+      const isExistingStaff =
+        firstUserRole?.role?.audience === ROLE_AUDIENCE.INTERNAL ||
+        Boolean(
+          userRecord?.staffProfiles && userRecord.staffProfiles.length > 0,
+        );
+
+      // Default-Deny: If not active staff AND not in pending invitations -> 403 NOT_AUTHORIZED with ZERO DB writes
+      if (!isExistingStaff && !pendingInvitation) {
+        throw new ForbiddenException({
+          code: AUTH_ERROR_CODES.NOT_AUTHORIZED,
+          message:
+            'Akun Google ini belum terdaftar atau belum diundang sebagai staf klinik.',
+        });
+      }
+
+      if (userRecord && userRecord.status === USER_STATUS.INACTIVE) {
+        throw new ForbiddenException({
+          code: AUTH_ERROR_CODES.ACCOUNT_INACTIVE,
+          message: 'Akun telah dinonaktifkan atau undangan telah dibatalkan.',
+        });
+      }
+    }
 
     let userId: string;
 
@@ -495,7 +492,15 @@ export class AuthLoginService {
         authAccounts: true,
         userRoles_userId: {
           with: {
-            role: true,
+            role: {
+              with: {
+                rolePermissions: {
+                  with: {
+                    permission: true,
+                  },
+                },
+              },
+            },
           },
         },
         staffProfiles: {
@@ -530,6 +535,7 @@ export class AuthLoginService {
       {
         id: completeUser.id,
         email: completeUser.email,
+        authVersion: completeUser.authVersion,
         roleCode,
         role: primaryRole
           ? {
@@ -585,7 +591,15 @@ export class AuthLoginService {
       with: {
         userRoles_userId: {
           with: {
-            role: true,
+            role: {
+              with: {
+                rolePermissions: {
+                  with: {
+                    permission: true,
+                  },
+                },
+              },
+            },
           },
         },
         staffProfiles: {
@@ -617,6 +631,7 @@ export class AuthLoginService {
       {
         id: user.id,
         email: user.email,
+        authVersion: user.authVersion,
         roleCode,
         role: primaryRole
           ? {

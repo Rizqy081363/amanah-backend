@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const UpdateUserSchema = z.object({
   name: z.string().trim().min(1, 'Nama lengkap wajib diisi'),
-  email: z.string().trim().email('Format email tidak valid'),
+  email: z.string().trim().email('Format email tidak valid').optional(),
   phone: z
     .string()
     .trim()

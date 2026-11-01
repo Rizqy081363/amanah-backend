@@ -15,6 +15,7 @@ import { AuthStaffOnboardingDto } from './dto/auth-staff-onboarding.dto';
 import { AuthUpdateDto } from './dto/auth-update.dto';
 import { AuthUserResponseDto } from './dto/auth-user-response.dto';
 import { AuthVerifyOtpDto } from './dto/auth-verify-otp.dto';
+import { ChangeEmailGoogleDto } from './dto/change-email-google.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { DeleteAccountResponseDto } from './dto/delete-account-response.dto';
 import { LinkGoogleDto } from './dto/link-google.dto';
@@ -22,6 +23,7 @@ import { LinkedProvidersResponseDto } from './dto/linked-providers-response.dto'
 import { LoginResponseDto } from './dto/login-response.dto';
 import { RefreshResponseDto } from './dto/refresh-response.dto';
 import { RequestEmailChangeDto } from './dto/request-email-change.dto';
+import { VerifyEmailChangeDto } from './dto/verify-email-change.dto';
 import type { JwtPayloadType } from './strategies/types/jwt-payload.type';
 
 /**
@@ -149,6 +151,20 @@ export class AuthService {
     dto: RequestEmailChangeDto,
   ): Promise<{ success: boolean; message: string }> {
     return this.registrationOtpService.requestEmailChange(userId, dto);
+  }
+
+  public verifyEmailChange(
+    userId: string,
+    dto: VerifyEmailChangeDto,
+  ): Promise<{ success: boolean; message: string }> {
+    return this.registrationOtpService.verifyEmailChange(userId, dto);
+  }
+
+  public changeEmailWithGoogle(
+    userId: string,
+    dto: ChangeEmailGoogleDto,
+  ): Promise<{ success: boolean; message: string }> {
+    return this.accountLifecycleService.changeEmailWithGoogle(userId, dto);
   }
 
   public linkGoogleAccount(

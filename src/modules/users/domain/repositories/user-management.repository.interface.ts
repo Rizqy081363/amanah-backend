@@ -43,7 +43,7 @@ export interface BatchUpdateUserInput {
 
 export interface UpdateUserRepoInput {
   name: string;
-  email: string;
+  email?: string;
   phone?: string | null;
   status?: UserStatus;
   preferredLocale?: string;

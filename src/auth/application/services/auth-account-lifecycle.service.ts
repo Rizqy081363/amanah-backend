@@ -10,18 +10,27 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import bcrypt from 'bcryptjs';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import { AUTH_PROVIDER } from '../../../common/constants/auth-providers.constants';
 import { USER_STATUS } from '../../../common/constants/user-status.constants';
 import { RedisService } from '../../../common/redis/redis.service';
 import { AllConfigType } from '../../../config/config.type';
 import { DRIZZLE_SOURCE } from '../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../database/drizzle/drizzle.provider';
-import { account, authAccounts, user, users } from '../../../database/schema';
+import {
+  account,
+  authAccounts,
+  authSessions,
+  session,
+  staffProfiles,
+  user,
+  users,
+} from '../../../database/schema';
 import { MailService } from '../../../mail/mail.service';
 import { AccessControlService } from '../../../modules/access-control/application/services/access-control.service';
 import { AuthUpdateDto } from '../../dto/auth-update.dto';
 import { AuthUserResponseDto } from '../../dto/auth-user-response.dto';
+import { ChangeEmailGoogleDto } from '../../dto/change-email-google.dto';
 import { ChangePasswordDto } from '../../dto/change-password.dto';
 import { DeleteAccountResponseDto } from '../../dto/delete-account-response.dto';
 import { LinkGoogleDto } from '../../dto/link-google.dto';
@@ -548,6 +557,195 @@ export class AuthAccountLifecycleService {
     }
 
     return this.getLinkedProviders(userId);
+  }
+
+  async changeEmailWithGoogle(
+    userId: string,
+    dto: ChangeEmailGoogleDto,
+  ): Promise<{ success: boolean; message: string }> {
+    const userRecord = await this.db.query.users.findFirst({
+      where: eq(users.id, userId),
+    });
+
+    if (!userRecord) {
+      throw new UnauthorizedException();
+    }
+
+    const verifiedGoogle = await this.googleVerifier.verifyOrExchangeCode(dto);
+    const googleSub = verifiedGoogle.sub;
+
+    if (!verifiedGoogle.email) {
+      throw new BadRequestException(
+        'Akun Google tidak menyediakan klaim alamat email yang valid.',
+      );
+    }
+
+    const newEmail = verifiedGoogle.email.toLowerCase().trim();
+
+    // 1. Relational collision check for Google sub
+    const existingSubLink = await this.db.query.authAccounts.findFirst({
+      where: and(
+        eq(authAccounts.providerId, AUTH_PROVIDER.GOOGLE),
+        eq(authAccounts.accountId, googleSub),
+      ),
+    });
+
+    if (existingSubLink && existingSubLink.userId !== userId) {
+      throw new ConflictException(
+        'Akun Google ini sudah terhubung dengan akun pengguna lain di sistem.',
+      );
+    }
+
+    // 2. Relational collision check for canonical user email
+    const existingEmailUser = await this.db.query.users.findFirst({
+      where: eq(users.email, newEmail),
+    });
+
+    if (existingEmailUser && existingEmailUser.id !== userId) {
+      throw new ConflictException(
+        'Alamat email Akun Google tersebut sudah terdaftar pada akun lain di sistem.',
+      );
+    }
+
+    // 3. If identical to current state, return early without destructive invalidation
+    if (
+      userRecord.email.toLowerCase() === newEmail &&
+      existingSubLink?.userId === userId
+    ) {
+      return {
+        success: true,
+        message: 'Akun Google yang dipilih sama dengan akun yang sedang aktif.',
+      };
+    }
+
+    const oldEmail = userRecord.email;
+    const nowIso = new Date().toISOString();
+
+    await this.db.transaction(async (tx) => {
+      // a. Update/Upsert Google authAccounts for this user
+      const currentGoogleLink = await tx.query.authAccounts.findFirst({
+        where: and(
+          eq(authAccounts.userId, userId),
+          eq(authAccounts.providerId, AUTH_PROVIDER.GOOGLE),
+        ),
+      });
+
+      if (currentGoogleLink) {
+        await tx
+          .update(authAccounts)
+          .set({
+            accountId: googleSub,
+            updatedAt: nowIso,
+          })
+          .where(eq(authAccounts.id, currentGoogleLink.id));
+      } else {
+        await tx.insert(authAccounts).values({
+          userId,
+          providerId: AUTH_PROVIDER.GOOGLE,
+          accountId: googleSub,
+          createdAt: nowIso,
+          updatedAt: nowIso,
+        });
+      }
+
+      // b. Sync Better-Auth account table
+      try {
+        await tx
+          .delete(account)
+          .where(
+            and(
+              eq(account.userId, userId),
+              eq(account.providerId, AUTH_PROVIDER.GOOGLE),
+            ),
+          );
+        await tx.insert(account).values({
+          userId,
+          accountId: googleSub,
+          providerId: AUTH_PROVIDER.GOOGLE,
+          createdAt: nowIso,
+          updatedAt: nowIso,
+        });
+      } catch {
+        // Non-blocking complementary table
+      }
+
+      // c. Update canonical users table
+      const userUpdates: Record<string, any> = {
+        email: newEmail,
+        emailVerified: true,
+        authVersion: sql`auth_version + 1`,
+        updatedAt: nowIso,
+      };
+      if (verifiedGoogle.picture) {
+        userUpdates.avatarUrl = verifiedGoogle.picture;
+      }
+      await tx.update(users).set(userUpdates).where(eq(users.id, userId));
+
+      // d. Update Better-Auth user table
+      try {
+        await tx
+          .update(user)
+          .set({
+            email: newEmail,
+            emailVerified: true,
+            updatedAt: nowIso,
+          })
+          .where(eq(user.id, userId));
+      } catch {
+        // Non-blocking
+      }
+
+      // e. Update staff_profiles table (synced by userId)
+      await tx
+        .update(staffProfiles)
+        .set({
+          email: newEmail,
+          updatedAt: nowIso,
+        })
+        .where(eq(staffProfiles.userId, userId));
+
+      // f. Revoke all active sessions in auth_sessions
+      await tx
+        .update(authSessions)
+        .set({
+          revokedAt: nowIso,
+        })
+        .where(
+          and(
+            eq(authSessions.userId, userId),
+            isNull(authSessions.revokedAt),
+          ),
+        );
+
+      // g. Delete Better-Auth sessions
+      try {
+        await tx.delete(session).where(eq(session.userId, userId));
+      } catch {
+        // Non-blocking
+      }
+    });
+
+    // 4. Purge Redis caches
+    await this.redisService.purgeUserData(userId, oldEmail);
+    await this.redisService.purgeUserData(userId, newEmail);
+
+    // 5. Send security alert notification to old email
+    try {
+      await this.mailService.send({
+        to: oldEmail,
+        subject:
+          'Pemberitahuan Keamanan: Alamat Email dan Akun Google Telah Dipindahkan',
+        text: `Halo ${userRecord.name},\n\nAlamat email dan Akun Google untuk akun Amanah Healthcare Anda telah berhasil dialihkan ke: ${newEmail}.\n\nSeluruh sesi login sebelumnya telah dinonaktifkan demi keamanan akun Anda. Jika Anda tidak merasa melakukan tindakan ini, segera hubungi tim administrator sistem.`,
+      });
+    } catch {
+      // Non-blocking
+    }
+
+    return {
+      success: true,
+      message:
+        'Alamat email akun dan Akun Google berhasil dialihkan. Seluruh sesi login sebelumnya telah dinonaktifkan demi keamanan. Silakan masuk kembali dengan Akun Google baru Anda.',
+    };
   }
 
   async unlinkCredential(userId: string): Promise<LinkedProvidersResponseDto> {

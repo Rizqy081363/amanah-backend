@@ -128,99 +128,99 @@ export class DoctorMySchedulesQuery {
     const startObj = new Date(startDate);
     const endObj = new Date(endDate);
 
+    const hasAnyCustomRoster = assignments.some((da) => da.dow !== null);
+
     for (let d = new Date(startObj); d <= endObj; d.setDate(d.getDate() + 1)) {
       const curDateStr = d.toISOString().slice(0, 10);
       const curDow = d.getDay();
 
-      const dayAssignments = assignments.filter(
-        (da) => da.dow === null || da.dow === curDow,
-      );
-
-      const processedSessionIds = new Set<string>();
-
-      for (const da of dayAssignments) {
-        if (!da.sessionDef || !da.sessionDef.isActive) continue;
-        processedSessionIds.add(da.sessionId);
-        if (!da.isActive) continue;
-
-        const ex = exceptions.find(
-          (e) =>
-            e.serviceDate === curDateStr &&
-            (!e.sessionId || e.sessionId === da.sessionId),
+      if (hasAnyCustomRoster) {
+        const dayAssignments = assignments.filter(
+          (da) => (da.dow === null || da.dow === curDow) && da.isActive,
         );
-        const isLeave = ex?.type === SHIFT_EXCEPTION_TYPE.LEAVE;
 
-        const sched = da.sessionDef.schedules?.find(
-          (s) => s.dow === curDow && s.isActive,
+        for (const da of dayAssignments) {
+          if (!da.sessionDef || !da.sessionDef.isActive) continue;
+
+          const ex = exceptions.find(
+            (e) =>
+              e.serviceDate === curDateStr &&
+              (!e.sessionId || e.sessionId === da.sessionId),
+          );
+          const isLeave = ex?.type === SHIFT_EXCEPTION_TYPE.LEAVE;
+
+          const sched = da.sessionDef.schedules?.find(
+            (s) => s.dow === curDow && s.isActive,
+          );
+          const startTime = sched?.startsAt || da.sessionDef.defaultStartsAt;
+          const endTime = sched?.endsAt || da.sessionDef.defaultEndsAt;
+
+          results.push(
+            ScheduleRecordMapper.toEntity({
+              id: da.id,
+              sessionId: da.sessionId,
+              practitionerId: da.doctorId,
+              scheduleDate: curDateStr,
+              sessionLabel: da.sessionDef.label,
+              sessionShift: da.sessionDef.code as SessionShiftType,
+              startTime,
+              endTime,
+              roomId: da.preferredRoomId,
+              serviceId: da.categoryId,
+              status: isLeave
+                ? SchedulePersistenceStatus.CLOSED
+                : SchedulePersistenceStatus.OPEN,
+              notes: ex?.note || null,
+              createdAt: da.createdAt,
+              updatedAt: da.updatedAt,
+              practitioner: da.practitioner,
+              clinicRoom: da.preferredRoom,
+              clinicService: null,
+            }),
+          );
+        }
+      } else {
+        const dayTemplates = templateSchedules.filter(
+          (ts) => ts.dow === curDow && ts.sessionDef?.isActive,
         );
-        const startTime = sched?.startsAt || da.sessionDef.defaultStartsAt;
-        const endTime = sched?.endsAt || da.sessionDef.defaultEndsAt;
 
-        results.push(
-          ScheduleRecordMapper.toEntity({
-            id: da.id,
-            sessionId: da.sessionId,
-            practitionerId: da.doctorId,
-            scheduleDate: curDateStr,
-            sessionLabel: da.sessionDef.label,
-            sessionShift: da.sessionDef.code as SessionShiftType,
-            startTime,
-            endTime,
-            roomId: da.preferredRoomId,
-            serviceId: da.categoryId,
-            status: isLeave
-              ? SchedulePersistenceStatus.CLOSED
-              : SchedulePersistenceStatus.OPEN,
-            notes: ex?.note || null,
-            createdAt: da.createdAt,
-            updatedAt: da.updatedAt,
-            practitioner: da.practitioner,
-            clinicRoom: da.preferredRoom,
-            clinicService: null,
-          }),
-        );
-      }
+        for (const ts of dayTemplates) {
+          if (!ts.sessionDef) continue;
 
-      const dayTemplates = templateSchedules.filter(
-        (ts) => ts.dow === curDow && ts.sessionDef?.isActive,
-      );
+          const ex = exceptions.find(
+            (e) =>
+              e.serviceDate === curDateStr &&
+              (!e.sessionId || e.sessionId === ts.sessionId),
+          );
+          const isLeave = ex?.type === SHIFT_EXCEPTION_TYPE.LEAVE;
 
-      for (const ts of dayTemplates) {
-        if (!ts.sessionDef || processedSessionIds.has(ts.sessionId)) continue;
+          const startTime = ts.startsAt || ts.sessionDef.defaultStartsAt;
+          const endTime = ts.endsAt || ts.sessionDef.defaultEndsAt;
 
-        const ex = exceptions.find(
-          (e) =>
-            e.serviceDate === curDateStr &&
-            (!e.sessionId || e.sessionId === ts.sessionId),
-        );
-        const isLeave = ex?.type === SHIFT_EXCEPTION_TYPE.LEAVE;
-
-        const startTime = ts.startsAt || ts.sessionDef.defaultStartsAt;
-        const endTime = ts.endsAt || ts.sessionDef.defaultEndsAt;
-
-        results.push(
-          ScheduleRecordMapper.toEntity({
-            id: ts.sessionDef.id,
-            sessionId: ts.sessionId,
-            practitionerId: targetId,
-            scheduleDate: curDateStr,
-            sessionLabel: ts.sessionDef.label,
-            sessionShift: ts.sessionDef.code as SessionShiftType,
-            startTime,
-            endTime,
-            roomId: practitioner.defaultRoomId || null,
-            serviceId: null,
-            status: isLeave
-              ? SchedulePersistenceStatus.CLOSED
-              : SchedulePersistenceStatus.OPEN,
-            notes: ex?.note || null,
-            createdAt: ts.sessionDef.createdAt,
-            updatedAt: ts.sessionDef.updatedAt,
-            practitioner,
-            clinicRoom: null,
-            clinicService: null,
-          }),
-        );
+          results.push(
+            ScheduleRecordMapper.toEntity({
+              id: ts.sessionDef.id,
+              sessionId: ts.sessionId,
+              practitionerId: targetId,
+              scheduleDate: curDateStr,
+              sessionLabel: ts.sessionDef.label,
+              sessionShift: ts.sessionDef.code as SessionShiftType,
+              startTime,
+              endTime,
+              roomId: practitioner.defaultRoomId || null,
+              serviceId: null,
+              status: isLeave
+                ? SchedulePersistenceStatus.CLOSED
+                : SchedulePersistenceStatus.OPEN,
+              notes: ex?.note || null,
+              createdAt: ts.sessionDef.createdAt,
+              updatedAt: ts.sessionDef.updatedAt,
+              practitioner,
+              clinicRoom: (practitioner as any)?.clinicRoom || null,
+              clinicService: null,
+            }),
+          );
+        }
       }
 
       const dayReplacements = claimedReplacements.filter(
@@ -271,7 +271,7 @@ export class DoctorMySchedulesQuery {
               createdAt: rep.createdAt,
               updatedAt: rep.updatedAt,
               practitioner,
-              clinicRoom: null,
+              clinicRoom: (practitioner as any)?.clinicRoom || null,
               clinicService: null,
               isReplacement: true,
               replacedStaffName: rep.originalStaffProfile?.fullName || null,

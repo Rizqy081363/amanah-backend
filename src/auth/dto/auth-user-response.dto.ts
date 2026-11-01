@@ -399,4 +399,15 @@ export class AuthUserResponseDto {
     description: 'Menandakan apakah akun tertaut dengan Google OAuth',
   })
   hasGoogle?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Menandakan apakah akun memiliki kredensial kata sandi lokal',
+  })
+  hasPassword?: boolean;
+
+  @ApiPropertyOptional({
+    type: [String],
+    description: 'Daftar provider autentikasi yang terhubung ke akun (credential, google)',
+  })
+  linkedProviders?: string[];
 }

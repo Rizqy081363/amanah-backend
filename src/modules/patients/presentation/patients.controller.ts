@@ -155,7 +155,7 @@ export class PatientsController {
   }
 
   @Get('me')
-  @RequirePermissions('profile:read', 'patients:read')
+  @RequirePermissions('profile:read')
   @ApiOperation({
     summary: 'Mendapatkan profil pasien login saat ini',
     description:
@@ -179,7 +179,7 @@ export class PatientsController {
   }
 
   @Patch('me')
-  @RequirePermissions('profile:update', 'patients:manage')
+  @RequirePermissions('profile:update')
   @ApiOperation({
     summary: 'Memperbarui profil pasien login saat ini (Self-Update)',
     description:
@@ -337,7 +337,7 @@ export class PatientsController {
   }
 
   @Patch(':id')
-  @RequirePermissions('patients:manage', 'profile:update')
+  @RequirePermissions('patients:manage')
   @ApiOperation({
     summary: 'Memperbarui data profil pasien',
     description:
