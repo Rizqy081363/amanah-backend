@@ -225,6 +225,7 @@ export class PerformCheckInUseCase {
       previousStatus: DOMAIN_APPOINTMENT_STATUS.BOOKED,
       queueNumber: Number(updated.queueNumber) || 1,
       practitionerId: updated.staffId || '',
+      patientUserId: updated.patientUserId,
     });
 
     if (this.queueEventPublisher && updated.appointmentDate) {

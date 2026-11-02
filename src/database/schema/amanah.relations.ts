@@ -2,6 +2,7 @@ import { relations } from 'drizzle-orm/relations';
 import {
   applicationPages,
   appointmentCallAttempts,
+  appointmentChangeProposals,
   appointmentCheckIns,
   appointmentStatusEvents,
   appointments,
@@ -625,12 +626,45 @@ export const appointmentsRelations = relations(
       relationName: 'appointments_updatedBy_users_id',
     }),
     appointmentStatusEvents: many(appointmentStatusEvents),
+    appointmentChangeProposals: many(appointmentChangeProposals),
     appointmentCallAttempts: many(appointmentCallAttempts),
     appointmentCheckIns: many(appointmentCheckIns),
     queueTickets: many(queueTickets),
     medicalIntakeSubmissions: many(medicalIntakeSubmissions),
     clinicalEncounters: many(clinicalEncounters),
     patientTimelineEvents: many(patientTimelineEvents),
+  }),
+);
+
+export const appointmentChangeProposalsRelations = relations(
+  appointmentChangeProposals,
+  ({ one }) => ({
+    appointment: one(appointments, {
+      fields: [appointmentChangeProposals.appointmentId],
+      references: [appointments.id],
+    }),
+    initiatorUser: one(users, {
+      fields: [appointmentChangeProposals.initiatorUserId],
+      references: [users.id],
+      relationName: 'appointment_change_proposals_initiator_user',
+    }),
+    patientUser: one(users, {
+      fields: [appointmentChangeProposals.patientUserId],
+      references: [users.id],
+      relationName: 'appointment_change_proposals_patient_user',
+    }),
+    proposedDoctor: one(practitioners, {
+      fields: [appointmentChangeProposals.proposedDoctorId],
+      references: [practitioners.id],
+    }),
+    proposedRoom: one(clinicRooms, {
+      fields: [appointmentChangeProposals.proposedRoomId],
+      references: [clinicRooms.id],
+    }),
+    notification: one(notifications, {
+      fields: [appointmentChangeProposals.notificationId],
+      references: [notifications.id],
+    }),
   }),
 );
 

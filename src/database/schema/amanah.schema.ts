@@ -2035,6 +2035,90 @@ export const appointmentStatusEvents = pgTable(
   ],
 );
 
+export const appointmentChangeProposals = pgTable(
+  'appointment_change_proposals',
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    appointmentId: uuid('appointment_id').notNull(),
+    proposalType: text('proposal_type').notNull(),
+    status: text('status').default('pending').notNull(),
+    initiatorUserId: uuid('initiator_user_id'),
+    reason: text(),
+    originalDate: date('original_date').notNull(),
+    originalSessionId: uuid('original_session_id'),
+    proposedDate: date('proposed_date'),
+    proposedSessionId: uuid('proposed_session_id'),
+    proposedDoctorId: uuid('proposed_doctor_id'),
+    proposedRoomId: uuid('proposed_room_id'),
+    estimatedQueueNumber: integer('estimated_queue_number'),
+    estimatedStartAt: timestamp('estimated_start_at', {
+      withTimezone: true,
+      mode: 'string',
+    }),
+    patientUserId: uuid('patient_user_id'),
+    patientResponseAt: timestamp('patient_response_at', {
+      withTimezone: true,
+      mode: 'string',
+    }),
+    patientResponseNotes: text('patient_response_notes'),
+    notificationId: uuid('notification_id'),
+    version: integer('version').default(1).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index('appointment_change_proposals_appointment_idx').using(
+      'btree',
+      table.appointmentId.asc().nullsLast(),
+      table.status.asc().nullsLast(),
+    ),
+    index('appointment_change_proposals_patient_idx').using(
+      'btree',
+      table.patientUserId.asc().nullsLast(),
+      table.status.asc().nullsLast(),
+    ),
+    index('appointment_change_proposals_pending_idx').using(
+      'btree',
+      table.status.asc().nullsLast(),
+      table.originalDate.asc().nullsLast(),
+    ),
+    foreignKey({
+      columns: [table.appointmentId],
+      foreignColumns: [appointments.id],
+      name: 'appointment_change_proposals_appointment_id_fkey',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [table.initiatorUserId],
+      foreignColumns: [users.id],
+      name: 'appointment_change_proposals_initiator_user_id_fkey',
+    }).onDelete('set null'),
+    foreignKey({
+      columns: [table.proposedDoctorId],
+      foreignColumns: [practitioners.id],
+      name: 'appointment_change_proposals_proposed_doctor_id_fkey',
+    }).onDelete('set null'),
+    foreignKey({
+      columns: [table.proposedRoomId],
+      foreignColumns: [clinicRooms.id],
+      name: 'appointment_change_proposals_proposed_room_id_fkey',
+    }).onDelete('set null'),
+    foreignKey({
+      columns: [table.patientUserId],
+      foreignColumns: [users.id],
+      name: 'appointment_change_proposals_patient_user_id_fkey',
+    }).onDelete('set null'),
+    foreignKey({
+      columns: [table.notificationId],
+      foreignColumns: [notifications.id],
+      name: 'appointment_change_proposals_notification_id_fkey',
+    }).onDelete('set null'),
+  ],
+);
+
 export const appointmentCallAttempts = pgTable(
   'appointment_call_attempts',
   {

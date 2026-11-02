@@ -21,13 +21,26 @@ export class AppointmentRealtimeAdapter implements RealtimeEmitterPort {
 
   async emitStatusChanged(event: StatusChangedEvent): Promise<void> {
     try {
-      if (this.realtimeGateway.server) {
-        this.realtimeGateway.server.emit('appointment.status_changed', event);
-        this.realtimeGateway.server.emit('appointment:status_changed', event);
+      if (event.patientUserId) {
+        await this.realtimeGateway.emitToUser(
+          event.patientUserId,
+          'appointment:status_changed',
+          event,
+        );
+        await this.realtimeGateway.emitToUser(
+          event.patientUserId,
+          'appointment.status_changed',
+          event,
+        );
       }
       await this.realtimeGateway.emitToRoom?.(
         REALTIME_ROOMS.clinic,
         'appointment:status_changed',
+        event,
+      );
+      await this.realtimeGateway.emitToRoom?.(
+        REALTIME_ROOMS.clinic,
+        'appointment.status_changed',
         event,
       );
     } catch (err: any) {
@@ -37,13 +50,26 @@ export class AppointmentRealtimeAdapter implements RealtimeEmitterPort {
 
   async emitPatientCalled(event: PatientCalledEvent): Promise<void> {
     try {
-      if (this.realtimeGateway.server) {
-        this.realtimeGateway.server.emit('appointment.patient_called', event);
-        this.realtimeGateway.server.emit('appointment:called', event);
+      if (event.patientUserId) {
+        await this.realtimeGateway.emitToUser(
+          event.patientUserId,
+          'appointment:called',
+          event,
+        );
+        await this.realtimeGateway.emitToUser(
+          event.patientUserId,
+          'appointment.patient_called',
+          event,
+        );
       }
       await this.realtimeGateway.emitToRoom?.(
         REALTIME_ROOMS.clinic,
         'appointment:called',
+        event,
+      );
+      await this.realtimeGateway.emitToRoom?.(
+        REALTIME_ROOMS.clinic,
+        'appointment.patient_called',
         event,
       );
     } catch (err: any) {

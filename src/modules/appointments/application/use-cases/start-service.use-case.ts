@@ -63,6 +63,7 @@ export class StartServiceUseCase {
       queueNumber: updated.queueNumber,
       practitionerId: updated.practitionerId,
       actualStartedAt: actualStartedAt.toISOString(),
+      patientUserId: updated.patientUserId,
     });
 
     if (this.pushNotification && updated.patientUserId) {

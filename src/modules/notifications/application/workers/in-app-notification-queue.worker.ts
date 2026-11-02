@@ -10,6 +10,7 @@ import { and, eq, inArray, sql } from 'drizzle-orm';
 import {
   DEFAULT_NOTIFICATION_AUDIENCE,
   NOTIFICATION_AUDIENCE,
+  NotificationAudience,
   isNotificationAudience,
 } from '../../../../common/constants/notification-audience.constants';
 import { NOTIFICATIONS_IN_APP_QUEUE } from '../../../../common/rabbitmq/rabbitmq.constants';
@@ -134,13 +135,34 @@ export class InAppNotificationQueueWorker
             ? 'wallet'
             : 'calendar';
 
+      let resolvedAudience = command.audience;
+      let resolvedRoleId = command.targetRoleId ?? null;
+
+      // Dynamic relation lookup: Resolve canonical audience from the database roles relation
+      if (!resolvedAudience && this.db) {
+        const [recipientRole] = await this.db
+          .select({
+            audience: roles.audience,
+            roleId: roles.id,
+          })
+          .from(userRoles)
+          .innerJoin(roles, sql`${userRoles.roleId} = ${roles.id}`)
+          .where(and(eq(userRoles.userId, userId), sql`${userRoles.revokedAt} IS NULL`))
+          .limit(1);
+
+        if (recipientRole) {
+          resolvedAudience = recipientRole.audience as NotificationAudience;
+          resolvedRoleId = resolvedRoleId || recipientRole.roleId;
+        }
+      }
+
       const audience =
-        command.audience ??
+        resolvedAudience ??
         (isNotificationAudience(content.data?.audience)
           ? content.data.audience
           : DEFAULT_NOTIFICATION_AUDIENCE);
       const targetRoleId =
-        command.targetRoleId ??
+        resolvedRoleId ??
         (typeof content.data?.targetRoleId === 'string'
           ? content.data.targetRoleId
           : null);

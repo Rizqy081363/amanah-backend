@@ -22,7 +22,10 @@ import {
 } from '../../../../database/schema';
 import { NotificationGatewayService } from '../../../notifications/application/services/notification-gateway.service';
 import type { SocketIoRealtimeGateway } from '../../../notifications/infrastructure/realtime/socket-io-realtime.gateway';
-import { REALTIME_GATEWAY_PORT } from '../../../notifications/notifications.constants';
+import {
+  REALTIME_GATEWAY_PORT,
+  REALTIME_ROOMS,
+} from '../../../notifications/notifications.constants';
 import { QUEUE_ENGINE_REPOSITORY } from '../../domain/constants/queue-engine.constants';
 import type { IQueueEngineRepository } from '../../domain/repositories/queue-engine.repository';
 import { EstimatorService } from '../../domain/services/estimator.service';
@@ -380,16 +383,20 @@ export class QueueRecalculationService {
         );
       }
 
-      // 9. Realtime broadcast via Socket.IO
-      if (this.realtimeGateway?.server) {
+      // 9. Realtime broadcast via Socket.IO (Scoped to internal clinic room)
+      if (this.realtimeGateway) {
         try {
-          this.realtimeGateway.server.emit('queue:estimates:updated', {
-            serviceDate,
-            sessionId,
-            categoryId,
-            updatedTicketsCount: batchUpdates.length,
-            timestamp: now.toISOString(),
-          });
+          await this.realtimeGateway.emitToRoom?.(
+            REALTIME_ROOMS.clinic,
+            'queue:estimates:updated',
+            {
+              serviceDate,
+              sessionId,
+              categoryId,
+              updatedTicketsCount: batchUpdates.length,
+              timestamp: now.toISOString(),
+            },
+          );
         } catch (err) {
           this.logger.warn(
             `Failed to broadcast queue:estimates:updated: ${err}`,

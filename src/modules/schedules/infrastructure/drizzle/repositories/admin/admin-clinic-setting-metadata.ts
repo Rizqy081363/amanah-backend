@@ -283,6 +283,38 @@ const CLINIC_SETTING_METADATA_REGISTRY: Record<
     max: 5,
     step: 1,
   },
+  'proposal.expiration_lead_minutes': {
+    isAdminFacing: true,
+    category: 'queue',
+    label: 'Batas Kedaluwarsa Proposal Reschedule/Batal',
+    description:
+      'Waktu buffer (menit) sebelum sesi asli dimulai untuk menandai pengajuan perubahan jadwal yang belum disetujui pasien sebagai kedaluwarsa.',
+    controlType: 'number',
+    unit: 'menit',
+    min: 5,
+    max: 1440,
+    step: 5,
+  },
+  'proposal.sweeper_cron_expression': {
+    isAdminFacing: true,
+    category: 'queue',
+    label: 'Jadwal Otomatis Sweeper Proposal',
+    description:
+      'Format ekspresi cron interval waktu pemeriksaan otomatis proposal yang telah kedaluwarsa.',
+    controlType: 'text',
+  },
+  'proposal.max_pending_per_appointment': {
+    isAdminFacing: true,
+    category: 'queue',
+    label: 'Batas Proposal Pending Per Janji Temu',
+    description:
+      'Jumlah maksimal pengajuan perubahan jadwal berstatus pending dalam satu waktu untuk satu janji temu.',
+    controlType: 'number',
+    unit: 'pengajuan',
+    min: 1,
+    max: 5,
+    step: 1,
+  },
   'ticket.reschedule_warn_when_ahead_lte': {
     isAdminFacing: true,
     category: 'queue',

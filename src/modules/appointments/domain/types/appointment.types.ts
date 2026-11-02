@@ -123,6 +123,10 @@ export interface AppointmentTimingInput {
 export interface EstimatedTiming {
   estimatedStartAt: Date;
   estimatedEndAt: Date;
+  isOvercapacity?: boolean;
+  hasPendingProposal?: boolean;
+  pendingProposalId?: string | null;
+  pendingProposalType?: 'reschedule' | 'cancellation' | null;
 }
 
 export interface AppointmentRecord {
@@ -150,6 +154,10 @@ export interface AppointmentRecord {
   allowedActions: AppointmentAction[];
   estimatedStartAt: Date;
   estimatedEndAt: Date;
+  isOvercapacity?: boolean;
+  hasPendingProposal?: boolean;
+  pendingProposalId?: string | null;
+  pendingProposalType?: 'reschedule' | 'cancellation' | null;
   actualStartedAt?: Date | null;
   actualCompletedAt?: Date | null;
   checkedInAt?: Date | null;

@@ -85,6 +85,7 @@ export class CompleteServiceUseCase {
       queueNumber: updated.queueNumber,
       practitionerId: updated.practitionerId,
       actualCompletedAt: actualCompletedAt.toISOString(),
+      patientUserId: updated.patientUserId,
     });
 
     if (this.pushNotification && updated.patientUserId) {

@@ -16,6 +16,9 @@ import { AppointmentCandidateResolver } from './application/resolvers/appointmen
 import { AppointmentAssignmentService } from './application/services/appointment-assignment.service';
 import { AppointmentCheckInReminderService } from './application/services/appointment-check-in-reminder.service';
 import { AppointmentCheckInReminderScheduler } from './application/schedulers/appointment-check-in-reminder.scheduler';
+import { AppointmentProposalService } from './application/services/appointment-proposal.service';
+import { AppointmentProposalExpiryScheduler } from './application/schedulers/appointment-proposal-expiry.scheduler';
+import { AppointmentProposalsController } from './presentation/appointment-proposals.controller';
 import { BookAppointmentUseCase } from './application/use-cases/book-appointment.use-case';
 import { CallPatientUseCase } from './application/use-cases/call-patient.use-case';
 import { CancelAppointmentUseCase } from './application/use-cases/cancel-appointment.use-case';
@@ -60,6 +63,7 @@ import { PatientAppointmentHistoryController } from './presentation/patient-appo
   controllers: [
     AppointmentsController,
     AdminAppointmentsController,
+    AppointmentProposalsController,
     AppointmentCallController,
     AppointmentOperationsController,
     PatientAppointmentHistoryController,
@@ -127,8 +131,11 @@ import { PatientAppointmentHistoryController } from './presentation/patient-appo
     QueueEligibilityService,
     AppointmentCheckInReminderService,
     AppointmentCheckInReminderScheduler,
+    AppointmentProposalService,
+    AppointmentProposalExpiryScheduler,
   ],
   exports: [
+    AppointmentProposalService,
     APPOINTMENT_REPOSITORY,
     APPOINTMENT_REPOSITORY_PORT,
     APPOINTMENT_CHECK_IN_REPOSITORY_PORT,

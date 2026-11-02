@@ -194,6 +194,7 @@ export class CandidateAssignmentService implements ICandidateAssignmentPort {
         previousStatus: toDomainStatus(apt.status),
         queueNumber: Number(updated.queueNumber) || 1,
         practitionerId: updated.staffId || '',
+        patientUserId: updated.patientUserId,
       });
     }
 
@@ -279,6 +280,7 @@ export class CandidateAssignmentService implements ICandidateAssignmentPort {
         previousStatus: toDomainStatus(apt.status),
         queueNumber: Number(updated.queueNumber) || 1,
         practitionerId: updated.staffId || '',
+        patientUserId: updated.patientUserId,
       });
     }
 

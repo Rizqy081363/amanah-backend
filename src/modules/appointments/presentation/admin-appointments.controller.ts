@@ -8,6 +8,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseFilters,
   UseGuards,
 } from '@nestjs/common';
@@ -27,6 +28,7 @@ import { PermissionsGuard } from '../../../common/auth/permissions.guard';
 import { RequirePermissions } from '../../../common/auth/permissions.decorator';
 import { AuthenticatedUser } from '../../../common/auth/authenticated-user.interface';
 import { AppointmentsService } from '../application/appointments.service';
+import { AppointmentProposalService } from '../application/services/appointment-proposal.service';
 import { AppointmentCheckInReminderService } from '../application/services/appointment-check-in-reminder.service';
 import {
   CANDIDATE_ASSIGNMENT_PORT,
@@ -41,9 +43,13 @@ import { BulkAssignDoctorDto } from './dto/bulk-assign-doctor.dto';
 import { BulkAssignRoomDto } from './dto/bulk-assign-room.dto';
 import { BulkCancelAppointmentsDto } from './dto/bulk-cancel-appointments.dto';
 import { BulkRescheduleAppointmentsDto } from './dto/bulk-reschedule-appointments.dto';
+import { BulkProposeCancelDto } from './dto/bulk-propose-cancel.dto';
+import { BulkProposeRescheduleDto } from './dto/bulk-propose-reschedule.dto';
 import { CancelAppointmentDto } from './dto/cancel-appointment.dto';
 import { ChangeAppointmentDoctorDto } from './dto/change-appointment-doctor.dto';
 import { ChangeAppointmentRoomDto } from './dto/change-appointment-room.dto';
+import { ProposeCancellationDto } from './dto/propose-cancellation.dto';
+import { ProposeRescheduleDto } from './dto/propose-reschedule.dto';
 import { AppointmentDomainExceptionFilter } from './filters/appointment-domain-exception.filter';
 
 @ApiTags('Admin Appointments (Manajemen Janji Temu & Antrean)')
@@ -61,6 +67,7 @@ import { AppointmentDomainExceptionFilter } from './filters/appointment-domain-e
 export class AdminAppointmentsController {
   constructor(
     private readonly appointmentsService: AppointmentsService,
+    private readonly proposalService: AppointmentProposalService,
     @Inject(CANDIDATE_RESOLVER_PORT)
     private readonly candidateResolver: ICandidateResolverPort,
     @Inject(CANDIDATE_ASSIGNMENT_PORT)
@@ -329,5 +336,116 @@ export class AdminAppointmentsController {
       message: 'Operasi penjadwalan ulang massal selesai',
       data: result,
     };
+  }
+
+  @Post(':appointmentId/propose-reschedule')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Klinik mengajukan reschedule janji temu (Menunggu Persetujuan Pasien)',
+    description:
+      'Membuat usulan pemindahan jadwal ke tanggal/sesi tujuan dan mengirim notifikasi actionable ke pasien.',
+  })
+  @ApiParam({
+    name: 'appointmentId',
+    description: 'ID unik janji temu pasien (UUID)',
+  })
+  async proposeReschedule(
+    @Param('appointmentId') appointmentId: string,
+    @Body() body: ProposeRescheduleDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.proposalService.proposeReschedule(appointmentId, body, user);
+  }
+
+  @Post(':appointmentId/propose-cancel')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Klinik mengajukan pembatalan janji temu (Menunggu Persetujuan Pasien)',
+    description:
+      'Membuat usulan pembatalan janji temu dan mengirim notifikasi actionable ke pasien.',
+  })
+  @ApiParam({
+    name: 'appointmentId',
+    description: 'ID unik janji temu pasien (UUID)',
+  })
+  async proposeCancellation(
+    @Param('appointmentId') appointmentId: string,
+    @Body() body: ProposeCancellationDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.proposalService.proposeCancellation(appointmentId, body, user);
+  }
+
+  @Post('bulk/propose-reschedule')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Klinik mengajukan reschedule massal (Menunggu Persetujuan Pasien)',
+  })
+  async bulkProposeReschedule(
+    @Body() body: BulkProposeRescheduleDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const results = [];
+    for (const id of body.appointmentIds) {
+      try {
+        const res = await this.proposalService.proposeReschedule(
+          id,
+          {
+            targetDate: body.targetDate,
+            targetSessionId: body.targetSessionId,
+            targetDoctorId: body.targetDoctorId,
+            targetRoomId: body.targetRoomId,
+            reason: body.reason,
+          },
+          user,
+        );
+        results.push({ id, success: true, proposalId: res.proposalId });
+      } catch (err: any) {
+        results.push({ id, success: false, message: err.message });
+      }
+    }
+    return {
+      message: 'Pengajuan reschedule massal selesai diproses',
+      data: results,
+    };
+  }
+
+  @Post('bulk/propose-cancel')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Klinik mengajukan pembatalan massal (Menunggu Persetujuan Pasien)',
+  })
+  async bulkProposeCancel(
+    @Body() body: BulkProposeCancelDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const results = [];
+    for (const id of body.appointmentIds) {
+      try {
+        const res = await this.proposalService.proposeCancellation(
+          id,
+          { reason: body.reason },
+          user,
+        );
+        results.push({ id, success: true, proposalId: res.proposalId });
+      } catch (err: any) {
+        results.push({ id, success: false, message: err.message });
+      }
+    }
+    return {
+      message: 'Pengajuan pembatalan massal selesai diproses',
+      data: results,
+    };
+  }
+
+  @Get('proposals/pending')
+  @ApiOperation({
+    summary: 'Melihat seluruh pengajuan perubahan janji temu untuk pemantauan staf/admin',
+  })
+  async getAdminProposals(
+    @Query('status') status?: string,
+    @Query('date') date?: string,
+  ) {
+    return this.proposalService.getAdminProposals({ status, date });
   }
 }

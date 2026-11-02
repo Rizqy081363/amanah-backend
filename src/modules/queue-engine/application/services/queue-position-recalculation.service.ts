@@ -1,11 +1,13 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { and, asc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
+import { NOTIFICATION_AUDIENCE } from '../../../../common/constants/notification-audience.constants';
 import { RedisService } from '../../../../common/redis/redis.service';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import type { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
   appointments,
   clinicServices,
+  patientProfiles,
   queueTickets,
 } from '../../../../database/schema';
 import {
@@ -13,7 +15,12 @@ import {
   QUEUE_TICKET_STATUS,
 } from '../../../appointments/domain/constants/appointment-lifecycle.constants';
 import type { SocketIoRealtimeGateway } from '../../../notifications/infrastructure/realtime/socket-io-realtime.gateway';
-import { REALTIME_GATEWAY_PORT } from '../../../notifications/notifications.constants';
+import {
+  NotificationEnvelopeV2,
+  REALTIME_EVENTS,
+  REALTIME_GATEWAY_PORT,
+  REALTIME_ROOMS,
+} from '../../../notifications/notifications.constants';
 import { QueueRecalculationService } from './queue-recalculation.service';
 
 interface CompactedQueueItem {
@@ -22,6 +29,9 @@ interface CompactedQueueItem {
   queueNumber: number;
   scheduledStartTime: string;
   patientId: string;
+  patientUserId?: string | null;
+  patientName?: string | null;
+  previousQueueNumber?: number | null;
 }
 
 export interface QueueRecalculationResult {
@@ -160,8 +170,11 @@ export class QueuePositionRecalculationService {
         ticketStatus: queueTickets.status,
         ticketQueueNumber: queueTickets.queueNumber,
         ticketAssignedAt: queueTickets.assignedAt,
+        patientUserId: patientProfiles.userId,
+        patientName: patientProfiles.fullName,
       })
       .from(appointments)
+      .leftJoin(patientProfiles, eq(appointments.patientId, patientProfiles.id))
       .leftJoin(clinicServices, eq(appointments.serviceId, clinicServices.id))
       .leftJoin(
         queueTickets,
@@ -229,6 +242,9 @@ export class QueuePositionRecalculationService {
         queueNumber: position,
         scheduledStartTime: apt.scheduledStartTime,
         patientId: apt.patientId,
+        patientUserId: apt.patientUserId,
+        patientName: apt.patientName,
+        previousQueueNumber: apt.currentQueueNumber,
       });
 
       if (apt.currentQueueNumber !== position) {
@@ -348,23 +364,97 @@ export class QueuePositionRecalculationService {
       ]);
     }
 
-    // 6. Broadcast Real-time Events via Socket.IO
-    if (this.realtimeGateway?.server) {
+    // 6. Real-time Events & Shift Notifications via Socket.IO (Audience Isolated)
+    if (this.realtimeGateway) {
       try {
-        this.realtimeGateway.server.emit('queue:estimates:updated', {
-          serviceDate,
-          practitionerId,
-          activeCount: compactedQueue.length,
-          updatedCount,
-          timestamp: new Date().toISOString(),
-        });
+        // Broadcast active estimate summary to internal clinic room for dashboard monitors
+        await this.realtimeGateway.emitToRoom?.(
+          REALTIME_ROOMS.clinic,
+          'queue:estimates:updated',
+          {
+            serviceDate,
+            practitionerId,
+            activeCount: compactedQueue.length,
+            updatedCount,
+            timestamp: new Date().toISOString(),
+          },
+        );
 
         for (const item of compactedQueue) {
-          this.realtimeGateway.server.emit('appointment:status_changed', {
-            appointmentId: item.appointmentId,
-            queueNumber: item.queueNumber,
-            practitionerId,
-          });
+          const oldQueueNum = item.previousQueueNumber;
+          const newQueueNum = item.queueNumber;
+          const hasShifted =
+            oldQueueNum !== null &&
+            oldQueueNum !== undefined &&
+            oldQueueNum !== newQueueNum;
+
+          // Admin / Clinic Monitor: update appointment status
+          await this.realtimeGateway.emitToRoom?.(
+            REALTIME_ROOMS.clinic,
+            'appointment:status_changed',
+            {
+              appointmentId: item.appointmentId,
+              queueNumber: newQueueNum,
+              practitionerId,
+            },
+          );
+
+          // Patient Targeted Room: Strict isolation (Zero Data Leakage to Patient X, Y, or Z)
+          if (item.patientUserId) {
+            await this.realtimeGateway.emitToUser(
+              item.patientUserId,
+              'appointment:status_changed',
+              {
+                appointmentId: item.appointmentId,
+                queueNumber: newQueueNum,
+                practitionerId,
+              },
+            );
+
+            // If queue position shifted (forward or backward), notify the patient with a family-friendly toast
+            if (hasShifted) {
+              const isForward = newQueueNum < oldQueueNum;
+              const shiftPayload = {
+                appointmentId: item.appointmentId,
+                oldQueueNumber: oldQueueNum,
+                newQueueNumber: newQueueNum,
+                direction: isForward ? 'forward' : 'backward',
+                serviceDate,
+                practitionerId,
+              };
+
+              await this.realtimeGateway.emitToUser(
+                item.patientUserId,
+                'queue:position_shifted',
+                shiftPayload,
+              );
+
+              const envelope: NotificationEnvelopeV2 = {
+                schemaVersion: 2,
+                id: `queue-shift-${item.appointmentId}-${newQueueNum}`,
+                eventId: `queue-shift-${item.appointmentId}-${Date.now()}`,
+                audience: NOTIFICATION_AUDIENCE.EXTERNAL,
+                recipientUserId: item.patientUserId,
+                type: 'queue',
+                title: 'Pembaruan Posisi Antrean',
+                body: isForward
+                  ? `Halo Kak ${item.patientName || 'Pasien'}! Antrean Anda kini maju menjadi nomor ${newQueueNum}. Mohon bersiap ya ✨`
+                  : `Halo Kak ${item.patientName || 'Pasien'}! Jadwal antrean Anda disesuaikan menjadi nomor ${newQueueNum}.`,
+                severity: 'info',
+                presentation: { toast: true },
+                createdAt: new Date().toISOString(),
+                badgeIcon: 'calendar-check',
+                senderName: 'Klinik Amanah',
+                senderRole: 'Sistem Antrean',
+              };
+
+              await this.realtimeGateway.emitToUser(
+                item.patientUserId,
+                REALTIME_EVENTS.NOTIFICATION_NEW,
+                envelope,
+              );
+            }
+          }
         }
       } catch (err: any) {
         this.logger.warn(

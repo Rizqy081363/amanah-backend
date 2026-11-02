@@ -109,6 +109,7 @@ export class CancelAppointmentUseCase {
       previousStatus: DOMAIN_APPOINTMENT_STATUS.WAITING,
       queueNumber: updated.queueNumber,
       practitionerId: updated.practitionerId,
+      patientUserId: updated.patientUserId,
     });
 
     if (this.pushNotification && updated.patientUserId) {

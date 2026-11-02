@@ -19,4 +19,5 @@ export const APPOINTMENT_RELATIONS = {
       medicalSpecialty: true,
     },
   },
+  appointmentChangeProposals: true,
 } as const;

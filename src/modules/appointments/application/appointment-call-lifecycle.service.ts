@@ -175,6 +175,7 @@ export class AppointmentCallLifecycleService {
         practitionerId: details.practitionerId || '',
         calledAt: new Date(),
         patientName: details.patientName,
+        patientUserId: details.patientUserId,
       });
     }
 
@@ -296,6 +297,7 @@ export class AppointmentCallLifecycleService {
           parseInt(String(details.ticketNumber).replace(/\D/g, ''), 10) || 0,
         practitionerId: details.practitionerId || '',
         actualStartedAt: now,
+        patientUserId: details.patientUserId,
       });
     }
 
@@ -412,6 +414,7 @@ export class AppointmentCallLifecycleService {
           queueNumber:
             parseInt(String(details.ticketNumber).replace(/\D/g, ''), 10) || 0,
           practitionerId: details.practitionerId || '',
+          patientUserId: details.patientUserId,
         });
       }
 
@@ -586,6 +589,7 @@ export class AppointmentCallLifecycleService {
         queueNumber:
           parseInt(String(details.ticketNumber).replace(/\D/g, ''), 10) || 0,
         practitionerId: details.practitionerId || '',
+        patientUserId: details.patientUserId,
       });
     }
 

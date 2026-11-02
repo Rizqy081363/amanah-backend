@@ -170,6 +170,29 @@ export class AppointmentRecordMapper {
     const hasDoctor = Boolean(apt.practitionerId || apt.practitioner);
     const hasRoom = Boolean(apt.roomId || apt.clinicRoom);
 
+    const pendingProposal = apt.appointmentChangeProposals?.find(
+      (p: any) => p.status === 'pending',
+    );
+    const hasPendingProposal = Boolean(pendingProposal);
+    const pendingProposalId = pendingProposal?.id || null;
+    const pendingProposalType = (pendingProposal?.proposalType as any) || null;
+
+    let isOvercapacity = false;
+    if (sessionDef?.defaultEndsAt && estimatedEndAt && apt.scheduledDate) {
+      const endTimeStr =
+        sessionDef.defaultEndsAt.length === 5
+          ? `${sessionDef.defaultEndsAt}:00`
+          : sessionDef.defaultEndsAt;
+      const sessionEnd = new Date(
+        `${apt.scheduledDate}T${endTimeStr}+07:00`,
+      );
+      const toleranceMs =
+        (checkInThresholds?.overflowToleranceMinutes ?? 30) * 60_000;
+      if (estimatedEndAt.getTime() > sessionEnd.getTime() + toleranceMs) {
+        isOvercapacity = true;
+      }
+    }
+
     return {
       id: apt.id,
       bookingCode: apt.bookingCode || null,
@@ -248,6 +271,10 @@ export class AppointmentRecordMapper {
       consultationDurationFormatted: formattedDuration,
       estimatedStartAt,
       estimatedEndAt,
+      isOvercapacity,
+      hasPendingProposal,
+      pendingProposalId,
+      pendingProposalType,
       etaRange,
       aheadCount,
       completedAt: apt.completedAt ? new Date(apt.completedAt) : null,

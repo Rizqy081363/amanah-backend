@@ -1,7 +1,9 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { ClinicConfigModule } from '../../common/clinic-config/clinic-config.module';
 import { RabbitMQModule } from '../../common/rabbitmq/rabbitmq.module';
+import { AppointmentsModule } from '../appointments/appointments.module';
 import { QueueEventPublisher } from './application/services/queue-event-publisher.service';
+import { QueueOvercapacityDetectorService } from './application/services/queue-overcapacity-detector.service';
 import { QueuePositionRecalculationService } from './application/services/queue-position-recalculation.service';
 import { QueueRecalculationService } from './application/services/queue-recalculation.service';
 import { QueueRecalculationWorker } from './application/workers/queue-recalculation.worker';
@@ -18,7 +20,11 @@ import { V2CatalogController } from './presentation/controllers/v2-catalog.contr
 import { V2TicketsController } from './presentation/controllers/v2-tickets.controller';
 
 @Module({
-  imports: [ClinicConfigModule, RabbitMQModule],
+  imports: [
+    ClinicConfigModule,
+    RabbitMQModule,
+    forwardRef(() => AppointmentsModule),
+  ],
   controllers: [
     V2CatalogController,
     V2TicketsController,
@@ -31,6 +37,7 @@ import { V2TicketsController } from './presentation/controllers/v2-tickets.contr
     QueueEngineService,
     QueueRecalculationService,
     QueuePositionRecalculationService,
+    QueueOvercapacityDetectorService,
     QueueEventPublisher,
     QueueRecalculationWorker,
     ClosureEngineService,
@@ -48,6 +55,7 @@ import { V2TicketsController } from './presentation/controllers/v2-tickets.contr
     QueueEngineService,
     QueueRecalculationService,
     QueuePositionRecalculationService,
+    QueueOvercapacityDetectorService,
     QueueEventPublisher,
     ClosureEngineService,
     ClinicSettingService,

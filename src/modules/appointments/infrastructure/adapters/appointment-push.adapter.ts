@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { NOTIFICATION_AUDIENCE } from '../../../../common/constants/notification-audience.constants';
 import { NotificationGatewayService } from '../../../../modules/notifications/application/services/notification-gateway.service';
 import type {
   PushNotificationPayload,
@@ -18,6 +19,7 @@ export class AppointmentPushAdapter implements PushNotificationPort {
       await this.notificationGateway.dispatch({
         commandId: `apt-call-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
         sourceDomain: 'appointments',
+        audience: NOTIFICATION_AUDIENCE.EXTERNAL,
         target: {
           type: 'user',
           recipientUserIds: [payload.userId],

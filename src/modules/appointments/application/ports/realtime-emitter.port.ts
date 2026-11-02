@@ -8,6 +8,7 @@ export interface StatusChangedEvent {
   practitionerId: string;
   actualStartedAt?: string | null;
   actualCompletedAt?: string | null;
+  patientUserId?: string | null;
 }
 
 export interface PatientCalledEvent {
@@ -16,6 +17,7 @@ export interface PatientCalledEvent {
   practitionerId: string;
   calledAt: Date;
   patientName?: string | null;
+  patientUserId?: string | null;
 }
 
 export const REALTIME_EMITTER_PORT = Symbol('REALTIME_EMITTER_PORT');
