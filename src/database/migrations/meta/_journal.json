@@ -547,6 +547,20 @@
       "when": 1791361000000,
       "tag": "0077_populate_canonical_intake_schemas",
       "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1791362000000,
+      "tag": "0078_normalize_canonical_intake_schemas",
+      "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "7",
+      "when": 1791363000000,
+      "tag": "0079_eliminate_hardcoded_intake_schema_choices",
+      "breakpoints": true
     }
   ]
 }

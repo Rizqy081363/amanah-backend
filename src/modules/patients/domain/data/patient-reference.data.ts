@@ -32,7 +32,7 @@ export function formatBloodTypeDisplay(raw?: string | null): string {
  * Deskripsi klinis standar untuk golongan darah.
  * Dihasilkan secara deterministik berdasarkan ada tidaknya rhesus dan simbol.
  */
-function getBloodTypeDescription(val: string): string {
+export function getBloodTypeDescription(val: string): string {
   if (!val || val.trim().toLowerCase() === UNKNOWN_BLOOD_TYPE) {
     return 'Belum diperiksa / Tidak tahu';
   }
