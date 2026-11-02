@@ -181,6 +181,7 @@ export class PatientAffiliationsController {
         intakeFormCode,
         intakeFormName,
         formType,
+        formSchema: service.intakeForm?.schema || null,
         allowedRelationships,
         patients: enrichedPatients,
         totalPatients: enrichedPatients.length,

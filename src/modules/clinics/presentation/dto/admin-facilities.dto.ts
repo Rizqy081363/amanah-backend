@@ -439,6 +439,12 @@ export class CreateClinicalIntakeFormDto {
   @IsBoolean()
   @IsOptional()
   isActive?: boolean = true;
+
+  @ApiPropertyOptional({
+    description: 'JSON Schema deklaratif formulir pengkajian (sections, steps, fields, widget bindings)',
+  })
+  @IsOptional()
+  schema?: Record<string, any>;
 }
 
 export class UpdateClinicalIntakeFormDto {
@@ -473,6 +479,12 @@ export class UpdateClinicalIntakeFormDto {
   @IsBoolean()
   @IsOptional()
   isActive?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'JSON Schema deklaratif formulir pengkajian (sections, steps, fields, widget bindings)',
+  })
+  @IsOptional()
+  schema?: Record<string, any>;
 }
 
 export class CreateClinicServiceDto {

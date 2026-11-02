@@ -1699,6 +1699,7 @@ export class AdminFacilitiesService {
       description: f.description,
       iconName: f.iconName,
       isActive: f.isActive,
+      schema: f.schema || { steps: [] },
       serviceCount: f.clinicServices?.length || 0,
       createdAt: f.createdAt,
       updatedAt: f.updatedAt,
@@ -1728,6 +1729,7 @@ export class AdminFacilitiesService {
         description: dto.description?.trim() || null,
         iconName: dto.iconName?.trim() || 'clipboard-list',
         isActive: dto.isActive ?? true,
+        schema: dto.schema || { steps: [] },
       })
       .returning();
 
@@ -1769,6 +1771,7 @@ export class AdminFacilitiesService {
     if (dto.iconName !== undefined)
       updates.iconName = dto.iconName?.trim() || 'clipboard-list';
     if (dto.isActive !== undefined) updates.isActive = dto.isActive;
+    if (dto.schema !== undefined) updates.schema = dto.schema;
 
     const [updated] = await this.db
       .update(clinicalIntakeForms)

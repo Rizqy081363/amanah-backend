@@ -533,6 +533,13 @@
       "when": 1791359000000,
       "tag": "0075_patient_relationship_types",
       "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "7",
+      "when": 1791360000000,
+      "tag": "0076_clinical_intake_forms_jsonb_schema",
+      "breakpoints": true
     }
   ]
 }

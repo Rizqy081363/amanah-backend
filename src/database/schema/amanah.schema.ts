@@ -818,6 +818,7 @@ export const clinicalIntakeForms = pgTable(
       .default('clipboard-list')
       .notNull(),
     isActive: boolean('is_active').default(true).notNull(),
+    schema: jsonb('schema').default({ steps: [] }).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
       .notNull(),

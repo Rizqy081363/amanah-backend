@@ -9,6 +9,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Put,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -525,6 +526,22 @@ export class AdminFacilitiesController {
     @Body() body: UpdateClinicalIntakeFormDto,
   ) {
     return this.facilitiesService.updateForm(id, body);
+  }
+
+  @Put('forms/:id/schema')
+  @ApiOperation({
+    summary: 'Memperbarui JSON schema deklaratif formulir klinis (Admin Builder)',
+  })
+  @ApiParam({ name: 'id', description: 'ID unik formulir intake' })
+  @ApiOkResponse({ description: 'Skema formulir intake berhasil diperbarui' })
+  async updateFormSchema(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Body() body: Record<string, any>,
+  ) {
+    const schema = body && typeof body === 'object' && 'schema' in body && body.schema !== undefined
+      ? body.schema
+      : body;
+    return this.facilitiesService.updateForm(id, { schema });
   }
 
   @Delete('forms/:id')
