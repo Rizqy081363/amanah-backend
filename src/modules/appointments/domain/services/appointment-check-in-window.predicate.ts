@@ -31,8 +31,8 @@ export function isAppointmentWithinCheckInWindow(params: {
   scheduledEndTime?: string | null;
   todayDateStr: string;
   currentTimeStr: string;
-  arriveEarlyMinutes?: number;
-  overflowToleranceMinutes?: number;
+  arriveEarlyMinutes: number;
+  overflowToleranceMinutes: number;
 }): CheckInWindowEvaluation {
   const {
     scheduledDate,
@@ -40,8 +40,8 @@ export function isAppointmentWithinCheckInWindow(params: {
     scheduledEndTime,
     todayDateStr,
     currentTimeStr,
-    arriveEarlyMinutes = 15,
-    overflowToleranceMinutes = 30,
+    arriveEarlyMinutes,
+    overflowToleranceMinutes,
   } = params;
 
   // 1. Must be on the exact same clinic day

@@ -54,6 +54,8 @@ import { QueryQueueNavigationDto } from '../presentation/dto/query-queue-navigat
 import { QueueNavigationResponseDto } from '../presentation/dto/queue-navigation-response.dto';
 import { RescheduleAppointmentDto } from '../presentation/dto/reschedule-appointment.dto';
 import { UpdateAppointmentStatusDto } from '../presentation/dto/update-appointment-status.dto';
+import type { BulkOperationResult } from '../candidate-assignment/contracts/candidate-assignment.contract';
+import type { BulkRescheduleAppointmentsDto } from '../presentation/dto/bulk-reschedule-appointments.dto';
 import { AppointmentNotificationPublisher } from './appointment-notification.publisher';
 import {
   PUSH_NOTIFICATION_PORT,
@@ -386,16 +388,16 @@ export class AppointmentsService {
       return current;
     }
 
-    if (current.appointmentDate) {
-      const thresholds = await this.policyReader?.getQueueThresholds();
+    if (current.appointmentDate && this.policyReader) {
+      const thresholds = await this.policyReader.getQueueThresholds();
       const checkInEval = isAppointmentWithinCheckInWindow({
         scheduledDate: current.appointmentDate,
         scheduledStartTime: current.scheduledStartTime,
         scheduledEndTime: current.scheduledEndTime,
         todayDateStr: this.clinicTimeService.today(),
         currentTimeStr: this.clinicTimeService.getCurrentTimeString(),
-        arriveEarlyMinutes: thresholds?.arriveEarlyMinutes,
-        overflowToleranceMinutes: thresholds?.overflowToleranceMinutes,
+        arriveEarlyMinutes: thresholds.arriveEarlyMinutes,
+        overflowToleranceMinutes: thresholds.overflowToleranceMinutes,
       });
 
       if (!checkInEval.isOpen) {
@@ -606,6 +608,79 @@ export class AppointmentsService {
         );
       }
     }
+    return result;
+  }
+
+  async bulkCancelAppointments(
+    appointmentIds: string[],
+    reason: string,
+    isNoShow?: boolean,
+    user?: AuthenticatedUser,
+  ): Promise<BulkOperationResult> {
+    const result: BulkOperationResult = {
+      total: appointmentIds.length,
+      succeededCount: 0,
+      failedCount: 0,
+      succeededIds: [],
+      errors: [],
+    };
+
+    for (const id of appointmentIds) {
+      try {
+        await this.cancelAdminAppointment(id, { reason, isNoShow }, user);
+        result.succeededCount++;
+        result.succeededIds.push(id);
+      } catch (err: any) {
+        result.failedCount++;
+        result.errors.push({
+          id,
+          message: err?.message || 'Gagal membatalkan janji temu',
+        });
+      }
+    }
+
+    return result;
+  }
+
+  async bulkRescheduleAppointments(
+    appointmentIds: string[],
+    dto: BulkRescheduleAppointmentsDto,
+    user?: AuthenticatedUser,
+  ): Promise<BulkOperationResult> {
+    const result: BulkOperationResult = {
+      total: appointmentIds.length,
+      succeededCount: 0,
+      failedCount: 0,
+      succeededIds: [],
+      errors: [],
+    };
+
+    const actorUserId = user?.id || 'admin';
+
+    for (const id of appointmentIds) {
+      try {
+        await this.reschedule(
+          id,
+          {
+            target_date: dto.targetDate,
+            session: dto.session,
+            target_session_id: dto.targetSessionId,
+            reason: dto.reason,
+          },
+          actorUserId,
+          user,
+        );
+        result.succeededCount++;
+        result.succeededIds.push(id);
+      } catch (err: any) {
+        result.failedCount++;
+        result.errors.push({
+          id,
+          message: err?.message || 'Gagal menjadwalkan ulang janji temu',
+        });
+      }
+    }
+
     return result;
   }
 

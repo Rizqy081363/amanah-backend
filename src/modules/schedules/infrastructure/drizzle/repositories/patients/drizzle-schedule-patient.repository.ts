@@ -334,16 +334,17 @@ export class DrizzleSchedulePatientRepository {
           isDoctorServing,
           canCheckIn:
             domainStatus === DOMAIN_APPOINTMENT_STATUS.BOOKED &&
-            apt.scheduledDate
+            apt.scheduledDate &&
+            thresholds
               ? isAppointmentWithinCheckInWindow({
                   scheduledDate: apt.scheduledDate,
                   scheduledStartTime: apt.scheduledStartTime,
                   scheduledEndTime: apt.scheduledEndTime,
                   todayDateStr: this.clinicTimeService.today(),
                   currentTimeStr: this.clinicTimeService.getCurrentTimeString(),
-                  arriveEarlyMinutes: thresholds?.arriveEarlyMinutes,
+                  arriveEarlyMinutes: thresholds.arriveEarlyMinutes,
                   overflowToleranceMinutes:
-                    thresholds?.overflowToleranceMinutes,
+                    thresholds.overflowToleranceMinutes,
                 }).isOpen
               : true,
         });

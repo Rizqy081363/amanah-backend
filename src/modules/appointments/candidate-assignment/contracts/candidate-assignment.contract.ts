@@ -7,6 +7,14 @@ export interface ChangeDoctorOptions {
   reason?: string;
 }
 
+export interface BulkOperationResult {
+  total: number;
+  succeededCount: number;
+  failedCount: number;
+  succeededIds: string[];
+  errors: Array<{ id: string; message: string }>;
+}
+
 export interface ICandidateAssignmentPort {
   changeDoctor(
     appointmentId: string,
@@ -20,4 +28,17 @@ export interface ICandidateAssignmentPort {
     targetRoomId: string,
     user?: any,
   ): Promise<AppointmentEntity>;
+
+  bulkChangeDoctor(
+    appointmentIds: string[],
+    targetDoctorId: string,
+    options?: ChangeDoctorOptions,
+    user?: any,
+  ): Promise<BulkOperationResult>;
+
+  bulkChangeRoom(
+    appointmentIds: string[],
+    targetRoomId: string,
+    user?: any,
+  ): Promise<BulkOperationResult>;
 }

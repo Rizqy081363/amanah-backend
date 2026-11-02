@@ -178,11 +178,18 @@ export class QueuePositionRecalculationService {
             DB_APPOINTMENT_STATUS.BOOKED,
             DB_APPOINTMENT_STATUS.WAITING,
             DB_APPOINTMENT_STATUS.IN_SERVICE,
+            DB_APPOINTMENT_STATUS.LATE,
           ]),
         ),
       )
       .orderBy(
-        sql`CASE WHEN ${appointments.status} = ${DB_APPOINTMENT_STATUS.IN_SERVICE} THEN 0 ELSE 1 END`,
+        sql`CASE
+          WHEN ${appointments.status} = ${DB_APPOINTMENT_STATUS.IN_SERVICE} THEN 0
+          WHEN ${appointments.status} = ${DB_APPOINTMENT_STATUS.WAITING} THEN 1
+          WHEN ${appointments.status} = ${DB_APPOINTMENT_STATUS.BOOKED} THEN 2
+          WHEN ${appointments.status} = ${DB_APPOINTMENT_STATUS.LATE} THEN 3
+          ELSE 4
+        END ASC`,
         asc(
           sql`COALESCE(${appointments.queueNumber}, NULLIF(regexp_replace(${queueTickets.queueNumber}, '\\D', '', 'g'), '')::integer, 999999)`,
         ),
@@ -366,11 +373,13 @@ export class QueuePositionRecalculationService {
       }
     }
 
-    // 7. Optionally trigger sliding time window simulation
+    // 7. Optionally trigger sliding time window simulation for this specific stream
     if (this.queueRecalcEstimator) {
       this.queueRecalcEstimator
         .recalculateSession({
           serviceDate,
+          categoryId,
+          doctorId: practitionerId,
           triggerEvent: 'queue_compaction',
         })
         .catch((err) => {

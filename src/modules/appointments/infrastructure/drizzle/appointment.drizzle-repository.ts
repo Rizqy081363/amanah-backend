@@ -83,7 +83,7 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
   }
 
   private async getQueueThresholds(): Promise<
-    | { arriveEarlyMinutes?: number; overflowToleranceMinutes?: number }
+    | { arriveEarlyMinutes: number; overflowToleranceMinutes: number }
     | undefined
   > {
     if (this.clinicConfig) {
@@ -108,22 +108,20 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
           status: DB_APPOINTMENT_STATUS.LATE,
           updatedAt: new Date().toISOString(),
         })
-        .where(inArray(appointments.id, ids))
+        .where(
+          and(
+            inArray(appointments.id, ids),
+            inArray(appointments.status, [
+              DB_APPOINTMENT_STATUS.WAITING,
+              DB_APPOINTMENT_STATUS.BOOKED,
+            ] as any),
+          ),
+        )
         .returning({
           id: appointments.id,
           scheduledDate: appointments.scheduledDate,
           practitionerId: appointments.practitionerId,
         });
-
-      await this.db
-        .update(queueTickets)
-        .set({
-          status: QUEUE_TICKET_STATUS.CANCELLED,
-          waitingPosition: null,
-          updatedAt: sql`NOW()`,
-        })
-        .where(inArray(queueTickets.appointmentId, ids))
-        .catch(() => {});
 
       if (this.queuePositionRecalculationService && updated.length > 0) {
         await this.queuePositionRecalculationService
@@ -390,10 +388,17 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
     const orderByClause = filters?.cursor
       ? [desc(appointments.createdAt), desc(appointments.id)]
       : [
+          sql`CASE 
+            WHEN ${appointments.status} = ${DB_APPOINTMENT_STATUS.IN_SERVICE} THEN 1
+            WHEN ${appointments.status} = ${DB_APPOINTMENT_STATUS.WAITING} THEN 2
+            WHEN ${appointments.status} = ${DB_APPOINTMENT_STATUS.BOOKED} THEN 3
+            WHEN ${appointments.status} = ${DB_APPOINTMENT_STATUS.LATE} THEN 4
+            WHEN ${appointments.status} = ${DB_APPOINTMENT_STATUS.COMPLETED} THEN 5
+            ELSE 6
+          END ASC`,
           asc(appointments.scheduledDate),
-          asc(appointments.queueNumber),
-          asc(appointments.scheduledStartTime),
           asc(appointments.createdAt),
+          asc(appointments.id),
         ];
 
     const matchedRows = await this.db

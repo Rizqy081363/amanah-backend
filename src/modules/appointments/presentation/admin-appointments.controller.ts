@@ -37,6 +37,10 @@ import {
   type ICandidateResolverPort,
 } from '../candidate-assignment/contracts/candidate-resolver.contract';
 import { AdminUpdateAppointmentStatusDto } from './dto/admin-update-appointment-status.dto';
+import { BulkAssignDoctorDto } from './dto/bulk-assign-doctor.dto';
+import { BulkAssignRoomDto } from './dto/bulk-assign-room.dto';
+import { BulkCancelAppointmentsDto } from './dto/bulk-cancel-appointments.dto';
+import { BulkRescheduleAppointmentsDto } from './dto/bulk-reschedule-appointments.dto';
 import { CancelAppointmentDto } from './dto/cancel-appointment.dto';
 import { ChangeAppointmentDoctorDto } from './dto/change-appointment-doctor.dto';
 import { ChangeAppointmentRoomDto } from './dto/change-appointment-room.dto';
@@ -229,6 +233,100 @@ export class AdminAppointmentsController {
     const result = await this.reminderService.evaluateAndDispatchReminders();
     return {
       message: 'Evaluasi pengingat check-in berhasil dijalankan',
+      data: result,
+    };
+  }
+
+  @Post('bulk/assign-doctor')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Menugaskan dokter secara massal ke sekumpulan janji temu (Admin/Staf)',
+    description:
+      'Menugaskan dokter target ke sekumpulan janji temu dan menyusun ulang antrean secara sekuensial.',
+  })
+  async bulkAssignDoctor(
+    @Body() body: BulkAssignDoctorDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const result = await this.assignmentService.bulkChangeDoctor(
+      body.appointmentIds,
+      body.doctorId,
+      {
+        closeOldSchedule: body.closeOldSchedule,
+        reason: body.reason,
+      },
+      user,
+    );
+    return {
+      message: 'Operasi penugasan dokter massal selesai',
+      data: result,
+    };
+  }
+
+  @Post('bulk/assign-room')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Menugaskan ruangan secara massal ke sekumpulan janji temu (Admin/Staf)',
+    description:
+      'Menugaskan ruangan periksa target ke sekumpulan janji temu.',
+  })
+  async bulkAssignRoom(
+    @Body() body: BulkAssignRoomDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const result = await this.assignmentService.bulkChangeRoom(
+      body.appointmentIds,
+      body.roomId,
+      user,
+    );
+    return {
+      message: 'Operasi penugasan ruangan massal selesai',
+      data: result,
+    };
+  }
+
+  @Post('bulk/cancel')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Membatalkan janji temu secara massal (Admin/Staf)',
+    description: 'Membatalkan sekumpulan janji temu dan membebaskan antrean.',
+  })
+  async bulkCancel(
+    @Body() body: BulkCancelAppointmentsDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const result = await this.appointmentsService.bulkCancelAppointments(
+      body.appointmentIds,
+      body.reason,
+      body.isNoShow,
+      user,
+    );
+    return {
+      message: 'Operasi pembatalan massal selesai',
+      data: result,
+    };
+  }
+
+  @Post('bulk/reschedule')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Menjadwalkan ulang janji temu secara massal (Admin/Staf)',
+    description:
+      'Menjadwalkan ulang sekumpulan janji temu ke tanggal/sesi tujuan baru.',
+  })
+  async bulkReschedule(
+    @Body() body: BulkRescheduleAppointmentsDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const result = await this.appointmentsService.bulkRescheduleAppointments(
+      body.appointmentIds,
+      body,
+      user,
+    );
+    return {
+      message: 'Operasi penjadwalan ulang massal selesai',
       data: result,
     };
   }

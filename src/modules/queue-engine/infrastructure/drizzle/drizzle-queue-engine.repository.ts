@@ -49,7 +49,7 @@ export class DrizzleQueueEngineRepository implements IQueueEngineRepository {
   async callNextTicket(params: {
     roomId: string;
     doctorId: string;
-    categoryId?: string;
+    categoryId?: string | null;
     serviceDate: string;
   }): Promise<DomainQueueTicket | null> {
     const { roomId, doctorId, categoryId, serviceDate } = params;
@@ -105,7 +105,7 @@ export class DrizzleQueueEngineRepository implements IQueueEngineRepository {
   }
 
   async getRecentCompletedDurations(params: {
-    categoryId?: string;
+    categoryId?: string | null;
     limit?: number;
   }): Promise<number[]> {
     const { categoryId, limit = 20 } = params;
@@ -129,29 +129,30 @@ export class DrizzleQueueEngineRepository implements IQueueEngineRepository {
   async getActiveLanesCount(params: {
     serviceDate: string;
     sessionId: string;
-    categoryId?: string;
+    categoryId?: string | null;
   }): Promise<number> {
     const { serviceDate, sessionId, categoryId } = params;
-
-    // In outpatient clinic operations, unassigned category queue streams
-    // represent an isolated sequential pipeline (1 lane) to preserve 1..N FIFO queue slots
-    // without start-time collision across waiting patients before doctor assignment.
-    if (categoryId) {
-      return 1;
-    }
-
     const dow = new Date(`${serviceDate}T00:00:00.000Z`).getUTCDay();
+
+    const conditions = [
+      eq(doctorAssignments.sessionId, sessionId),
+      eq(doctorAssignments.isActive, true),
+      or(eq(doctorAssignments.dow, dow), isNull(doctorAssignments.dow)),
+    ];
+
+    if (categoryId) {
+      conditions.push(
+        or(
+          eq(doctorAssignments.categoryId, categoryId),
+          isNull(doctorAssignments.categoryId),
+        )!,
+      );
+    }
 
     const rows = await this.db
       .select({ id: doctorAssignments.id })
       .from(doctorAssignments)
-      .where(
-        and(
-          eq(doctorAssignments.sessionId, sessionId),
-          eq(doctorAssignments.isActive, true),
-          or(eq(doctorAssignments.dow, dow), isNull(doctorAssignments.dow)),
-        ),
-      );
+      .where(and(...conditions));
 
     return Math.max(1, rows.length);
   }
@@ -170,9 +171,10 @@ export class DrizzleQueueEngineRepository implements IQueueEngineRepository {
   async findActiveTicketsBySession(params: {
     serviceDate: string;
     sessionId: string;
-    categoryId?: string;
+    categoryId?: string | null;
+    doctorId?: string | null;
   }): Promise<DomainQueueTicket[]> {
-    const { serviceDate, sessionId, categoryId } = params;
+    const { serviceDate, sessionId, categoryId, doctorId } = params;
 
     const conditions = [
       eq(queueTickets.queueDate, serviceDate),
@@ -186,6 +188,14 @@ export class DrizzleQueueEngineRepository implements IQueueEngineRepository {
 
     if (categoryId) {
       conditions.push(eq(queueTickets.categoryId, categoryId));
+    }
+
+    if (doctorId !== undefined) {
+      if (doctorId === null) {
+        conditions.push(isNull(queueTickets.doctorId));
+      } else {
+        conditions.push(eq(queueTickets.doctorId, doctorId));
+      }
     }
 
     const rows = await this.db

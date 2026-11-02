@@ -144,22 +144,25 @@ export class PerformCheckInUseCase {
       return appointment;
     }
 
-    if (appointment.status !== DOMAIN_APPOINTMENT_STATUS.BOOKED) {
+    if (
+      appointment.status !== DOMAIN_APPOINTMENT_STATUS.BOOKED &&
+      appointment.status !== DOMAIN_APPOINTMENT_STATUS.LATE
+    ) {
       throw new BadRequestException(
-        `Janji temu ini tidak dalam status "Sudah Buat Janji" (status saat ini: ${appointment.status}).`,
+        `Janji temu ini tidak dalam status yang dapat melakukan check-in (status saat ini: ${appointment.status}).`,
       );
     }
 
-    if (appointment.appointmentDate) {
-      const thresholds = await this.policyReader?.getQueueThresholds();
+    if (appointment.appointmentDate && this.policyReader) {
+      const thresholds = await this.policyReader.getQueueThresholds();
       const checkInEval = isAppointmentWithinCheckInWindow({
         scheduledDate: appointment.appointmentDate,
         scheduledStartTime: appointment.scheduledStartTime,
         scheduledEndTime: appointment.scheduledEndTime,
         todayDateStr: this.clinicTimeService.today(),
         currentTimeStr: this.clinicTimeService.getCurrentTimeString(),
-        arriveEarlyMinutes: thresholds?.arriveEarlyMinutes,
-        overflowToleranceMinutes: thresholds?.overflowToleranceMinutes,
+        arriveEarlyMinutes: thresholds.arriveEarlyMinutes,
+        overflowToleranceMinutes: thresholds.overflowToleranceMinutes,
       });
 
       if (!checkInEval.isOpen) {

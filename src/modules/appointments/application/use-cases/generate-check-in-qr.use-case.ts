@@ -79,8 +79,12 @@ export class GenerateCheckInQrUseCase {
       );
     }
 
+    const [thresholds, windowHours] = await Promise.all([
+      this.policyReader.getQueueThresholds(),
+      this.policyReader.getCheckInWindowHours(),
+    ]);
+
     if (apt.appointmentDate) {
-      const thresholds = await this.policyReader.getQueueThresholds();
       const checkInEval = isAppointmentWithinCheckInWindow({
         scheduledDate: apt.appointmentDate,
         scheduledStartTime: apt.scheduledStartTime,
@@ -111,12 +115,19 @@ export class GenerateCheckInQrUseCase {
       }
     }
 
-    const windowHours = await this.policyReader.getCheckInWindowHours();
-    const scheduledDateObj = new Date(
-      `${apt.appointmentDate}T${apt.scheduledStartTime || '00:00:00'}`,
-    );
+    const benchmarkTime = apt.estimatedStartAt
+      ? new Date(apt.estimatedStartAt)
+      : new Date(
+          `${apt.appointmentDate}T${apt.scheduledStartTime || '00:00:00'}`,
+        );
 
-    if (isAppointmentLate(scheduledDateObj, new Date(), windowHours)) {
+    if (
+      isAppointmentLate(
+        benchmarkTime,
+        new Date(),
+        thresholds.overflowToleranceMinutes,
+      )
+    ) {
       throw new BadRequestException(
         'Batas waktu check-in janji temu telah berakhir (janji temu berstatus Terlambat)',
       );

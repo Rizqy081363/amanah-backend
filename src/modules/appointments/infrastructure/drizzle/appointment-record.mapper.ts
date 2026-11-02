@@ -38,8 +38,8 @@ export class AppointmentRecordMapper {
     clinicTimeService: ClinicTimeService,
     isDoctorServing?: boolean,
     checkInThresholds?: {
-      arriveEarlyMinutes?: number;
-      overflowToleranceMinutes?: number;
+      arriveEarlyMinutes: number;
+      overflowToleranceMinutes: number;
     },
   ): AppointmentEntity {
     let domainStatus = toDomainStatus(apt.status);
@@ -48,13 +48,14 @@ export class AppointmentRecordMapper {
     if (
       windowHours !== undefined &&
       (apt.status === DB_APPOINTMENT_STATUS.BOOKED ||
-        apt.status === DB_APPOINTMENT_STATUS.WAITING ||
-        apt.status === DB_APPOINTMENT_STATUS.CHECKED_IN)
+        apt.status === DB_APPOINTMENT_STATUS.WAITING)
     ) {
-      const scheduledDateObj = new Date(
-        `${apt.scheduledDate}T${apt.scheduledStartTime || '00:00:00'}`,
-      );
-      if (isAppointmentLate(scheduledDateObj, new Date(), windowHours)) {
+      const benchmarkTime = apt.estimatedStartAt
+        ? new Date(apt.estimatedStartAt)
+        : new Date(
+            `${apt.scheduledDate}T${apt.scheduledStartTime || '00:00:00'}`,
+          );
+      if (isAppointmentLate(benchmarkTime, new Date(), windowHours)) {
         domainStatus = DOMAIN_APPOINTMENT_STATUS.LATE;
         rawStatus = DB_APPOINTMENT_STATUS.LATE;
       }
@@ -220,16 +221,18 @@ export class AppointmentRecordMapper {
         aheadCount,
         isDoctorServing,
         canCheckIn:
-          domainStatus === DOMAIN_APPOINTMENT_STATUS.BOOKED && apt.scheduledDate
+          domainStatus === DOMAIN_APPOINTMENT_STATUS.BOOKED &&
+          apt.scheduledDate &&
+          checkInThresholds
             ? isAppointmentWithinCheckInWindow({
                 scheduledDate: apt.scheduledDate,
                 scheduledStartTime: apt.scheduledStartTime,
                 scheduledEndTime: apt.scheduledEndTime,
                 todayDateStr: clinicTimeService.today(),
                 currentTimeStr: clinicTimeService.getCurrentTimeString(),
-                arriveEarlyMinutes: checkInThresholds?.arriveEarlyMinutes,
+                arriveEarlyMinutes: checkInThresholds.arriveEarlyMinutes,
                 overflowToleranceMinutes:
-                  checkInThresholds?.overflowToleranceMinutes,
+                  checkInThresholds.overflowToleranceMinutes,
               }).isOpen
             : true,
       }),

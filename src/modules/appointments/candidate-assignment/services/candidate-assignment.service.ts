@@ -23,6 +23,7 @@ import {
 } from '../../domain/errors/appointment-assignment.errors';
 import { toDomainStatus } from '../../domain/types/appointment.types';
 import type {
+  BulkOperationResult,
   ChangeDoctorOptions,
   ICandidateAssignmentPort,
 } from '../contracts/candidate-assignment.contract';
@@ -282,5 +283,93 @@ export class CandidateAssignmentService implements ICandidateAssignmentPort {
     }
 
     return updated;
+  }
+
+  async bulkChangeDoctor(
+    appointmentIds: string[],
+    targetDoctorId: string,
+    options?: ChangeDoctorOptions,
+    user?: any,
+  ): Promise<BulkOperationResult> {
+    const result: BulkOperationResult = {
+      total: appointmentIds.length,
+      succeededCount: 0,
+      failedCount: 0,
+      succeededIds: [],
+      errors: [],
+    };
+
+    const affectedPartitions = new Map<
+      string,
+      { serviceDate: string; practitionerId: string }
+    >();
+
+    for (const id of appointmentIds) {
+      try {
+        const updated = await this.changeDoctor(
+          id,
+          targetDoctorId,
+          options,
+          user,
+        );
+        result.succeededCount++;
+        result.succeededIds.push(id);
+        if (updated.appointmentDate) {
+          const key = `${updated.appointmentDate}|${targetDoctorId}`;
+          if (!affectedPartitions.has(key)) {
+            affectedPartitions.set(key, {
+              serviceDate: updated.appointmentDate,
+              practitionerId: targetDoctorId,
+            });
+          }
+        }
+      } catch (err: any) {
+        result.failedCount++;
+        result.errors.push({
+          id,
+          message: err?.message || 'Gagal mengalihkan dokter',
+        });
+      }
+    }
+
+    if (this.queueRecalculationService && affectedPartitions.size > 0) {
+      for (const partition of affectedPartitions.values()) {
+        await this.queueRecalculationService
+          .recalculateDoctorQueue(partition)
+          .catch(() => {});
+      }
+    }
+
+    return result;
+  }
+
+  async bulkChangeRoom(
+    appointmentIds: string[],
+    targetRoomId: string,
+    user?: any,
+  ): Promise<BulkOperationResult> {
+    const result: BulkOperationResult = {
+      total: appointmentIds.length,
+      succeededCount: 0,
+      failedCount: 0,
+      succeededIds: [],
+      errors: [],
+    };
+
+    for (const id of appointmentIds) {
+      try {
+        await this.changeRoom(id, targetRoomId, user);
+        result.succeededCount++;
+        result.succeededIds.push(id);
+      } catch (err: any) {
+        result.failedCount++;
+        result.errors.push({
+          id,
+          message: err?.message || 'Gagal mengalihkan ruangan',
+        });
+      }
+    }
+
+    return result;
   }
 }

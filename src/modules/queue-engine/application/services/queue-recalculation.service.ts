@@ -36,11 +36,12 @@ import { ClinicSettingService } from '../../infrastructure/config/clinic-setting
 export interface RecalculationParams {
   serviceDate: string;
   sessionId?: string;
-  categoryId?: string;
+  categoryId?: string | null;
   triggerEvent?: string;
   eventType?: string;
   ticketId?: string;
   appointmentId?: string;
+  doctorId?: string | null;
 }
 
 @Injectable()
@@ -81,8 +82,10 @@ export class QueueRecalculationService {
     );
 
     // If sessionId or categoryId not explicitly supplied, discover them from ticket/appointment or active tickets on serviceDate
-    const sessionTargets: Array<{ sessionId: string; categoryId?: string }> =
-      [];
+    const sessionTargets: Array<{
+      sessionId: string;
+      categoryId?: string | null;
+    }> = [];
 
     if (sessionId) {
       sessionTargets.push({ sessionId, categoryId });
@@ -151,12 +154,51 @@ export class QueueRecalculationService {
     let totalUpdated = 0;
 
     for (const target of sessionTargets) {
-      const count = await this.recalculateSingleSession(
-        serviceDate,
-        target.sessionId,
-        target.categoryId,
-      );
-      totalUpdated += count;
+      if (params.doctorId !== undefined) {
+        const count = await this.recalculateSingleSession(
+          serviceDate,
+          target.sessionId,
+          target.categoryId,
+          params.doctorId,
+        );
+        totalUpdated += count;
+      } else {
+        // Discover distinct active doctor streams for this session (including null for unassigned pool)
+        const docRows = await this.db
+          .select({ doctorId: queueTickets.doctorId })
+          .from(queueTickets)
+          .where(
+            and(
+              eq(queueTickets.queueDate, serviceDate),
+              eq(queueTickets.sessionId, target.sessionId),
+              target.categoryId
+                ? eq(queueTickets.categoryId, target.categoryId)
+                : sql`TRUE`,
+              sql`${queueTickets.status} IN ('waiting', 'called', 'in_service')`,
+            ),
+          )
+          .groupBy(queueTickets.doctorId);
+
+        if (docRows.length === 0) {
+          const count = await this.recalculateSingleSession(
+            serviceDate,
+            target.sessionId,
+            target.categoryId,
+            null,
+          );
+          totalUpdated += count;
+        } else {
+          for (const d of docRows) {
+            const count = await this.recalculateSingleSession(
+              serviceDate,
+              target.sessionId,
+              target.categoryId,
+              d.doctorId,
+            );
+            totalUpdated += count;
+          }
+        }
+      }
     }
 
     return {
@@ -169,13 +211,15 @@ export class QueueRecalculationService {
   private async recalculateSingleSession(
     serviceDate: string,
     sessionId: string,
-    categoryId?: string,
+    categoryId?: string | null,
+    doctorId?: string | null,
   ): Promise<number> {
-    // 1. Fetch active tickets in waiting, called, or in_service status
+    // 1. Fetch active tickets in waiting, called, or in_service status for this stream
     const activeTickets = await this.queueRepo.findActiveTicketsBySession({
       serviceDate,
       sessionId,
       categoryId,
+      doctorId,
     });
 
     if (activeTickets.length === 0) {
@@ -213,11 +257,14 @@ export class QueueRecalculationService {
     });
 
     // 4. Resolve lane capacity and session operational window
-    const lanes = await this.queueRepo.getActiveLanesCount({
-      serviceDate,
-      sessionId,
-      categoryId,
-    });
+    // Practitioner stream is 1 dedicated lane; unassigned pool lane capacity is count of active rostered practitioners
+    const lanes = doctorId
+      ? 1
+      : await this.queueRepo.getActiveLanesCount({
+          serviceDate,
+          sessionId,
+          categoryId,
+        });
 
     const sessionWindow = await this.resolveSessionWindow(
       serviceDate,

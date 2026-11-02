@@ -1,12 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import type {
+  BulkOperationResult,
   ChangeDoctorOptions,
   ICandidateAssignmentPort,
 } from '../../candidate-assignment/contracts/candidate-assignment.contract';
 import { CandidateAssignmentService } from '../../candidate-assignment/services/candidate-assignment.service';
 import { AppointmentEntity } from '../../domain/entities/appointment.entity';
 
-export type { ChangeDoctorOptions };
+export type { BulkOperationResult, ChangeDoctorOptions };
 
 @Injectable()
 export class AppointmentAssignmentService implements ICandidateAssignmentPort {
@@ -32,5 +33,27 @@ export class AppointmentAssignmentService implements ICandidateAssignmentPort {
     user?: any,
   ): Promise<AppointmentEntity> {
     return this.delegate.changeRoom(appointmentId, targetRoomId, user);
+  }
+
+  async bulkChangeDoctor(
+    appointmentIds: string[],
+    targetDoctorId: string,
+    options?: ChangeDoctorOptions,
+    user?: any,
+  ): Promise<BulkOperationResult> {
+    return this.delegate.bulkChangeDoctor(
+      appointmentIds,
+      targetDoctorId,
+      options,
+      user,
+    );
+  }
+
+  async bulkChangeRoom(
+    appointmentIds: string[],
+    targetRoomId: string,
+    user?: any,
+  ): Promise<BulkOperationResult> {
+    return this.delegate.bulkChangeRoom(appointmentIds, targetRoomId, user);
   }
 }

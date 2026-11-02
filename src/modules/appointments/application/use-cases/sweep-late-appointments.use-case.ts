@@ -16,12 +16,15 @@ export class SweepLateAppointmentsUseCase {
   ) {}
 
   async execute(now: Date = new Date()): Promise<number> {
-    const windowHours = await this.policyReader.getCheckInWindowHours();
-    const windowMs = windowHours * 60 * 60 * 1000;
-    const threshold = new Date(now.getTime() - windowMs);
+    const overflowMinutes =
+      await this.policyReader.getCheckInOverflowMinutes();
+    const overflowMs = overflowMinutes * 60_000;
+    const threshold = new Date(now.getTime() - overflowMs);
     const sweptCount = await this.appointmentRepo.sweepLateness(threshold);
     if (sweptCount > 0) {
-      this.logger.log(`Swept ${sweptCount} appointments to LATE status`);
+      this.logger.log(
+        `Swept ${sweptCount} appointments to LATE status (threshold: ${overflowMinutes}m)`,
+      );
     }
     return sweptCount;
   }

@@ -17,20 +17,26 @@ export class AppointmentPolicyReader {
   }
 
   async getCheckInEarlyMinutes(): Promise<number> {
-    const thresholds = await this.clinicConfig.getQueueThresholds();
-    return thresholds.arriveEarlyMinutes;
+    return this.clinicConfig.getNumber('queue.arrive_early_minutes');
   }
 
   async getCheckInOverflowMinutes(): Promise<number> {
-    const thresholds = await this.clinicConfig.getQueueThresholds();
-    return thresholds.overflowToleranceMinutes;
+    return this.clinicConfig.getNumber('queue.overflow_tolerance_minutes');
   }
 
   async getCheckInReminderEnabled(): Promise<boolean> {
-    return this.clinicConfig.getCheckInReminderEnabled();
+    return this.clinicConfig.getBoolean('queue.check_in_reminder_enabled');
   }
 
   async getOperationalBroadcastEnabled(): Promise<boolean> {
-    return this.clinicConfig.getOperationalBroadcastEnabled();
+    return this.clinicConfig.getBoolean('queue.operational_broadcast_enabled');
+  }
+
+  async getNoShowGraceMinutes(): Promise<number> {
+    return this.clinicConfig.getNumber('queue.no_show_grace_minutes');
+  }
+
+  async getNoShowCallAttempts(): Promise<number> {
+    return this.clinicConfig.getNumber('queue.no_show_call_attempts');
   }
 }

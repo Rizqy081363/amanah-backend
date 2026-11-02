@@ -16,14 +16,14 @@ export interface IQueueEngineRepository {
   }): Promise<DomainQueueTicket | null>;
 
   getRecentCompletedDurations(params: {
-    categoryId?: string;
+    categoryId?: string | null;
     limit?: number;
   }): Promise<number[]>;
 
   getActiveLanesCount(params: {
     serviceDate: string;
     sessionId: string;
-    categoryId?: string;
+    categoryId?: string | null;
   }): Promise<number>;
 
   getTicketById(ticketId: string): Promise<DomainQueueTicket | null>;
@@ -31,7 +31,8 @@ export interface IQueueEngineRepository {
   findActiveTicketsBySession(params: {
     serviceDate: string;
     sessionId: string;
-    categoryId?: string;
+    categoryId?: string | null;
+    doctorId?: string | null;
   }): Promise<DomainQueueTicket[]>;
 
   batchUpdateProjections(
