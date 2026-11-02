@@ -325,6 +325,18 @@ export class KiaIntakeDrizzleRepository {
         const sub = await tx.query.medicalIntakeSubmissions.findFirst({
           where: eq(medicalIntakeSubmissions.id, existing.intakeSubmissionId),
         });
+        if (
+          sub?.appointmentId &&
+          (dto.answers?.complaint || dto.answers?.keluhanUtama)
+        ) {
+          await tx
+            .update(appointments)
+            .set({
+              complaint: dto.answers.complaint || dto.answers.keluhanUtama,
+              updatedAt: new Date().toISOString(),
+            })
+            .where(eq(appointments.id, sub.appointmentId));
+        }
         if (sub) {
           const mergedAnswers = {
             ...(sub.answers as Record<string, any>),
@@ -425,7 +437,10 @@ export class KiaIntakeDrizzleRepository {
       if (answers.complaint || answers.keluhanUtama) {
         await this.db
           .update(appointments)
-          .set({ complaint: answers.complaint || answers.keluhanUtama })
+          .set({
+            complaint: answers.complaint || answers.keluhanUtama,
+            updatedAt: new Date().toISOString(),
+          })
           .where(eq(appointments.id, id));
       }
       return {
