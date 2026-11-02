@@ -1,4 +1,4 @@
--- Migration 0078: Appointment Change Proposals and Dynamic Expiration Settings
+-- Migration 0080: Appointment Change Proposals and Dynamic Expiration Settings
 
 CREATE TABLE IF NOT EXISTS appointment_change_proposals (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

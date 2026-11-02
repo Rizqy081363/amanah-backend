@@ -112,6 +112,22 @@ export class CreatePatientAffiliationDto {
   email?: string;
 
   @ApiPropertyOptional({
+    example: '550e8400-e29b-41d4-a716-446655440000',
+    description: 'Patient ID jika memilih kontak darurat dari keluarga/afiliasi terdaftar',
+  })
+  @IsString()
+  @IsOptional()
+  emergencyContactPatientId?: string;
+
+  @ApiPropertyOptional({
+    example: '1f2520ae-3750-4f80-934a-52483379ca3f',
+    description: 'ID master data tipe relasi kontak darurat (UUID) jika dipilih dari katalog',
+  })
+  @IsString()
+  @IsOptional()
+  emergencyContactRelationshipTypeId?: string;
+
+  @ApiPropertyOptional({
     example: 'Ahmad Fauzi',
     description: 'Nama kontak darurat kerabat/keluarga',
   })

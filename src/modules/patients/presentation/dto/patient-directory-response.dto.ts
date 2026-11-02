@@ -63,6 +63,33 @@ export class PatientDirectoryItemDto {
   })
   fullAddress: string | null;
 
+  @ApiPropertyOptional({ description: 'Alamat jalan / detail', nullable: true })
+  line1?: string | null;
+
+  @ApiPropertyOptional({ description: 'Nama provinsi', nullable: true })
+  provinceName?: string | null;
+
+  @ApiPropertyOptional({ description: 'Kode provinsi', nullable: true })
+  provinceCode?: string | null;
+
+  @ApiPropertyOptional({ description: 'Nama kota/kabupaten', nullable: true })
+  regencyName?: string | null;
+
+  @ApiPropertyOptional({ description: 'Kode kota/kabupaten', nullable: true })
+  regencyCode?: string | null;
+
+  @ApiPropertyOptional({ description: 'Nama kecamatan', nullable: true })
+  districtName?: string | null;
+
+  @ApiPropertyOptional({ description: 'Kode kecamatan', nullable: true })
+  districtCode?: string | null;
+
+  @ApiPropertyOptional({ description: 'Nama kelurahan/desa', nullable: true })
+  villageName?: string | null;
+
+  @ApiPropertyOptional({ description: 'Kode kelurahan/desa', nullable: true })
+  villageCode?: string | null;
+
   @ApiProperty({
     enum: ['active', 'inactive', 'archived'],
     description: 'Status akun pasien',

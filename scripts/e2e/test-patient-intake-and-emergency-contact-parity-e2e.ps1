@@ -38,13 +38,14 @@ function Get-UserAuthByEmail([string]$email) {
     }
 }
 
-$patientAuth = Get-UserAuthByEmail "lexguarddidier@gmail.com"
+$patientAuth = Get-UserAuthByEmail "anasabiyyufalah@students.amikom.ac.id"
 $adminAuth = Get-UserAuthByEmail "admin@amanah.com"
 
 # Generate 16-digit unique NIKs for this test run
 $timeStr = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds().ToString().PadRight(10, '0').Substring(0, 10)
 $testNik1 = "320101$timeStr"
 $testNik2 = "320102$timeStr"
+$testNik3 = "320103$timeStr"
 $testEmail1 = "e2e.patient.$timeStr@example.com"
 $updatedEmail2 = "e2e.updated.$timeStr@example.com"
 
@@ -54,13 +55,19 @@ try {
     # --------------------------------------------------------------------------
     Write-Host "`n--- Step 1: Checking Canonical Intake Schema in Database ---" -ForegroundColor Yellow
     $schemaStepCount = Run-DockerSql "SELECT jsonb_array_length(schema->'steps') FROM clinical_intake_forms WHERE code = 'standard-registration';"
-    Assert-Test "Standard registration schema has exactly 13 steps" ($schemaStepCount.Trim() -eq "13") "Expected 13 steps, got: $schemaStepCount"
+    Assert-Test "Standard registration schema has exactly 12 steps" ($schemaStepCount.Trim() -eq "12") "Expected 12 steps, got: $schemaStepCount"
 
     $hasStepEmail = Run-DockerSql "SELECT EXISTS(SELECT 1 FROM clinical_intake_forms, jsonb_array_elements(schema->'steps') step WHERE code = 'standard-registration' AND step->>'id' = 'step_email');"
-    Assert-Test "Schema contains step_email" ($hasStepEmail.Trim() -eq "t") "step_email not found in schema"
+    Assert-Test "Schema correctly eliminated redundant standalone step_email" ($hasStepEmail.Trim() -eq "f") "Standalone step_email should have been eliminated"
 
     $hasStepEmergency = Run-DockerSql "SELECT EXISTS(SELECT 1 FROM clinical_intake_forms, jsonb_array_elements(schema->'steps') step WHERE code = 'standard-registration' AND step->>'id' = 'step_emergency_contact');"
     Assert-Test "Schema contains step_emergency_contact" ($hasStepEmergency.Trim() -eq "t") "step_emergency_contact not found in schema"
+
+    $relCatalogSource = Run-DockerSql "SELECT schema->'steps'->0->'fields'->0->'dataSource'->>'key' FROM clinical_intake_forms WHERE code = 'standard-registration';"
+    Assert-Test "Relationship field bound dynamically to 'relationships' catalog" ($relCatalogSource.Trim() -eq "relationships") "Expected relationships dataSource, got $relCatalogSource"
+
+    $emergencyRelSource = Run-DockerSql "SELECT field->'dataSource'->>'key' FROM clinical_intake_forms, jsonb_array_elements(schema->'steps') step, jsonb_array_elements(step->'fields') field WHERE code = 'standard-registration' AND field->>'id' = 'emergencyContactRelationship';"
+    Assert-Test "Emergency relationship field bound dynamically to 'relationships' catalog" ($emergencyRelSource.Trim() -eq "relationships") "Expected relationships dataSource, got $emergencyRelSource"
 
     # --------------------------------------------------------------------------
     # 2. Patient Affiliation Creation with Full Contact & Emergency Contact
@@ -134,6 +141,34 @@ try {
     Assert-Test "No emergency contact record created in DB" ($dbEmergencyCount.Trim() -eq "0") "Expected 0 records, got $dbEmergencyCount"
 
     # --------------------------------------------------------------------------
+    # 4b. Emergency Contact Resolution from Existing Affiliation (1-Click Reference)
+    # --------------------------------------------------------------------------
+    Write-Host "`n--- Step 4b: Create Affiliation Referencing Existing Patient as Emergency Contact ---" -ForegroundColor Yellow
+    $payload3 = @{
+        name = "E2E Pasien Referensi Darurat"
+        nik = $testNik3
+        birthDate = "1998-03-10"
+        birthPlace = "Surabaya"
+        gender = "male"
+        phone = "081999888777"
+        relationshipType = "anak"
+        relationLabel = "Anak Ketiga"
+        bloodType = "A"
+        line1 = "Jl. Diponegoro No. 10"
+        emergencyContactPatientId = $patientId1
+    } | ConvertTo-Json
+
+    $res3 = Invoke-RestMethod -Uri "$apiUrl/patients/affiliations" -Method Post -Body $payload3 -Headers $patientAuth.headers
+    $data3 = Get-ResponseData $res3
+    $patientId3 = $data3.patientId
+    if (-not $patientId3) { $patientId3 = $data3.patient.id }
+
+    Assert-Test "Affiliation with referenced emergency contact created successfully" (-not [string]::IsNullOrWhiteSpace($patientId3)) "Patient ID was empty"
+
+    $dbEmergencyResolved = Run-DockerSql "SELECT name || '|' || phone FROM patient_emergency_contacts WHERE patient_id = '$patientId3' LIMIT 1;"
+    Assert-Test "Database resolved emergency contact name and phone from patientId1" ($dbEmergencyResolved.Trim() -eq "E2E Pasien Kontak Lengkap|081234567890") "Expected E2E Pasien Kontak Lengkap|081234567890, got $dbEmergencyResolved"
+
+    # --------------------------------------------------------------------------
     # 5. Admin Patient Update Parity (Update Email)
     # --------------------------------------------------------------------------
     Write-Host "`n--- Step 5: Admin Updates Patient Email via PATCH /patients/:id ---" -ForegroundColor Yellow
@@ -172,6 +207,10 @@ try {
     if ($patientId2) {
         $clean2 = Run-DockerSql "DELETE FROM patient_emergency_contacts WHERE patient_id = '$patientId2'; DELETE FROM patient_affiliations WHERE patient_id = '$patientId2'; DELETE FROM patient_addresses WHERE patient_id = '$patientId2'; DELETE FROM patient_profiles WHERE id = '$patientId2';"
         Write-Host "Cleaned fixture 2: $patientId2" -ForegroundColor Gray
+    }
+    if ($patientId3) {
+        $clean3 = Run-DockerSql "DELETE FROM patient_emergency_contacts WHERE patient_id = '$patientId3'; DELETE FROM patient_affiliations WHERE patient_id = '$patientId3'; DELETE FROM patient_addresses WHERE patient_id = '$patientId3'; DELETE FROM patient_profiles WHERE id = '$patientId3';"
+        Write-Host "Cleaned fixture 3: $patientId3" -ForegroundColor Gray
     }
 }
 

@@ -51,6 +51,11 @@ import { PatientDirectoryResponseDto } from './dto/patient-directory-response.dt
 import { QueryPatientDto } from './dto/query-patient.dto';
 import { RegisterPatientDto } from './dto/register-patient.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
+import { zodPipe } from '../../../common/validation';
+import {
+  UpdatePatientSchema,
+  type UpdatePatientInput,
+} from './dto/update-patient.schema';
 
 @ApiTags('Patients (Data Pasien & Rekam Medis)')
 @ApiBearerAuth('access-token')
@@ -196,7 +201,7 @@ export class PatientsController {
   })
   async updateMyProfile(
     @CurrentUser() user: AuthenticatedUser,
-    @Body() body: UpdatePatientDto,
+    @Body(zodPipe(UpdatePatientSchema)) body: UpdatePatientInput,
   ) {
     const patient = await this.patientRepo.findByUserId(user.id);
     if (!patient) {
@@ -358,7 +363,7 @@ export class PatientsController {
   })
   async updatePatient(
     @Param('id') id: string,
-    @Body() body: UpdatePatientDto,
+    @Body(zodPipe(UpdatePatientSchema)) body: UpdatePatientInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
     const existing = await this.patientRepo.findById(id);

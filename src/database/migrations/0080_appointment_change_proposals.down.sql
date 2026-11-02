@@ -1,4 +1,4 @@
--- Migration Down 0078: Drop Appointment Change Proposals and Expiration Settings
+-- Migration Down 0080: Drop Appointment Change Proposals and Expiration Settings
 
 DROP TRIGGER IF EXISTS set_appointment_change_proposals_updated_at ON appointment_change_proposals;
 DROP TABLE IF EXISTS appointment_change_proposals CASCADE;

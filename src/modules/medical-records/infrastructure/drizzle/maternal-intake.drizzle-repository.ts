@@ -544,6 +544,43 @@ export class MaternalIntakeDrizzleRepository {
         .set(updateData)
         .where(eq(maternalHealthIntakes.id, maternalIntakeId));
 
+      // Synchronize appointment complaint and intake submission answers
+      if (existing.intakeSubmissionId) {
+        const sub = await tx.query.medicalIntakeSubmissions.findFirst({
+          where: eq(medicalIntakeSubmissions.id, existing.intakeSubmissionId),
+        });
+        if (sub?.appointmentId && dto.currentComplaints !== undefined) {
+          await tx
+            .update(appointments)
+            .set({
+              complaint: dto.currentComplaints,
+              updatedAt: new Date().toISOString(),
+            })
+            .where(eq(appointments.id, sub.appointmentId));
+        }
+        if (sub) {
+          const mergedAnswers = {
+            ...(sub.answers as Record<string, any>),
+            ...(dto.answers || {}),
+            ...(dto.currentComplaints !== undefined
+              ? {
+                  complaint: dto.currentComplaints,
+                  keluhanUtama: dto.currentComplaints,
+                }
+              : {}),
+          };
+          await tx
+            .update(medicalIntakeSubmissions)
+            .set({
+              answers: mergedAnswers,
+              updatedAt: new Date().toISOString(),
+            })
+            .where(
+              eq(medicalIntakeSubmissions.id, existing.intakeSubmissionId),
+            );
+        }
+      }
+
       // 2. Husband Profile
       if (dto.husband || dto.partnerName) {
         const husbandName = dto.husband?.fullName || dto.partnerName;

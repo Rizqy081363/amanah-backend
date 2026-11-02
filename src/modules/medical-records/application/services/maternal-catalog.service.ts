@@ -7,6 +7,7 @@ import {
   maternalQuestionOptions,
   maternalScreeningQuestions,
   occupations,
+  patientRelationshipTypes,
 } from '../../../../database/schema';
 import { BACKEND_BLOOD_TYPE_OPTIONS } from '../../../patients/domain/data/patient-reference.data';
 import {
@@ -102,6 +103,33 @@ export class MaternalCatalogService {
           }))
         : OCCUPATION_OPTIONS;
 
+    let relationshipsList: Array<{
+      code: string;
+      label: string;
+      id: string;
+      displayOrder: number;
+      isSystem: boolean;
+    }> = [];
+    try {
+      const activeRelations =
+        await this.db.query.patientRelationshipTypes.findMany({
+          where: eq(patientRelationshipTypes.isActive, true),
+          orderBy: [
+            asc(patientRelationshipTypes.displayOrder),
+            asc(patientRelationshipTypes.name),
+          ],
+        });
+      relationshipsList = activeRelations.map((r) => ({
+        code: r.code,
+        label: r.name,
+        id: r.id,
+        displayOrder: r.displayOrder,
+        isSystem: r.isSystem,
+      }));
+    } catch {
+      relationshipsList = [];
+    }
+
     return {
       educationLevels: EDUCATION_LEVEL_OPTIONS,
       religions: RELIGION_OPTIONS,
@@ -118,6 +146,7 @@ export class MaternalCatalogService {
       birthAttendants: BIRTH_ATTENDANT_OPTIONS,
       contraceptiveTypes: CONTRACEPTIVE_TYPE_OPTIONS,
       occupations: resolvedOccupations,
+      relationships: relationshipsList,
     };
   }
 }

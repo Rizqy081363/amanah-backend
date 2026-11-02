@@ -9,6 +9,8 @@ export class PatientAffiliationEntity {
   relationshipTypeId: string;
   relationshipType: PatientRelationshipType;
   relationLabel?: string | null;
+  iconName?: string | null;
+  isSystem?: boolean;
   isPrimary: boolean;
   createdAt: Date;
   updatedAt: Date;

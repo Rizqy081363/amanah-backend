@@ -55,6 +55,15 @@ import { GetMaternalHistoryQueryDto } from './dto/get-maternal-history-query.dto
 import { UpdateChildImmunizationIntakeDto } from './dto/update-child-immunization-intake.dto';
 import { UpdateMaternityIntakeDto } from './dto/update-maternity-intake.dto';
 import { UpdateMedicalIntakeDto } from './dto/update-medical-intake.dto';
+import { zodPipe } from '../../../common/validation';
+import {
+  UpdateMedicalIntakeSchema,
+  type UpdateMedicalIntakeInput,
+  UpdateMaternityIntakeSchema,
+  type UpdateMaternityIntakeInput,
+  UpdateChildImmunizationIntakeSchema,
+  type UpdateChildImmunizationIntakeInput,
+} from './dto/update-intake.schema';
 
 @ApiTags('Medical Intakes (Formulir Skrining, Imunisasi & Kehamilan)')
 @ApiBearerAuth('access-token')
@@ -367,7 +376,7 @@ export class MedicalIntakesController {
   })
   async updateMaternalIntakeById(
     @Param('id') id: string,
-    @Body() body: UpdateMaternityIntakeDto,
+    @Body(zodPipe(UpdateMaternityIntakeSchema)) body: UpdateMaternityIntakeInput,
   ) {
     const updated = await this.medicalRecordRepo.updateMaternalIntake(id, body);
     if (!updated) {
@@ -407,7 +416,8 @@ export class MedicalIntakesController {
   })
   async updateImmunizationIntakeById(
     @Param('id') id: string,
-    @Body() body: UpdateChildImmunizationIntakeDto,
+    @Body(zodPipe(UpdateChildImmunizationIntakeSchema))
+    body: UpdateChildImmunizationIntakeInput,
   ) {
     const updated = await this.medicalRecordRepo.updateImmunizationIntake(
       id,
@@ -478,7 +488,7 @@ export class MedicalIntakesController {
   })
   async updateIntakeById(
     @Param('id') id: string,
-    @Body() body: UpdateMedicalIntakeDto,
+    @Body(zodPipe(UpdateMedicalIntakeSchema)) body: UpdateMedicalIntakeInput,
   ) {
     const updated = await this.medicalRecordRepo.updateIntakeSubmission(
       id,

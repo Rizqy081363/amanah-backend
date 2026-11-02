@@ -1,6 +1,6 @@
 import { Controller, Get, Inject, Query } from '@nestjs/common';
 import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { asc, eq } from 'drizzle-orm';
+import { asc, eq, sql } from 'drizzle-orm';
 import { Public } from '../../../common/auth';
 import { DRIZZLE_SOURCE } from '../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../database/drizzle/drizzle.provider';
@@ -9,6 +9,9 @@ import {
   BACKEND_BLOOD_TYPE_OPTIONS,
   BACKEND_GENDER_OPTIONS,
   BACKEND_STATUS_OPTIONS,
+  formatBloodTypeDisplay,
+  getBloodTypeDescription,
+  ReferenceOption,
 } from '../domain/data/patient-reference.data';
 import { IndonesianRegionService } from '../infrastructure/services/indonesian-region.service';
 
@@ -22,25 +25,76 @@ export class PatientReferencesController {
     private readonly regionService: IndonesianRegionService,
   ) {}
 
+  private async fetchLiveBloodTypeOptions(): Promise<ReferenceOption[]> {
+    try {
+      const result = await this.db.execute(sql`
+        SELECT e.enumlabel
+        FROM pg_enum e
+        JOIN pg_type t ON e.enumtypid = t.oid
+        WHERE t.typname = 'blood_type'
+        ORDER BY e.enumsortorder ASC
+      `);
+      const rows = ((result as any)?.rows ?? (result as any) ?? []) as Array<{
+        enumlabel: string;
+      }>;
+      if (rows.length > 0) {
+        return rows.map((r) => ({
+          label: formatBloodTypeDisplay(r.enumlabel),
+          value: r.enumlabel,
+          description: getBloodTypeDescription(r.enumlabel),
+        }));
+      }
+    } catch {
+      // Fallback safe to schema definition if catalog query fails
+    }
+    return BACKEND_BLOOD_TYPE_OPTIONS;
+  }
+
+  private async fetchLiveGenderOptions(): Promise<ReferenceOption[]> {
+    try {
+      const result = await this.db.execute(sql`
+        SELECT e.enumlabel
+        FROM pg_enum e
+        JOIN pg_type t ON e.enumtypid = t.oid
+        WHERE t.typname = 'gender'
+        ORDER BY e.enumsortorder ASC
+      `);
+      const rows = ((result as any)?.rows ?? (result as any) ?? []) as Array<{
+        enumlabel: string;
+      }>;
+      if (rows.length > 0) {
+        return rows.map((r) => ({
+          label: r.enumlabel,
+          value: r.enumlabel,
+        }));
+      }
+    } catch {
+      // Fallback
+    }
+    return BACKEND_GENDER_OPTIONS;
+  }
+
   @Get('blood-types')
   @ApiOperation({
     summary: 'Mendapatkan referensi golongan darah standar medis',
   })
   @ApiResponse({ status: 200, description: 'Daftar golongan darah' })
-  getBloodTypes() {
+  async getBloodTypes() {
+    const data = await this.fetchLiveBloodTypeOptions();
     return {
       success: true,
-      data: BACKEND_BLOOD_TYPE_OPTIONS,
+      data,
     };
   }
 
   @Get('genders')
   @ApiOperation({ summary: 'Mendapatkan referensi jenis kelamin' })
   @ApiResponse({ status: 200, description: 'Daftar jenis kelamin' })
-  getGenders() {
+  async getGenders() {
+    const data = await this.fetchLiveGenderOptions();
     return {
       success: true,
-      data: BACKEND_GENDER_OPTIONS,
+      data,
     };
   }
 
@@ -74,6 +128,8 @@ export class PatientReferencesController {
         label: r.name,
         description: r.description,
         icon: r.iconName,
+        iconName: r.iconName,
+        isSystem: r.isSystem,
       })),
     };
   }
@@ -167,26 +223,29 @@ export class PatientReferencesController {
     description: 'Kumpulan referensi formulir pendaftaran',
   })
   async getAllFormOptions() {
-    const [occupationsList, relationshipsList, provinces] = await Promise.all([
-      this.db.query.occupations.findMany({
-        where: eq(occupations.isActive, true),
-        orderBy: [asc(occupations.displayOrder), asc(occupations.name)],
-      }),
-      this.db.query.patientRelationshipTypes.findMany({
-        where: eq(patientRelationshipTypes.isActive, true),
-        orderBy: [
-          asc(patientRelationshipTypes.displayOrder),
-          asc(patientRelationshipTypes.name),
-        ],
-      }),
-      this.regionService.getProvinces(),
-    ]);
+    const [occupationsList, relationshipsList, provinces, liveBloodTypes, liveGenders] =
+      await Promise.all([
+        this.db.query.occupations.findMany({
+          where: eq(occupations.isActive, true),
+          orderBy: [asc(occupations.displayOrder), asc(occupations.name)],
+        }),
+        this.db.query.patientRelationshipTypes.findMany({
+          where: eq(patientRelationshipTypes.isActive, true),
+          orderBy: [
+            asc(patientRelationshipTypes.displayOrder),
+            asc(patientRelationshipTypes.name),
+          ],
+        }),
+        this.regionService.getProvinces(),
+        this.fetchLiveBloodTypeOptions(),
+        this.fetchLiveGenderOptions(),
+      ]);
 
     return {
       success: true,
       data: {
-        bloodTypes: BACKEND_BLOOD_TYPE_OPTIONS,
-        genders: BACKEND_GENDER_OPTIONS,
+        bloodTypes: liveBloodTypes,
+        genders: liveGenders,
         statuses: BACKEND_STATUS_OPTIONS,
         relationships: relationshipsList.map((r) => ({
           id: r.id,
@@ -194,6 +253,8 @@ export class PatientReferencesController {
           label: r.name,
           description: r.description,
           icon: r.iconName,
+          iconName: r.iconName,
+          isSystem: r.isSystem,
         })),
         provinces,
         occupations: occupationsList.map((occ) => ({
