@@ -540,6 +540,13 @@
       "when": 1791360000000,
       "tag": "0076_clinical_intake_forms_jsonb_schema",
       "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1791361000000,
+      "tag": "0077_populate_canonical_intake_schemas",
+      "breakpoints": true
     }
   ]
 }
