@@ -93,6 +93,14 @@ export class UpdatePatientDto {
   phone?: string;
 
   @ApiPropertyOptional({
+    example: 'pasien@example.com',
+    description: 'Alamat email pasien (canonical)',
+  })
+  @IsString()
+  @IsOptional()
+  email?: string;
+
+  @ApiPropertyOptional({
     example: 'Karyawan Swasta',
     description: 'Profesi / pekerjaan pasien',
   })

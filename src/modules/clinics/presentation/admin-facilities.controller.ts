@@ -538,9 +538,10 @@ export class AdminFacilitiesController {
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
     @Body() body: Record<string, any>,
   ) {
-    const schema = body && typeof body === 'object' && 'schema' in body && body.schema !== undefined
-      ? body.schema
-      : body;
+    const schema =
+      body && typeof body === 'object' && 'schema' in body && body.schema !== undefined
+        ? body.schema
+        : body;
     return this.facilitiesService.updateForm(id, { schema });
   }
 

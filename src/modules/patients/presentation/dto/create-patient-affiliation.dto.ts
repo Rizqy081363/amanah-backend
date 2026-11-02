@@ -111,6 +111,30 @@ export class CreatePatientAffiliationDto {
   @IsOptional()
   email?: string;
 
+  @ApiPropertyOptional({
+    example: 'Ahmad Fauzi',
+    description: 'Nama kontak darurat kerabat/keluarga',
+  })
+  @IsString()
+  @IsOptional()
+  emergencyContactName?: string;
+
+  @ApiPropertyOptional({
+    example: '081298765432',
+    description: 'Nomor telepon kontak darurat',
+  })
+  @IsString()
+  @IsOptional()
+  emergencyContactPhone?: string;
+
+  @ApiPropertyOptional({
+    example: 'Suami',
+    description: 'Hubungan dengan kontak darurat',
+  })
+  @IsString()
+  @IsOptional()
+  emergencyContactRelationship?: string;
+
   @ApiPropertyOptional({ example: 'Jawa Barat' })
   @IsString()
   @IsOptional()

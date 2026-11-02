@@ -36,6 +36,7 @@ import { DrizzleDatabase } from '../../../database/drizzle/drizzle.provider';
 import {
   clinicServices,
   patientAddresses,
+  patientEmergencyContacts,
   patientProfiles,
   patientRelationshipTypes,
 } from '../../../database/schema';
@@ -81,6 +82,9 @@ function mapEnrichedPatient(aff: any) {
     relationshipLabel: aff.relationLabel || aff.relationshipType,
     occupationName: p?.occupation || null,
     status: pStatus,
+    emergencyContactName: p?.emergencyContactName || null,
+    emergencyContactPhone: p?.emergencyContactPhone || null,
+    emergencyContactRelationship: p?.emergencyContactRelationship || null,
     hasExistingIntake: false,
     latestIntakeId: null,
     latestIntakeDate: null,
@@ -280,6 +284,36 @@ export class PatientAffiliationsController {
             .set(updates)
             .where(eq(patientProfiles.id, existingPatient.id));
         }
+
+        if (dto.emergencyContactPhone?.trim()) {
+          const [existingEmergency] = await this.db
+            .select()
+            .from(patientEmergencyContacts)
+            .where(eq(patientEmergencyContacts.patientId, existingPatient.id))
+            .limit(1);
+
+          if (existingEmergency) {
+            await this.db
+              .update(patientEmergencyContacts)
+              .set({
+                name:
+                  dto.emergencyContactName?.trim() ?? existingEmergency.name,
+                phone: dto.emergencyContactPhone.trim(),
+                relationship:
+                  dto.emergencyContactRelationship?.trim() ??
+                  existingEmergency.relationship,
+                updatedAt: new Date().toISOString(),
+              })
+              .where(eq(patientEmergencyContacts.id, existingEmergency.id));
+          } else {
+            await this.db.insert(patientEmergencyContacts).values({
+              patientId: existingPatient.id,
+              name: dto.emergencyContactName?.trim() || null,
+              phone: dto.emergencyContactPhone.trim(),
+              relationship: dto.emergencyContactRelationship?.trim() || null,
+            });
+          }
+        }
       } else {
         // Generate MRN
         const now = new Date();
@@ -358,6 +392,15 @@ export class PatientAffiliationsController {
             line1: line1 || fullAddress,
             fullAddress,
             isPrimary: true,
+          });
+        }
+
+        if (dto.emergencyContactPhone?.trim()) {
+          await this.db.insert(patientEmergencyContacts).values({
+            patientId: newProfile.id,
+            name: dto.emergencyContactName?.trim() || null,
+            phone: dto.emergencyContactPhone.trim(),
+            relationship: dto.emergencyContactRelationship?.trim() || null,
           });
         }
       }

@@ -440,6 +440,8 @@ export class PatientDrizzleRepository implements PatientRepository {
 
     if (d.fullName !== undefined) updateValues.fullName = d.fullName.trim();
     if (d.phone !== undefined) updateValues.phone = d.phone.trim();
+    if (d.email !== undefined)
+      updateValues.email = d.email ? d.email.trim() : null;
     if (d.motherName !== undefined)
       updateValues.motherName = d.motherName.trim();
     if (d.birthPlace !== undefined)

@@ -377,32 +377,67 @@ export class KiaIntakeDrizzleRepository {
     id: string,
     answers: Record<string, any>,
   ): Promise<any> {
-    const existing = await this.db.query.medicalIntakeSubmissions.findFirst({
-      where: eq(medicalIntakeSubmissions.id, id),
+    let existing = await this.db.query.medicalIntakeSubmissions.findFirst({
+      where: or(
+        eq(medicalIntakeSubmissions.id, id),
+        eq(medicalIntakeSubmissions.appointmentId, id),
+      ),
     });
-    if (!existing) {
-      return null;
+
+    if (existing) {
+      if (existing.appointmentId) {
+        const app = await this.db.query.appointments.findFirst({
+          where: eq(appointments.id, existing.appointmentId),
+        });
+        if (app?.status === 'completed') {
+          throw new ForbiddenException(
+            'Rekam medis pada janji temu yang telah selesai bersifat terkunci dan tidak dapat diubah.',
+          );
+        }
+        if (answers.complaint || answers.keluhanUtama) {
+          await this.db
+            .update(appointments)
+            .set({ complaint: answers.complaint || answers.keluhanUtama })
+            .where(eq(appointments.id, existing.appointmentId));
+        }
+      }
+      const merged = {
+        ...(existing.answers as Record<string, any>),
+        ...answers,
+      };
+      const [updated] = await this.db
+        .update(medicalIntakeSubmissions)
+        .set({ answers: merged, updatedAt: new Date().toISOString() })
+        .where(eq(medicalIntakeSubmissions.id, existing.id))
+        .returning();
+      return updated;
     }
-    if (existing.appointmentId) {
-      const app = await this.db.query.appointments.findFirst({
-        where: eq(appointments.id, existing.appointmentId),
-      });
-      if (app?.status === 'completed') {
+
+    const app = await this.db.query.appointments.findFirst({
+      where: eq(appointments.id, id),
+    });
+    if (app) {
+      if (app.status === 'completed') {
         throw new ForbiddenException(
           'Rekam medis pada janji temu yang telah selesai bersifat terkunci dan tidak dapat diubah.',
         );
       }
+      if (answers.complaint || answers.keluhanUtama) {
+        await this.db
+          .update(appointments)
+          .set({ complaint: answers.complaint || answers.keluhanUtama })
+          .where(eq(appointments.id, id));
+      }
+      return {
+        id,
+        appointmentId: id,
+        flow: app.medicalFlow || 'regular',
+        answers,
+        success: true,
+      };
     }
-    const merged = {
-      ...(existing.answers as Record<string, any>),
-      ...answers,
-    };
-    const [updated] = await this.db
-      .update(medicalIntakeSubmissions)
-      .set({ answers: merged, updatedAt: new Date().toISOString() })
-      .where(eq(medicalIntakeSubmissions.id, id))
-      .returning();
-    return updated;
+
+    return null;
   }
 
   private mapImmunizationRecord(record: any) {
@@ -737,7 +772,7 @@ export class KiaIntakeDrizzleRepository {
 
     if (appt?.patientProfile) {
       return {
-        flow: appt.medicalFlow || null,
+        flow: appt.medicalFlow || 'regular',
         type: 'regular',
         data: {
           ...baseAppointmentData,
