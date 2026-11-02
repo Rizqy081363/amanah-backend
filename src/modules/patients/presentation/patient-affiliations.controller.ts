@@ -22,6 +22,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { asc, desc, eq, ilike } from 'drizzle-orm';
+import { z } from 'zod';
 import {
   AuthenticatedUser,
   CurrentUser,
@@ -29,12 +30,11 @@ import {
   PermissionsGuard,
   RequirePermissions,
 } from '../../../common/auth';
+import { ZodValidationPipe } from '../../../common/validation/zod-validation.pipe';
 import { DRIZZLE_SOURCE } from '../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../database/drizzle/drizzle.provider';
 import {
-  childImmunizationIntakes,
   clinicServices,
-  maternalHealthIntakes,
   patientAddresses,
   patientProfiles,
   patientRelationshipTypes,
@@ -50,16 +50,13 @@ import {
 } from '../domain/repositories/patient-affiliation.repository';
 import { CreatePatientAffiliationDto } from './dto/create-patient-affiliation.dto';
 
-function mapEnrichedPatient(
-  aff: any,
-  latestIntake?: { id: string; createdAt: any } | null,
-  forceIntakeTrue = false,
-) {
+function mapEnrichedPatient(aff: any) {
   const p = aff.patient;
   const pStatus = p?.status || 'active';
   return {
     id: aff.patientId,
     affiliationId: aff.id,
+    isPrimary: aff.isPrimary ?? false,
     fullName: p?.fullName || '',
     nik: p?.nik || '',
     gender: p?.gender || null,
@@ -84,9 +81,9 @@ function mapEnrichedPatient(
     relationshipLabel: aff.relationLabel || aff.relationshipType,
     occupationName: p?.occupation || null,
     status: pStatus,
-    hasExistingIntake: forceIntakeTrue ? true : Boolean(latestIntake),
-    latestIntakeId: latestIntake?.id || null,
-    latestIntakeDate: latestIntake?.createdAt || null,
+    hasExistingIntake: false,
+    latestIntakeId: null,
+    latestIntakeDate: null,
   };
 }
 
@@ -105,20 +102,20 @@ export class PatientAffiliationsController {
   ) {}
 
   @Get('booking-context')
-  @RequirePermissions('appointments:read', 'patients:read')
+  @RequirePermissions('appointments:read', 'appointments:book')
   @ApiOperation({
     summary: 'Mendapatkan konteks formulir dan daftar pasien sesuai layanan',
   })
   async getBookingContext(
     @CurrentUser() user: AuthenticatedUser,
-    @Query('serviceId') serviceId: string,
+    @Query(
+      'serviceId',
+      new ZodValidationPipe(
+        z.string().uuid('serviceId harus berformat UUID v4 valid'),
+      ),
+    )
+    serviceId: string,
   ) {
-    if (!serviceId) {
-      throw new BadRequestException({
-        code: 'SERVICE_ID_REQUIRED',
-        message: 'serviceId wajib disertakan',
-      });
-    }
 
     const service = await this.db.query.clinicServices.findFirst({
       where: eq(clinicServices.id, serviceId),
@@ -134,8 +131,12 @@ export class PatientAffiliationsController {
       });
     }
 
-    const flow = service.intakeForm?.code || 'general';
-    const formType = flow === 'general' ? 'regular' : flow;
+    const hasIntakeForm = Boolean(
+      service.intakeFormId && service.intakeForm?.isActive,
+    );
+    const intakeFormCode = hasIntakeForm ? service.intakeForm!.code : null;
+    const intakeFormName = hasIntakeForm ? service.intakeForm!.name : null;
+    const formType = intakeFormCode || 'regular';
 
     const rawAffiliations = await this.affiliationRepo.findByUserId(user.id);
     const hasExistingPrimary = rawAffiliations.some((aff) => aff.isPrimary);
@@ -166,63 +167,19 @@ export class PatientAffiliationsController {
       }
     }
 
-    let enrichedPatients: any[] = [];
-
-    if (flow === 'pregnancy') {
-      const validAffiliations = rawAffiliations.filter((aff) => {
-        const pGender = aff.patient?.gender;
-        return pGender !== 'male';
-      });
-
-      enrichedPatients = await Promise.all(
-        validAffiliations.map(async (aff) => {
-          const [latestIntake] = await this.db
-            .select({
-              id: maternalHealthIntakes.id,
-              createdAt: maternalHealthIntakes.createdAt,
-            })
-            .from(maternalHealthIntakes)
-            .where(eq(maternalHealthIntakes.patientId, aff.patientId))
-            .orderBy(desc(maternalHealthIntakes.createdAt))
-            .limit(1);
-
-          return mapEnrichedPatient(aff, latestIntake);
-        }),
-      );
-    } else if (flow === 'immunization') {
-      const validAffiliations = rawAffiliations.filter(
-        (aff) => !aff.isPrimary,
-      );
-
-      enrichedPatients = await Promise.all(
-        validAffiliations.map(async (aff) => {
-          const [latestIntake] = await this.db
-            .select({
-              id: childImmunizationIntakes.id,
-              createdAt: childImmunizationIntakes.createdAt,
-            })
-            .from(childImmunizationIntakes)
-            .where(eq(childImmunizationIntakes.patientId, aff.patientId))
-            .orderBy(desc(childImmunizationIntakes.createdAt))
-            .limit(1);
-
-          return mapEnrichedPatient(aff, latestIntake);
-        }),
-      );
-    } else {
-      enrichedPatients = rawAffiliations.map((aff) =>
-        mapEnrichedPatient(aff, null, true),
-      );
-    }
+    const enrichedPatients = rawAffiliations.map((aff) =>
+      mapEnrichedPatient(aff),
+    );
 
     return {
       success: true,
       data: {
         serviceId: service.id,
         serviceName: service.name,
+        hasIntakeForm,
         intakeFormId: service.intakeFormId || null,
-        intakeFormCode: service.intakeForm?.code || null,
-        intakeFormName: service.intakeForm?.name || null,
+        intakeFormCode,
+        intakeFormName,
         formType,
         allowedRelationships,
         patients: enrichedPatients,
@@ -429,7 +386,13 @@ export class PatientAffiliationsController {
   })
   async deleteAffiliation(
     @CurrentUser() user: AuthenticatedUser,
-    @Param('patientId') patientId: string,
+    @Param(
+      'patientId',
+      new ZodValidationPipe(
+        z.string().uuid('patientId harus berformat UUID v4 valid'),
+      ),
+    )
+    patientId: string,
   ) {
     const existing = await this.affiliationRepo.findByUserAndPatient(
       user.id,

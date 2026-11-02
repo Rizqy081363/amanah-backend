@@ -106,120 +106,91 @@ export class FormRequirementService {
     const patientNik =
       patient.nationalIdEncrypted || patient.nationalIdHash || '';
 
-    if (flow === 'immunization') {
-      const [latestIntake] = await this.db
-        .select()
-        .from(childImmunizationIntakes)
-        .where(eq(childImmunizationIntakes.patientId, patientId))
-        .orderBy(desc(childImmunizationIntakes.createdAt))
-        .limit(1);
+    const reusableIdentity: Record<string, any> = {
+      fullName: patient.fullName,
+      nik: patientNik,
+      birthDate: patient.birthDate,
+      gender: normalizedGender,
+      bloodType: normalizedBlood,
+      motherName: patient.motherName || '',
+      motherNik: patientNik,
+      motherBirthDate: patient.birthDate,
+      motherBloodType: normalizedBlood,
+      childName: patient.fullName,
+      childNik: patientNik,
+      childBirthDate: patient.birthDate,
+      childSex: normalizedGender,
+    };
 
-      const reusableIdentity = {
-        childName: patient.fullName,
-        childNik: patientNik,
-        childBirthDate: patient.birthDate,
-        childSex: normalizedGender,
-        motherName: patient.motherName || latestIntake?.motherName || '',
-        bloodType: normalizedBlood,
-      };
+    const prefilledValues: Record<string, any> = {
+      phone: patient.phone || user?.phone || '',
+      email: patient.email || user?.email || '',
+      address: addressText,
+      phoneNumber: patient.phone || user?.phone || '',
+      parentPhone: patient.phone || user?.phone || '',
+      domicileAddress: addressText,
+      identityCardAddress: addressText,
+      childAddress: addressText,
+      motherJob: patient.occupation || '',
+    };
 
-      const prefilledValues = {
-        parentPhone:
-          latestIntake?.parentPhone || patient.phone || user?.phone || '',
-        motherName: patient.motherName || latestIntake?.motherName || '',
-        fatherName: latestIntake?.fatherName || '',
-        childAddress: latestIntake?.childAddress || addressText,
-      };
+    const omittedFieldIds = [
+      'fullName',
+      'nik',
+      'birthDate',
+      'gender',
+      'bloodType',
+      'motherName',
+      'motherNik',
+      'motherBirthDate',
+      'motherBloodType',
+      'childName',
+      'childNik',
+      'childBirthDate',
+      'childSex',
+    ];
 
-      const omittedFieldIds = [
-        'childName',
-        'childNik',
-        'childBirthDate',
-        'childSex',
-      ];
+    // Enrich with any previous clinical intake records for this patient
+    const [latestMaternal] = await this.db
+      .select()
+      .from(maternalHealthIntakes)
+      .where(eq(maternalHealthIntakes.patientId, patientId))
+      .orderBy(desc(maternalHealthIntakes.createdAt))
+      .limit(1);
 
-      return {
-        flow,
-        serviceId: service.id,
-        serviceName: service.name,
-        isExistingPatient: true,
-        patientId: patient.id,
-        patientName: patient.fullName,
-        reusableIdentity,
-        prefilledValues,
-        omittedFieldIds,
-      };
+    if (latestMaternal) {
+      if (latestMaternal.partnerName) prefilledValues.partnerName = latestMaternal.partnerName;
+      if (latestMaternal.partnerNik) prefilledValues.partnerNik = latestMaternal.partnerNik;
+      if (latestMaternal.partnerJob) prefilledValues.partnerJob = latestMaternal.partnerJob;
+      if (latestMaternal.partnerBloodType) prefilledValues.partnerBloodType = latestMaternal.partnerBloodType;
+      if (latestMaternal.motherEducation) prefilledValues.motherEducation = latestMaternal.motherEducation;
+      if (latestMaternal.religion) prefilledValues.religion = latestMaternal.religion;
     }
 
-    if (flow === 'pregnancy') {
-      const [latestIntake] = await this.db
-        .select()
-        .from(maternalHealthIntakes)
-        .where(eq(maternalHealthIntakes.patientId, patientId))
-        .orderBy(desc(maternalHealthIntakes.createdAt))
-        .limit(1);
+    const [latestImmunization] = await this.db
+      .select()
+      .from(childImmunizationIntakes)
+      .where(eq(childImmunizationIntakes.patientId, patientId))
+      .orderBy(desc(childImmunizationIntakes.createdAt))
+      .limit(1);
 
-      const reusableIdentity = {
-        motherName: patient.fullName,
-        motherNik: patientNik,
-        motherBirthDate: patient.birthDate,
-        motherBloodType: normalizedBlood,
-      };
-
-      const prefilledValues = {
-        phoneNumber:
-          latestIntake?.phoneNumber || patient.phone || user?.phone || '',
-        domicileAddress: latestIntake?.domicileAddress || addressText,
-        identityCardAddress: latestIntake?.identityCardAddress || addressText,
-        partnerName: latestIntake?.partnerName || '',
-        partnerNik: latestIntake?.partnerNik || '',
-        partnerJob: latestIntake?.partnerJob || '',
-        partnerBloodType: latestIntake?.partnerBloodType || 'unknown',
-        motherJob: latestIntake?.motherJob || patient.occupation || '',
-        motherEducation: latestIntake?.motherEducation || '',
-        religion: latestIntake?.religion || '',
-      };
-
-      const omittedFieldIds = [
-        'motherName',
-        'motherNik',
-        'motherBirthDate',
-        'motherBloodType',
-      ];
-
-      return {
-        flow,
-        serviceId: service.id,
-        serviceName: service.name,
-        isExistingPatient: true,
-        patientId: patient.id,
-        patientName: patient.fullName,
-        reusableIdentity,
-        prefilledValues,
-        omittedFieldIds,
-      };
+    if (latestImmunization) {
+      if (latestImmunization.fatherName) prefilledValues.fatherName = latestImmunization.fatherName;
+      if (latestImmunization.motherName && !reusableIdentity.motherName) {
+        reusableIdentity.motherName = latestImmunization.motherName;
+      }
     }
 
     return {
-      flow: 'general',
+      flow,
       serviceId: service.id,
       serviceName: service.name,
       isExistingPatient: true,
       patientId: patient.id,
       patientName: patient.fullName,
-      reusableIdentity: {
-        fullName: patient.fullName,
-        nik: patientNik,
-        birthDate: patient.birthDate,
-        gender: normalizedGender,
-        bloodType: normalizedBlood,
-      },
-      prefilledValues: {
-        phone: patient.phone || user?.phone || '',
-        email: patient.email || user?.email || '',
-        address: addressText,
-      },
-      omittedFieldIds: ['fullName', 'nik', 'birthDate', 'gender', 'bloodType'],
+      reusableIdentity,
+      prefilledValues,
+      omittedFieldIds,
     };
   }
 }

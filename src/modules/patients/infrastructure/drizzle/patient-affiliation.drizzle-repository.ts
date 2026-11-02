@@ -53,7 +53,8 @@ export class PatientAffiliationDrizzleRepository
         (record.relationshipType?.code as PatientRelationshipType) ||
         record.relationLabel ||
         '';
-      entity.relationLabel = record.relationLabel;
+      entity.relationLabel =
+        record.relationLabel || record.relationshipType?.name || null;
       entity.isPrimary = record.isPrimary;
       entity.createdAt = new Date(record.createdAt);
       entity.updatedAt = new Date(record.updatedAt);
@@ -95,7 +96,8 @@ export class PatientAffiliationDrizzleRepository
       (record.relationshipType?.code as PatientRelationshipType) ||
       record.relationLabel ||
       '';
-    entity.relationLabel = record.relationLabel;
+    entity.relationLabel =
+      record.relationLabel || record.relationshipType?.name || null;
     entity.isPrimary = record.isPrimary;
     entity.createdAt = new Date(record.createdAt);
     entity.updatedAt = new Date(record.updatedAt);
