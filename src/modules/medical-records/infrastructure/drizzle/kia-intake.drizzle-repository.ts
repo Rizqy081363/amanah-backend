@@ -551,9 +551,7 @@ export class KiaIntakeDrizzleRepository {
     const isPrimaryAccount = Boolean(
       profile.user?.id ||
         aff?.isPrimary ||
-        aff?.relationshipType?.isSystem ||
-        relType === 'self' ||
-        relType === 'diri_sendiri',
+        aff?.relationshipType?.isSystem,
     );
 
     let relationshipContext: string | null = null;

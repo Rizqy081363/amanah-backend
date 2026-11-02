@@ -83,6 +83,9 @@ function mapEnrichedPatient(aff: any) {
     relationship: aff.relationshipType,
     relationshipLabel: aff.relationLabel || aff.relationshipType,
     relationshipTypeId: aff.relationshipTypeId,
+    icon: (aff as any).iconName || null,
+    iconName: (aff as any).iconName || null,
+    isSystem: Boolean((aff as any).isSystem || aff.isPrimary),
     occupationName: p?.occupation || null,
     status: pStatus,
     emergencyContactName: p?.emergencyContactName || null,
@@ -161,6 +164,7 @@ export class PatientAffiliationsController {
       id: t.id,
       value: t.code,
       label: t.name,
+      icon: t.iconName,
       iconName: t.iconName,
       description: t.description || undefined,
       isSystem: t.isSystem,
@@ -263,10 +267,7 @@ export class PatientAffiliationsController {
     }
 
     const isSelfProfile = Boolean(
-      dto.isPrimary ||
-        relTypeRecord?.isSystem ||
-        dto.relationshipType === 'diri_sendiri' ||
-        dto.relationshipType === 'self',
+      dto.isPrimary || relTypeRecord?.isSystem,
     );
     const resolvedEmail =
       dto.email?.trim() || (isSelfProfile ? user.email : null);

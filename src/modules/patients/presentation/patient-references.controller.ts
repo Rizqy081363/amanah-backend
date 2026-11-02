@@ -74,6 +74,7 @@ export class PatientReferencesController {
         label: r.name,
         description: r.description,
         icon: r.iconName,
+        iconName: r.iconName,
         isSystem: r.isSystem,
       })),
     };
@@ -195,6 +196,7 @@ export class PatientReferencesController {
           label: r.name,
           description: r.description,
           icon: r.iconName,
+          iconName: r.iconName,
           isSystem: r.isSystem,
         })),
         provinces,
