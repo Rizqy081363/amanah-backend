@@ -160,6 +160,7 @@ export class PatientAffiliationsController {
       label: t.name,
       iconName: t.iconName,
       description: t.description || undefined,
+      isSystem: t.isSystem,
     }));
 
     if (hasExistingPrimary) {
@@ -190,6 +191,12 @@ export class PatientAffiliationsController {
         patients: enrichedPatients,
         totalPatients: enrichedPatients.length,
         hasExistingPatient: enrichedPatients.length > 0,
+        currentUser: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          phone: user.phone || null,
+        },
       },
     };
   }
@@ -236,6 +243,43 @@ export class PatientAffiliationsController {
       }
     }
 
+    const isSelfProfile = Boolean(
+      dto.isPrimary ||
+        dto.relationshipType === 'diri_sendiri' ||
+        dto.relationshipType === 'self',
+    );
+    const resolvedEmail =
+      dto.email?.trim() || (isSelfProfile ? user.email : null);
+
+    let resolvedEmergencyName = dto.emergencyContactName?.trim() || null;
+    let resolvedEmergencyPhone = dto.emergencyContactPhone?.trim() || null;
+    let resolvedEmergencyRelationship =
+      dto.emergencyContactRelationship?.trim() || null;
+
+    if (dto.emergencyContactPatientId) {
+      const referencedPatient = await this.db.query.patientProfiles.findFirst({
+        where: eq(patientProfiles.id, dto.emergencyContactPatientId),
+      });
+      if (referencedPatient) {
+        resolvedEmergencyName = referencedPatient.fullName;
+        resolvedEmergencyPhone =
+          referencedPatient.phone || resolvedEmergencyPhone;
+      }
+    }
+
+    if (dto.emergencyContactRelationshipTypeId) {
+      const referencedRelType =
+        await this.db.query.patientRelationshipTypes.findFirst({
+          where: eq(
+            patientRelationshipTypes.id,
+            dto.emergencyContactRelationshipTypeId,
+          ),
+        });
+      if (referencedRelType) {
+        resolvedEmergencyRelationship = referencedRelType.name;
+      }
+    }
+
     let targetPatientId = dto.patientId;
 
     if (!targetPatientId) {
@@ -274,8 +318,8 @@ export class PatientAffiliationsController {
         if (dto.phone?.trim() && dto.phone.trim() !== existingPatient.phone) {
           updates.phone = dto.phone.trim();
         }
-        if (dto.email?.trim() && dto.email.trim() !== existingPatient.email) {
-          updates.email = dto.email.trim();
+        if (resolvedEmail && resolvedEmail !== existingPatient.email) {
+          updates.email = resolvedEmail;
         }
         if (Object.keys(updates).length > 0) {
           updates.updatedAt = new Date().toISOString();
@@ -285,7 +329,7 @@ export class PatientAffiliationsController {
             .where(eq(patientProfiles.id, existingPatient.id));
         }
 
-        if (dto.emergencyContactPhone?.trim()) {
+        if (resolvedEmergencyPhone) {
           const [existingEmergency] = await this.db
             .select()
             .from(patientEmergencyContacts)
@@ -296,11 +340,10 @@ export class PatientAffiliationsController {
             await this.db
               .update(patientEmergencyContacts)
               .set({
-                name:
-                  dto.emergencyContactName?.trim() ?? existingEmergency.name,
-                phone: dto.emergencyContactPhone.trim(),
+                name: resolvedEmergencyName ?? existingEmergency.name,
+                phone: resolvedEmergencyPhone,
                 relationship:
-                  dto.emergencyContactRelationship?.trim() ??
+                  resolvedEmergencyRelationship ??
                   existingEmergency.relationship,
                 updatedAt: new Date().toISOString(),
               })
@@ -308,9 +351,9 @@ export class PatientAffiliationsController {
           } else {
             await this.db.insert(patientEmergencyContacts).values({
               patientId: existingPatient.id,
-              name: dto.emergencyContactName?.trim() || null,
-              phone: dto.emergencyContactPhone.trim(),
-              relationship: dto.emergencyContactRelationship?.trim() || null,
+              name: resolvedEmergencyName,
+              phone: resolvedEmergencyPhone,
+              relationship: resolvedEmergencyRelationship,
             });
           }
         }
@@ -344,7 +387,7 @@ export class PatientAffiliationsController {
         const [newProfile] = await this.db
           .insert(patientProfiles)
           .values({
-            userId: dto.isPrimary ? user.id : null,
+            userId: isSelfProfile ? user.id : null,
             occupationId: dto.occupationId || null,
             medicalRecordNumber: rmNumber,
             nationalIdEncrypted: dto.nik,
@@ -354,8 +397,8 @@ export class PatientAffiliationsController {
             birthPlace: dto.birthPlace?.trim() || '',
             birthDate: dto.birthDate,
             bloodType: dbBloodType,
-            phone: dto.phone?.trim() || null,
-            email: dto.email?.trim() || null,
+            phone: dto.phone?.trim() || (isSelfProfile ? (user.phone || user.patient?.phoneNumber || null) : null),
+            email: resolvedEmail,
             motherName: dto.motherName?.trim() || null,
             occupation: dto.occupation?.trim() || null,
             status: 'active',
@@ -395,12 +438,12 @@ export class PatientAffiliationsController {
           });
         }
 
-        if (dto.emergencyContactPhone?.trim()) {
+        if (resolvedEmergencyPhone) {
           await this.db.insert(patientEmergencyContacts).values({
             patientId: newProfile.id,
-            name: dto.emergencyContactName?.trim() || null,
-            phone: dto.emergencyContactPhone.trim(),
-            relationship: dto.emergencyContactRelationship?.trim() || null,
+            name: resolvedEmergencyName,
+            phone: resolvedEmergencyPhone,
+            relationship: resolvedEmergencyRelationship,
           });
         }
       }

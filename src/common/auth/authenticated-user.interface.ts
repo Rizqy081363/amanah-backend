@@ -51,6 +51,7 @@ export interface AuthenticatedUser {
   id: string;
   email: string;
   name: string;
+  phone?: string | null;
   systemRole?: string;
   roleCode: string;
   roles: string[];
