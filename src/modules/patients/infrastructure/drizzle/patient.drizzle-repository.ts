@@ -844,6 +844,69 @@ export class PatientDrizzleRepository implements PatientRepository {
           ORDER BY is_primary DESC, created_at DESC
           LIMIT 1
         )`,
+        line1: sql<string | null>`(
+          SELECT line1
+          FROM patient_addresses
+          WHERE patient_addresses.patient_id = patient_profiles.id
+          ORDER BY is_primary DESC, created_at DESC
+          LIMIT 1
+        )`,
+        provinceCode: sql<string | null>`(
+          SELECT province_code
+          FROM patient_addresses
+          WHERE patient_addresses.patient_id = patient_profiles.id
+          ORDER BY is_primary DESC, created_at DESC
+          LIMIT 1
+        )`,
+        provinceName: sql<string | null>`(
+          SELECT province_name
+          FROM patient_addresses
+          WHERE patient_addresses.patient_id = patient_profiles.id
+          ORDER BY is_primary DESC, created_at DESC
+          LIMIT 1
+        )`,
+        regencyCode: sql<string | null>`(
+          SELECT regency_code
+          FROM patient_addresses
+          WHERE patient_addresses.patient_id = patient_profiles.id
+          ORDER BY is_primary DESC, created_at DESC
+          LIMIT 1
+        )`,
+        regencyName: sql<string | null>`(
+          SELECT regency_name
+          FROM patient_addresses
+          WHERE patient_addresses.patient_id = patient_profiles.id
+          ORDER BY is_primary DESC, created_at DESC
+          LIMIT 1
+        )`,
+        districtCode: sql<string | null>`(
+          SELECT district_code
+          FROM patient_addresses
+          WHERE patient_addresses.patient_id = patient_profiles.id
+          ORDER BY is_primary DESC, created_at DESC
+          LIMIT 1
+        )`,
+        districtName: sql<string | null>`(
+          SELECT district_name
+          FROM patient_addresses
+          WHERE patient_addresses.patient_id = patient_profiles.id
+          ORDER BY is_primary DESC, created_at DESC
+          LIMIT 1
+        )`,
+        villageCode: sql<string | null>`(
+          SELECT village_code
+          FROM patient_addresses
+          WHERE patient_addresses.patient_id = patient_profiles.id
+          ORDER BY is_primary DESC, created_at DESC
+          LIMIT 1
+        )`,
+        villageName: sql<string | null>`(
+          SELECT village_name
+          FROM patient_addresses
+          WHERE patient_addresses.patient_id = patient_profiles.id
+          ORDER BY is_primary DESC, created_at DESC
+          LIMIT 1
+        )`,
         totalAppointments: sql<number>`(
           SELECT count(*)::int
           FROM appointments
@@ -971,6 +1034,15 @@ export class PatientDrizzleRepository implements PatientRepository {
         email: r.email || null,
         phone: r.phone,
         fullAddress: r.fullAddress,
+        line1: r.line1 || null,
+        provinceName: r.provinceName || null,
+        provinceCode: r.provinceCode || null,
+        regencyName: r.regencyName || null,
+        regencyCode: r.regencyCode || null,
+        districtName: r.districtName || null,
+        districtCode: r.districtCode || null,
+        villageName: r.villageName || null,
+        villageCode: r.villageCode || null,
         status: r.status,
         isMaster,
         hasOwnAccount: Boolean(r.hasOwnAccount ?? r.userId),
@@ -1039,6 +1111,69 @@ export class PatientDrizzleRepository implements PatientRepository {
             hasOwnAccount: sql<boolean>`${patientProfiles.userId} IS NOT NULL`,
             fullAddress: sql<string | null>`(
               SELECT COALESCE(full_address, line1)
+              FROM patient_addresses
+              WHERE patient_addresses.patient_id = patient_profiles.id
+              ORDER BY is_primary DESC, created_at DESC
+              LIMIT 1
+            )`,
+            line1: sql<string | null>`(
+              SELECT line1
+              FROM patient_addresses
+              WHERE patient_addresses.patient_id = patient_profiles.id
+              ORDER BY is_primary DESC, created_at DESC
+              LIMIT 1
+            )`,
+            provinceCode: sql<string | null>`(
+              SELECT province_code
+              FROM patient_addresses
+              WHERE patient_addresses.patient_id = patient_profiles.id
+              ORDER BY is_primary DESC, created_at DESC
+              LIMIT 1
+            )`,
+            provinceName: sql<string | null>`(
+              SELECT province_name
+              FROM patient_addresses
+              WHERE patient_addresses.patient_id = patient_profiles.id
+              ORDER BY is_primary DESC, created_at DESC
+              LIMIT 1
+            )`,
+            regencyCode: sql<string | null>`(
+              SELECT regency_code
+              FROM patient_addresses
+              WHERE patient_addresses.patient_id = patient_profiles.id
+              ORDER BY is_primary DESC, created_at DESC
+              LIMIT 1
+            )`,
+            regencyName: sql<string | null>`(
+              SELECT regency_name
+              FROM patient_addresses
+              WHERE patient_addresses.patient_id = patient_profiles.id
+              ORDER BY is_primary DESC, created_at DESC
+              LIMIT 1
+            )`,
+            districtCode: sql<string | null>`(
+              SELECT district_code
+              FROM patient_addresses
+              WHERE patient_addresses.patient_id = patient_profiles.id
+              ORDER BY is_primary DESC, created_at DESC
+              LIMIT 1
+            )`,
+            districtName: sql<string | null>`(
+              SELECT district_name
+              FROM patient_addresses
+              WHERE patient_addresses.patient_id = patient_profiles.id
+              ORDER BY is_primary DESC, created_at DESC
+              LIMIT 1
+            )`,
+            villageCode: sql<string | null>`(
+              SELECT village_code
+              FROM patient_addresses
+              WHERE patient_addresses.patient_id = patient_profiles.id
+              ORDER BY is_primary DESC, created_at DESC
+              LIMIT 1
+            )`,
+            villageName: sql<string | null>`(
+              SELECT village_name
               FROM patient_addresses
               WHERE patient_addresses.patient_id = patient_profiles.id
               ORDER BY is_primary DESC, created_at DESC

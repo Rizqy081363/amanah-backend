@@ -66,20 +66,23 @@ function mapEnrichedPatient(aff: any) {
     birthDate: p?.birthDate || null,
     motherName: p?.motherName || null,
     address: p?.fullAddress || null,
+    fullAddress: p?.fullAddress || null,
+    line1: p?.line1 || null,
     alamatDetail: p?.line1 || null,
-    provinsi: p?.provinsi || null,
-    provinsiId: p?.provinsiId || null,
-    kabupaten: p?.kabupaten || null,
-    kabupatenId: p?.kabupatenId || null,
-    kecamatan: p?.kecamatan || null,
-    kecamatanId: p?.kecamatanId || null,
-    kelurahan: p?.kelurahan || null,
-    kelurahanId: p?.kelurahanId || null,
+    provinceName: p?.provinceName || null,
+    provinceCode: p?.provinceCode || null,
+    regencyName: p?.regencyName || null,
+    regencyCode: p?.regencyCode || null,
+    districtName: p?.districtName || null,
+    districtCode: p?.districtCode || null,
+    villageName: p?.villageName || null,
+    villageCode: p?.villageCode || null,
     phoneNumber: p?.phone || null,
     phone: p?.phone || null,
     email: p?.email || null,
     relationship: aff.relationshipType,
     relationshipLabel: aff.relationLabel || aff.relationshipType,
+    relationshipTypeId: aff.relationshipTypeId,
     occupationName: p?.occupation || null,
     status: pStatus,
     emergencyContactName: p?.emergencyContactName || null,
@@ -243,8 +246,25 @@ export class PatientAffiliationsController {
       }
     }
 
+    let relTypeRecord: any = null;
+    if (dto.relationshipTypeId) {
+      relTypeRecord = await this.db.query.patientRelationshipTypes.findFirst({
+        where: eq(patientRelationshipTypes.id, dto.relationshipTypeId),
+      });
+    } else if (dto.relationshipType) {
+      relTypeRecord = await this.db.query.patientRelationshipTypes.findFirst({
+        where: eq(patientRelationshipTypes.code, dto.relationshipType),
+      });
+    }
+
+    if (relTypeRecord) {
+      if (!dto.relationshipTypeId) dto.relationshipTypeId = relTypeRecord.id;
+      if (!dto.relationshipType) dto.relationshipType = relTypeRecord.code;
+    }
+
     const isSelfProfile = Boolean(
       dto.isPrimary ||
+        relTypeRecord?.isSystem ||
         dto.relationshipType === 'diri_sendiri' ||
         dto.relationshipType === 'self',
     );

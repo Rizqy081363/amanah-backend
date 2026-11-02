@@ -74,6 +74,7 @@ export class PatientReferencesController {
         label: r.name,
         description: r.description,
         icon: r.iconName,
+        isSystem: r.isSystem,
       })),
     };
   }
@@ -194,6 +195,7 @@ export class PatientReferencesController {
           label: r.name,
           description: r.description,
           icon: r.iconName,
+          isSystem: r.isSystem,
         })),
         provinces,
         occupations: occupationsList.map((occ) => ({
