@@ -146,7 +146,7 @@ export class PatientAffiliationsController {
     );
     const intakeFormCode = hasIntakeForm ? service.intakeForm!.code : null;
     const intakeFormName = hasIntakeForm ? service.intakeForm!.name : null;
-    const formType = intakeFormCode || 'regular';
+    const formType = intakeFormCode;
 
     const rawAffiliations = await this.affiliationRepo.findByUserId(user.id);
     const hasExistingPrimary = rawAffiliations.some((aff) => aff.isPrimary);

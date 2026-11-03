@@ -12,7 +12,7 @@ import {
 import { formatBloodTypeDisplay } from '../../patients/domain/data/patient-reference.data';
 
 export interface FormRequirementResponse {
-  flow: string;
+  flow: string | null;
   serviceId: string;
   serviceName: string;
   isExistingPatient: boolean;
@@ -49,7 +49,7 @@ export class FormRequirementService {
       });
     }
 
-    const flow = service.intakeForm?.code || 'general';
+    const flow = service.intakeForm?.code || null;
 
     if (!patientId) {
       return {
