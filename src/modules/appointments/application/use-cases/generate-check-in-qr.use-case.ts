@@ -21,7 +21,6 @@ import {
   type AppointmentRepository,
 } from '../../domain/repositories/appointment.repository';
 import { isAppointmentWithinCheckInWindow } from '../../domain/services/appointment-check-in-window.predicate';
-import { isAppointmentLate } from '../../domain/services/appointment-lateness.predicate';
 import { AppointmentPolicyReader } from '../../domain/services/appointment-policy.reader';
 import {
   APPOINTMENT_CHECK_IN_REPOSITORY_PORT,
@@ -113,24 +112,6 @@ export class GenerateCheckInQrUseCase {
         }
         throw new BadRequestException('Waktu check-in tidak valid.');
       }
-    }
-
-    const benchmarkTime = apt.estimatedStartAt
-      ? new Date(apt.estimatedStartAt)
-      : new Date(
-          `${apt.appointmentDate}T${apt.scheduledStartTime || '00:00:00'}`,
-        );
-
-    if (
-      isAppointmentLate(
-        benchmarkTime,
-        new Date(),
-        thresholds.overflowToleranceMinutes,
-      )
-    ) {
-      throw new BadRequestException(
-        'Batas waktu check-in janji temu telah berakhir (janji temu berstatus Terlambat)',
-      );
     }
 
     // Check if there is already an active, unused and unexpired token in database

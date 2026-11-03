@@ -10,7 +10,6 @@ import {
 import { AppointmentEntity } from '../../domain/entities/appointment.entity';
 import { computeConsultationMetrics } from '../../domain/helpers/consultation-duration.helper';
 import { isAppointmentWithinCheckInWindow } from '../../domain/services/appointment-check-in-window.predicate';
-import { isAppointmentLate } from '../../domain/services/appointment-lateness.predicate';
 import {
   resolveAllowedActions,
   toDomainStatus,
@@ -42,24 +41,8 @@ export class AppointmentRecordMapper {
       overflowToleranceMinutes: number;
     },
   ): AppointmentEntity {
-    let domainStatus = toDomainStatus(apt.status);
-    let rawStatus = apt.status;
-
-    if (
-      windowHours !== undefined &&
-      (apt.status === DB_APPOINTMENT_STATUS.BOOKED ||
-        apt.status === DB_APPOINTMENT_STATUS.WAITING)
-    ) {
-      const benchmarkTime = apt.estimatedStartAt
-        ? new Date(apt.estimatedStartAt)
-        : new Date(
-            `${apt.scheduledDate}T${apt.scheduledStartTime || '00:00:00'}`,
-          );
-      if (isAppointmentLate(benchmarkTime, new Date(), windowHours)) {
-        domainStatus = DOMAIN_APPOINTMENT_STATUS.LATE;
-        rawStatus = DB_APPOINTMENT_STATUS.LATE;
-      }
-    }
+    const domainStatus = toDomainStatus(apt.status);
+    const rawStatus = apt.status;
 
     const sessionDef =
       ticket?.sessionDef ??
