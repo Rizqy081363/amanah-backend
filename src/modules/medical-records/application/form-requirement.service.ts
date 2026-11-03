@@ -134,21 +134,7 @@ export class FormRequirementService {
       motherJob: patient.occupation || '',
     };
 
-    const omittedFieldIds = [
-      'fullName',
-      'nik',
-      'birthDate',
-      'gender',
-      'bloodType',
-      'motherName',
-      'motherNik',
-      'motherBirthDate',
-      'motherBloodType',
-      'childName',
-      'childNik',
-      'childBirthDate',
-      'childSex',
-    ];
+    const omittedFieldIds: string[] = [];
 
     // Enrich with any previous clinical intake records for this patient
     const [latestMaternal] = await this.db
