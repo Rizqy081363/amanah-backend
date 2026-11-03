@@ -51,6 +51,11 @@ export class AppointmentRecordMapper {
     const session = AppointmentRecordMapper.resolveSession(apt, ticket);
     const sessionName = sessionDef?.code ?? null;
 
+    const effectiveStartTime =
+      sessionDef?.defaultStartsAt || apt.scheduledStartTime || null;
+    const effectiveEndTime =
+      sessionDef?.defaultEndsAt || apt.scheduledEndTime || null;
+
     const primaryAffiliation = apt.patientProfile?.patientAffiliations?.[0];
     const isAffiliated =
       !apt.patientProfile?.userId && Boolean(primaryAffiliation);
@@ -114,10 +119,10 @@ export class AppointmentRecordMapper {
       } else {
         etaRange = `~${startStr} ${tzAbbr}`;
       }
-    } else if (apt.scheduledStartTime) {
-      etaRange = apt.scheduledStartTime.slice(0, 5);
-      if (apt.scheduledEndTime) {
-        etaRange += ` - ${apt.scheduledEndTime.slice(0, 5)} WIB`;
+    } else if (effectiveStartTime) {
+      etaRange = effectiveStartTime.slice(0, 5);
+      if (effectiveEndTime) {
+        etaRange += ` - ${effectiveEndTime.slice(0, 5)} WIB`;
       } else {
         etaRange += ' WIB';
       }
@@ -205,8 +210,8 @@ export class AppointmentRecordMapper {
       roomLocation: apt.clinicRoom?.location || null,
       appointmentDate: apt.scheduledDate,
       appointmentDateFormatted: formatIndoDate(apt.scheduledDate),
-      scheduledStartTime: apt.scheduledStartTime || null,
-      scheduledEndTime: apt.scheduledEndTime || null,
+      scheduledStartTime: effectiveStartTime,
+      scheduledEndTime: effectiveEndTime,
       estimatedDurationMinutes:
         apt.practitioner?.consultationDurationMinutes ?? 30,
       session,
@@ -232,8 +237,8 @@ export class AppointmentRecordMapper {
           checkInThresholds
             ? isAppointmentWithinCheckInWindow({
                 scheduledDate: apt.scheduledDate,
-                scheduledStartTime: apt.scheduledStartTime,
-                scheduledEndTime: apt.scheduledEndTime,
+                scheduledStartTime: effectiveStartTime,
+                scheduledEndTime: effectiveEndTime,
                 todayDateStr: clinicTimeService.today(),
                 currentTimeStr: clinicTimeService.getCurrentTimeString(),
                 arriveEarlyMinutes: checkInThresholds.arriveEarlyMinutes,

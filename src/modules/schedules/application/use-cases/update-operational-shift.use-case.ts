@@ -263,6 +263,55 @@ export class UpdateOperationalShiftUseCase {
         `Operational shift changed for session ${shifted.sessionId}: ${shifted.oldStartsAt}->${shifted.newStartsAt} to ${shifted.oldEndsAt}->${shifted.newEndsAt}`,
       );
 
+      // Cascade time shift to active booked appointments in this session
+      if (shifted.newStartsAt || shifted.newEndsAt) {
+        const bookedRows = await this.db
+          .select({
+            appointmentId: queueTickets.appointmentId,
+          })
+          .from(queueTickets)
+          .innerJoin(
+            appointments,
+            eq(queueTickets.appointmentId, appointments.id),
+          )
+          .where(
+            and(
+              eq(queueTickets.sessionId, shifted.sessionId),
+              gte(appointments.scheduledDate, today),
+              eq(appointments.status, 'booked'),
+            ),
+          );
+
+        const aptIds = bookedRows
+          .map((r) => r.appointmentId)
+          .filter((id): id is string => Boolean(id));
+
+        if (aptIds.length > 0) {
+          const updateData: {
+            scheduledStartTime?: string;
+            scheduledEndTime?: string;
+            updatedAt: string;
+          } = {
+            updatedAt: new Date().toISOString(),
+          };
+          if (shifted.newStartsAt) {
+            updateData.scheduledStartTime = shifted.newStartsAt;
+          }
+          if (shifted.newEndsAt) {
+            updateData.scheduledEndTime = shifted.newEndsAt;
+          }
+
+          await this.db
+            .update(appointments)
+            .set(updateData)
+            .where(inArray(appointments.id, aptIds));
+
+          this.logger.log(
+            `Cascaded operational shift to ${aptIds.length} booked appointments in session ${shifted.sessionId}`,
+          );
+        }
+      }
+
       const activeRows = await this.db
         .select({
           serviceDate: queueTickets.queueDate,

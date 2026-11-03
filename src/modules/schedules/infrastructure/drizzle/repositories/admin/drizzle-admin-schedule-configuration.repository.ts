@@ -811,10 +811,21 @@ export class DrizzleAdminScheduleConfigurationRepository {
 
     const now = new Date().toISOString();
 
+    const targetSlug = dto.label
+      ? CanonicalSlugHelper.toSnakeCase(dto.label, 'shift')
+      : current.code;
+    const [slugCollision] = await this.db
+      .select({ id: sessionDefs.id })
+      .from(sessionDefs)
+      .where(and(eq(sessionDefs.code, targetSlug), ne(sessionDefs.id, id)))
+      .limit(1);
+    const newCode = slugCollision ? current.code : targetSlug;
+
     await this.db.transaction(async (tx) => {
       await tx
         .update(sessionDefs)
         .set({
+          code: newCode,
           label: newLabel,
           codePrefix: newPrefix,
           icon: newIcon || null,

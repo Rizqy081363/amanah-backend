@@ -294,10 +294,17 @@ export class DrizzleSchedulePatientRepository {
           etaRange = `${startStr} - ${endStr} ${tzAbbr}`;
         }
 
+        const effectiveStartTime =
+          (session.startTime ? `${session.startTime}:00` : null) ||
+          apt.scheduledStartTime;
+        const effectiveEndTime =
+          (session.endTime ? `${session.endTime}:00` : null) ||
+          apt.scheduledEndTime;
+
         const isElapsed = AppointmentTemporalStatusHelper.isElapsed({
           scheduledDate: apt.scheduledDate,
-          scheduledStartTime: apt.scheduledStartTime,
-          scheduledEndTime: apt.scheduledEndTime,
+          scheduledStartTime: effectiveStartTime,
+          scheduledEndTime: effectiveEndTime,
         });
 
         const effectiveStatus = AppointmentTemporalStatusHelper.resolveDbStatus(
@@ -338,8 +345,8 @@ export class DrizzleSchedulePatientRepository {
             thresholds
               ? isAppointmentWithinCheckInWindow({
                   scheduledDate: apt.scheduledDate,
-                  scheduledStartTime: apt.scheduledStartTime,
-                  scheduledEndTime: apt.scheduledEndTime,
+                  scheduledStartTime: effectiveStartTime,
+                  scheduledEndTime: effectiveEndTime,
                   todayDateStr: this.clinicTimeService.today(),
                   currentTimeStr: this.clinicTimeService.getCurrentTimeString(),
                   arriveEarlyMinutes: thresholds.arriveEarlyMinutes,
