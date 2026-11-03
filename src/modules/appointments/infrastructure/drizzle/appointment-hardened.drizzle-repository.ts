@@ -708,6 +708,13 @@ export class AppointmentHardenedDrizzleRepository
       : null;
     const pendingProposalTargetDate = pendingProposal?.proposedDate || null;
 
+    const settledProposal = apt.appointmentChangeProposals
+      ?.filter((p: any) => p.status === 'accepted')
+      ?.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+    const hasSettledProposal = Boolean(settledProposal);
+    const settledProposalId = settledProposal?.id || null;
+    const settledProposalType = (settledProposal?.proposalType as any) || null;
+
     let isOvercapacity = false;
     const sessionDef = apt.queueTickets?.[0]?.sessionDef;
     if (sessionDef?.defaultEndsAt && estimatedEndAt && apt.scheduledDate) {
@@ -778,6 +785,9 @@ export class AppointmentHardenedDrizzleRepository
       pendingProposalReason,
       pendingProposalCreatedAt,
       pendingProposalTargetDate,
+      hasSettledProposal,
+      settledProposalId,
+      settledProposalType,
       actualStartedAt: apt.actualStartedAt
         ? new Date(apt.actualStartedAt)
         : apt.startedAt

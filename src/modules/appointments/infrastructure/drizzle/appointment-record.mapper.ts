@@ -170,6 +170,13 @@ export class AppointmentRecordMapper {
       : null;
     const pendingProposalTargetDate = pendingProposal?.proposedDate || null;
 
+    const settledProposal = apt.appointmentChangeProposals
+      ?.filter((p: any) => p.status === 'accepted')
+      ?.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+    const hasSettledProposal = Boolean(settledProposal);
+    const settledProposalId = settledProposal?.id || null;
+    const settledProposalType = (settledProposal?.proposalType as any) || null;
+
     let isOvercapacity = false;
     if (sessionDef?.defaultEndsAt && estimatedEndAt && apt.scheduledDate) {
       const endTimeStr =
@@ -271,6 +278,9 @@ export class AppointmentRecordMapper {
       pendingProposalReason,
       pendingProposalCreatedAt,
       pendingProposalTargetDate,
+      hasSettledProposal,
+      settledProposalId,
+      settledProposalType,
       etaRange,
       aheadCount,
       completedAt: apt.completedAt ? new Date(apt.completedAt) : null,

@@ -63,6 +63,9 @@ export class AppointmentEntity {
   pendingProposalReason?: string | null;
   pendingProposalCreatedAt?: Date | null;
   pendingProposalTargetDate?: string | null;
+  hasSettledProposal?: boolean;
+  settledProposalId?: string | null;
+  settledProposalType?: 'reschedule' | 'cancellation' | null;
   createdAt: Date;
   updatedAt: Date;
   version?: string;

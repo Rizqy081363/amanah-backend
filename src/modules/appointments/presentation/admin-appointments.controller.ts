@@ -46,12 +46,15 @@ import { BulkCancelAppointmentsDto } from './dto/bulk-cancel-appointments.dto';
 import { BulkRescheduleAppointmentsDto } from './dto/bulk-reschedule-appointments.dto';
 import { BulkProposeCancelDto } from './dto/bulk-propose-cancel.dto';
 import { BulkProposeRescheduleDto } from './dto/bulk-propose-reschedule.dto';
+import { BulkRevertProposalDto } from './dto/bulk-revert-proposal.dto';
+import { RevertProposalDto } from './dto/revert-proposal.dto';
 import { CancelAppointmentDto } from './dto/cancel-appointment.dto';
 import { ChangeAppointmentDoctorDto } from './dto/change-appointment-doctor.dto';
 import { ChangeAppointmentRoomDto } from './dto/change-appointment-room.dto';
 import { ProposeCancellationDto } from './dto/propose-cancellation.dto';
 import { ProposeRescheduleDto } from './dto/propose-reschedule.dto';
 import { AppointmentDomainExceptionFilter } from './filters/appointment-domain-exception.filter';
+import { RevertProposalUseCase } from '../application/use-cases/revert-proposal.use-case';
 
 @ApiTags('Admin Appointments (Manajemen Janji Temu & Antrean)')
 @ApiBearerAuth('access-token')
@@ -74,6 +77,7 @@ export class AdminAppointmentsController {
     @Inject(CANDIDATE_ASSIGNMENT_PORT)
     private readonly assignmentService: ICandidateAssignmentPort,
     private readonly reminderService: AppointmentCheckInReminderService,
+    private readonly revertProposalUseCase: RevertProposalUseCase,
   ) {}
 
   @Patch(':appointmentId/cancel')
@@ -441,6 +445,51 @@ export class AdminAppointmentsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.proposalService.proposeCancellation(appointmentId, body, user);
+  }
+
+  @Post('bulk/revert-proposal')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Klinik membatalkan/revert persetujuan usulan massal (Admin/Staf)',
+    description:
+      'Mengembalikan janji temu ke jadwal atau status awal sebelum usulan disetujui.',
+  })
+  async bulkRevertProposal(
+    @Body() body: BulkRevertProposalDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const result = await this.revertProposalUseCase.executeBulk(
+      body.appointmentIds,
+      body.reason,
+      user,
+    );
+    return {
+      message: 'Operasi pembatalan persetujuan (revert) massal selesai',
+      data: result,
+    };
+  }
+
+  @Post(':appointmentId/revert-proposal')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Klinik membatalkan/revert persetujuan usulan janji temu (Admin/Staf)',
+    description:
+      'Mengembalikan janji temu tunggal ke jadwal atau status awal sebelum usulan disetujui.',
+  })
+  @ApiParam({
+    name: 'appointmentId',
+    description: 'ID unik janji temu pasien (UUID)',
+  })
+  async revertProposal(
+    @Param('appointmentId', new ParseUUIDPipe()) appointmentId: string,
+    @Body() body: RevertProposalDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.revertProposalUseCase.execute(
+      appointmentId,
+      body.reason,
+      user,
+    );
   }
 
   @Get('proposals/pending')

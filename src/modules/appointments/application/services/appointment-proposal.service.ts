@@ -23,6 +23,7 @@ import {
   patientProfiles,
   practitioners,
   queueTickets,
+  serviceCategories,
   sessionDefs,
 } from '../../../../database/schema';
 import { ClinicConfigService } from '../../../../common/clinic-config/clinic-config.service';
@@ -31,9 +32,11 @@ import { NotificationRepository } from '../../../notifications/domain/repositori
 import { SocketIoRealtimeGateway } from '../../../notifications/infrastructure/realtime/socket-io-realtime.gateway';
 import {
   NOTIFICATION_REPOSITORY,
+  REALTIME_EVENTS,
   REALTIME_GATEWAY_PORT,
   REALTIME_ROOMS,
 } from '../../../notifications/notifications.constants';
+import { AppointmentRecipientResolver } from '../../infrastructure/resolvers/appointment-recipient.resolver';
 import {
   DB_APPOINTMENT_STATUS,
   QUEUE_TICKET_STATUS,
@@ -110,6 +113,8 @@ export class AppointmentProposalService {
     private readonly realtimeGateway?: SocketIoRealtimeGateway,
     @Optional()
     private readonly redisService?: RedisService,
+    @Optional()
+    private readonly recipientResolver?: AppointmentRecipientResolver,
   ) {}
 
   /**
@@ -513,6 +518,16 @@ export class AppointmentProposalService {
       }
 
       if (proposal.status !== 'pending') {
+        if (proposal.status === dto.decision) {
+          return {
+            success: true,
+            proposalId: proposal.id,
+            appointmentId: proposal.appointmentId,
+            proposalType: proposal.proposalType,
+            decision: dto.decision,
+            message: 'Tanggapan Anda telah diproses sebelumnya.',
+          };
+        }
         throw new ConflictException(
           `Pengajuan ini sudah tidak berstatus pending (status saat ini: "${proposal.status}").`,
         );
@@ -574,10 +589,27 @@ export class AppointmentProposalService {
         );
       }
 
-      // 3. Load appointment
+      // 3. Load appointment with patient profile
       const [apt] = await tx
-        .select()
+        .select({
+          id: appointments.id,
+          bookingCode: appointments.bookingCode,
+          status: appointments.status,
+          scheduledDate: appointments.scheduledDate,
+          scheduledStartTime: appointments.scheduledStartTime,
+          scheduledEndTime: appointments.scheduledEndTime,
+          patientId: appointments.patientId,
+          practitionerId: appointments.practitionerId,
+          serviceId: appointments.serviceId,
+          roomId: appointments.roomId,
+          patientName: patientProfiles.fullName,
+          avatarUrl: patientProfiles.avatarUrl,
+        })
         .from(appointments)
+        .leftJoin(
+          patientProfiles,
+          eq(patientProfiles.id, appointments.patientId),
+        )
         .where(eq(appointments.id, proposal.appointmentId))
         .limit(1);
 
@@ -798,6 +830,125 @@ export class AppointmentProposalService {
         );
       }
 
+      // Dispatch in-app notification & toast to clinic admins/staff
+      if (this.recipientResolver && this.notificationRepo) {
+        try {
+          const clinicUserIds =
+            await this.recipientResolver.resolveScopedClinicRecipients(
+              apt.practitionerId,
+            );
+
+          if (clinicUserIds.length > 0) {
+            const isAccepted = dto.decision === 'accepted';
+            const isReschedule = proposal.proposalType === 'reschedule';
+
+            const title = isAccepted
+              ? isReschedule
+                ? 'Pasien Menyetujui Jadwal Baru'
+                : 'Pasien Menyetujui Pembatalan'
+              : isReschedule
+                ? 'Pasien Menolak Usulan Jadwal Baru'
+                : 'Pasien Menolak Usulan Pembatalan';
+
+            const body = `${apt.patientName || 'Pasien'} telah ${
+              isAccepted ? 'menyetujui' : 'menolak'
+            } pengajuan ${
+              isReschedule
+                ? `perubahan jadwal (${apt.bookingCode}) ke tanggal ${proposal.proposedDate}`
+                : `pembatalan janji temu (${apt.bookingCode})`
+            }.${dto.notes ? ` Catatan: "${dto.notes}"` : ''}`;
+
+            const badgeIcon = isReschedule
+              ? 'calendar'
+              : isAccepted
+                ? 'check-circle'
+                : 'alert-circle';
+
+            const notif = await this.notificationRepo.createIfNotExists({
+              category: 'appointment',
+              audience: NOTIFICATION_AUDIENCE.INTERNAL,
+              title,
+              body,
+              recipientUserIds: clinicUserIds,
+              badgeIcon,
+              visualKey: apt.avatarUrl || null,
+              senderName: apt.patientName || 'Pasien',
+              senderRole: 'Pasien',
+              actions: [
+                {
+                  label: 'Lihat Antrean',
+                  actionKey: 'view_appointment',
+                  actionType: 'primary',
+                  url: '/admin/appointment-pasien',
+                },
+              ],
+              metadata: {
+                appointmentId: apt.id,
+                proposalId: proposal.id,
+                proposalType: proposal.proposalType,
+                decision: dto.decision,
+                patientUserId: proposal.patientUserId,
+                patientName: apt.patientName,
+                avatarUrl: apt.avatarUrl,
+              },
+            });
+
+            if (this.realtimeGateway) {
+              const envelope = {
+                id: notif?.id || `notif-${Date.now()}`,
+                type: 'appointment:proposal_resolved',
+                title,
+                body,
+                category: 'appointment',
+                audience: NOTIFICATION_AUDIENCE.INTERNAL,
+                badgeIcon,
+                visualKey: apt.avatarUrl || null,
+                senderName: apt.patientName || 'Pasien',
+                senderRole: 'Pasien',
+                presentation: {
+                  toast: true,
+                },
+                actions: [
+                  {
+                    label: 'Lihat Antrean',
+                    actionKey: 'view_appointment',
+                    actionType: 'primary',
+                    url: '/admin/appointment-pasien',
+                  },
+                ],
+                metadata: {
+                  appointmentId: apt.id,
+                  proposalId: proposal.id,
+                  proposalType: proposal.proposalType,
+                  decision: dto.decision,
+                  patientUserId: proposal.patientUserId,
+                  patientName: apt.patientName,
+                  avatarUrl: apt.avatarUrl,
+                },
+                createdAt: nowIso,
+              };
+
+              for (const staffId of clinicUserIds) {
+                await this.realtimeGateway.emitToUser(
+                  staffId,
+                  REALTIME_EVENTS.NOTIFICATION_NEW,
+                  envelope,
+                );
+              }
+              await this.realtimeGateway.emitToRoom?.(
+                REALTIME_ROOMS.clinic,
+                REALTIME_EVENTS.NOTIFICATION_NEW,
+                envelope,
+              );
+            }
+          }
+        } catch (notifErr: any) {
+          this.logger.warn(
+            `Failed to dispatch clinic notification on proposal resolution: ${notifErr.message}`,
+          );
+        }
+      }
+
       return {
         success: true,
         proposalId: proposal.id,
@@ -943,6 +1094,10 @@ export class AppointmentProposalService {
       .selectDistinct({
         id: appointmentChangeProposals.id,
         appointmentId: appointmentChangeProposals.appointmentId,
+        patientId: appointments.patientId,
+        poliklinikId: serviceCategories.unitId,
+        serviceId: appointments.serviceId,
+        originalSessionId: appointmentChangeProposals.originalSessionId,
         proposalType: appointmentChangeProposals.proposalType,
         status: appointmentChangeProposals.status,
         reason: appointmentChangeProposals.reason,
@@ -970,6 +1125,10 @@ export class AppointmentProposalService {
         eq(clinicServices.id, appointments.serviceId),
       )
       .leftJoin(
+        serviceCategories,
+        eq(serviceCategories.id, clinicServices.serviceCategoryId),
+      )
+      .leftJoin(
         patientProfiles,
         eq(patientProfiles.id, appointments.patientId),
       )
@@ -992,6 +1151,10 @@ export class AppointmentProposalService {
     const activeProposals: Array<{
       id: string;
       appointmentId: string;
+      patientId?: string;
+      poliklinikId?: string | null;
+      serviceId?: string;
+      originalSessionId?: string | null;
       proposalType: string;
       status: string;
       reason: string | null;
@@ -1021,6 +1184,10 @@ export class AppointmentProposalService {
         activeProposals.push({
           id: r.id,
           appointmentId: r.appointmentId,
+          patientId: r.patientId,
+          poliklinikId: r.poliklinikId,
+          serviceId: r.serviceId,
+          originalSessionId: r.originalSessionId,
           proposalType: r.proposalType,
           status: r.status,
           reason: r.reason,

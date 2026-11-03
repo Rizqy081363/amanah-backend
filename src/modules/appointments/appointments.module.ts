@@ -22,6 +22,7 @@ import { AppointmentProposalsController } from './presentation/appointment-propo
 import { BookAppointmentUseCase } from './application/use-cases/book-appointment.use-case';
 import { CallPatientUseCase } from './application/use-cases/call-patient.use-case';
 import { CancelAppointmentUseCase } from './application/use-cases/cancel-appointment.use-case';
+import { RevertProposalUseCase } from './application/use-cases/revert-proposal.use-case';
 import { CompleteServiceUseCase } from './application/use-cases/complete-service.use-case';
 import { GenerateCheckInQrUseCase } from './application/use-cases/generate-check-in-qr.use-case';
 import { GetAppointmentListUseCase } from './application/use-cases/get-appointment-list.use-case';
@@ -133,9 +134,11 @@ import { PatientAppointmentHistoryController } from './presentation/patient-appo
     AppointmentCheckInReminderScheduler,
     AppointmentProposalService,
     AppointmentProposalExpiryScheduler,
+    RevertProposalUseCase,
   ],
   exports: [
     AppointmentProposalService,
+    RevertProposalUseCase,
     APPOINTMENT_REPOSITORY,
     APPOINTMENT_REPOSITORY_PORT,
     APPOINTMENT_CHECK_IN_REPOSITORY_PORT,
