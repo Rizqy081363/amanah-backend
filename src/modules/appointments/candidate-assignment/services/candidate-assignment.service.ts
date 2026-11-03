@@ -301,12 +301,22 @@ export class CandidateAssignmentService implements ICandidateAssignmentPort {
       errors: [],
     };
 
+    // Deterministic FIFO ordering strictly by appointment creation time (who booked first)
+    const metaRows = await this.repository.findAppointmentsOrderMetadata(appointmentIds);
+    const sortedIds = [...appointmentIds].sort((a, b) => {
+      const rowA = metaRows.find((r) => r.id === a);
+      const rowB = metaRows.find((r) => r.id === b);
+      const timeA = rowA?.createdAt ? new Date(rowA.createdAt).getTime() : 0;
+      const timeB = rowB?.createdAt ? new Date(rowB.createdAt).getTime() : 0;
+      return timeA - timeB;
+    });
+
     const affectedPartitions = new Map<
       string,
       { serviceDate: string; practitionerId: string }
     >();
 
-    for (const id of appointmentIds) {
+    for (const id of sortedIds) {
       try {
         const updated = await this.changeDoctor(
           id,
@@ -358,7 +368,17 @@ export class CandidateAssignmentService implements ICandidateAssignmentPort {
       errors: [],
     };
 
-    for (const id of appointmentIds) {
+    // Deterministic FIFO ordering strictly by appointment creation time (who booked first)
+    const metaRows = await this.repository.findAppointmentsOrderMetadata(appointmentIds);
+    const sortedIds = [...appointmentIds].sort((a, b) => {
+      const rowA = metaRows.find((r) => r.id === a);
+      const rowB = metaRows.find((r) => r.id === b);
+      const timeA = rowA?.createdAt ? new Date(rowA.createdAt).getTime() : 0;
+      const timeB = rowB?.createdAt ? new Date(rowB.createdAt).getTime() : 0;
+      return timeA - timeB;
+    });
+
+    for (const id of sortedIds) {
       try {
         await this.changeRoom(id, targetRoomId, user);
         result.succeededCount++;

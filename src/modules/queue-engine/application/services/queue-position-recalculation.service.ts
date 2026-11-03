@@ -203,12 +203,6 @@ export class QueuePositionRecalculationService {
           WHEN ${appointments.status} = ${DB_APPOINTMENT_STATUS.LATE} THEN 3
           ELSE 4
         END ASC`,
-        asc(
-          sql`COALESCE(${appointments.queueNumber}, NULLIF(regexp_replace(${queueTickets.queueNumber}, '\\D', '', 'g'), '')::integer, 999999)`,
-        ),
-        asc(
-          sql`COALESCE(${queueTickets.assignedAt}, ${queueTickets.createdAt}, ${appointments.createdAt})`,
-        ),
         asc(appointments.scheduledStartTime),
         asc(appointments.createdAt),
         asc(appointments.id),

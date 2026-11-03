@@ -47,6 +47,7 @@ import {
   isNull,
   lt,
   or,
+  sql,
 } from 'drizzle-orm';
 
 @Injectable()
@@ -239,8 +240,19 @@ export class DrizzleSchedulePatientRepository {
     const aptRecords = await this.db.query.appointments.findMany({
       where: and(...conditions),
       orderBy: [
+        sql`CASE 
+          WHEN ${appointments.status} = ${DB_APPOINTMENT_STATUS.IN_SERVICE} THEN 1
+          WHEN ${appointments.status} = ${DB_APPOINTMENT_STATUS.WAITING} THEN 2
+          WHEN ${appointments.status} = ${DB_APPOINTMENT_STATUS.BOOKED} THEN 3
+          WHEN ${appointments.status} = ${DB_APPOINTMENT_STATUS.LATE} THEN 4
+          WHEN ${appointments.status} = ${DB_APPOINTMENT_STATUS.COMPLETED} THEN 5
+          WHEN ${appointments.status} = ${DB_APPOINTMENT_STATUS.NO_SHOW} THEN 6
+          WHEN ${appointments.status} = ${DB_APPOINTMENT_STATUS.CANCELLED} THEN 7
+          ELSE 8
+        END ASC`,
         asc(appointments.scheduledStartTime),
         asc(appointments.createdAt),
+        asc(appointments.id),
       ],
       with: {
         patientProfile: {

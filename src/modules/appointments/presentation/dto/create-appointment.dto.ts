@@ -86,4 +86,12 @@ export class CreateAppointmentDto implements CreateAppointmentInput {
   @IsUUID()
   @IsOptional()
   sourceIntakeId?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Konfirmasi persetujuan pasien/admin jika antrean diproyeksikan melewati jam operasional klinik',
+    example: true,
+  })
+  @IsOptional()
+  consentOverCapacity?: boolean;
 }

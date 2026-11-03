@@ -375,4 +375,16 @@ export class DrizzleCandidateAssignmentRepository {
       }
     });
   }
+
+  async findAppointmentsOrderMetadata(appointmentIds: string[]) {
+    if (!appointmentIds || appointmentIds.length === 0) return [];
+    return this.db
+      .select({
+        id: appointments.id,
+        queueNumber: appointments.queueNumber,
+        createdAt: appointments.createdAt,
+      })
+      .from(appointments)
+      .where(inArray(appointments.id, appointmentIds));
+  }
 }

@@ -21,6 +21,7 @@ export const CreateAppointmentSchema = z.object({
     .string()
     .uuid('sourceIntakeId harus berformat UUID')
     .optional(),
+  consentOverCapacity: z.boolean().optional(),
 });
 
 export type CreateAppointmentInput = z.infer<typeof CreateAppointmentSchema>;

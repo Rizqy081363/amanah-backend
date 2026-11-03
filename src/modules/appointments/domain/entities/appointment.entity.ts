@@ -57,6 +57,7 @@ export class AppointmentEntity {
   rawStatus?: string;
   allowedActions?: AppointmentAction[];
   isOvercapacity?: boolean;
+  consentOverCapacity?: boolean;
   hasPendingProposal?: boolean;
   pendingProposalId?: string | null;
   pendingProposalType?: 'reschedule' | 'cancellation' | null;

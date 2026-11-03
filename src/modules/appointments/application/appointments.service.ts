@@ -133,6 +133,7 @@ export class AppointmentsService {
       complaint: body.complaint || null,
       sourceIntakeId: body.sourceIntakeId || null,
       createdBy: user.id,
+      consentOverCapacity: body.consentOverCapacity,
     });
 
     const actor = { userId: user.id, roleCode: user.roleCode };

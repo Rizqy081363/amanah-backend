@@ -317,6 +317,46 @@ export class AppointmentCreationHandler {
       estimatedStart.getTime() + consultationMinutes * 60_000,
     );
 
+    // Overcapacity / Over-hours evaluation against session end boundary
+    const [endH, endM] = endTime.split(':').map((v) => parseInt(v, 10));
+    const eh = Number.isNaN(endH) ? 24 : endH;
+    const em = Number.isNaN(endM) ? 0 : endM;
+
+    let sessionEndBoundary: Date;
+    if (eh >= 24) {
+      sessionEndBoundary = new Date(
+        Temporal.PlainDateTime.from(`${data.appointmentDate}T23:59:59`)
+          .toZonedDateTime(tz)
+          .toInstant().epochMilliseconds + 1000,
+      );
+    } else {
+      const endStr = `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}:00`;
+      sessionEndBoundary = new Date(
+        Temporal.PlainDateTime.from(`${data.appointmentDate}T${endStr}`)
+          .toZonedDateTime(tz)
+          .toInstant().epochMilliseconds,
+      );
+    }
+
+    if (
+      estimatedEnd.getTime() > sessionEndBoundary.getTime() &&
+      !data.consentOverCapacity
+    ) {
+      const overflowMinutes = Math.ceil(
+        (estimatedEnd.getTime() - sessionEndBoundary.getTime()) / 60_000,
+      );
+      throw new DomainConflictException(
+        'OVERCAPACITY_CONSENT_REQUIRED',
+        `Estimasi pelayanan diperkirakan selesai pk ${clinicTimeService.formatTime(estimatedEnd).slice(0, 5)} (jam tutup sesi pk ${endTime.slice(0, 5)}). Apakah Anda bersedia melanjutkan antrean ini?`,
+        {
+          estimatedStartAt: estimatedStart.toISOString(),
+          estimatedEndAt: estimatedEnd.toISOString(),
+          sessionEndTime: endTime.slice(0, 5),
+          overflowMinutes,
+        },
+      );
+    }
+
     const [apt] = await db
       .insert(appointments)
       .values({

@@ -422,7 +422,11 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
     // 12. Query matching row IDs in SQL with LIMIT + 1 and OFFSET
     const fetchLimit = limit + 1;
     const orderByClause = filters?.cursor
-      ? [desc(appointments.createdAt), desc(appointments.id)]
+      ? [
+          asc(sql`COALESCE(${appointments.queueNumber}, 999999)`),
+          asc(appointments.createdAt),
+          asc(appointments.id),
+        ]
       : [
           sql`CASE 
             WHEN ${appointments.status} = ${DB_APPOINTMENT_STATUS.IN_SERVICE} THEN 1
@@ -430,9 +434,12 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
             WHEN ${appointments.status} = ${DB_APPOINTMENT_STATUS.BOOKED} THEN 3
             WHEN ${appointments.status} = ${DB_APPOINTMENT_STATUS.LATE} THEN 4
             WHEN ${appointments.status} = ${DB_APPOINTMENT_STATUS.COMPLETED} THEN 5
-            ELSE 6
+            WHEN ${appointments.status} = ${DB_APPOINTMENT_STATUS.NO_SHOW} THEN 6
+            WHEN ${appointments.status} = ${DB_APPOINTMENT_STATUS.CANCELLED} THEN 7
+            ELSE 8
           END ASC`,
           asc(appointments.scheduledDate),
+          asc(sql`COALESCE(${appointments.queueNumber}, 999999)`),
           asc(appointments.createdAt),
           asc(appointments.id),
         ];
