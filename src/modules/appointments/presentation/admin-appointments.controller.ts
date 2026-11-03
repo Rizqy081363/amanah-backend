@@ -245,8 +245,8 @@ export class AdminAppointmentsController {
   @ApiOkResponse({
     description: 'Evaluasi pengingat check-in berhasil diproses',
   })
-  async evaluateReminders() {
-    const result = await this.reminderService.evaluateAndDispatchReminders();
+  async evaluateReminders(@Body() body?: { date?: string; currentTime?: string }) {
+    const result = await this.reminderService.evaluateAndDispatchReminders(body);
     return {
       message: 'Evaluasi pengingat check-in berhasil dijalankan',
       data: result,

@@ -79,14 +79,26 @@ INSERT INTO clinic_setting (key, value, scope_type) VALUES
 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
 "@
 
-# 1. Login Admin
-Write-Host "[1.1] Authenticating Admin..." -ForegroundColor White
-$adminAuth = Login-Admin
-Assert-Test "Admin authenticated" ($null -ne $adminAuth.token -and $adminAuth.token.Length -gt 20)
+# 1. Dynamic Authentication via JWT Generator
+Write-Host "[1.1] Authenticating Admin & Patient..." -ForegroundColor White
+$backendRoot = (Resolve-Path "$PSScriptRoot\..\..\..").Path
+Push-Location $backendRoot
+$adminJwt = (bun run ./scripts/dev/get-jwt-user.ts --email admin@amanah.com --raw | Select-Object -Last 1).Trim()
+$patientJwt = (bun run ./scripts/dev/get-jwt-user.ts --email lexguarddidier@gmail.com --raw | Select-Object -Last 1).Trim()
+Pop-Location
 
-# 2. Login Patient 1
-Write-Host "[1.2] Authenticating Patient..." -ForegroundColor White
-$patientAuth = Login-Patient
+$adminAuth = @{
+    token = $adminJwt
+    headers = @{ Authorization = "Bearer $adminJwt"; "Content-Type" = "application/json" }
+}
+$patientUserRow = (Run-DockerSql "SELECT id FROM users WHERE email = 'lexguarddidier@gmail.com';").Trim()
+$patientAuth = @{
+    token = $patientJwt
+    headers = @{ Authorization = "Bearer $patientJwt"; "Content-Type" = "application/json" }
+    user = @{ id = $patientUserRow }
+}
+
+Assert-Test "Admin authenticated" ($null -ne $adminAuth.token -and $adminAuth.token.Length -gt 20)
 Assert-Test "Patient authenticated" ($null -ne $patientAuth.token -and $patientAuth.token.Length -gt 20)
 
 # 3. Call GET /admin/schedule-configuration
@@ -188,6 +200,7 @@ Write-Host " Set appointment scheduled time: $futureStart - $futureEnd (Current 
 # Attempt QR generation before threshold (should be REJECTED with TOO_EARLY)
 Write-Host "[2.2] Attempting QR generation before check-in threshold (15m window, apt is in 35m)..." -ForegroundColor White
 $earlyAttempt = Invoke-ExpectedError -Uri "$apiUrl/appointments/$aptId/check-in-qr" -Method Post -Headers $adminAuth.headers -ExpectedStatusCode 400
+Write-Host "DEBUG: earlyAttempt Status=$($earlyAttempt.StatusCode), Success=$($earlyAttempt.Success), Error=$($earlyAttempt.ErrorBody)" -ForegroundColor Magenta
 
 Assert-Test "Pre-threshold QR generation rejected with 400 Bad Request" ($earlyAttempt.StatusCode -eq 400)
 Assert-Test "Rejection message specifies check-in not open yet" ($earlyAttempt.ErrorBody -match "belum dibuka")
@@ -244,9 +257,9 @@ Assert-Test "Patient notification record exists in database" ($patientNotif.Leng
 Assert-Test "Patient notification has audience='patient'" ($patientNotif -match "patient")
 Assert-Test "Patient notification category is 'appointment'" ($patientNotif -match "appointment")
 
-# 3. Inspect PostgreSQL notifications table for Assigned Doctor Notification
-Write-Host "[3.3] Verifying Clinical Doctor Notification Invariants..." -ForegroundColor White
-$docNotifQuery = "SELECT id, title, category, audience FROM notifications WHERE idempotency_key LIKE '%apt-checkin-window:$aptId%doctor%';"
+# 3. Inspect PostgreSQL notifications table for Assigned Practitioner Notification
+Write-Host "[3.3] Verifying Clinical Practitioner Notification Invariants..." -ForegroundColor White
+$docNotifQuery = "SELECT id, title, category, audience FROM notifications WHERE idempotency_key LIKE '%apt-checkin-window:$aptId%practitioner%';"
 $docNotif = (Run-DockerSql $docNotifQuery).Trim()
 Assert-Test "Clinical doctor notification record exists in database" ($docNotif.Length -gt 0)
 Assert-Test "Doctor notification has audience='clinic'" ($docNotif -match "clinic")

@@ -10,6 +10,10 @@ import { appointments, notifications } from '../../../../database/schema';
 import { NotificationGatewayService } from '../../../notifications/application/services/notification-gateway.service';
 import { isAppointmentWithinCheckInWindow } from '../../domain/services/appointment-check-in-window.predicate';
 import { AppointmentRecipientResolver } from '../../infrastructure/resolvers/appointment-recipient.resolver';
+import {
+  REALTIME_EMITTER_PORT,
+  type RealtimeEmitterPort,
+} from '../ports/realtime-emitter.port';
 
 export interface ReminderEvaluationResult {
   processedCount: number;
@@ -31,6 +35,9 @@ export class AppointmentCheckInReminderService {
     private readonly redisService?: RedisService,
     @Optional()
     private readonly recipientResolver?: AppointmentRecipientResolver,
+    @Optional()
+    @Inject(REALTIME_EMITTER_PORT)
+    private readonly realtimeEmitter?: RealtimeEmitterPort,
   ) {}
 
   /**
@@ -58,8 +65,6 @@ export class AppointmentCheckInReminderService {
       where: and(
         eq(appointments.scheduledDate, todayDateStr),
         eq(appointments.status, 'booked'),
-        isNotNull(appointments.practitionerId),
-        isNotNull(appointments.roomId),
       ),
       with: {
         patientProfile: true,
@@ -95,8 +100,11 @@ export class AppointmentCheckInReminderService {
         continue;
       }
 
-      const idempotencyBase = `apt-checkin-window:${apt.id}:${apt.scheduledDate}`;
-      const redisKey = `apt:reminder:${apt.id}:${apt.scheduledDate}`;
+      const timeSlotKey = apt.scheduledStartTime
+        ? apt.scheduledStartTime.slice(0, 5).replace(':', '')
+        : 'all';
+      const idempotencyBase = `apt-checkin-window:${apt.id}:${apt.scheduledDate}:${timeSlotKey}`;
+      const redisKey = `apt:reminder:${apt.id}:${apt.scheduledDate}:${timeSlotKey}`;
 
       // 1. Check Redis fast-cache deduplication
       if (this.redisService) {
@@ -113,7 +121,7 @@ export class AppointmentCheckInReminderService {
       const existingNotif = await this.db.query.notifications.findFirst({
         where: like(
           notifications.idempotencyKey,
-          `${idempotencyBase}:patient%`,
+          `${idempotencyBase}:%`,
         ),
       });
 
@@ -136,8 +144,24 @@ export class AppointmentCheckInReminderService {
         : '';
       const patientUserId = apt.patientProfile?.userId || apt.createdBy;
       const practitionerUserId = apt.practitioner?.staffProfile?.userId;
+      const patientName = apt.patientProfile?.fullName || 'Pasien';
 
-      // 3. Dispatch Patient-Specific Notification
+      // 3. Emit Realtime WebSocket Event Immediately to Clinic and Patient
+      if (this.realtimeEmitter) {
+        await this.realtimeEmitter.emitCheckInWindowOpened({
+          appointmentId: apt.id,
+          scheduledDate: apt.scheduledDate,
+          scheduledStartTime: apt.scheduledStartTime,
+          queueNumber: apt.queueNumber,
+          patientName,
+          patientUserId,
+          doctorName,
+          roomName,
+          serviceName,
+        });
+      }
+
+      // 4. Dispatch Patient-Specific Notification
       if (patientUserId) {
         await this.notificationGateway.dispatch({
           commandId: `${idempotencyBase}:patient`,
@@ -166,9 +190,8 @@ export class AppointmentCheckInReminderService {
         });
       }
 
-      // 4. Dispatch Clinical Notification to Assigned Practitioner
+      // 5. Dispatch Clinical Notification to Assigned Practitioner
       if (practitionerUserId) {
-        const patientName = apt.patientProfile?.fullName || 'Pasien';
         const mrn = apt.patientProfile?.medicalRecordNumber || '-';
 
         await this.notificationGateway.dispatch({
@@ -197,7 +220,7 @@ export class AppointmentCheckInReminderService {
         });
       }
 
-      // 5. Dispatch Operational Announcement to Authorized Staff (Zero PHI / PII Leakage)
+      // 6. Dispatch Operational Announcement to Authorized Staff (Zero PHI / PII Leakage)
       if (thresholds.operationalBroadcastEnabled) {
         const unitName = apt.clinicRoom?.clinicUnit?.name || serviceName;
         const authorizedStaffUserIds = this.recipientResolver
