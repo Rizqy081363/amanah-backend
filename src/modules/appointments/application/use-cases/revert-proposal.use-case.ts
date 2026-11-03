@@ -333,6 +333,26 @@ export class RevertProposalUseCase {
           formattedTicketNumber = `${categoryPrefix}-${sessionPrefix}${String(ticketIndex).padStart(3, '0')}`;
         }
 
+        // Find previous status before reschedule acceptance
+        const [lastEvent] = await tx
+          .select({ previousStatus: appointmentStatusEvents.previousStatus })
+          .from(appointmentStatusEvents)
+          .where(
+            and(
+              eq(appointmentStatusEvents.appointmentId, apt.id),
+              eq(appointmentStatusEvents.newStatus, DB_APPOINTMENT_STATUS.BOOKED),
+            ),
+          )
+          .orderBy(desc(appointmentStatusEvents.createdAt))
+          .limit(1);
+
+        const restoredStatus =
+          lastEvent?.previousStatus || DB_APPOINTMENT_STATUS.BOOKED;
+        const restoredTicketStatus =
+          restoredStatus === DB_APPOINTMENT_STATUS.NO_SHOW
+            ? QUEUE_TICKET_STATUS.SKIPPED
+            : QUEUE_TICKET_STATUS.WAITING;
+
         // Revert reschedule: update queue ticket first (consistent lock order: queueTickets -> appointments)
         await tx
           .update(queueTickets)
@@ -341,6 +361,7 @@ export class RevertProposalUseCase {
             sessionId: proposal.originalSessionId || null,
             queueNumber: formattedTicketNumber,
             waitingPosition: numericQueueNumber,
+            status: restoredTicketStatus,
             updatedAt: sql`NOW()`,
           })
           .where(eq(queueTickets.appointmentId, apt.id));
@@ -349,6 +370,7 @@ export class RevertProposalUseCase {
         await tx
           .update(appointments)
           .set({
+            status: restoredStatus,
             scheduledDate: proposal.originalDate,
             queueNumber: numericQueueNumber,
             ...(originalStartTime ? { scheduledStartTime: originalStartTime } : {}),
@@ -360,7 +382,7 @@ export class RevertProposalUseCase {
         await tx.insert(appointmentStatusEvents).values({
           appointmentId: apt.id,
           previousStatus: apt.status,
-          newStatus: apt.status,
+          newStatus: restoredStatus,
           changedBy: user?.id || null,
           reason: `Admin membatalkan settlement reschedule (Revert ke tanggal asal ${proposal.originalDate}). ${reason || ''}`.trim(),
         });

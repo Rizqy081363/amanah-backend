@@ -9,6 +9,7 @@ import {
   Optional,
 } from '@nestjs/common';
 import { and, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
+import { Temporal } from '@js-temporal/polyfill';
 import { NOTIFICATION_AUDIENCE } from '../../../../common/constants/notification-audience.constants';
 import { RedisService } from '../../../../common/redis/redis.service';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
@@ -27,7 +28,9 @@ import {
   sessionDefs,
 } from '../../../../database/schema';
 import { ClinicConfigService } from '../../../../common/clinic-config/clinic-config.service';
+import { ClinicTimeService } from '../../../../common/time/clinic-time.service';
 import { QueuePositionRecalculationService } from '../../../queue-engine/application/services/queue-position-recalculation.service';
+import { QUEUE_PRIORITY } from '../../../queue-engine/domain/constants/queue-engine.constants';
 import { NotificationRepository } from '../../../notifications/domain/repositories/notification.repository';
 import { SocketIoRealtimeGateway } from '../../../notifications/infrastructure/realtime/socket-io-realtime.gateway';
 import {
@@ -41,6 +44,7 @@ import {
   DB_APPOINTMENT_STATUS,
   QUEUE_TICKET_STATUS,
 } from '../../domain/constants/appointment-lifecycle.constants';
+import { ActiveTicketPolicyService } from '../../domain/services/active-ticket-policy.service';
 import { ProposeRescheduleDto } from '../../presentation/dto/propose-reschedule.dto';
 import { ProposeCancellationDto } from '../../presentation/dto/propose-cancellation.dto';
 import { RespondProposalDto } from '../../presentation/dto/respond-proposal.dto';
@@ -115,6 +119,8 @@ export class AppointmentProposalService {
     private readonly redisService?: RedisService,
     @Optional()
     private readonly recipientResolver?: AppointmentRecipientResolver,
+    @Optional()
+    private readonly clinicTimeService?: ClinicTimeService,
   ) {}
 
   /**
@@ -648,38 +654,224 @@ export class AppointmentProposalService {
             );
           }
 
-          // Atomically update appointment schedule
+          // Canonical ticket & queue calculation (parity with appointment-reschedule.handler.ts)
+          const [service] = await tx
+            .select({
+              codePrefix: clinicServices.codePrefix,
+              serviceCategoryId: clinicServices.serviceCategoryId,
+            })
+            .from(clinicServices)
+            .where(eq(clinicServices.id, apt.serviceId))
+            .limit(1);
+
+          const categoryPrefix = service?.codePrefix || 'U';
+          const categoryId = service?.serviceCategoryId || null;
+          const sessionPrefix = destSession.codePrefix || '';
+
+          let activeCountRow: { count: number } | undefined;
+          if (targetDoctorId) {
+            [activeCountRow] = await tx
+              .select({
+                count: sql<number>`count(*)::int`,
+              })
+              .from(appointments)
+              .where(
+                and(
+                  eq(appointments.scheduledDate, proposal.proposedDate),
+                  eq(appointments.practitionerId, targetDoctorId),
+                  sql`${appointments.id} != ${apt.id}`,
+                  inArray(appointments.status, [
+                    DB_APPOINTMENT_STATUS.BOOKED,
+                    DB_APPOINTMENT_STATUS.WAITING,
+                    DB_APPOINTMENT_STATUS.IN_SERVICE,
+                  ]),
+                ),
+              );
+          } else {
+            [activeCountRow] = await tx
+              .select({
+                count: sql<number>`count(*)::int`,
+              })
+              .from(appointments)
+              .innerJoin(
+                clinicServices,
+                eq(appointments.serviceId, clinicServices.id),
+              )
+              .where(
+                and(
+                  eq(appointments.scheduledDate, proposal.proposedDate),
+                  isNull(appointments.practitionerId),
+                  categoryId
+                    ? eq(clinicServices.serviceCategoryId, categoryId)
+                    : eq(appointments.serviceId, apt.serviceId),
+                  sql`${appointments.id} != ${apt.id}`,
+                  inArray(appointments.status, [
+                    DB_APPOINTMENT_STATUS.BOOKED,
+                    DB_APPOINTMENT_STATUS.WAITING,
+                    DB_APPOINTMENT_STATUS.IN_SERVICE,
+                  ]),
+                ),
+              );
+          }
+          const numericQueueNumber = (activeCountRow?.count || 0) + 1;
+
+          const ticketScopeCondition = targetDoctorId
+            ? eq(queueTickets.doctorId, targetDoctorId)
+            : and(
+                isNull(queueTickets.doctorId),
+                categoryId
+                  ? eq(queueTickets.categoryId, categoryId)
+                  : eq(queueTickets.serviceId, apt.serviceId),
+              );
+
+          const existingTickets = await tx
+            .select({ queueNumber: queueTickets.queueNumber })
+            .from(queueTickets)
+            .where(
+              and(
+                ticketScopeCondition,
+                eq(queueTickets.queueDate, proposal.proposedDate),
+                sql`${queueTickets.appointmentId} != ${apt.id}`,
+                inArray(queueTickets.status, [
+                  QUEUE_TICKET_STATUS.WAITING,
+                  QUEUE_TICKET_STATUS.CALLED,
+                  QUEUE_TICKET_STATUS.IN_SERVICE,
+                ]),
+              ),
+            );
+
+          const usedNumbers = new Set(existingTickets.map((t) => t.queueNumber));
+          let ticketIndex = numericQueueNumber;
+          let formattedTicketNumber = `${categoryPrefix}-${sessionPrefix}${String(ticketIndex).padStart(3, '0')}`;
+          while (usedNumbers.has(formattedTicketNumber)) {
+            ticketIndex++;
+            formattedTicketNumber = `${categoryPrefix}-${sessionPrefix}${String(ticketIndex).padStart(3, '0')}`;
+          }
+
+          const [existingTicket] = await tx
+            .select()
+            .from(queueTickets)
+            .where(eq(queueTickets.appointmentId, apt.id))
+            .limit(1);
+
+          if (apt.patientId && categoryId && proposal.proposedDate) {
+            await ActiveTicketPolicyService.assertNoActiveTicketConflict(
+              tx,
+              {
+                patientId: apt.patientId,
+                categoryId,
+                queueDate: proposal.proposedDate,
+                excludeTicketId: existingTicket?.id,
+              },
+              this.clinicConfigService,
+            );
+          }
+
+          const sTime = destSession.defaultStartsAt?.slice(0, 5) || '08:00';
+          const eTime = destSession.defaultEndsAt?.slice(0, 5) || '12:00';
+          const policy = await this.clinicConfigService
+            .getSchedulePolicy()
+            .catch(() => null);
+
+          const [startH, startM] = sTime
+            .split(':')
+            .map((v: string) => parseInt(v, 10));
+          const h = Number.isNaN(startH) ? 8 : startH;
+          const m = Number.isNaN(startM) ? 0 : startM;
+          const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
+          const tz = this.clinicTimeService?.timezone || 'Asia/Jakarta';
+
+          const baseStart = new Date(
+            Temporal.PlainDateTime.from(`${proposal.proposedDate}T${timeStr}`)
+              .toZonedDateTime(tz)
+              .toInstant().epochMilliseconds,
+          );
+
+          const consultationMinutes =
+            policy?.defaultConsultationDurationMinutes ?? 20;
+          const queueOffsetMinutes =
+            Math.max(0, numericQueueNumber - 1) * consultationMinutes;
+          const estimatedStart = new Date(
+            baseStart.getTime() + queueOffsetMinutes * 60_000,
+          );
+          const estimatedEnd = new Date(
+            estimatedStart.getTime() + consultationMinutes * 60_000,
+          );
+
+          // Update queue ticket first (lock order: queueTickets -> appointments)
+          if (existingTicket) {
+            await tx
+              .update(queueTickets)
+              .set({
+                queueDate: proposal.proposedDate,
+                sessionId: destSession.id,
+                doctorId: targetDoctorId || null,
+                roomId: null,
+                queueNumber: formattedTicketNumber,
+                status: QUEUE_TICKET_STATUS.WAITING,
+                priority: QUEUE_PRIORITY.REGULAR,
+                waitingPosition: numericQueueNumber,
+                projectedStart: estimatedStart.toISOString(),
+                projectedEnd: estimatedEnd.toISOString(),
+                calledAt: null,
+                startedAt: null,
+                completedAt: null,
+                carriedOver: true,
+                assignedAt: nowIso,
+                updatedAt: nowIso,
+              })
+              .where(eq(queueTickets.id, existingTicket.id));
+          } else {
+            await tx.insert(queueTickets).values({
+              appointmentId: apt.id,
+              serviceId: apt.serviceId,
+              categoryId,
+              sessionId: destSession.id,
+              patientId: apt.patientId || null,
+              doctorId: targetDoctorId || null,
+              roomId: null,
+              queueDate: proposal.proposedDate,
+              queueNumber: formattedTicketNumber,
+              status: QUEUE_TICKET_STATUS.WAITING,
+              priority: QUEUE_PRIORITY.REGULAR,
+              waitingPosition: numericQueueNumber,
+              projectedStart: estimatedStart.toISOString(),
+              projectedEnd: estimatedEnd.toISOString(),
+              carriedOver: true,
+              source: 'online',
+              assignedAt: nowIso,
+              createdAt: nowIso,
+              updatedAt: nowIso,
+            });
+          }
+
+          // Atomically reset appointment schedule, queue position, and status
           await tx
             .update(appointments)
             .set({
+              status: DB_APPOINTMENT_STATUS.BOOKED,
+              checkedInAt: null,
+              lastCalledAt: null,
               scheduledDate: proposal.proposedDate,
-              scheduledStartTime: destSession.defaultStartsAt,
-              scheduledEndTime: destSession.defaultEndsAt,
-              practitionerId: targetDoctorId,
-              roomId: proposal.proposedRoomId || apt.roomId,
-              updatedAt: sql`NOW()`,
+              scheduledStartTime: sTime,
+              scheduledEndTime: eTime,
+              practitionerId: targetDoctorId || null,
+              roomId: null,
+              queueNumber: numericQueueNumber,
+              estimatedStartAt: estimatedStart.toISOString(),
+              estimatedEndAt: estimatedEnd.toISOString(),
+              updatedBy: user?.id || null,
+              updatedAt: nowIso,
             })
             .where(eq(appointments.id, apt.id));
-
-          // Atomically update queue ticket
-          await tx
-            .update(queueTickets)
-            .set({
-              queueDate: proposal.proposedDate,
-              sessionId: proposal.proposedSessionId,
-              doctorId: targetDoctorId,
-              roomId: proposal.proposedRoomId || apt.roomId,
-              updatedAt: sql`NOW()`,
-            })
-            .where(eq(queueTickets.appointmentId, apt.id));
 
           // Audit record
           await tx.insert(appointmentStatusEvents).values({
             appointmentId: apt.id,
             previousStatus: apt.status,
-            newStatus: apt.status,
+            newStatus: DB_APPOINTMENT_STATUS.BOOKED,
             changedBy: user?.id || null,
-            reason: `Pasien menyetujui pengajuan reschedule ke ${proposal.proposedDate} (Sesi: ${destSession.label || destSession.code}). ${dto.notes || ''}`.trim(),
+            reason: `Pasien menyetujui pengajuan reschedule ke ${proposal.proposedDate} (Sesi: ${destSession.label || destSession.code}, Tiket: ${formattedTicketNumber}). ${dto.notes || ''}`.trim(),
           });
 
           // Mark proposal accepted
