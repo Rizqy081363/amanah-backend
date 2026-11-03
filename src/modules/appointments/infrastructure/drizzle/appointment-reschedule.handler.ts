@@ -16,7 +16,6 @@ import {
   appointments,
   clinicClosures,
   clinicServices,
-  clinicSettings,
   doctorAssignments,
   patientAffiliations,
   patientProfiles,
@@ -521,9 +520,7 @@ async function validateAppointmentStateForReschedule(
 ): Promise<void> {
   if (
     apt.status === DB_APPOINTMENT_STATUS.IN_SERVICE ||
-    apt.status === DB_APPOINTMENT_STATUS.COMPLETED ||
-    apt.status === DB_APPOINTMENT_STATUS.CANCELLED ||
-    apt.status === DB_APPOINTMENT_STATUS.NO_SHOW
+    apt.status === DB_APPOINTMENT_STATUS.COMPLETED
   ) {
     throw new InvalidStateTransitionException(
       'Janji temu',
@@ -533,12 +530,6 @@ async function validateAppointmentStateForReschedule(
   }
 
   if (!isInternal) {
-    if (apt.checkedInAt) {
-      throw new DomainForbiddenException(
-        'Pasien sudah melakukan check-in di klinik. Perubahan jadwal hanya dapat dilakukan oleh petugas klinik.',
-      );
-    }
-
     const [activeTicket] = await db
       .select({ status: queueTickets.status })
       .from(queueTickets)
@@ -549,25 +540,6 @@ async function validateAppointmentStateForReschedule(
       throw new DomainForbiddenException(
         'Nomor antrean sedang dipanggil oleh petugas klinik. Silakan hubungi meja admisi klinik.',
       );
-    }
-
-    const today = new Date().toISOString().split('T')[0];
-    if (apt.scheduledDate === today && apt.scheduledEndTime) {
-      const overflowSetting = await db.query.clinicSettings.findFirst({
-        where: eq(clinicSettings.key, 'queue.overflow_tolerance_minutes'),
-      });
-      const bufferMinutes =
-        typeof overflowSetting?.value === 'number' ? overflowSetting.value : 30;
-
-      const [endH, endM] = apt.scheduledEndTime.split(':').map(Number);
-      const sessionEnd = new Date();
-      sessionEnd.setHours(endH, endM + bufferMinutes, 0, 0);
-
-      if (new Date() > sessionEnd) {
-        throw new DomainForbiddenException(
-          'Sesi praktik ini telah berakhir. Silakan hubungi petugas klinik untuk bantuan reschedule.',
-        );
-      }
     }
   }
 }

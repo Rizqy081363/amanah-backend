@@ -107,6 +107,8 @@ export function resolveAllowedActions(
       return ['CALL', 'START_SERVICE', 'NO_SHOW', 'CANCEL', 'RESCHEDULE'];
     case 'LATE':
       return ['RESCHEDULE', 'CANCEL'];
+    case 'CANCELLED':
+      return ['RESCHEDULE'];
     case 'IN_SERVICE':
       return ['COMPLETE', 'CANCEL'];
     default:
