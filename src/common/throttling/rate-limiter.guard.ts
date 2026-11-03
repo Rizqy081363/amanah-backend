@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { Request, Response } from 'express';
+import { env, NodeEnvironment } from '../../config/env';
 import {
   RATE_LIMIT_HEADER_LIMIT,
   RATE_LIMIT_HEADER_REMAINING,
@@ -28,6 +29,10 @@ export class RateLimiterGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
+    if (env.NODE_ENV === NodeEnvironment.Development) {
+      return true;
+    }
+
     const isSkipped = this.reflector.getAllAndOverride<boolean>(
       SKIP_RATE_LIMIT_METADATA_KEY,
       [context.getHandler(), context.getClass()],
@@ -62,22 +67,9 @@ export class RateLimiterGuard implements CanActivate {
     const identifier = this.resolveClientIdentifier(request);
     const rateLimitKey = `${tier.name}:${identifier}`;
 
-    // Loopback clients during local development and automated test suites receive standard API ceiling (120)
-    const isLoopback =
-      identifier === 'ip:127_0_0_1' ||
-      identifier === 'ip:::1' ||
-      identifier === 'ip:::ffff:127_0_0_1' ||
-      identifier.includes('172.') ||
-      identifier.includes('172_') ||
-      process.env.NODE_ENV === 'development';
-    const effectiveLimit =
-      isLoopback && (tier.name === 'auth' || tier.name === 'custom')
-        ? 120
-        : tier.limit;
-
     const result = await this.redisService.consumeRateLimit(
       rateLimitKey,
-      effectiveLimit,
+      tier.limit,
       tier.windowSeconds,
     );
 

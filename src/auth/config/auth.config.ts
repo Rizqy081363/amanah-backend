@@ -2,6 +2,7 @@ import { Logger } from '@nestjs/common';
 import { registerAs } from '@nestjs/config';
 import { IsBooleanString, IsOptional, IsString } from 'class-validator';
 import ms from 'ms';
+import { env, NodeEnvironment } from '../../config/env';
 import validateConfig from '../../utils/validate-config';
 import { AuthConfig } from './auth-config.type';
 
@@ -23,7 +24,7 @@ function checkPlaceholderSecrets(): void {
 
   const message = `${placeholders.join(', ')} still use the placeholder values from env-example. Generate strong secrets before deploying (see "Configure Auth" in docs/auth.md).`;
 
-  if (process.env.NODE_ENV === 'production') {
+  if (env.NODE_ENV === NodeEnvironment.Production) {
     throw new Error(message);
   }
 

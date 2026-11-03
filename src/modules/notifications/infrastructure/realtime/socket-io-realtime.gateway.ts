@@ -13,6 +13,7 @@ import { createAdapter } from '@socket.io/redis-adapter';
 import type Redis from 'ioredis';
 import type { Server, Socket } from 'socket.io';
 import { REDIS_CLIENT } from '../../../../common/redis/redis.constants';
+import { env } from '../../../../config/env';
 import {
   buildOriginPolicy,
   isOriginAllowed,
@@ -23,15 +24,15 @@ import { RealtimeGatewayPort } from '../../contracts/realtime-gateway.interface'
 import type { RealtimePrincipal } from '../../contracts/realtime-session.contract';
 import { REALTIME_ROOMS } from '../../notifications.constants';
 
-const wsDevOriginPatterns = (process.env.APP_DEV_ORIGIN_PATTERNS || '')
+const wsDevOriginPatterns = (env.APP_DEV_ORIGIN_PATTERNS || '')
   .split(',')
   .map((p) => p.trim())
   .filter(Boolean);
 
 const wsRawAllowed = (
   process.env.REALTIME_CORS_ORIGINS ||
-  process.env.APP_CORS_ORIGINS ||
-  process.env.FRONTEND_DOMAIN ||
+  env.APP_CORS_ORIGINS ||
+  env.FRONTEND_DOMAIN ||
   ''
 )
   .split(',')
@@ -39,8 +40,8 @@ const wsRawAllowed = (
   .filter(Boolean);
 
 const wsOriginPolicy = buildOriginPolicy({
-  appEnv: process.env.NODE_ENV || 'development',
-  publicUrl: process.env.FRONTEND_DOMAIN,
+  appEnv: env.NODE_ENV,
+  publicUrl: env.FRONTEND_DOMAIN,
   extraOrigins: wsRawAllowed,
   devPatterns: wsDevOriginPatterns,
 });

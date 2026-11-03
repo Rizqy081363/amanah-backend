@@ -8,7 +8,7 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
-import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 import { NOTIFICATION_AUDIENCE } from '../../../../common/constants/notification-audience.constants';
 import { RedisService } from '../../../../common/redis/redis.service';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
@@ -18,6 +18,7 @@ import {
   appointments,
   appointmentStatusEvents,
   clinicRooms,
+  patientAffiliations,
   patientProfiles,
   practitioners,
   queueTickets,
@@ -39,7 +40,10 @@ import {
 import { ProposeRescheduleDto } from '../../presentation/dto/propose-reschedule.dto';
 import { ProposeCancellationDto } from '../../presentation/dto/propose-cancellation.dto';
 import { RespondProposalDto } from '../../presentation/dto/respond-proposal.dto';
-import type { AuthenticatedUser } from '../../../../common/auth/authenticated-user.interface';
+import {
+  type AuthenticatedUser,
+  isAdminUser,
+} from '../../../../common/auth/authenticated-user.interface';
 
 export interface BulkProposalResult {
   total: number;
@@ -47,6 +51,45 @@ export interface BulkProposalResult {
   failedCount: number;
   succeededIds: string[];
   errors: Array<{ id: string; message: string }>;
+}
+
+/**
+ * Single Source of Truth for proposal expiration deadline calculation.
+ * 100% DB-driven from session_def and clinic_setting.
+ */
+export function calculateProposalExpiresAt(params: {
+  createdAt: Date | string;
+  originalDate: string;
+  defaultStartsAt?: string | null;
+  leadMinutes: number;
+  fallbackWindowHours: number;
+}): Date {
+  const {
+    createdAt,
+    originalDate,
+    defaultStartsAt,
+    leadMinutes,
+    fallbackWindowHours,
+  } = params;
+
+  const createdTime = new Date(createdAt).getTime();
+  const startTimeStr = defaultStartsAt || '08:00:00';
+  const sessionStartTime = new Date(
+    `${originalDate}T${startTimeStr}+07:00`,
+  ).getTime();
+  const sessionLeadDeadline = sessionStartTime - leadMinutes * 60_000;
+  const fallbackDeadline = createdTime + fallbackWindowHours * 3_600_000;
+
+  // Minimum safety window for human response (2 hours)
+  const minResponseWindowMs = 2 * 3_600_000;
+
+  // If session-based lead deadline is in the past, or leaves less than 2 hours to respond:
+  if (sessionLeadDeadline <= createdTime + minResponseWindowMs) {
+    return new Date(fallbackDeadline);
+  }
+
+  // Otherwise, patient has until leadMinutes before session begins
+  return new Date(sessionLeadDeadline);
 }
 
 @Injectable()
@@ -87,7 +130,9 @@ export class AppointmentProposalService {
         patientId: appointments.patientId,
         practitionerId: appointments.practitionerId,
         roomId: appointments.roomId,
-        patientUserId: patientProfiles.userId,
+        appointmentCreatedBy: appointments.createdBy,
+        profileUserId: patientProfiles.userId,
+        affiliationUserId: patientAffiliations.userId,
         patientName: patientProfiles.fullName,
         ticketId: queueTickets.id,
         ticketSessionId: queueTickets.sessionId,
@@ -96,6 +141,10 @@ export class AppointmentProposalService {
       .innerJoin(
         patientProfiles,
         eq(patientProfiles.id, appointments.patientId),
+      )
+      .leftJoin(
+        patientAffiliations,
+        eq(patientAffiliations.patientId, appointments.patientId),
       )
       .leftJoin(queueTickets, eq(queueTickets.appointmentId, appointments.id))
       .where(eq(appointments.id, appointmentId))
@@ -106,6 +155,12 @@ export class AppointmentProposalService {
         `Janji temu dengan ID ${appointmentId} tidak ditemukan.`,
       );
     }
+
+    const patientUserId =
+      apt.profileUserId ||
+      apt.affiliationUserId ||
+      apt.appointmentCreatedBy ||
+      null;
 
     if (
       apt.status === DB_APPOINTMENT_STATUS.CANCELLED ||
@@ -180,20 +235,20 @@ export class AppointmentProposalService {
         proposedDoctorId: dto.targetDoctorId || null,
         proposedRoomId: dto.targetRoomId || null,
         estimatedQueueNumber: projectedQueueNumber,
-        patientUserId: apt.patientUserId || null,
+        patientUserId: patientUserId,
       })
       .returning();
 
     // Create Actionable In-App & Push Notification
     let notificationId: string | null = null;
-    if (this.notificationRepo && apt.patientUserId) {
+    if (this.notificationRepo && patientUserId) {
       try {
         const notif = await this.notificationRepo.createIfNotExists({
           category: 'appointment',
           audience: NOTIFICATION_AUDIENCE.EXTERNAL,
           title: 'Pengajuan Perubahan Jadwal Janji Temu',
           body: `Klinik Amanah mengajukan perubahan jadwal janji temu Anda (${apt.bookingCode}) dari tanggal ${apt.scheduledDate} menjadi ${dto.targetDate} (Sesi: ${destSession.label || destSession.code}) karena: ${dto.reason}. Apakah Anda menyetujui perubahan ini?`,
-          recipientUserIds: [apt.patientUserId],
+          recipientUserIds: [patientUserId],
           actions: [
             {
               label: 'Setuju Pindah Jadwal',
@@ -233,15 +288,15 @@ export class AppointmentProposalService {
       const payload = {
         proposalId: proposal.id,
         appointmentId: apt.id,
-        patientUserId: apt.patientUserId,
+        patientUserId: patientUserId,
         proposalType: 'reschedule',
         proposedDate: dto.targetDate,
         reason: dto.reason,
       };
 
-      if (apt.patientUserId) {
+      if (patientUserId) {
         await this.realtimeGateway.emitToUser(
-          apt.patientUserId,
+          patientUserId,
           'appointment:proposal_created',
           payload,
         );
@@ -282,7 +337,9 @@ export class AppointmentProposalService {
         bookingCode: appointments.bookingCode,
         scheduledDate: appointments.scheduledDate,
         patientId: appointments.patientId,
-        patientUserId: patientProfiles.userId,
+        appointmentCreatedBy: appointments.createdBy,
+        profileUserId: patientProfiles.userId,
+        affiliationUserId: patientAffiliations.userId,
         patientName: patientProfiles.fullName,
         ticketSessionId: queueTickets.sessionId,
       })
@@ -290,6 +347,10 @@ export class AppointmentProposalService {
       .innerJoin(
         patientProfiles,
         eq(patientProfiles.id, appointments.patientId),
+      )
+      .leftJoin(
+        patientAffiliations,
+        eq(patientAffiliations.patientId, appointments.patientId),
       )
       .leftJoin(queueTickets, eq(queueTickets.appointmentId, appointments.id))
       .where(eq(appointments.id, appointmentId))
@@ -300,6 +361,12 @@ export class AppointmentProposalService {
         `Janji temu dengan ID ${appointmentId} tidak ditemukan.`,
       );
     }
+
+    const patientUserId =
+      apt.profileUserId ||
+      apt.affiliationUserId ||
+      apt.appointmentCreatedBy ||
+      null;
 
     if (
       apt.status === DB_APPOINTMENT_STATUS.CANCELLED ||
@@ -339,19 +406,19 @@ export class AppointmentProposalService {
         reason: dto.reason,
         originalDate: apt.scheduledDate,
         originalSessionId: apt.ticketSessionId || null,
-        patientUserId: apt.patientUserId || null,
+        patientUserId: patientUserId,
       })
       .returning();
 
     let notificationId: string | null = null;
-    if (this.notificationRepo && apt.patientUserId) {
+    if (this.notificationRepo && patientUserId) {
       try {
         const notif = await this.notificationRepo.createIfNotExists({
           category: 'appointment',
           audience: NOTIFICATION_AUDIENCE.EXTERNAL,
           title: 'Pengajuan Pembatalan Janji Temu',
           body: `Klinik Amanah mengajukan pembatalan janji temu Anda (${apt.bookingCode}) pada tanggal ${apt.scheduledDate} karena: ${dto.reason}. Apakah Anda menyetujui pembatalan ini?`,
-          recipientUserIds: [apt.patientUserId],
+          recipientUserIds: [patientUserId],
           actions: [
             {
               label: 'Setuju Dibatalkan',
@@ -391,14 +458,14 @@ export class AppointmentProposalService {
       const payload = {
         proposalId: proposal.id,
         appointmentId: apt.id,
-        patientUserId: apt.patientUserId,
+        patientUserId: patientUserId,
         proposalType: 'cancellation',
         reason: dto.reason,
       };
 
-      if (apt.patientUserId) {
+      if (patientUserId) {
         await this.realtimeGateway.emitToUser(
-          apt.patientUserId,
+          patientUserId,
           'appointment:proposal_created',
           payload,
         );
@@ -450,17 +517,60 @@ export class AppointmentProposalService {
         );
       }
 
-      // 2. Validate patient ownership
-      if (user.audience === NOTIFICATION_AUDIENCE.EXTERNAL) {
-        const isOwner =
-          proposal.patientUserId === user.id ||
-          (user.patient?.id &&
-            (await this.verifyPatientAccess(tx, proposal.appointmentId, user)));
-        if (!isOwner) {
-          throw new ForbiddenException(
-            'Anda tidak memiliki akses untuk merespons pengajuan janji temu ini.',
-          );
-        }
+      // Just-In-Time Expiration Check (Gate 1): Protect against race conditions and cron delay
+      const leadMinutes = await this.clinicConfigService
+        .getNumber('proposal.expiration_lead_minutes')
+        .catch(() => 60);
+      const fallbackWindowHours = await this.clinicConfigService
+        .getNumber('proposal.fallback_window_hours')
+        .catch(() => 24);
+
+      let defaultStartsAt: string | null = null;
+      if (proposal.originalSessionId) {
+        const [origSession] = await tx
+          .select({ defaultStartsAt: sessionDefs.defaultStartsAt })
+          .from(sessionDefs)
+          .where(eq(sessionDefs.id, proposal.originalSessionId))
+          .limit(1);
+        defaultStartsAt = origSession?.defaultStartsAt || null;
+      }
+
+      const expiresAt = calculateProposalExpiresAt({
+        createdAt: proposal.createdAt,
+        originalDate: proposal.originalDate,
+        defaultStartsAt,
+        leadMinutes,
+        fallbackWindowHours,
+      });
+
+      if (new Date() >= expiresAt) {
+        await tx
+          .update(appointmentChangeProposals)
+          .set({
+            status: 'expired',
+            patientResponseNotes: 'Kedaluwarsa saat direspons oleh pasien.',
+            updatedAt: sql`NOW()`,
+          })
+          .where(eq(appointmentChangeProposals.id, proposal.id));
+
+        throw new ConflictException(
+          'Pengajuan perubahan janji temu ini telah kedaluwarsa dan tidak dapat lagi direspons.',
+        );
+      }
+
+      // 2. Validate patient ownership or administrative authority
+      const isOwner =
+        proposal.patientUserId === user.id ||
+        (await this.verifyPatientAccess(tx, proposal.appointmentId, user));
+
+      const hasAdminAccess =
+        isAdminUser(user) ||
+        (user.permissions?.includes('appointments:manage') ?? false);
+
+      if (!isOwner && !hasAdminAccess) {
+        throw new ForbiddenException(
+          'Anda tidak memiliki akses untuk merespons pengajuan janji temu ini.',
+        );
       }
 
       // 3. Load appointment
@@ -754,6 +864,9 @@ export class AppointmentProposalService {
     const leadMinutes = await this.clinicConfigService
       .getNumber('proposal.expiration_lead_minutes')
       .catch(() => 60);
+    const fallbackWindowHours = await this.clinicConfigService
+      .getNumber('proposal.fallback_window_hours')
+      .catch(() => 24);
     const now = new Date();
 
     // Query pending proposals with original session times
@@ -762,6 +875,7 @@ export class AppointmentProposalService {
         proposalId: appointmentChangeProposals.id,
         appointmentId: appointmentChangeProposals.appointmentId,
         originalDate: appointmentChangeProposals.originalDate,
+        createdAt: appointmentChangeProposals.createdAt,
         defaultStartsAt: sessionDefs.defaultStartsAt,
       })
       .from(appointmentChangeProposals)
@@ -773,13 +887,15 @@ export class AppointmentProposalService {
 
     const expiredIds: string[] = [];
     for (const row of pendingRows) {
-      const startTimeStr = row.defaultStartsAt || '08:00:00';
-      const sessionStart = new Date(`${row.originalDate}T${startTimeStr}+07:00`);
-      const expirationDeadline = new Date(
-        sessionStart.getTime() - leadMinutes * 60_000,
-      );
+      const expiresAt = calculateProposalExpiresAt({
+        createdAt: row.createdAt,
+        originalDate: row.originalDate,
+        defaultStartsAt: row.defaultStartsAt,
+        leadMinutes,
+        fallbackWindowHours,
+      });
 
-      if (now >= expirationDeadline) {
+      if (now >= expiresAt) {
         expiredIds.push(row.proposalId);
       }
     }
@@ -789,13 +905,13 @@ export class AppointmentProposalService {
         .update(appointmentChangeProposals)
         .set({
           status: 'expired',
-          patientResponseNotes: `Kedaluwarsa otomatis: Melewati batas waktu respon ${leadMinutes} menit sebelum sesi dimulai.`,
+          patientResponseNotes: 'Kedaluwarsa otomatis: Melewati batas waktu respon.',
           updatedAt: sql`NOW()`,
         })
         .where(inArray(appointmentChangeProposals.id, expiredIds));
 
       this.logger.log(
-        `Swept ${expiredIds.length} expired appointment change proposals (lead: ${leadMinutes}m).`,
+        `Swept ${expiredIds.length} expired appointment change proposals (lead: ${leadMinutes}m, fallback: ${fallbackWindowHours}h).`,
       );
 
       if (this.realtimeGateway?.server) {
@@ -814,8 +930,16 @@ export class AppointmentProposalService {
    * Retrieves pending proposals for a given patient.
    */
   async getMyPendingProposals(userId: string) {
-    return this.db
-      .select({
+    const leadMinutes = await this.clinicConfigService
+      .getNumber('proposal.expiration_lead_minutes')
+      .catch(() => 60);
+    const fallbackWindowHours = await this.clinicConfigService
+      .getNumber('proposal.fallback_window_hours')
+      .catch(() => 24);
+    const now = new Date();
+
+    const rows = await this.db
+      .selectDistinct({
         id: appointmentChangeProposals.id,
         appointmentId: appointmentChangeProposals.appointmentId,
         proposalType: appointmentChangeProposals.proposalType,
@@ -826,26 +950,116 @@ export class AppointmentProposalService {
         estimatedQueueNumber:
           appointmentChangeProposals.estimatedQueueNumber,
         bookingCode: appointments.bookingCode,
+        patientName: patientProfiles.fullName,
         createdAt: appointmentChangeProposals.createdAt,
+        defaultStartsAt: sessionDefs.defaultStartsAt,
       })
       .from(appointmentChangeProposals)
       .innerJoin(
         appointments,
         eq(appointments.id, appointmentChangeProposals.appointmentId),
       )
+      .leftJoin(
+        sessionDefs,
+        eq(sessionDefs.id, appointmentChangeProposals.originalSessionId),
+      )
+      .leftJoin(
+        patientProfiles,
+        eq(patientProfiles.id, appointments.patientId),
+      )
+      .leftJoin(
+        patientAffiliations,
+        eq(patientAffiliations.patientId, appointments.patientId),
+      )
       .where(
         and(
-          eq(appointmentChangeProposals.patientUserId, userId),
           eq(appointmentChangeProposals.status, 'pending'),
+          or(
+            eq(appointmentChangeProposals.patientUserId, userId),
+            eq(appointments.createdBy, userId),
+            eq(patientAffiliations.userId, userId),
+          ),
         ),
       )
       .orderBy(desc(appointmentChangeProposals.createdAt));
+
+    const activeProposals: Array<{
+      id: string;
+      appointmentId: string;
+      proposalType: string;
+      status: string;
+      reason: string | null;
+      originalDate: string;
+      proposedDate: string | null;
+      estimatedQueueNumber: number | null;
+      bookingCode: string;
+      patientName: string | null;
+      createdAt: string;
+      expiresAt: string;
+    }> = [];
+    const expiredIds: string[] = [];
+
+    for (const r of rows) {
+      const expiresAt = calculateProposalExpiresAt({
+        createdAt: r.createdAt,
+        originalDate: r.originalDate,
+        defaultStartsAt: r.defaultStartsAt,
+        leadMinutes,
+        fallbackWindowHours,
+      });
+
+      if (now >= expiresAt) {
+        expiredIds.push(r.id);
+      } else {
+        activeProposals.push({
+          id: r.id,
+          appointmentId: r.appointmentId,
+          proposalType: r.proposalType,
+          status: r.status,
+          reason: r.reason,
+          originalDate: r.originalDate,
+          proposedDate: r.proposedDate,
+          estimatedQueueNumber: r.estimatedQueueNumber,
+          bookingCode: r.bookingCode,
+          patientName: r.patientName,
+          createdAt: r.createdAt,
+          expiresAt: expiresAt.toISOString(),
+        });
+      }
+    }
+
+    if (expiredIds.length > 0) {
+      setImmediate(async () => {
+        try {
+          await this.db
+            .update(appointmentChangeProposals)
+            .set({
+              status: 'expired',
+              patientResponseNotes:
+                'Kedaluwarsa otomatis (terdeteksi saat query).',
+              updatedAt: sql`NOW()`,
+            })
+            .where(inArray(appointmentChangeProposals.id, expiredIds));
+        } catch (e: any) {
+          this.logger.warn(`Lazy proposal sweep failed: ${e.message}`);
+        }
+      });
+    }
+
+    return activeProposals;
   }
 
   /**
    * Retrieves all proposals for clinic administration monitoring.
    */
   async getAdminProposals(query?: { status?: string; date?: string }) {
+    const leadMinutes = await this.clinicConfigService
+      .getNumber('proposal.expiration_lead_minutes')
+      .catch(() => 60);
+    const fallbackWindowHours = await this.clinicConfigService
+      .getNumber('proposal.fallback_window_hours')
+      .catch(() => 24);
+
     const conditions = [];
     if (query?.status) {
       conditions.push(eq(appointmentChangeProposals.status, query.status));
@@ -856,7 +1070,7 @@ export class AppointmentProposalService {
       );
     }
 
-    return this.db
+    const rows = await this.db
       .select({
         id: appointmentChangeProposals.id,
         appointmentId: appointmentChangeProposals.appointmentId,
@@ -874,11 +1088,16 @@ export class AppointmentProposalService {
         patientResponseAt: appointmentChangeProposals.patientResponseAt,
         patientResponseNotes:
           appointmentChangeProposals.patientResponseNotes,
+        defaultStartsAt: sessionDefs.defaultStartsAt,
       })
       .from(appointmentChangeProposals)
       .innerJoin(
         appointments,
         eq(appointments.id, appointmentChangeProposals.appointmentId),
+      )
+      .leftJoin(
+        sessionDefs,
+        eq(sessionDefs.id, appointmentChangeProposals.originalSessionId),
       )
       .innerJoin(
         patientProfiles,
@@ -887,6 +1106,17 @@ export class AppointmentProposalService {
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(desc(appointmentChangeProposals.createdAt))
       .limit(100);
+
+    return rows.map((r) => ({
+      ...r,
+      expiresAt: calculateProposalExpiresAt({
+        createdAt: r.createdAt,
+        originalDate: r.originalDate,
+        defaultStartsAt: r.defaultStartsAt,
+        leadMinutes,
+        fallbackWindowHours,
+      }).toISOString(),
+    }));
   }
 
   private async verifyPatientAccess(
@@ -897,17 +1127,28 @@ export class AppointmentProposalService {
     const [apt] = await tx
       .select({
         patientId: appointments.patientId,
-        patientUserId: patientProfiles.userId,
+        appointmentCreatedBy: appointments.createdBy,
+        profileUserId: patientProfiles.userId,
+        affiliationUserId: patientAffiliations.userId,
       })
       .from(appointments)
-      .innerJoin(
+      .leftJoin(
         patientProfiles,
         eq(patientProfiles.id, appointments.patientId),
+      )
+      .leftJoin(
+        patientAffiliations,
+        eq(patientAffiliations.patientId, appointments.patientId),
       )
       .where(eq(appointments.id, appointmentId))
       .limit(1);
 
     if (!apt) return false;
-    return apt.patientUserId === user.id || apt.patientId === user.patient?.id;
+    return (
+      apt.profileUserId === user.id ||
+      apt.affiliationUserId === user.id ||
+      apt.appointmentCreatedBy === user.id ||
+      (user.patient?.id != null && apt.patientId === user.patient.id)
+    );
   }
 }

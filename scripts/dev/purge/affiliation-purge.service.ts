@@ -43,9 +43,10 @@ export async function fetchUsersWithAffiliations(
   const query = `
     SELECT u.id AS user_id, u.name, COALESCE(u.email::text, '-') AS email,
            COUNT(pa.id) AS total_affiliations,
-           COUNT(CASE WHEN pa.is_primary = false AND pa.relationship_type::text != 'self' THEN 1 END) AS non_self_affiliations
+           COUNT(CASE WHEN pa.is_primary = false AND (prt.code IS NULL OR prt.code != 'diri_sendiri') THEN 1 END) AS non_self_affiliations
     FROM users u
     JOIN patient_affiliations pa ON pa.user_id = u.id
+    LEFT JOIN patient_relationship_types prt ON prt.id = pa.relationship_type_id
     WHERE 1=1 ${whereClause}
     GROUP BY u.id, u.name, u.email
     ORDER BY non_self_affiliations DESC, total_affiliations DESC, u.name ASC;
@@ -67,14 +68,16 @@ export async function fetchUserAffiliationsDetail(
 ): Promise<UserAffiliationDetail[]> {
   const query = `
     SELECT pa.id AS affiliation_id, pa.patient_id, p.full_name AS patient_name,
-           pa.relationship_type::text AS relationship_type,
-           COALESCE(pa.relation_label, pa.relationship_type::text) AS relation_label,
-           pa.is_primary, (pa.relationship_type::text = 'self' OR p.user_id = pa.user_id) AS is_self,
+           COALESCE(prt.code, 'lainnya') AS relationship_type,
+           COALESCE(pa.relation_label, prt.name, prt.code, 'Lainnya') AS relation_label,
+           pa.is_primary,
+           COALESCE(prt.code = 'diri_sendiri' OR p.user_id = pa.user_id, false) AS is_self,
            (SELECT count(*) FROM appointments a WHERE a.patient_id = p.id) AS appointment_count
     FROM patient_affiliations pa
     JOIN patient_profiles p ON pa.patient_id = p.id
+    LEFT JOIN patient_relationship_types prt ON prt.id = pa.relationship_type_id
     WHERE pa.user_id = $1
-    ORDER BY pa.is_primary DESC, (pa.relationship_type::text = 'self') DESC, p.full_name ASC;
+    ORDER BY pa.is_primary DESC, (COALESCE(prt.code = 'diri_sendiri' OR p.user_id = pa.user_id, false)) DESC, p.full_name ASC;
   `;
 
   const res = await pool.query(query, [userId]);
@@ -126,9 +129,12 @@ export async function executeAffiliationPurge(
     let totalDeleted = 0;
 
     if (options.mode === 'ALL_NON_SELF') {
-      const targetAffs = await client.query(
-        "SELECT id, patient_id FROM patient_affiliations WHERE is_primary = false AND relationship_type::text != 'self'",
-      );
+      const targetAffs = await client.query(`
+        SELECT pa.id, pa.patient_id 
+        FROM patient_affiliations pa
+        LEFT JOIN patient_relationship_types prt ON prt.id = pa.relationship_type_id
+        WHERE pa.is_primary = false AND (prt.code IS NULL OR prt.code != 'diri_sendiri')
+      `);
       const affIds = targetAffs.rows.map((r) => r.id);
       const patIds = targetAffs.rows.map((r) => r.patient_id);
 
@@ -138,10 +144,12 @@ export async function executeAffiliationPurge(
         await cleanupOrphanedPatients(client, patIds);
       }
     } else if (options.mode === 'USER_ALL_NON_SELF' && options.userId) {
-      const targetAffs = await client.query(
-        "SELECT id, patient_id FROM patient_affiliations WHERE user_id = $1 AND is_primary = false AND relationship_type::text != 'self'",
-        [options.userId],
-      );
+      const targetAffs = await client.query(`
+        SELECT pa.id, pa.patient_id 
+        FROM patient_affiliations pa
+        LEFT JOIN patient_relationship_types prt ON prt.id = pa.relationship_type_id
+        WHERE pa.user_id = $1 AND pa.is_primary = false AND (prt.code IS NULL OR prt.code != 'diri_sendiri')
+      `, [options.userId]);
       const affIds = targetAffs.rows.map((r) => r.id);
       const patIds = targetAffs.rows.map((r) => r.patient_id);
 
@@ -235,9 +243,12 @@ export async function runAffiliationPurgeInteractive(
   rl: readline.Interface,
 ): Promise<void> {
   while (true) {
-    const totalAffRes = await pool.query(
-      "SELECT count(*) FROM patient_affiliations WHERE is_primary = false AND relationship_type::text != 'self'",
-    );
+    const totalAffRes = await pool.query(`
+      SELECT count(*) 
+      FROM patient_affiliations pa
+      LEFT JOIN patient_relationship_types prt ON prt.id = pa.relationship_type_id
+      WHERE pa.is_primary = false AND (prt.code IS NULL OR prt.code != 'diri_sendiri')
+    `);
     const nonSelfCount = parseInt(totalAffRes.rows[0]?.count ?? '0', 10);
 
     printSection(`Patient Affiliation Purge Menu [Non-Self Affiliations in DB: ${nonSelfCount}]`);

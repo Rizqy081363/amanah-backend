@@ -13,7 +13,7 @@ import {
   MAIL_DRIVER,
   type MailDriver,
 } from '../../common/constants/mail.constants';
-import { env } from '../../config/env';
+import { env, NodeEnvironment } from '../../config/env';
 import validateConfig from '../../utils/validate-config';
 import { MailConfig } from './mail-config.type';
 
@@ -107,7 +107,7 @@ export default registerAs<MailConfig>('mail', () => {
   const defaultName = process.env.MAIL_DEFAULT_NAME || MAIL_DEFAULTS.APP_NAME;
   const ignoreTLS =
     process.env.MAIL_IGNORE_TLS === 'true' ||
-    process.env.NODE_ENV === 'development';
+    env.NODE_ENV === NodeEnvironment.Development;
   const requireTLS = process.env.MAIL_REQUIRE_TLS === 'true';
 
   const driverRaw = (

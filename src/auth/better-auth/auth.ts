@@ -3,7 +3,7 @@ import { betterAuth } from 'better-auth';
 import { admin as adminPlugin, bearer, emailOTP } from 'better-auth/plugins';
 import nodemailer from 'nodemailer';
 import { Pool } from 'pg';
-import { env } from '../../config/env';
+import { env, NodeEnvironment } from '../../config/env';
 import {
   ac,
   admin,
@@ -69,7 +69,7 @@ const rawCorsOrigins = (env.APP_CORS_ORIGINS || '')
   .filter(Boolean);
 
 const betterAuthOriginPolicy = buildOriginPolicy({
-  appEnv: env.NODE_ENV || 'development',
+  appEnv: env.NODE_ENV,
   publicUrl: env.FRONTEND_DOMAIN,
   extraOrigins: [...rawCorsOrigins, env.BACKEND_DOMAIN || ''],
   devPatterns: devOriginPatterns,
@@ -181,7 +181,7 @@ export const auth = betterAuth({
   },
   rateLimit: {
     enabled:
-      env.NODE_ENV === 'production' ||
+      env.NODE_ENV === NodeEnvironment.Production ||
       process.env.RATE_LIMIT_ENABLED === 'true',
     customRules: {
       '/sign-in/social': { window: 60, max: 10 },
@@ -196,12 +196,12 @@ export const auth = betterAuth({
   },
   advanced: {
     trustedProxyHeaders: true,
-    useSecureCookies: env.NODE_ENV === 'production',
+    useSecureCookies: env.NODE_ENV === NodeEnvironment.Production,
     disableCSRFCheck: false,
     disableOriginCheck: false,
     defaultCookieAttributes: {
       httpOnly: true,
-      secure: env.NODE_ENV === 'production',
+      secure: env.NODE_ENV === NodeEnvironment.Production,
       sameSite: 'lax',
     },
     database: { generateId: 'uuid' },

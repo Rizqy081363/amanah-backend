@@ -2,6 +2,7 @@ import { Injectable, NestMiddleware } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { NextFunction, Request, Response } from 'express';
 import type { AllConfigType } from '../../../config/config.type';
+import { env, NodeEnvironment } from '../../../config/env';
 import {
   type ClientMetadata,
   extractClientMetadata,
@@ -72,7 +73,7 @@ export class HttpObservabilityMiddleware implements NestMiddleware {
         const formatted = (globalThis as any).Bun.inspect(payload, {
           depth: Infinity,
           maxArrayLength: Infinity,
-          colors: process.env.NODE_ENV !== 'production',
+          colors: env.NODE_ENV !== NodeEnvironment.Production,
         });
         console[level](`${formatted} ${eventLabel}`);
         return;
@@ -84,7 +85,7 @@ export class HttpObservabilityMiddleware implements NestMiddleware {
         const formatted = util.inspect(payload, {
           depth: null,
           maxArrayLength: null,
-          colors: process.env.NODE_ENV !== 'production',
+          colors: env.NODE_ENV !== NodeEnvironment.Production,
         });
         console[level](`${formatted} ${eventLabel}`);
       } catch {

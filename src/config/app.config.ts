@@ -10,6 +10,7 @@ import {
 } from 'class-validator';
 import validateConfig from '.././utils/validate-config';
 import { AppConfig } from './app-config.type';
+import { env, NodeEnvironment } from './env';
 import { buildOriginPolicy } from './origin-policy';
 
 enum Environment {
@@ -78,7 +79,7 @@ class EnvironmentVariablesValidator {
 export default registerAs<AppConfig>('app', () => {
   validateConfig(process.env, EnvironmentVariablesValidator);
 
-  const isProduction = process.env.NODE_ENV === 'production';
+  const isProduction = env.NODE_ENV === NodeEnvironment.Production;
 
   const devOriginPatterns = (process.env.APP_DEV_ORIGIN_PATTERNS || '')
     .split(',')
@@ -95,14 +96,14 @@ export default registerAs<AppConfig>('app', () => {
     .filter(Boolean);
 
   const originPolicy = buildOriginPolicy({
-    appEnv: process.env.NODE_ENV || 'development',
+    appEnv: env.NODE_ENV,
     publicUrl: process.env.FRONTEND_DOMAIN,
     extraOrigins: rawCorsOrigins,
     devPatterns: devOriginPatterns,
   });
 
   return {
-    nodeEnv: process.env.NODE_ENV || 'development',
+    nodeEnv: env.NODE_ENV,
     name: process.env.APP_NAME || 'app',
     workingDirectory: process.env.PWD || process.cwd(),
     frontendDomain: process.env.FRONTEND_DOMAIN,

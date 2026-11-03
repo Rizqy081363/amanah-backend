@@ -6,6 +6,7 @@ import {
   HttpStatus,
   Inject,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
@@ -94,7 +95,7 @@ export class AdminAppointmentsController {
     description: 'Janji temu tidak ditemukan',
   })
   async cancelAppointment(
-    @Param('appointmentId') appointmentId: string,
+    @Param('appointmentId', new ParseUUIDPipe()) appointmentId: string,
     @Body() body: CancelAppointmentDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
@@ -124,7 +125,7 @@ export class AdminAppointmentsController {
     description: 'Janji temu tidak ditemukan',
   })
   async updateStatus(
-    @Param('appointmentId') appointmentId: string,
+    @Param('appointmentId', new ParseUUIDPipe()) appointmentId: string,
     @Body() body: AdminUpdateAppointmentStatusDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
@@ -146,7 +147,9 @@ export class AdminAppointmentsController {
     name: 'appointmentId',
     description: 'ID unik janji temu pasien (UUID)',
   })
-  async getDoctorCandidates(@Param('appointmentId') appointmentId: string) {
+  async getDoctorCandidates(
+    @Param('appointmentId', new ParseUUIDPipe()) appointmentId: string,
+  ) {
     return this.candidateResolver.resolveDoctorCandidates(appointmentId);
   }
 
@@ -161,7 +164,9 @@ export class AdminAppointmentsController {
     name: 'appointmentId',
     description: 'ID unik janji temu pasien (UUID)',
   })
-  async getRoomCandidates(@Param('appointmentId') appointmentId: string) {
+  async getRoomCandidates(
+    @Param('appointmentId', new ParseUUIDPipe()) appointmentId: string,
+  ) {
     return this.candidateResolver.resolveRoomCandidates(appointmentId);
   }
 
@@ -178,7 +183,7 @@ export class AdminAppointmentsController {
     description: 'ID unik janji temu pasien (UUID)',
   })
   async changeDoctor(
-    @Param('appointmentId') appointmentId: string,
+    @Param('appointmentId', new ParseUUIDPipe()) appointmentId: string,
     @Body() body: ChangeAppointmentDoctorDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
@@ -210,7 +215,7 @@ export class AdminAppointmentsController {
     description: 'ID unik janji temu pasien (UUID)',
   })
   async changeRoom(
-    @Param('appointmentId') appointmentId: string,
+    @Param('appointmentId', new ParseUUIDPipe()) appointmentId: string,
     @Body() body: ChangeAppointmentRoomDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
@@ -338,44 +343,6 @@ export class AdminAppointmentsController {
     };
   }
 
-  @Post(':appointmentId/propose-reschedule')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'Klinik mengajukan reschedule janji temu (Menunggu Persetujuan Pasien)',
-    description:
-      'Membuat usulan pemindahan jadwal ke tanggal/sesi tujuan dan mengirim notifikasi actionable ke pasien.',
-  })
-  @ApiParam({
-    name: 'appointmentId',
-    description: 'ID unik janji temu pasien (UUID)',
-  })
-  async proposeReschedule(
-    @Param('appointmentId') appointmentId: string,
-    @Body() body: ProposeRescheduleDto,
-    @CurrentUser() user: AuthenticatedUser,
-  ) {
-    return this.proposalService.proposeReschedule(appointmentId, body, user);
-  }
-
-  @Post(':appointmentId/propose-cancel')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'Klinik mengajukan pembatalan janji temu (Menunggu Persetujuan Pasien)',
-    description:
-      'Membuat usulan pembatalan janji temu dan mengirim notifikasi actionable ke pasien.',
-  })
-  @ApiParam({
-    name: 'appointmentId',
-    description: 'ID unik janji temu pasien (UUID)',
-  })
-  async proposeCancellation(
-    @Param('appointmentId') appointmentId: string,
-    @Body() body: ProposeCancellationDto,
-    @CurrentUser() user: AuthenticatedUser,
-  ) {
-    return this.proposalService.proposeCancellation(appointmentId, body, user);
-  }
-
   @Post('bulk/propose-reschedule')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -436,6 +403,44 @@ export class AdminAppointmentsController {
       message: 'Pengajuan pembatalan massal selesai diproses',
       data: results,
     };
+  }
+
+  @Post(':appointmentId/propose-reschedule')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Klinik mengajukan reschedule janji temu (Menunggu Persetujuan Pasien)',
+    description:
+      'Membuat usulan pemindahan jadwal ke tanggal/sesi tujuan dan mengirim notifikasi actionable ke pasien.',
+  })
+  @ApiParam({
+    name: 'appointmentId',
+    description: 'ID unik janji temu pasien (UUID)',
+  })
+  async proposeReschedule(
+    @Param('appointmentId', new ParseUUIDPipe()) appointmentId: string,
+    @Body() body: ProposeRescheduleDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.proposalService.proposeReschedule(appointmentId, body, user);
+  }
+
+  @Post(':appointmentId/propose-cancel')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Klinik mengajukan pembatalan janji temu (Menunggu Persetujuan Pasien)',
+    description:
+      'Membuat usulan pembatalan janji temu dan mengirim notifikasi actionable ke pasien.',
+  })
+  @ApiParam({
+    name: 'appointmentId',
+    description: 'ID unik janji temu pasien (UUID)',
+  })
+  async proposeCancellation(
+    @Param('appointmentId', new ParseUUIDPipe()) appointmentId: string,
+    @Body() body: ProposeCancellationDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.proposalService.proposeCancellation(appointmentId, body, user);
   }
 
   @Get('proposals/pending')

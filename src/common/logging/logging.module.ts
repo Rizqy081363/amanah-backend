@@ -3,6 +3,7 @@ import { Global, MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { LoggerModule } from 'nestjs-pino';
 import type { AllConfigType } from '../../config/config.type';
+import { env, NodeEnvironment } from '../../config/env';
 import { HttpObservabilityInterceptor } from './interceptors/http-observability.interceptor';
 import { CORRELATION_ID_HEADER, REQUEST_ID_HEADER } from './logging.constants';
 import { HttpObservabilityMiddleware } from './middleware/http-observability.middleware';
@@ -18,7 +19,7 @@ import { HttpObservabilityMiddleware } from './middleware/http-observability.mid
         const isPretty = appConfig?.logPretty ?? false;
         const logLevel =
           appConfig?.logLevel ??
-          (process.env.NODE_ENV === 'production' ? 'info' : 'debug');
+          (env.NODE_ENV === NodeEnvironment.Production ? 'info' : 'debug');
 
         return {
           pinoHttp: {
