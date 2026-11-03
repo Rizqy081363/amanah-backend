@@ -247,6 +247,18 @@ const CLINIC_SETTING_METADATA_REGISTRY: Record<
     max: 10,
     step: 1,
   },
+  'queue.requeue_bump_positions': {
+    isAdminFacing: true,
+    category: 'queue',
+    label: 'Pergeseran Antrean saat Dilewati',
+    description:
+      'Jumlah nomor antrean yang diselipkan ke depan saat pasien tidak merespons panggilan (requeue ke belakang).',
+    controlType: 'number',
+    unit: 'antrean',
+    min: 1,
+    max: 10,
+    step: 1,
+  },
   'queue.search_horizon_days': {
     isAdminFacing: true,
     category: 'queue',

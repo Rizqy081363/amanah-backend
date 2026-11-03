@@ -39,4 +39,8 @@ export class AppointmentPolicyReader {
   async getNoShowCallAttempts(): Promise<number> {
     return this.clinicConfig.getNumber('queue.no_show_call_attempts');
   }
+
+  async getRequeueBumpPositions(): Promise<number> {
+    return this.clinicConfig.getNumber('queue.requeue_bump_positions');
+  }
 }

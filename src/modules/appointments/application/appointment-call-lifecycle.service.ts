@@ -20,11 +20,11 @@ import {
   APPOINTMENT_CALL_STATUS,
   APPOINTMENT_EVENTS,
   DB_APPOINTMENT_STATUS,
-  MAX_PATIENT_CALL_ATTEMPTS,
   QUEUE_TICKET_STATUS,
   TERMINAL_APPOINTMENT_STATUSES,
 } from '../domain/constants/appointment-lifecycle.constants';
 import { AppointmentCallRepository } from '../domain/repositories/appointment-call.repository';
+import { AppointmentPolicyReader } from '../domain/services/appointment-policy.reader';
 import {
   PUSH_NOTIFICATION_PORT,
   type PushNotificationPort,
@@ -53,7 +53,37 @@ export class AppointmentCallLifecycleService {
     private readonly queueEventPublisher?: QueueEventPublisher,
     @Optional()
     private readonly redisService?: RedisService,
+    @Optional()
+    private readonly policyReader?: AppointmentPolicyReader,
   ) {}
+
+  private async getMaxCallAttempts(): Promise<number> {
+    if (this.policyReader) {
+      try {
+        const configured = await this.policyReader.getNoShowCallAttempts();
+        if (typeof configured === 'number' && configured > 0) {
+          return configured;
+        }
+      } catch (err: any) {
+        this.logger.warn(`Gagal membaca queue.no_show_call_attempts dari config: ${err.message}`);
+      }
+    }
+    return 2;
+  }
+
+  private async getRequeueBumpPositions(): Promise<number> {
+    if (this.policyReader) {
+      try {
+        const configured = await this.policyReader.getRequeueBumpPositions();
+        if (typeof configured === 'number' && configured > 0) {
+          return configured;
+        }
+      } catch (err: any) {
+        this.logger.warn(`Gagal membaca queue.requeue_bump_positions dari config: ${err.message}`);
+      }
+    }
+    return 3;
+  }
 
   private async invalidateQueueCache(): Promise<void> {
     if (!this.redisService) return;
@@ -138,6 +168,8 @@ export class AppointmentCallLifecycleService {
 
     await this.invalidateQueueCache();
 
+    const maxAttempts = await this.getMaxCallAttempts();
+
     const event: DomainEvent = {
       eventId: randomUUID(),
       eventType: APPOINTMENT_EVENTS.PATIENT_CALLED,
@@ -150,7 +182,7 @@ export class AppointmentCallLifecycleService {
         patientName: details.patientName,
         ticketNumber: details.ticketNumber,
         attemptNumber: nextAttemptNumber,
-        maxAttempts: MAX_PATIENT_CALL_ATTEMPTS,
+        maxAttempts,
         poliklinikName: details.poliklinikName || '',
         roomName: details.roomName || null,
         doctorName: details.doctorName || null,
@@ -220,12 +252,12 @@ export class AppointmentCallLifecycleService {
     }
 
     this.logger.log(
-      `Patient called for appointment ${appointmentId} (attempt ${nextAttemptNumber}/${MAX_PATIENT_CALL_ATTEMPTS})`,
+      `Patient called for appointment ${appointmentId} (attempt ${nextAttemptNumber}/${maxAttempts})`,
     );
 
     return {
       attemptNumber: nextAttemptNumber,
-      maxAttempts: MAX_PATIENT_CALL_ATTEMPTS,
+      maxAttempts,
       status: APPOINTMENT_CALL_STATUS.CALLED,
     };
   }
@@ -467,10 +499,13 @@ export class AppointmentCallLifecycleService {
       APPOINTMENT_CALL_STATUS.NO_RESPONSE,
     );
 
-    if (latestAttempt.attemptNumber < MAX_PATIENT_CALL_ATTEMPTS) {
-      // Requeue behind 3 positions
+    const maxAttempts = await this.getMaxCallAttempts();
+    const bumpPositions = await this.getRequeueBumpPositions();
+
+    if (latestAttempt.attemptNumber < maxAttempts) {
+      // Requeue behind bumpPositions
       if (details.ticketId) {
-        await this.callRepo.requeueTicket(details.ticketId, 3);
+        await this.callRepo.requeueTicket(details.ticketId, bumpPositions);
       }
 
       await this.invalidateQueueCache();
@@ -486,8 +521,7 @@ export class AppointmentCallLifecycleService {
           patientUserId: details.patientUserId,
           ticketNumber: details.ticketNumber,
           attemptNumber: latestAttempt.attemptNumber,
-          remainingAttempts:
-            MAX_PATIENT_CALL_ATTEMPTS - latestAttempt.attemptNumber,
+          remainingAttempts: maxAttempts - latestAttempt.attemptNumber,
           poliklinikName:
             details.roomName || details.poliklinikName || 'Poliklinik',
           notes,
@@ -521,7 +555,7 @@ export class AppointmentCallLifecycleService {
           .sendPush({
             userId: details.patientUserId,
             title: 'Antrean Digeser',
-            body: `Nomor antrean ${details.ticketNumber} (${details.patientName || 'Pasien'}) digeser 3 posisi ke belakang karena belum merespons. Sisa kesempatan panggilan: ${MAX_PATIENT_CALL_ATTEMPTS - latestAttempt.attemptNumber} kali.`,
+            body: `Nomor antrean ${details.ticketNumber} (${details.patientName || 'Pasien'}) digeser ${bumpPositions} posisi ke belakang karena belum merespons. Sisa kesempatan panggilan: ${maxAttempts - latestAttempt.attemptNumber} kali.`,
             data: {
               appointmentId,
               queueNumber: String(details.ticketNumber),
@@ -538,8 +572,7 @@ export class AppointmentCallLifecycleService {
       return {
         requeued: true,
         attemptNumber: latestAttempt.attemptNumber,
-        remainingAttempts:
-          MAX_PATIENT_CALL_ATTEMPTS - latestAttempt.attemptNumber,
+        remainingAttempts: maxAttempts - latestAttempt.attemptNumber,
         status: QUEUE_TICKET_STATUS.WAITING,
       };
     }
@@ -616,7 +649,7 @@ export class AppointmentCallLifecycleService {
         .sendPush({
           userId: details.patientUserId,
           title: 'Panggilan Terlewati (No-Show)',
-          body: `Nomor antrean ${details.ticketNumber} (${details.patientName || 'Pasien'}) tidak hadir setelah 3 kali pemanggilan di ${roomOrPoli}.`,
+          body: `Nomor antrean ${details.ticketNumber} (${details.patientName || 'Pasien'}) tidak hadir setelah ${maxAttempts} kali pemanggilan di ${roomOrPoli}.`,
           data: {
             appointmentId,
             queueNumber: String(details.ticketNumber),
