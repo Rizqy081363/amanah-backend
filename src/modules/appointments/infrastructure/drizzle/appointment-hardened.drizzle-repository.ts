@@ -114,6 +114,7 @@ export class AppointmentHardenedDrizzleRepository
           },
         },
         queueTickets: true,
+        appointmentChangeProposals: true,
       },
     });
 
@@ -618,6 +619,7 @@ export class AppointmentHardenedDrizzleRepository
           },
         },
         queueTickets: true,
+        appointmentChangeProposals: true,
       },
     });
 
@@ -700,6 +702,11 @@ export class AppointmentHardenedDrizzleRepository
     const hasPendingProposal = Boolean(pendingProposal);
     const pendingProposalId = pendingProposal?.id || null;
     const pendingProposalType = (pendingProposal?.proposalType as any) || null;
+    const pendingProposalReason = pendingProposal?.reason || null;
+    const pendingProposalCreatedAt = pendingProposal?.createdAt
+      ? new Date(pendingProposal.createdAt)
+      : null;
+    const pendingProposalTargetDate = pendingProposal?.proposedDate || null;
 
     let isOvercapacity = false;
     const sessionDef = apt.queueTickets?.[0]?.sessionDef;
@@ -768,6 +775,9 @@ export class AppointmentHardenedDrizzleRepository
       hasPendingProposal,
       pendingProposalId,
       pendingProposalType,
+      pendingProposalReason,
+      pendingProposalCreatedAt,
+      pendingProposalTargetDate,
       actualStartedAt: apt.actualStartedAt
         ? new Date(apt.actualStartedAt)
         : apt.startedAt

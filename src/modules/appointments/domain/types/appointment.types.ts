@@ -127,6 +127,9 @@ export interface EstimatedTiming {
   hasPendingProposal?: boolean;
   pendingProposalId?: string | null;
   pendingProposalType?: 'reschedule' | 'cancellation' | null;
+  pendingProposalReason?: string | null;
+  pendingProposalCreatedAt?: Date | null;
+  pendingProposalTargetDate?: string | null;
 }
 
 export interface AppointmentRecord {
@@ -158,6 +161,9 @@ export interface AppointmentRecord {
   hasPendingProposal?: boolean;
   pendingProposalId?: string | null;
   pendingProposalType?: 'reschedule' | 'cancellation' | null;
+  pendingProposalReason?: string | null;
+  pendingProposalCreatedAt?: Date | null;
+  pendingProposalTargetDate?: string | null;
   actualStartedAt?: Date | null;
   actualCompletedAt?: Date | null;
   checkedInAt?: Date | null;

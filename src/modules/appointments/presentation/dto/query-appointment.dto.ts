@@ -60,6 +60,14 @@ export class QueryAppointmentDto {
   status?: string;
 
   @ApiPropertyOptional({
+    description:
+      'Filter berdasarkan status persetujuan usulan pasien (all_pending, reschedule, cancellation)',
+  })
+  @IsString()
+  @IsOptional()
+  proposalStatus?: string;
+
+  @ApiPropertyOptional({
     description: 'Filter ID Dokter/Practitioner',
   })
   @IsString()

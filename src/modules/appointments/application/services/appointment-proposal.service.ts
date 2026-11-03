@@ -18,6 +18,7 @@ import {
   appointments,
   appointmentStatusEvents,
   clinicRooms,
+  clinicServices,
   patientAffiliations,
   patientProfiles,
   practitioners,
@@ -951,6 +952,7 @@ export class AppointmentProposalService {
           appointmentChangeProposals.estimatedQueueNumber,
         bookingCode: appointments.bookingCode,
         patientName: patientProfiles.fullName,
+        serviceName: clinicServices.name,
         createdAt: appointmentChangeProposals.createdAt,
         defaultStartsAt: sessionDefs.defaultStartsAt,
       })
@@ -962,6 +964,10 @@ export class AppointmentProposalService {
       .leftJoin(
         sessionDefs,
         eq(sessionDefs.id, appointmentChangeProposals.originalSessionId),
+      )
+      .leftJoin(
+        clinicServices,
+        eq(clinicServices.id, appointments.serviceId),
       )
       .leftJoin(
         patientProfiles,
@@ -994,6 +1000,7 @@ export class AppointmentProposalService {
       estimatedQueueNumber: number | null;
       bookingCode: string;
       patientName: string | null;
+      serviceName: string | null;
       createdAt: string;
       expiresAt: string;
     }> = [];
@@ -1022,6 +1029,7 @@ export class AppointmentProposalService {
           estimatedQueueNumber: r.estimatedQueueNumber,
           bookingCode: r.bookingCode,
           patientName: r.patientName,
+          serviceName: r.serviceName,
           createdAt: r.createdAt,
           expiresAt: expiresAt.toISOString(),
         });
@@ -1084,6 +1092,7 @@ export class AppointmentProposalService {
         bookingCode: appointments.bookingCode,
         patientName: patientProfiles.fullName,
         patientPhone: patientProfiles.phone,
+        serviceName: clinicServices.name,
         createdAt: appointmentChangeProposals.createdAt,
         patientResponseAt: appointmentChangeProposals.patientResponseAt,
         patientResponseNotes:
@@ -1098,6 +1107,10 @@ export class AppointmentProposalService {
       .leftJoin(
         sessionDefs,
         eq(sessionDefs.id, appointmentChangeProposals.originalSessionId),
+      )
+      .leftJoin(
+        clinicServices,
+        eq(clinicServices.id, appointments.serviceId),
       )
       .innerJoin(
         patientProfiles,

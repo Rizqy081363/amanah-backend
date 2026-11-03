@@ -192,6 +192,7 @@ export class AppointmentsService {
       doctorName: query.doctorName,
       roomId: query.roomId,
       roomName: query.roomName,
+      proposalStatus: query.proposalStatus,
     });
 
     return {

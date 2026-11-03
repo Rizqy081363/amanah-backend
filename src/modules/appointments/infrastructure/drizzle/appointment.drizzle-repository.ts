@@ -20,6 +20,7 @@ import { ClinicTimeService } from '../../../../common/time/clinic-time.service';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
+  appointmentChangeProposals,
   appointments,
   clinicRooms,
   clinicServices,
@@ -229,6 +230,7 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
       doctorName?: string;
       roomId?: string;
       roomName?: string;
+      proposalStatus?: string;
     },
   ): Promise<AppointmentFindAllResult> {
     const conditions: any[] = [];
@@ -290,6 +292,40 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
         conditions.push(eq(appointments.status, rawStatuses[0] as any));
       } else if (rawStatuses.length > 1) {
         conditions.push(inArray(appointments.status, rawStatuses as any[]));
+      }
+    }
+
+    // 7b. Proposal Status filter (all_pending, reschedule, cancellation)
+    if (filters?.proposalStatus) {
+      if (filters.proposalStatus === 'reschedule') {
+        conditions.push(
+          sql`EXISTS (
+            SELECT 1 FROM ${appointmentChangeProposals}
+            WHERE ${appointmentChangeProposals.appointmentId} = ${appointments.id}
+              AND ${appointmentChangeProposals.status} = 'pending'
+              AND ${appointmentChangeProposals.proposalType} = 'reschedule'
+          )`,
+        );
+      } else if (filters.proposalStatus === 'cancellation') {
+        conditions.push(
+          sql`EXISTS (
+            SELECT 1 FROM ${appointmentChangeProposals}
+            WHERE ${appointmentChangeProposals.appointmentId} = ${appointments.id}
+              AND ${appointmentChangeProposals.status} = 'pending'
+              AND ${appointmentChangeProposals.proposalType} = 'cancellation'
+          )`,
+        );
+      } else if (
+        filters.proposalStatus === 'pending' ||
+        filters.proposalStatus === 'all_pending'
+      ) {
+        conditions.push(
+          sql`EXISTS (
+            SELECT 1 FROM ${appointmentChangeProposals}
+            WHERE ${appointmentChangeProposals.appointmentId} = ${appointments.id}
+              AND ${appointmentChangeProposals.status} = 'pending'
+          )`,
+        );
       }
     }
 

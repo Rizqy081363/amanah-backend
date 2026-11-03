@@ -164,6 +164,11 @@ export class AppointmentRecordMapper {
     const hasPendingProposal = Boolean(pendingProposal);
     const pendingProposalId = pendingProposal?.id || null;
     const pendingProposalType = (pendingProposal?.proposalType as any) || null;
+    const pendingProposalReason = pendingProposal?.reason || null;
+    const pendingProposalCreatedAt = pendingProposal?.createdAt
+      ? new Date(pendingProposal.createdAt)
+      : null;
+    const pendingProposalTargetDate = pendingProposal?.proposedDate || null;
 
     let isOvercapacity = false;
     if (sessionDef?.defaultEndsAt && estimatedEndAt && apt.scheduledDate) {
@@ -263,6 +268,9 @@ export class AppointmentRecordMapper {
       hasPendingProposal,
       pendingProposalId,
       pendingProposalType,
+      pendingProposalReason,
+      pendingProposalCreatedAt,
+      pendingProposalTargetDate,
       etaRange,
       aheadCount,
       completedAt: apt.completedAt ? new Date(apt.completedAt) : null,
