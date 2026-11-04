@@ -4,13 +4,16 @@ import { asc, eq, sql } from 'drizzle-orm';
 import { Public } from '../../../common/auth';
 import { DRIZZLE_SOURCE } from '../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../database/drizzle/drizzle.provider';
-import { occupations, patientRelationshipTypes } from '../../../database/schema';
 import {
-  BACKEND_BLOOD_TYPE_OPTIONS,
+  bloodTypes,
+  educationLevels,
+  occupations,
+  patientRelationshipTypes,
+  religions,
+} from '../../../database/schema';
+import {
   BACKEND_GENDER_OPTIONS,
   BACKEND_STATUS_OPTIONS,
-  formatBloodTypeDisplay,
-  getBloodTypeDescription,
   ReferenceOption,
 } from '../domain/data/patient-reference.data';
 import { IndonesianRegionService } from '../infrastructure/services/indonesian-region.service';
@@ -24,31 +27,6 @@ export class PatientReferencesController {
     private readonly db: DrizzleDatabase,
     private readonly regionService: IndonesianRegionService,
   ) {}
-
-  private async fetchLiveBloodTypeOptions(): Promise<ReferenceOption[]> {
-    try {
-      const result = await this.db.execute(sql`
-        SELECT e.enumlabel
-        FROM pg_enum e
-        JOIN pg_type t ON e.enumtypid = t.oid
-        WHERE t.typname = 'blood_type'
-        ORDER BY e.enumsortorder ASC
-      `);
-      const rows = ((result as any)?.rows ?? (result as any) ?? []) as Array<{
-        enumlabel: string;
-      }>;
-      if (rows.length > 0) {
-        return rows.map((r) => ({
-          label: formatBloodTypeDisplay(r.enumlabel),
-          value: r.enumlabel,
-          description: getBloodTypeDescription(r.enumlabel),
-        }));
-      }
-    } catch {
-      // Fallback safe to schema definition if catalog query fails
-    }
-    return BACKEND_BLOOD_TYPE_OPTIONS;
-  }
 
   private async fetchLiveGenderOptions(): Promise<ReferenceOption[]> {
     try {
@@ -80,10 +58,59 @@ export class PatientReferencesController {
   })
   @ApiResponse({ status: 200, description: 'Daftar golongan darah' })
   async getBloodTypes() {
-    const data = await this.fetchLiveBloodTypeOptions();
+    const list = await this.db.query.bloodTypes.findMany({
+      where: eq(bloodTypes.isActive, true),
+      orderBy: [asc(bloodTypes.displayOrder), asc(bloodTypes.name)],
+    });
     return {
       success: true,
-      data,
+      data: list.map((b) => ({
+        id: b.id,
+        value: b.name,
+        label: b.name,
+        description: b.description,
+        displayOrder: b.displayOrder,
+      })),
+    };
+  }
+
+  @Get('education-levels')
+  @ApiOperation({ summary: 'Mendapatkan referensi jenjang pendidikan' })
+  @ApiResponse({ status: 200, description: 'Daftar jenjang pendidikan' })
+  async getEducationLevels() {
+    const list = await this.db.query.educationLevels.findMany({
+      where: eq(educationLevels.isActive, true),
+      orderBy: [asc(educationLevels.displayOrder), asc(educationLevels.name)],
+    });
+    return {
+      success: true,
+      data: list.map((e) => ({
+        id: e.id,
+        value: e.name,
+        label: e.name,
+        description: e.description,
+        displayOrder: e.displayOrder,
+      })),
+    };
+  }
+
+  @Get('religions')
+  @ApiOperation({ summary: 'Mendapatkan referensi agama' })
+  @ApiResponse({ status: 200, description: 'Daftar agama' })
+  async getReligions() {
+    const list = await this.db.query.religions.findMany({
+      where: eq(religions.isActive, true),
+      orderBy: [asc(religions.displayOrder), asc(religions.name)],
+    });
+    return {
+      success: true,
+      data: list.map((r) => ({
+        id: r.id,
+        value: r.name,
+        label: r.name,
+        description: r.description,
+        displayOrder: r.displayOrder,
+      })),
     };
   }
 
@@ -223,28 +250,66 @@ export class PatientReferencesController {
     description: 'Kumpulan referensi formulir pendaftaran',
   })
   async getAllFormOptions() {
-    const [occupationsList, relationshipsList, provinces, liveBloodTypes, liveGenders] =
-      await Promise.all([
-        this.db.query.occupations.findMany({
-          where: eq(occupations.isActive, true),
-          orderBy: [asc(occupations.displayOrder), asc(occupations.name)],
-        }),
-        this.db.query.patientRelationshipTypes.findMany({
-          where: eq(patientRelationshipTypes.isActive, true),
-          orderBy: [
-            asc(patientRelationshipTypes.displayOrder),
-            asc(patientRelationshipTypes.name),
-          ],
-        }),
-        this.regionService.getProvinces(),
-        this.fetchLiveBloodTypeOptions(),
-        this.fetchLiveGenderOptions(),
-      ]);
+    const [
+      occupationsList,
+      relationshipsList,
+      provinces,
+      bloodTypesList,
+      educationLevelsList,
+      religionsList,
+      liveGenders,
+    ] = await Promise.all([
+      this.db.query.occupations.findMany({
+        where: eq(occupations.isActive, true),
+        orderBy: [asc(occupations.displayOrder), asc(occupations.name)],
+      }),
+      this.db.query.patientRelationshipTypes.findMany({
+        where: eq(patientRelationshipTypes.isActive, true),
+        orderBy: [
+          asc(patientRelationshipTypes.displayOrder),
+          asc(patientRelationshipTypes.name),
+        ],
+      }),
+      this.regionService.getProvinces(),
+      this.db.query.bloodTypes.findMany({
+        where: eq(bloodTypes.isActive, true),
+        orderBy: [asc(bloodTypes.displayOrder), asc(bloodTypes.name)],
+      }),
+      this.db.query.educationLevels.findMany({
+        where: eq(educationLevels.isActive, true),
+        orderBy: [asc(educationLevels.displayOrder), asc(educationLevels.name)],
+      }),
+      this.db.query.religions.findMany({
+        where: eq(religions.isActive, true),
+        orderBy: [asc(religions.displayOrder), asc(religions.name)],
+      }),
+      this.fetchLiveGenderOptions(),
+    ]);
 
     return {
       success: true,
       data: {
-        bloodTypes: liveBloodTypes,
+        bloodTypes: bloodTypesList.map((b) => ({
+          id: b.id,
+          value: b.name,
+          label: b.name,
+          description: b.description,
+          displayOrder: b.displayOrder,
+        })),
+        educationLevels: educationLevelsList.map((e) => ({
+          id: e.id,
+          value: e.name,
+          label: e.name,
+          description: e.description,
+          displayOrder: e.displayOrder,
+        })),
+        religions: religionsList.map((r) => ({
+          id: r.id,
+          value: r.name,
+          label: r.name,
+          description: r.description,
+          displayOrder: r.displayOrder,
+        })),
         genders: liveGenders,
         statuses: BACKEND_STATUS_OPTIONS,
         relationships: relationshipsList.map((r) => ({

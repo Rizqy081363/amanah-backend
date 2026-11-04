@@ -47,13 +47,13 @@ import {
   MEDICAL_RECORD_REPOSITORY,
   MedicalRecordRepository,
 } from '../domain/repositories/medical-record.repository';
-import { CreateChildImmunizationIntakeDto } from './dto/create-child-immunization-intake.dto';
-import { CreateMaternityIntakeDto } from './dto/create-maternity-intake.dto';
+import { CreateImmunizationIntakeDto } from '../../immunization/presentation/dto/create-immunization-intake.dto';
+import { ImmunizationHistoryQueryDto } from '../../immunization/presentation/dto/immunization-query.dto';
+import { UpdateImmunizationIntakeDto } from '../../immunization/presentation/dto/update-immunization-intake.dto';
+import { CreateMaternityIntakeDto } from '../../maternity/presentation/dto/create-maternity-intake.dto';
 import { CreateMedicalIntakeDto } from './dto/create-medical-intake.dto';
-import { GetImmunizationHistoryQueryDto } from './dto/get-immunization-history-query.dto';
-import { GetMaternalHistoryQueryDto } from './dto/get-maternal-history-query.dto';
-import { UpdateChildImmunizationIntakeDto } from './dto/update-child-immunization-intake.dto';
-import { UpdateMaternityIntakeDto } from './dto/update-maternity-intake.dto';
+import { MaternityHistoryQueryDto as GetMaternalHistoryQueryDto } from '../../maternity/presentation/dto/maternity-query.dto';
+import { UpdateMaternityIntakeDto } from '../../maternity/presentation/dto/update-maternity-intake.dto';
 import { UpdateMedicalIntakeDto } from './dto/update-medical-intake.dto';
 import { zodPipe } from '../../../common/validation';
 import {
@@ -61,8 +61,6 @@ import {
   type UpdateMedicalIntakeInput,
   UpdateMaternityIntakeSchema,
   type UpdateMaternityIntakeInput,
-  UpdateChildImmunizationIntakeSchema,
-  type UpdateChildImmunizationIntakeInput,
 } from './dto/update-intake.schema';
 
 @ApiTags('Medical Intakes (Formulir Skrining, Imunisasi & Kehamilan)')
@@ -193,7 +191,7 @@ export class MedicalIntakesController {
     description: 'Intake imunisasi anak berhasil disimpan',
   })
   async createImmunizationIntake(
-    @Body() body: CreateChildImmunizationIntakeDto,
+    @Body() body: CreateImmunizationIntakeDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.medicalRecordRepo.createImmunizationIntake(body, user?.id);
@@ -304,7 +302,7 @@ export class MedicalIntakesController {
     summary: 'Mendapatkan riwayat formulir imunisasi anak dengan paginasi',
   })
   async getImmunizationHistory(
-    @Query() query: GetImmunizationHistoryQueryDto,
+    @Query() query: ImmunizationHistoryQueryDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
     let targetPatientIds: string[] | undefined = undefined;
@@ -416,8 +414,7 @@ export class MedicalIntakesController {
   })
   async updateImmunizationIntakeById(
     @Param('id') id: string,
-    @Body(zodPipe(UpdateChildImmunizationIntakeSchema))
-    body: UpdateChildImmunizationIntakeInput,
+    @Body() body: UpdateImmunizationIntakeDto,
   ) {
     const updated = await this.medicalRecordRepo.updateImmunizationIntake(
       id,

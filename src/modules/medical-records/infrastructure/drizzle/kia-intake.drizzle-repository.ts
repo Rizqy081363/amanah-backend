@@ -6,40 +6,28 @@ import {
   Optional,
 } from '@nestjs/common';
 import { isUUID } from 'class-validator';
-import {
-  and,
-  count,
-  desc,
-  eq,
-  gte,
-  ilike,
-  inArray,
-  lte,
-  or,
-} from 'drizzle-orm';
+import { desc, eq, or } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
   appointments,
-  childImmunizationEntries,
-  childImmunizationIntakes,
   medicalIntakeSubmissions,
   patientProfiles,
 } from '../../../../database/schema';
 import { AppointmentsService } from '../../../appointments/application/appointments.service';
+import { ImmunizationDrizzleRepository } from '../../../immunization/infrastructure/drizzle/immunization.drizzle-repository';
 import { formatBloodTypeDisplay } from '../../../patients/domain/data/patient-reference.data';
-import { CreateChildImmunizationIntakeDto } from '../../presentation/dto/create-child-immunization-intake.dto';
-import { CreateMaternityIntakeDto } from '../../presentation/dto/create-maternity-intake.dto';
-import { UpdateChildImmunizationIntakeDto } from '../../presentation/dto/update-child-immunization-intake.dto';
-import { UpdateMaternityIntakeDto } from '../../presentation/dto/update-maternity-intake.dto';
-import { MaternalIntakeDrizzleRepository } from './maternal-intake.drizzle-repository';
+import { CreateMaternityIntakeDto } from '../../../maternity/presentation/dto/create-maternity-intake.dto';
+import { UpdateMaternityIntakeDto } from '../../../maternity/presentation/dto/update-maternity-intake.dto';
+import { MaternityDrizzleRepository } from '../../../maternity/infrastructure/drizzle/maternity.drizzle-repository';
 
 @Injectable()
 export class KiaIntakeDrizzleRepository {
   constructor(
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,
-    private readonly maternalRepo: MaternalIntakeDrizzleRepository,
+    private readonly maternalRepo: MaternityDrizzleRepository,
+    private readonly immunizationRepo: ImmunizationDrizzleRepository,
     @Optional()
     @Inject(forwardRef(() => AppointmentsService))
     private readonly appointmentsService?: AppointmentsService,
@@ -74,315 +62,17 @@ export class KiaIntakeDrizzleRepository {
   }
 
   async createImmunizationIntake(
-    dto: CreateChildImmunizationIntakeDto,
+    dto: any,
     submittedByUserId?: string,
   ): Promise<any> {
-    return await this.db.transaction(async (tx) => {
-      const hasVaccineHistory =
-        dto.hasVaccineHistory ||
-        (dto.entries && dto.entries.length > 0
-          ? 'Ya, pernah'
-          : dto.previousVaccineHistory &&
-              dto.previousVaccineHistory !==
-                'Belum pernah imunisasi sama sekali'
-            ? 'Ya, pernah'
-            : 'Belum pernah sama sekali');
-
-      const hasAllergyHistory =
-        dto.hasAllergyHistory ||
-        (dto.childAllergyHistory &&
-        dto.childAllergyHistory !== 'Tidak ada riwayat alergi.'
-          ? 'Ada riwayat alergi'
-          : 'Tidak ada alergi');
-
-      let targetChildName = dto.childName;
-      let targetChildNik = dto.childNik;
-      let targetChildBirthDate = dto.childBirthDate;
-      let targetChildSex = dto.childSex;
-      let targetMotherName = dto.motherName;
-      let targetPhone = dto.parentPhone;
-
-      if (
-        !targetChildName ||
-        !targetChildNik ||
-        !targetChildBirthDate ||
-        !targetChildSex ||
-        !targetPhone
-      ) {
-        const [patient] = await tx
-          .select()
-          .from(patientProfiles)
-          .where(eq(patientProfiles.id, dto.patientId))
-          .limit(1);
-
-        if (patient) {
-          targetChildName = targetChildName || patient.fullName;
-          targetChildNik =
-            targetChildNik ||
-            patient.nationalIdEncrypted ||
-            patient.nationalIdHash ||
-            undefined;
-          targetChildBirthDate = targetChildBirthDate || patient.birthDate;
-          targetChildSex =
-            targetChildSex ||
-            (patient.gender === 'female' ||
-            (patient.gender as string) === 'Perempuan'
-              ? 'Perempuan'
-              : 'Laki-laki');
-          targetMotherName =
-            targetMotherName || patient.motherName || undefined;
-          targetPhone = targetPhone || patient.phone || '';
-        }
-      }
-
-      const answersMap: Record<string, any> = {
-        childName: targetChildName,
-        childNik: targetChildNik,
-        childBirthDate: targetChildBirthDate,
-        childSex: targetChildSex,
-        childAgeFormatted: dto.childAgeFormatted || null,
-        parentPhone: targetPhone,
-        fatherName: dto.fatherName,
-        motherName: targetMotherName,
-        childAddress: dto.childAddress,
-        hasVaccineHistory,
-        previousVaccineHistory: dto.previousVaccineHistory,
-        hasAllergyHistory,
-        childAllergyHistory: dto.childAllergyHistory,
-        entries: dto.entries || [],
-      };
-
-      if (Array.isArray(dto.entries)) {
-        for (const entry of dto.entries) {
-          const rawStatus =
-            entry.status === 'GIVEN'
-              ? 'Sudah'
-              : entry.status === 'NOT_GIVEN'
-                ? 'Belum'
-                : 'Tidak tahu';
-          answersMap[`vaccine_${entry.vaccineCode}_status`] = rawStatus;
-          if (entry.givenDate) {
-            answersMap[`vaccine_${entry.vaccineCode}_date`] = entry.givenDate;
-          }
-        }
-      }
-
-      const automaticMap: Record<string, any> = {
-        childAgeAtSubmit: dto.childAgeFormatted || '',
-      };
-
-      const [submission] = await tx
-        .insert(medicalIntakeSubmissions)
-        .values({
-          appointmentId: dto.appointmentId || null,
-          patientId: dto.patientId,
-          flow: 'immunization',
-          schemaVersion: 'v1',
-          schemaTitle: 'Form Pendaftaran Imunisasi Anak - Amanah Health Care',
-          answers: answersMap,
-          automatic: automaticMap,
-          submittedBy: submittedByUserId || null,
-        })
-        .returning();
-
-      const [immRecord] = await tx
-        .insert(childImmunizationIntakes)
-        .values({
-          intakeSubmissionId: submission.id,
-          patientId: dto.patientId,
-          appointmentId: dto.appointmentId || null,
-          childName: targetChildName || '',
-          childNik: targetChildNik || '',
-          childBirthDate: targetChildBirthDate || '',
-          childSex: targetChildSex || 'Laki-laki',
-          childAgeFormatted: dto.childAgeFormatted || null,
-          parentPhone: targetPhone || '',
-          fatherName: dto.fatherName || null,
-          motherName: targetMotherName || null,
-          childAddress: dto.childAddress || null,
-          previousVaccineHistory: dto.previousVaccineHistory || null,
-          childAllergyHistory: dto.childAllergyHistory || null,
-        })
-        .returning();
-
-      let createdEntries: any[] = [];
-      if (Array.isArray(dto.entries) && dto.entries.length > 0) {
-        createdEntries = await tx
-          .insert(childImmunizationEntries)
-          .values(
-            dto.entries.map((entry) => ({
-              intakeId: immRecord.id,
-              patientId: dto.patientId,
-              vaccineCode: entry.vaccineCode,
-              status: entry.status,
-              givenDate: entry.givenDate || null,
-              givenMonth: entry.givenMonth || null,
-              ageEstimateMonths: entry.ageEstimateMonths || null,
-              datePrecision: entry.datePrecision || null,
-              reviewReasons: entry.reviewReasons || null,
-              notes: entry.notes || null,
-            })),
-          )
-          .returning();
-      }
-
-      return {
-        ...immRecord,
-        intakeSubmissionId: submission.id,
-        entries: createdEntries,
-        answers: submission.answers,
-        automatic: submission.automatic,
-      };
-    });
+    return this.immunizationRepo.createIntake(dto, submittedByUserId);
   }
 
   async updateImmunizationIntake(
     id: string,
-    dto: UpdateChildImmunizationIntakeDto,
+    dto: any,
   ): Promise<any> {
-    let targetIntakeId: string | null = null;
-    await this.db.transaction(async (tx) => {
-      const existing = await tx.query.childImmunizationIntakes.findFirst({
-        where: or(
-          eq(childImmunizationIntakes.id, id),
-          eq(childImmunizationIntakes.intakeSubmissionId, id),
-        ),
-      });
-
-      if (!existing) {
-        return;
-      }
-
-      if (existing.intakeSubmissionId) {
-        const sub = await tx.query.medicalIntakeSubmissions.findFirst({
-          where: eq(medicalIntakeSubmissions.id, existing.intakeSubmissionId),
-        });
-        if (sub?.appointmentId) {
-          const app = await tx.query.appointments.findFirst({
-            where: eq(appointments.id, sub.appointmentId),
-          });
-          if (app?.status === 'completed') {
-            throw new ForbiddenException(
-              'Rekam medis pada janji temu yang telah selesai bersifat terkunci dan tidak dapat diubah.',
-            );
-          }
-        }
-      }
-
-      const intakeId = existing.id;
-      targetIntakeId = intakeId;
-      const updateData: Record<string, any> = {
-        updatedAt: new Date().toISOString(),
-      };
-
-      if (dto.childName !== undefined) updateData.childName = dto.childName;
-      if (dto.childNik !== undefined) updateData.childNik = dto.childNik;
-      if (dto.childBirthDate !== undefined)
-        updateData.childBirthDate = dto.childBirthDate;
-      if (dto.childSex !== undefined) updateData.childSex = dto.childSex;
-      if (dto.childAgeFormatted !== undefined)
-        updateData.childAgeFormatted = dto.childAgeFormatted;
-      if (dto.parentPhone !== undefined)
-        updateData.parentPhone = dto.parentPhone;
-      if (dto.fatherName !== undefined) updateData.fatherName = dto.fatherName;
-      if (dto.motherName !== undefined) updateData.motherName = dto.motherName;
-      if (dto.childAddress !== undefined)
-        updateData.childAddress = dto.childAddress;
-      if (dto.previousVaccineHistory !== undefined)
-        updateData.previousVaccineHistory = dto.previousVaccineHistory;
-      if (dto.childAllergyHistory !== undefined)
-        updateData.childAllergyHistory = dto.childAllergyHistory;
-
-      await tx
-        .update(childImmunizationIntakes)
-        .set(updateData)
-        .where(eq(childImmunizationIntakes.id, intakeId));
-
-      if (Array.isArray(dto.entries)) {
-        await tx
-          .delete(childImmunizationEntries)
-          .where(eq(childImmunizationEntries.intakeId, intakeId));
-
-        if (dto.entries.length > 0) {
-          await tx.insert(childImmunizationEntries).values(
-            dto.entries.map((entry) => ({
-              intakeId,
-              patientId: existing.patientId,
-              vaccineCode: entry.vaccineCode,
-              status: entry.status,
-              givenDate: entry.givenDate || null,
-              givenMonth: entry.givenMonth || null,
-              ageEstimateMonths: entry.ageEstimateMonths || null,
-              datePrecision: entry.datePrecision || null,
-              reviewReasons: entry.reviewReasons || null,
-              notes: entry.notes || null,
-            })),
-          );
-        }
-      }
-
-      if (existing.intakeSubmissionId) {
-        const sub = await tx.query.medicalIntakeSubmissions.findFirst({
-          where: eq(medicalIntakeSubmissions.id, existing.intakeSubmissionId),
-        });
-        if (
-          sub?.appointmentId &&
-          (dto.answers?.complaint || dto.answers?.keluhanUtama)
-        ) {
-          await tx
-            .update(appointments)
-            .set({
-              complaint: dto.answers.complaint || dto.answers.keluhanUtama,
-              updatedAt: new Date().toISOString(),
-            })
-            .where(eq(appointments.id, sub.appointmentId));
-        }
-        if (sub) {
-          const mergedAnswers = {
-            ...(sub.answers as Record<string, any>),
-            ...(dto.answers || {}),
-          };
-          if (dto.hasVaccineHistory !== undefined)
-            mergedAnswers.hasVaccineHistory = dto.hasVaccineHistory;
-          if (dto.hasAllergyHistory !== undefined)
-            mergedAnswers.hasAllergyHistory = dto.hasAllergyHistory;
-          if (dto.childName !== undefined)
-            mergedAnswers.childName = dto.childName;
-          if (dto.childNik !== undefined) mergedAnswers.childNik = dto.childNik;
-          if (dto.childBirthDate !== undefined)
-            mergedAnswers.childBirthDate = dto.childBirthDate;
-          if (dto.childSex !== undefined) mergedAnswers.childSex = dto.childSex;
-          if (dto.parentPhone !== undefined)
-            mergedAnswers.parentPhone = dto.parentPhone;
-          if (dto.fatherName !== undefined)
-            mergedAnswers.fatherName = dto.fatherName;
-          if (dto.motherName !== undefined)
-            mergedAnswers.motherName = dto.motherName;
-          if (dto.childAddress !== undefined)
-            mergedAnswers.childAddress = dto.childAddress;
-          if (dto.previousVaccineHistory !== undefined)
-            mergedAnswers.previousVaccineHistory = dto.previousVaccineHistory;
-          if (dto.childAllergyHistory !== undefined)
-            mergedAnswers.childAllergyHistory = dto.childAllergyHistory;
-
-          await tx
-            .update(medicalIntakeSubmissions)
-            .set({
-              answers: mergedAnswers,
-              updatedAt: new Date().toISOString(),
-            })
-            .where(
-              eq(medicalIntakeSubmissions.id, existing.intakeSubmissionId),
-            );
-        }
-      }
-    });
-
-    if (!targetIntakeId) {
-      return null;
-    }
-
-    return await this.findImmunizationIntakeById(targetIntakeId);
+    return this.immunizationRepo.updateIntake(id, dto);
   }
 
   async updateIntakeSubmission(
@@ -455,92 +145,14 @@ export class KiaIntakeDrizzleRepository {
     return null;
   }
 
-  private mapImmunizationRecord(record: any) {
-    if (!record) return null;
-    const answers =
-      (record.intakeSubmission?.answers as Record<string, any>) || {};
-    const automatic =
-      (record.intakeSubmission?.automatic as Record<string, any>) || {};
-
-    const hasVaccineHistory =
-      answers.hasVaccineHistory ||
-      (record.entries && record.entries.length > 0
-        ? 'Ya, pernah'
-        : record.previousVaccineHistory &&
-            record.previousVaccineHistory !==
-              'Belum pernah imunisasi sama sekali'
-          ? 'Ya, pernah'
-          : 'Belum pernah sama sekali');
-
-    const hasAllergyHistory =
-      answers.hasAllergyHistory ||
-      (record.childAllergyHistory &&
-      record.childAllergyHistory !== 'Tidak ada riwayat alergi.'
-        ? 'Ada riwayat alergi'
-        : 'Tidak ada alergi');
-
-    const entriesAnswers: Record<string, any> = {};
-    if (Array.isArray(record.entries)) {
-      for (const entry of record.entries) {
-        const code = entry.vaccineCode;
-        if (!code) continue;
-        const status =
-          entry.status === 'GIVEN'
-            ? 'Sudah'
-            : entry.status === 'NOT_GIVEN'
-              ? 'Belum'
-              : 'Tidak tahu';
-        entriesAnswers[`vaccine_${code}_status`] = status;
-        const dateVal = entry.givenDate;
-        if (dateVal) {
-          entriesAnswers[`vaccine_${code}_date`] = dateVal;
-        }
-      }
-    }
-
-    return {
-      ...record,
-      hasVaccineHistory,
-      hasAllergyHistory,
-      entries: record.entries || [],
-      answers: {
-        ...entriesAnswers,
-        ...answers,
-        hasVaccineHistory,
-        hasAllergyHistory,
-      },
-      automatic,
-    };
-  }
-
   async findImmunizationIntakeById(id: string): Promise<any | null> {
-    const record = await this.db.query.childImmunizationIntakes.findFirst({
-      where: or(
-        eq(childImmunizationIntakes.id, id),
-        eq(childImmunizationIntakes.intakeSubmissionId, id),
-      ),
-      with: {
-        intakeSubmission: true,
-        entries: true,
-      },
-    });
-
-    return this.mapImmunizationRecord(record);
+    return this.immunizationRepo.findIntakeById(id);
   }
 
   async findImmunizationIntakeByAppointmentId(
     appointmentId: string,
   ): Promise<any | null> {
-    const record = await this.db.query.childImmunizationIntakes.findFirst({
-      where: eq(childImmunizationIntakes.appointmentId, appointmentId),
-      with: {
-        intakeSubmission: true,
-        entries: true,
-      },
-      orderBy: [desc(childImmunizationIntakes.createdAt)],
-    });
-
-    return this.mapImmunizationRecord(record);
+    return this.immunizationRepo.findIntakeByAppointmentId(appointmentId);
   }
 
   private mapPatientProfile(profile: any, apptMetadata?: any) {
@@ -800,16 +412,12 @@ export class KiaIntakeDrizzleRepository {
   async findLatestImmunizationByPatientId(
     patientId: string,
   ): Promise<any | null> {
-    const record = await this.db.query.childImmunizationIntakes.findFirst({
-      where: eq(childImmunizationIntakes.patientId, patientId),
-      with: {
-        intakeSubmission: true,
-        entries: true,
-      },
-      orderBy: [desc(childImmunizationIntakes.createdAt)],
+    const history = await this.immunizationRepo.findHistory({
+      patientId,
+      limit: 1,
     });
-
-    return this.mapImmunizationRecord(record);
+    if (!history.data || history.data.length === 0) return null;
+    return this.immunizationRepo.findIntakeById(history.data[0].id);
   }
 
   async findLatestIntakeByPatientId(
@@ -856,81 +464,15 @@ export class KiaIntakeDrizzleRepository {
     limit: number;
     totalPages: number;
   }> {
-    const page = Math.max(1, query.page || 1);
-    const limit = Math.min(100, Math.max(1, query.limit || 10));
-    const offset = (page - 1) * limit;
-
-    const conditions: any[] = [];
-    if (patientIds && patientIds.length > 0) {
-      conditions.push(inArray(childImmunizationIntakes.patientId, patientIds));
-    }
-
-    if (query.search?.trim()) {
-      const term = `%${query.search.trim()}%`;
-      conditions.push(
-        or(
-          ilike(childImmunizationIntakes.childName, term),
-          ilike(childImmunizationIntakes.childNik, term),
-        )!,
-      );
-    }
-
-    if (query.startDate) {
-      conditions.push(
-        gte(childImmunizationIntakes.createdAt, `${query.startDate}T00:00:00Z`),
-      );
-    }
-
-    if (query.endDate) {
-      conditions.push(
-        lte(childImmunizationIntakes.createdAt, `${query.endDate}T23:59:59Z`),
-      );
-    }
-
-    const whereClause = and(...conditions);
-
-    const [totalRes] = await this.db
-      .select({ count: count() })
-      .from(childImmunizationIntakes)
-      .where(whereClause);
-
-    const total = Number(totalRes?.count || 0);
-
-    const records = await this.db.query.childImmunizationIntakes.findMany({
-      where: whereClause,
-      with: {
-        entries: true,
-      },
-      limit,
-      offset,
-      orderBy: [desc(childImmunizationIntakes.createdAt)],
+    const patientId =
+      patientIds && patientIds.length === 1 ? patientIds[0] : undefined;
+    return this.immunizationRepo.findHistory({
+      patientId,
+      page: query.page,
+      limit: query.limit,
+      search: query.search,
+      startDate: query.startDate,
+      endDate: query.endDate,
     });
-
-    const data = records.map((r) => ({
-      id: r.id,
-      intakeSubmissionId: r.intakeSubmissionId,
-      patientId: r.patientId,
-      appointmentId: r.appointmentId,
-      childName: r.childName,
-      childNik: r.childNik,
-      childBirthDate: r.childBirthDate,
-      childSex: r.childSex,
-      childAgeFormatted: r.childAgeFormatted,
-      parentPhone: r.parentPhone,
-      fatherName: r.fatherName,
-      motherName: r.motherName,
-      previousVaccineHistory: r.previousVaccineHistory,
-      childAllergyHistory: r.childAllergyHistory,
-      scheduledVaccinesCount: r.entries?.length || 0,
-      createdAt: r.createdAt,
-    }));
-
-    return {
-      data,
-      total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit) || 0,
-    };
   }
 }

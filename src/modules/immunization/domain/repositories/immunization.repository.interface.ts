@@ -1,0 +1,106 @@
+import type { ImmunizationEntryStatus } from '../constants/immunization.constants';
+import {
+  ChildImmunizationClinicalEntryEntity,
+  ChildImmunizationIntakeEntity,
+} from '../entities/immunization-record.entity';
+
+export interface CreateImmunizationIntakeData {
+  patientId: string;
+  appointmentId?: string | null;
+  childName?: string;
+  childNik?: string;
+  childBirthDate?: string;
+  childSex?: 'Laki-laki' | 'Perempuan';
+  childAgeFormatted?: string | null;
+  parentPhone?: string;
+  fatherName?: string | null;
+  motherName?: string | null;
+  childAddress?: string | null;
+  previousVaccineHistory?: string | null;
+  childAllergyHistory?: string | null;
+}
+
+export interface UpdateImmunizationIntakeData {
+  childName?: string;
+  childNik?: string;
+  childBirthDate?: string;
+  childSex?: 'Laki-laki' | 'Perempuan';
+  childAgeFormatted?: string;
+  parentPhone?: string;
+  fatherName?: string;
+  motherName?: string;
+  childAddress?: string;
+  previousVaccineHistory?: string;
+  childAllergyHistory?: string;
+}
+
+export interface SaveClinicalEntryData {
+  rowIndex: number;
+  vaccineName?: string;
+  vaccineCode?: string;
+  status: ImmunizationEntryStatus;
+  injectionDate?: string | null;
+  ageDisplay?: string | null;
+  fever?: string | null;
+  cough?: string | null;
+  runnyNose?: string | null;
+  weightKg?: number | null;
+  heightCm?: number | null;
+  headCircumferenceCm?: number | null;
+  temperatureCelsius?: number | null;
+  planning?: string | null;
+  appointmentId?: string | null;
+  administeredBy?: string | null;
+  notes?: string | null;
+}
+
+export interface ImmunizationHistoryQuery {
+  page?: number;
+  limit?: number;
+  search?: string;
+  patientId?: string;
+  startDate?: string;
+  endDate?: string;
+}
+
+export interface PaginatedImmunizationHistory {
+  data: any[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export const IMMUNIZATION_REPOSITORY = Symbol('IMMUNIZATION_REPOSITORY');
+
+export interface IImmunizationRepository {
+  createIntake(
+    data: CreateImmunizationIntakeData,
+    submittedByUserId?: string,
+  ): Promise<ChildImmunizationIntakeEntity>;
+
+  updateIntake(
+    id: string,
+    data: UpdateImmunizationIntakeData,
+  ): Promise<ChildImmunizationIntakeEntity | null>;
+
+  findIntakeById(id: string): Promise<any | null>;
+
+  findIntakeByAppointmentId(appointmentId: string): Promise<any | null>;
+
+  findChildCumulativeLedger(
+    patientId: string,
+  ): Promise<ChildImmunizationClinicalEntryEntity[]>;
+
+  upsertClinicalEntries(
+    patientId: string,
+    intakeId: string,
+    entries: SaveClinicalEntryData[],
+    appointmentId?: string | null,
+    administeredBy?: string | null,
+  ): Promise<ChildImmunizationClinicalEntryEntity[]>;
+
+  findHistory(
+    query: ImmunizationHistoryQuery,
+  ): Promise<PaginatedImmunizationHistory>;
+}

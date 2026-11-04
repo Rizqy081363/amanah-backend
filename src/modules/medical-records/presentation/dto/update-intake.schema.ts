@@ -77,35 +77,7 @@ export const UpdateMaternityIntakeSchema = z.object({
   previousPregnancies: z.array(z.any()).optional(),
   contraceptiveHistories: z.array(z.any()).optional(),
   healthConditions: z.array(z.any()).optional(),
-  anamnesisResponses: z.array(z.any()).optional(),
-  diseaseHistory: z.record(z.string(), z.any()).optional(),
-  answers: z.record(z.string(), z.any()).optional(),
 });
 export type UpdateMaternityIntakeInput = z.infer<
   typeof UpdateMaternityIntakeSchema
->;
-
-export const UpdateChildImmunizationIntakeSchema = z.object({
-  childName: z.string().optional(),
-  childNik: z
-    .string()
-    .regex(/^\d{16}$/, { message: 'NIK anak harus berupa 16 digit angka' })
-    .optional()
-    .or(z.literal('')),
-  childBirthDate: z.string().optional(),
-  childSex: z.enum(['Laki-laki', 'Perempuan']).optional(),
-  childAgeFormatted: z.string().optional(),
-  parentPhone: z.string().optional(),
-  fatherName: z.string().optional(),
-  motherName: z.string().optional(),
-  childAddress: z.string().optional(),
-  hasVaccineHistory: z.string().optional(),
-  previousVaccineHistory: z.string().optional(),
-  hasAllergyHistory: z.string().optional(),
-  childAllergyHistory: z.string().optional(),
-  entries: z.array(z.any()).optional(),
-  answers: z.record(z.string(), z.any()).optional(),
-});
-export type UpdateChildImmunizationIntakeInput = z.infer<
-  typeof UpdateChildImmunizationIntakeSchema
 >;

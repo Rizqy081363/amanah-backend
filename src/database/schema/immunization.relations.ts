@@ -1,5 +1,10 @@
 import { relations } from 'drizzle-orm';
-import { childImmunizationIntakes, patientProfiles } from './amanah.schema';
+import {
+  appointments,
+  childImmunizationIntakes,
+  patientProfiles,
+  staffProfiles,
+} from './amanah.schema';
 import {
   childImmunizationEntries,
   vaccineCatalog,
@@ -22,6 +27,14 @@ export const childImmunizationEntriesRelations = relations(
     patientProfile: one(patientProfiles, {
       fields: [childImmunizationEntries.patientId],
       references: [patientProfiles.id],
+    }),
+    appointment: one(appointments, {
+      fields: [childImmunizationEntries.appointmentId],
+      references: [appointments.id],
+    }),
+    administeredStaff: one(staffProfiles, {
+      fields: [childImmunizationEntries.administeredBy],
+      references: [staffProfiles.id],
     }),
   }),
 );

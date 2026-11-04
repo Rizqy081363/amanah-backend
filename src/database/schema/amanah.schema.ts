@@ -1038,12 +1038,58 @@ export const occupations = pgTable('occupations', {
     .notNull(),
 });
 
+export const bloodTypes = pgTable('blood_types', {
+  id: uuid().defaultRandom().primaryKey().notNull(),
+  name: varchar({ length: 32 }).notNull().unique(),
+  description: text(),
+  displayOrder: integer('display_order').default(0).notNull(),
+  isActive: boolean('is_active').default(true).notNull(),
+  isSystem: boolean('is_system').default(false).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+    .defaultNow()
+    .notNull(),
+});
+
+export const educationLevels = pgTable('education_levels', {
+  id: uuid().defaultRandom().primaryKey().notNull(),
+  name: varchar({ length: 128 }).notNull().unique(),
+  description: text(),
+  displayOrder: integer('display_order').default(0).notNull(),
+  isActive: boolean('is_active').default(true).notNull(),
+  isSystem: boolean('is_system').default(false).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+    .defaultNow()
+    .notNull(),
+});
+
+export const religions = pgTable('religions', {
+  id: uuid().defaultRandom().primaryKey().notNull(),
+  name: varchar({ length: 128 }).notNull().unique(),
+  description: text(),
+  displayOrder: integer('display_order').default(0).notNull(),
+  isActive: boolean('is_active').default(true).notNull(),
+  isSystem: boolean('is_system').default(false).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+    .defaultNow()
+    .notNull(),
+});
+
 export const patientProfiles = pgTable(
   'patient_profiles',
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
     userId: uuid('user_id'),
     occupationId: uuid('occupation_id'),
+    bloodTypeId: uuid('blood_type_id'),
     medicalRecordNumber: text('medical_record_number').notNull(),
     fullName: text('full_name').notNull(),
     nationalIdHash: text('national_id_hash'),
@@ -1106,6 +1152,11 @@ export const patientProfiles = pgTable(
       columns: [table.occupationId],
       foreignColumns: [occupations.id],
       name: 'patient_profiles_occupation_id_occupations_id_fk',
+    }).onDelete('set null'),
+    foreignKey({
+      columns: [table.bloodTypeId],
+      foreignColumns: [bloodTypes.id],
+      name: 'patient_profiles_blood_type_id_blood_types_id_fk',
     }).onDelete('set null'),
     unique('patient_profiles_medical_record_number_key').on(
       table.medicalRecordNumber,
@@ -3702,7 +3753,7 @@ export const maternalHealthIntakes = pgTable(
   'maternal_health_intakes',
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
-    intakeSubmissionId: uuid('intake_submission_id').notNull(),
+    intakeSubmissionId: uuid('intake_submission_id'),
     patientId: uuid('patient_id').notNull(),
     appointmentId: uuid('appointment_id'),
     motherNik: varchar('mother_nik', { length: 16 }).notNull(),
@@ -3712,8 +3763,11 @@ export const maternalHealthIntakes = pgTable(
     marriageOrder: integer('marriage_order').default(1),
     marriageDate: date('marriage_date'),
     motherJob: varchar('mother_job', { length: 128 }),
+    motherOccupationId: uuid('mother_occupation_id'),
     motherEducation: varchar('mother_education', { length: 64 }),
+    motherEducationId: uuid('mother_education_id'),
     religion: varchar('religion', { length: 32 }),
+    religionId: uuid('religion_id'),
     phoneNumber: varchar('phone_number', { length: 32 }),
     domicileAddress: text('domicile_address'),
     identityCardAddress: text('identity_card_address'),
@@ -3725,8 +3779,11 @@ export const maternalHealthIntakes = pgTable(
     partnerBirthDate: date('partner_birth_date'),
     partnerAge: integer('partner_age'),
     partnerJob: varchar('partner_job', { length: 128 }),
+    partnerOccupationId: uuid('partner_occupation_id'),
     partnerEducation: varchar('partner_education', { length: 64 }),
+    partnerEducationId: uuid('partner_education_id'),
     partnerBloodType: varchar('partner_blood_type', { length: 32 }),
+    partnerBloodTypeId: uuid('partner_blood_type_id'),
     heightCm: numeric('height_cm', { precision: 5, scale: 2 }),
     prePregnancyWeightKg: numeric('pre_pregnancy_weight_kg', {
       precision: 5,
@@ -3739,6 +3796,7 @@ export const maternalHealthIntakes = pgTable(
     initialBmi: numeric('initial_bmi', { precision: 4, scale: 1 }),
     tetanusStatus: varchar('tetanus_status', { length: 32 }),
     motherBloodType: varchar('mother_blood_type', { length: 32 }),
+    motherBloodTypeId: uuid('mother_blood_type_id'),
     hpht: date('hpht'),
     estimatedDueDate: date('estimated_due_date'),
     gestationalAgeWeeks: numeric('gestational_age_weeks', {
@@ -3785,7 +3843,6 @@ export const maternalHealthIntakes = pgTable(
     concerningEnvironmentNotes: text('concerning_environment_notes'),
     allergyInfo: text('allergy_info'),
     otherNotes: text('other_notes'),
-    diseaseHistory: jsonb('disease_history').default({}).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
       .notNull(),
@@ -3795,6 +3852,7 @@ export const maternalHealthIntakes = pgTable(
   },
   (table) => [
     index('maternal_health_intakes_patient_idx').on(table.patientId),
+    index('idx_maternal_intakes_patient_date').on(table.patientId, table.createdAt),
     index('maternal_health_intakes_submission_idx').on(
       table.intakeSubmissionId,
     ),
@@ -3813,6 +3871,41 @@ export const maternalHealthIntakes = pgTable(
       columns: [table.appointmentId],
       foreignColumns: [appointments.id],
       name: 'maternal_health_intakes_appointment_id_fkey',
+    }).onDelete('set null'),
+    foreignKey({
+      columns: [table.motherOccupationId],
+      foreignColumns: [occupations.id],
+      name: 'maternal_health_intakes_mother_occupation_id_fkey',
+    }).onDelete('set null'),
+    foreignKey({
+      columns: [table.partnerOccupationId],
+      foreignColumns: [occupations.id],
+      name: 'maternal_health_intakes_partner_occupation_id_fkey',
+    }).onDelete('set null'),
+    foreignKey({
+      columns: [table.motherEducationId],
+      foreignColumns: [educationLevels.id],
+      name: 'maternal_health_intakes_mother_education_id_fkey',
+    }).onDelete('set null'),
+    foreignKey({
+      columns: [table.partnerEducationId],
+      foreignColumns: [educationLevels.id],
+      name: 'maternal_health_intakes_partner_education_id_fkey',
+    }).onDelete('set null'),
+    foreignKey({
+      columns: [table.religionId],
+      foreignColumns: [religions.id],
+      name: 'maternal_health_intakes_religion_id_fkey',
+    }).onDelete('set null'),
+    foreignKey({
+      columns: [table.motherBloodTypeId],
+      foreignColumns: [bloodTypes.id],
+      name: 'maternal_health_intakes_mother_blood_type_id_fkey',
+    }).onDelete('set null'),
+    foreignKey({
+      columns: [table.partnerBloodTypeId],
+      foreignColumns: [bloodTypes.id],
+      name: 'maternal_health_intakes_partner_blood_type_id_fkey',
     }).onDelete('set null'),
   ],
 );

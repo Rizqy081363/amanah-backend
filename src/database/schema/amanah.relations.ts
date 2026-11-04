@@ -71,7 +71,6 @@ import {
 } from './amanah.schema';
 import { childImmunizationEntries } from './immunization.schema';
 import {
-  maternalAnamnesisResponses,
   maternalHealthConditionResponses,
   maternalHusbandProfiles,
 } from './maternal.schema';
@@ -792,7 +791,6 @@ export const maternalHealthIntakesRelations = relations(
     previousPregnancies: many(maternalPreviousPregnancies),
     contraceptiveHistories: many(maternalContraceptiveHistories),
     husband: one(maternalHusbandProfiles),
-    anamnesisResponses: many(maternalAnamnesisResponses),
     healthConditions: many(maternalHealthConditionResponses),
   }),
 );
