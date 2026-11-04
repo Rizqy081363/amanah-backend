@@ -8,6 +8,7 @@ import {
   MinLength,
   ValidateIf,
 } from 'class-validator';
+import { gender, type Gender } from '../../../../database/schema';
 
 export class UpdatePatientDto {
   @ApiPropertyOptional({
@@ -67,14 +68,14 @@ export class UpdatePatientDto {
 
   @ApiPropertyOptional({
     example: 'male',
-    enum: ['male', 'female'],
+    enum: gender.enumValues,
     description: 'Jenis kelamin (kanonikal: male / female)',
   })
   @IsOptional()
-  @IsIn(['male', 'female'], {
+  @IsIn(gender.enumValues, {
     message: 'Pilih jenis kelamin valid (male atau female)',
   })
-  gender?: 'male' | 'female';
+  gender?: Gender;
 
   @ApiPropertyOptional({
     example: 'O',

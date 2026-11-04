@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { gender, type Gender } from '../../../../database/schema';
 
 export class PatientDirectoryItemDto {
   @ApiProperty({ description: 'ID unik pasien (UUID)' })
@@ -17,8 +18,8 @@ export class PatientDirectoryItemDto {
   })
   maskedNik: string | null;
 
-  @ApiProperty({ enum: ['male', 'female'], description: 'Jenis kelamin' })
-  gender: 'male' | 'female';
+  @ApiProperty({ enum: gender.enumValues, description: 'Jenis kelamin' })
+  gender: Gender;
 
   @ApiProperty({ description: 'Tanggal lahir (YYYY-MM-DD)' })
   birthDate: string;

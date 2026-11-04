@@ -4,10 +4,11 @@ import { DRIZZLE_SOURCE } from '../../../../../database/drizzle/drizzle.constant
 import { DrizzleDatabase } from '../../../../../database/drizzle/drizzle.provider';
 import { bloodTypes } from '../../../../../database/schema/amanah.schema';
 import type { BloodTypeEntity } from '../../domain/entities/blood-type.entity';
-import type {
-  CreateBloodTypeData,
-  IBloodTypeRepository,
-  UpdateBloodTypeData,
+import {
+  composeBloodTypeCode,
+  type CreateBloodTypeData,
+  type IBloodTypeRepository,
+  type UpdateBloodTypeData,
 } from '../../domain/repositories/blood-type.repository.interface';
 
 @Injectable()
@@ -20,6 +21,7 @@ export class BloodTypeDrizzleRepository implements IBloodTypeRepository {
   private mapToEntity(row: typeof bloodTypes.$inferSelect): BloodTypeEntity {
     return {
       id: row.id,
+      code: row.code,
       name: row.name,
       description: row.description,
       displayOrder: row.displayOrder,
@@ -63,10 +65,20 @@ export class BloodTypeDrizzleRepository implements IBloodTypeRepository {
     return row ? this.mapToEntity(row) : null;
   }
 
+  async findByCode(code: string): Promise<BloodTypeEntity | null> {
+    const row = await this.db.query.bloodTypes.findFirst({
+      where: eq(bloodTypes.code, code),
+    });
+    return row ? this.mapToEntity(row) : null;
+  }
+
   async create(data: CreateBloodTypeData): Promise<BloodTypeEntity> {
+    const resolvedCode = data.code || composeBloodTypeCode(data.name);
+
     const [row] = await this.db
       .insert(bloodTypes)
       .values({
+        code: resolvedCode,
         name: data.name,
         description: data.description ?? null,
         displayOrder: data.displayOrder ?? 0,
@@ -82,6 +94,12 @@ export class BloodTypeDrizzleRepository implements IBloodTypeRepository {
     const updateValues: Partial<typeof bloodTypes.$inferInsert> = {
       updatedAt: new Date().toISOString(),
     };
+
+    if (data.code !== undefined) {
+      updateValues.code = data.code;
+    } else if (data.name !== undefined) {
+      updateValues.code = composeBloodTypeCode(data.name);
+    }
 
     if (data.name !== undefined) updateValues.name = data.name;
     if (data.description !== undefined) updateValues.description = data.description;

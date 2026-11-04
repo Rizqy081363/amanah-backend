@@ -1,7 +1,11 @@
-import { Controller, Get, Inject, Query } from '@nestjs/common';
-import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Controller, Get, Inject, Query, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { asc, eq, sql } from 'drizzle-orm';
-import { Public } from '../../../common/auth';
+import {
+  HybridAuthGuard,
+  PermissionsGuard,
+  RequirePermissions,
+} from '../../../common/auth';
 import { DRIZZLE_SOURCE } from '../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../database/drizzle/drizzle.provider';
 import {
@@ -19,7 +23,9 @@ import {
 import { IndonesianRegionService } from '../infrastructure/services/indonesian-region.service';
 
 @ApiTags('Patient Demographic & Region References')
-@Public()
+@ApiBearerAuth('access-token')
+@UseGuards(HybridAuthGuard, PermissionsGuard)
+@RequirePermissions('app:access')
 @Controller({ path: 'patients/reference', version: '1' })
 export class PatientReferencesController {
   constructor(
@@ -66,8 +72,10 @@ export class PatientReferencesController {
       success: true,
       data: list.map((b) => ({
         id: b.id,
-        value: b.name,
+        code: b.code,
+        value: b.code,
         label: b.name,
+        name: b.name,
         description: b.description,
         displayOrder: b.displayOrder,
       })),
@@ -291,8 +299,10 @@ export class PatientReferencesController {
       data: {
         bloodTypes: bloodTypesList.map((b) => ({
           id: b.id,
-          value: b.name,
+          code: b.code,
+          value: b.code,
           label: b.name,
+          name: b.name,
           description: b.description,
           displayOrder: b.displayOrder,
         })),

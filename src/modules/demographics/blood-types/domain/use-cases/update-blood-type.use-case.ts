@@ -1,6 +1,7 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import {
   BLOOD_TYPE_REPOSITORY,
+  composeBloodTypeCode,
   type IBloodTypeRepository,
   type UpdateBloodTypeData,
 } from '../repositories/blood-type.repository.interface';
@@ -23,6 +24,14 @@ export class UpdateBloodTypeUseCase {
       const duplicate = await this.repository.findByName(data.name);
       if (duplicate && duplicate.id !== id) {
         throw new ConflictException(`Golongan darah dengan nama "${data.name}" sudah ada`);
+      }
+    }
+
+    const targetCode = data.code || (data.name ? composeBloodTypeCode(data.name) : undefined);
+    if (targetCode && targetCode !== existing.code) {
+      const duplicateCode = await this.repository.findByCode(targetCode);
+      if (duplicateCode && duplicateCode.id !== id) {
+        throw new ConflictException(`Golongan darah dengan kode "${targetCode}" sudah ada`);
       }
     }
 

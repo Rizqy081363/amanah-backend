@@ -1,6 +1,7 @@
 import { ConflictException, Inject, Injectable } from '@nestjs/common';
 import {
   BLOOD_TYPE_REPOSITORY,
+  composeBloodTypeCode,
   type CreateBloodTypeData,
   type IBloodTypeRepository,
 } from '../repositories/blood-type.repository.interface';
@@ -14,10 +15,20 @@ export class CreateBloodTypeUseCase {
   ) {}
 
   async execute(data: CreateBloodTypeData): Promise<BloodTypeEntity> {
-    const existing = await this.repository.findByName(data.name);
-    if (existing) {
+    const existingName = await this.repository.findByName(data.name);
+    if (existingName) {
       throw new ConflictException(`Golongan darah dengan nama "${data.name}" sudah ada`);
     }
-    return this.repository.create(data);
+
+    const resolvedCode = data.code || composeBloodTypeCode(data.name);
+    const existingCode = await this.repository.findByCode(resolvedCode);
+    if (existingCode) {
+      throw new ConflictException(`Golongan darah dengan kode "${resolvedCode}" sudah ada`);
+    }
+
+    return this.repository.create({
+      ...data,
+      code: resolvedCode,
+    });
   }
 }

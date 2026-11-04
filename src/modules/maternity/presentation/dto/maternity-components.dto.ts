@@ -12,6 +12,7 @@ import {
   Max,
   Min,
 } from 'class-validator';
+import { gender, type Gender } from '../../../../database/schema';
 
 export class HusbandProfileDto {
   @ApiProperty({ example: 'Ahmad Fauzi', description: 'Nama lengkap suami' })
@@ -106,12 +107,12 @@ export class PreviousPregnancyItemDto {
   birthLengthCm?: number;
 
   @ApiPropertyOptional({
-    enum: ['Laki-laki', 'Perempuan'],
-    example: 'Perempuan',
+    enum: gender.enumValues,
+    example: 'female',
   })
-  @IsIn(['Laki-laki', 'Perempuan'])
+  @IsIn(gender.enumValues)
   @IsOptional()
-  childSex?: string;
+  childSex?: Gender;
 
   @ApiPropertyOptional({
     example: '39 minggu',

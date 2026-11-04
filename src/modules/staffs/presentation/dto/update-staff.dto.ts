@@ -7,6 +7,7 @@ import {
   IsUUID,
   ValidateNested,
 } from 'class-validator';
+import { gender, type Gender } from '../../../../database/schema';
 
 export class UpdateStaffAddressDto {
   @ApiPropertyOptional()
@@ -107,10 +108,10 @@ export class UpdateStaffDto {
   @IsOptional()
   birthDate?: string;
 
-  @ApiPropertyOptional({ enum: ['male', 'female'], example: 'male' })
+  @ApiPropertyOptional({ enum: gender.enumValues, example: 'male' })
   @IsString()
   @IsOptional()
-  gender?: 'male' | 'female';
+  gender?: Gender;
 
   @ApiPropertyOptional({ example: '3171234567890001' })
   @IsString()

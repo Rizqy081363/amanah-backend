@@ -45,7 +45,9 @@ export class MaternityDrizzleRepository implements MaternityRepository {
     dto: CreateMaternityIntakeDto,
     submittedByUserId?: string,
   ): Promise<MaternityIntakeEntity> {
-    return this.db.transaction(async (tx) => {
+    let createdIntakeId = '';
+
+    await this.db.transaction(async (tx) => {
       // 1. Resolve patient profile fallback if demographic data missing
       let motherName = dto.motherName?.trim();
       let motherNik = dto.motherNik?.trim();
@@ -275,15 +277,20 @@ export class MaternityDrizzleRepository implements MaternityRepository {
         await tx.insert(maternalHealthConditionResponses).values(conditionRows);
       }
 
-      return this.findById(intake.id) as Promise<MaternityIntakeEntity>;
+      createdIntakeId = intake.id;
     });
+
+    const result = await this.findById(createdIntakeId);
+    return result!;
   }
 
   async update(
     id: string,
     dto: UpdateMaternityIntakeDto,
   ): Promise<MaternityIntakeEntity | null> {
-    return this.db.transaction(async (tx) => {
+    let updatedIntakeId: string | null = null;
+
+    await this.db.transaction(async (tx) => {
       const existing = await tx.query.maternalHealthIntakes.findFirst({
         where: or(
           eq(maternalHealthIntakes.id, id),
@@ -565,8 +572,11 @@ export class MaternityDrizzleRepository implements MaternityRepository {
         }
       }
 
-      return this.findById(intakeId);
+      updatedIntakeId = intakeId;
     });
+
+    if (!updatedIntakeId) return null;
+    return this.findById(updatedIntakeId);
   }
 
   async findById(id: string): Promise<MaternityIntakeEntity | null> {

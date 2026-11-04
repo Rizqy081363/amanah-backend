@@ -1,5 +1,6 @@
 export interface BloodTypeEntity {
   id: string;
+  code: string;
   name: string;
   description?: string | null;
   displayOrder: number;

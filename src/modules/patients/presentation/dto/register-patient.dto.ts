@@ -7,6 +7,7 @@ import {
   Matches,
   MinLength,
 } from 'class-validator';
+import { gender, type Gender } from '../../../../database/schema';
 
 export class RegisterPatientDto {
   @ApiProperty({
@@ -63,14 +64,14 @@ export class RegisterPatientDto {
 
   @ApiProperty({
     example: 'male',
-    enum: ['male', 'female'],
+    enum: gender.enumValues,
     description: 'Jenis kelamin pasien (kanonikal: male / female)',
   })
   @IsNotEmpty({ message: 'Pilih jenis kelamin' })
-  @IsIn(['male', 'female'], {
+  @IsIn(gender.enumValues, {
     message: 'Pilih jenis kelamin valid (male atau female)',
   })
-  gender: 'male' | 'female';
+  gender: Gender;
 
   @ApiProperty({
     example: 'O',

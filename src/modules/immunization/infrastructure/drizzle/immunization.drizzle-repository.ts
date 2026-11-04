@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   forwardRef,
   Inject,
@@ -53,7 +54,7 @@ export class ImmunizationDrizzleRepository implements IImmunizationRepository {
       let targetName = data.childName?.trim();
       let targetNik = data.childNik?.trim();
       let targetBirthDate = data.childBirthDate;
-      let targetSex = data.childSex || 'Laki-laki';
+      let targetSex = data.childSex;
       let targetPhone = data.parentPhone?.trim();
       let targetMotherName = data.motherName?.trim();
       let targetAddress = data.childAddress?.trim();
@@ -72,6 +73,7 @@ export class ImmunizationDrizzleRepository implements IImmunizationRepository {
             patient.nationalIdEncrypted || patient.nationalIdHash || '';
         }
         if (!targetBirthDate) targetBirthDate = patient.birthDate;
+        if (!targetSex && patient.gender) targetSex = patient.gender;
         if (!targetPhone) targetPhone = patient.phone || '';
         if (!targetMotherName) targetMotherName = patient.motherName || '';
         if (!targetAddress && patient.patientAddresses?.[0]) {
@@ -80,6 +82,10 @@ export class ImmunizationDrizzleRepository implements IImmunizationRepository {
             patient.patientAddresses[0].line1 ||
             '';
         }
+      }
+
+      if (!targetSex) {
+        throw new BadRequestException('Jenis kelamin anak (childSex) wajib diisi');
       }
 
       // 2. Insert intake submission metadata

@@ -1,4 +1,5 @@
 import type { ImmunizationEntryStatus } from '../constants/immunization.constants';
+import type { Gender } from '../../../../database/schema';
 import {
   ChildImmunizationClinicalEntryEntity,
   ChildImmunizationIntakeEntity,
@@ -10,7 +11,7 @@ export interface CreateImmunizationIntakeData {
   childName?: string;
   childNik?: string;
   childBirthDate?: string;
-  childSex?: 'Laki-laki' | 'Perempuan';
+  childSex?: Gender;
   childAgeFormatted?: string | null;
   parentPhone?: string;
   fatherName?: string | null;
@@ -24,7 +25,7 @@ export interface UpdateImmunizationIntakeData {
   childName?: string;
   childNik?: string;
   childBirthDate?: string;
-  childSex?: 'Laki-laki' | 'Perempuan';
+  childSex?: Gender;
   childAgeFormatted?: string;
   parentPhone?: string;
   fatherName?: string;

@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsBoolean, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { gender, type Gender } from '../../../../database/schema';
 
 export class CreateStaffDto {
   @ApiProperty({ example: 'Dr. Hendra Wijaya, Sp.A' })
@@ -66,10 +67,10 @@ export class CreateStaffDto {
   @IsOptional()
   birthDate?: string;
 
-  @ApiPropertyOptional({ enum: ['male', 'female'], example: 'male' })
+  @ApiPropertyOptional({ enum: gender.enumValues, example: 'male' })
   @IsString()
   @IsOptional()
-  gender?: 'male' | 'female';
+  gender?: Gender;
 
   @ApiPropertyOptional({ example: '3171234567890001' })
   @IsString()

@@ -7,6 +7,7 @@ import {
   IsString,
   Matches,
 } from 'class-validator';
+import { gender, type Gender } from '../../../../database/schema';
 
 export class CreatePatientAffiliationDto {
   @ApiPropertyOptional({
@@ -72,11 +73,11 @@ export class CreatePatientAffiliationDto {
 
   @ApiPropertyOptional({
     example: 'female',
-    enum: ['male', 'female'],
+    enum: gender.enumValues,
   })
   @IsOptional()
-  @IsIn(['male', 'female'])
-  gender?: 'male' | 'female';
+  @IsIn(gender.enumValues)
+  gender?: Gender;
 
   @ApiPropertyOptional({
     example: 'b_positive',

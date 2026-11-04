@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { gender } from '../../../../database/schema';
 
 export const UpdatePatientSchema = z
   .object({
@@ -39,7 +40,7 @@ export const UpdatePatientSchema = z
       .optional()
       .or(z.literal('')),
     gender: z
-      .enum(['male', 'female'], {
+      .enum(gender.enumValues, {
         message: 'Pilih jenis kelamin valid (male atau female)',
       })
       .optional(),

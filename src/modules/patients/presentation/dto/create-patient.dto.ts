@@ -6,6 +6,7 @@ import {
   IsString,
   Length,
 } from 'class-validator';
+import { gender, type Gender } from '../../../../database/schema';
 
 export class CreatePatientDto {
   @ApiProperty({
@@ -22,10 +23,10 @@ export class CreatePatientDto {
   @IsNotEmpty()
   fullName: string;
 
-  @ApiProperty({ enum: ['male', 'female'], example: 'female' })
-  @IsIn(['male', 'female'])
+  @ApiProperty({ enum: gender.enumValues, example: 'female' })
+  @IsIn(gender.enumValues)
   @IsNotEmpty()
-  gender: 'male' | 'female';
+  gender: Gender;
 
   @ApiProperty({ example: '1995-05-12', description: 'Format YYYY-MM-DD' })
   @IsString()

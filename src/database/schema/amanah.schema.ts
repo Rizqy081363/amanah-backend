@@ -133,6 +133,7 @@ export const fileAccessScope = pgEnum('file_access_scope', [
   'public',
 ]);
 export const gender = pgEnum('gender', ['male', 'female']);
+export type Gender = (typeof gender.enumValues)[number];
 export const medicalFlowType = pgEnum('medical_flow_type', [
   'pregnancy',
   'immunization',
@@ -1040,6 +1041,7 @@ export const occupations = pgTable('occupations', {
 
 export const bloodTypes = pgTable('blood_types', {
   id: uuid().defaultRandom().primaryKey().notNull(),
+  code: varchar({ length: 32 }).notNull().unique(),
   name: varchar({ length: 32 }).notNull().unique(),
   description: text(),
   displayOrder: integer('display_order').default(0).notNull(),

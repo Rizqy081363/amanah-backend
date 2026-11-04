@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { gender } from '../../../database/schema';
 
 export const AuthStaffOnboardingSchema = z.object({
   fullName: z
@@ -12,7 +13,7 @@ export const AuthStaffOnboardingSchema = z.object({
   licenseNumber: z.string().trim().optional(),
   birthPlace: z.string().trim().optional(),
   birthDate: z.string().trim().optional(),
-  gender: z.enum(['male', 'female']).optional(),
+  gender: z.enum(gender.enumValues).optional(),
   nationalId: z.string().trim().optional(),
   provinsi: z.string().trim().optional(),
   provinsiId: z.string().trim().optional(),
