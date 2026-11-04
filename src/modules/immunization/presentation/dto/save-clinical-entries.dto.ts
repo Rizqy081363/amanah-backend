@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsArray,
   IsDateString,
@@ -12,6 +12,7 @@ import {
   IsUUID,
   Max,
   Min,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 
@@ -75,6 +76,10 @@ export class ClinicalEntryInputDto {
     example: 3.2,
     description: 'Berat Badan (BB) dalam kg',
   })
+  @Transform(({ value }) =>
+    value === '' || value === null || value === undefined ? null : Number(value),
+  )
+  @ValidateIf((_, val) => val !== null && val !== undefined)
   @IsNumber()
   @Min(0.5)
   @Max(150)
@@ -85,6 +90,10 @@ export class ClinicalEntryInputDto {
     example: 49.0,
     description: 'Panjang/Tinggi Badan (PB) dalam cm',
   })
+  @Transform(({ value }) =>
+    value === '' || value === null || value === undefined ? null : Number(value),
+  )
+  @ValidateIf((_, val) => val !== null && val !== undefined)
   @IsNumber()
   @Min(20)
   @Max(250)
@@ -95,6 +104,10 @@ export class ClinicalEntryInputDto {
     example: 34.0,
     description: 'Lingkar Kepala (LK) dalam cm',
   })
+  @Transform(({ value }) =>
+    value === '' || value === null || value === undefined ? null : Number(value),
+  )
+  @ValidateIf((_, val) => val !== null && val !== undefined)
   @IsNumber()
   @Min(10)
   @Max(100)
@@ -105,6 +118,10 @@ export class ClinicalEntryInputDto {
     example: 36.7,
     description: 'Suhu Tubuh (S) dalam derajat Celsius',
   })
+  @Transform(({ value }) =>
+    value === '' || value === null || value === undefined ? null : Number(value),
+  )
+  @ValidateIf((_, val) => val !== null && val !== undefined)
   @IsNumber()
   @Min(30)
   @Max(45)

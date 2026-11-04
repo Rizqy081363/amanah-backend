@@ -369,10 +369,16 @@ export class ImmunizationDrizzleRepository implements IImmunizationRepository {
       fever: e.fever,
       cough: e.cough,
       runnyNose: e.runnyNose,
-      weightKg: e.weightKg ? String(e.weightKg) : null,
-      heightCm: e.heightCm ? String(e.heightCm) : null,
-      headCircumferenceCm: e.headCircumferenceCm ? String(e.headCircumferenceCm) : null,
-      temperatureCelsius: e.temperatureCelsius ? String(e.temperatureCelsius) : null,
+      weightKg: e.weightKg !== null && e.weightKg !== undefined ? Number(e.weightKg) : null,
+      heightCm: e.heightCm !== null && e.heightCm !== undefined ? Number(e.heightCm) : null,
+      headCircumferenceCm:
+        e.headCircumferenceCm !== null && e.headCircumferenceCm !== undefined
+          ? Number(e.headCircumferenceCm)
+          : null,
+      temperatureCelsius:
+        e.temperatureCelsius !== null && e.temperatureCelsius !== undefined
+          ? Number(e.temperatureCelsius)
+          : null,
       planning: e.planning,
       notes: e.notes,
       createdAt: e.createdAt,

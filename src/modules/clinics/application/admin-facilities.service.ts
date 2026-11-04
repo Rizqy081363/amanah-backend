@@ -117,6 +117,7 @@ export interface AdminClinicServiceResponse {
   description: string | null;
   codePrefix: string;
   iconName: string | null;
+  imageUrl: string | null;
   displayOrder: number;
   isBookable: boolean;
   isActive: boolean;
@@ -1398,6 +1399,7 @@ export class AdminFacilitiesService {
         description: s.description,
         codePrefix: s.codePrefix,
         iconName: s.iconName,
+        imageUrl: s.imageUrl || null,
         displayOrder: s.displayOrder,
         isBookable: s.isBookable,
         isActive: s.isActive,
