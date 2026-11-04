@@ -39,12 +39,12 @@ export class ClinicalEntryInputDto {
   vaccineCode?: string;
 
   @ApiProperty({
-    enum: ['GIVEN', 'NOT_GIVEN', 'PENDING'],
+    enum: ['GIVEN', 'NOT_GIVEN', 'PENDING', 'POSTPONED', 'CONTRAINDICATED'],
     example: 'GIVEN',
   })
-  @IsIn(['GIVEN', 'NOT_GIVEN', 'PENDING'])
+  @IsIn(['GIVEN', 'NOT_GIVEN', 'PENDING', 'POSTPONED', 'CONTRAINDICATED'])
   @IsNotEmpty()
-  status: 'GIVEN' | 'NOT_GIVEN' | 'PENDING';
+  status: 'GIVEN' | 'NOT_GIVEN' | 'PENDING' | 'POSTPONED' | 'CONTRAINDICATED';
 
   @ApiPropertyOptional({ example: '2026-01-13' })
   @IsDateString()

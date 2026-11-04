@@ -33,6 +33,7 @@ export interface UpdateImmunizationIntakeData {
   childAddress?: string;
   previousVaccineHistory?: string;
   childAllergyHistory?: string;
+  entries?: SaveClinicalEntryData[];
 }
 
 export interface SaveClinicalEntryData {

@@ -196,13 +196,103 @@ export class ImmunizationDrizzleRepository implements IImmunizationRepository {
       if (data.childAllergyHistory !== undefined)
         updateData.childAllergyHistory = data.childAllergyHistory;
 
-      const [updated] = await tx
+      await tx
         .update(childImmunizationIntakes)
         .set(updateData)
-        .where(eq(childImmunizationIntakes.id, existing.id))
-        .returning();
+        .where(eq(childImmunizationIntakes.id, existing.id));
 
-      return updated as ChildImmunizationIntakeEntity;
+      if (data.entries && data.entries.length > 0) {
+        for (const entry of data.entries) {
+          const targetVaccineName = entry.vaccineName ?? '';
+          const targetVaccineCode = entry.vaccineCode ?? '';
+
+          await tx
+            .insert(childImmunizationEntries)
+            .values({
+              patientId: existing.patientId,
+              intakeId: existing.id,
+              appointmentId:
+                entry.appointmentId || existing.appointmentId || null,
+              administeredBy: entry.administeredBy || null,
+              rowIndex: entry.rowIndex,
+              vaccineName: targetVaccineName,
+              vaccineCode: targetVaccineCode,
+              status: entry.status,
+              givenDate: entry.injectionDate || null,
+              ageDisplay: entry.ageDisplay || null,
+              fever: entry.fever || null,
+              cough: entry.cough || null,
+              runnyNose: entry.runnyNose || null,
+              weightKg:
+                entry.weightKg !== undefined && entry.weightKg !== null
+                  ? String(entry.weightKg)
+                  : null,
+              heightCm:
+                entry.heightCm !== undefined && entry.heightCm !== null
+                  ? String(entry.heightCm)
+                  : null,
+              headCircumferenceCm:
+                entry.headCircumferenceCm !== undefined &&
+                entry.headCircumferenceCm !== null
+                  ? String(entry.headCircumferenceCm)
+                  : null,
+              temperatureCelsius:
+                entry.temperatureCelsius !== undefined &&
+                entry.temperatureCelsius !== null
+                  ? String(entry.temperatureCelsius)
+                  : null,
+              planning: entry.planning || null,
+              notes: entry.notes || null,
+            })
+            .onConflictDoUpdate({
+              target: [
+                childImmunizationEntries.patientId,
+                childImmunizationEntries.rowIndex,
+              ],
+              set: {
+                intakeId: existing.id,
+                appointmentId:
+                  entry.appointmentId ||
+                  existing.appointmentId ||
+                  sql`excluded.appointment_id`,
+                administeredBy:
+                  entry.administeredBy || sql`excluded.administered_by`,
+                vaccineName: targetVaccineName,
+                vaccineCode: targetVaccineCode,
+                status: entry.status,
+                givenDate: entry.injectionDate || null,
+                ageDisplay: entry.ageDisplay || null,
+                fever: entry.fever || null,
+                cough: entry.cough || null,
+                runnyNose: entry.runnyNose || null,
+                weightKg:
+                  entry.weightKg !== undefined && entry.weightKg !== null
+                    ? String(entry.weightKg)
+                    : null,
+                heightCm:
+                  entry.heightCm !== undefined && entry.heightCm !== null
+                    ? String(entry.heightCm)
+                    : null,
+                headCircumferenceCm:
+                  entry.headCircumferenceCm !== undefined &&
+                  entry.headCircumferenceCm !== null
+                    ? String(entry.headCircumferenceCm)
+                    : null,
+                temperatureCelsius:
+                  entry.temperatureCelsius !== undefined &&
+                  entry.temperatureCelsius !== null
+                    ? String(entry.temperatureCelsius)
+                    : null,
+                planning: entry.planning || null,
+                notes: entry.notes || null,
+                updatedAt: new Date().toISOString(),
+              },
+            });
+        }
+      }
+
+      const fullIntake = await this.findIntakeById(existing.id);
+      return fullIntake as ChildImmunizationIntakeEntity;
     });
   }
 
