@@ -364,12 +364,20 @@ export class AppointmentRescheduleHandler {
           .toInstant().epochMilliseconds,
       );
 
+      const now = new Date();
+      const todayStr = clinicTimeService.formatDate(now);
+      const isToday = targetDate === todayStr;
+      const effectiveStartMs =
+        isToday && now.getTime() > baseStart.getTime()
+          ? Math.max(baseStart.getTime(), now.getTime())
+          : baseStart.getTime();
+
       const consultationMinutes =
         policy?.defaultConsultationDurationMinutes ?? 20;
       const queueOffsetMinutes =
         Math.max(0, numericQueueNumber - 1) * consultationMinutes;
       const estimatedStart = new Date(
-        baseStart.getTime() + queueOffsetMinutes * 60_000,
+        effectiveStartMs + queueOffsetMinutes * 60_000,
       );
       const estimatedEnd = new Date(
         estimatedStart.getTime() + consultationMinutes * 60_000,
