@@ -150,10 +150,15 @@ export class AppointmentRecordMapper {
       resolvedUnit?.poliklinikId ??
       (typeof poliklinikIdOverride === 'string'
         ? poliklinikIdOverride
-        : (apt.clinicRoom?.clinicUnit?.id ?? ''));
+        : (apt.clinicRoom?.clinicUnit?.id ??
+            apt.clinicService?.serviceCategory?.clinicUnit?.id ??
+            ''));
 
     const resolvedPoliName =
-      resolvedUnit?.poliklinikName ?? apt.clinicRoom?.clinicUnit?.name ?? '';
+      resolvedUnit?.poliklinikName ??
+      apt.clinicRoom?.clinicUnit?.name ??
+      apt.clinicService?.serviceCategory?.clinicUnit?.name ??
+      '';
 
     const hasDoctor = Boolean(apt.practitionerId || apt.practitioner);
     const hasRoom = Boolean(apt.roomId || apt.clinicRoom);

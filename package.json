@@ -29,6 +29,7 @@
     "db:purge:replacement": "bun ./scripts/dev/purge-user.ts --replacement",
     "db:purge:replacement:all": "bun ./scripts/dev/purge-user.ts --replacement-flush-all --yes",
     "db:purge:nuclear": "bun ./scripts/dev/purge-user.ts --nuclear-reset",
+    "db:timeshift": "bun ./scripts/dev/purge-user.ts --timeshift",
     "db:schedule:empty": "bun ./scripts/dev/reset-and-seed-schedule-presets.ts --empty",
     "db:schedule:preset:2-shifts": "bun ./scripts/dev/reset-and-seed-schedule-presets.ts --preset 2-shifts",
     "db:schedule:preset:3-shifts": "bun ./scripts/dev/reset-and-seed-schedule-presets.ts --preset 3-shifts",

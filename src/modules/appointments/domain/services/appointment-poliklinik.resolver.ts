@@ -135,6 +135,13 @@ export class AppointmentPoliklinikResolver {
       };
     }
 
+    if (apt.clinicService?.serviceCategory?.clinicUnit?.name) {
+      return {
+        poliklinikId: apt.clinicService.serviceCategory.clinicUnit.id || '',
+        poliklinikName: apt.clinicService.serviceCategory.clinicUnit.name,
+      };
+    }
+
     if (poliklinikIdOverride) {
       if (this.unitMap.has(poliklinikIdOverride)) {
         const match = this.unitMap.get(poliklinikIdOverride);
@@ -195,6 +202,13 @@ export class AppointmentPoliklinikResolver {
           apt.practitioner.staffProfile.primaryUnitId ||
           '',
         poliklinikName: apt.practitioner.staffProfile.clinicUnit.name,
+      };
+    }
+
+    if (apt.clinicService?.serviceCategory?.clinicUnit?.name) {
+      return {
+        poliklinikId: apt.clinicService.serviceCategory.clinicUnit.id || '',
+        poliklinikName: apt.clinicService.serviceCategory.clinicUnit.name,
       };
     }
 

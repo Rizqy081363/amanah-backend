@@ -10,7 +10,15 @@ export const APPOINTMENT_RELATIONS = {
       patientAffiliations: { with: { user: true } },
     },
   },
-  clinicService: true,
+  clinicService: {
+    with: {
+      serviceCategory: {
+        with: {
+          clinicUnit: true,
+        },
+      },
+    },
+  },
   clinicRoom: { with: { clinicUnit: true } },
   practitioner: {
     with: {

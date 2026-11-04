@@ -12,6 +12,8 @@ import {
   renderAppointmentsTable,
   renderPatientsTable,
 } from './appointment-purge.render';
+import { runAppointmentTimeShiftInteractive } from './appointment-timeshift.service';
+export { runAppointmentTimeShiftInteractive } from './appointment-timeshift.service';
 
 export interface PatientAppointmentSummary {
   patientId: string;
@@ -289,10 +291,16 @@ export async function runAppointmentPurgeInteractive(
     console.log(' [1] Purge ALL Appointments (100% System-Wide Flush)');
     console.log(' [2] Purge Appointments by User Account (Select User -> Flush All or Purge Single)');
     console.log(' [3] Purge Appointments by Patient Profile (Select Patient Profile)');
+    console.log(' [4] Simulate Appointment Time-Shift & Auto-Revert (Testing Keterlambatan LATE)');
     console.log(' [b] Back to Main Menu\n');
 
-    const choice = await askSafeQuestion(rl, 'Enter selection [1-3 or b]: ');
+    const choice = await askSafeQuestion(rl, 'Enter selection [1-4 or b]: ');
     if (!choice || choice.toLowerCase() === 'b' || choice.toLowerCase() === 'back') break;
+
+    if (choice === '4') {
+      await runAppointmentTimeShiftInteractive(pool, redisClient, rl);
+      continue;
+    }
 
     if (choice === '1') {
       const insp = await inspectAllAppointments(pool);

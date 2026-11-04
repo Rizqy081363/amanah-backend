@@ -19,7 +19,10 @@ import {
   renderInspectionResult,
   executeUserPurge,
 } from './purge/user-purge.service';
-import { runAppointmentPurgeInteractive } from './purge/appointment-purge.service';
+import {
+  runAppointmentPurgeInteractive,
+  runAppointmentTimeShiftInteractive,
+} from './purge/appointment-purge.service';
 import { runAffiliationPurgeInteractive } from './purge/affiliation-purge.service';
 import { runSchedulePurgeInteractive } from './purge/schedule-purge.service';
 import { runDoctorPurgeInteractive } from './purge/doctor-purge.service';
@@ -124,6 +127,7 @@ Usage:
   bun ./scripts/dev/purge-user.ts --email=<email>     Inspect & purge user by email
   bun ./scripts/dev/purge-user.ts --id=<uuid>         Inspect & purge user by UUID
   bun ./scripts/dev/purge-user.ts --appointments      Launch appointments purge menu
+  bun ./scripts/dev/purge-user.ts --timeshift         Simulate appointment time-shift & auto-revert (LATE testing)
   bun ./scripts/dev/purge-user.ts --affiliations      Launch patient affiliations purge menu
   bun ./scripts/dev/purge-user.ts --schedules         Launch schedules purge menu
   bun ./scripts/dev/purge-user.ts --doctors           Launch doctors purge menu
@@ -202,6 +206,16 @@ Options:
       const rl = readline.createInterface({ input, output });
       try {
         await runAppointmentPurgeInteractive(pool, redisClient, rl);
+      } finally {
+        rl.close();
+      }
+      return;
+    }
+
+    if (args.includes('--timeshift') || args.includes('--shift-late')) {
+      const rl = readline.createInterface({ input, output });
+      try {
+        await runAppointmentTimeShiftInteractive(pool, redisClient, rl);
       } finally {
         rl.close();
       }
