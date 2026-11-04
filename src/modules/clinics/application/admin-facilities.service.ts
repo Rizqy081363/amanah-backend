@@ -1467,6 +1467,7 @@ export class AdminFacilitiesService {
           description: dto.description?.trim() || null,
           codePrefix: finalPrefix,
           iconName: dto.iconName?.trim() || 'stethoscope',
+          imageUrl: dto.imageUrl?.trim() || null,
           displayOrder: dto.displayOrder ?? 0,
           isBookable: dto.isBookable ?? true,
           isActive: dto.isActive ?? true,
@@ -1572,6 +1573,8 @@ export class AdminFacilitiesService {
       updates.codePrefix = dto.codePrefix.trim().toUpperCase();
     if (dto.iconName !== undefined)
       updates.iconName = dto.iconName?.trim() || 'stethoscope';
+    if (dto.imageUrl !== undefined)
+      updates.imageUrl = dto.imageUrl?.trim() || null;
     if (dto.displayOrder !== undefined) updates.displayOrder = dto.displayOrder;
     if (dto.isBookable !== undefined) updates.isBookable = dto.isBookable;
     if (dto.isActive !== undefined) updates.isActive = dto.isActive;

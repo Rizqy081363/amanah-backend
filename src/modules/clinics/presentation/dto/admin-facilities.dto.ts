@@ -552,6 +552,14 @@ export class CreateClinicServiceDto {
   @IsOptional()
   iconName?: string = 'stethoscope';
 
+  @ApiPropertyOptional({
+    example: '/healthcare/assets/images/asset_imunisasi.webp',
+    description: 'URL relatif gambar thumbnail layanan',
+  })
+  @IsString()
+  @IsOptional()
+  imageUrl?: string | null;
+
   @ApiPropertyOptional({ example: 1, default: 0 })
   @IsInt()
   @Min(0)
@@ -643,6 +651,14 @@ export class UpdateClinicServiceDto {
   @MaxLength(64)
   @IsOptional()
   iconName?: string;
+
+  @ApiPropertyOptional({
+    example: '/healthcare/assets/images/asset_imunisasi.webp',
+    description: 'URL relatif gambar thumbnail layanan',
+  })
+  @IsString()
+  @IsOptional()
+  imageUrl?: string | null;
 
   @ApiPropertyOptional({ example: 1 })
   @IsInt()

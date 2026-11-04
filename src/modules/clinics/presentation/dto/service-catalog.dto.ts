@@ -30,6 +30,13 @@ export class ServiceCatalogItemDto {
   iconName: string;
 
   @ApiProperty({
+    description: 'URL relatif gambar thumbnail layanan',
+    required: false,
+    nullable: true,
+  })
+  imageUrl?: string | null;
+
+  @ApiProperty({
     description: 'Kode spesialisasi',
     example: 'general_practitioner',
     nullable: true,

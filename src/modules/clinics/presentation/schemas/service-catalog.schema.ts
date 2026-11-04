@@ -7,6 +7,7 @@ export const ServiceCatalogItemSchema = z.object({
   prefix: z.string().min(1, 'Prefix layanan wajib diisi'),
   description: z.string().nullable().optional(),
   iconName: z.string().default('stethoscope'),
+  imageUrl: z.string().nullable().optional(),
   specialtyCode: z.string().nullable().optional(),
   intakeFormId: z.string().uuid().nullable().optional(),
   intakeFormCode: z.string().nullable().optional(),

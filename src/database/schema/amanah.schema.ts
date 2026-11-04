@@ -853,6 +853,7 @@ export const clinicServices = pgTable(
     description: text(),
     codePrefix: varchar('code_prefix', { length: 8 }).notNull(),
     iconName: text('icon_name').default('stethoscope'),
+    imageUrl: text('image_url'),
     displayOrder: integer('display_order').default(0).notNull(),
     isBookable: boolean('is_bookable').default(true).notNull(),
     isActive: boolean('is_active').default(true).notNull(),

@@ -610,6 +610,13 @@
       "when": 1791370000000,
       "tag": "0086_relational_demographic_masters",
       "breakpoints": true
+    },
+    {
+      "idx": 87,
+      "version": "7",
+      "when": 1791371000000,
+      "tag": "0087_add_clinic_services_image_url",
+      "breakpoints": true
     }
   ]
 }

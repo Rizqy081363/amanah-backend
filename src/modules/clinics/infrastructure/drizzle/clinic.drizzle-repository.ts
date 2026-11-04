@@ -263,6 +263,7 @@ export class ClinicDrizzleRepository implements ClinicRepository {
               prefix: srv.codePrefix,
               description: srv.description || null,
               iconName: srv.iconName || 'stethoscope',
+              imageUrl: srv.imageUrl || null,
               specialtyCode: srv.specialtyId || null,
               intakeFormId: srv.intakeFormId || null,
               intakeFormCode: srv.intakeForm?.code || null,
