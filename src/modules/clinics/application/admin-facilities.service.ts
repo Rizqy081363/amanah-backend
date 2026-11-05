@@ -75,6 +75,7 @@ export interface AdminRelationshipResponse {
   displayOrder: number;
   isActive: boolean;
   isSystem: boolean;
+  allowsMultiple: boolean;
   usageCount: number;
   createdAt: string;
   updatedAt: string;
@@ -1843,6 +1844,7 @@ export class AdminFacilitiesService {
       displayOrder: item.displayOrder,
       isActive: item.isActive,
       isSystem: item.isSystem,
+      allowsMultiple: item.allowsMultiple ?? true,
       usageCount: item.affiliations?.length || 0,
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
@@ -1881,6 +1883,7 @@ export class AdminFacilitiesService {
         displayOrder: dto.displayOrder ?? 0,
         isActive: dto.isActive ?? true,
         isSystem: shouldBeSystem,
+        allowsMultiple: shouldBeSystem ? false : (dto.allowsMultiple ?? true),
       })
       .returning();
 
@@ -1952,6 +1955,8 @@ export class AdminFacilitiesService {
       updates.iconName = dto.iconName?.trim() || 'user';
     if (dto.displayOrder !== undefined) updates.displayOrder = dto.displayOrder;
     if (dto.isActive !== undefined) updates.isActive = dto.isActive;
+    if (dto.allowsMultiple !== undefined)
+      updates.allowsMultiple = dto.allowsMultiple;
 
     if (dto.isSystem !== undefined) {
       if (dto.isSystem) {
@@ -1960,6 +1965,7 @@ export class AdminFacilitiesService {
           .set({ isSystem: false, updatedAt: new Date().toISOString() })
           .where(ne(patientRelationshipTypes.id, id));
         updates.isSystem = true;
+        updates.allowsMultiple = false;
       } else {
         updates.isSystem = false;
       }
@@ -1998,6 +2004,7 @@ export class AdminFacilitiesService {
         .set({
           isSystem: true,
           isActive: true,
+          allowsMultiple: false,
           updatedAt: new Date().toISOString(),
         })
         .where(eq(patientRelationshipTypes.id, id))

@@ -4,6 +4,7 @@ import {
   ConflictException,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   HttpCode,
   HttpStatus,
@@ -21,7 +22,7 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
-import { asc, desc, eq, ilike } from 'drizzle-orm';
+import { and, asc, desc, eq, ilike, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   AuthenticatedUser,
@@ -36,11 +37,13 @@ import { DrizzleDatabase } from '../../../database/drizzle/drizzle.provider';
 import {
   clinicServices,
   patientAddresses,
+  patientAffiliations,
   patientEmergencyContacts,
   patientProfiles,
   patientRelationshipTypes,
 } from '../../../database/schema';
 import { normalizeBloodTypeToDb } from '../domain/data/patient-reference.data';
+import { parseNikOrThrow } from '../domain/helpers/patient-nik.helper';
 import {
   PATIENT_REPOSITORY,
   type PatientRepository,
@@ -50,6 +53,7 @@ import {
   type PatientAffiliationRepository,
 } from '../domain/repositories/patient-affiliation.repository';
 import { CreatePatientAffiliationDto } from './dto/create-patient-affiliation.dto';
+import { VerifyNikAvailabilityDto } from './dto/verify-nik-availability.dto';
 import { generateNextMedicalRecordNumber } from './helpers/patient-mrn.helper';
 import { mapEnrichedPatient } from './mappers/enriched-patient.mapper';
 
@@ -105,7 +109,22 @@ export class PatientAffiliationsController {
     const formType = intakeFormCode;
 
     const rawAffiliations = await this.affiliationRepo.findByUserId(user.id);
-    const hasExistingPrimary = rawAffiliations.some((aff) => aff.isPrimary);
+
+    // Dynamic relationship cardinality enforcement:
+    // Count user's existing affiliations per relationship_type_id
+    const userAffiliationCounts = await this.db
+      .select({
+        relationshipTypeId: patientAffiliations.relationshipTypeId,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(patientAffiliations)
+      .where(eq(patientAffiliations.userId, user.id))
+      .groupBy(patientAffiliations.relationshipTypeId);
+
+    const affiliationCountMap = new Map<string, number>();
+    for (const row of userAffiliationCounts) {
+      affiliationCountMap.set(row.relationshipTypeId, Number(row.count));
+    }
 
     const activeRelationshipTypes =
       await this.db.query.patientRelationshipTypes.findMany({
@@ -116,24 +135,26 @@ export class PatientAffiliationsController {
         ],
       });
 
-    let allowedRelationships = activeRelationshipTypes.map((t) => ({
-      id: t.id,
-      value: t.code,
-      label: t.name,
-      icon: t.iconName,
-      iconName: t.iconName,
-      description: t.description || undefined,
-      isSystem: t.isSystem,
-    }));
+    // Filter available relationships based on database-driven cardinality rules
+    const allowedRelationships = activeRelationshipTypes
+      .filter((t) => {
+        const count = affiliationCountMap.get(t.id) ?? 0;
+        return t.allowsMultiple || count === 0;
+      })
+      .map((t) => ({
+        id: t.id,
+        value: t.code,
+        label: t.name,
+        icon: t.iconName,
+        iconName: t.iconName,
+        description: t.description || undefined,
+        isSystem: t.isSystem,
+        allowsMultiple: t.allowsMultiple,
+      }));
 
-    if (hasExistingPrimary) {
-      const systemType = activeRelationshipTypes.find((t) => t.isSystem);
-      if (systemType) {
-        allowedRelationships = allowedRelationships.filter(
-          (r) => r.id !== systemType.id,
-        );
-      }
-    }
+    const hasExistingPrimary = rawAffiliations.some(
+      (aff) => aff.isPrimary || aff.isSystem,
+    );
 
     const enrichedPatients = rawAffiliations.map((aff) =>
       mapEnrichedPatient(aff),
@@ -161,6 +182,37 @@ export class PatientAffiliationsController {
           email: user.email,
           phone: user.phone || null,
         },
+      },
+    };
+  }
+
+  @Post('nik/availability')
+  @RequirePermissions('patients:register', 'patients:manage', 'appointments:book')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Cek ketersediaan NIK secara real-time untuk pendaftaran pasien',
+    description:
+      'Memeriksa apakah NIK sudah terdaftar dalam sistem tanpa membocorkan identitas pemilik NIK.',
+  })
+  async checkNikAvailability(
+    @Body() dto: VerifyNikAvailabilityDto,
+  ) {
+    const cleanNik = parseNikOrThrow(dto.nik);
+
+    const existing = await this.db.query.patientProfiles.findFirst({
+      where: or(
+        eq(patientProfiles.nationalIdHash, cleanNik),
+        eq(patientProfiles.nationalIdEncrypted, cleanNik),
+      ),
+      columns: {
+        id: true,
+      },
+    });
+
+    return {
+      success: true,
+      data: {
+        available: !existing,
       },
     };
   }
@@ -194,19 +246,6 @@ export class PatientAffiliationsController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: CreatePatientAffiliationDto,
   ) {
-    if (dto.isPrimary) {
-      const existingUserAffiliations = await this.affiliationRepo.findByUserId(
-        user.id,
-      );
-      const hasPrimary = existingUserAffiliations.some((aff) => aff.isPrimary);
-      if (hasPrimary) {
-        throw new ConflictException({
-          code: 'PRIMARY_PROFILE_EXISTS',
-          message: 'Profil akun utama sudah terdaftar pada akun Anda.',
-        });
-      }
-    }
-
     let relTypeRecord: any = null;
     if (dto.relationshipTypeId) {
       relTypeRecord = await this.db.query.patientRelationshipTypes.findFirst({
@@ -223,9 +262,57 @@ export class PatientAffiliationsController {
       if (!dto.relationshipType) dto.relationshipType = relTypeRecord.code;
     }
 
-    const isSelfProfile = Boolean(
-      dto.isPrimary || relTypeRecord?.isSystem,
-    );
+    const isSelfProfile = Boolean(dto.isPrimary || relTypeRecord?.isSystem);
+
+    if (isSelfProfile) {
+      const existingUserAffiliations = await this.affiliationRepo.findByUserId(
+        user.id,
+      );
+      const hasPrimary = existingUserAffiliations.some(
+        (aff) => aff.isPrimary || aff.isSystem,
+      );
+      if (hasPrimary) {
+        throw new ConflictException({
+          code: 'PRIMARY_PROFILE_EXISTS',
+          message: 'Profil akun utama (Diri Sendiri) sudah terdaftar pada akun Anda.',
+          errors: [
+            {
+              field: 'relationshipTypeId',
+              code: 'PRIMARY_PROFILE_EXISTS',
+              message:
+                'Profil akun utama (Diri Sendiri) sudah terdaftar pada akun Anda.',
+            },
+          ],
+        });
+      }
+    }
+
+    // Backend-driven relationship cardinality enforcement
+    if (relTypeRecord && !relTypeRecord.allowsMultiple) {
+      const [existingRelCount] = await this.db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(patientAffiliations)
+        .where(
+          and(
+            eq(patientAffiliations.userId, user.id),
+            eq(patientAffiliations.relationshipTypeId, relTypeRecord.id),
+          ),
+        );
+      if (Number(existingRelCount?.count ?? 0) > 0) {
+        throw new ConflictException({
+          code: 'RELATIONSHIP_LIMIT_REACHED',
+          message: `Relasi '${relTypeRecord.name}' sudah terdaftar pada akun Anda dan tidak mengizinkan profil ganda.`,
+          errors: [
+            {
+              field: 'relationshipTypeId',
+              code: 'RELATIONSHIP_LIMIT_REACHED',
+              message: `Relasi '${relTypeRecord.name}' hanya dapat didaftarkan satu kali.`,
+            },
+          ],
+        });
+      }
+    }
+
     const resolvedEmail =
       dto.email?.trim() || (isSelfProfile ? user.email : null);
 
@@ -284,169 +371,208 @@ export class PatientAffiliationsController {
         });
       }
 
-      // Check if NIK already exists
-      const existingPatient = await this.patientRepo.findByNik(dto.nik);
+      const patientFullName = dto.name.trim();
+      const patientBirthDate = dto.birthDate;
+      const patientGender = dto.gender;
+      const cleanNik = parseNikOrThrow(dto.nik);
+
+      // Verify NIK does not already belong to another patient profile
+      const existingPatient = await this.db.query.patientProfiles.findFirst({
+        where: or(
+          eq(patientProfiles.nationalIdHash, cleanNik),
+          eq(patientProfiles.nationalIdEncrypted, cleanNik),
+        ),
+        columns: {
+          id: true,
+        },
+      });
+
       if (existingPatient) {
-        targetPatientId = existingPatient.id;
-        const updates: Record<string, any> = {};
-        const newBloodType = dto.bloodType
-          ? normalizeBloodTypeToDb(dto.bloodType)
-          : 'unknown';
-        if (
-          (!existingPatient.bloodType ||
-            existingPatient.bloodType === 'unknown') &&
-          newBloodType !== 'unknown'
-        ) {
-          updates.bloodType = newBloodType;
-        }
-        if (!existingPatient.occupation && dto.occupation) {
-          updates.occupation = dto.occupation.trim();
-        }
-        if (!existingPatient.motherName && dto.motherName) {
-          updates.motherName = dto.motherName.trim();
-        }
-        if (!existingPatient.birthPlace && dto.birthPlace) {
-          updates.birthPlace = dto.birthPlace.trim();
-        }
-        if (dto.phone?.trim() && dto.phone.trim() !== existingPatient.phone) {
-          updates.phone = dto.phone.trim();
-        }
-        if (resolvedEmail && resolvedEmail !== existingPatient.email) {
-          updates.email = resolvedEmail;
-        }
-        if (Object.keys(updates).length > 0) {
-          updates.updatedAt = new Date().toISOString();
-          await this.db
-            .update(patientProfiles)
-            .set(updates)
-            .where(eq(patientProfiles.id, existingPatient.id));
+        throw new ConflictException({
+          code: 'NIK_ALREADY_REGISTERED',
+          message: 'NIK sudah terdaftar.',
+          errors: [
+            {
+              field: 'nik',
+              code: 'NIK_ALREADY_REGISTERED',
+              message: 'NIK sudah terdaftar.',
+            },
+          ],
+        });
+      }
+
+      return await this.db.transaction(async (tx) => {
+        // Re-check inside transaction to eliminate race conditions
+        const duplicateCheck = await tx.query.patientProfiles.findFirst({
+          where: or(
+            eq(patientProfiles.nationalIdHash, cleanNik),
+            eq(patientProfiles.nationalIdEncrypted, cleanNik),
+          ),
+          columns: {
+            id: true,
+          },
+        });
+        if (duplicateCheck) {
+          throw new ConflictException({
+            code: 'NIK_ALREADY_REGISTERED',
+            message: 'NIK sudah terdaftar.',
+            errors: [
+              {
+                field: 'nik',
+                code: 'NIK_ALREADY_REGISTERED',
+                message: 'NIK sudah terdaftar.',
+              },
+            ],
+          });
         }
 
-        if (resolvedEmergencyPhone) {
-          const [existingEmergency] = await this.db
-            .select()
-            .from(patientEmergencyContacts)
-            .where(eq(patientEmergencyContacts.patientId, existingPatient.id))
-            .limit(1);
+        const rmNumber = await generateNextMedicalRecordNumber(tx);
+        const dbGender = patientGender || 'male';
+        const dbBloodType = normalizeBloodTypeToDb(dto.bloodType);
 
-          if (existingEmergency) {
-            await this.db
-              .update(patientEmergencyContacts)
-              .set({
-                name: resolvedEmergencyName ?? existingEmergency.name,
-                phone: resolvedEmergencyPhone,
-                relationship:
-                  resolvedEmergencyRelationship ??
-                  existingEmergency.relationship,
-                updatedAt: new Date().toISOString(),
-              })
-              .where(eq(patientEmergencyContacts.id, existingEmergency.id));
-          } else {
-            await this.db.insert(patientEmergencyContacts).values({
-              patientId: existingPatient.id,
+        try {
+          const [newProfile] = await tx
+            .insert(patientProfiles)
+            .values({
+              userId: isSelfProfile ? user.id : null,
+              occupationId: dto.occupationId || null,
+              medicalRecordNumber: rmNumber,
+              nationalIdEncrypted: cleanNik,
+              nationalIdHash: cleanNik,
+              fullName: patientFullName,
+              gender: dbGender,
+              birthPlace: dto.birthPlace?.trim() || '',
+              birthDate: patientBirthDate,
+              bloodType: dbBloodType,
+              phone:
+                dto.phone?.trim() ||
+                (isSelfProfile
+                  ? user.phone || user.patient?.phoneNumber || null
+                  : null),
+              email: resolvedEmail,
+              motherName: dto.motherName?.trim() || null,
+              occupation: dto.occupation?.trim() || null,
+              status: 'active',
+              registeredAt: new Date().toISOString(),
+            })
+            .returning();
+
+          targetPatientId = newProfile.id;
+
+          const line1 = dto.line1?.trim() || '';
+          const provinceName = dto.provinceName || null;
+          const provinceCode = dto.provinceCode || null;
+          const regencyName = dto.regencyName || null;
+          const regencyCode = dto.regencyCode || null;
+          const districtName = dto.districtName || null;
+          const districtCode = dto.districtCode || null;
+          const villageName = dto.villageName || null;
+          const villageCode = dto.villageCode || null;
+
+          if (line1 || provinceName) {
+            const fullAddress =
+              `${line1}, ${villageName ? `Kel. ${villageName}, ` : ''}${districtName ? `Kec. ${districtName}, ` : ''}${regencyName || ''}, Prov. ${provinceName || ''}`.trim();
+            await tx.insert(patientAddresses).values({
+              patientId: newProfile.id,
+              type: 'domicile',
+              provinceCode,
+              provinceName,
+              regencyCode,
+              regencyName,
+              districtCode,
+              districtName,
+              villageCode,
+              villageName,
+              line1: line1 || fullAddress,
+              fullAddress,
+              isPrimary: true,
+            });
+          }
+
+          if (resolvedEmergencyPhone) {
+            await tx.insert(patientEmergencyContacts).values({
+              patientId: newProfile.id,
               name: resolvedEmergencyName,
               phone: resolvedEmergencyPhone,
               relationship: resolvedEmergencyRelationship,
             });
           }
-        }
-      } else {
-        const rmNumber = await generateNextMedicalRecordNumber(this.db);
 
-        const dbGender = dto.gender || 'male';
-        const dbBloodType = normalizeBloodTypeToDb(dto.bloodType);
-
-        const [newProfile] = await this.db
-          .insert(patientProfiles)
-          .values({
-            userId: isSelfProfile ? user.id : null,
-            occupationId: dto.occupationId || null,
-            medicalRecordNumber: rmNumber,
-            nationalIdEncrypted: dto.nik,
-            nationalIdHash: dto.nik,
-            fullName: dto.name.trim(),
-            gender: dbGender,
-            birthPlace: dto.birthPlace?.trim() || '',
-            birthDate: dto.birthDate,
-            bloodType: dbBloodType,
-            phone: dto.phone?.trim() || (isSelfProfile ? (user.phone || user.patient?.phoneNumber || null) : null),
-            email: resolvedEmail,
-            motherName: dto.motherName?.trim() || null,
-            occupation: dto.occupation?.trim() || null,
-            status: 'active',
-            registeredAt: new Date().toISOString(),
-          })
-          .returning();
-
-        targetPatientId = newProfile.id;
-
-        const line1 = dto.line1?.trim() || '';
-        const provinceName = dto.provinceName || null;
-        const provinceCode = dto.provinceCode || null;
-        const regencyName = dto.regencyName || null;
-        const regencyCode = dto.regencyCode || null;
-        const districtName = dto.districtName || null;
-        const districtCode = dto.districtCode || null;
-        const villageName = dto.villageName || null;
-        const villageCode = dto.villageCode || null;
-
-        if (line1 || provinceName) {
-          const fullAddress =
-            `${line1}, ${villageName ? `Kel. ${villageName}, ` : ''}${districtName ? `Kec. ${districtName}, ` : ''}${regencyName || ''}, Prov. ${provinceName || ''}`.trim();
-          await this.db.insert(patientAddresses).values({
-            patientId: newProfile.id,
-            type: 'domicile',
-            provinceCode,
-            provinceName,
-            regencyCode,
-            regencyName,
-            districtCode,
-            districtName,
-            villageCode,
-            villageName,
-            line1: line1 || fullAddress,
-            fullAddress,
-            isPrimary: true,
+          const createdAffiliation = await this.affiliationRepo.create({
+            userId: user.id,
+            patientId: targetPatientId,
+            relationshipTypeId: dto.relationshipTypeId,
+            relationshipType: dto.relationshipType,
+            relationLabel: dto.relationLabel || null,
+            isPrimary: isSelfProfile,
           });
-        }
 
-        if (resolvedEmergencyPhone) {
-          await this.db.insert(patientEmergencyContacts).values({
-            patientId: newProfile.id,
-            name: resolvedEmergencyName,
-            phone: resolvedEmergencyPhone,
-            relationship: resolvedEmergencyRelationship,
-          });
+          return {
+            success: true,
+            message: 'Afiliasi pasien berhasil disimpan.',
+            data: createdAffiliation,
+          };
+        } catch (dbErr: any) {
+          const pgCode = dbErr?.code || dbErr?.cause?.code;
+          const pgConstraint =
+            dbErr?.constraint ||
+            dbErr?.constraint_name ||
+            dbErr?.cause?.constraint ||
+            dbErr?.cause?.constraint_name;
+          if (
+            pgCode === '23505' &&
+            (pgConstraint === 'patient_profiles_national_id_hash_unique' ||
+              pgConstraint?.includes('national_id'))
+          ) {
+            throw new ConflictException({
+              code: 'NIK_ALREADY_REGISTERED',
+              message: 'NIK sudah terdaftar.',
+              errors: [
+                {
+                  field: 'nik',
+                  code: 'NIK_ALREADY_REGISTERED',
+                  message: 'NIK sudah terdaftar.',
+                },
+              ],
+            });
+          }
+          throw dbErr;
         }
-      }
-    }
-
-    if (
-      dto.emergencyContactPatientId &&
-      targetPatientId &&
-      dto.emergencyContactPatientId === targetPatientId
-    ) {
-      throw new BadRequestException({
-        code: 'SELF_EMERGENCY_CONTACT_NOT_ALLOWED',
-        message:
-          'Pasien tidak dapat dijadikan kontak darurat untuk dirinya sendiri.',
       });
+    } else {
+      // Linking an existing patientId: verify existence and prevent account hijacking
+      const targetPatient = await this.db.query.patientProfiles.findFirst({
+        where: eq(patientProfiles.id, targetPatientId),
+      });
+      if (!targetPatient) {
+        throw new NotFoundException({
+          code: 'PATIENT_NOT_FOUND',
+          message: 'Profil pasien tidak ditemukan.',
+        });
+      }
+
+      if (targetPatient.userId && targetPatient.userId !== user.id) {
+        throw new ForbiddenException({
+          code: 'CANNOT_AFFILIATE_OTHER_PRIMARY_PROFILE',
+          message: 'Tidak dapat menautkan profil utama akun pengguna lain.',
+        });
+      }
+
+      const createdAffiliation = await this.affiliationRepo.create({
+        userId: user.id,
+        patientId: targetPatientId,
+        relationshipTypeId: dto.relationshipTypeId,
+        relationshipType: dto.relationshipType,
+        relationLabel: dto.relationLabel || null,
+        isPrimary: isSelfProfile,
+      });
+
+      return {
+        success: true,
+        message: 'Afiliasi pasien berhasil disimpan.',
+        data: createdAffiliation,
+      };
     }
-
-    const createdAffiliation = await this.affiliationRepo.create({
-      userId: user.id,
-      patientId: targetPatientId,
-      relationshipTypeId: dto.relationshipTypeId,
-      relationshipType: dto.relationshipType,
-      relationLabel: dto.relationLabel || null,
-      isPrimary: dto.isPrimary ?? false,
-    });
-
-    return {
-      success: true,
-      message: 'Afiliasi pasien berhasil disimpan.',
-      data: createdAffiliation,
-    };
   }
 
   @Delete(':patientId')

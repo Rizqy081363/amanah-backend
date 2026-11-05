@@ -1187,6 +1187,7 @@ export const patientRelationshipTypes = pgTable(
     displayOrder: integer('display_order').default(0).notNull(),
     isActive: boolean('is_active').default(true).notNull(),
     isSystem: boolean('is_system').default(false).notNull(),
+    allowsMultiple: boolean('allows_multiple').default(true).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
       .notNull(),
@@ -1239,6 +1240,10 @@ export const patientAffiliations = pgTable(
     index('patient_affiliations_user_id_idx').on(table.userId),
     index('patient_affiliations_patient_id_idx').on(table.patientId),
     index('idx_patient_affiliations_relationship_type_id').on(
+      table.relationshipTypeId,
+    ),
+    index('idx_patient_affiliations_user_rel').on(
+      table.userId,
       table.relationshipTypeId,
     ),
   ],

@@ -165,6 +165,7 @@ export class PatientReferencesController {
         icon: r.iconName,
         iconName: r.iconName,
         isSystem: r.isSystem,
+        allowsMultiple: r.allowsMultiple,
       })),
     };
   }
@@ -330,6 +331,7 @@ export class PatientReferencesController {
           icon: r.iconName,
           iconName: r.iconName,
           isSystem: r.isSystem,
+          allowsMultiple: r.allowsMultiple,
         })),
         provinces,
         occupations: occupationsList.map((occ) => ({

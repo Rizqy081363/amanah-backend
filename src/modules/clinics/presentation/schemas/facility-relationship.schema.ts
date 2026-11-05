@@ -24,6 +24,7 @@ export const CreateFacilityRelationshipSchema = z.object({
   displayOrder: z.coerce.number().int().min(0).default(0),
   isActive: z.boolean().default(true),
   isSystem: z.boolean().default(false).optional(),
+  allowsMultiple: z.boolean().default(true).optional(),
 });
 
 export type CreateFacilityRelationshipInput = z.infer<
