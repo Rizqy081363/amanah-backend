@@ -5,6 +5,27 @@ export const UpdateMedicalIntakeSchema = z.object({
 });
 export type UpdateMedicalIntakeInput = z.infer<typeof UpdateMedicalIntakeSchema>;
 
+export const HealthConditionItemSchema = z.object({
+  conditionCode: z.string().min(1, { message: 'Kode kondisi wajib diisi' }),
+  hasCondition: z.boolean(),
+  diagnosisYear: z.preprocess(
+    (val) =>
+      val === '' || val === null || val === undefined ? null : Number(val),
+    z
+      .number()
+      .int({ message: 'Tahun terdiagnosis harus berupa bilangan bulat' })
+      .min(1900, {
+        message: 'Tahun terdiagnosis tidak boleh lebih awal dari 1900',
+      })
+      .max(new Date().getFullYear(), {
+        message: 'Tahun terdiagnosis tidak boleh melebihi tahun saat ini',
+      })
+      .nullable()
+      .optional(),
+  ),
+  notes: z.string().nullable().optional(),
+});
+
 export const UpdateMaternityIntakeSchema = z.object({
   motherName: z.string().optional(),
   motherNik: z
@@ -76,7 +97,7 @@ export const UpdateMaternityIntakeSchema = z.object({
   husband: z.any().optional(),
   previousPregnancies: z.array(z.any()).optional(),
   contraceptiveHistories: z.array(z.any()).optional(),
-  healthConditions: z.array(z.any()).optional(),
+  healthConditions: z.array(HealthConditionItemSchema).optional(),
 });
 export type UpdateMaternityIntakeInput = z.infer<
   typeof UpdateMaternityIntakeSchema

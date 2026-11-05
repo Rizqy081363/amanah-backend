@@ -412,6 +412,12 @@ export class AppointmentHardenedDrizzleRepository
       ) {
         updateTicketPayload.completedAt = input.actualCompletedAt.toISOString();
       }
+      if (
+        targetDbStatus === DB_APPOINTMENT_STATUS.CANCELLED ||
+        targetDbStatus === DB_APPOINTMENT_STATUS.COMPLETED
+      ) {
+        updateTicketPayload.waitingPosition = null;
+      }
 
       await this.db
         .update(queueTickets)

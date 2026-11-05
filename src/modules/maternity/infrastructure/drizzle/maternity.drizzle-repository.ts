@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   forwardRef,
   Inject,
   Injectable,
@@ -266,6 +267,30 @@ export class MaternityDrizzleRepository implements MaternityRepository {
 
       // 9. Normalized Health Conditions
       if (dto.healthConditions && dto.healthConditions.length > 0) {
+        const currentYear = new Date().getFullYear();
+        let motherBirthYear: number | null = null;
+        if (motherBirthDate) {
+          const parsed = new Date(motherBirthDate).getFullYear();
+          if (!Number.isNaN(parsed)) {
+            motherBirthYear = parsed;
+          }
+        }
+
+        for (const cond of dto.healthConditions) {
+          if (cond.diagnosisYear !== null && cond.diagnosisYear !== undefined) {
+            if (cond.diagnosisYear > currentYear) {
+              throw new BadRequestException(
+                `Tahun terdiagnosis (${cond.diagnosisYear}) tidak boleh melebihi tahun saat ini (${currentYear})`,
+              );
+            }
+            if (motherBirthYear && cond.diagnosisYear < motherBirthYear) {
+              throw new BadRequestException(
+                `Tahun terdiagnosis (${cond.diagnosisYear}) tidak boleh lebih awal dari tahun kelahiran pasien (${motherBirthYear})`,
+              );
+            }
+          }
+        }
+
         const conditionRows = dto.healthConditions.map((cond) => ({
           maternalIntakeId: intake.id,
           conditionCode: cond.conditionCode,
@@ -539,7 +564,31 @@ export class MaternityDrizzleRepository implements MaternityRepository {
 
       // Health Conditions upsert
       if (dto.healthConditions !== undefined) {
+        const currentYear = new Date().getFullYear();
+        const effectiveBirthDate =
+          dto.motherBirthDate || existing.motherBirthDate;
+        let motherBirthYear: number | null = null;
+        if (effectiveBirthDate) {
+          const parsed = new Date(effectiveBirthDate).getFullYear();
+          if (!Number.isNaN(parsed)) {
+            motherBirthYear = parsed;
+          }
+        }
+
         for (const cond of dto.healthConditions) {
+          if (cond.diagnosisYear !== null && cond.diagnosisYear !== undefined) {
+            if (cond.diagnosisYear > currentYear) {
+              throw new BadRequestException(
+                `Tahun terdiagnosis (${cond.diagnosisYear}) tidak boleh melebihi tahun saat ini (${currentYear})`,
+              );
+            }
+            if (motherBirthYear && cond.diagnosisYear < motherBirthYear) {
+              throw new BadRequestException(
+                `Tahun terdiagnosis (${cond.diagnosisYear}) tidak boleh lebih awal dari tahun kelahiran pasien (${motherBirthYear})`,
+              );
+            }
+          }
+
           const existingCond =
             await tx.query.maternalHealthConditionResponses.findFirst({
               where: and(

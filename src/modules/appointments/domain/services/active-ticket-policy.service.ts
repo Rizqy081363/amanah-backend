@@ -1,11 +1,14 @@
 import { Inject, Injectable, Optional } from '@nestjs/common';
-import { and, eq, inArray, not } from 'drizzle-orm';
+import { and, eq, inArray, isNull, not, or } from 'drizzle-orm';
 import type { ClinicConfigService } from '../../../../common/clinic-config/clinic-config.service';
 import { DomainConflictException } from '../../../../common/exceptions';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import type { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
-import { queueTickets } from '../../../../database/schema';
-import { QUEUE_TICKET_STATUS } from '../constants/appointment-lifecycle.constants';
+import { appointments, queueTickets } from '../../../../database/schema';
+import {
+  DB_APPOINTMENT_STATUS,
+  QUEUE_TICKET_STATUS,
+} from '../constants/appointment-lifecycle.constants';
 
 export interface ActiveTicketCheckParams {
   patientId: string;
@@ -60,6 +63,16 @@ export class ActiveTicketPolicyService {
       eq(queueTickets.patientId, params.patientId),
       eq(queueTickets.queueDate, params.queueDate),
       inArray(queueTickets.status, [...ACTIVE_TICKET_STATUSES]),
+      or(
+        isNull(queueTickets.appointmentId),
+        not(
+          inArray(appointments.status, [
+            DB_APPOINTMENT_STATUS.CANCELLED,
+            DB_APPOINTMENT_STATUS.COMPLETED,
+            DB_APPOINTMENT_STATUS.NO_SHOW,
+          ]),
+        ),
+      ),
     ];
 
     if (params.categoryId) {
@@ -85,6 +98,7 @@ export class ActiveTicketPolicyService {
         projectedEnd: queueTickets.projectedEnd,
       })
       .from(queueTickets)
+      .leftJoin(appointments, eq(queueTickets.appointmentId, appointments.id))
       .where(and(...conditions));
 
     return rows;

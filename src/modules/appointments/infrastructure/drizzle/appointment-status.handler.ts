@@ -129,6 +129,7 @@ export class AppointmentStatusHandler {
         updateApt.practitionerId = prac ? prac.id : staffId;
       }
       updateTicket.status = ticketStatus;
+      updateTicket.waitingPosition = null;
       updateTicket.startedAt = nowStr;
       updateTicket.actualStart = nowStr;
     } else if (status === DOMAIN_APPOINTMENT_STATUS.COMPLETED) {
@@ -143,6 +144,7 @@ export class AppointmentStatusHandler {
       updateApt.completedAt = nowStr;
       updateApt.actualCompletedAt = nowStr;
       updateTicket.status = ticketStatus;
+      updateTicket.waitingPosition = null;
       updateTicket.completedAt = nowStr;
       updateTicket.actualEnd = nowStr;
     } else if (status === DOMAIN_APPOINTMENT_STATUS.CANCELLED) {
@@ -159,6 +161,7 @@ export class AppointmentStatusHandler {
         updateApt.cancelReason = cancellationReason;
       }
       updateTicket.status = ticketStatus;
+      updateTicket.waitingPosition = null;
     }
 
     const whereConditions = [eq(appointments.id, id)];

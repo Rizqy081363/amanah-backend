@@ -229,9 +229,13 @@ export class HealthConditionResponseDto {
 
   @ApiPropertyOptional({
     example: 2021,
-    description: 'Tahun terdiagnosis',
+    description: 'Tahun terdiagnosis (1900 s.d. tahun saat ini)',
   })
-  @IsInt()
+  @IsInt({ message: 'Tahun terdiagnosis harus berupa bilangan bulat (angka)' })
+  @Min(1900, { message: 'Tahun terdiagnosis tidak boleh lebih awal dari 1900' })
+  @Max(new Date().getFullYear(), {
+    message: 'Tahun terdiagnosis tidak boleh melebihi tahun saat ini',
+  })
   @IsOptional()
   diagnosisYear?: number;
 

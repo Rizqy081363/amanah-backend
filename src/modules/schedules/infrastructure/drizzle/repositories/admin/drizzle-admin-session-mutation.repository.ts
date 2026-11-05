@@ -9,7 +9,10 @@ import {
   sessionDefs,
   shiftExceptions,
 } from '@database/schema';
-import { SHIFT_EXCEPTION_TYPE } from '@modules/appointments/domain/constants/appointment-lifecycle.constants';
+import {
+  QUEUE_TICKET_STATUS,
+  SHIFT_EXCEPTION_TYPE,
+} from '@modules/appointments/domain/constants/appointment-lifecycle.constants';
 import { isUuid } from '@modules/schedules/domain/constants/schedule.constants';
 import {
   AdminScheduleStatusRequest,
@@ -300,6 +303,8 @@ export class DrizzleAdminSessionMutationRepository {
           await this.db
             .update(queueTickets)
             .set({
+              status: QUEUE_TICKET_STATUS.CANCELLED,
+              waitingPosition: null,
               carriedOver: true,
               updatedAt: new Date().toISOString(),
             })
@@ -307,6 +312,10 @@ export class DrizzleAdminSessionMutationRepository {
               and(
                 eq(queueTickets.sessionId, targetSessionDefId),
                 eq(queueTickets.queueDate, targetDate),
+                inArray(queueTickets.status, [
+                  QUEUE_TICKET_STATUS.WAITING,
+                  QUEUE_TICKET_STATUS.CALLED,
+                ]),
               ),
             );
         }

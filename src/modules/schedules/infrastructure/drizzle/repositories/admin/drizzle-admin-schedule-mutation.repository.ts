@@ -9,6 +9,7 @@ import {
   queueTickets,
   shiftExceptions,
 } from '@database/schema';
+import { QUEUE_TICKET_STATUS } from '@modules/appointments/domain/constants/appointment-lifecycle.constants';
 import {
   AdminScheduleStatusRequest,
   toAdminDayStatusResponseLabel,
@@ -289,10 +290,12 @@ export class DrizzleAdminScheduleMutationRepository {
           'Jadwal praktik dokter ditutup operasional oleh admin klinik.',
       });
 
-      // Update associated queue tickets to carried over
+      // Update associated queue tickets to carried over and cancel unserved queue tickets
       await this.db
         .update(queueTickets)
         .set({
+          status: QUEUE_TICKET_STATUS.CANCELLED,
+          waitingPosition: null,
           carriedOver: true,
           updatedAt: new Date().toISOString(),
         })
@@ -300,6 +303,10 @@ export class DrizzleAdminScheduleMutationRepository {
           and(
             eq(queueTickets.doctorId, practitionerId),
             eq(queueTickets.queueDate, date),
+            inArray(queueTickets.status, [
+              QUEUE_TICKET_STATUS.WAITING,
+              QUEUE_TICKET_STATUS.CALLED,
+            ]),
           ),
         );
 
@@ -334,6 +341,16 @@ export class DrizzleAdminScheduleMutationRepository {
               inArray(appointments.status, ['booked', 'waiting']),
             ),
           );
+
+        const unservedIds = unservedAppts.map((a) => a.id);
+        await this.db
+          .update(queueTickets)
+          .set({
+            status: QUEUE_TICKET_STATUS.CANCELLED,
+            waitingPosition: null,
+            updatedAt: new Date().toISOString(),
+          })
+          .where(inArray(queueTickets.appointmentId, unservedIds));
       }
     }
 
