@@ -25,6 +25,7 @@ import {
 } from '../constants';
 import type { AuthenticatedUser } from './authenticated-user.interface';
 import { IS_PUBLIC_KEY } from './public.decorator';
+import { NikSecurityService } from '../security/nik';
 
 @Injectable()
 export class HybridAuthGuard extends AuthGuard('jwt') implements CanActivate {
@@ -33,6 +34,7 @@ export class HybridAuthGuard extends AuthGuard('jwt') implements CanActivate {
     private readonly db: DrizzleDatabase,
     @Optional() private readonly redisService?: RedisService,
     @Optional() private readonly reflector?: Reflector,
+    @Optional() private readonly nikSecurity?: NikSecurityService,
   ) {
     super();
   }
@@ -243,7 +245,13 @@ export class HybridAuthGuard extends AuthGuard('jwt') implements CanActivate {
               fullName: staffProfile.fullName,
               profession: staffProfile.positionTitle,
               staffCode: staffProfile.staffCode,
-              idCardNumber: staffProfile.nationalIdEncrypted || null,
+              idCardNumber:
+                (this.nikSecurity && staffProfile.nationalIdEncrypted
+                  ? this.nikSecurity.decrypt(staffProfile.nationalIdEncrypted)
+                  : staffProfile.nationalIdEncrypted &&
+                      !staffProfile.nationalIdEncrypted.includes(':')
+                    ? staffProfile.nationalIdEncrypted
+                    : null) || null,
               gender: staffProfile.gender || null,
               photoUrl: staffProfile.avatarUrl,
               phoneNumber: staffProfile.phone,
@@ -256,9 +264,16 @@ export class HybridAuthGuard extends AuthGuard('jwt') implements CanActivate {
               userId: userRecord.id,
               medicalRecordNumber: patientProfile.medicalRecordNumber,
               nik:
-                patientProfile.nationalIdEncrypted ||
-                patientProfile.nationalIdHash ||
-                '',
+                (this.nikSecurity && patientProfile.nationalIdEncrypted
+                  ? this.nikSecurity.decrypt(patientProfile.nationalIdEncrypted)
+                  : patientProfile.nationalIdEncrypted &&
+                      !patientProfile.nationalIdEncrypted.includes(':')
+                    ? patientProfile.nationalIdEncrypted
+                    : null) || '',
+              maskedNik:
+                this.nikSecurity && patientProfile.nationalIdEncrypted
+                  ? this.nikSecurity.mask(patientProfile.nationalIdEncrypted)
+                  : null,
               fullName: patientProfile.fullName,
               gender: patientProfile.gender || null,
               birthPlace: patientProfile.birthPlace,

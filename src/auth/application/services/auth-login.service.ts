@@ -41,6 +41,7 @@ import { GoogleTokenVerifierService } from '../../services/google-token-verifier
 import { AuthUserMapper } from '../mappers/auth-user.mapper';
 import { UserProvisionedNotificationPublisher } from '../publishers/user-provisioned-notification.publisher';
 import { IdentityEnrollmentService } from './identity-enrollment.service';
+import { NikSecurityService } from '../../../common/security/nik';
 
 @Injectable()
 export class AuthLoginService {
@@ -52,6 +53,7 @@ export class AuthLoginService {
     private readonly db: DrizzleDatabase,
     private readonly googleVerifier: GoogleTokenVerifierService,
     private readonly identityEnrollmentService: IdentityEnrollmentService,
+    private readonly nikSecurity: NikSecurityService,
     @Optional()
     private readonly realtimeGateway?: SocketIoRealtimeGateway,
     @Optional()
@@ -263,7 +265,12 @@ export class AuthLoginService {
       token,
       refreshToken,
       tokenExpires: Date.now() + 86400000,
-      user: AuthUserMapper.formatUser(user, Boolean(pendingInvitation)),
+      user: AuthUserMapper.formatUser(
+        user,
+        Boolean(pendingInvitation),
+        [],
+        this.nikSecurity,
+      ),
     };
   }
 
@@ -578,7 +585,12 @@ export class AuthLoginService {
       token,
       refreshToken,
       tokenExpires: Date.now() + 86400000,
-      user: AuthUserMapper.formatUser(completeUser, Boolean(pendingInvitation)),
+      user: AuthUserMapper.formatUser(
+        completeUser,
+        Boolean(pendingInvitation),
+        [],
+        this.nikSecurity,
+      ),
     };
   }
 

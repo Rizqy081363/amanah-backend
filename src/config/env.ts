@@ -360,6 +360,14 @@ export class EnvironmentVariables {
 
   @IsString()
   @IsOptional()
+  NIK_BLIND_INDEX_PEPPER?: string;
+
+  @IsString()
+  @IsOptional()
+  NIK_ENCRYPTION_KEY?: string;
+
+  @IsString()
+  @IsOptional()
   MAIL_DEFAULT_NAME?: string = 'Amanah Healthcare';
 
   @IsString()

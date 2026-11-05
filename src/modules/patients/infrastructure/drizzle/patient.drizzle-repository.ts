@@ -41,16 +41,18 @@ import {
 } from '../../presentation/dto/patient-directory-response.dto';
 import { RegisterPatientDto } from '../../presentation/dto/register-patient.dto';
 import { PatientRecordMapper } from './patient-record.mapper';
+import { NikSecurityService } from '../../../../common/security/nik';
 
 @Injectable()
 export class PatientDrizzleRepository implements PatientRepository {
   constructor(
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,
+    private readonly nikSecurity: NikSecurityService,
   ) {}
 
   private mapRecordToEntity(record: any): PatientEntity {
-    return PatientRecordMapper.toEntity(record);
+    return PatientRecordMapper.toEntity(record, this.nikSecurity);
   }
 
   async create(
@@ -60,13 +62,15 @@ export class PatientDrizzleRepository implements PatientRepository {
       data.medicalRecordNumber ||
       `RM-${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(Math.floor(Math.random() * 9000) + 1000)}`;
 
+    const securedNik = data.nik ? this.nikSecurity.secure(data.nik) : null;
+
     const [record] = await this.db
       .insert(patientProfiles)
       .values({
         userId: data.userId || null,
         medicalRecordNumber: rmNumber,
-        nationalIdEncrypted: data.nik,
-        nationalIdHash: data.nik,
+        nationalIdEncrypted: securedNik?.encrypted || null,
+        nationalIdHash: securedNik?.blindIndex || null,
         fullName: data.fullName,
         gender: data.gender,
         birthPlace: data.birthPlace,
@@ -165,14 +169,15 @@ export class PatientDrizzleRepository implements PatientRepository {
     }
 
     const fullAddress = `${dto.line1}, Kel. ${dto.villageName}, Kec. ${dto.districtName}, ${dto.regencyName}, Prov. ${dto.provinceName}`;
+    const securedNik = dto.nik ? this.nikSecurity.secure(dto.nik) : null;
 
     const [record] = await this.db
       .insert(patientProfiles)
       .values({
         userId,
         medicalRecordNumber: rmNumber,
-        nationalIdEncrypted: dto.nik,
-        nationalIdHash: dto.nik,
+        nationalIdEncrypted: securedNik?.encrypted || null,
+        nationalIdHash: securedNik?.blindIndex || null,
         fullName: dto.name.trim(),
         gender: dbGender,
         birthPlace: dto.birthPlace.trim(),
@@ -354,10 +359,16 @@ export class PatientDrizzleRepository implements PatientRepository {
   }
 
   async findByNik(nik: string): Promise<PatientEntity | null> {
+    const cleanNik = this.nikSecurity.normalize(nik) || nik;
+    const blindIndex = this.nikSecurity.isValid(cleanNik)
+      ? this.nikSecurity.computeBlindIndex(cleanNik)
+      : cleanNik;
+
     const record = await this.db.query.patientProfiles.findFirst({
       where: or(
-        eq(patientProfiles.nationalIdEncrypted, nik),
-        eq(patientProfiles.nationalIdHash, nik),
+        eq(patientProfiles.nationalIdHash, blindIndex),
+        eq(patientProfiles.nationalIdHash, cleanNik),
+        eq(patientProfiles.nationalIdEncrypted, cleanNik),
       ),
       with: {
         user: true,
@@ -481,20 +492,25 @@ export class PatientDrizzleRepository implements PatientRepository {
     if (d.status !== undefined) updateValues.status = d.status;
 
     if (d.nik !== undefined && d.nik.trim() !== '') {
-      const cleanNik = d.nik.trim();
-      if (
-        cleanNik !== existing.nationalIdEncrypted &&
-        cleanNik !== existing.nationalIdHash
-      ) {
-        const duplicateNik = await this.findByNik(cleanNik);
-        if (duplicateNik && duplicateNik.id !== id) {
-          throw new ConflictException({
-            code: 'DUPLICATE_NIK',
-            message: 'NIK ini sudah terdaftar pada rekam medis pasien lain.',
-          });
+      const securedNik = this.nikSecurity.secure(d.nik);
+      if (securedNik) {
+        const existingDecrypted =
+          this.nikSecurity.decrypt(existing.nationalIdEncrypted) ||
+          existing.nationalIdEncrypted;
+        if (
+          securedNik.normalized !== existingDecrypted &&
+          securedNik.blindIndex !== existing.nationalIdHash
+        ) {
+          const duplicateNik = await this.findByNik(securedNik.normalized);
+          if (duplicateNik && duplicateNik.id !== id) {
+            throw new ConflictException({
+              code: 'DUPLICATE_NIK',
+              message: 'NIK ini sudah terdaftar pada rekam medis pasien lain.',
+            });
+          }
+          updateValues.nationalIdEncrypted = securedNik.encrypted;
+          updateValues.nationalIdHash = securedNik.blindIndex;
         }
-        updateValues.nationalIdEncrypted = cleanNik;
-        updateValues.nationalIdHash = cleanNik;
       }
     }
 
@@ -977,13 +993,8 @@ export class PatientDrizzleRepository implements PatientRepository {
       }
       if (Number.isNaN(age) || age < 0) age = 0;
 
-      const rawNik = r.nationalIdHash || r.nationalIdEncrypted || null;
-      let maskedNik: string | null = null;
-      if (rawNik && rawNik.length >= 8) {
-        maskedNik = `${rawNik.slice(0, 4)}********${rawNik.slice(-4)}`;
-      } else if (rawNik) {
-        maskedNik = '********';
-      }
+      const rawNik = r.nationalIdEncrypted || r.nationalIdHash || null;
+      const maskedNik = this.nikSecurity.mask(rawNik) || null;
 
       const resolvedUserId = r.userId || null;
       const resolvedDirectAvatar =

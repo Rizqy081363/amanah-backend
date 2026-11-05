@@ -30,6 +30,7 @@ import { MaternityIntakeEntity } from '../../domain/entities/maternity-intake.en
 import { ObstetricCalculatorService } from '../../domain/services/obstetric-calculator.service';
 import { CreateMaternityIntakeDto } from '../../presentation/dto/create-maternity-intake.dto';
 import { UpdateMaternityIntakeDto } from '../../presentation/dto/update-maternity-intake.dto';
+import { NikSecurityService } from '../../../../common/security/nik';
 import {
   mapContraceptiveHistoryRow,
   mapPreviousPregnancyRow,
@@ -43,6 +44,7 @@ export class MaternityDrizzleRepository implements MaternityRepository {
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,
     private readonly obstetricCalculator: ObstetricCalculatorService,
+    private readonly nikSecurity: NikSecurityService,
     @Optional()
     @Inject(forwardRef(() => AppointmentsService))
     private readonly appointmentsService?: AppointmentsService,
@@ -72,7 +74,11 @@ export class MaternityDrizzleRepository implements MaternityRepository {
       if (patient) {
         if (!motherName) motherName = patient.fullName;
         if (!motherNik) {
-          motherNik = patient.nationalIdEncrypted || patient.nationalIdHash || '';
+          motherNik = patient.nationalIdEncrypted
+            ? this.nikSecurity.decrypt(patient.nationalIdEncrypted) || ''
+            : patient.nationalIdHash && !patient.nationalIdHash.includes(':')
+              ? patient.nationalIdHash
+              : '';
         }
         if (!motherBirthDate) motherBirthDate = patient.birthDate || undefined;
         if (!motherPhone) motherPhone = patient.phone || undefined;

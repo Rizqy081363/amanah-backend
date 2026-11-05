@@ -1,8 +1,9 @@
 import { formatBloodTypeDisplay } from '../../domain/data/patient-reference.data';
 import type { PatientEntity } from '../../domain/entities/patient.entity';
+import type { NikSecurityService } from '../../../../common/security/nik';
 
 export class PatientRecordMapper {
-  static toEntity(record: any): PatientEntity {
+  static toEntity(record: any, nikSecurity?: NikSecurityService): PatientEntity {
     const bloodTypeDisplay = formatBloodTypeDisplay(record.bloodType);
 
     const primaryAddress =
@@ -41,19 +42,32 @@ export class PatientRecordMapper {
         : record.user.lastLoginAt.toISOString()
       : null;
 
-    const rawNik = record.nationalIdEncrypted || record.nationalIdHash || '';
+    let decryptedNik = '';
     let maskedNik: string | null = null;
-    if (rawNik && rawNik.length >= 8) {
-      maskedNik = `${rawNik.slice(0, 4)}********${rawNik.slice(-4)}`;
-    } else if (rawNik) {
-      maskedNik = '********';
+
+    if (nikSecurity) {
+      if (record.nationalIdEncrypted) {
+        decryptedNik = nikSecurity.decrypt(record.nationalIdEncrypted) || '';
+        maskedNik = decryptedNik ? nikSecurity.mask(decryptedNik) : null;
+      } else if (record.nationalIdHash) {
+        maskedNik = null;
+      }
+    } else {
+      const rawNikSource = record.nationalIdEncrypted || record.nationalIdHash || '';
+      // If raw source is AES-256-GCM ciphertext (contains colons), do not leak ciphertext
+      if (rawNikSource && !rawNikSource.includes(':')) {
+        decryptedNik = rawNikSource;
+        maskedNik = rawNikSource.length >= 8
+          ? `${rawNikSource.slice(0, 4)}••••••••${rawNikSource.slice(-4)}`
+          : '••••••••';
+      }
     }
 
     return {
       id: record.id,
       userId: record.userId || '',
       medicalRecordNumber: record.medicalRecordNumber,
-      nik: rawNik,
+      nik: decryptedNik,
       maskedNik,
       fullName: record.fullName,
       gender: (record.gender as 'male' | 'female') || 'male',

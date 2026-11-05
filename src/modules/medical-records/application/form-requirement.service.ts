@@ -10,6 +10,7 @@ import {
   patientProfiles,
 } from '../../../database/schema/amanah.schema';
 import { formatBloodTypeDisplay } from '../../patients/domain/data/patient-reference.data';
+import { NikSecurityService } from '../../../common/security/nik';
 
 export interface FormRequirementResponse {
   flow: string | null;
@@ -28,6 +29,7 @@ export class FormRequirementService {
   constructor(
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,
+    private readonly nikSecurity: NikSecurityService,
   ) {}
 
   async resolveRequirement(
@@ -103,8 +105,11 @@ export class FormRequirementService {
     const rawBlood = patient.bloodType as string | null | undefined;
     const normalizedBlood = formatBloodTypeDisplay(rawBlood);
 
-    const patientNik =
-      patient.nationalIdEncrypted || patient.nationalIdHash || '';
+    const patientNik = patient.nationalIdEncrypted
+      ? this.nikSecurity.decrypt(patient.nationalIdEncrypted) || ''
+      : patient.nationalIdHash && !patient.nationalIdHash.includes(':')
+        ? patient.nationalIdHash
+        : '';
 
     const reusableIdentity: Record<string, any> = {
       fullName: patient.fullName,

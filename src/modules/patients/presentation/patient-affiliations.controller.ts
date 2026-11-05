@@ -56,6 +56,7 @@ import { CreatePatientAffiliationDto } from './dto/create-patient-affiliation.dt
 import { VerifyNikAvailabilityDto } from './dto/verify-nik-availability.dto';
 import { generateNextMedicalRecordNumber } from './helpers/patient-mrn.helper';
 import { mapEnrichedPatient } from './mappers/enriched-patient.mapper';
+import { NikSecurityService } from '../../../common/security/nik';
 
 @ApiTags('Patient Affiliations (Keluarga & Relasi Pasien)')
 @ApiBearerAuth('access-token')
@@ -69,6 +70,7 @@ export class PatientAffiliationsController {
     private readonly patientRepo: PatientRepository,
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,
+    private readonly nikSecurity: NikSecurityService,
   ) {}
 
   @Get('booking-context')
@@ -157,7 +159,7 @@ export class PatientAffiliationsController {
     );
 
     const enrichedPatients = rawAffiliations.map((aff) =>
-      mapEnrichedPatient(aff),
+      mapEnrichedPatient(aff, this.nikSecurity),
     );
 
     return {
@@ -197,10 +199,12 @@ export class PatientAffiliationsController {
   async checkNikAvailability(
     @Body() dto: VerifyNikAvailabilityDto,
   ) {
-    const cleanNik = parseNikOrThrow(dto.nik);
+    const cleanNik = this.nikSecurity.parseOrThrow(dto.nik);
+    const blindIndex = this.nikSecurity.computeBlindIndex(cleanNik);
 
     const existing = await this.db.query.patientProfiles.findFirst({
       where: or(
+        eq(patientProfiles.nationalIdHash, blindIndex),
         eq(patientProfiles.nationalIdHash, cleanNik),
         eq(patientProfiles.nationalIdEncrypted, cleanNik),
       ),
@@ -374,11 +378,13 @@ export class PatientAffiliationsController {
       const patientFullName = dto.name.trim();
       const patientBirthDate = dto.birthDate;
       const patientGender = dto.gender;
-      const cleanNik = parseNikOrThrow(dto.nik);
+      const cleanNik = this.nikSecurity.parseOrThrow(dto.nik);
+      const blindIndex = this.nikSecurity.computeBlindIndex(cleanNik);
 
       // Verify NIK does not already belong to another patient profile
       const existingPatient = await this.db.query.patientProfiles.findFirst({
         where: or(
+          eq(patientProfiles.nationalIdHash, blindIndex),
           eq(patientProfiles.nationalIdHash, cleanNik),
           eq(patientProfiles.nationalIdEncrypted, cleanNik),
         ),
@@ -405,6 +411,7 @@ export class PatientAffiliationsController {
         // Re-check inside transaction to eliminate race conditions
         const duplicateCheck = await tx.query.patientProfiles.findFirst({
           where: or(
+            eq(patientProfiles.nationalIdHash, blindIndex),
             eq(patientProfiles.nationalIdHash, cleanNik),
             eq(patientProfiles.nationalIdEncrypted, cleanNik),
           ),
@@ -429,6 +436,7 @@ export class PatientAffiliationsController {
         const rmNumber = await generateNextMedicalRecordNumber(tx);
         const dbGender = patientGender || 'male';
         const dbBloodType = normalizeBloodTypeToDb(dto.bloodType);
+        const securedNik = this.nikSecurity.secure(cleanNik)!;
 
         try {
           const [newProfile] = await tx
@@ -437,8 +445,8 @@ export class PatientAffiliationsController {
               userId: isSelfProfile ? user.id : null,
               occupationId: dto.occupationId || null,
               medicalRecordNumber: rmNumber,
-              nationalIdEncrypted: cleanNik,
-              nationalIdHash: cleanNik,
+              nationalIdEncrypted: securedNik.encrypted,
+              nationalIdHash: securedNik.blindIndex,
               fullName: patientFullName,
               gender: dbGender,
               birthPlace: dto.birthPlace?.trim() || '',
@@ -614,6 +622,51 @@ export class PatientAffiliationsController {
     return {
       success: true,
       message: 'Hubungan relasi pasien berhasil dihapus.',
+    };
+  }
+
+  @Get(':patientId/unmask-nik')
+  @RequirePermissions('patients:read', 'appointments:book')
+  @ApiOperation({
+    summary: 'Mendapatkan NIK asli terdekripsi untuk pasien tertentu (Terotorisasi)',
+    description:
+      'Mengambil NIK yang telah didekripsi hanya jika pemanggil memiliki wewenang atau merupakan pemilik profil.',
+  })
+  async getUnmaskedNik(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('patientId', new ZodValidationPipe(z.string().uuid()))
+    patientId: string,
+  ) {
+    const profile = await this.db.query.patientProfiles.findFirst({
+      where: eq(patientProfiles.id, patientId),
+      columns: {
+        id: true,
+        userId: true,
+        nationalIdEncrypted: true,
+        nationalIdHash: true,
+      },
+    });
+
+    if (!profile) {
+      throw new NotFoundException({
+        code: 'PATIENT_NOT_FOUND',
+        message: 'Profil pasien tidak ditemukan.',
+      });
+    }
+
+    const decrypted =
+      this.nikSecurity.decrypt(profile.nationalIdEncrypted) ||
+      profile.nationalIdEncrypted ||
+      null;
+    const masked = this.nikSecurity.mask(decrypted);
+
+    return {
+      success: true,
+      data: {
+        patientId: profile.id,
+        nik: decrypted,
+        maskedNik: masked,
+      },
     };
   }
 }

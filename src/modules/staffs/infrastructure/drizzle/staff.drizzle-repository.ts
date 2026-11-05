@@ -18,12 +18,14 @@ import {
   FindAllStaffOptions,
   StaffRepository,
 } from '../../domain/repositories/staff.repository';
+import { NikSecurityService } from '../../../../common/security/nik';
 
 @Injectable()
 export class StaffDrizzleRepository implements StaffRepository {
   constructor(
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,
+    private readonly nikSecurity: NikSecurityService,
   ) {}
 
   private mapRecordToEntity(
@@ -107,7 +109,7 @@ export class StaffDrizzleRepository implements StaffRepository {
       birthPlace: r.birthPlace || null,
       birthDate: r.birthDate ? String(r.birthDate) : null,
       gender: r.gender || null,
-      nationalId: r.nationalIdEncrypted || null,
+      nationalId: this.nikSecurity.decrypt(r.nationalIdEncrypted) || r.nationalIdEncrypted || null,
       email: r.email || null,
       photoUrl: r.avatarUrl || null,
       phoneNumber: r.phone || '',
@@ -146,6 +148,7 @@ export class StaffDrizzleRepository implements StaffRepository {
     data: Omit<StaffEntity, 'id' | 'createdAt' | 'updatedAt'>,
   ): Promise<StaffEntity> {
     const staffCode = data.staffCode || '';
+    const securedNik = data.nationalId ? this.nikSecurity.secure(data.nationalId) : null;
 
     const [record] = await this.db
       .insert(staffProfiles)
@@ -159,8 +162,8 @@ export class StaffDrizzleRepository implements StaffRepository {
         birthPlace: data.birthPlace || null,
         birthDate: data.birthDate ? String(data.birthDate) : null,
         gender: data.gender || null,
-        nationalIdHash: data.nationalId || null,
-        nationalIdEncrypted: data.nationalId || null,
+        nationalIdHash: securedNik?.blindIndex || null,
+        nationalIdEncrypted: securedNik?.encrypted || null,
         email: data.email || null,
         avatarUrl: data.photoUrl || null,
         phone: data.phoneNumber,
@@ -547,8 +550,9 @@ export class StaffDrizzleRepository implements StaffRepository {
     if (data.birthDate !== undefined) updateValues.birthDate = data.birthDate;
     if (data.gender !== undefined) updateValues.gender = data.gender;
     if (data.nationalId !== undefined) {
-      updateValues.nationalIdHash = data.nationalId;
-      updateValues.nationalIdEncrypted = data.nationalId;
+      const securedNik = data.nationalId ? this.nikSecurity.secure(data.nationalId) : null;
+      updateValues.nationalIdHash = securedNik?.blindIndex || null;
+      updateValues.nationalIdEncrypted = securedNik?.encrypted || null;
     }
     // Note: staffProfiles.email is authoritative only through the account identity lifecycle.
     if (data.phoneNumber !== undefined) updateValues.phone = data.phoneNumber;

@@ -30,6 +30,7 @@ import { BookedPatientMapper } from '@modules/schedules/infrastructure/drizzle/m
 import { PractitionerResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/practitioner.resolver';
 import type { GetAdminDoctorPatientsQueryDto } from '@modules/schedules/presentation/dto/get-admin-doctor-patients-query.dto';
 import type { GetSessionPatientsQueryDto } from '@modules/schedules/presentation/dto/get-session-patients-query.dto';
+import { NikSecurityService } from '../../../../../../common/security/nik';
 import {
   Inject,
   Injectable,
@@ -57,6 +58,8 @@ export class DrizzleSchedulePatientRepository {
     private readonly db: DrizzleDatabase,
     private readonly practitionerResolver: PractitionerResolver,
     private readonly clinicTimeService: ClinicTimeService,
+    @Optional()
+    private readonly nikSecurity?: NikSecurityService,
     @Optional()
     private readonly clinicConfig?: ClinicConfigService,
   ) {}
@@ -446,7 +449,20 @@ export class DrizzleSchedulePatientRepository {
             fullName: apt.patientProfile?.fullName || 'Pasien',
             medicalRecordNumber:
               apt.patientProfile?.medicalRecordNumber || 'RM-UNKNOWN',
-            nik: apt.patientProfile?.nationalIdEncrypted ?? null,
+            nik:
+              (this.nikSecurity && apt.patientProfile?.nationalIdEncrypted
+                ? this.nikSecurity.decrypt(apt.patientProfile.nationalIdEncrypted)
+                : apt.patientProfile?.nationalIdHash &&
+                    !apt.patientProfile.nationalIdHash.includes(':')
+                  ? apt.patientProfile.nationalIdHash
+                  : null) ?? null,
+            maskedNik:
+              this.nikSecurity
+                ? this.nikSecurity.mask(
+                    apt.patientProfile?.nationalIdEncrypted ||
+                      apt.patientProfile?.nationalIdHash,
+                  ) ?? null
+                : null,
             gender: apt.patientProfile?.gender || null,
             birthDate: apt.patientProfile?.birthDate || '',
             age: ageStr,

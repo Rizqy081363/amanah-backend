@@ -5,6 +5,7 @@ import { AuthModule } from './auth/auth.module';
 import authConfig from './auth/config/auth.config';
 import cacheConfig from './cache/cache.config';
 import { ClinicConfigModule } from './common/clinic-config/clinic-config.module';
+import { NikSecurityModule } from './common/security/nik';
 import { LoggingModule } from './common/logging/logging.module';
 import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
 import { OutboxModule } from './common/outbox/outbox.module';
@@ -69,6 +70,7 @@ import { validateEnvironment } from './config/env';
       verboseMemoryLeak: true,
     }),
     DrizzleModule,
+    NikSecurityModule,
     ClinicConfigModule,
     RedisModule,
     RabbitMQModule,

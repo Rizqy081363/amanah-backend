@@ -27,6 +27,7 @@ import {
   UpdateDiagnosisData,
 } from '../../domain/repositories/medical-record.repository';
 import { KiaIntakeDrizzleRepository } from './kia-intake.drizzle-repository';
+import { NikSecurityService } from '../../../../common/security/nik';
 
 @Injectable()
 export class MedicalRecordDrizzleRepository implements MedicalRecordRepository {
@@ -34,6 +35,7 @@ export class MedicalRecordDrizzleRepository implements MedicalRecordRepository {
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,
     private readonly kiaIntakeRepo: KiaIntakeDrizzleRepository,
+    private readonly nikSecurity: NikSecurityService,
   ) {}
 
   private mapRecordToEntity(r: any): MedicalRecordEntity {
@@ -95,9 +97,17 @@ export class MedicalRecordDrizzleRepository implements MedicalRecordRepository {
             fullName: r.patientProfile.fullName,
             medicalRecordNumber: r.patientProfile.medicalRecordNumber,
             nik:
-              r.patientProfile.nationalIdEncrypted ||
-              r.patientProfile.nationalIdHash ||
-              null,
+              (r.patientProfile.nationalIdEncrypted
+                ? this.nikSecurity.decrypt(r.patientProfile.nationalIdEncrypted)
+                : r.patientProfile.nationalIdHash &&
+                    !r.patientProfile.nationalIdHash.includes(':')
+                  ? r.patientProfile.nationalIdHash
+                  : null) || null,
+            maskedNik:
+              this.nikSecurity.mask(
+                r.patientProfile.nationalIdEncrypted ||
+                  r.patientProfile.nationalIdHash,
+              ) || null,
             gender: r.patientProfile.gender,
             birthDate: r.patientProfile.birthDate,
             phone: r.patientProfile.phone,

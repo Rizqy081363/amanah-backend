@@ -28,6 +28,7 @@ export interface AuthenticatedPatientProfile {
   userId: string;
   medicalRecordNumber: string;
   nik: string;
+  maskedNik?: string | null;
   fullName: string;
   gender?: string | null;
   birthPlace?: string | null;

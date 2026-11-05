@@ -15,6 +15,7 @@ import type {
   PatientAffiliationRepository,
 } from '../../domain/repositories/patient-affiliation.repository';
 import { PatientRecordMapper } from './patient-record.mapper';
+import { NikSecurityService } from '../../../../common/security/nik';
 
 @Injectable()
 export class PatientAffiliationDrizzleRepository
@@ -23,6 +24,7 @@ export class PatientAffiliationDrizzleRepository
   constructor(
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,
+    private readonly nikSecurity: NikSecurityService,
   ) {}
 
   async findByUserId(userId: string): Promise<PatientAffiliationEntity[]> {
@@ -61,7 +63,10 @@ export class PatientAffiliationDrizzleRepository
       entity.createdAt = new Date(record.createdAt);
       entity.updatedAt = new Date(record.updatedAt);
       if (record.patientProfile) {
-        entity.patient = PatientRecordMapper.toEntity(record.patientProfile);
+        entity.patient = PatientRecordMapper.toEntity(
+          record.patientProfile,
+          this.nikSecurity,
+        );
       }
       return entity;
     });
@@ -106,7 +111,10 @@ export class PatientAffiliationDrizzleRepository
     entity.createdAt = new Date(record.createdAt);
     entity.updatedAt = new Date(record.updatedAt);
     if (record.patientProfile) {
-      entity.patient = PatientRecordMapper.toEntity(record.patientProfile);
+      entity.patient = PatientRecordMapper.toEntity(
+        record.patientProfile,
+        this.nikSecurity,
+      );
     }
     return entity;
   }

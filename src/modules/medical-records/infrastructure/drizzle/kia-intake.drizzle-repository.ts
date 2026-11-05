@@ -20,6 +20,7 @@ import { formatBloodTypeDisplay } from '../../../patients/domain/data/patient-re
 import { CreateMaternityIntakeDto } from '../../../maternity/presentation/dto/create-maternity-intake.dto';
 import { UpdateMaternityIntakeDto } from '../../../maternity/presentation/dto/update-maternity-intake.dto';
 import { MaternityDrizzleRepository } from '../../../maternity/infrastructure/drizzle/maternity.drizzle-repository';
+import { NikSecurityService } from '../../../../common/security/nik';
 
 @Injectable()
 export class KiaIntakeDrizzleRepository {
@@ -28,6 +29,7 @@ export class KiaIntakeDrizzleRepository {
     private readonly db: DrizzleDatabase,
     private readonly maternalRepo: MaternityDrizzleRepository,
     private readonly immunizationRepo: ImmunizationDrizzleRepository,
+    private readonly nikSecurity: NikSecurityService,
     @Optional()
     @Inject(forwardRef(() => AppointmentsService))
     private readonly appointmentsService?: AppointmentsService,
@@ -198,10 +200,19 @@ export class KiaIntakeDrizzleRepository {
       }
     }
 
+    const decryptedNik = profile.nationalIdEncrypted
+      ? this.nikSecurity.decrypt(profile.nationalIdEncrypted)
+      : profile.nationalIdHash && !profile.nationalIdHash.includes(':')
+        ? profile.nationalIdHash
+        : '';
+    const maskedNik =
+      this.nikSecurity.mask(profile.nationalIdEncrypted || profile.nationalIdHash) || null;
+
     return {
       id: profile.id,
       medicalRecordNumber: profile.medicalRecordNumber,
-      nik: profile.nationalIdEncrypted || profile.nationalIdHash || '',
+      nik: decryptedNik || '',
+      maskedNik,
       fullName: profile.fullName,
       motherName: profile.motherName,
       birthPlace: profile.birthPlace,

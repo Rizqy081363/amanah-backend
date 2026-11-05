@@ -9,6 +9,7 @@ import { DrizzleDatabase } from '../../database/drizzle/drizzle.provider';
 import { users } from '../../database/schema';
 import { type RoleAudience, isAccountBlocked } from '../../common/constants';
 import { JwtPayloadType } from './types/jwt-payload.type';
+import { NikSecurityService } from '../../common/security/nik';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
@@ -16,6 +17,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     configService: ConfigService<AllConfigType>,
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,
+    private readonly nikSecurity: NikSecurityService,
   ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
@@ -160,7 +162,10 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
             fullName: staffProfile.fullName,
             profession: staffProfile.positionTitle,
             staffCode: staffProfile.staffCode,
-            idCardNumber: staffProfile.nationalIdEncrypted || null,
+            idCardNumber:
+              (staffProfile.nationalIdEncrypted
+                ? this.nikSecurity.decrypt(staffProfile.nationalIdEncrypted)
+                : null) || null,
             gender: staffProfile.gender || null,
             photoUrl: staffProfile.avatarUrl,
             phoneNumber: staffProfile.phone,
@@ -172,7 +177,12 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
             id: patientProfile.id,
             userId: user.id,
             medicalRecordNumber: patientProfile.medicalRecordNumber,
-            nik: patientProfile.nationalIdEncrypted || null,
+            nik:
+              (patientProfile.nationalIdEncrypted
+                ? this.nikSecurity.decrypt(patientProfile.nationalIdEncrypted)
+                : null) || null,
+            maskedNik:
+              this.nikSecurity.mask(patientProfile.nationalIdEncrypted) || null,
             fullName: patientProfile.fullName,
             gender: patientProfile.gender || null,
             birthPlace: patientProfile.birthPlace,

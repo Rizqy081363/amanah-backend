@@ -6,12 +6,14 @@ import { NameInitialsHelper } from '../../../common/utils/name-initials.helper';
 import { formatBloodTypeDisplay } from '../../../modules/patients/domain/data/patient-reference.data';
 import { STAFF_STATUS } from '../../../modules/staffs/domain/constants/staff-invitation.constants';
 import { AuthUserResponseDto } from '../../dto/auth-user-response.dto';
+import type { NikSecurityService } from '../../../common/security/nik';
 
 export class AuthUserMapper {
   static formatUser(
     userRecord: any,
     hasPendingInvitation = false,
     accessibleRoutes: string[] = [],
+    nikSecurity?: NikSecurityService,
   ): AuthUserResponseDto {
     const { authAccounts: _authAccounts, ...sanitizedUser } = userRecord;
 
@@ -33,12 +35,23 @@ export class AuthUserMapper {
       p?.patientAddresses?.[0];
     const primaryEmergency = p?.patientEmergencyContacts?.[0];
 
+    const rawPatientNik = p?.nationalIdEncrypted || p?.nationalIdHash || null;
+    const decryptedPatientNik = nikSecurity && p?.nationalIdEncrypted
+      ? nikSecurity.decrypt(p.nationalIdEncrypted)
+      : rawPatientNik && !rawPatientNik.includes(':')
+        ? rawPatientNik
+        : null;
+    const maskedPatientNik = nikSecurity && rawPatientNik
+      ? nikSecurity.mask(rawPatientNik)
+      : null;
+
     const patient = p
       ? {
           id: p.id,
           userId: p.userId,
           medicalRecordNumber: p.medicalRecordNumber,
-          nik: p.nationalIdEncrypted || null,
+          nik: decryptedPatientNik,
+          maskedNik: maskedPatientNik,
           fullName: p.fullName,
           gender: p.gender || null,
           birthPlace: p.birthPlace || null,
@@ -134,8 +147,18 @@ export class AuthUserMapper {
           fullName: s.fullName,
           profession: s.positionTitle ?? null,
           staffCode: s.staffCode || null,
-          nationalId: s.nationalIdEncrypted || null,
-          idCardNumber: s.nationalIdEncrypted || null,
+          nationalId:
+            (nikSecurity && s.nationalIdEncrypted
+              ? nikSecurity.decrypt(s.nationalIdEncrypted)
+              : s.nationalIdEncrypted && !s.nationalIdEncrypted.includes(':')
+                ? s.nationalIdEncrypted
+                : null) || null,
+          idCardNumber:
+            (nikSecurity && s.nationalIdEncrypted
+              ? nikSecurity.decrypt(s.nationalIdEncrypted)
+              : s.nationalIdEncrypted && !s.nationalIdEncrypted.includes(':')
+                ? s.nationalIdEncrypted
+                : null) || null,
           birthPlace: s.birthPlace || null,
           birthDate:
             typeof s.birthDate === 'string'

@@ -45,6 +45,7 @@ import { AuthStaffOnboardingDto } from '../../dto/auth-staff-onboarding.dto';
 import { AuthUserResponseDto } from '../../dto/auth-user-response.dto';
 import type { JwtPayloadType } from '../../strategies/types/jwt-payload.type';
 import { AuthUserMapper } from '../mappers/auth-user.mapper';
+import { NikSecurityService } from '../../../common/security/nik';
 
 @Injectable()
 export class AuthStaffOnboardingService {
@@ -66,6 +67,7 @@ export class AuthStaffOnboardingService {
     private readonly clinicTimeService?: ClinicTimeService,
     @Optional()
     private readonly accessControlService?: AccessControlService,
+    private readonly nikSecurity?: NikSecurityService,
   ) {}
 
   private getNowDate(): Date {
@@ -242,6 +244,10 @@ export class AuthStaffOnboardingService {
         ? (dto.gender.toLowerCase() as 'male' | 'female')
         : existingStaff?.gender || null;
 
+      const securedNik = dto.nationalId && this.nikSecurity
+        ? this.nikSecurity.secure(dto.nationalId)
+        : null;
+
       if (existingStaff) {
         const [updated] = await tx
           .update(staffProfiles)
@@ -254,9 +260,9 @@ export class AuthStaffOnboardingService {
             birthDate: dto.birthDate || existingStaff.birthDate,
             gender: resolvedGender || existingStaff.gender,
             nationalIdHash:
-              dto.nationalId?.trim() || existingStaff.nationalIdHash,
+              securedNik ? securedNik.blindIndex : (dto.nationalId?.trim() || existingStaff.nationalIdHash),
             nationalIdEncrypted:
-              dto.nationalId?.trim() || existingStaff.nationalIdEncrypted,
+              securedNik ? securedNik.encrypted : (dto.nationalId?.trim() || existingStaff.nationalIdEncrypted),
             phone: dto.phoneNumber?.trim() || existingStaff.phone,
             primaryUnitId: resolvedPoliklinikId || existingStaff.primaryUnitId,
             avatarUrl: existingStaff.avatarUrl || userAvatarUrl,
@@ -278,8 +284,8 @@ export class AuthStaffOnboardingService {
             birthPlace: dto.birthPlace?.trim() || null,
             birthDate: dto.birthDate || null,
             gender: resolvedGender,
-            nationalIdHash: dto.nationalId?.trim() || null,
-            nationalIdEncrypted: dto.nationalId?.trim() || null,
+            nationalIdHash: securedNik ? securedNik.blindIndex : (dto.nationalId?.trim() || null),
+            nationalIdEncrypted: securedNik ? securedNik.encrypted : (dto.nationalId?.trim() || null),
             phone: dto.phoneNumber?.trim(),
             email: userRecord.email,
             primaryUnitId: resolvedPoliklinikId,
@@ -599,7 +605,12 @@ export class AuthStaffOnboardingService {
     }
 
     return updatedUser
-      ? AuthUserMapper.formatUser(updatedUser, false, accessibleRoutes)
+      ? AuthUserMapper.formatUser(
+          updatedUser,
+          false,
+          accessibleRoutes,
+          this.nikSecurity,
+        )
       : null;
   }
 }

@@ -38,6 +38,7 @@ import { LinkedProvidersResponseDto } from '../../dto/linked-providers-response.
 import { GoogleTokenVerifierService } from '../../services/google-token-verifier.service';
 import type { JwtPayloadType } from '../../strategies/types/jwt-payload.type';
 import { AuthUserMapper } from '../mappers/auth-user.mapper';
+import { NikSecurityService } from '../../../common/security/nik';
 
 @Injectable()
 export class AuthAccountLifecycleService {
@@ -49,6 +50,7 @@ export class AuthAccountLifecycleService {
     private readonly googleVerifier: GoogleTokenVerifierService,
     private readonly accessControlService: AccessControlService,
     private readonly configService: ConfigService<AllConfigType>,
+    private readonly nikSecurity: NikSecurityService,
   ) {}
 
   async me(userJwtPayload: JwtPayloadType): Promise<AuthUserResponseDto | null> {
@@ -99,7 +101,12 @@ export class AuthAccountLifecycleService {
     const accessibleRoutes =
       await this.accessControlService.getUserEffectiveRoutes(userRecord.id);
 
-    return AuthUserMapper.formatUser(userRecord, false, accessibleRoutes);
+    return AuthUserMapper.formatUser(
+      userRecord,
+      false,
+      accessibleRoutes,
+      this.nikSecurity,
+    );
   }
 
   async update(

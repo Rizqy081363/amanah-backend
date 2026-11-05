@@ -34,12 +34,14 @@ import {
   SaveClinicalEntryData,
   UpdateImmunizationIntakeData,
 } from '../../domain/repositories/immunization.repository.interface';
+import { NikSecurityService } from '../../../../common/security/nik';
 
 @Injectable()
 export class ImmunizationDrizzleRepository implements IImmunizationRepository {
   constructor(
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,
+    private readonly nikSecurity: NikSecurityService,
     @Optional()
     @Inject(forwardRef(() => AppointmentsService))
     private readonly appointmentsService?: AppointmentsService,
@@ -69,8 +71,11 @@ export class ImmunizationDrizzleRepository implements IImmunizationRepository {
       if (patient) {
         if (!targetName) targetName = patient.fullName;
         if (!targetNik) {
-          targetNik =
-            patient.nationalIdEncrypted || patient.nationalIdHash || '';
+          targetNik = patient.nationalIdEncrypted
+            ? this.nikSecurity.decrypt(patient.nationalIdEncrypted) || ''
+            : patient.nationalIdHash && !patient.nationalIdHash.includes(':')
+              ? patient.nationalIdHash
+              : '';
         }
         if (!targetBirthDate) targetBirthDate = patient.birthDate;
         if (!targetSex && patient.gender) targetSex = patient.gender;

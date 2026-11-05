@@ -23,6 +23,7 @@ export interface MedicalRecordPatientSummary {
   fullName: string;
   medicalRecordNumber: string;
   nik?: string | null;
+  maskedNik?: string | null;
   gender?: string | null;
   birthDate?: string | null;
   phone?: string | null;

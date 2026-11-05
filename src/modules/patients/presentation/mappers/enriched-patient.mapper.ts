@@ -1,12 +1,22 @@
-export function mapEnrichedPatient(aff: any) {
+import type { NikSecurityService } from '../../../../common/security/nik';
+
+export function mapEnrichedPatient(aff: any, nikSecurity?: NikSecurityService) {
   const p = aff.patient;
   const pStatus = p?.status || 'active';
+  const rawNik = p?.nik || '';
+  const maskedNik = nikSecurity
+    ? nikSecurity.mask(rawNik)
+    : rawNik && rawNik.length >= 8
+      ? `${rawNik.slice(0, 4)}••••••••${rawNik.slice(-4)}`
+      : '••••••••';
+
   return {
     id: aff.patientId,
     affiliationId: aff.id,
     isPrimary: aff.isPrimary ?? false,
     fullName: p?.fullName || '',
-    nik: p?.nik || '',
+    nik: rawNik,
+    maskedNik,
     gender: p?.gender || null,
     bloodType: p?.bloodType || null,
     birthPlace: p?.birthPlace || null,
