@@ -20,21 +20,26 @@ export class UpdateBloodTypeUseCase {
       throw new NotFoundException(`Golongan darah dengan ID "${id}" tidak ditemukan`);
     }
 
-    if (data.name && data.name !== existing.name) {
-      const duplicate = await this.repository.findByName(data.name);
+    const cleanName = data.name !== undefined ? data.name.trim().toUpperCase() : undefined;
+    if (cleanName && cleanName !== existing.name.toUpperCase()) {
+      const duplicate = await this.repository.findByName(cleanName);
       if (duplicate && duplicate.id !== id) {
-        throw new ConflictException(`Golongan darah dengan nama "${data.name}" sudah ada`);
+        throw new ConflictException(`Golongan darah '${duplicate.name}' sudah terdaftar.`);
       }
     }
 
-    const targetCode = data.code || (data.name ? composeBloodTypeCode(data.name) : undefined);
+    const targetCode = data.code || (cleanName ? composeBloodTypeCode(cleanName) : undefined);
     if (targetCode && targetCode !== existing.code) {
       const duplicateCode = await this.repository.findByCode(targetCode);
       if (duplicateCode && duplicateCode.id !== id) {
-        throw new ConflictException(`Golongan darah dengan kode "${targetCode}" sudah ada`);
+        throw new ConflictException(`Golongan darah '${duplicateCode.name}' sudah terdaftar.`);
       }
     }
 
-    return this.repository.update(id, data);
+    return this.repository.update(id, {
+      ...data,
+      name: cleanName ?? data.name,
+      code: targetCode ?? data.code,
+    });
   }
 }

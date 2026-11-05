@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, eq, ilike } from 'drizzle-orm';
+import { and, asc, eq, ilike, sql } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../../database/drizzle/drizzle.provider';
 import { educationLevels } from '../../../../../database/schema/amanah.schema';
@@ -57,19 +57,32 @@ export class EducationLevelDrizzleRepository implements IEducationLevelRepositor
   }
 
   async findByName(name: string): Promise<EducationLevelEntity | null> {
+    const cleanName = name.trim();
     const row = await this.db.query.educationLevels.findFirst({
-      where: eq(educationLevels.name, name),
+      where: sql<boolean>`LOWER(TRIM(${educationLevels.name})) = LOWER(TRIM(${cleanName}))`,
     });
     return row ? this.mapToEntity(row) : null;
   }
 
   async create(data: CreateEducationLevelData): Promise<EducationLevelEntity> {
+    const cleanName = data.name.trim();
+
+    let resolvedOrder = data.displayOrder;
+    if (!resolvedOrder || resolvedOrder <= 0) {
+      const [maxResult] = await this.db
+        .select({
+          maxOrder: sql<number>`COALESCE(MAX(${educationLevels.displayOrder}), 0)::int`,
+        })
+        .from(educationLevels);
+      resolvedOrder = (maxResult?.maxOrder ?? 0) + 1;
+    }
+
     const [row] = await this.db
       .insert(educationLevels)
       .values({
-        name: data.name,
+        name: cleanName,
         description: data.description ?? null,
-        displayOrder: data.displayOrder ?? 0,
+        displayOrder: resolvedOrder,
         isActive: data.isActive ?? true,
         isSystem: false,
       })

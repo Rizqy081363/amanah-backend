@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, eq, ilike } from 'drizzle-orm';
+import { and, asc, eq, ilike, sql } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../../database/drizzle/drizzle.provider';
 import { bloodTypes } from '../../../../../database/schema/amanah.schema';
@@ -59,8 +59,9 @@ export class BloodTypeDrizzleRepository implements IBloodTypeRepository {
   }
 
   async findByName(name: string): Promise<BloodTypeEntity | null> {
+    const cleanName = name.trim();
     const row = await this.db.query.bloodTypes.findFirst({
-      where: eq(bloodTypes.name, name),
+      where: sql<boolean>`LOWER(TRIM(${bloodTypes.name})) = LOWER(TRIM(${cleanName}))`,
     });
     return row ? this.mapToEntity(row) : null;
   }
@@ -73,15 +74,26 @@ export class BloodTypeDrizzleRepository implements IBloodTypeRepository {
   }
 
   async create(data: CreateBloodTypeData): Promise<BloodTypeEntity> {
-    const resolvedCode = data.code || composeBloodTypeCode(data.name);
+    const cleanName = data.name.trim().toUpperCase();
+    const resolvedCode = data.code || composeBloodTypeCode(cleanName);
+
+    let resolvedOrder = data.displayOrder;
+    if (!resolvedOrder || resolvedOrder <= 0) {
+      const [maxResult] = await this.db
+        .select({
+          maxOrder: sql<number>`COALESCE(MAX(${bloodTypes.displayOrder}), 0)::int`,
+        })
+        .from(bloodTypes);
+      resolvedOrder = (maxResult?.maxOrder ?? 0) + 1;
+    }
 
     const [row] = await this.db
       .insert(bloodTypes)
       .values({
         code: resolvedCode,
-        name: data.name,
+        name: cleanName,
         description: data.description ?? null,
-        displayOrder: data.displayOrder ?? 0,
+        displayOrder: resolvedOrder,
         isActive: data.isActive ?? true,
         isSystem: false,
       })

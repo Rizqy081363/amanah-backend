@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, eq, ilike } from 'drizzle-orm';
+import { and, asc, eq, ilike, sql } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../../database/drizzle/drizzle.provider';
 import { occupations } from '../../../../../database/schema/amanah.schema';
@@ -56,27 +56,38 @@ export class OccupationDrizzleRepository implements IOccupationRepository {
   }
 
   async findByName(name: string): Promise<OccupationEntity | null> {
+    const cleanName = name.trim();
     const row = await this.db.query.occupations.findFirst({
-      where: eq(occupations.name, name),
+      where: sql<boolean>`LOWER(TRIM(${occupations.name})) = LOWER(TRIM(${cleanName}))`,
     });
     return row ? this.mapToEntity(row) : null;
   }
 
   async create(data: CreateOccupationData): Promise<OccupationEntity> {
-    const generatedCode = data.name
+    const cleanName = data.name.trim();
+    const generatedCode = cleanName
       .toLowerCase()
-      .trim()
       .replace(/[^a-z0-9]+/g, '_')
       .replace(/^_+|_+$/g, '')
       .slice(0, 60) || `occ_${Date.now()}`;
+
+    let resolvedOrder = data.displayOrder;
+    if (!resolvedOrder || resolvedOrder <= 0) {
+      const [maxResult] = await this.db
+        .select({
+          maxOrder: sql<number>`COALESCE(MAX(${occupations.displayOrder}), 0)::int`,
+        })
+        .from(occupations);
+      resolvedOrder = (maxResult?.maxOrder ?? 0) + 1;
+    }
 
     const [row] = await this.db
       .insert(occupations)
       .values({
         code: generatedCode,
-        name: data.name,
+        name: cleanName,
         description: data.description ?? null,
-        displayOrder: data.displayOrder ?? 0,
+        displayOrder: resolvedOrder,
         isActive: data.isActive ?? true,
       })
       .returning();

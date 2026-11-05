@@ -23,6 +23,7 @@ import { DRIZZLE_SOURCE } from '../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../database/drizzle/drizzle.provider';
 import {
   appointments,
+  bloodTypes,
   clinicalEncounters,
   clinicalIntakeForms,
   clinicRooms,
@@ -32,10 +33,15 @@ import {
   clinicUnitCategoryMappings,
   clinicUnits,
   clinicUnitTypes,
+  educationLevels,
+  maternalHealthIntakes,
+  occupations,
   patientAffiliations,
+  patientProfiles,
   patientRelationshipTypes,
   practitioners,
   queueTickets,
+  religions,
   serviceCategories,
   staffProfiles,
 } from '../../../database/schema';
@@ -2346,6 +2352,152 @@ export class AdminFacilitiesService {
         await this.db
           .delete(patientRelationshipTypes)
           .where(inArray(patientRelationshipTypes.id, ids));
+      }
+    } else if (resource === 'blood-types') {
+      if (action === 'activate') {
+        await this.db
+          .update(bloodTypes)
+          .set({ isActive: true, updatedAt: now })
+          .where(inArray(bloodTypes.id, ids));
+      } else if (action === 'deactivate') {
+        await this.db
+          .update(bloodTypes)
+          .set({ isActive: false, updatedAt: now })
+          .where(inArray(bloodTypes.id, ids));
+      } else {
+        // action === 'delete'
+        const items = await this.db.query.bloodTypes.findMany({
+          where: inArray(bloodTypes.id, ids),
+        });
+        const systemItem = items.find((i) => i.isSystem);
+        if (systemItem) {
+          throw new ConflictException(
+            `Golongan darah sistem '${systemItem.name}' dilindungi dan tidak dapat dihapus.`,
+          );
+        }
+        const [linkedPatients, linkedMaternal] = await Promise.all([
+          this.db.query.patientProfiles.findMany({
+            where: inArray(patientProfiles.bloodTypeId, ids),
+          }),
+          this.db.query.maternalHealthIntakes.findMany({
+            where: or(
+              inArray(maternalHealthIntakes.motherBloodTypeId, ids),
+              inArray(maternalHealthIntakes.partnerBloodTypeId, ids),
+            ),
+          }),
+        ]);
+        if (linkedPatients.length > 0 || linkedMaternal.length > 0) {
+          throw new ConflictException(
+            `Ups! Golongan darah yang dipilih masih digunakan oleh ${linkedPatients.length + linkedMaternal.length} data pasien atau rekam medis.`,
+          );
+        }
+        await this.db
+          .delete(bloodTypes)
+          .where(inArray(bloodTypes.id, ids));
+      }
+    } else if (resource === 'education-levels') {
+      if (action === 'activate') {
+        await this.db
+          .update(educationLevels)
+          .set({ isActive: true, updatedAt: now })
+          .where(inArray(educationLevels.id, ids));
+      } else if (action === 'deactivate') {
+        await this.db
+          .update(educationLevels)
+          .set({ isActive: false, updatedAt: now })
+          .where(inArray(educationLevels.id, ids));
+      } else {
+        // action === 'delete'
+        const items = await this.db.query.educationLevels.findMany({
+          where: inArray(educationLevels.id, ids),
+        });
+        const systemItem = items.find((i) => i.isSystem);
+        if (systemItem) {
+          throw new ConflictException(
+            `Jenjang pendidikan sistem '${systemItem.name}' dilindungi dan tidak dapat dihapus.`,
+          );
+        }
+        const linkedMaternal = await this.db.query.maternalHealthIntakes.findMany({
+          where: or(
+            inArray(maternalHealthIntakes.motherEducationId, ids),
+            inArray(maternalHealthIntakes.partnerEducationId, ids),
+          ),
+        });
+        if (linkedMaternal.length > 0) {
+          throw new ConflictException(
+            `Ups! Jenjang pendidikan yang dipilih masih digunakan oleh ${linkedMaternal.length} rekam medis kebidanan.`,
+          );
+        }
+        await this.db
+          .delete(educationLevels)
+          .where(inArray(educationLevels.id, ids));
+      }
+    } else if (resource === 'religions') {
+      if (action === 'activate') {
+        await this.db
+          .update(religions)
+          .set({ isActive: true, updatedAt: now })
+          .where(inArray(religions.id, ids));
+      } else if (action === 'deactivate') {
+        await this.db
+          .update(religions)
+          .set({ isActive: false, updatedAt: now })
+          .where(inArray(religions.id, ids));
+      } else {
+        // action === 'delete'
+        const items = await this.db.query.religions.findMany({
+          where: inArray(religions.id, ids),
+        });
+        const systemItem = items.find((i) => i.isSystem);
+        if (systemItem) {
+          throw new ConflictException(
+            `Agama sistem '${systemItem.name}' dilindungi dan tidak dapat dihapus.`,
+          );
+        }
+        const linkedMaternal = await this.db.query.maternalHealthIntakes.findMany({
+          where: inArray(maternalHealthIntakes.religionId, ids),
+        });
+        if (linkedMaternal.length > 0) {
+          throw new ConflictException(
+            `Ups! Agama yang dipilih masih digunakan oleh ${linkedMaternal.length} rekam medis kebidanan.`,
+          );
+        }
+        await this.db
+          .delete(religions)
+          .where(inArray(religions.id, ids));
+      }
+    } else if (resource === 'occupations') {
+      if (action === 'activate') {
+        await this.db
+          .update(occupations)
+          .set({ isActive: true, updatedAt: now })
+          .where(inArray(occupations.id, ids));
+      } else if (action === 'deactivate') {
+        await this.db
+          .update(occupations)
+          .set({ isActive: false, updatedAt: now })
+          .where(inArray(occupations.id, ids));
+      } else {
+        // action === 'delete'
+        const [linkedPatients, linkedMaternal] = await Promise.all([
+          this.db.query.patientProfiles.findMany({
+            where: inArray(patientProfiles.occupationId, ids),
+          }),
+          this.db.query.maternalHealthIntakes.findMany({
+            where: or(
+              inArray(maternalHealthIntakes.motherOccupationId, ids),
+              inArray(maternalHealthIntakes.partnerOccupationId, ids),
+            ),
+          }),
+        ]);
+        if (linkedPatients.length > 0 || linkedMaternal.length > 0) {
+          throw new ConflictException(
+            `Ups! Pekerjaan yang dipilih masih digunakan oleh ${linkedPatients.length + linkedMaternal.length} data pasien atau rekam medis.`,
+          );
+        }
+        await this.db
+          .delete(occupations)
+          .where(inArray(occupations.id, ids));
       }
     }
 

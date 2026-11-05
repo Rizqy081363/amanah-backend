@@ -13,16 +13,10 @@ export class PatientRecordMapper {
       record.patientAffiliations?.find((a: any) => a.isPrimary) ||
       record.patientAffiliations?.[0];
 
-    const resolvedUserId =
-      record.userId ||
-      primaryAffiliation?.userId ||
-      record.masterUserId ||
-      record.user?.id ||
-      null;
+    const resolvedUserId = record.userId || record.user?.id || null;
     const resolvedAvatarUrl =
       record.avatarUrl ||
       record.user?.avatarUrl ||
-      primaryAffiliation?.user?.avatarUrl ||
       (resolvedUserId ? `/api/v1/users/${resolvedUserId}/avatar` : null);
 
     const resolvedPhone = record.phone || record.user?.phone || '';

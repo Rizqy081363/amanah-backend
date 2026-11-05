@@ -15,19 +15,21 @@ export class CreateBloodTypeUseCase {
   ) {}
 
   async execute(data: CreateBloodTypeData): Promise<BloodTypeEntity> {
-    const existingName = await this.repository.findByName(data.name);
+    const cleanName = data.name.trim().toUpperCase();
+    const existingName = await this.repository.findByName(cleanName);
     if (existingName) {
-      throw new ConflictException(`Golongan darah dengan nama "${data.name}" sudah ada`);
+      throw new ConflictException(`Golongan darah '${existingName.name}' sudah terdaftar.`);
     }
 
-    const resolvedCode = data.code || composeBloodTypeCode(data.name);
+    const resolvedCode = data.code || composeBloodTypeCode(cleanName);
     const existingCode = await this.repository.findByCode(resolvedCode);
     if (existingCode) {
-      throw new ConflictException(`Golongan darah dengan kode "${resolvedCode}" sudah ada`);
+      throw new ConflictException(`Golongan darah '${existingCode.name}' sudah terdaftar.`);
     }
 
     return this.repository.create({
       ...data,
+      name: cleanName,
       code: resolvedCode,
     });
   }

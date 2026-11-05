@@ -71,11 +71,10 @@ export class AppointmentRecordMapper {
     const parentUserName =
       primaryAffiliation?.user?.name || primaryAffiliation?.user?.email || null;
 
-    const patientUserId = parentUserId;
+    const patientUserId = apt.patientProfile?.userId || null;
     const directPatientAvatar =
       apt.patientProfile?.avatarUrl ||
       apt.patientProfile?.user?.avatarUrl ||
-      primaryAffiliation?.user?.avatarUrl ||
       null;
     const avatarUrl =
       directPatientAvatar ||

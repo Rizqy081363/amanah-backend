@@ -692,11 +692,10 @@ export class AppointmentHardenedDrizzleRepository
     const parentUserName =
       primaryAffiliation?.user?.name || primaryAffiliation?.user?.email || null;
 
-    const patientUserId = parentUserId;
+    const patientUserId = apt.patientProfile?.userId || null;
     const directPatientAvatar =
       apt.patientProfile?.avatarUrl ||
       apt.patientProfile?.user?.avatarUrl ||
-      primaryAffiliation?.user?.avatarUrl ||
       null;
     const avatarUrl =
       directPatientAvatar ||
@@ -742,7 +741,7 @@ export class AppointmentHardenedDrizzleRepository
       id: apt.id,
       bookingCode: apt.bookingCode || '',
       patientId: apt.patientId,
-      patientUserId: parentUserId,
+      patientUserId,
       isAffiliated,
       affiliationRelationship,
       parentUserId,

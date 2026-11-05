@@ -14,10 +14,11 @@ export class CreateOccupationUseCase {
   ) {}
 
   async execute(data: CreateOccupationData): Promise<OccupationEntity> {
-    const existing = await this.repository.findByName(data.name);
+    const cleanName = data.name.trim();
+    const existing = await this.repository.findByName(cleanName);
     if (existing) {
-      throw new ConflictException(`Pekerjaan dengan nama "${data.name}" sudah ada`);
+      throw new ConflictException(`Pekerjaan '${existing.name}' sudah terdaftar.`);
     }
-    return this.repository.create(data);
+    return this.repository.create({ ...data, name: cleanName });
   }
 }

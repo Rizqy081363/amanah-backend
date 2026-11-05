@@ -802,25 +802,6 @@ export class PatientDrizzleRepository implements PatientRepository {
         userAvatarUrl: sql<string | null>`(
           SELECT avatar_url FROM users WHERE users.id = ${patientProfiles.userId}
         )`,
-        masterUserId: sql<string | null>`(
-          SELECT pa.user_id FROM patient_affiliations pa
-          WHERE pa.patient_id = patient_profiles.id
-          ORDER BY pa.is_primary DESC, pa.created_at DESC
-          LIMIT 1
-        )`,
-        masterUserAvatarUrl: sql<string | null>`(
-          SELECT u.avatar_url FROM patient_affiliations pa
-          JOIN users u ON u.id = pa.user_id
-          WHERE pa.patient_id = patient_profiles.id
-          ORDER BY pa.is_primary DESC, pa.created_at DESC
-          LIMIT 1
-        )`,
-        emailUserAvatarUrl: sql<string | null>`(
-          SELECT avatar_url FROM users WHERE users.email = ${patientProfiles.email} LIMIT 1
-        )`,
-        emailUserId: sql<string | null>`(
-          SELECT id FROM users WHERE users.email = ${patientProfiles.email} LIMIT 1
-        )`,
         medicalRecordNumber: patientProfiles.medicalRecordNumber,
         fullName: patientProfiles.fullName,
         nationalIdHash: patientProfiles.nationalIdHash,
@@ -1004,16 +985,9 @@ export class PatientDrizzleRepository implements PatientRepository {
         maskedNik = '********';
       }
 
-      const resolvedUserId =
-        r.userId || r.masterUserId || r.emailUserId || null;
+      const resolvedUserId = r.userId || null;
       const resolvedDirectAvatar =
-        r.avatarUrl ||
-        r.userAvatarUrl ||
-        r.masterUserAvatar ||
-        r.masterUserAvatarUrl ||
-        r.emailUserAvatar ||
-        r.emailUserAvatarUrl ||
-        null;
+        r.avatarUrl || (r.userId ? r.userAvatarUrl : null);
       const finalAvatarUrl =
         resolvedDirectAvatar ||
         (resolvedUserId ? `/api/v1/users/${resolvedUserId}/avatar` : null);
@@ -1076,16 +1050,11 @@ export class PatientDrizzleRepository implements PatientRepository {
         const rawAffiliates = await this.db
           .select({
             id: patientProfiles.id,
+            userId: patientProfiles.userId,
             masterUserId: patientAffiliations.userId,
             avatarUrl: patientProfiles.avatarUrl,
-            masterUserAvatar: sql<string | null>`(
-              SELECT avatar_url FROM users WHERE users.id = ${patientAffiliations.userId}
-            )`,
-            emailUserAvatar: sql<string | null>`(
-              SELECT avatar_url FROM users WHERE users.email = ${patientProfiles.email} LIMIT 1
-            )`,
-            emailUserId: sql<string | null>`(
-              SELECT id FROM users WHERE users.email = ${patientProfiles.email} LIMIT 1
+            userAvatarUrl: sql<string | null>`(
+              SELECT avatar_url FROM users WHERE users.id = ${patientProfiles.userId}
             )`,
             medicalRecordNumber: patientProfiles.medicalRecordNumber,
             fullName: patientProfiles.fullName,

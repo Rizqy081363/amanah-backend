@@ -14,10 +14,11 @@ export class CreateEducationLevelUseCase {
   ) {}
 
   async execute(data: CreateEducationLevelData): Promise<EducationLevelEntity> {
-    const existing = await this.repository.findByName(data.name);
+    const cleanName = data.name.trim();
+    const existing = await this.repository.findByName(cleanName);
     if (existing) {
-      throw new ConflictException(`Jenjang pendidikan dengan nama "${data.name}" sudah ada`);
+      throw new ConflictException(`Jenjang pendidikan '${existing.name}' sudah terdaftar.`);
     }
-    return this.repository.create(data);
+    return this.repository.create({ ...data, name: cleanName });
   }
 }

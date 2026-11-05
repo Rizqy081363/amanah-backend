@@ -8,6 +8,10 @@ export const FACILITY_RESOURCES = [
   'services',
   'forms',
   'relationships',
+  'blood-types',
+  'education-levels',
+  'religions',
+  'occupations',
 ] as const;
 
 export const FACILITY_ACTIONS = ['activate', 'deactivate', 'delete'] as const;
