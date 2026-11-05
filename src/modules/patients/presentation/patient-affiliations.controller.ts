@@ -50,52 +50,8 @@ import {
   type PatientAffiliationRepository,
 } from '../domain/repositories/patient-affiliation.repository';
 import { CreatePatientAffiliationDto } from './dto/create-patient-affiliation.dto';
-
-function mapEnrichedPatient(aff: any) {
-  const p = aff.patient;
-  const pStatus = p?.status || 'active';
-  return {
-    id: aff.patientId,
-    affiliationId: aff.id,
-    isPrimary: aff.isPrimary ?? false,
-    fullName: p?.fullName || '',
-    nik: p?.nik || '',
-    gender: p?.gender || null,
-    bloodType: p?.bloodType || null,
-    birthPlace: p?.birthPlace || null,
-    birthDate: p?.birthDate || null,
-    motherName: p?.motherName || null,
-    address: p?.fullAddress || null,
-    fullAddress: p?.fullAddress || null,
-    line1: p?.line1 || null,
-    alamatDetail: p?.line1 || null,
-    provinceName: p?.provinceName || null,
-    provinceCode: p?.provinceCode || null,
-    regencyName: p?.regencyName || null,
-    regencyCode: p?.regencyCode || null,
-    districtName: p?.districtName || null,
-    districtCode: p?.districtCode || null,
-    villageName: p?.villageName || null,
-    villageCode: p?.villageCode || null,
-    phoneNumber: p?.phone || null,
-    phone: p?.phone || null,
-    email: p?.email || null,
-    relationship: aff.relationshipType,
-    relationshipLabel: aff.relationLabel || aff.relationshipType,
-    relationshipTypeId: aff.relationshipTypeId,
-    icon: (aff as any).iconName || null,
-    iconName: (aff as any).iconName || null,
-    isSystem: Boolean((aff as any).isSystem || aff.isPrimary),
-    occupationName: p?.occupation || null,
-    status: pStatus,
-    emergencyContactName: p?.emergencyContactName || null,
-    emergencyContactPhone: p?.emergencyContactPhone || null,
-    emergencyContactRelationship: p?.emergencyContactRelationship || null,
-    hasExistingIntake: false,
-    latestIntakeId: null,
-    latestIntakeDate: null,
-  };
-}
+import { generateNextMedicalRecordNumber } from './helpers/patient-mrn.helper';
+import { mapEnrichedPatient } from './mappers/enriched-patient.mapper';
 
 @ApiTags('Patient Affiliations (Keluarga & Relasi Pasien)')
 @ApiBearerAuth('access-token')
@@ -198,6 +154,7 @@ export class PatientAffiliationsController {
         patients: enrichedPatients,
         totalPatients: enrichedPatients.length,
         hasExistingPatient: enrichedPatients.length > 0,
+        hasExistingPrimary: Boolean(hasExistingPrimary),
         currentUser: {
           id: user.id,
           name: user.name,
@@ -278,10 +235,25 @@ export class PatientAffiliationsController {
       dto.emergencyContactRelationship?.trim() || null;
 
     if (dto.emergencyContactPatientId) {
+      if (dto.patientId && dto.emergencyContactPatientId === dto.patientId) {
+        throw new BadRequestException({
+          code: 'SELF_EMERGENCY_CONTACT_NOT_ALLOWED',
+          message:
+            'Pasien tidak dapat dijadikan kontak darurat untuk dirinya sendiri.',
+        });
+      }
+
       const referencedPatient = await this.db.query.patientProfiles.findFirst({
         where: eq(patientProfiles.id, dto.emergencyContactPatientId),
       });
       if (referencedPatient) {
+        if (isSelfProfile && referencedPatient.userId === user.id) {
+          throw new BadRequestException({
+            code: 'SELF_EMERGENCY_CONTACT_NOT_ALLOWED',
+            message:
+              'Pasien akun utama tidak dapat mereferensikan dirinya sendiri sebagai kontak darurat.',
+          });
+        }
         resolvedEmergencyName = referencedPatient.fullName;
         resolvedEmergencyPhone =
           referencedPatient.phone || resolvedEmergencyPhone;
@@ -379,28 +351,7 @@ export class PatientAffiliationsController {
           }
         }
       } else {
-        // Generate MRN
-        const now = new Date();
-        const year = now.getFullYear();
-        const month = String(now.getMonth() + 1).padStart(2, '0');
-        const prefix = `RM-${year}${month}-`;
-
-        const [latestRecord] = await this.db
-          .select({ mrn: patientProfiles.medicalRecordNumber })
-          .from(patientProfiles)
-          .where(ilike(patientProfiles.medicalRecordNumber, `${prefix}%`))
-          .orderBy(desc(patientProfiles.medicalRecordNumber))
-          .limit(1);
-
-        let nextSequence = 1;
-        if (latestRecord?.mrn) {
-          const parts = latestRecord.mrn.split('-');
-          const lastSeq = parseInt(parts[parts.length - 1], 10);
-          if (!Number.isNaN(lastSeq)) {
-            nextSequence = lastSeq + 1;
-          }
-        }
-        const rmNumber = `${prefix}${String(nextSequence).padStart(4, '0')}`;
+        const rmNumber = await generateNextMedicalRecordNumber(this.db);
 
         const dbGender = dto.gender || 'male';
         const dbBloodType = normalizeBloodTypeToDb(dto.bloodType);
@@ -468,6 +419,18 @@ export class PatientAffiliationsController {
           });
         }
       }
+    }
+
+    if (
+      dto.emergencyContactPatientId &&
+      targetPatientId &&
+      dto.emergencyContactPatientId === targetPatientId
+    ) {
+      throw new BadRequestException({
+        code: 'SELF_EMERGENCY_CONTACT_NOT_ALLOWED',
+        message:
+          'Pasien tidak dapat dijadikan kontak darurat untuk dirinya sendiri.',
+      });
     }
 
     const createdAffiliation = await this.affiliationRepo.create({
