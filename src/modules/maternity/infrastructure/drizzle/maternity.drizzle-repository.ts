@@ -30,6 +30,12 @@ import { MaternityIntakeEntity } from '../../domain/entities/maternity-intake.en
 import { ObstetricCalculatorService } from '../../domain/services/obstetric-calculator.service';
 import { CreateMaternityIntakeDto } from '../../presentation/dto/create-maternity-intake.dto';
 import { UpdateMaternityIntakeDto } from '../../presentation/dto/update-maternity-intake.dto';
+import {
+  mapContraceptiveHistoryRow,
+  mapPreviousPregnancyRow,
+  mapToMaternityEntity,
+  toSafeNumericString,
+} from './maternity-persistence.helper';
 
 @Injectable()
 export class MaternityDrizzleRepository implements MaternityRepository {
@@ -166,24 +172,27 @@ export class MaternityDrizzleRepository implements MaternityRepository {
           partnerJob: dto.partnerJob || dto.husband?.job || null,
           partnerEducation: dto.partnerEducation || dto.husband?.education || null,
           partnerBloodType: dto.partnerBloodType || dto.husband?.bloodType || null,
-          heightCm: dto.heightCm !== undefined ? String(dto.heightCm) : null,
-          prePregnancyWeightKg:
-            dto.prePregnancyWeightKg !== undefined
-              ? String(dto.prePregnancyWeightKg)
-              : null,
-          upperArmCircumferenceCm:
-            dto.upperArmCircumferenceCm !== undefined
-              ? String(dto.upperArmCircumferenceCm)
-              : null,
-          initialBmi: initialBmi !== undefined ? String(initialBmi) : null,
+          heightCm: toSafeNumericString(dto.heightCm, 3, 2),
+          prePregnancyWeightKg: toSafeNumericString(
+            dto.prePregnancyWeightKg,
+            3,
+            2,
+          ),
+          upperArmCircumferenceCm: toSafeNumericString(
+            dto.upperArmCircumferenceCm,
+            3,
+            1,
+          ),
+          initialBmi: toSafeNumericString(initialBmi, 3, 1),
           tetanusStatus: dto.tetanusStatus || null,
           motherBloodType: dto.motherBloodType || null,
           hpht: dto.hpht || null,
           estimatedDueDate: estimatedDueDate || null,
-          gestationalAgeWeeks:
-            gestationalAgeWeeks !== undefined
-              ? String(gestationalAgeWeeks)
-              : null,
+          gestationalAgeWeeks: toSafeNumericString(
+            gestationalAgeWeeks,
+            3,
+            1,
+          ),
           gestationalAgeFormatted: gestationalAgeFormatted || null,
           currentComplaints: dto.currentComplaints,
           gravidaCount: dto.gravidaCount,
@@ -231,37 +240,17 @@ export class MaternityDrizzleRepository implements MaternityRepository {
 
       // 7. Previous Pregnancies
       if (dto.previousPregnancies && dto.previousPregnancies.length > 0) {
-        const rows = dto.previousPregnancies.map((p, idx) => ({
-          maternalIntakeId: intake.id,
-          orderNumber: p.orderNumber || idx + 1,
-          birthYear: p.birthYear || null,
-          birthWeightGrams: p.birthWeightGrams || null,
-          birthLengthCm:
-            p.birthLengthCm !== undefined && p.birthLengthCm !== null
-              ? String(p.birthLengthCm)
-              : null,
-          childSex: p.childSex || null,
-          gestationalAgeAtBirth: p.gestationalAgeAtBirth || null,
-          birthAttendant: p.birthAttendant || null,
-          deliveryMethod: p.deliveryMethod || null,
-          deliveryPlace: p.deliveryPlace || null,
-          complications: p.complications || null,
-        }));
+        const rows = dto.previousPregnancies.map((p, idx) =>
+          mapPreviousPregnancyRow(p, intake.id, idx),
+        );
         await tx.insert(maternalPreviousPregnancies).values(rows);
       }
 
       // 8. Contraceptive Histories
       if (dto.contraceptiveHistories && dto.contraceptiveHistories.length > 0) {
-        const rows = dto.contraceptiveHistories.map((c, idx) => ({
-          maternalIntakeId: intake.id,
-          orderNumber: c.orderNumber || idx + 1,
-          startDate: c.startDate || null,
-          contraceptiveType: c.contraceptiveType || null,
-          durationText: c.durationText || null,
-          stopDate: c.stopDate || null,
-          problems: c.problems || null,
-          sideEffects: c.sideEffects || null,
-        }));
+        const rows = dto.contraceptiveHistories.map((c, idx) =>
+          mapContraceptiveHistoryRow(c, intake.id, idx),
+        );
         await tx.insert(maternalContraceptiveHistories).values(rows);
       }
 
@@ -383,15 +372,21 @@ export class MaternityDrizzleRepository implements MaternityRepository {
         patchValues.partnerBloodType = dto.partnerBloodType;
 
       if (dto.heightCm !== undefined)
-        patchValues.heightCm = String(dto.heightCm);
+        patchValues.heightCm = toSafeNumericString(dto.heightCm, 3, 2);
       if (dto.prePregnancyWeightKg !== undefined)
-        patchValues.prePregnancyWeightKg = String(dto.prePregnancyWeightKg);
+        patchValues.prePregnancyWeightKg = toSafeNumericString(
+          dto.prePregnancyWeightKg,
+          3,
+          2,
+        );
       if (dto.upperArmCircumferenceCm !== undefined)
-        patchValues.upperArmCircumferenceCm = String(
+        patchValues.upperArmCircumferenceCm = toSafeNumericString(
           dto.upperArmCircumferenceCm,
+          3,
+          1,
         );
       if (dto.initialBmi !== undefined)
-        patchValues.initialBmi = String(dto.initialBmi);
+        patchValues.initialBmi = toSafeNumericString(dto.initialBmi, 3, 1);
       if (dto.tetanusStatus !== undefined)
         patchValues.tetanusStatus = dto.tetanusStatus;
       if (dto.motherBloodType !== undefined)
@@ -401,7 +396,11 @@ export class MaternityDrizzleRepository implements MaternityRepository {
       if (estimatedDueDate !== undefined)
         patchValues.estimatedDueDate = estimatedDueDate;
       if (gestationalAgeWeeks !== undefined)
-        patchValues.gestationalAgeWeeks = String(gestationalAgeWeeks);
+        patchValues.gestationalAgeWeeks = toSafeNumericString(
+          gestationalAgeWeeks,
+          3,
+          1,
+        );
       if (gestationalAgeFormatted !== undefined)
         patchValues.gestationalAgeFormatted = gestationalAgeFormatted;
       if (dto.currentComplaints !== undefined)
@@ -521,22 +520,9 @@ export class MaternityDrizzleRepository implements MaternityRepository {
           .where(eq(maternalPreviousPregnancies.maternalIntakeId, intakeId));
 
         if (dto.previousPregnancies.length > 0) {
-          const rows = dto.previousPregnancies.map((p, idx) => ({
-            maternalIntakeId: intakeId,
-            orderNumber: p.orderNumber || idx + 1,
-            birthYear: p.birthYear || null,
-            birthWeightGrams: p.birthWeightGrams || null,
-            birthLengthCm:
-              p.birthLengthCm !== undefined && p.birthLengthCm !== null
-                ? String(p.birthLengthCm)
-                : null,
-            childSex: p.childSex || null,
-            gestationalAgeAtBirth: p.gestationalAgeAtBirth || null,
-            birthAttendant: p.birthAttendant || null,
-            deliveryMethod: p.deliveryMethod || null,
-            deliveryPlace: p.deliveryPlace || null,
-            complications: p.complications || null,
-          }));
+          const rows = dto.previousPregnancies.map((p, idx) =>
+            mapPreviousPregnancyRow(p, intakeId, idx),
+          );
           await tx.insert(maternalPreviousPregnancies).values(rows);
         }
       }
@@ -548,16 +534,9 @@ export class MaternityDrizzleRepository implements MaternityRepository {
           .where(eq(maternalContraceptiveHistories.maternalIntakeId, intakeId));
 
         if (dto.contraceptiveHistories.length > 0) {
-          const rows = dto.contraceptiveHistories.map((c, idx) => ({
-            maternalIntakeId: intakeId,
-            orderNumber: c.orderNumber || idx + 1,
-            startDate: c.startDate || null,
-            contraceptiveType: c.contraceptiveType || null,
-            durationText: c.durationText || null,
-            stopDate: c.stopDate || null,
-            problems: c.problems || null,
-            sideEffects: c.sideEffects || null,
-          }));
+          const rows = dto.contraceptiveHistories.map((c, idx) =>
+            mapContraceptiveHistoryRow(c, intakeId, idx),
+          );
           await tx.insert(maternalContraceptiveHistories).values(rows);
         }
       }
@@ -644,7 +623,7 @@ export class MaternityDrizzleRepository implements MaternityRepository {
 
     if (!record) return null;
 
-    return this.mapToEntity(record);
+    return mapToMaternityEntity(record);
   }
 
   async findByAppointmentId(
@@ -663,7 +642,7 @@ export class MaternityDrizzleRepository implements MaternityRepository {
 
     if (!record) return null;
 
-    return this.mapToEntity(record);
+    return mapToMaternityEntity(record);
   }
 
   async findLatestByPatientId(
@@ -682,7 +661,7 @@ export class MaternityDrizzleRepository implements MaternityRepository {
 
     if (!record) return null;
 
-    return this.mapToEntity(record);
+    return mapToMaternityEntity(record);
   }
 
   async findByPatientId(patientId: string): Promise<MaternityIntakeEntity[]> {
@@ -697,7 +676,7 @@ export class MaternityDrizzleRepository implements MaternityRepository {
       orderBy: [desc(maternalHealthIntakes.createdAt)],
     });
 
-    return records.map((r) => this.mapToEntity(r));
+    return records.map((r) => mapToMaternityEntity(r));
   }
 
   async findMaternalHistory(
@@ -748,7 +727,7 @@ export class MaternityDrizzleRepository implements MaternityRepository {
     });
 
     return {
-      data: records.map((r) => this.mapToEntity(r)),
+      data: records.map((r) => mapToMaternityEntity(r)),
       pagination: {
         total,
         page,
@@ -756,83 +735,5 @@ export class MaternityDrizzleRepository implements MaternityRepository {
         totalPages: Math.ceil(total / limit) || 0,
       },
     };
-  }
-
-  private mapToEntity(record: any): MaternityIntakeEntity {
-    return new MaternityIntakeEntity({
-      id: record.id,
-      intakeSubmissionId: record.intakeSubmissionId,
-      patientId: record.patientId,
-      appointmentId: record.appointmentId,
-      motherNik: record.motherNik,
-      motherName: record.motherName,
-      motherBirthDate: record.motherBirthDate,
-      motherAge: record.motherAge,
-      marriageOrder: record.marriageOrder,
-      marriageDate: record.marriageDate,
-      motherJob: record.motherJob,
-      motherEducation: record.motherEducation,
-      religion: record.religion,
-      phoneNumber: record.phoneNumber,
-      domicileAddress: record.domicileAddress,
-      identityCardAddress: record.identityCardAddress,
-      dasawisma: record.dasawisma,
-      posyandu: record.posyandu,
-      puskesmas: record.puskesmas,
-      partnerName: record.partnerName,
-      partnerNik: record.partnerNik,
-      partnerBirthDate: record.partnerBirthDate,
-      partnerAge: record.partnerAge,
-      partnerJob: record.partnerJob,
-      partnerEducation: record.partnerEducation,
-      partnerBloodType: record.partnerBloodType,
-      heightCm: record.heightCm,
-      prePregnancyWeightKg: record.prePregnancyWeightKg,
-      upperArmCircumferenceCm: record.upperArmCircumferenceCm,
-      initialBmi: record.initialBmi,
-      tetanusStatus: record.tetanusStatus,
-      motherBloodType: record.motherBloodType,
-      hpht: record.hpht,
-      estimatedDueDate: record.estimatedDueDate,
-      gestationalAgeWeeks: record.gestationalAgeWeeks,
-      gestationalAgeFormatted: record.gestationalAgeFormatted,
-      currentComplaints: record.currentComplaints,
-      gravidaCount: record.gravidaCount,
-      parityCount: record.parityCount,
-      abortionCount: record.abortionCount,
-      livingChildrenCount: record.livingChildrenCount,
-      hasPreviousPregnancyHistory: record.hasPreviousPregnancyHistory,
-      hasContraceptionHistory: record.hasContraceptionHistory,
-      smokedBeforePregnancy: record.smokedBeforePregnancy,
-      alcoholBeforePregnancy: record.alcoholBeforePregnancy,
-      irregularDietBeforePregnancy: record.irregularDietBeforePregnancy,
-      reducedPhysicalActivityBeforePregnancy:
-        record.reducedPhysicalActivityBeforePregnancy,
-      unprescribedMedicationBeforePregnancy:
-        record.unprescribedMedicationBeforePregnancy,
-      concerningCosmeticUseBeforePregnancy:
-        record.concerningCosmeticUseBeforePregnancy,
-      pesticideExposureBeforePregnancy:
-        record.pesticideExposureBeforePregnancy,
-      chemicalExposureBeforePregnancy: record.chemicalExposureBeforePregnancy,
-      smokeExposureBeforePregnancy: record.smokeExposureBeforePregnancy,
-      concerningEnvironmentNotes: record.concerningEnvironmentNotes,
-      allergyInfo: record.allergyInfo,
-      otherNotes: record.otherNotes,
-      createdAt: record.createdAt,
-      updatedAt: record.updatedAt,
-      husbandProfile: record.husband || null,
-      previousPregnancies: record.previousPregnancies || [],
-      contraceptiveHistories: record.contraceptiveHistories || [],
-      conditionResponses: (record.healthConditions || []).map((hc: any) => ({
-        id: hc.id,
-        maternalIntakeId: hc.maternalIntakeId,
-        conditionCode: hc.conditionCode,
-        hasCondition: hc.hasCondition,
-        diagnosisYear: hc.diagnosisYear,
-        notes: hc.notes,
-        createdAt: hc.createdAt,
-      })),
-    });
   }
 }

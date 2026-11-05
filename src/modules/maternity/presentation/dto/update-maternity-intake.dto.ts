@@ -10,6 +10,9 @@ import {
   IsOptional,
   IsString,
   Length,
+  Max,
+  MaxLength,
+  Min,
   ValidateNested,
 } from 'class-validator';
 import {
@@ -22,6 +25,7 @@ import {
 export class UpdateMaternityIntakeDto {
   @ApiPropertyOptional({ example: 'Siti Aminah' })
   @IsString()
+  @MaxLength(255)
   @IsOptional()
   motherName?: string;
 
@@ -38,11 +42,15 @@ export class UpdateMaternityIntakeDto {
 
   @ApiPropertyOptional({ example: 29 })
   @IsInt()
+  @Min(0)
+  @Max(150)
   @IsOptional()
   motherAge?: number;
 
   @ApiPropertyOptional({ example: 1 })
   @IsInt()
+  @Min(1)
+  @Max(50)
   @IsOptional()
   marriageOrder?: number;
 
@@ -53,21 +61,25 @@ export class UpdateMaternityIntakeDto {
 
   @ApiPropertyOptional({ example: 'ibu_rumah_tangga' })
   @IsString()
+  @MaxLength(100)
   @IsOptional()
   motherJob?: string;
 
   @ApiPropertyOptional({ example: 's1' })
   @IsString()
+  @MaxLength(50)
   @IsOptional()
   motherEducation?: string;
 
   @ApiPropertyOptional({ example: 'islam' })
   @IsString()
+  @MaxLength(50)
   @IsOptional()
   religion?: string;
 
   @ApiPropertyOptional({ example: '081234567890' })
   @IsString()
+  @MaxLength(32)
   @IsOptional()
   phoneNumber?: string;
 
@@ -83,27 +95,32 @@ export class UpdateMaternityIntakeDto {
 
   @ApiPropertyOptional({ example: 'Melati 3' })
   @IsString()
+  @MaxLength(100)
   @IsOptional()
   dasawisma?: string;
 
   @ApiPropertyOptional({ example: 'Posyandu Mawar' })
   @IsString()
+  @MaxLength(100)
   @IsOptional()
   posyandu?: string;
 
   @ApiPropertyOptional({ example: 'Puskesmas Depok II' })
   @IsString()
+  @MaxLength(100)
   @IsOptional()
   puskesmas?: string;
 
   // Husband / Partner Info
   @ApiPropertyOptional({ example: 'Ahmad Fauzi' })
   @IsString()
+  @MaxLength(255)
   @IsOptional()
   partnerName?: string;
 
   @ApiPropertyOptional({ example: '3201234567890002' })
   @IsString()
+  @Length(16, 16)
   @IsOptional()
   partnerNik?: string;
 
@@ -114,52 +131,67 @@ export class UpdateMaternityIntakeDto {
 
   @ApiPropertyOptional({ example: 31 })
   @IsInt()
+  @Min(0)
+  @Max(150)
   @IsOptional()
   partnerAge?: number;
 
   @ApiPropertyOptional({ example: 'karyawan_swasta' })
   @IsString()
+  @MaxLength(100)
   @IsOptional()
   partnerJob?: string;
 
   @ApiPropertyOptional({ example: 's1' })
   @IsString()
+  @MaxLength(50)
   @IsOptional()
   partnerEducation?: string;
 
   @ApiPropertyOptional({ example: 'B' })
   @IsString()
+  @MaxLength(10)
   @IsOptional()
   partnerBloodType?: string;
 
   // Physical Baseline
   @ApiPropertyOptional({ example: 158 })
   @IsNumber()
+  @Min(0)
+  @Max(300)
   @IsOptional()
   heightCm?: number;
 
   @ApiPropertyOptional({ example: 52 })
   @IsNumber()
+  @Min(0)
+  @Max(500)
   @IsOptional()
   prePregnancyWeightKg?: number;
 
   @ApiPropertyOptional({ example: 24.5 })
   @IsNumber()
+  @Min(0)
+  @Max(150)
   @IsOptional()
   upperArmCircumferenceCm?: number;
 
   @ApiPropertyOptional({ example: 20.8 })
   @IsNumber()
+  @Min(0)
+  @Max(150)
   @IsOptional()
   initialBmi?: number;
 
   @ApiPropertyOptional({ example: 'T2' })
   @IsString()
+  @MaxLength(20)
   @IsOptional()
   tetanusStatus?: string;
 
   @ApiPropertyOptional({ example: 'O' })
   @IsString()
+  @MaxLength(10)
   @IsOptional()
   motherBloodType?: string;
 
@@ -176,11 +208,14 @@ export class UpdateMaternityIntakeDto {
 
   @ApiPropertyOptional({ example: 12.5 })
   @IsNumber()
+  @Min(0)
+  @Max(60)
   @IsOptional()
   gestationalAgeWeeks?: number;
 
   @ApiPropertyOptional({ example: '12 minggu 3 hari' })
   @IsString()
+  @MaxLength(64)
   @IsOptional()
   gestationalAgeFormatted?: string;
 
@@ -191,21 +226,29 @@ export class UpdateMaternityIntakeDto {
 
   @ApiPropertyOptional({ example: 2 })
   @IsInt()
+  @Min(1)
+  @Max(50)
   @IsOptional()
   gravidaCount?: number;
 
   @ApiPropertyOptional({ example: 1 })
   @IsInt()
+  @Min(0)
+  @Max(50)
   @IsOptional()
   parityCount?: number;
 
   @ApiPropertyOptional({ example: 0 })
   @IsInt()
+  @Min(0)
+  @Max(50)
   @IsOptional()
   abortionCount?: number;
 
   @ApiPropertyOptional({ example: 1 })
   @IsInt()
+  @Min(0)
+  @Max(50)
   @IsOptional()
   livingChildrenCount?: number;
 

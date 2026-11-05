@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import {
   IsBoolean,
   IsDateString,
@@ -10,7 +11,9 @@ import {
   IsString,
   Length,
   Max,
+  MaxLength,
   Min,
+  ValidateIf,
 } from 'class-validator';
 import { gender, type Gender } from '../../../../database/schema';
 
@@ -86,15 +89,29 @@ export class PreviousPregnancyItemDto {
     example: '2024',
     description: 'Tahun lahir atau berakhir',
   })
+  @Transform(({ value }) =>
+    value === '' || value === null || value === undefined
+      ? undefined
+      : String(value).trim(),
+  )
   @IsString()
+  @MaxLength(16, { message: 'Tahun persalinan maksimal 16 karakter' })
   @IsOptional()
   birthYear?: string;
 
   @ApiPropertyOptional({
     example: 3200,
-    description: 'Berat lahir bayi dalam gram',
+    description: 'Berat lahir bayi dalam gram (maksimal 30.000 gram)',
   })
-  @IsInt()
+  @Transform(({ value }) =>
+    value === '' || value === null || value === undefined
+      ? undefined
+      : Number(value),
+  )
+  @ValidateIf((_, val) => val !== null && val !== undefined)
+  @IsInt({ message: 'Berat lahir harus berupa angka bulat dalam gram' })
+  @Min(0, { message: 'Berat lahir minimal 0 gram' })
+  @Max(30000, { message: 'Berat lahir maksimal 30.000 gram' })
   @IsOptional()
   birthWeightGrams?: number;
 
@@ -102,7 +119,15 @@ export class PreviousPregnancyItemDto {
     example: 49.5,
     description: 'Panjang badan lahir (cm)',
   })
-  @IsNumber()
+  @Transform(({ value }) =>
+    value === '' || value === null || value === undefined
+      ? undefined
+      : Number(value),
+  )
+  @ValidateIf((_, val) => val !== null && val !== undefined)
+  @IsNumber({}, { message: 'Panjang badan lahir harus berupa angka (cm)' })
+  @Min(0, { message: 'Panjang badan lahir minimal 0 cm' })
+  @Max(250, { message: 'Panjang badan lahir maksimal 250 cm' })
   @IsOptional()
   birthLengthCm?: number;
 
@@ -119,6 +144,7 @@ export class PreviousPregnancyItemDto {
     description: 'Usia kehamilan saat lahir',
   })
   @IsString()
+  @MaxLength(64)
   @IsOptional()
   gestationalAgeAtBirth?: string;
 
@@ -127,6 +153,7 @@ export class PreviousPregnancyItemDto {
     description: 'Tenaga penolong persalinan',
   })
   @IsString()
+  @MaxLength(128)
   @IsOptional()
   birthAttendant?: string;
 
@@ -135,6 +162,7 @@ export class PreviousPregnancyItemDto {
     description: 'Metode persalinan',
   })
   @IsString()
+  @MaxLength(64)
   @IsOptional()
   deliveryMethod?: string;
 
@@ -143,6 +171,7 @@ export class PreviousPregnancyItemDto {
     description: 'Tempat persalinan',
   })
   @IsString()
+  @MaxLength(128)
   @IsOptional()
   deliveryPlace?: string;
 
@@ -178,11 +207,13 @@ export class ContraceptiveHistoryItemDto {
     description: 'Jenis alat kontrasepsi',
   })
   @IsString()
+  @MaxLength(64)
   @IsOptional()
   contraceptiveType?: string;
 
   @ApiPropertyOptional({ example: '2 tahun', description: 'Lama pemakaian' })
   @IsString()
+  @MaxLength(64)
   @IsOptional()
   durationText?: string;
 
