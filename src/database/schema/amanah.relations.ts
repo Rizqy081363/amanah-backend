@@ -173,18 +173,10 @@ export const userRolesRelations = relations(userRoles, ({ one }) => ({
   }),
 }));
 
-export const rolesRelations = relations(roles, ({ one, many }) => ({
+export const rolesRelations = relations(roles, ({ many }) => ({
   userRoles: many(userRoles),
   rolePermissions: many(rolePermissions),
   rolePageAccess: many(rolePageAccess),
-  parentRole: one(roles, {
-    fields: [roles.parentRoleId],
-    references: [roles.id],
-    relationName: 'roleHierarchy',
-  }),
-  childRoles: many(roles, {
-    relationName: 'roleHierarchy',
-  }),
   staffProfiles: many(staffProfiles),
   staffInvitations: many(staffInvitations),
 }));

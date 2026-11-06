@@ -21,8 +21,10 @@ import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
   authSessions,
+  patientProfiles,
   roles,
   session,
+  staffProfiles,
   user,
   userRoles,
   users,
@@ -66,7 +68,6 @@ export class UserManagementDrizzleRepository
         id: ur.role.id,
         code: ur.role.code,
         name: ur.role.name,
-        tier: ur.role.tier,
         audience: ur.role.audience,
         isSystem: ur.role.isSystem,
         isActive: ur.role.isActive,
@@ -81,6 +82,7 @@ export class UserManagementDrizzleRepository
           id: staffProfileRec.id,
           staffCode: staffProfileRec.staffCode,
           fullName: staffProfileRec.fullName,
+          phone: staffProfileRec.phone ?? null,
           positionTitle: staffProfileRec.positionTitle,
           departmentName: staffProfileRec.departmentName,
           hiredAt: staffProfileRec.hiredAt,
@@ -103,6 +105,7 @@ export class UserManagementDrizzleRepository
           id: patientProfileRec.id,
           medicalRecordNumber: patientProfileRec.medicalRecordNumber,
           fullName: patientProfileRec.fullName,
+          phone: patientProfileRec.phone ?? null,
           motherName: patientProfileRec.motherName,
           birthPlace: patientProfileRec.birthPlace,
           birthDate: patientProfileRec.birthDate,
@@ -145,11 +148,22 @@ export class UserManagementDrizzleRepository
         isPrimary: aff.isPrimary ?? false,
       }));
 
+    const effectivePhone =
+      rec.phone ||
+      staffProfileRec?.phone ||
+      patientProfileRec?.phone ||
+      null;
+
+    const effectiveName =
+      staffProfileRec?.fullName ||
+      patientProfileRec?.fullName ||
+      rec.name;
+
     return {
       id: rec.id,
-      name: rec.name,
+      name: effectiveName,
       email: rec.email,
-      phone: rec.phone,
+      phone: effectivePhone,
       avatarUrl: rec.avatarUrl,
       status: rec.status,
       preferredLocale: rec.preferredLocale ?? 'id-ID',
@@ -426,14 +440,13 @@ export class UserManagementDrizzleRepository
   async getAllActiveRoles(): Promise<UserRoleSummary[]> {
     const activeRoles = await this.db.query.roles.findMany({
       where: and(eq(roles.isActive, true), eq(roles.isSystem, false)),
-      orderBy: [asc(roles.audience), asc(roles.tier), asc(roles.name)],
+      orderBy: [asc(roles.audience), asc(roles.name)],
     });
 
     return activeRoles.map((r) => ({
       id: r.id,
       code: r.code,
       name: r.name,
-      tier: r.tier,
       audience: r.audience,
       isSystem: r.isSystem,
       isActive: r.isActive,
@@ -531,7 +544,17 @@ export class UserManagementDrizzleRepository
         updatedAt: nowStr,
         authVersion: sql`auth_version + 1`,
       };
-      if (input.phone !== undefined) userUpdate.phone = input.phone;
+      if (input.phone !== undefined) {
+        userUpdate.phone = input.phone;
+        await tx
+          .update(staffProfiles)
+          .set({ phone: input.phone, updatedAt: nowStr })
+          .where(eq(staffProfiles.userId, id));
+        await tx
+          .update(patientProfiles)
+          .set({ phone: input.phone, updatedAt: nowStr })
+          .where(eq(patientProfiles.userId, id));
+      }
       if (input.status) userUpdate.status = input.status;
       if (input.preferredLocale)
         userUpdate.preferredLocale = input.preferredLocale;

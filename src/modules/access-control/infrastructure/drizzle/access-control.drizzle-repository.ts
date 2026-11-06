@@ -26,11 +26,11 @@ import {
 import {
   RoleAudience,
   RoleEntity,
-  RoleTier,
 } from '../../domain/entities/role.entity';
 import { ApplicationPageEntity } from '../../domain/entities/application-page.entity';
 import { DEFAULT_ROLE_AUDIENCE } from '../../../../common/constants/role-audience.constants';
 import { PermissionEntity } from '../../domain/entities/permission.entity';
+import { PERMISSION_TO_MODULE_MAP } from '../../domain/constants/module-packs.constants';
 
 @Injectable()
 export class AccessControlDrizzleRepository implements AccessControlRepository {
@@ -41,14 +41,13 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
 
   async findAllRoles(): Promise<RoleEntity[]> {
     const allRoles = await this.db.query.roles.findMany({
-      orderBy: [asc(roles.tier), asc(roles.name)],
+      orderBy: [asc(roles.name)],
       with: {
         rolePermissions: {
           with: {
             permission: true,
           },
         },
-        parentRole: true,
       },
     });
 
@@ -73,33 +72,12 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
       }
     }
 
-    const roleMap = new Map<string, (typeof allRoles)[0]>();
-    for (const r of allRoles) {
-      roleMap.set(r.id, r);
-    }
-
     return allRoles.map((r) => {
       const directPermissions = (r.rolePermissions || [])
         .map((rp) => rp.permission)
         .filter((p): p is typeof permissions.$inferSelect => Boolean(p));
 
-      // Resolve effective permissions (direct + inherited from parent)
-      const effectivePermSet = new Set<string>();
-      for (const p of directPermissions) {
-        effectivePermSet.add(p.code);
-      }
-
-      let currentParentId = r.parentRoleId;
-      while (currentParentId && roleMap.has(currentParentId)) {
-        const parent = roleMap.get(currentParentId)!;
-        const parentPerms = (parent.rolePermissions || [])
-          .map((rp) => rp.permission)
-          .filter((p): p is typeof permissions.$inferSelect => Boolean(p));
-        for (const pp of parentPerms) {
-          effectivePermSet.add(pp.code);
-        }
-        currentParentId = parent.parentRoleId;
-      }
+      const effectivePermissionCodes = directPermissions.map((p) => p.code);
 
       return {
         id: r.id,
@@ -107,33 +85,12 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
         name: r.name,
         description: r.description,
         isSystem: r.isSystem,
-        parentRoleId: r.parentRoleId,
-        tier: r.tier as RoleTier,
         audience: (r.audience as RoleAudience) || DEFAULT_ROLE_AUDIENCE,
         isClinical: r.isClinical,
         isActive: r.isActive,
         isDefault: r.isDefault,
         createdAt: r.createdAt,
         updatedAt: r.updatedAt,
-        parentRole: r.parentRole
-          ? {
-              id: r.parentRole.id,
-              code: r.parentRole.code,
-              name: r.parentRole.name,
-              description: r.parentRole.description,
-              isSystem: r.parentRole.isSystem,
-              parentRoleId: r.parentRole.parentRoleId,
-              tier: r.parentRole.tier as RoleTier,
-              audience:
-                (r.parentRole.audience as RoleAudience) ||
-                DEFAULT_ROLE_AUDIENCE,
-              isClinical: r.parentRole.isClinical,
-              isActive: r.parentRole.isActive,
-              isDefault: r.parentRole.isDefault,
-              createdAt: r.parentRole.createdAt,
-              updatedAt: r.parentRole.updatedAt,
-            }
-          : null,
         permissions: directPermissions.map((p) => ({
           id: p.id,
           code: p.code,
@@ -141,7 +98,7 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
           createdAt: p.createdAt,
           updatedAt: p.updatedAt,
         })),
-        effectivePermissionCodes: Array.from(effectivePermSet),
+        effectivePermissionCodes,
         userCount: userCountMap.get(r.id) ?? 0,
         staffCount: userCountMap.get(r.id) ?? 0,
       };
@@ -157,7 +114,6 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
             permission: true,
           },
         },
-        parentRole: true,
       },
     });
 
@@ -169,32 +125,7 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
       .map((rp) => rp.permission)
       .filter((p): p is typeof permissions.$inferSelect => Boolean(p));
 
-    const effectivePermSet = new Set<string>();
-    for (const p of directPermissions) {
-      effectivePermSet.add(p.code);
-    }
-
-    let currentParentId = roleRecord.parentRoleId;
-    while (currentParentId) {
-      const parent = await this.db.query.roles.findFirst({
-        where: eq(roles.id, currentParentId),
-        with: {
-          rolePermissions: {
-            with: {
-              permission: true,
-            },
-          },
-        },
-      });
-      if (!parent) break;
-      const parentPerms = (parent.rolePermissions || [])
-        .map((rp) => rp.permission)
-        .filter((p): p is typeof permissions.$inferSelect => Boolean(p));
-      for (const pp of parentPerms) {
-        effectivePermSet.add(pp.code);
-      }
-      currentParentId = parent.parentRoleId;
-    }
+    const effectivePermissionCodes = directPermissions.map((p) => p.code);
 
     const [userCountRes] = await this.db
       .select({
@@ -215,33 +146,12 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
       name: roleRecord.name,
       description: roleRecord.description,
       isSystem: roleRecord.isSystem,
-      parentRoleId: roleRecord.parentRoleId,
-      tier: roleRecord.tier as RoleTier,
       audience: (roleRecord.audience as RoleAudience) || DEFAULT_ROLE_AUDIENCE,
       isClinical: roleRecord.isClinical,
       isActive: roleRecord.isActive,
       isDefault: roleRecord.isDefault,
       createdAt: roleRecord.createdAt,
       updatedAt: roleRecord.updatedAt,
-      parentRole: roleRecord.parentRole
-        ? {
-            id: roleRecord.parentRole.id,
-            code: roleRecord.parentRole.code,
-            name: roleRecord.parentRole.name,
-            description: roleRecord.parentRole.description,
-            isSystem: roleRecord.parentRole.isSystem,
-            parentRoleId: roleRecord.parentRole.parentRoleId,
-            tier: roleRecord.parentRole.tier as RoleTier,
-            audience:
-              (roleRecord.parentRole.audience as RoleAudience) ||
-              DEFAULT_ROLE_AUDIENCE,
-            isClinical: roleRecord.parentRole.isClinical,
-            isActive: roleRecord.parentRole.isActive,
-            isDefault: roleRecord.parentRole.isDefault,
-            createdAt: roleRecord.parentRole.createdAt,
-            updatedAt: roleRecord.parentRole.updatedAt,
-          }
-        : null,
       permissions: directPermissions.map((p) => ({
         id: p.id,
         code: p.code,
@@ -249,7 +159,7 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
         createdAt: p.createdAt,
         updatedAt: p.updatedAt,
       })),
-      effectivePermissionCodes: Array.from(effectivePermSet),
+      effectivePermissionCodes,
       userCount,
       staffCount: userCount,
     };
@@ -290,25 +200,9 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
       }
     }
 
-    let audience: RoleAudience =
+    const audience: RoleAudience =
       (data.audience as RoleAudience) || DEFAULT_ROLE_AUDIENCE;
-    let isClinical = Boolean(data.isClinical);
-    if (data.parentRoleId) {
-      const parent = await this.db.query.roles.findFirst({
-        where: eq(roles.id, data.parentRoleId),
-      });
-      if (!parent) {
-        throw new NotFoundException(
-          'Peran induk (parent role) tidak ditemukan',
-        );
-      }
-      if (data.audience === undefined && parent.audience) {
-        audience = parent.audience as RoleAudience;
-      }
-      if (data.isClinical === undefined) {
-        isClinical = parent.isClinical;
-      }
-    }
+    const isClinical = Boolean(data.isClinical);
 
     if (data.isDefault) {
       await this.db
@@ -323,8 +217,6 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
         code: finalCode,
         name: data.name,
         description: data.description || null,
-        parentRoleId: data.parentRoleId || null,
-        tier: data.tier || (data.parentRoleId ? 'micro' : 'macro'),
         audience,
         isClinical,
         isActive: data.isActive ?? true,
@@ -376,29 +268,6 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
     });
     if (!existing) {
       throw new NotFoundException('Peran tidak ditemukan');
-    }
-
-    if (data.parentRoleId && data.parentRoleId === id) {
-      throw new BadRequestException(
-        'Sebuah peran tidak dapat menjadi induk bagi dirinya sendiri',
-      );
-    }
-
-    // Prevent cycle in hierarchy
-    if (data.parentRoleId) {
-      let checkId: string | null = data.parentRoleId;
-      while (checkId) {
-        if (checkId === id) {
-          throw new BadRequestException(
-            'Hierarki peran siklis terdeteksi. Peran anak tidak dapat dijadikan induk',
-          );
-        }
-        const parentRow: { parentRoleId: string | null } | undefined =
-          await this.db.query.roles.findFirst({
-            where: eq(roles.id, checkId),
-          });
-        checkId = parentRow?.parentRoleId || null;
-      }
     }
 
     // Administrative Lockout Prevention:
@@ -473,11 +342,6 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
           data.description !== undefined
             ? data.description
             : existing.description,
-        parentRoleId:
-          data.parentRoleId !== undefined
-            ? data.parentRoleId
-            : existing.parentRoleId,
-        tier: data.tier ?? existing.tier,
         audience: (data.audience as RoleAudience) ?? existing.audience,
         isClinical: data.isClinical ?? existing.isClinical,
         isActive: data.isActive ?? existing.isActive,
@@ -529,17 +393,6 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
       );
     }
 
-    const [childUsage] = await this.db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(roles)
-      .where(eq(roles.parentRoleId, id));
-
-    if (childUsage && childUsage.count > 0) {
-      throw new BadRequestException(
-        `Peran ini memiliki ${childUsage.count} sub-peran. Hapus atau pindahkan sub-peran terlebih dahulu`,
-      );
-    }
-
     await this.db.delete(rolePermissions).where(eq(rolePermissions.roleId, id));
     await this.db.delete(userRoles).where(eq(userRoles.roleId, id));
     await this.db.delete(roles).where(eq(roles.id, id));
@@ -547,24 +400,7 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
 
   async findRoleTree(): Promise<RoleEntity[]> {
     const allRoles = await this.findAllRoles();
-    const nodeMap = new Map<string, RoleEntity>();
-
-    for (const r of allRoles) {
-      nodeMap.set(r.id, { ...r, children: [] });
-    }
-
-    const roots: RoleEntity[] = [];
-
-    for (const r of allRoles) {
-      const node = nodeMap.get(r.id)!;
-      if (r.parentRoleId && nodeMap.has(r.parentRoleId)) {
-        nodeMap.get(r.parentRoleId)!.children!.push(node);
-      } else {
-        roots.push(node);
-      }
-    }
-
-    return roots;
+    return allRoles.map((r) => ({ ...r, children: [] }));
   }
 
   async findAllPermissions(): Promise<PermissionEntity[]> {
@@ -598,14 +434,34 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
 
   async findPermissionsGrouped(): Promise<Record<string, PermissionEntity[]>> {
     const allPerms = await this.findAllPermissions();
-    const grouped: Record<string, PermissionEntity[]> = {};
+    const grouped: Record<string, PermissionEntity[]> = {
+      appointments: [],
+      queue: [],
+      records: [],
+      patients: [],
+      attendance: [],
+      payroll: [],
+      chat: [],
+      staff: [],
+      users: [],
+      settings: [],
+      general: [],
+    };
 
     for (const p of allPerms) {
-      const group = p.code.split(':')[0] || 'general';
-      if (!grouped[group]) {
-        grouped[group] = [];
+      const moduleKey =
+        PERMISSION_TO_MODULE_MAP[p.code] || p.code.split(':')[0] || 'general';
+      if (!grouped[moduleKey]) {
+        grouped[moduleKey] = [];
       }
-      grouped[group].push(p);
+      grouped[moduleKey].push(p);
+    }
+
+    // Prune empty keys if any
+    for (const key of Object.keys(grouped)) {
+      if (grouped[key].length === 0) {
+        delete grouped[key];
+      }
     }
 
     return grouped;

@@ -1,4 +1,4 @@
-import { RoleAudience, RoleEntity, RoleTier } from '../entities/role.entity';
+import { RoleAudience, RoleEntity } from '../entities/role.entity';
 import { PermissionEntity } from '../entities/permission.entity';
 import { ApplicationPageEntity } from '../entities/application-page.entity';
 
@@ -8,8 +8,6 @@ export interface CreateRoleInput {
   code?: string;
   name: string;
   description?: string | null;
-  parentRoleId?: string | null;
-  tier?: RoleTier;
   audience?: RoleAudience;
   isClinical?: boolean;
   isActive?: boolean;
@@ -21,8 +19,6 @@ export interface CreateRoleInput {
 export interface UpdateRoleInput {
   name?: string;
   description?: string | null;
-  parentRoleId?: string | null;
-  tier?: RoleTier;
   audience?: RoleAudience;
   isClinical?: boolean;
   isActive?: boolean;

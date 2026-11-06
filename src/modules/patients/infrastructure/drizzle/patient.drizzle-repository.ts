@@ -711,6 +711,14 @@ export class PatientDrizzleRepository implements PatientRepository {
 
     const conditions = [];
 
+    if (query.allowedPatientIds) {
+      if (query.allowedPatientIds.length === 0) {
+        conditions.push(sql`1 = 0`);
+      } else {
+        conditions.push(inArray(patientProfiles.id, query.allowedPatientIds));
+      }
+    }
+
     if (!hasFilterOrSearch) {
       // Mode Browsing Default: Tampilkan baris akun utama (master/mandiri) sebagai pohon hierarki
       conditions.push(isMasterCondition);
@@ -778,6 +786,17 @@ export class PatientDrizzleRepository implements PatientRepository {
     const total = countRow?.count ?? 0;
     const totalPages = Math.ceil(total / limit);
 
+    const summaryConditions = [eq(patientProfiles.status, 'active')];
+    if (query.allowedPatientIds) {
+      if (query.allowedPatientIds.length === 0) {
+        summaryConditions.push(sql`1 = 0`);
+      } else {
+        summaryConditions.push(
+          inArray(patientProfiles.id, query.allowedPatientIds),
+        );
+      }
+    }
+
     const [summaryRow] = await this.db
       .select({
         totalPatients: sql<number>`count(DISTINCT ${patientProfiles.id})::int`,
@@ -787,7 +806,7 @@ export class PatientDrizzleRepository implements PatientRepository {
       })
       .from(patientProfiles)
       .leftJoin(appointments, eq(appointments.patientId, patientProfiles.id))
-      .where(eq(patientProfiles.status, 'active'));
+      .where(and(...summaryConditions));
 
     const summary = {
       totalPatients: summaryRow?.totalPatients ?? 0,

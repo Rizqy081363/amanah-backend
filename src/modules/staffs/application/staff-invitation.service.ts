@@ -92,8 +92,6 @@ export class StaffInvitationService {
       id: string;
       code: string;
       name: string;
-      tier: string;
-      parentRoleId: string | null;
       isClinical: boolean;
       description: string | null;
     }>;
@@ -101,8 +99,6 @@ export class StaffInvitationService {
       id: string;
       code: string;
       name: string;
-      tier: string;
-      parentRoleId: string | null;
       description: string | null;
     }>;
     polyclinics: Array<{
@@ -150,8 +146,6 @@ export class StaffInvitationService {
         id: r.id,
         code: r.code,
         name: r.name,
-        tier: r.tier,
-        parentRoleId: r.parentRoleId || null,
         isClinical: r.isClinical,
         description: r.description,
       })),
@@ -161,8 +155,6 @@ export class StaffInvitationService {
           id: r.id,
           code: r.code,
           name: r.name,
-          tier: r.tier,
-          parentRoleId: r.parentRoleId || null,
           description: r.description,
         })),
       polyclinics: unitsMapped,

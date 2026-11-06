@@ -5,7 +5,6 @@ import {
 } from '../../../../common/constants/role-audience.constants';
 
 export { ROLE_AUDIENCE, type RoleAudience };
-export type RoleTier = 'macro' | 'micro';
 
 export class RoleEntity {
   id: string;
@@ -13,16 +12,12 @@ export class RoleEntity {
   name: string;
   description?: string | null;
   isSystem: boolean;
-  parentRoleId?: string | null;
-  tier: RoleTier;
   audience: RoleAudience;
   isClinical: boolean;
   isActive: boolean;
   isDefault: boolean;
   createdAt: Date | string;
   updatedAt: Date | string;
-  parentRole?: RoleEntity | null;
-  children?: RoleEntity[];
   permissions?: PermissionEntity[];
   effectivePermissionCodes?: string[];
   userCount?: number;

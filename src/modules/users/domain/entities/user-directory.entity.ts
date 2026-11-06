@@ -4,7 +4,6 @@ export interface UserRoleSummary {
   id: string;
   code: string;
   name: string;
-  tier: string;
   audience: string;
   isSystem: boolean;
   isActive: boolean;
@@ -15,6 +14,7 @@ export interface UserStaffSummary {
   id: string;
   staffCode: string;
   fullName: string;
+  phone?: string | null;
   positionTitle?: string | null;
   departmentName?: string | null;
   hiredAt?: string | null;
@@ -43,6 +43,7 @@ export interface UserPatientSummary {
   id: string;
   medicalRecordNumber: string;
   fullName: string;
+  phone?: string | null;
   motherName?: string | null;
   birthPlace?: string | null;
   birthDate?: string | null;

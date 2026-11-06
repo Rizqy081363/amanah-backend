@@ -254,6 +254,8 @@ export class AuthUserMapper {
 
     return {
       ...sanitizedUser,
+      name: fullName,
+      fullName,
       avatarUrl: avatar.url,
       avatar,
       roleCode,
@@ -263,7 +265,6 @@ export class AuthUserMapper {
             id: role.id,
             code: role.code,
             name: role.name,
-            tier: role.tier,
             audience: role.audience,
             isClinical: role.isClinical,
           }

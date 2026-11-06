@@ -1,5 +1,17 @@
 import { ForbiddenException, Inject, Injectable } from '@nestjs/common';
-import { and, count, desc, eq, gte, ilike, lt, lte, or } from 'drizzle-orm';
+import {
+  and,
+  count,
+  desc,
+  eq,
+  gte,
+  ilike,
+  inArray,
+  lt,
+  lte,
+  or,
+  sql,
+} from 'drizzle-orm';
 import {
   ConcurrentModificationConflictException,
   generateEntityVersion,
@@ -302,6 +314,16 @@ export class MedicalRecordDrizzleRepository implements MedicalRecordRepository {
     const offset = (page - 1) * limit;
 
     const conditions = [];
+
+    if (filters?.allowedPatientIds) {
+      if (filters.allowedPatientIds.length === 0) {
+        conditions.push(sql`1 = 0`);
+      } else {
+        conditions.push(
+          inArray(clinicalEncounters.patientId, filters.allowedPatientIds),
+        );
+      }
+    }
 
     if (filters?.patientId) {
       conditions.push(eq(clinicalEncounters.patientId, filters.patientId));

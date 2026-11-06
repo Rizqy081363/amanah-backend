@@ -88,4 +88,7 @@ export class PatientDirectoryQueryDto {
   @IsIn(['master', 'affiliate', 'all'])
   @IsOptional()
   profileType?: 'master' | 'affiliate' | 'all';
+
+  @IsOptional()
+  allowedPatientIds?: string[];
 }

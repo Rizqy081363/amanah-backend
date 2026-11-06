@@ -18,17 +18,16 @@ import {
   getRedisClient,
   invalidateRedisTagsAndPrefixes,
 } from './purge/db-connection';
+import { CLINICAL_MODULE_PACKS } from '../../src/modules/access-control/domain/constants/module-packs.constants';
 
 interface SeedRole {
   code: string;
   name: string;
   description: string;
-  tier: 'macro' | 'micro';
   audience: 'internal' | 'external';
   isClinical: boolean;
   isSystem: boolean;
   isDefault: boolean;
-  parentCode?: string | null;
   permissionCodes: string[];
   pageSlugs: string[];
 }
@@ -82,50 +81,31 @@ const EXTERNAL_PATIENT_PAGES = [
   'external.patient_services.registration',
 ];
 
-const CLINICAL_PERMISSIONS = [
-  'app:access',
-  'profile:read',
-  'profile:update',
-  'attendance:submit',
-  'attendance:read',
-  'payroll:read_self',
-  'notifications:read',
-  'schedules:read',
-  'appointments:read',
-  'queue:read',
-  'queue:call',
-  'queue:recall',
-  'queue:serve',
-  'queue:skip',
-  'queue:complete',
-  'records:read',
-  'records:write',
-  'prescriptions:write',
-  'patients:read',
-];
+const CLINICAL_PERMISSIONS = Array.from(
+  new Set([
+    ...CLINICAL_MODULE_PACKS.general.manageCodes,
+    ...CLINICAL_MODULE_PACKS.appointments.manageCodes,
+    ...CLINICAL_MODULE_PACKS.queue.manageCodes,
+    ...CLINICAL_MODULE_PACKS.records.manageCodes,
+    ...CLINICAL_MODULE_PACKS.attendance.viewCodes,
+    ...CLINICAL_MODULE_PACKS.payroll.viewCodes,
+    ...CLINICAL_MODULE_PACKS.chat.manageCodes,
+    'notifications:read',
+  ]),
+);
 
-const CS_PERMISSIONS = [
-  'app:access',
-  'profile:read',
-  'profile:update',
-  'attendance:submit',
-  'attendance:read',
-  'payroll:read_self',
-  'notifications:read',
-  'chat:read',
-  'chat:send',
-  'patients:read',
-  'patients:register',
-  'patients:manage',
-  'appointments:read',
-  'appointments:book',
-  'appointments:manage',
-  'schedules:read',
-  'queue:read',
-  'queue:call',
-  'queue:recall',
-  'queue:cancel',
-];
+const CS_PERMISSIONS = Array.from(
+  new Set([
+    ...CLINICAL_MODULE_PACKS.general.manageCodes,
+    ...CLINICAL_MODULE_PACKS.appointments.manageCodes,
+    ...CLINICAL_MODULE_PACKS.queue.manageCodes,
+    ...CLINICAL_MODULE_PACKS.patients.manageCodes,
+    ...CLINICAL_MODULE_PACKS.attendance.viewCodes,
+    ...CLINICAL_MODULE_PACKS.payroll.viewCodes,
+    ...CLINICAL_MODULE_PACKS.chat.manageCodes,
+    'notifications:read',
+  ]),
+);
 
 const PATIENT_PERMISSIONS = [
   'app:access',
@@ -143,13 +123,12 @@ const PATIENT_PERMISSIONS = [
   'records:read',
 ];
 
-// MACRO ROLES (Top-level)
-const MACRO_ROLES: SeedRole[] = [
+// CANONICAL ROLES (Flat RBAC)
+const ROLES: SeedRole[] = [
   {
     code: 'patient',
     name: 'Pasien',
     description: 'Pengguna layanan kesehatan dan pasien mandiri klinik',
-    tier: 'macro',
     audience: 'external',
     isClinical: false,
     isSystem: false,
@@ -162,7 +141,18 @@ const MACRO_ROLES: SeedRole[] = [
     name: 'Dokter',
     description:
       'Tenaga medis klinis penanggung jawab konsultasi, pemeriksaan fisik, rekam medis, dan resep',
-    tier: 'macro',
+    audience: 'internal',
+    isClinical: true,
+    isSystem: false,
+    isDefault: false,
+    permissionCodes: CLINICAL_PERMISSIONS,
+    pageSlugs: CLINICAL_INTERNAL_PAGES,
+  },
+  {
+    code: 'doctor_specialist',
+    name: 'Dokter Spesialis',
+    description:
+      'Dokter spesialis rujukan lanjutan (Sp.A, Sp.OG, Sp.PD, dll.) dengan kewenangan klinis khusus',
     audience: 'internal',
     isClinical: true,
     isSystem: false,
@@ -175,7 +165,18 @@ const MACRO_ROLES: SeedRole[] = [
     name: 'Bidan',
     description:
       'Praktisi kebidanan pelayanan kesehatan ibu dan anak (KIA), persalinan, dan imunisasi',
-    tier: 'macro',
+    audience: 'internal',
+    isClinical: true,
+    isSystem: false,
+    isDefault: false,
+    permissionCodes: CLINICAL_PERMISSIONS,
+    pageSlugs: CLINICAL_INTERNAL_PAGES,
+  },
+  {
+    code: 'midwife_coordinator',
+    name: 'Bidan Koordinator KIA',
+    description:
+      'Bidan senior penanggung jawab ruang bersalin, skrining ibu hamil berisiko tinggi, dan koordinasi bidan jaga',
     audience: 'internal',
     isClinical: true,
     isSystem: false,
@@ -188,45 +189,12 @@ const MACRO_ROLES: SeedRole[] = [
     name: 'Customer Service & Pendaftaran',
     description:
       'Staf front office pendaftaran pasien baru, panggilan tiket antrean, reservasi, dan informasi klinik',
-    tier: 'macro',
     audience: 'internal',
     isClinical: false,
     isSystem: false,
     isDefault: false,
     permissionCodes: CS_PERMISSIONS,
     pageSlugs: CS_INTERNAL_PAGES,
-  },
-];
-
-// MICRO ROLES (Sub-specialization under macro parents)
-const MICRO_ROLES: SeedRole[] = [
-  {
-    code: 'doctor_specialist',
-    name: 'Dokter Spesialis',
-    description:
-      'Dokter spesialis rujukan lanjutan (Sp.A, Sp.OG, Sp.PD, dll.) dengan kewenangan klinis khusus',
-    tier: 'micro',
-    audience: 'internal',
-    isClinical: true,
-    isSystem: false,
-    isDefault: false,
-    parentCode: 'doctor',
-    permissionCodes: CLINICAL_PERMISSIONS,
-    pageSlugs: CLINICAL_INTERNAL_PAGES,
-  },
-  {
-    code: 'midwife_coordinator',
-    name: 'Bidan Koordinator KIA',
-    description:
-      'Bidan senior penanggung jawab ruang bersalin, skrining ibu hamil berisiko tinggi, dan koordinasi bidan jaga',
-    tier: 'micro',
-    audience: 'internal',
-    isClinical: true,
-    isSystem: false,
-    isDefault: false,
-    parentCode: 'midwife',
-    permissionCodes: CLINICAL_PERMISSIONS,
-    pageSlugs: CLINICAL_INTERNAL_PAGES,
   },
 ];
 
@@ -291,17 +259,16 @@ export async function seedRoles(): Promise<void> {
       roleMap.set('admin', adminRes.rows[0].id);
     }
 
-    // 3. Upsert Macro Roles
-    console.log('\n[3/5] Upserting Macro Roles (External & Internal)...');
-    for (const r of MACRO_ROLES) {
+    // 3. Upsert Canonical Roles
+    console.log('\n[3/4] Upserting Canonical Roles (External & Internal)...');
+    for (const r of ROLES) {
       const res = await client.query(
         `
-        INSERT INTO roles (code, name, description, tier, audience, is_clinical, is_system, is_default, is_active, parent_role_id, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, NULL, now(), now())
+        INSERT INTO roles (code, name, description, audience, is_clinical, is_system, is_default, is_active, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, true, now(), now())
         ON CONFLICT (code) DO UPDATE
         SET name = EXCLUDED.name,
             description = EXCLUDED.description,
-            tier = EXCLUDED.tier,
             audience = EXCLUDED.audience,
             is_clinical = EXCLUDED.is_clinical,
             is_default = EXCLUDED.is_default,
@@ -309,11 +276,11 @@ export async function seedRoles(): Promise<void> {
             updated_at = now()
         RETURNING id, code;
         `,
-        [r.code, r.name, r.description, r.tier, r.audience, r.isClinical, r.isSystem, r.isDefault]
+        [r.code, r.name, r.description, r.audience, r.isClinical, r.isSystem, r.isDefault]
       );
       const roleId = res.rows[0].id;
       roleMap.set(r.code, roleId);
-      console.log(`      [✓] Macro: ${r.name} [${r.code}] (Audience: ${r.audience}) -> ${roleId}`);
+      console.log(`      [✓] Role: ${r.name} [${r.code}] (Audience: ${r.audience}) -> ${roleId}`);
 
       // Bind & Sync Permissions (delete obsolete, insert current)
       const permIds = r.permissionCodes
@@ -349,84 +316,8 @@ export async function seedRoles(): Promise<void> {
       }
     }
 
-    // 4. Upsert Micro Roles (With parent reference)
-    console.log('\n[4/5] Upserting Micro Roles (Hierarchical Children)...');
-    for (const r of MICRO_ROLES) {
-      const parentId = r.parentCode ? roleMap.get(r.parentCode) : null;
-      if (!parentId) {
-        throw new Error(`Parent role '${r.parentCode}' not found for micro role '${r.code}'`);
-      }
-
-      const res = await client.query(
-        `
-        INSERT INTO roles (code, name, description, tier, audience, is_clinical, is_system, is_default, is_active, parent_role_id, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, $9, now(), now())
-        ON CONFLICT (code) DO UPDATE
-        SET name = EXCLUDED.name,
-            description = EXCLUDED.description,
-            tier = EXCLUDED.tier,
-            audience = EXCLUDED.audience,
-            is_clinical = EXCLUDED.is_clinical,
-            is_default = EXCLUDED.is_default,
-            parent_role_id = EXCLUDED.parent_role_id,
-            is_active = true,
-            updated_at = now()
-        RETURNING id, code;
-        `,
-        [
-          r.code,
-          r.name,
-          r.description,
-          r.tier,
-          r.audience,
-          r.isClinical,
-          r.isSystem,
-          r.isDefault,
-          parentId,
-        ]
-      );
-      const roleId = res.rows[0].id;
-      roleMap.set(r.code, roleId);
-      console.log(
-        `      [✓] Micro: ${r.name} [${r.code}] (Child of ${r.parentCode}) -> ${roleId}`
-      );
-
-      // Bind & Sync Permissions (delete obsolete, insert current)
-      const permIds = r.permissionCodes
-        .map((pCode) => permMap.get(pCode))
-        .filter((id): id is string => Boolean(id));
-
-      if (permIds.length > 0) {
-        await client.query(
-          `DELETE FROM role_permissions WHERE role_id = $1 AND NOT (permission_id = ANY($2::uuid[]));`,
-          [roleId, permIds]
-        );
-        for (const pId of permIds) {
-          await client.query(
-            `INSERT INTO role_permissions (role_id, permission_id, created_at)
-             VALUES ($1, $2, now())
-             ON CONFLICT DO NOTHING;`,
-            [roleId, pId]
-          );
-        }
-      }
-
-      // Bind Pages
-      for (const pSlug of r.pageSlugs) {
-        const pId = pageMap.get(pSlug);
-        if (pId) {
-          await client.query(
-            `INSERT INTO role_page_access (role_id, page_id, created_at)
-             VALUES ($1, $2, now())
-             ON CONFLICT (role_id, page_id) DO NOTHING;`,
-            [roleId, pId]
-          );
-        }
-      }
-    }
-
-    // 5. Seed Canonical Baseline Personas
-    console.log('\n[5/5] Provisioning Baseline Personas (admin, doctor, midwife, cs, patient)...');
+    // 4. Seed Canonical Baseline Personas
+    console.log('\n[4/4] Provisioning Baseline Personas (admin, doctor, midwife, cs, patient)...');
 
     // Look up units & rooms for staff links
     const unitPoliUmum = (
@@ -692,8 +583,7 @@ export async function seedRoles(): Promise<void> {
     await client.query('COMMIT');
     console.log('\n================================================================================');
     console.log('[✓] TRANSACTION COMMITTED SUCCESSFULLY!');
-    console.log(`    - Macro Roles Seeded : ${MACRO_ROLES.length}`);
-    console.log(`    - Micro Roles Seeded : ${MICRO_ROLES.length}`);
+    console.log(`    - Roles Seeded       : ${ROLES.length}`);
     console.log(`    - Personas Seeded    : ${PERSONAS.length}`);
     console.log('================================================================================');
 

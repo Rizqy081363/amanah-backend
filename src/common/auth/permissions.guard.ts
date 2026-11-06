@@ -48,11 +48,11 @@ export class PermissionsGuard implements CanActivate {
     }
 
     const userPermissions = user.permissions || [];
-    const hasAll = requiredPermissions.every((perm) =>
+    const hasPermission = requiredPermissions.some((perm) =>
       userPermissions.includes(perm),
     );
 
-    if (!hasAll) {
+    if (!hasPermission) {
       throw new ForbiddenException(
         `Akses ditolak: Anda tidak memiliki izin yang diperlukan (${requiredPermissions.join(', ')})`,
       );

@@ -229,7 +229,6 @@ export class HybridAuthGuard extends AuthGuard('jwt') implements CanActivate {
               id: primaryRole.id,
               code: primaryRole.code,
               name: primaryRole.name,
-              tier: primaryRole.tier,
               audience: primaryRole.audience,
               isClinical: primaryRole.isClinical,
               isSystem: primaryRole.isSystem,

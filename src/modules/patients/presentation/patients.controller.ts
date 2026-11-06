@@ -262,10 +262,10 @@ export class PatientsController {
   }
 
   @Get('directory')
-  @RequirePermissions('patients:read', 'patients:manage')
+  @RequirePermissions('patients:read', 'records:read')
   @ApiOperation({
     summary:
-      'Direktori pasien klinik dengan statistik agregat dan pagination (Admin)',
+      'Direktori pasien klinik dengan statistik agregat dan pagination',
     description:
       'Mengambil direktori seluruh pasien yang pernah memiliki janji temu, dilengkapi statistik agregat (total janji temu, kunjungan selesai, terlewat/batal) dan NIK tersensor.',
   })
@@ -273,7 +273,26 @@ export class PatientsController {
     description: 'Direktori data pasien beragregat berhasil diambil',
     type: PatientDirectoryResponseDto,
   })
-  async getPatientDirectory(@Query() query: PatientDirectoryQueryDto) {
+  async getPatientDirectory(
+    @Query() query: PatientDirectoryQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    if (isPatientUser(user)) {
+      const patient = await this.patientRepo.findByUserId(user.id);
+      const affiliated = await this.affiliationRepo.findByUserId(user.id);
+      const allowedIds: string[] = [];
+      if (patient) {
+        allowedIds.push(patient.id);
+      }
+      for (const aff of affiliated) {
+        if (aff.patientId) {
+          allowedIds.push(aff.patientId);
+        }
+      }
+      query.allowedPatientIds = allowedIds;
+    } else {
+      delete (query as any).allowedPatientIds;
+    }
     return this.patientRepo.findDirectory(query);
   }
 
@@ -299,7 +318,7 @@ export class PatientsController {
   }
 
   @Get(':id')
-  @RequirePermissions('patients:read', 'patients:manage')
+  @RequirePermissions('patients:read', 'records:read')
   @ApiOperation({
     summary: 'Mendapatkan profil detail pasien berdasarkan ID',
     description:

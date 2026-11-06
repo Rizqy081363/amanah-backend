@@ -10,7 +10,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import bcrypt from 'bcryptjs';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import {
   AUTH_ERROR_CODES,
   AUTH_PROVIDER,
@@ -24,6 +24,8 @@ import { DRIZZLE_SOURCE } from '../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../database/drizzle/drizzle.provider';
 import {
   authAccounts,
+  permissions,
+  rolePermissions,
   roles,
   session,
   staffInvitations,
@@ -197,6 +199,32 @@ export class AuthLoginService {
             'Akses dibatasi. Akun dengan audiens eksternal tidak diizinkan masuk ke aplikasi internal klinik.',
         });
       }
+    }
+
+    // Authoritative app:access Gate (Enforce that active role has app access)
+    const [appAccessRow] = await this.db
+      .select({ id: rolePermissions.roleId })
+      .from(rolePermissions)
+      .innerJoin(permissions, eq(rolePermissions.permissionId, permissions.id))
+      .where(
+        and(
+          eq(rolePermissions.roleId, primaryRole.id),
+          eq(permissions.code, 'app:access'),
+        ),
+      )
+      .limit(1);
+
+    const hasAppAccess =
+      primaryRole.code === 'admin' ||
+      primaryRole.code === 'super_admin' ||
+      Boolean(appAccessRow);
+
+    if (!hasAppAccess) {
+      throw new ForbiddenException({
+        code: 'AUTH_APP_ACCESS_DENIED',
+        message:
+          'Akses masuk ditolak: Peran akun Anda tidak memiliki izin akses aplikasi (app:access). Hubungi administrator klinik.',
+      });
     }
 
     await this.db
@@ -537,6 +565,36 @@ export class AuthLoginService {
 
     const primaryRole = completeUser.userRoles_userId?.[0]?.role;
     const roleCode = primaryRole?.code ?? null;
+
+    if (primaryRole) {
+      const [appAccessRow] = await this.db
+        .select({ id: rolePermissions.roleId })
+        .from(rolePermissions)
+        .innerJoin(
+          permissions,
+          eq(rolePermissions.permissionId, permissions.id),
+        )
+        .where(
+          and(
+            eq(rolePermissions.roleId, primaryRole.id),
+            eq(permissions.code, 'app:access'),
+          ),
+        )
+        .limit(1);
+
+      const hasAppAccess =
+        primaryRole.code === 'admin' ||
+        primaryRole.code === 'super_admin' ||
+        Boolean(appAccessRow);
+
+      if (!hasAppAccess) {
+        throw new ForbiddenException({
+          code: 'AUTH_APP_ACCESS_DENIED',
+          message:
+            'Akses masuk ditolak: Peran akun Anda tidak memiliki izin akses aplikasi (app:access). Hubungi administrator klinik.',
+        });
+      }
+    }
 
     const tokenExpiresIn =
       this.configService.get('auth.expires', { infer: true }) || '1d';

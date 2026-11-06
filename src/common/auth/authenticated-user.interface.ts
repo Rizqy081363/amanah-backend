@@ -1,7 +1,6 @@
 import {
   ROLE_AUDIENCE,
   type RoleAudience,
-  type RoleTier,
 } from '../constants/role-audience.constants';
 
 export interface AuthenticatedStaffProfile {
@@ -43,7 +42,6 @@ interface AuthenticatedUserRole {
   id?: string;
   code?: string;
   name: string;
-  tier?: RoleTier;
   audience: RoleAudience;
   isClinical?: boolean;
   isSystem?: boolean;

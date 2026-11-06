@@ -44,6 +44,10 @@ import {
   type PatientAffiliationRepository,
 } from '../../patients/domain/repositories/patient-affiliation.repository';
 import {
+  PATIENT_REPOSITORY,
+  type PatientRepository,
+} from '../../patients/domain/repositories/patient.repository';
+import {
   MEDICAL_RECORD_REPOSITORY,
   MedicalRecordRepository,
 } from '../domain/repositories/medical-record.repository';
@@ -69,6 +73,8 @@ export class MedicalRecordsController {
     private readonly medicalRecordRepo: MedicalRecordRepository,
     @Inject(PATIENT_AFFILIATION_REPOSITORY)
     private readonly affiliationRepo: PatientAffiliationRepository,
+    @Inject(PATIENT_REPOSITORY)
+    private readonly patientRepo: PatientRepository,
   ) {}
 
   private async assertPatientAccess(
@@ -79,6 +85,10 @@ export class MedicalRecordsController {
       return;
     }
     if (user.patient?.id === patientId) {
+      return;
+    }
+    const ownPatient = await this.patientRepo.findByUserId(user.id);
+    if (ownPatient?.id === patientId) {
       return;
     }
     const isAffiliated = await this.affiliationRepo.findByUserAndPatient(
@@ -149,7 +159,34 @@ export class MedicalRecordsController {
     summary: 'Daftar semua rekam medis dengan paginasi, filter & pencarian',
   })
   @ApiOkResponse({ description: 'Daftar rekam medis berhasil diambil' })
-  async findAll(@Query() query: QueryMedicalRecordDto) {
+  async findAll(
+    @Query() query: QueryMedicalRecordDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    if (isPatientUser(user)) {
+      if (query.patientId) {
+        await this.assertPatientAccess(query.patientId, user);
+      } else {
+        let ownPatientId: string | undefined = user.patient?.id;
+        if (!ownPatientId) {
+          const patient = await this.patientRepo.findByUserId(user.id);
+          ownPatientId = patient?.id;
+        }
+        const affiliated = await this.affiliationRepo.findByUserId(user.id);
+        const allowedIds: string[] = [];
+        if (ownPatientId) {
+          allowedIds.push(ownPatientId);
+        }
+        for (const aff of affiliated) {
+          if (aff.patientId) {
+            allowedIds.push(aff.patientId);
+          }
+        }
+        (query as any).allowedPatientIds = allowedIds;
+      }
+    } else {
+      delete (query as any).allowedPatientIds;
+    }
     return this.medicalRecordRepo.findAll(query);
   }
 

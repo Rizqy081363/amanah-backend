@@ -17,18 +17,3 @@ export const DEFAULT_ROLE_AUDIENCE: RoleAudience = ROLE_AUDIENCE.INTERNAL;
 
 export const isRoleAudience = (v: unknown): v is RoleAudience =>
   typeof v === 'string' && (ROLE_AUDIENCES as readonly string[]).includes(v);
-
-/**
- * Canonical Role Tier definitions matching database migration 0062.
- */
-export const ROLE_TIER = {
-  MACRO: 'macro',
-  MICRO: 'micro',
-} as const;
-
-export const ROLE_TIERS = [ROLE_TIER.MACRO, ROLE_TIER.MICRO] as const;
-export type RoleTier = (typeof ROLE_TIERS)[number];
-export const DEFAULT_ROLE_TIER: RoleTier = ROLE_TIER.MACRO;
-
-export const isRoleTier = (v: unknown): v is RoleTier =>
-  typeof v === 'string' && (ROLE_TIERS as readonly string[]).includes(v);

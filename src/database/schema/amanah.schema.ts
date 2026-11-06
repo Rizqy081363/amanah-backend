@@ -496,10 +496,6 @@ export const roles = pgTable(
     name: text().notNull(),
     description: text(),
     isSystem: boolean('is_system').default(false).notNull(),
-    parentRoleId: uuid('parent_role_id'),
-    tier: varchar('tier', { length: 20, enum: ['macro', 'micro'] })
-      .default('macro')
-      .notNull(),
     audience: varchar('audience', {
       length: 20,
       enum: ['internal', 'external'],
@@ -518,20 +514,12 @@ export const roles = pgTable(
   },
   (table) => [
     unique('roles_code_key').on(table.code),
-    foreignKey({
-      columns: [table.parentRoleId],
-      foreignColumns: [table.id],
-      name: 'roles_parent_role_id_fkey',
-    }).onDelete('set null'),
-    index('roles_parent_role_id_idx').on(table.parentRoleId),
-    index('roles_tier_idx').on(table.tier),
     index('roles_audience_idx').on(table.audience),
     index('idx_roles_is_active').on(table.isActive),
     uniqueIndex('idx_roles_default_audience')
       .on(table.audience)
       .where(sql`is_default = true AND is_active = true`),
     check('roles_code_format', sql`code ~ '^[a-z][a-z0-9_]*$'::text`),
-    check('roles_tier_check', sql`tier IN ('macro', 'micro')`),
     check('roles_audience_check', sql`audience IN ('internal', 'external')`),
   ],
 );

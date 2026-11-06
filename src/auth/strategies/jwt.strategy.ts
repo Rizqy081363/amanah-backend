@@ -145,7 +145,6 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
             id: primaryRole.id,
             code: primaryRole.code,
             name: primaryRole.name,
-            tier: primaryRole.tier,
             audience: primaryRole.audience,
             isClinical: primaryRole.isClinical,
             isSystem: primaryRole.isSystem,

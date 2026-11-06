@@ -37,9 +37,6 @@ export class AuthRoleSummaryDto {
   @ApiProperty({ description: 'Nama resmi role' })
   name: string;
 
-  @ApiProperty({ description: 'Hierarki/tingkat tier peran' })
-  tier: number;
-
   @ApiPropertyOptional({
     nullable: true,
     description: 'Audience peran (INTERNAL atau EXTERNAL)',
@@ -303,6 +300,9 @@ export class AuthUserResponseDto {
 
   @ApiProperty({ description: 'Nama lengkap pengguna' })
   name: string;
+
+  @ApiPropertyOptional({ description: 'Nama lengkap pengguna dari profil staf atau pasien' })
+  fullName?: string;
 
   @ApiProperty({ description: 'Alamat email akun' })
   email: string;

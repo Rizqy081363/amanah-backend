@@ -14,16 +14,6 @@ export const UpdateRoleSchema = z.object({
     .max(255, 'Deskripsi peran maksimal 255 karakter')
     .optional()
     .nullable(),
-  parentRoleId: z
-    .string()
-    .uuid('ID peran induk harus berupa UUID yang valid')
-    .optional()
-    .nullable(),
-  tier: z
-    .enum(['macro', 'micro'], {
-      message: 'Tingkatan peran harus berupa "macro" atau "micro"',
-    })
-    .optional(),
   audience: z
     .enum(ROLE_AUDIENCES, {
       message:

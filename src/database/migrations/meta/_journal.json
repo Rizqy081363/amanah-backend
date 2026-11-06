@@ -624,6 +624,20 @@
       "when": 1791372000000,
       "tag": "0088_drop_patient_profiles_blood_type_enum_column",
       "breakpoints": true
+    },
+    {
+      "idx": 89,
+      "version": "7",
+      "when": 1791373000000,
+      "tag": "0089_add_allows_multiple_to_patient_relationship_types",
+      "breakpoints": true
+    },
+    {
+      "idx": 90,
+      "version": "7",
+      "when": 1791374000000,
+      "tag": "0090_drop_roles_tier_and_parent_role",
+      "breakpoints": true
     }
   ]
 }

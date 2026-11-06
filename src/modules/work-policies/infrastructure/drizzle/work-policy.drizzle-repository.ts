@@ -47,7 +47,6 @@ export class WorkPolicyDrizzleRepository implements WorkPolicyRepository {
       roleId: r.roleId,
       roleCode: r.role?.code || null,
       roleName: r.role?.name || null,
-      roleTier: r.role?.tier || null,
       roleIsClinical: r.role?.isClinical ?? null,
       hourlyRate: Number(r.hourlyRate),
       overtimeHourlyRate: Number(r.overtimeHourlyRate),

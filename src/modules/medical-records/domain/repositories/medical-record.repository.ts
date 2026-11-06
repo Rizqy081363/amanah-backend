@@ -23,6 +23,7 @@ export interface MedicalRecordFilterOptions {
   limit?: number;
   cursor?: string;
   patientId?: string;
+  allowedPatientIds?: string[];
   practitionerId?: string;
   serviceId?: string;
   status?: 'planned' | 'in_progress' | 'completed' | 'cancelled';

@@ -3,7 +3,6 @@ export class CompensationRateEntity {
   roleId: string;
   roleCode?: string | null;
   roleName?: string | null;
-  roleTier?: string | null;
   roleIsClinical?: boolean | null;
   hourlyRate: number;
   overtimeHourlyRate: number;
