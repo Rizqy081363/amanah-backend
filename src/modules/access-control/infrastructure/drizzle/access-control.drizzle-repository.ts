@@ -444,6 +444,7 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
       chat: [],
       staff: [],
       users: [],
+      notifications: [],
       settings: [],
       general: [],
     };

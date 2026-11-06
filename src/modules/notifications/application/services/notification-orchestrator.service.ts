@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import type { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
@@ -83,10 +83,10 @@ export class NotificationOrchestratorService {
     if (!recipientId || typeof recipientId !== 'string') return;
 
     // Invariant guard: Fail closed if recipient role audience is incompatible with intent audience
-    const recipientAudience = await this.getRecipientAudience(recipientId);
-    if (!this.isAudienceCompatible(intent.audience, recipientAudience)) {
+    const recipientAudiences = await this.getRecipientAudiences(recipientId);
+    if (!this.isAudienceCompatible(intent.audience, recipientAudiences)) {
       this.logger.warn(
-        `[INVARIANT GUARD] Dropped ${intent.audience} notification for recipient ${recipientId} (recipientAudience=${recipientAudience ?? 'none'}). Fail-closed invariant triggered.`,
+        `[INVARIANT GUARD] Dropped ${intent.audience} notification for recipient ${recipientId} (recipientAudiences=${recipientAudiences.join(',') || 'none'}). Fail-closed invariant triggered.`,
       );
       return;
     }
@@ -235,33 +235,39 @@ export class NotificationOrchestratorService {
     }
   }
 
-  private async getRecipientAudience(
+  private async getRecipientAudiences(
     userId: string,
-  ): Promise<NotificationAudience | null> {
-    if (!this.db) return null;
+  ): Promise<NotificationAudience[]> {
+    if (!this.db) return [];
     try {
       const records = await this.db
-        .select({ audience: roles.audience })
+        .selectDistinct({ audience: roles.audience })
         .from(userRoles)
         .innerJoin(roles, sql`${userRoles.roleId} = ${roles.id}`)
-        .where(eq(userRoles.userId, userId))
-        .limit(1);
+        .where(
+          and(
+            eq(userRoles.userId, userId),
+            isNull(userRoles.revokedAt),
+          ),
+        );
 
-      return (records[0]?.audience as NotificationAudience) || null;
+      return records
+        .map((r) => r.audience as NotificationAudience)
+        .filter(Boolean);
     } catch {
-      return null;
+      return [];
     }
   }
 
   private isAudienceCompatible(
     targetAudience: NotificationAudience,
-    recipientAudience: NotificationAudience | null,
+    recipientAudiences: NotificationAudience[],
   ): boolean {
     if (targetAudience === NOTIFICATION_AUDIENCE.ALL) return true;
-    if (!recipientAudience) {
-      // Default unassigned user (e.g. registered patient) to external
+    if (recipientAudiences.length === 0) {
+      // Default unassigned user (e.g. registered patient without explicitly assigned userRoles) to external
       return targetAudience === NOTIFICATION_AUDIENCE.EXTERNAL;
     }
-    return targetAudience === recipientAudience;
+    return recipientAudiences.includes(targetAudience);
   }
 }

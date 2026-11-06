@@ -21,7 +21,7 @@ export class AppointmentsNotificationRules implements OnModuleInit {
     this.registry.registerRule({
       eventType: APPOINTMENT_EVENTS.CREATED,
       category: 'appointment',
-      defaultChannels: ['in_app'],
+      defaultChannels: ['in_app', 'push'],
       resolveIntents: async (
         payload: any,
         actor?: any,
@@ -880,53 +880,88 @@ export class AppointmentsNotificationRules implements OnModuleInit {
           }
         }
 
-        // 2. Notify assigned practitioner & clinic staff (Audience: internal)
-        if (this.recipientResolver && payload.staffId) {
-          const clinicUserIds =
-            await this.recipientResolver.resolveScopedClinicRecipients(
-              payload.staffId,
-            );
-          const staffTitle = isPractitionerChange
-            ? 'Penugasan Pasien Baru'
-            : 'Pembaruan Ruangan Pasien';
-          const staffBody = isPractitionerChange
-            ? `Anda telah ditugaskan untuk menangani pasien ${payload.patientName || 'Pasien'} (${payload.queueNumber || '-'}).`
-            : `Ruangan periksa pasien ${payload.patientName || 'Pasien'} (${payload.queueNumber || '-'}) dialihkan ke ${payload.roomName || 'ruangan baru'}.`;
+        // 2. Notify assigned practitioner or broadcast clinical staff (Audience: internal)
+        if (this.recipientResolver) {
+          if (isPractitionerChange) {
+            // Specific Doctor Assignment Alert: Send strictly to the assigned doctor
+            if (payload.staffId) {
+              const assignedDoctorUserId =
+                await this.recipientResolver.resolveAssignedPractitionerUserId(
+                  payload.staffId,
+                );
 
-          for (const staffUserId of clinicUserIds) {
-            const isActorStaff = actor?.userId === staffUserId;
-            if (isActorStaff) {
-              continue;
+              if (assignedDoctorUserId) {
+                const isActorDoctor = actor?.userId === assignedDoctorUserId;
+                intents.push({
+                  recipientUserId: assignedDoctorUserId,
+                  audience: NOTIFICATION_AUDIENCE.INTERNAL,
+                  title: 'Penugasan Pasien Baru',
+                  body: `Anda telah ditugaskan untuk menangani pasien ${payload.patientName || 'Pasien'} (${payload.queueNumber || '-'}).`,
+                  severity: 'info',
+                  badgeIcon: 'stethoscope',
+                  visualKey: payload.avatarUrl ?? null,
+                  senderName: payload.actorName || 'Klinik Amanah',
+                  senderRole: payload.actorRoleName || 'Klinik',
+                  action: {
+                    type: 'view_schedule_detail',
+                    params: {
+                      doctorId: payload.staffId || '',
+                      date: payload.scheduledDate || '',
+                    },
+                    label: 'Lihat Jadwal',
+                  },
+                  actions: [
+                    {
+                      label: 'Lihat Jadwal',
+                      actionKey: 'view_schedule',
+                      actionType: 'primary',
+                      url: `/admin/jadwal-dokter?selectedDoctorId=${payload.staffId || ''}&dialog=detail&date=${payload.scheduledDate}&openPatients=true`,
+                    },
+                  ],
+                  presentation: {
+                    toast: !isActorDoctor,
+                  },
+                });
+              }
             }
+          } else {
+            // Room Assignment: Broadcast to ALL active clinical practitioners
+            const clinicalUserIds =
+              await this.recipientResolver.resolveAllClinicalPractitionerUserIds();
 
-            intents.push({
-              recipientUserId: staffUserId,
-              audience: NOTIFICATION_AUDIENCE.INTERNAL,
-              title: staffTitle,
-              body: staffBody,
-              severity: 'info',
-              badgeIcon: 'stethoscope',
-              visualKey: payload.avatarUrl ?? null,
-              senderName: payload.actorName || 'Klinik Amanah',
-              senderRole: payload.actorRoleName || 'Klinik',
-              action: {
-                type: 'view_schedule_detail',
-                params: {
-                  doctorId: payload.staffId || '',
-                  date: payload.scheduledDate || '',
-                },
-                label: 'Lihat Jadwal',
-              },
-              actions: [
-                {
+            for (const clinicalUserId of clinicalUserIds) {
+              const isActorClinical = actor?.userId === clinicalUserId;
+              intents.push({
+                recipientUserId: clinicalUserId,
+                audience: NOTIFICATION_AUDIENCE.INTERNAL,
+                title: 'Pembaruan Ruangan Pasien',
+                body: `Ruangan periksa pasien ${payload.patientName || 'Pasien'} (${payload.queueNumber || '-'}) dialihkan ke ${payload.roomName || 'ruangan baru'}.`,
+                severity: 'info',
+                badgeIcon: 'stethoscope',
+                visualKey: payload.avatarUrl ?? null,
+                senderName: payload.actorName || 'Klinik Amanah',
+                senderRole: payload.actorRoleName || 'Klinik',
+                action: {
+                  type: 'view_schedule_detail',
+                  params: {
+                    doctorId: payload.staffId || '',
+                    date: payload.scheduledDate || '',
+                  },
                   label: 'Lihat Jadwal',
-                  actionKey: 'view_schedule',
-                  actionType: 'primary',
-                  url: `/admin/jadwal-dokter?selectedDoctorId=${payload.staffId || ''}&dialog=detail&date=${payload.scheduledDate}&openPatients=true`,
                 },
-              ],
-              presentation: { toast: true },
-            });
+                actions: [
+                  {
+                    label: 'Lihat Jadwal',
+                    actionKey: 'view_schedule',
+                    actionType: 'primary',
+                    url: `/admin/jadwal-dokter?selectedDoctorId=${payload.staffId || ''}&dialog=detail&date=${payload.scheduledDate}&openPatients=true`,
+                  },
+                ],
+                presentation: {
+                  toast: !isActorClinical,
+                },
+              });
+            }
           }
         }
 

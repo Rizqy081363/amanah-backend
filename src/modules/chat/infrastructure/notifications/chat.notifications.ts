@@ -1,12 +1,12 @@
 import { Injectable, Logger, OnModuleInit, Optional } from '@nestjs/common';
 import { NOTIFICATION_AUDIENCE } from '../../../../common/constants/notification-audience.constants';
-import { AppointmentRecipientResolver } from '../../../appointments/infrastructure/resolvers/appointment-recipient.resolver';
 import { NotificationIntent } from '../../../notifications/domain/entities/notification-rule.entity';
 import { NotificationRulesRegistry } from '../../../notifications/registry/notification-rules-registry';
 import {
   CHAT_EVENTS,
   CHAT_SENDER_ROLE,
 } from '../../domain/constants/chat-lifecycle.constants';
+import { ChatRecipientResolver } from '../resolvers/chat-recipient.resolver';
 
 @Injectable()
 export class ChatNotificationRules implements OnModuleInit {
@@ -15,7 +15,7 @@ export class ChatNotificationRules implements OnModuleInit {
   constructor(
     private readonly registry: NotificationRulesRegistry,
     @Optional()
-    private readonly recipientResolver?: AppointmentRecipientResolver,
+    private readonly recipientResolver?: ChatRecipientResolver,
   ) {
     this.onModuleInit();
   }
@@ -31,10 +31,11 @@ export class ChatNotificationRules implements OnModuleInit {
       ): Promise<NotificationIntent[]> => {
         const intents: NotificationIntent[] = [];
 
-        // 1. Customer Message Alert for Clinic Staff (Audience: NOTIFICATION_AUDIENCE.INTERNAL)
+        // 1. Customer Message Alert for Administrative Desk (Audience: NOTIFICATION_AUDIENCE.INTERNAL)
+        // Strict Invariant: Delivered ONLY to assigned staff or non-clinical administrative desk (Admin & CS)
         if (payload.senderRole === CHAT_SENDER_ROLE.EXTERNAL) {
           const staffUserIds = this.recipientResolver
-            ? await this.recipientResolver.resolveScopedClinicRecipients(
+            ? await this.recipientResolver.resolveAdminChatRecipients(
                 payload.assignedStaffId,
               )
             : [];

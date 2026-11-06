@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
-import { and, eq, inArray, isNull, or } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, isNull, or } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import type { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
@@ -23,8 +23,95 @@ export class AppointmentRecipientResolver {
   ) {}
 
   /**
+   * Resolves solely the assigned practitioner's userId, without querying clinic-wide staff.
+   */
+  async resolveAssignedPractitionerUserId(
+    assignedStaffId?: string | null,
+  ): Promise<string | null> {
+    if (!this.db || !assignedStaffId) {
+      return null;
+    }
+
+    try {
+      const [staff] = await this.db
+        .select({ userId: staffProfiles.userId })
+        .from(staffProfiles)
+        .leftJoin(
+          practitioners,
+          eq(practitioners.staffProfileId, staffProfiles.id),
+        )
+        .where(
+          or(
+            eq(staffProfiles.id, assignedStaffId),
+            eq(practitioners.id, assignedStaffId),
+          ),
+        )
+        .limit(1);
+
+      return staff?.userId ?? null;
+    } catch (error) {
+      this.logger.warn(
+        `Failed to resolve assigned practitioner user ID for ${assignedStaffId}: ${error}`,
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Resolves all active internal clinical practitioners (roles with isClinical = true).
+   */
+  async resolveAllClinicalPractitionerUserIds(): Promise<string[]> {
+    if (!this.db) {
+      return [];
+    }
+
+    try {
+      const clinicalUsers = await this.db
+        .select({ userId: userRoles.userId })
+        .from(userRoles)
+        .innerJoin(roles, eq(userRoles.roleId, roles.id))
+        .where(
+          and(
+            eq(roles.audience, ROLE_AUDIENCE.INTERNAL),
+            eq(roles.isClinical, true),
+            eq(roles.isActive, true),
+            isNull(userRoles.revokedAt),
+          ),
+        );
+
+      const staffProfilesClinical = await this.db
+        .select({ userId: staffProfiles.userId })
+        .from(staffProfiles)
+        .innerJoin(roles, eq(staffProfiles.roleId, roles.id))
+        .where(
+          and(
+            eq(roles.audience, ROLE_AUDIENCE.INTERNAL),
+            eq(roles.isClinical, true),
+            eq(roles.isActive, true),
+            isNotNull(staffProfiles.userId),
+          ),
+        );
+
+      const recipientIds = new Set<string>();
+      for (const u of clinicalUsers) {
+        if (u.userId) recipientIds.add(u.userId);
+      }
+      for (const sp of staffProfilesClinical) {
+        if (sp.userId) recipientIds.add(sp.userId);
+      }
+
+      return Array.from(recipientIds);
+    } catch (error) {
+      this.logger.warn(
+        `Failed to resolve clinical practitioner user IDs: ${error}`,
+      );
+      return [];
+    }
+  }
+
+  /**
    * Resolves clinic recipients according to dynamic RBAC permissions and assignment:
-   * 1. Active internal staff whose role has appointment read/manage permissions
+   * 1. Active internal staff whose role has appointment read/manage permissions OR is clinical
    * 2. The specifically assigned Practitioner (staffId/practitionerId), if provided.
    */
   async resolveScopedClinicRecipients(
@@ -39,19 +126,36 @@ export class AppointmentRecipientResolver {
         .select({ userId: userRoles.userId })
         .from(userRoles)
         .innerJoin(roles, eq(userRoles.roleId, roles.id))
-        .innerJoin(rolePermissions, eq(rolePermissions.roleId, roles.id))
-        .innerJoin(
+        .leftJoin(rolePermissions, eq(rolePermissions.roleId, roles.id))
+        .leftJoin(
           permissions,
           eq(rolePermissions.permissionId, permissions.id),
         )
         .where(
           and(
             eq(roles.audience, ROLE_AUDIENCE.INTERNAL),
+            eq(roles.isActive, true),
             isNull(userRoles.revokedAt),
-            inArray(permissions.code, [
-              'appointments:read',
-              'appointments:manage',
-            ]),
+            or(
+              eq(roles.isClinical, true),
+              inArray(permissions.code, [
+                'appointments:read',
+                'appointments:manage',
+              ]),
+            ),
+          ),
+        );
+
+      const staffProfilesClinical = await this.db
+        .select({ userId: staffProfiles.userId })
+        .from(staffProfiles)
+        .innerJoin(roles, eq(staffProfiles.roleId, roles.id))
+        .where(
+          and(
+            eq(roles.audience, ROLE_AUDIENCE.INTERNAL),
+            eq(roles.isClinical, true),
+            eq(roles.isActive, true),
+            isNotNull(staffProfiles.userId),
           ),
         );
 
@@ -61,24 +165,17 @@ export class AppointmentRecipientResolver {
           .filter((id): id is string => Boolean(id)),
       );
 
-      if (assignedStaffId) {
-        const [staff] = await this.db
-          .select({ userId: staffProfiles.userId })
-          .from(staffProfiles)
-          .leftJoin(
-            practitioners,
-            eq(practitioners.staffProfileId, staffProfiles.id),
-          )
-          .where(
-            or(
-              eq(staffProfiles.id, assignedStaffId),
-              eq(practitioners.id, assignedStaffId),
-            ),
-          )
-          .limit(1);
+      for (const sp of staffProfilesClinical) {
+        if (sp.userId) {
+          recipientIds.add(sp.userId);
+        }
+      }
 
-        if (staff?.userId) {
-          recipientIds.add(staff.userId);
+      if (assignedStaffId) {
+        const assignedPractitionerUserId =
+          await this.resolveAssignedPractitionerUserId(assignedStaffId);
+        if (assignedPractitionerUserId) {
+          recipientIds.add(assignedPractitionerUserId);
         }
       }
 

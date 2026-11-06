@@ -1,16 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
-import { and, eq, inArray, isNull } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
-import {
-  permissions,
-  rolePermissions,
-  roles,
-  staffProfiles,
-  userRoles,
-  users,
-} from '../../../../database/schema';
+import { users } from '../../../../database/schema';
 import { NotificationGatewayService } from '../../../notifications/application/services/notification-gateway.service';
 import {
   type DomainEvent,
@@ -24,6 +17,7 @@ import {
 } from '../../domain/constants/chat-lifecycle.constants';
 import { ChatMessageEntity } from '../../domain/entities/chat-message.entity';
 import { ConversationEntity } from '../../domain/entities/conversation.entity';
+import { ChatRecipientResolver } from '../../infrastructure/resolvers/chat-recipient.resolver';
 
 @Injectable()
 export class ChatNotificationPublisher {
@@ -36,11 +30,13 @@ export class ChatNotificationPublisher {
     @Optional()
     private readonly notificationGateway?: NotificationGatewayService,
     @Optional()
+    private readonly recipientResolver?: ChatRecipientResolver,
+    @Optional()
     @Inject(DRIZZLE_SOURCE)
     private readonly db?: DrizzleDatabase,
   ) {
     this.logger.log(
-      `ChatNotificationPublisher initialized: hasPublisher=${Boolean(this.notificationPublisher)} hasGateway=${Boolean(this.notificationGateway)}`,
+      `ChatNotificationPublisher initialized: hasPublisher=${Boolean(this.notificationPublisher)} hasGateway=${Boolean(this.notificationGateway)} hasResolver=${Boolean(this.recipientResolver)}`,
     );
   }
 
@@ -138,11 +134,14 @@ export class ChatNotificationPublisher {
         }
 
         // KASUS B: Pesan Pasien Masuk untuk Staf/Admin Klinik (External -> Internal)
-        // Access Control Ketat: HANYA kirim push ke staf yang ditugaskan (assigned staff) atau Administrator yang berwenang
+        // Access Control Ketat: HANYA kirim ke staf yang ditugaskan atau meja administrasi non-klinis (Admin & CS)
+        // Clinical practitioners (Dokter/Bidan) dieksklusikan 100% sehingga tidak ada leak ke Flutter
         if (message.senderRole === CHAT_SENDER_ROLE.EXTERNAL) {
-          const authorizedStaffIds = await this.resolveAuthorizedChatStaffUserIds(
-            conversation.assignedStaffId,
-          );
+          const authorizedStaffIds = this.recipientResolver
+            ? await this.recipientResolver.resolveAdminChatRecipients(
+                conversation.assignedStaffId,
+              )
+            : [];
 
           if (authorizedStaffIds.length > 0) {
             await this.notificationGateway.dispatch({
@@ -173,60 +172,6 @@ export class ChatNotificationPublisher {
           `Failed to dispatch chat push command: ${gatewayError}`,
         );
       }
-    }
-  }
-
-  private async resolveAuthorizedChatStaffUserIds(
-    assignedStaffId?: string | null,
-  ): Promise<string[]> {
-    if (!this.db) {
-      return [];
-    }
-
-    try {
-      // 1. Jika ada staf spesifik yang ditugaskan pada percakapan ini
-      if (assignedStaffId) {
-        const [assigned] = await this.db
-          .select({ userId: staffProfiles.userId })
-          .from(staffProfiles)
-          .where(eq(staffProfiles.id, assignedStaffId))
-          .limit(1);
-
-        if (assigned?.userId) {
-          return [assigned.userId];
-        }
-      }
-
-      // 2. Jika tidak ada staf spesifik, ambil pengguna internal aktif yang memiliki izin chat (RBAC dinamis)
-      const authorizedStaff = await this.db
-        .select({ userId: userRoles.userId })
-        .from(userRoles)
-        .innerJoin(roles, eq(userRoles.roleId, roles.id))
-        .innerJoin(rolePermissions, eq(roles.id, rolePermissions.roleId))
-        .innerJoin(
-          permissions,
-          eq(rolePermissions.permissionId, permissions.id),
-        )
-        .where(
-          and(
-            inArray(permissions.code, ['chat:read', 'chat:send']),
-            eq(roles.audience, NOTIFICATION_AUDIENCE.INTERNAL),
-            isNull(userRoles.revokedAt),
-          ),
-        );
-
-      return [
-        ...new Set(
-          authorizedStaff
-            .map((r) => r.userId)
-            .filter((id): id is string => Boolean(id)),
-        ),
-      ];
-    } catch (err) {
-      this.logger.warn(
-        `Failed to resolve authorized chat staff user IDs: ${err}`,
-      );
-      return [];
     }
   }
 }

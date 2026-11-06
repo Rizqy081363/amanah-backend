@@ -90,7 +90,7 @@ const CLINICAL_PERMISSIONS = Array.from(
     ...CLINICAL_MODULE_PACKS.attendance.viewCodes,
     ...CLINICAL_MODULE_PACKS.payroll.viewCodes,
     ...CLINICAL_MODULE_PACKS.chat.manageCodes,
-    'notifications:read',
+    ...CLINICAL_MODULE_PACKS.notifications.viewCodes,
   ]),
 );
 
@@ -103,7 +103,7 @@ const CS_PERMISSIONS = Array.from(
     ...CLINICAL_MODULE_PACKS.attendance.viewCodes,
     ...CLINICAL_MODULE_PACKS.payroll.viewCodes,
     ...CLINICAL_MODULE_PACKS.chat.manageCodes,
-    'notifications:read',
+    ...CLINICAL_MODULE_PACKS.notifications.manageCodes,
   ]),
 );
 
