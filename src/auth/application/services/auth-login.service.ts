@@ -87,6 +87,7 @@ export class AuthLoginService {
         },
         patientProfiles: {
           with: {
+            bloodType: true,
             patientAddresses: true,
             patientEmergencyContacts: true,
           },
@@ -519,6 +520,7 @@ export class AuthLoginService {
         },
         patientProfiles: {
           with: {
+            bloodType: true,
             patientAddresses: true,
             patientEmergencyContacts: true,
           },
@@ -623,6 +625,7 @@ export class AuthLoginService {
         },
         patientProfiles: {
           with: {
+            bloodType: true,
             patientAddresses: true,
             patientEmergencyContacts: true,
           },

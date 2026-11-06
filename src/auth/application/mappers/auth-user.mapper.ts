@@ -59,7 +59,12 @@ export class AuthUserMapper {
             typeof p.birthDate === 'string'
               ? p.birthDate
               : p.birthDate?.toISOString?.()?.slice(0, 10) || null,
-          bloodType: formatBloodTypeDisplay(p.bloodType),
+          bloodType:
+            p.bloodType?.name ||
+            (typeof p.bloodType === 'string'
+              ? formatBloodTypeDisplay(p.bloodType)
+              : 'Belum Tahu'),
+          bloodTypeId: p.bloodTypeId || null,
           phoneNumber: p.phone || null,
           motherName: p.motherName || null,
           occupation: p.occupation || null,

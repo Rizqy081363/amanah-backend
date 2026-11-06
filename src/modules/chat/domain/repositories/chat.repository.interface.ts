@@ -57,6 +57,9 @@ export interface ChatRepositoryInterface {
   findOpenConversationByGuestId(
     guestId: string,
   ): Promise<ConversationEntity | null>;
+  findOpenConversationByGuestEmail(
+    email: string,
+  ): Promise<ConversationEntity | null>;
   findConversationById(id: string): Promise<ConversationEntity | null>;
   createConversation(
     params: CreateConversationParams,

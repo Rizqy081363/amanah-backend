@@ -1101,7 +1101,6 @@ export const patientProfiles = pgTable(
     birthPlace: text('birth_place'),
     birthDate: date('birth_date').notNull(),
     gender: gender().notNull(),
-    bloodType: bloodType('blood_type').default('unknown').notNull(),
     occupation: text(),
     phone: text(),
     email: citext('email'),

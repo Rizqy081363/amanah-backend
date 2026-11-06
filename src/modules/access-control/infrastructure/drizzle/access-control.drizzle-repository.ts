@@ -343,13 +343,17 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
       const defaultExternalPermCodes = [
         'app:access',
         'appointments:book',
+        'appointments:manage',
         'appointments:read',
+        'chat:read',
+        'chat:send',
         'notifications:read',
         'patients:register',
         'profile:read',
         'profile:update',
         'queue:read',
         'records:read',
+        'schedules:read',
       ];
       const defaultPerms = await this.db.query.permissions.findMany({
         where: inArray(permissions.code, defaultExternalPermCodes),

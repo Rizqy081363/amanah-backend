@@ -39,6 +39,7 @@ export class AdminChatController {
 
   @Get('conversations')
   @HttpCode(HttpStatus.OK)
+  @RequirePermissions('chat:read')
   @ApiOperation({
     summary: 'Melihat daftar kotak masuk percakapan (Admin Inbox)',
     description:
@@ -62,6 +63,7 @@ export class AdminChatController {
 
   @Get('conversations/:id/messages')
   @HttpCode(HttpStatus.OK)
+  @RequirePermissions('chat:read')
   @ApiOperation({
     summary: 'Mengambil riwayat pesan percakapan (Admin)',
   })
@@ -82,6 +84,7 @@ export class AdminChatController {
 
   @Post('conversations/:id/messages')
   @HttpCode(HttpStatus.CREATED)
+  @RequirePermissions('chat:send')
   @ApiOperation({
     summary: 'Mengirim balasan admin ke utas percakapan',
   })
@@ -103,6 +106,7 @@ export class AdminChatController {
 
   @Patch('conversations/:id/close')
   @HttpCode(HttpStatus.OK)
+  @RequirePermissions('chat:send')
   @ApiOperation({
     summary: 'Menutup/menyelesaikan utas percakapan',
   })

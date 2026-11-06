@@ -21,11 +21,16 @@ export interface PatientAffiliationRepository {
   findByUserAndPatient(
     userId: string,
     patientId: string,
+    tx?: unknown,
   ): Promise<PatientAffiliationEntity | null>;
-  create(params: CreateAffiliationParams): Promise<PatientAffiliationEntity>;
+  create(
+    params: CreateAffiliationParams,
+    tx?: unknown,
+  ): Promise<PatientAffiliationEntity>;
   update(
     id: string,
     params: Partial<CreateAffiliationParams>,
+    tx?: unknown,
   ): Promise<PatientAffiliationEntity | null>;
-  delete(userId: string, patientId: string): Promise<boolean>;
+  delete(userId: string, patientId: string, tx?: unknown): Promise<boolean>;
 }

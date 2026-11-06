@@ -239,6 +239,12 @@ export class AuthPatientProfileDto {
   @ApiProperty({ description: 'Golongan darah pasien' })
   bloodType: string;
 
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'ID unik master golongan darah (UUID)',
+  })
+  bloodTypeId?: string | null;
+
   @ApiPropertyOptional({ nullable: true })
   phoneNumber?: string | null;
 

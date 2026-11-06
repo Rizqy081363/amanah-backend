@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, desc, eq, ilike, lt, or } from 'drizzle-orm';
+import { and, desc, eq, ilike, lt, or, sql } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
@@ -51,6 +51,23 @@ export class ChatDrizzleRepository implements ChatRepositoryInterface {
     const record = await this.db.query.conversations.findFirst({
       where: and(
         eq(conversations.guestId, guestId),
+        eq(conversations.status, 'open'),
+      ),
+      with: {
+        staffProfile: true,
+      },
+    });
+
+    return record ? this.mapConversation(record) : null;
+  }
+
+  async findOpenConversationByGuestEmail(
+    email: string,
+  ): Promise<ConversationEntity | null> {
+    const normalizedEmail = email.trim().toLowerCase();
+    const record = await this.db.query.conversations.findFirst({
+      where: and(
+        ilike(conversations.guestEmail, normalizedEmail),
         eq(conversations.status, 'open'),
       ),
       with: {
@@ -117,6 +134,15 @@ export class ChatDrizzleRepository implements ChatRepositoryInterface {
         return existing;
       }
 
+      if (params.guestEmail) {
+        const existingByEmail = await this.findOpenConversationByGuestEmail(
+          params.guestEmail,
+        );
+        if (existingByEmail) {
+          return existingByEmail;
+        }
+      }
+
       if (!params.guestEmail) {
         throw new Error(
           'Guest email is required to create a guest conversation',
@@ -142,6 +168,13 @@ export class ChatDrizzleRepository implements ChatRepositoryInterface {
         params.guestId,
       );
       if (openFallback) return openFallback;
+
+      if (params.guestEmail) {
+        const emailFallback = await this.findOpenConversationByGuestEmail(
+          params.guestEmail,
+        );
+        if (emailFallback) return emailFallback;
+      }
     }
 
     throw new Error(
@@ -172,6 +205,7 @@ export class ChatDrizzleRepository implements ChatRepositoryInterface {
   ): Promise<PaginatedResult<ConversationEntity>> {
     const limit = Math.min(Math.max(params.limit || 20, 1), 100);
     const conditions = [];
+    const activityOrder = sql`coalesce(${conversations.lastMessageAt}, ${conversations.createdAt})`;
 
     if (params.status) {
       conditions.push(eq(conversations.status, params.status));
@@ -182,7 +216,7 @@ export class ChatDrizzleRepository implements ChatRepositoryInterface {
     }
 
     if (params.cursor) {
-      conditions.push(lt(conversations.lastMessageAt, params.cursor));
+      conditions.push(lt(activityOrder, params.cursor));
     }
 
     if (params.search?.trim()) {
@@ -191,6 +225,8 @@ export class ChatDrizzleRepository implements ChatRepositoryInterface {
         or(
           ilike(conversations.guestName, term),
           ilike(conversations.guestEmail, term),
+          sql`EXISTS (SELECT 1 FROM users u WHERE u.id = ${conversations.userId} AND (u.name ILIKE ${term} OR u.email ILIKE ${term}))`,
+          sql`EXISTS (SELECT 1 FROM patient_profiles p WHERE p.id = ${conversations.patientId} AND (p.full_name ILIKE ${term} OR p.medical_record_number ILIKE ${term}))`,
         ),
       );
     }
@@ -199,7 +235,7 @@ export class ChatDrizzleRepository implements ChatRepositoryInterface {
 
     const records = await this.db.query.conversations.findMany({
       where: whereClause,
-      orderBy: [desc(conversations.lastMessageAt), desc(conversations.id)],
+      orderBy: [desc(activityOrder), desc(conversations.id)],
       limit: limit + 1,
       with: {
         user: true,
@@ -210,9 +246,10 @@ export class ChatDrizzleRepository implements ChatRepositoryInterface {
 
     const hasMore = records.length > limit;
     const pageRecords = hasMore ? records.slice(0, limit) : records;
+    const lastRecord = pageRecords.length > 0 ? pageRecords[pageRecords.length - 1] : null;
     const nextCursor =
-      hasMore && pageRecords.length > 0
-        ? pageRecords[pageRecords.length - 1].lastMessageAt
+      hasMore && lastRecord
+        ? (lastRecord.lastMessageAt ?? lastRecord.createdAt)
         : null;
 
     // Fetch last message preview for each conversation
@@ -256,10 +293,11 @@ export class ChatDrizzleRepository implements ChatRepositoryInterface {
     const condition = params.userId
       ? eq(conversations.userId, params.userId)
       : eq(conversations.guestId, params.guestId!);
+    const activityOrder = sql`coalesce(${conversations.lastMessageAt}, ${conversations.createdAt})`;
 
     const records = await this.db.query.conversations.findMany({
       where: condition,
-      orderBy: [desc(conversations.createdAt)],
+      orderBy: [desc(activityOrder)],
       limit,
       with: {
         user: true,

@@ -617,6 +617,13 @@
       "when": 1791371000000,
       "tag": "0087_add_clinic_services_image_url",
       "breakpoints": true
+    },
+    {
+      "idx": 88,
+      "version": "7",
+      "when": 1791372000000,
+      "tag": "0088_drop_patient_profiles_blood_type_enum_column",
+      "breakpoints": true
     }
   ]
 }

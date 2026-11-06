@@ -11,6 +11,7 @@ import {
   authAccounts,
   authSessions,
   authTwoFactors,
+  bloodTypes,
   childImmunizationIntakes,
   clinicalEncounters,
   clinicalIntakeForms,
@@ -339,6 +340,10 @@ export const occupationsRelations = relations(occupations, ({ many }) => ({
   patientProfiles: many(patientProfiles),
 }));
 
+export const bloodTypesRelations = relations(bloodTypes, ({ many }) => ({
+  patientProfiles: many(patientProfiles),
+}));
+
 export const patientProfilesRelations = relations(
   patientProfiles,
   ({ one, many }) => ({
@@ -349,6 +354,10 @@ export const patientProfilesRelations = relations(
     occupation: one(occupations, {
       fields: [patientProfiles.occupationId],
       references: [occupations.id],
+    }),
+    bloodType: one(bloodTypes, {
+      fields: [patientProfiles.bloodTypeId],
+      references: [bloodTypes.id],
     }),
     patientAffiliations: many(patientAffiliations),
     patientAddresses: many(patientAddresses),

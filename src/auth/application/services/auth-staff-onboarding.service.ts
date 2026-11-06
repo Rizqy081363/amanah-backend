@@ -484,6 +484,7 @@ export class AuthStaffOnboardingService {
         },
         patientProfiles: {
           with: {
+            bloodType: true,
             patientAddresses: true,
             patientEmergencyContacts: true,
           },

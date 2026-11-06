@@ -24,7 +24,7 @@ export class ChatNotificationRules implements OnModuleInit {
     this.registry.registerRule({
       eventType: CHAT_EVENTS.MESSAGE_CREATED,
       category: 'support',
-      defaultChannels: ['in_app', 'push'],
+      defaultChannels: ['in_app'],
       resolveIntents: async (
         payload: any,
         actor?: any,

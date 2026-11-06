@@ -123,7 +123,11 @@ export class HybridAuthGuard extends AuthGuard('jwt') implements CanActivate {
               },
             },
           },
-          patientProfiles: true,
+          patientProfiles: {
+            with: {
+              bloodType: true,
+            },
+          },
         },
       });
 
@@ -283,7 +287,8 @@ export class HybridAuthGuard extends AuthGuard('jwt') implements CanActivate {
                   : (patientProfile.birthDate as any)
                       ?.toISOString?.()
                       ?.slice(0, 10) || null,
-              bloodType: formatBloodTypeDisplay(patientProfile.bloodType),
+              bloodType: (patientProfile as any).bloodType?.name || null,
+              bloodTypeId: patientProfile.bloodTypeId,
               phoneNumber: patientProfile.phone,
               status: patientProfile.status,
             }

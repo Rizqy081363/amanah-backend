@@ -90,8 +90,6 @@ const CLINICAL_PERMISSIONS = [
   'attendance:read',
   'payroll:read_self',
   'notifications:read',
-  'chat:read',
-  'chat:send',
   'schedules:read',
   'appointments:read',
   'queue:read',
@@ -135,10 +133,14 @@ const PATIENT_PERMISSIONS = [
   'profile:update',
   'appointments:book',
   'appointments:read',
+  'appointments:manage',
+  'schedules:read',
   'queue:read',
   'chat:read',
   'chat:send',
   'notifications:read',
+  'patients:register',
+  'records:read',
 ];
 
 // MACRO ROLES (Top-level)
@@ -313,10 +315,17 @@ export async function seedRoles(): Promise<void> {
       roleMap.set(r.code, roleId);
       console.log(`      [✓] Macro: ${r.name} [${r.code}] (Audience: ${r.audience}) -> ${roleId}`);
 
-      // Bind Permissions
-      for (const pCode of r.permissionCodes) {
-        const pId = permMap.get(pCode);
-        if (pId) {
+      // Bind & Sync Permissions (delete obsolete, insert current)
+      const permIds = r.permissionCodes
+        .map((pCode) => permMap.get(pCode))
+        .filter((id): id is string => Boolean(id));
+
+      if (permIds.length > 0) {
+        await client.query(
+          `DELETE FROM role_permissions WHERE role_id = $1 AND NOT (permission_id = ANY($2::uuid[]));`,
+          [roleId, permIds]
+        );
+        for (const pId of permIds) {
           await client.query(
             `INSERT INTO role_permissions (role_id, permission_id, created_at)
              VALUES ($1, $2, now())
@@ -382,10 +391,17 @@ export async function seedRoles(): Promise<void> {
         `      [✓] Micro: ${r.name} [${r.code}] (Child of ${r.parentCode}) -> ${roleId}`
       );
 
-      // Bind Permissions
-      for (const pCode of r.permissionCodes) {
-        const pId = permMap.get(pCode);
-        if (pId) {
+      // Bind & Sync Permissions (delete obsolete, insert current)
+      const permIds = r.permissionCodes
+        .map((pCode) => permMap.get(pCode))
+        .filter((id): id is string => Boolean(id));
+
+      if (permIds.length > 0) {
+        await client.query(
+          `DELETE FROM role_permissions WHERE role_id = $1 AND NOT (permission_id = ANY($2::uuid[]));`,
+          [roleId, permIds]
+        );
+        for (const pId of permIds) {
           await client.query(
             `INSERT INTO role_permissions (role_id, permission_id, created_at)
              VALUES ($1, $2, now())
@@ -648,20 +664,25 @@ export async function seedRoles(): Promise<void> {
       // 6. Patient profile (if patient)
       if (p.patientProfile) {
         const pat = p.patientProfile;
+        const bloodTypeO = (
+          await client.query("SELECT id FROM blood_types WHERE code = 'o' LIMIT 1;")
+        ).rows[0]?.id;
+
         await client.query(
           `
           INSERT INTO patient_profiles (
             user_id, medical_record_number, full_name, email, birth_date,
-            gender, blood_type, status, registered_at, created_at, updated_at
+            gender, blood_type_id, status, registered_at, created_at, updated_at
           )
-          VALUES ($1, $2, $3, $4, $5, $6, 'o', 'active', now(), now(), now())
+          VALUES ($1, $2, $3, $4, $5, $6, $7, 'active', now(), now(), now())
           ON CONFLICT (medical_record_number) DO UPDATE
           SET user_id = EXCLUDED.user_id,
               full_name = EXCLUDED.full_name,
+              blood_type_id = EXCLUDED.blood_type_id,
               status = 'active',
               updated_at = now();
           `,
-          [p.userId, pat.mrn, pat.fullName, p.email, pat.birthDate, pat.gender]
+          [p.userId, pat.mrn, pat.fullName, p.email, pat.birthDate, pat.gender, bloodTypeO || null]
         );
       }
 

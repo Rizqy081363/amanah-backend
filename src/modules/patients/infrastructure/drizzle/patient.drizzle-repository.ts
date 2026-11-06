@@ -21,6 +21,7 @@ import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
   appointments,
+  bloodTypes,
   patientAddresses,
   patientAffiliations,
   patientEmergencyContacts,
@@ -51,6 +52,23 @@ export class PatientDrizzleRepository implements PatientRepository {
     private readonly nikSecurity: NikSecurityService,
   ) {}
 
+  private async resolveBloodTypeId(input?: string | null): Promise<string | null> {
+    if (!input) return null;
+    const clean = input.trim();
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clean)) {
+      return clean;
+    }
+    const normalizedCode = normalizeBloodTypeToDb(clean);
+    const row = await this.db.query.bloodTypes.findFirst({
+      where: or(
+        eq(bloodTypes.code, normalizedCode),
+        eq(bloodTypes.name, clean),
+        eq(bloodTypes.code, clean.toLowerCase()),
+      ),
+    });
+    return row?.id ?? null;
+  }
+
   private mapRecordToEntity(record: any): PatientEntity {
     return PatientRecordMapper.toEntity(record, this.nikSecurity);
   }
@@ -63,6 +81,7 @@ export class PatientDrizzleRepository implements PatientRepository {
       `RM-${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(Math.floor(Math.random() * 9000) + 1000)}`;
 
     const securedNik = data.nik ? this.nikSecurity.secure(data.nik) : null;
+    const bloodTypeId = await this.resolveBloodTypeId(data.bloodType || 'unknown');
 
     const [record] = await this.db
       .insert(patientProfiles)
@@ -75,7 +94,7 @@ export class PatientDrizzleRepository implements PatientRepository {
         gender: data.gender,
         birthPlace: data.birthPlace,
         birthDate: data.birthDate,
-        bloodType: 'unknown',
+        bloodTypeId,
         phone: data.phone || null,
         motherName: data.motherName || null,
         occupation: data.occupation || null,
@@ -158,7 +177,7 @@ export class PatientDrizzleRepository implements PatientRepository {
     const rmNumber = `${prefix}${String(nextSequence).padStart(4, '0')}`;
 
     const dbGender = dto.gender;
-    const dbBloodType = normalizeBloodTypeToDb(dto.blood_type);
+    const bloodTypeId = await this.resolveBloodTypeId(dto.blood_type || (dto as any).bloodType);
 
     let phoneToUse = dto.phone?.trim() || '';
     if (!phoneToUse) {
@@ -182,7 +201,7 @@ export class PatientDrizzleRepository implements PatientRepository {
         gender: dbGender,
         birthPlace: dto.birthPlace.trim(),
         birthDate: dto.birthDate || dto.birth_date || '',
-        bloodType: dbBloodType,
+        bloodTypeId,
         phone: phoneToUse,
         motherName: dto.motherName.trim(),
         occupation: dto.occupation.trim(),
@@ -481,7 +500,7 @@ export class PatientDrizzleRepository implements PatientRepository {
     }
 
     if (d.bloodType !== undefined) {
-      updateValues.bloodType = normalizeBloodTypeToDb(d.bloodType);
+      updateValues.bloodTypeId = await this.resolveBloodTypeId(d.bloodType);
     }
 
     if (d.occupation !== undefined)
@@ -712,8 +731,10 @@ export class PatientDrizzleRepository implements PatientRepository {
     }
 
     if (query.bloodType && query.bloodType !== 'all') {
-      const normalizedBlood = normalizeBloodTypeToDb(query.bloodType);
-      conditions.push(eq(patientProfiles.bloodType, normalizedBlood));
+      const resolvedId = await this.resolveBloodTypeId(query.bloodType);
+      if (resolvedId) {
+        conditions.push(eq(patientProfiles.bloodTypeId, resolvedId));
+      }
     }
 
     if (query.email?.trim()) {
@@ -827,7 +848,7 @@ export class PatientDrizzleRepository implements PatientRepository {
         birthPlace: patientProfiles.birthPlace,
         motherName: patientProfiles.motherName,
         occupation: patientProfiles.occupation,
-        bloodType: patientProfiles.bloodType,
+        bloodType: bloodTypes.name,
         phone: patientProfiles.phone,
         status: patientProfiles.status,
         registeredAt: patientProfiles.registeredAt,
@@ -968,6 +989,7 @@ export class PatientDrizzleRepository implements PatientRepository {
         )`,
       })
       .from(patientProfiles)
+      .leftJoin(bloodTypes, eq(patientProfiles.bloodTypeId, bloodTypes.id))
       .where(whereClause)
       .orderBy(...orderClauses)
       .limit(limit)
@@ -1076,7 +1098,7 @@ export class PatientDrizzleRepository implements PatientRepository {
             birthPlace: patientProfiles.birthPlace,
             motherName: patientProfiles.motherName,
             occupation: patientProfiles.occupation,
-            bloodType: patientProfiles.bloodType,
+            bloodType: bloodTypes.name,
             phone: patientProfiles.phone,
             status: patientProfiles.status,
             registeredAt: patientProfiles.registeredAt,
@@ -1196,6 +1218,10 @@ export class PatientDrizzleRepository implements PatientRepository {
               patientAffiliations.relationshipTypeId,
               patientRelationshipTypes.id,
             ),
+          )
+          .leftJoin(
+            bloodTypes,
+            eq(patientProfiles.bloodTypeId, bloodTypes.id),
           )
           .where(
             and(

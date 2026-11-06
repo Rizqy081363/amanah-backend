@@ -34,6 +34,7 @@ import {
   UserStatus,
 } from '../../../../common/constants';
 import {
+  UserAffiliationSummary,
   UserDirectoryEntity,
   UserListPaginatedResult,
   UserRoleSummary,
@@ -92,6 +93,11 @@ export class UserManagementDrizzleRepository
       : null;
 
     const patientProfileRec = rec.patientProfiles?.[0];
+    const patientAddressRec =
+      patientProfileRec?.patientAddresses?.find((a: any) => a.isPrimary) ||
+      patientProfileRec?.patientAddresses?.[0];
+    const patientEmergencyRec = patientProfileRec?.patientEmergencyContacts?.[0];
+
     const patientProfile = patientProfileRec
       ? {
           id: patientProfileRec.id,
@@ -101,12 +107,43 @@ export class UserManagementDrizzleRepository
           birthPlace: patientProfileRec.birthPlace,
           birthDate: patientProfileRec.birthDate,
           gender: patientProfileRec.gender,
-          bloodType: patientProfileRec.bloodType,
-          occupation: patientProfileRec.occupation,
+          bloodType: patientProfileRec.bloodType?.name ?? null,
+          bloodTypeId: patientProfileRec.bloodTypeId ?? null,
+          bloodTypeCode: patientProfileRec.bloodType?.code ?? null,
+          occupation: patientProfileRec.occupation?.name ?? patientProfileRec.occupation ?? null,
+          occupationId: patientProfileRec.occupationId ?? null,
           visitCount: patientProfileRec.visitCount ?? 0,
           lastVisitAt: patientProfileRec.lastVisitAt,
+          address: patientAddressRec
+            ? {
+                fullAddress: patientAddressRec.fullAddress || patientAddressRec.line1,
+                provinceName: patientAddressRec.provinceName ?? null,
+                regencyName: patientAddressRec.regencyName ?? null,
+                districtName: patientAddressRec.districtName ?? null,
+                villageName: patientAddressRec.villageName ?? null,
+              }
+            : null,
+          emergencyContact: patientEmergencyRec
+            ? {
+                name: patientEmergencyRec.name,
+                relationship: patientEmergencyRec.relationship ?? null,
+                phone: patientEmergencyRec.phone,
+              }
+            : null,
         }
       : null;
+
+    const affiliations: UserAffiliationSummary[] = (rec.patientAffiliations || [])
+      .filter((aff: any) => aff.patientProfile)
+      .map((aff: any) => ({
+        id: aff.id,
+        patientId: aff.patientProfile.id,
+        fullName: aff.patientProfile.fullName,
+        medicalRecordNumber: aff.patientProfile.medicalRecordNumber,
+        relationshipName: aff.relationshipType?.name || aff.relationLabel || 'Anggota Keluarga',
+        relationLabel: aff.relationLabel ?? null,
+        isPrimary: aff.isPrimary ?? false,
+      }));
 
     return {
       id: rec.id,
@@ -127,6 +164,7 @@ export class UserManagementDrizzleRepository
       staffProfile,
       patientProfileId: patientProfile?.id ?? null,
       patientProfile,
+      patientAffiliations: affiliations,
       lastLoginAt: rec.lastLoginAt,
       createdAt: rec.createdAt,
       updatedAt: rec.updatedAt,
@@ -224,7 +262,20 @@ export class UserManagementDrizzleRepository
             clinicUnit: true,
           },
         },
-        patientProfiles: true,
+        patientProfiles: {
+          with: {
+            bloodType: true,
+            occupation: true,
+            patientAddresses: true,
+            patientEmergencyContacts: true,
+          },
+        },
+        patientAffiliations: {
+          with: {
+            patientProfile: true,
+            relationshipType: true,
+          },
+        },
       },
     });
 
@@ -252,7 +303,20 @@ export class UserManagementDrizzleRepository
             clinicUnit: true,
           },
         },
-        patientProfiles: true,
+        patientProfiles: {
+          with: {
+            bloodType: true,
+            occupation: true,
+            patientAddresses: true,
+            patientEmergencyContacts: true,
+          },
+        },
+        patientAffiliations: {
+          with: {
+            patientProfile: true,
+            relationshipType: true,
+          },
+        },
       },
     });
 
@@ -275,7 +339,20 @@ export class UserManagementDrizzleRepository
             clinicUnit: true,
           },
         },
-        patientProfiles: true,
+        patientProfiles: {
+          with: {
+            bloodType: true,
+            occupation: true,
+            patientAddresses: true,
+            patientEmergencyContacts: true,
+          },
+        },
+        patientAffiliations: {
+          with: {
+            patientProfile: true,
+            relationshipType: true,
+          },
+        },
       },
     });
 
@@ -293,8 +370,25 @@ export class UserManagementDrizzleRepository
             role: true,
           },
         },
-        staffProfiles: true,
-        patientProfiles: true,
+        staffProfiles: {
+          with: {
+            clinicUnit: true,
+          },
+        },
+        patientProfiles: {
+          with: {
+            bloodType: true,
+            occupation: true,
+            patientAddresses: true,
+            patientEmergencyContacts: true,
+          },
+        },
+        patientAffiliations: {
+          with: {
+            patientProfile: true,
+            relationshipType: true,
+          },
+        },
       },
     });
 

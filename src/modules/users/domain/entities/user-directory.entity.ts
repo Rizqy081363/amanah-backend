@@ -25,6 +25,20 @@ export interface UserStaffSummary {
   primaryUnitName?: string | null;
 }
 
+export interface UserPatientAddressSummary {
+  fullAddress: string;
+  provinceName?: string | null;
+  regencyName?: string | null;
+  districtName?: string | null;
+  villageName?: string | null;
+}
+
+export interface UserPatientEmergencyContactSummary {
+  name: string;
+  relationship?: string | null;
+  phone: string;
+}
+
 export interface UserPatientSummary {
   id: string;
   medicalRecordNumber: string;
@@ -34,9 +48,24 @@ export interface UserPatientSummary {
   birthDate?: string | null;
   gender?: string | null;
   bloodType?: string | null;
+  bloodTypeId?: string | null;
+  bloodTypeCode?: string | null;
   occupation?: string | null;
+  occupationId?: string | null;
   visitCount?: number;
   lastVisitAt?: string | null;
+  address?: UserPatientAddressSummary | null;
+  emergencyContact?: UserPatientEmergencyContactSummary | null;
+}
+
+export interface UserAffiliationSummary {
+  id: string;
+  patientId: string;
+  fullName: string;
+  medicalRecordNumber: string;
+  relationshipName: string;
+  relationLabel?: string | null;
+  isPrimary: boolean;
 }
 
 export class UserDirectoryEntity {
@@ -58,6 +87,7 @@ export class UserDirectoryEntity {
   staffProfile?: UserStaffSummary | null;
   patientProfileId?: string | null;
   patientProfile?: UserPatientSummary | null;
+  patientAffiliations: UserAffiliationSummary[];
   lastLoginAt?: string | null;
   createdAt: string;
   updatedAt: string;

@@ -34,6 +34,7 @@ export interface AuthenticatedPatientProfile {
   birthPlace?: string | null;
   birthDate?: string | Date | null;
   bloodType?: string | null;
+  bloodTypeId?: string | null;
   phoneNumber?: string | null;
   status?: string | null;
 }

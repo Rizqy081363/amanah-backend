@@ -4,7 +4,7 @@ import { asc, eq, sql } from 'drizzle-orm';
 import {
   HybridAuthGuard,
   PermissionsGuard,
-  RequirePermissions,
+  Public,
 } from '../../../common/auth';
 import { DRIZZLE_SOURCE } from '../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../database/drizzle/drizzle.provider';
@@ -24,8 +24,8 @@ import { IndonesianRegionService } from '../infrastructure/services/indonesian-r
 
 @ApiTags('Patient Demographic & Region References')
 @ApiBearerAuth('access-token')
+@Public()
 @UseGuards(HybridAuthGuard, PermissionsGuard)
-@RequirePermissions('app:access')
 @Controller({ path: 'patients/reference', version: '1' })
 export class PatientReferencesController {
   constructor(

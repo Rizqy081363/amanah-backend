@@ -89,6 +89,7 @@ export class AuthAccountLifecycleService {
         },
         patientProfiles: {
           with: {
+            bloodType: true,
             patientAddresses: true,
             patientEmergencyContacts: true,
           },

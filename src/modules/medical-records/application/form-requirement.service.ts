@@ -3,6 +3,7 @@ import { desc, eq } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../database/drizzle/drizzle.provider';
 import {
+  bloodTypes,
   childImmunizationIntakes,
   clinicServices,
   maternalHealthIntakes,
@@ -68,8 +69,21 @@ export class FormRequirementService {
     }
 
     const [patient] = await this.db
-      .select()
+      .select({
+        id: patientProfiles.id,
+        fullName: patientProfiles.fullName,
+        gender: patientProfiles.gender,
+        birthDate: patientProfiles.birthDate,
+        nationalIdEncrypted: patientProfiles.nationalIdEncrypted,
+        nationalIdHash: patientProfiles.nationalIdHash,
+        motherName: patientProfiles.motherName,
+        phone: patientProfiles.phone,
+        email: patientProfiles.email,
+        occupation: patientProfiles.occupation,
+        bloodTypeName: bloodTypes.name,
+      })
       .from(patientProfiles)
+      .leftJoin(bloodTypes, eq(patientProfiles.bloodTypeId, bloodTypes.id))
       .where(eq(patientProfiles.id, patientId))
       .limit(1);
 
@@ -101,9 +115,7 @@ export class FormRequirementService {
       primaryAddress?.fullAddress || primaryAddress?.line1 || '';
 
     const normalizedGender = patient.gender || null;
-
-    const rawBlood = patient.bloodType as string | null | undefined;
-    const normalizedBlood = formatBloodTypeDisplay(rawBlood);
+    const normalizedBlood = patient.bloodTypeName || 'Belum Tahu';
 
     const patientNik = patient.nationalIdEncrypted
       ? this.nikSecurity.decrypt(patient.nationalIdEncrypted) || ''

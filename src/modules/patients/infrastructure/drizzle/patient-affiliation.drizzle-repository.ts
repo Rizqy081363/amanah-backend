@@ -75,8 +75,10 @@ export class PatientAffiliationDrizzleRepository
   async findByUserAndPatient(
     userId: string,
     patientId: string,
+    tx?: unknown,
   ): Promise<PatientAffiliationEntity | null> {
-    const record = await this.db.query.patientAffiliations.findFirst({
+    const client = (tx as DrizzleDatabase) || this.db;
+    const record = await client.query.patientAffiliations.findFirst({
       where: and(
         eq(patientAffiliations.userId, userId),
         eq(patientAffiliations.patientId, patientId),
@@ -121,9 +123,12 @@ export class PatientAffiliationDrizzleRepository
 
   async create(
     params: CreateAffiliationParams,
+    tx?: unknown,
   ): Promise<PatientAffiliationEntity> {
+    const client = (tx as DrizzleDatabase) || this.db;
+
     if (params.isPrimary) {
-      await this.db
+      await client
         .update(patientAffiliations)
         .set({ isPrimary: false, updatedAt: new Date().toISOString() })
         .where(eq(patientAffiliations.userId, params.userId));
@@ -131,7 +136,7 @@ export class PatientAffiliationDrizzleRepository
 
     let targetRelationshipTypeId = params.relationshipTypeId;
     if (!targetRelationshipTypeId && params.relationshipType) {
-      const found = await this.db.query.patientRelationshipTypes.findFirst({
+      const found = await client.query.patientRelationshipTypes.findFirst({
         where: eq(
           patientRelationshipTypes.code,
           params.relationshipType.toLowerCase(),
@@ -143,7 +148,7 @@ export class PatientAffiliationDrizzleRepository
     }
     if (!targetRelationshipTypeId && params.isPrimary) {
       const primaryType =
-        await this.db.query.patientRelationshipTypes.findFirst({
+        await client.query.patientRelationshipTypes.findFirst({
           where: eq(patientRelationshipTypes.isSystem, true),
           orderBy: [asc(patientRelationshipTypes.displayOrder)],
         });
@@ -151,7 +156,7 @@ export class PatientAffiliationDrizzleRepository
     }
     if (!targetRelationshipTypeId) {
       const fallbackAny =
-        await this.db.query.patientRelationshipTypes.findFirst({
+        await client.query.patientRelationshipTypes.findFirst({
           where: eq(patientRelationshipTypes.isActive, true),
           orderBy: [asc(patientRelationshipTypes.displayOrder)],
         });
@@ -163,7 +168,7 @@ export class PatientAffiliationDrizzleRepository
       );
     }
 
-    const [record] = await this.db
+    const [record] = await client
       .insert(patientAffiliations)
       .values({
         userId: params.userId,
@@ -186,6 +191,7 @@ export class PatientAffiliationDrizzleRepository
     const created = await this.findByUserAndPatient(
       record.userId,
       record.patientId,
+      client,
     );
     return created!;
   }
@@ -193,14 +199,16 @@ export class PatientAffiliationDrizzleRepository
   async update(
     id: string,
     params: Partial<CreateAffiliationParams>,
+    tx?: unknown,
   ): Promise<PatientAffiliationEntity | null> {
-    const existing = await this.db.query.patientAffiliations.findFirst({
+    const client = (tx as DrizzleDatabase) || this.db;
+    const existing = await client.query.patientAffiliations.findFirst({
       where: eq(patientAffiliations.id, id),
     });
     if (!existing) return null;
 
     if (params.isPrimary) {
-      await this.db
+      await client
         .update(patientAffiliations)
         .set({ isPrimary: false, updatedAt: new Date().toISOString() })
         .where(eq(patientAffiliations.userId, existing.userId));
@@ -212,7 +220,7 @@ export class PatientAffiliationDrizzleRepository
     if (params.relationshipTypeId) {
       updateSet.relationshipTypeId = params.relationshipTypeId;
     } else if (params.relationshipType) {
-      const found = await this.db.query.patientRelationshipTypes.findFirst({
+      const found = await client.query.patientRelationshipTypes.findFirst({
         where: eq(
           patientRelationshipTypes.code,
           params.relationshipType.toLowerCase(),
@@ -229,16 +237,21 @@ export class PatientAffiliationDrizzleRepository
       updateSet.isPrimary = params.isPrimary;
     }
 
-    await this.db
+    await client
       .update(patientAffiliations)
       .set(updateSet)
       .where(eq(patientAffiliations.id, id));
 
-    return this.findByUserAndPatient(existing.userId, existing.patientId);
+    return this.findByUserAndPatient(existing.userId, existing.patientId, client);
   }
 
-  async delete(userId: string, patientId: string): Promise<boolean> {
-    const deleted = await this.db
+  async delete(
+    userId: string,
+    patientId: string,
+    tx?: unknown,
+  ): Promise<boolean> {
+    const client = (tx as DrizzleDatabase) || this.db;
+    const deleted = await client
       .delete(patientAffiliations)
       .where(
         and(

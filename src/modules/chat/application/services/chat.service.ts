@@ -60,11 +60,28 @@ export class ChatService {
       );
     }
 
+    const normalizedEmail = params.email.trim();
+
+    // Idempotensi tamu: cegah pembuatan percakapan baru jika tamu dengan email sama sudah memiliki percakapan terbuka
+    const existingByEmail =
+      await this.chatRepo.findOpenConversationByGuestEmail(normalizedEmail);
+    if (existingByEmail) {
+      return existingByEmail;
+    }
+
+    if (params.guestId) {
+      const existingByGuestId =
+        await this.chatRepo.findOpenConversationByGuestId(params.guestId);
+      if (existingByGuestId) {
+        return existingByGuestId;
+      }
+    }
+
     const guestId = params.guestId || randomUUID();
     return this.chatRepo.createConversation({
       guestId,
       guestName: params.name?.trim() || 'Tamu',
-      guestEmail: params.email.trim(),
+      guestEmail: normalizedEmail,
     });
   }
 

@@ -61,7 +61,11 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
             },
           },
         },
-        patientProfiles: true,
+        patientProfiles: {
+          with: {
+            bloodType: true,
+          },
+        },
       },
     });
 
@@ -187,7 +191,8 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
             gender: patientProfile.gender || null,
             birthPlace: patientProfile.birthPlace,
             birthDate: patientProfile.birthDate,
-            bloodType: patientProfile.bloodType,
+            bloodType: (patientProfile as any).bloodType?.name || null,
+            bloodTypeId: patientProfile.bloodTypeId,
             phoneNumber: patientProfile.phone,
             status: patientProfile.status,
           }

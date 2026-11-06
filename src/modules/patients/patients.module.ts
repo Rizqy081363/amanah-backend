@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { CreatePatientAffiliationUseCase } from './application/use-cases/create-patient-affiliation.use-case';
 import { PATIENT_REPOSITORY } from './domain/repositories/patient.repository';
 import { PATIENT_AFFILIATION_REPOSITORY } from './domain/repositories/patient-affiliation.repository';
 import { PatientDrizzleRepository } from './infrastructure/drizzle/patient.drizzle-repository';
@@ -18,6 +19,7 @@ import { PatientsController } from './presentation/patients.controller';
   ],
   providers: [
     IndonesianRegionService,
+    CreatePatientAffiliationUseCase,
     {
       provide: PATIENT_REPOSITORY,
       useClass: PatientDrizzleRepository,
@@ -28,6 +30,7 @@ import { PatientsController } from './presentation/patients.controller';
     },
   ],
   exports: [
+    CreatePatientAffiliationUseCase,
     PATIENT_REPOSITORY,
     PATIENT_AFFILIATION_REPOSITORY,
     IndonesianRegionService,

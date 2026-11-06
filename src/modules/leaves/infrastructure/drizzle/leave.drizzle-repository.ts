@@ -7,6 +7,14 @@ import {
   Optional,
 } from '@nestjs/common';
 import { and, desc, eq, gte, inArray, lte } from 'drizzle-orm';
+import {
+  LeaveClinicClosedException,
+  LeaveNoticeDaysRequiredException,
+  LeaveOverlappingConflictException,
+  LeavePreviousPeriodActiveException,
+  LeaveQuotaExceededException,
+  LeaveScheduleUnavailableException,
+} from '../../domain/exceptions/leave-policy.exceptions';
 import { RedisService } from '../../../../common/redis/redis.service';
 import { ClinicTimeService } from '../../../../common/time/clinic-time.service';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
@@ -422,34 +430,37 @@ export class LeaveDrizzleRepository implements LeaveRepository {
     }
 
     if (!anyOperatingDayOpen) {
-      throw new BadRequestException(
-        'Klinik tutup pada seluruh tanggal yang dipilih. Tidak dapat mengajukan cuti pada hari libur operasional klinik.',
-      );
+      throw new LeaveClinicClosedException();
     }
 
     if (totalEligibleSessionsAcrossRange === 0) {
       if (anyAttendedToday) {
-        throw new BadRequestException(
+        throw new LeaveScheduleUnavailableException(
           'Anda telah melakukan check-in atau menyelesaikan kehadiran pada sesi dinas hari ini. Permohonan izin tidak dapat diajukan untuk sesi yang sudah dihadiri.',
+          'ALREADY_ATTENDED',
         );
       }
       if (anyElapsedToday) {
-        throw new BadRequestException(
+        throw new LeaveScheduleUnavailableException(
           'Shift dinas pada tanggal yang dipilih telah berakhir. Permohonan izin tidak dapat diajukan untuk sesi yang sudah lewat.',
+          'SESSION_ELAPSED',
         );
       }
       if (anyOverriddenByLeaveException) {
-        throw new BadRequestException(
+        throw new LeaveScheduleUnavailableException(
           'Jadwal dinas pada tanggal yang dipilih telah berstatus cuti atau dinonaktifkan.',
+          'ALREADY_LEAVE_EXCEPTION',
         );
       }
       if (anyCustomRosterDayOff) {
-        throw new BadRequestException(
+        throw new LeaveScheduleUnavailableException(
           'Anda tidak memiliki jadwal dinas aktif pada tanggal yang dipilih.',
+          'ROSTER_DAY_OFF',
         );
       }
-      throw new BadRequestException(
+      throw new LeaveScheduleUnavailableException(
         'Tidak dapat mengajukan cuti pada jadwal yang tidak aktif atau sudah ditutup.',
+        'SCHEDULE_INACTIVE',
       );
     }
 
@@ -466,8 +477,9 @@ export class LeaveDrizzleRepository implements LeaveRepository {
       const eligibleSessIds = new Set(eligibleOnStart.map((s) => s.sessionId));
       for (const reqSessId of data.sessionIds) {
         if (!eligibleSessIds.has(reqSessId)) {
-          throw new BadRequestException(
+          throw new LeaveScheduleUnavailableException(
             'Sesi yang dipilih sudah ditutup atau tidak aktif dalam jadwal dinas Anda.',
+            'SESSION_NOT_FOUND',
           );
         }
       }
@@ -522,8 +534,9 @@ export class LeaveDrizzleRepository implements LeaveRepository {
           );
           const minDateStr = minDate.toISOString().slice(0, 10);
           if (data.startDate < minDateStr) {
-            throw new BadRequestException(
-              `Kebijakan klinik mewajibkan permohonan izin diajukan minimal ${noticeDaysRequired} hari sebelum tanggal mulai izin (paling cepat tanggal ${minDateStr}).`,
+            throw new LeaveNoticeDaysRequiredException(
+              noticeDaysRequired,
+              minDateStr,
             );
           }
         }
@@ -571,8 +584,10 @@ export class LeaveDrizzleRepository implements LeaveRepository {
           if (currentUsedQuota + additionalQuota > policy.monthlyLimit) {
             const unit =
               policy.quotaCountingPolicy === 'per_session' ? 'sesi' : 'kali';
-            throw new BadRequestException(
-              `Batas maksimum cuti bulanan (${policy.monthlyLimit} ${unit}) telah tercapai untuk periode ini (sudah digunakan: ${currentUsedQuota} ${unit})`,
+            throw new LeaveQuotaExceededException(
+              policy.monthlyLimit,
+              currentUsedQuota,
+              unit,
             );
           }
         }
@@ -595,9 +610,7 @@ export class LeaveDrizzleRepository implements LeaveRepository {
               latest.startDate === latest.endDate
                 ? latest.startDate
                 : `${latest.startDate} s/d ${latest.endDate}`;
-            throw new BadRequestException(
-              `Kebijakan klinik mewajibkan masa periode cuti sebelumnya (${dateRangeLabel}) selesai terlebih dahulu sebelum dapat mengajukan permohonan izin baru.`,
-            );
+            throw new LeavePreviousPeriodActiveException(dateRangeLabel);
           }
         }
 
@@ -636,14 +649,15 @@ export class LeaveDrizzleRepository implements LeaveRepository {
           if (isConflicting) {
             const statusLabel =
               existing.status === 'pending'
-                ? 'menunggu persetujuan (pending)'
-                : 'telah disetujui';
+                ? 'pending'
+                : 'approved';
             const dateRangeLabel =
               existing.startDate === existing.endDate
                 ? existing.startDate
                 : `${existing.startDate} s/d ${existing.endDate}`;
-            throw new BadRequestException(
-              `Anda memiliki permohonan izin yang ${statusLabel} pada rentang tanggal/sesi tersebut (${dateRangeLabel}). Tidak dapat mengajukan permohonan cuti baru yang tumpang tindih.`,
+            throw new LeaveOverlappingConflictException(
+              dateRangeLabel,
+              statusLabel,
             );
           }
         }

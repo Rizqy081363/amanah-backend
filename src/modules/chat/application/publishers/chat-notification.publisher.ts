@@ -1,5 +1,16 @@
 import { randomUUID } from 'node:crypto';
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { and, eq, inArray, isNull } from 'drizzle-orm';
+import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
+import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
+import {
+  permissions,
+  rolePermissions,
+  roles,
+  staffProfiles,
+  userRoles,
+  users,
+} from '../../../../database/schema';
 import { NotificationGatewayService } from '../../../notifications/application/services/notification-gateway.service';
 import {
   type DomainEvent,
@@ -24,6 +35,9 @@ export class ChatNotificationPublisher {
     private readonly notificationPublisher?: NotificationPublisher,
     @Optional()
     private readonly notificationGateway?: NotificationGatewayService,
+    @Optional()
+    @Inject(DRIZZLE_SOURCE)
+    private readonly db?: DrizzleDatabase,
   ) {
     this.logger.log(
       `ChatNotificationPublisher initialized: hasPublisher=${Boolean(this.notificationPublisher)} hasGateway=${Boolean(this.notificationGateway)}`,
@@ -77,64 +91,142 @@ export class ChatNotificationPublisher {
       }
     }
 
-    // 2. Dispatch via RabbitMQ Notification Gateway (for mobile / browser Web Push)
+    // 2. Dispatch via RabbitMQ Notification Gateway (Push Notification with strict Access Control)
     if (this.notificationGateway) {
       try {
         const senderActorUserId =
           actor?.userId || message.senderUserId || undefined;
         const excludedUserIds = senderActorUserId ? [senderActorUserId] : [];
 
+        // KASUS A: Balasan Admin ke Pasien Terdaftar / Email Terdaftar (Internal -> External)
+        if (message.senderRole === CHAT_SENDER_ROLE.INTERNAL) {
+          let targetPatientUserId = conversation.userId;
+          if (!targetPatientUserId && conversation.guestEmail && this.db) {
+            const [matched] = await this.db
+              .select({ id: users.id })
+              .from(users)
+              .where(eq(users.email, conversation.guestEmail))
+              .limit(1);
+            if (matched?.id) {
+              targetPatientUserId = matched.id;
+            }
+          }
+
+          if (targetPatientUserId) {
+            await this.notificationGateway.dispatch({
+              commandId: `chat-reply-${message.id}-${Date.now()}`,
+              sourceDomain: 'chat',
+              target: {
+                type: 'user',
+                recipientUserIds: [targetPatientUserId],
+                excludedUserIds,
+              },
+              audience: NOTIFICATION_AUDIENCE.EXTERNAL,
+              category: 'support',
+              content: {
+                title: 'Pesan Baru dari Klinik Amanah',
+                body: message.body,
+                actionUrl: `/klinik/chat?conversationId=${conversation.id}`,
+                data: {
+                  conversationId: conversation.id,
+                  messageId: message.id,
+                },
+              },
+              channels: ['push'],
+            });
+          }
+        }
+
+        // KASUS B: Pesan Pasien Masuk untuk Staf/Admin Klinik (External -> Internal)
+        // Access Control Ketat: HANYA kirim push ke staf yang ditugaskan (assigned staff) atau Administrator yang berwenang
         if (message.senderRole === CHAT_SENDER_ROLE.EXTERNAL) {
-          await this.notificationGateway.dispatch({
-            commandId: `chat-${message.id}-${Date.now()}`,
-            sourceDomain: 'chat',
-            target: {
-              type: 'broadcast',
-              excludedUserIds,
-            },
-            audience: NOTIFICATION_AUDIENCE.INTERNAL,
-            category: 'support',
-            content: {
-              title: `Pesan Chat: ${senderName}`,
-              body: message.body,
-              actionUrl: `/admin/chat?conversationId=${conversation.id}`,
-              data: {
-                conversationId: conversation.id,
-                messageId: message.id,
+          const authorizedStaffIds = await this.resolveAuthorizedChatStaffUserIds(
+            conversation.assignedStaffId,
+          );
+
+          if (authorizedStaffIds.length > 0) {
+            await this.notificationGateway.dispatch({
+              commandId: `chat-${message.id}-${Date.now()}`,
+              sourceDomain: 'chat',
+              target: {
+                type: 'user',
+                recipientUserIds: authorizedStaffIds,
+                excludedUserIds,
               },
-            },
-            channels: ['push'],
-          });
-        } else if (
-          message.senderRole === CHAT_SENDER_ROLE.INTERNAL &&
-          conversation.userId
-        ) {
-          await this.notificationGateway.dispatch({
-            commandId: `chat-reply-${message.id}-${Date.now()}`,
-            sourceDomain: 'chat',
-            target: {
-              type: 'user',
-              recipientUserIds: [conversation.userId],
-              excludedUserIds,
-            },
-            category: 'support',
-            content: {
-              title: 'Pesan Baru dari Klinik Amanah',
-              body: message.body,
-              actionUrl: `/klinik/chat?conversationId=${conversation.id}`,
-              data: {
-                conversationId: conversation.id,
-                messageId: message.id,
+              audience: NOTIFICATION_AUDIENCE.INTERNAL,
+              category: 'support',
+              content: {
+                title: `Pesan Chat: ${senderName}`,
+                body: message.body,
+                actionUrl: `/admin/chat?conversationId=${conversation.id}`,
+                data: {
+                  conversationId: conversation.id,
+                  messageId: message.id,
+                },
               },
-            },
-            channels: ['push'],
-          });
+              channels: ['push'],
+            });
+          }
         }
       } catch (gatewayError) {
         this.logger.warn(
           `Failed to dispatch chat push command: ${gatewayError}`,
         );
       }
+    }
+  }
+
+  private async resolveAuthorizedChatStaffUserIds(
+    assignedStaffId?: string | null,
+  ): Promise<string[]> {
+    if (!this.db) {
+      return [];
+    }
+
+    try {
+      // 1. Jika ada staf spesifik yang ditugaskan pada percakapan ini
+      if (assignedStaffId) {
+        const [assigned] = await this.db
+          .select({ userId: staffProfiles.userId })
+          .from(staffProfiles)
+          .where(eq(staffProfiles.id, assignedStaffId))
+          .limit(1);
+
+        if (assigned?.userId) {
+          return [assigned.userId];
+        }
+      }
+
+      // 2. Jika tidak ada staf spesifik, ambil pengguna internal aktif yang memiliki izin chat (RBAC dinamis)
+      const authorizedStaff = await this.db
+        .select({ userId: userRoles.userId })
+        .from(userRoles)
+        .innerJoin(roles, eq(userRoles.roleId, roles.id))
+        .innerJoin(rolePermissions, eq(roles.id, rolePermissions.roleId))
+        .innerJoin(
+          permissions,
+          eq(rolePermissions.permissionId, permissions.id),
+        )
+        .where(
+          and(
+            inArray(permissions.code, ['chat:read', 'chat:send']),
+            eq(roles.audience, NOTIFICATION_AUDIENCE.INTERNAL),
+            isNull(userRoles.revokedAt),
+          ),
+        );
+
+      return [
+        ...new Set(
+          authorizedStaff
+            .map((r) => r.userId)
+            .filter((id): id is string => Boolean(id)),
+        ),
+      ];
+    } catch (err) {
+      this.logger.warn(
+        `Failed to resolve authorized chat staff user IDs: ${err}`,
+      );
+      return [];
     }
   }
 }
