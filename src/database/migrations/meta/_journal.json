@@ -638,6 +638,13 @@
       "when": 1791374000000,
       "tag": "0090_drop_roles_tier_and_parent_role",
       "breakpoints": true
+    },
+    {
+      "idx": 91,
+      "version": "7",
+      "when": 1791375000000,
+      "tag": "0091_canonical_application_page_uuids",
+      "breakpoints": true
     }
   ]
 }
