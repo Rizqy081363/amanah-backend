@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import {
   BadRequestException,
+  ForbiddenException,
   Inject,
   Injectable,
   Logger,
@@ -123,6 +124,7 @@ export class StaffInvitationService {
       where: and(
         eq(roles.audience, ROLE_AUDIENCE.INTERNAL),
         eq(roles.isActive, true),
+        eq(roles.isSystem, false),
       ),
       orderBy: [asc(roles.name)],
     });
@@ -191,6 +193,11 @@ export class StaffInvitationService {
     if (!targetRole.isActive) {
       throw new BadRequestException(
         'Peran yang dipilih sedang dinonaktifkan dan tidak dapat digunakan untuk penugasan undangan baru.',
+      );
+    }
+    if (targetRole.isSystem) {
+      throw new ForbiddenException(
+        'Peran administrator sistem tidak dapat diberikan melalui alur undangan staf operasional.',
       );
     }
 

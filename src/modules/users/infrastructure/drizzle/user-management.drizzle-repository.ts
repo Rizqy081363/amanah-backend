@@ -397,7 +397,7 @@ export class UserManagementDrizzleRepository
 
   async countActiveAdmins(excludeUserId?: string): Promise<number> {
     const conditions = [
-      eq(roles.code, 'admin'),
+      eq(roles.isSystem, true),
       eq(roles.isActive, true),
       eq(users.status, USER_STATUS.ACTIVE),
       sql`ur.revoked_at IS NULL`,
@@ -412,7 +412,7 @@ export class UserManagementDrizzleRepository
       FROM users u
       JOIN user_roles ur ON u.id = ur.user_id
       JOIN roles r ON ur.role_id = r.id
-      WHERE r.code = 'admin'
+      WHERE r.is_system = true
         AND r.is_active = true
         AND u.status = 'active'
         AND ur.revoked_at IS NULL
@@ -425,7 +425,7 @@ export class UserManagementDrizzleRepository
 
   async getAllActiveRoles(): Promise<UserRoleSummary[]> {
     const activeRoles = await this.db.query.roles.findMany({
-      where: eq(roles.isActive, true),
+      where: and(eq(roles.isActive, true), eq(roles.isSystem, false)),
       orderBy: [asc(roles.audience), asc(roles.tier), asc(roles.name)],
     });
 
@@ -469,9 +469,9 @@ export class UserManagementDrizzleRepository
       );
     }
 
-    // Guard 2: Last admin defense
+    // Guard 2: Last admin defense & system role assignment barrier
     const isCurrentAdmin = (existing.userRoles_userId || []).some(
-      (ur: any) => ur.role?.code === 'admin',
+      (ur: any) => ur.role?.isSystem === true,
     );
 
     if (isCurrentAdmin) {
@@ -480,7 +480,7 @@ export class UserManagementDrizzleRepository
 
       if (input.roleIds !== undefined) {
         const activeAdminRole = await this.db.query.roles.findFirst({
-          where: and(eq(roles.code, 'admin'), eq(roles.isActive, true)),
+          where: and(eq(roles.isSystem, true), eq(roles.isActive, true)),
         });
         if (activeAdminRole && !input.roleIds.includes(activeAdminRole.id)) {
           willLoseAdminRole = true;
@@ -492,6 +492,25 @@ export class UserManagementDrizzleRepository
         if (remainingAdmins < 1) {
           throw new ForbiddenException(
             'Tindakan ditolak: Tidak dapat mencabut peran atau menonaktifkan akun administrator aktif terakhir di sistem.',
+          );
+        }
+      }
+    }
+
+    // Guard 3: Reject assigning system roles via operational user update
+    if (input.roleIds !== undefined && input.roleIds.length > 0) {
+      const assignedRoles = await this.db.query.roles.findMany({
+        where: inArray(roles.id, input.roleIds),
+      });
+      const existingSystemRoleIds = new Set(
+        (existing.userRoles_userId || [])
+          .filter((ur: any) => ur.role?.isSystem === true)
+          .map((ur: any) => ur.roleId),
+      );
+      for (const r of assignedRoles) {
+        if (r.isSystem && !existingSystemRoleIds.has(r.id)) {
+          throw new ForbiddenException(
+            'Peran administrator sistem tidak dapat diberikan melalui alur pembaruan pengguna operasional.',
           );
         }
       }

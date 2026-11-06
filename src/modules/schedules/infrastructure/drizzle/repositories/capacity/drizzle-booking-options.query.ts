@@ -32,6 +32,7 @@ interface BookingPractitionerItem {
 }
 
 interface BookingOptionSessionItem {
+  sessionId: string;
   session: string;
   shift: string;
   label: string;
@@ -287,6 +288,7 @@ export class DrizzleBookingOptionsQuery {
       const capacity = Math.max(practitioners.length, sched ? 1 : 0);
 
       return {
+        sessionId: def.id,
         session: def.code,
         shift: def.code,
         label: def.label,
