@@ -87,6 +87,12 @@ export class CandidateAssignmentService implements ICandidateAssignmentPort {
       );
     }
 
+    if (targetDoc.staffProfile?.role && targetDoc.staffProfile.role.isClinical === false) {
+      throw new BadRequestException(
+        'Staf yang dipilih bukan merupakan tenaga medis klinis',
+      );
+    }
+
     // Check if target doctor is on leave on this service date
     const leaves = await this.repository.findActiveDoctorLeaves(
       apt.scheduledDate,

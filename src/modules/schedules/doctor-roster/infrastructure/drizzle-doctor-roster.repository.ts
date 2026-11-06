@@ -237,8 +237,8 @@ export class DrizzleDoctorRosterRepository implements DoctorRosterRepository {
           isActive = isTemplateActive;
           assignment = isTemplateActive ? genericAssignment : undefined;
         } else {
-          // Virtual Baseline: Doctor has no custom assignments, so they inherit the clinic master weekly template
-          isActive = isTemplateActive;
+          // Praktisi belum memiliki jadwal penugasan di DB: status sesi tidak aktif
+          isActive = false;
           assignment = undefined;
         }
 

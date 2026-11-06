@@ -148,6 +148,10 @@ export class CandidateResolverService implements ICandidateResolverPort {
     for (const p of allPractitioners) {
       // Don't show doctor if currently assigned as the patient's existing doctor
       if (p.id === apt.practitionerId) continue;
+      // Staf non-klinis (isClinical === false) tidak dapat ditugaskan sebagai dokter pemeriksa
+      if (p.staffProfile?.role && p.staffProfile.role.isClinical === false) {
+        continue;
+      }
 
       const staffProfId = p.staffProfileId || p.staffProfile?.id;
       // Check leave
