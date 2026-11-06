@@ -14,6 +14,7 @@ import {
   ChatRepositoryInterface,
   CreateChatMessageParams,
   CreateConversationParams,
+  CustomerConversationQueryParams,
   MessageQueryParams,
   PaginatedResult,
 } from '../../domain/repositories/chat.repository.interface';
@@ -242,6 +243,50 @@ export class ChatDrizzleRepository implements ChatRepositoryInterface {
       nextCursor,
       hasMore,
     };
+  }
+
+  async findCustomerConversations(
+    params: CustomerConversationQueryParams,
+  ): Promise<ConversationEntity[]> {
+    if (!params.userId && !params.guestId) {
+      return [];
+    }
+
+    const limit = Math.min(Math.max(params.limit || 30, 1), 100);
+    const condition = params.userId
+      ? eq(conversations.userId, params.userId)
+      : eq(conversations.guestId, params.guestId!);
+
+    const records = await this.db.query.conversations.findMany({
+      where: condition,
+      orderBy: [desc(conversations.createdAt)],
+      limit,
+      with: {
+        user: true,
+        patientProfile: true,
+        staffProfile: true,
+      },
+    });
+
+    const conversationIds = records.map((r) => r.id);
+    const previews = new Map<string, string>();
+
+    if (conversationIds.length > 0) {
+      for (const convId of conversationIds) {
+        const lastMsg = await this.db.query.messages.findFirst({
+          where: eq(messages.conversationId, convId),
+          orderBy: [desc(messages.createdAt)],
+          columns: {
+            body: true,
+          },
+        });
+        if (lastMsg) {
+          previews.set(convId, lastMsg.body);
+        }
+      }
+    }
+
+    return records.map((r) => this.mapConversation(r, previews.get(r.id)));
   }
 
   async findMessagesByConversationId(

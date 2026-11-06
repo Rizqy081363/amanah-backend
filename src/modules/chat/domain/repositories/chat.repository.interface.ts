@@ -44,6 +44,12 @@ export interface CreateChatMessageParams {
   authorSnapshot?: string;
 }
 
+export interface CustomerConversationQueryParams {
+  userId?: string;
+  guestId?: string;
+  limit?: number;
+}
+
 export interface ChatRepositoryInterface {
   findOpenConversationByUserId(
     userId: string,
@@ -59,6 +65,9 @@ export interface ChatRepositoryInterface {
   findAdminConversations(
     params: AdminConversationQueryParams,
   ): Promise<PaginatedResult<ConversationEntity>>;
+  findCustomerConversations(
+    params: CustomerConversationQueryParams,
+  ): Promise<ConversationEntity[]>;
   findMessagesByConversationId(
     conversationId: string,
     params: MessageQueryParams,

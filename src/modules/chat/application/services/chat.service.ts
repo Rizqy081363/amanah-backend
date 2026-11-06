@@ -81,6 +81,23 @@ export class ChatService {
     return null;
   }
 
+  async getCustomerConversations(caller: {
+    userId?: string;
+    guestId?: string;
+    limit?: number;
+  }): Promise<ConversationEntity[]> {
+    if (!caller.userId && !caller.guestId) {
+      throw new BadRequestException(
+        'Either authenticated user or guestId is required',
+      );
+    }
+    return this.chatRepo.findCustomerConversations({
+      userId: caller.userId,
+      guestId: caller.guestId,
+      limit: caller.limit,
+    });
+  }
+
   async getConversationMessages(
     conversationId: string,
     params: MessageQueryParams,

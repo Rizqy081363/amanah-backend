@@ -68,6 +68,24 @@ export class ChatController {
     return this.chatService.getActiveConversation(user?.id, guestId);
   }
 
+  @Get('conversations')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(OptionalJwtAuthGuard)
+  @ApiOperation({
+    summary: 'Mengambil riwayat sesi percakapan pasien atau tamu',
+  })
+  async getConversations(
+    @Query('guestId') guestId?: string,
+    @Query('limit') limit?: number,
+    @CurrentUser() user?: any,
+  ) {
+    return this.chatService.getCustomerConversations({
+      userId: user?.id,
+      guestId,
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
+
   @Get('conversations/:id/messages')
   @HttpCode(HttpStatus.OK)
   @UseGuards(OptionalJwtAuthGuard)
