@@ -1,4 +1,3 @@
-import { isUUID } from 'class-validator';
 import { z } from 'zod';
 
 export const TogglePageSchema = z.object({
@@ -10,7 +9,7 @@ export const TogglePageSchema = z.object({
 export type TogglePageInput = z.infer<typeof TogglePageSchema>;
 
 export const PageParamSchema = z.object({
-  id: z.string().refine((val) => isUUID(val), {
+  id: z.string().uuid({
     message: 'ID halaman harus berupa format UUID yang valid',
   }),
 });

@@ -25,6 +25,29 @@ export interface UpdateRoleInput {
   isDefault?: boolean;
 }
 
+export interface CreatePageData {
+  slug: string;
+  name: string;
+  description?: string | null;
+  routePath?: string;
+  parentPageId?: string | null;
+  audience?: RoleAudience;
+  customAlias?: string | null;
+  icon?: string | null;
+  displayOrder?: number;
+}
+
+export interface UpdatePageData {
+  name?: string;
+  description?: string | null;
+  icon?: string | null;
+  displayOrder?: number;
+  parentPageId?: string | null;
+  routePath?: string;
+  customAlias?: string | null;
+  isEnabled?: boolean;
+}
+
 export interface AccessControlRepository {
   findAllRoles(): Promise<RoleEntity[]>;
   findRoleTree(): Promise<RoleEntity[]>;
@@ -45,8 +68,13 @@ export interface AccessControlRepository {
   getEffectivePermissionsByRoleId(roleId: string): Promise<string[]>;
   getUserEffectivePermissions(userId: string): Promise<string[]>;
   findAllPages(): Promise<ApplicationPageEntity[]>;
+  findAllRouteAliases(): Promise<Record<string, string>>;
   findPageTree(audience?: RoleAudience): Promise<ApplicationPageEntity[]>;
   findPageById(id: string): Promise<ApplicationPageEntity | null>;
+  createPage(data: CreatePageData): Promise<ApplicationPageEntity>;
+  updatePage(id: string, data: UpdatePageData): Promise<ApplicationPageEntity>;
+  detachChildren(parentId: string): Promise<number>;
+  deletePage(id: string): Promise<void>;
   togglePageEnabled(
     id: string,
     isEnabled: boolean,

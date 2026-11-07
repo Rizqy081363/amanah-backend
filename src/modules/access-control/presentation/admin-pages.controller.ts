@@ -1,16 +1,19 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
   Param,
   Patch,
+  Post,
   Query,
   Request,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Public } from '../../../common/auth/public.decorator';
 import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
 import { PermissionsGuard } from '../../../common/auth/permissions.guard';
 import { RequirePermissions } from '../../../common/auth/permissions.decorator';
@@ -20,10 +23,14 @@ import type { AuthenticatedUser } from '../../../common/auth/authenticated-user.
 import { RoleAudience } from '../domain/entities/role.entity';
 import { AccessControlService } from '../application/services/access-control.service';
 import {
+  CreatePageInput,
+  CreatePageSchema,
   PageParamInput,
   PageParamSchema,
   TogglePageInput,
   TogglePageSchema,
+  UpdatePageInput,
+  UpdatePageSchema,
 } from './schemas';
 
 @ApiTags('Admin Application Pages Registry')
@@ -44,12 +51,22 @@ export class AdminPagesController {
   }
 
   @Get('tree')
-  @RequirePermissions('pages:read', 'roles:read')
+  @Public()
   @ApiOperation({
     summary: 'Mendapatkan hierarki pohon halaman aplikasi (parent -> children)',
   })
   async getPageTree(@Query('audience') audience?: RoleAudience) {
     return this.service.getPageTree(audience);
+  }
+
+  @Get('routes/aliases')
+  @Public()
+  @ApiOperation({
+    summary:
+      'Mendapatkan pemetaan seluruh route alias aktif untuk Next.js proxy rewrite',
+  })
+  async getAllRouteAliases() {
+    return this.service.findAllRouteAliases();
   }
 
   @Patch(':id/toggle')
@@ -63,6 +80,52 @@ export class AdminPagesController {
     @Body(zodPipe(TogglePageSchema)) dto: TogglePageInput,
   ) {
     return this.service.togglePage(param.id, dto.isEnabled);
+  }
+
+  @Post()
+  @HttpCode(HttpStatus.CREATED)
+  @RequirePermissions('pages:manage', 'roles:manage')
+  @ApiOperation({
+    summary: 'Membuat halaman atau folder kategori baru di CMS Page Registry',
+  })
+  async createPage(@Body(zodPipe(CreatePageSchema)) dto: CreatePageInput) {
+    return this.service.createPage(dto);
+  }
+
+  @Patch(':id')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions('pages:manage', 'roles:manage')
+  @ApiOperation({
+    summary:
+      'Memperbarui metadata halaman atau folder (nama, ikon, urutan, folder induk)',
+  })
+  async updatePage(
+    @Param(zodPipe(PageParamSchema)) param: PageParamInput,
+    @Body(zodPipe(UpdatePageSchema)) dto: UpdatePageInput,
+  ) {
+    return this.service.updatePage(param.id, dto);
+  }
+
+  @Post(':id/detach-children')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions('pages:manage', 'roles:manage')
+  @ApiOperation({
+    summary:
+      'Melepaskan seluruh submenu dari kategori ini menjadi halaman mandiri tanpa folder induk',
+  })
+  async detachChildren(@Param(zodPipe(PageParamSchema)) param: PageParamInput) {
+    const detachedCount = await this.service.detachChildren(param.id);
+    return { success: true, detachedCount };
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @RequirePermissions('pages:manage', 'roles:manage')
+  @ApiOperation({
+    summary: 'Menghapus halaman atau folder kustom non-sistem dari CMS',
+  })
+  async deletePage(@Param(zodPipe(PageParamSchema)) param: PageParamInput) {
+    await this.service.deletePage(param.id);
   }
 
   @Get('my-routes')

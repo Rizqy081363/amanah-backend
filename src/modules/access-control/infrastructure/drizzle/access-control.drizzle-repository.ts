@@ -20,7 +20,9 @@ import {
 } from '../../../../database/schema/amanah.schema';
 import {
   AccessControlRepository,
+  CreatePageData,
   CreateRoleInput,
+  UpdatePageData,
   UpdateRoleInput,
 } from '../../domain/repositories/access-control.repository.interface';
 import {
@@ -631,6 +633,7 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
         name: p.name,
         description: p.description,
         routePath: p.routePath,
+        customAlias: p.customAlias,
         parentPageId: p.parentPageId,
         audience: p.audience as RoleAudience,
         isEnabled: p.isEnabled,
@@ -642,6 +645,27 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
         effectiveEnabled,
       };
     });
+  }
+
+  async findAllRouteAliases(): Promise<Record<string, string>> {
+    const records = await this.db.query.applicationPages.findMany({
+      where: and(
+        isNotNull(applicationPages.customAlias),
+        eq(applicationPages.isEnabled, true),
+      ),
+      columns: {
+        customAlias: true,
+        routePath: true,
+      },
+    });
+
+    const aliasMap: Record<string, string> = {};
+    for (const r of records) {
+      if (r.customAlias && r.routePath && r.routePath !== '#') {
+        aliasMap[r.customAlias] = r.routePath;
+      }
+    }
+    return aliasMap;
   }
 
   async findPageTree(
@@ -695,6 +719,7 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
       name: p.name,
       description: p.description,
       routePath: p.routePath,
+      customAlias: p.customAlias,
       parentPageId: p.parentPageId,
       audience: p.audience as RoleAudience,
       isEnabled: p.isEnabled,
@@ -725,6 +750,131 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
       .where(eq(applicationPages.id, id));
 
     return (await this.findPageById(id))!;
+  }
+
+  async createPage(data: CreatePageData): Promise<ApplicationPageEntity> {
+    const existingSlug = await this.db.query.applicationPages.findFirst({
+      where: eq(applicationPages.slug, data.slug),
+    });
+    if (existingSlug) {
+      throw new BadRequestException(`Slug '${data.slug}' sudah digunakan oleh halaman lain`);
+    }
+
+    if (data.parentPageId) {
+      const parent = await this.findPageById(data.parentPageId);
+      if (!parent) {
+        throw new NotFoundException(`Folder induk dengan ID ${data.parentPageId} tidak ditemukan`);
+      }
+    }
+
+    const [inserted] = await this.db
+      .insert(applicationPages)
+      .values({
+        slug: data.slug,
+        name: data.name,
+        description: data.description ?? null,
+        routePath: data.routePath ?? '#',
+        parentPageId: data.parentPageId ?? null,
+        audience: data.audience ?? 'internal',
+        customAlias: data.customAlias ?? null,
+        icon: data.icon ?? 'folder',
+        displayOrder: data.displayOrder ?? 100,
+        isSystem: false,
+        isEnabled: true,
+      })
+      .returning();
+
+    // Automatically grant access to Administrator role for new internal pages
+    if ((data.audience ?? 'internal') === 'internal') {
+      const adminRole = await this.findRoleByCode('admin');
+      if (adminRole) {
+        await this.db
+          .insert(rolePageAccess)
+          .values({
+            roleId: adminRole.id,
+            pageId: inserted.id,
+          })
+          .onConflictDoNothing();
+      }
+    }
+
+    return (await this.findPageById(inserted.id))!;
+  }
+
+  async updatePage(
+    id: string,
+    data: UpdatePageData,
+  ): Promise<ApplicationPageEntity> {
+    const existing = await this.findPageById(id);
+    if (!existing) {
+      throw new NotFoundException(`Halaman dengan ID ${id} tidak ditemukan`);
+    }
+
+    if (data.parentPageId !== undefined && data.parentPageId !== null) {
+      if (data.parentPageId === id) {
+        throw new BadRequestException('Halaman tidak dapat menjadi folder induk bagi dirinya sendiri');
+      }
+      const targetParent = await this.findPageById(data.parentPageId);
+      if (!targetParent) {
+        throw new NotFoundException(`Folder induk tujuan dengan ID ${data.parentPageId} tidak ditemukan`);
+      }
+    }
+
+    await this.db
+      .update(applicationPages)
+      .set({
+        ...(data.name !== undefined ? { name: data.name } : {}),
+        ...(data.description !== undefined ? { description: data.description } : {}),
+        ...(data.icon !== undefined ? { icon: data.icon } : {}),
+        ...(data.displayOrder !== undefined ? { displayOrder: data.displayOrder } : {}),
+        ...(data.parentPageId !== undefined ? { parentPageId: data.parentPageId } : {}),
+        ...(data.routePath !== undefined ? { routePath: data.routePath } : {}),
+        ...(data.customAlias !== undefined ? { customAlias: data.customAlias } : {}),
+        ...(data.isEnabled !== undefined ? { isEnabled: data.isEnabled } : {}),
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(applicationPages.id, id));
+
+    return (await this.findPageById(id))!;
+  }
+
+  async detachChildren(parentId: string): Promise<number> {
+    const parent = await this.findPageById(parentId);
+    if (!parent) {
+      throw new NotFoundException(`Kategori dengan ID ${parentId} tidak ditemukan`);
+    }
+
+    const result = await this.db
+      .update(applicationPages)
+      .set({
+        parentPageId: null,
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(applicationPages.parentPageId, parentId));
+
+    return result.rowCount ?? 0;
+  }
+
+  async deletePage(id: string): Promise<void> {
+    const existing = await this.findPageById(id);
+    if (!existing) {
+      throw new NotFoundException(`Halaman dengan ID ${id} tidak ditemukan`);
+    }
+
+    if (existing.isSystem) {
+      throw new BadRequestException('Halaman sistem dilindungi dan tidak dapat dihapus');
+    }
+
+    // Preserve child pages by re-parenting them to the deleted folder's parent
+    await this.db
+      .update(applicationPages)
+      .set({
+        parentPageId: existing.parentPageId ?? null,
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(applicationPages.parentPageId, id));
+
+    await this.db.delete(applicationPages).where(eq(applicationPages.id, id));
   }
 
   async findRolePageIds(roleId: string): Promise<string[]> {
@@ -787,8 +937,10 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
 
       if (isSuperAdmin && p.audience === 'internal') {
         accessibleRoutes.push(p.routePath);
+        if (p.customAlias) accessibleRoutes.push(p.customAlias);
       } else if (assignedPageIds.has(p.id)) {
         accessibleRoutes.push(p.routePath);
+        if (p.customAlias) accessibleRoutes.push(p.customAlias);
       }
     }
 

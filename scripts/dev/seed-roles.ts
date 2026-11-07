@@ -78,7 +78,6 @@ const EXTERNAL_PATIENT_PAGES = [
   'external.patient_services.notifications',
   'external.patient_services.guide',
   'external.patient_services.profile',
-  'external.patient_services.registration',
 ];
 
 const CLINICAL_PERMISSIONS = Array.from(

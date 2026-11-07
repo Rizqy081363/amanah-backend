@@ -7,7 +7,9 @@ import {
 import {
   ACCESS_CONTROL_REPOSITORY,
   AccessControlRepository,
+  CreatePageData,
   CreateRoleInput,
+  UpdatePageData,
   UpdateRoleInput,
 } from '../../domain/repositories/access-control.repository.interface';
 import { RoleAudience, RoleEntity } from '../../domain/entities/role.entity';
@@ -152,6 +154,52 @@ export class AccessControlService {
       { pageId: id, action: 'page_toggled' },
     );
     return page;
+  }
+
+  async createPage(data: CreatePageData): Promise<ApplicationPageEntity> {
+    const page = await this.repository.createPage(data);
+    void this.realtimeGateway?.emitToRoom?.(
+      REALTIME_ROOMS.clinic,
+      'roles:updated',
+      { pageId: page.id, action: 'page_created' },
+    );
+    return page;
+  }
+
+  async updatePage(
+    id: string,
+    data: UpdatePageData,
+  ): Promise<ApplicationPageEntity> {
+    const page = await this.repository.updatePage(id, data);
+    void this.realtimeGateway?.emitToRoom?.(
+      REALTIME_ROOMS.clinic,
+      'roles:updated',
+      { pageId: id, action: 'page_updated' },
+    );
+    return page;
+  }
+
+  async detachChildren(parentId: string): Promise<number> {
+    const count = await this.repository.detachChildren(parentId);
+    void this.realtimeGateway?.emitToRoom?.(
+      REALTIME_ROOMS.clinic,
+      'roles:updated',
+      { pageId: parentId, action: 'children_detached' },
+    );
+    return count;
+  }
+
+  async deletePage(id: string): Promise<void> {
+    await this.repository.deletePage(id);
+    void this.realtimeGateway?.emitToRoom?.(
+      REALTIME_ROOMS.clinic,
+      'roles:updated',
+      { pageId: id, action: 'page_deleted' },
+    );
+  }
+
+  async findAllRouteAliases(): Promise<Record<string, string>> {
+    return this.repository.findAllRouteAliases();
   }
 
   async getRolePageIds(roleId: string): Promise<string[]> {

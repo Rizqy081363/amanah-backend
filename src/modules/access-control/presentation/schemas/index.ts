@@ -5,3 +5,5 @@ export * from './assign-permissions.schema';
 export * from './permission-param.schema';
 export * from './assign-pages.schema';
 export * from './toggle-page.schema';
+export * from './create-page.schema';
+export * from './update-page.schema';

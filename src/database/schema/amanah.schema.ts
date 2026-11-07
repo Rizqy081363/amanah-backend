@@ -608,6 +608,7 @@ export const applicationPages = pgTable(
     isEnabled: boolean('is_enabled').default(true).notNull(),
     icon: varchar('icon', { length: 50 }),
     displayOrder: integer('display_order').default(0).notNull(),
+    customAlias: varchar('custom_alias', { length: 255 }),
     isSystem: boolean('is_system').default(false).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
@@ -626,6 +627,7 @@ export const applicationPages = pgTable(
     index('idx_application_pages_parent').on(table.parentPageId),
     index('idx_application_pages_audience').on(table.audience),
     index('idx_application_pages_route_path').on(table.routePath),
+    index('idx_application_pages_custom_alias').on(table.customAlias),
     index('idx_application_pages_is_enabled').on(table.isEnabled),
     check(
       'application_pages_audience_check',
