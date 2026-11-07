@@ -1,16 +1,33 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, desc, eq, ilike, lt, or, sql } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  exists,
+  ilike,
+  lt,
+  ne,
+  notExists,
+  or,
+  sql,
+} from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
   conversations,
   messages,
   patientProfiles,
+  roles,
+  staffProfiles,
+  userRoles,
+  users,
 } from '../../../../database/schema';
 import { ChatMessageEntity } from '../../domain/entities/chat-message.entity';
 import { ConversationEntity } from '../../domain/entities/conversation.entity';
 import {
   AdminConversationQueryParams,
+  ChatCandidateUser,
   ChatRepositoryInterface,
   CreateChatMessageParams,
   CreateConversationParams,
@@ -252,27 +269,44 @@ export class ChatDrizzleRepository implements ChatRepositoryInterface {
         ? (lastRecord.lastMessageAt ?? lastRecord.createdAt)
         : null;
 
-    // Fetch last message preview for each conversation
+    // Fetch last message preview and unread count for each conversation
     const conversationIds = pageRecords.map((r) => r.id);
     const previews = new Map<string, string>();
+    const unreadCounts = new Map<string, number>();
 
     if (conversationIds.length > 0) {
-      for (const convId of conversationIds) {
+      for (const r of pageRecords) {
         const lastMsg = await this.db.query.messages.findFirst({
-          where: eq(messages.conversationId, convId),
+          where: eq(messages.conversationId, r.id),
           orderBy: [desc(messages.createdAt)],
           columns: {
             body: true,
           },
         });
         if (lastMsg) {
-          previews.set(convId, lastMsg.body);
+          previews.set(r.id, lastMsg.body);
+        }
+
+        if (r.awaitingReply) {
+          const unread = await this.db.query.messages.findMany({
+            where: and(
+              eq(messages.conversationId, r.id),
+              eq(messages.senderRole, CHAT_SENDER_ROLE.EXTERNAL),
+              r.lastAdminMessageAt
+                ? sql`${messages.createdAt} > ${r.lastAdminMessageAt}`
+                : sql`TRUE`,
+            ),
+            columns: { id: true },
+          });
+          unreadCounts.set(r.id, Math.max(unread.length, 1));
+        } else {
+          unreadCounts.set(r.id, 0);
         }
       }
     }
 
     const items = pageRecords.map((r) =>
-      this.mapConversation(r, previews.get(r.id)),
+      this.mapConversation(r, previews.get(r.id), unreadCounts.get(r.id) ?? 0),
     );
 
     return {
@@ -402,9 +436,105 @@ export class ChatDrizzleRepository implements ChatRepositoryInterface {
     throw new Error('Failed to create or retrieve chat message');
   }
 
+  async findChatCandidates(
+    search?: string,
+    limit = 50,
+    currentUserId?: string,
+  ): Promise<ChatCandidateUser[]> {
+    const safeLimit = Math.min(Math.max(limit || 50, 1), 100);
+    const conditions = [
+      eq(users.status, 'active'),
+      // Relational Access Control: must have active role with audience 'external'
+      exists(
+        this.db
+          .select({ id: userRoles.id })
+          .from(userRoles)
+          .innerJoin(roles, eq(roles.id, userRoles.roleId))
+          .where(
+            and(
+              eq(userRoles.userId, users.id),
+              eq(roles.audience, 'external'),
+              eq(roles.isActive, true),
+            ),
+          ),
+      ),
+      // Relational Access Control: must NOT have any active role with audience 'internal'
+      notExists(
+        this.db
+          .select({ id: userRoles.id })
+          .from(userRoles)
+          .innerJoin(roles, eq(roles.id, userRoles.roleId))
+          .where(
+            and(
+              eq(userRoles.userId, users.id),
+              eq(roles.audience, 'internal'),
+              eq(roles.isActive, true),
+            ),
+          ),
+      ),
+      // Relational Access Control: must NOT have a staff profile record (clinical or admin employee)
+      notExists(
+        this.db
+          .select({ id: staffProfiles.id })
+          .from(staffProfiles)
+          .where(eq(staffProfiles.userId, users.id)),
+      ),
+    ];
+
+    if (currentUserId) {
+      conditions.push(ne(users.id, currentUserId));
+    }
+
+    if (search?.trim()) {
+      const term = `%${search.trim()}%`;
+      conditions.push(or(ilike(users.name, term), ilike(users.email, term))!);
+    }
+
+    const rows = await this.db
+      .select({
+        id: users.id,
+        name: users.name,
+        email: users.email,
+        phone: users.phone,
+        avatarUrl: users.avatarUrl,
+        medicalRecordNumber: patientProfiles.medicalRecordNumber,
+        existingConversationId: conversations.id,
+      })
+      .from(users)
+      .leftJoin(patientProfiles, eq(patientProfiles.userId, users.id))
+      .leftJoin(
+        conversations,
+        and(
+          eq(conversations.userId, users.id),
+          eq(conversations.status, 'open'),
+        ),
+      )
+      .where(and(...conditions))
+      .orderBy(asc(users.name))
+      .limit(safeLimit);
+
+    const candidateMap = new Map<string, ChatCandidateUser>();
+    for (const r of rows) {
+      if (!candidateMap.has(r.id)) {
+        candidateMap.set(r.id, {
+          id: r.id,
+          name: r.name,
+          email: r.email,
+          phone: r.phone ?? null,
+          avatarUrl: r.avatarUrl ?? null,
+          medicalRecordNumber: r.medicalRecordNumber ?? null,
+          existingConversationId: r.existingConversationId ?? null,
+        });
+      }
+    }
+
+    return Array.from(candidateMap.values());
+  }
+
   private mapConversation(
     record: any,
     lastMessagePreview?: string | null,
+    unreadCount = 0,
   ): ConversationEntity {
     const isGuest = !record.userId && !!record.guestId;
     const customerName = isGuest
@@ -441,6 +571,7 @@ export class ChatDrizzleRepository implements ChatRepositoryInterface {
       closedAt: record.closedAt,
       updatedAt: record.updatedAt,
       lastMessagePreview: lastMessagePreview ?? null,
+      unreadCount,
     });
   }
 

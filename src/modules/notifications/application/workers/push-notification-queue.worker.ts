@@ -237,9 +237,11 @@ export class PushNotificationQueueWorker
     if (devices.length === 0) return;
 
     const messaging = getMessaging();
+    const actionUrl = command.content.actionUrl || '';
     const dataPayload: Record<string, string> = {
       commandId: command.commandId || '',
-      actionUrl: command.content.actionUrl || '',
+      actionUrl,
+      url: actionUrl,
     };
     if (command.content.data) {
       for (const [key, value] of Object.entries(command.content.data)) {
@@ -267,6 +269,7 @@ export class PushNotificationQueueWorker
               clickAction: 'FLUTTER_NOTIFICATION_CLICK',
             },
           },
+          webpush: actionUrl ? { fcmOptions: { link: actionUrl } } : undefined,
           apns: {
             payload: {
               aps: {

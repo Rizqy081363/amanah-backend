@@ -50,6 +50,16 @@ export interface CustomerConversationQueryParams {
   limit?: number;
 }
 
+export interface ChatCandidateUser {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  avatarUrl: string | null;
+  medicalRecordNumber: string | null;
+  existingConversationId: string | null;
+}
+
 export interface ChatRepositoryInterface {
   findOpenConversationByUserId(
     userId: string,
@@ -76,4 +86,9 @@ export interface ChatRepositoryInterface {
     params: MessageQueryParams,
   ): Promise<PaginatedResult<ChatMessageEntity>>;
   createMessage(params: CreateChatMessageParams): Promise<ChatMessageEntity>;
+  findChatCandidates(
+    search?: string,
+    limit?: number,
+    currentUserId?: string,
+  ): Promise<ChatCandidateUser[]>;
 }

@@ -23,6 +23,7 @@ import {
 import {
   AdminConversationQueryParams,
   CHAT_REPOSITORY,
+  ChatCandidateUser,
   ChatRepositoryInterface,
   MessageQueryParams,
   PaginatedResult,
@@ -368,6 +369,25 @@ export class ChatService {
     params: AdminConversationQueryParams,
   ): Promise<PaginatedResult<ConversationEntity>> {
     return this.chatRepo.findAdminConversations(params);
+  }
+
+  async getChatCandidates(
+    search?: string,
+    limit?: number,
+    currentUserId?: string,
+  ): Promise<ChatCandidateUser[]> {
+    return this.chatRepo.findChatCandidates(search, limit, currentUserId);
+  }
+
+  async createAdminConversation(
+    targetUserId: string,
+  ): Promise<ConversationEntity> {
+    const existing =
+      await this.chatRepo.findOpenConversationByUserId(targetUserId);
+    if (existing) {
+      return existing;
+    }
+    return this.chatRepo.createConversation({ userId: targetUserId });
   }
 
   isAdminOnline(): boolean {

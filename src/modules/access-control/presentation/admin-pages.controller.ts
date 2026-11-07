@@ -99,7 +99,7 @@ export class AdminPagesController {
   @RequirePermissions('pages:manage', 'roles:manage')
   @ApiOperation({
     summary:
-      'Eksekusi aksi massal halaman aplikasi (pemindahan kategori, pelepasan mandiri, toggle aktif, restore)',
+      'Eksekusi aksi massal halaman aplikasi (pemindahan kategori, pelepasan mandiri, toggle aktif, restore, penghapusan)',
   })
   async bulkPageAction(
     @Body(zodPipe(BulkPageActionSchema)) dto: BulkPageActionInput,

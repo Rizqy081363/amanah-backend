@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -113,5 +114,32 @@ export class AdminChatController {
   @ApiParam({ name: 'id', description: 'ID percakapan' })
   async closeConversation(@Param('id') id: string) {
     return this.chatService.closeConversation(id);
+  }
+
+  @Get('candidates')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions('chat:read')
+  @ApiOperation({
+    summary: 'Mendapatkan daftar kandidat pasien eksternal untuk memulai chat baru',
+  })
+  async getCandidates(
+    @CurrentUser() user: any,
+    @Query('search') search?: string,
+  ) {
+    const data = await this.chatService.getChatCandidates(search, 50, user?.id);
+    return { data };
+  }
+
+  @Post('conversations')
+  @HttpCode(HttpStatus.CREATED)
+  @RequirePermissions('chat:send')
+  @ApiOperation({
+    summary: 'Membuka atau membuat percakapan baru dengan pasien eksternal',
+  })
+  async createConversation(@Body('userId') userId: string) {
+    if (!userId) {
+      throw new BadRequestException('userId is required');
+    }
+    return this.chatService.createAdminConversation(userId);
   }
 }

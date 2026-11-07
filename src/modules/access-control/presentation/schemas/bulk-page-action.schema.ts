@@ -1,6 +1,13 @@
 import { z } from 'zod';
 
-export const PAGE_BULK_ACTIONS = ['move', 'detach', 'toggle_status', 'restore', 'reorder'] as const;
+export const PAGE_BULK_ACTIONS = [
+  'move',
+  'detach',
+  'toggle_status',
+  'restore',
+  'reorder',
+  'delete',
+] as const;
 
 export const BulkPageRestoreItemSchema = z.object({
   id: z.string().uuid('ID halaman harus berupa UUID valid'),

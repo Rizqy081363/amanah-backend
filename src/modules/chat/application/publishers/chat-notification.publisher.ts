@@ -122,7 +122,7 @@ export class ChatNotificationPublisher {
               content: {
                 title: 'Pesan Baru dari Klinik Amanah',
                 body: message.body,
-                actionUrl: `/klinik/chat?conversationId=${conversation.id}`,
+                actionUrl: `${process.env.FRONTEND_DOMAIN || 'http://localhost:3000'}/klinik/chat?conversationId=${conversation.id}`,
                 data: {
                   conversationId: conversation.id,
                   messageId: message.id,

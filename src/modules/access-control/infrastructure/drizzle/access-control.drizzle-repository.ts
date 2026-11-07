@@ -876,6 +876,7 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
         id: true,
         name: true,
         parentPageId: true,
+        routePath: true,
         audience: true,
         displayOrder: true,
         isEnabled: true,
@@ -987,6 +988,32 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
         break;
       }
 
+      case 'delete': {
+        for (const page of existingPages) {
+          if (page.parentPageId !== null && page.routePath !== '#') {
+            throw new BadRequestException(
+              `Halaman rute fisik '${page.name}' tidak dapat dihapus. Hanya folder pengelompokan yang dapat dihapus.`
+            );
+          }
+        }
+
+        // Reparent child pages to standalone (null)
+        await this.db
+          .update(applicationPages)
+          .set({
+            parentPageId: null,
+            updatedAt: now,
+          })
+          .where(inArray(applicationPages.parentPageId, pageIds));
+
+        // Delete parent grouping folders
+        const res = await this.db
+          .delete(applicationPages)
+          .where(inArray(applicationPages.id, pageIds));
+        updatedCount = res.rowCount ?? 0;
+        break;
+      }
+
       default:
         throw new BadRequestException(`Aksi ${action} tidak didukung`);
     }
@@ -1005,11 +1032,13 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
       throw new NotFoundException(`Halaman dengan ID ${id} tidak ditemukan`);
     }
 
-    if (existing.isSystem) {
-      throw new BadRequestException('Halaman sistem dilindungi dan tidak dapat dihapus');
+    if (existing.parentPageId !== null && existing.routePath !== '#') {
+      throw new BadRequestException(
+        'Halaman rute fisik aplikasi tidak dapat dihapus. Hanya folder pengelompokan yang dapat dihapus.'
+      );
     }
 
-    // Preserve child pages by re-parenting them to the deleted folder's parent
+    // Preserve child pages by re-parenting them to standalone or parent
     await this.db
       .update(applicationPages)
       .set({

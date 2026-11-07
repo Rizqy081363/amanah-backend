@@ -49,7 +49,7 @@ export interface UpdatePageData {
 }
 
 export interface BulkPageActionData {
-  action: 'move' | 'detach' | 'toggle_status' | 'restore' | 'reorder';
+  action: 'move' | 'detach' | 'toggle_status' | 'restore' | 'reorder' | 'delete';
   pageIds: string[];
   targetParentId?: string | null;
   isEnabled?: boolean;
