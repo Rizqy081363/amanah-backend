@@ -10,9 +10,18 @@ export function toSafeInt(
   max: number = 2147483647,
 ): number | null {
   if (val === undefined || val === null || val === '') return null;
-  const n = Number(val);
+  const normalized = typeof val === 'string' ? val.trim().replace(',', '.') : val;
+  const n = Number(normalized);
   if (!Number.isFinite(n)) return null;
   return Math.max(min, Math.min(max, Math.trunc(n)));
+}
+
+export function toSafeNumber(val: unknown): number | null {
+  if (val === undefined || val === null || val === '') return null;
+  const normalized = typeof val === 'string' ? val.trim().replace(',', '.') : val;
+  const n = Number(normalized);
+  if (!Number.isFinite(n)) return null;
+  return n;
 }
 
 export function toSafeNumericString(
@@ -21,7 +30,8 @@ export function toSafeNumericString(
   scale: number = 1,
 ): string | null {
   if (val === undefined || val === null || val === '') return null;
-  const n = Number(val);
+  const normalized = typeof val === 'string' ? val.trim().replace(',', '.') : val;
+  const n = Number(normalized);
   if (!Number.isFinite(n) || n < 0) return null;
   const maxVal = Math.pow(10, maxPrecisionDigits) - Math.pow(10, -scale);
   const clamped = Math.min(maxVal, n);
@@ -100,15 +110,15 @@ export function mapToMaternityEntity(record: any): MaternityIntakeEntity {
     partnerJob: record.partnerJob,
     partnerEducation: record.partnerEducation,
     partnerBloodType: record.partnerBloodType,
-    heightCm: record.heightCm,
-    prePregnancyWeightKg: record.prePregnancyWeightKg,
-    upperArmCircumferenceCm: record.upperArmCircumferenceCm,
-    initialBmi: record.initialBmi,
+    heightCm: toSafeNumber(record.heightCm),
+    prePregnancyWeightKg: toSafeNumber(record.prePregnancyWeightKg),
+    upperArmCircumferenceCm: toSafeNumber(record.upperArmCircumferenceCm),
+    initialBmi: toSafeNumber(record.initialBmi),
     tetanusStatus: record.tetanusStatus,
     motherBloodType: record.motherBloodType,
     hpht: record.hpht,
     estimatedDueDate: record.estimatedDueDate,
-    gestationalAgeWeeks: record.gestationalAgeWeeks,
+    gestationalAgeWeeks: toSafeNumber(record.gestationalAgeWeeks),
     gestationalAgeFormatted: record.gestationalAgeFormatted,
     currentComplaints: record.currentComplaints,
     gravidaCount: record.gravidaCount,
@@ -136,7 +146,11 @@ export function mapToMaternityEntity(record: any): MaternityIntakeEntity {
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
     husbandProfile: record.husband || null,
-    previousPregnancies: record.previousPregnancies || [],
+    previousPregnancies: (record.previousPregnancies || []).map((p: any) => ({
+      ...p,
+      birthWeightGrams: toSafeInt(p.birthWeightGrams, 0, 30000),
+      birthLengthCm: toSafeNumber(p.birthLengthCm),
+    })),
     contraceptiveHistories: record.contraceptiveHistories || [],
     conditionResponses: (record.healthConditions || []).map((hc: any) => ({
       id: hc.id,
