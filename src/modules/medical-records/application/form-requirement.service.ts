@@ -1,5 +1,5 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { desc, eq } from 'drizzle-orm';
+import { ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { and, desc, eq } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../database/drizzle/drizzle.provider';
 import {
@@ -8,10 +8,13 @@ import {
   clinicServices,
   maternalHealthIntakes,
   patientAddresses,
+  patientAffiliations,
   patientProfiles,
 } from '../../../database/schema/amanah.schema';
 import { formatBloodTypeDisplay } from '../../patients/domain/data/patient-reference.data';
 import { NikSecurityService } from '../../../common/security/nik';
+import { ROLE_AUDIENCE } from '../../../common/constants/role-audience.constants';
+import type { AuthenticatedUser } from '../../../common/auth';
 
 export interface FormRequirementResponse {
   flow: string | null;
@@ -36,7 +39,7 @@ export class FormRequirementService {
   async resolveRequirement(
     serviceId: string,
     patientId?: string,
-    user?: any,
+    user?: AuthenticatedUser,
   ): Promise<FormRequirementResponse> {
     const service = await this.db.query.clinicServices.findFirst({
       where: eq(clinicServices.id, serviceId),
@@ -71,6 +74,7 @@ export class FormRequirementService {
     const [patient] = await this.db
       .select({
         id: patientProfiles.id,
+        userId: patientProfiles.userId,
         fullName: patientProfiles.fullName,
         gender: patientProfiles.gender,
         birthDate: patientProfiles.birthDate,
@@ -101,21 +105,49 @@ export class FormRequirementService {
       };
     }
 
-    const [primaryAddress] = await this.db
-      .select()
-      .from(patientAddresses)
-      .where(eq(patientAddresses.patientId, patientId))
-      .orderBy(
-        desc(patientAddresses.isPrimary),
-        desc(patientAddresses.createdAt),
-      )
-      .limit(1);
+    // Object-level authorization check: regular external patient cannot look up arbitrary other patient records
+    if (user && user.audience === ROLE_AUDIENCE.EXTERNAL) {
+      const isOwner = patient.userId === user.id;
+      if (!isOwner) {
+        const [affiliation] = await this.db
+          .select({ id: patientAffiliations.id })
+          .from(patientAffiliations)
+          .where(
+            and(
+              eq(patientAffiliations.userId, user.id),
+              eq(patientAffiliations.patientId, patientId),
+            ),
+          )
+          .limit(1);
 
-    const addressText =
-      primaryAddress?.fullAddress || primaryAddress?.line1 || '';
+        if (!affiliation) {
+          throw new ForbiddenException({
+            code: 'FORBIDDEN_PATIENT_ACCESS',
+            message: 'Akses ke data profil pasien ini tidak diizinkan',
+          });
+        }
+      }
+    }
+
+    const addresses = await this.db
+      .select({
+        type: patientAddresses.type,
+        fullAddress: patientAddresses.fullAddress,
+        line1: patientAddresses.line1,
+      })
+      .from(patientAddresses)
+      .where(eq(patientAddresses.patientId, patientId));
+
+    const domicileAddress = addresses.find((a) => a.type === 'domicile');
+    const identityCardAddress = addresses.find((a) => a.type === 'identity_card');
+
+    const domicileText =
+      domicileAddress?.fullAddress || domicileAddress?.line1 || '';
+    const identityCardText =
+      identityCardAddress?.fullAddress || identityCardAddress?.line1 || '';
 
     const normalizedGender = patient.gender || null;
-    const normalizedBlood = patient.bloodTypeName || 'Belum Tahu';
+    const normalizedBlood = patient.bloodTypeName || null;
 
     const patientNik = patient.nationalIdEncrypted
       ? this.nikSecurity.decrypt(patient.nationalIdEncrypted) || ''
@@ -129,25 +161,34 @@ export class FormRequirementService {
       birthDate: patient.birthDate,
       gender: normalizedGender,
       bloodType: normalizedBlood,
-      motherName: patient.motherName || '',
-      motherNik: patientNik,
-      motherBirthDate: patient.birthDate,
-      motherBloodType: normalizedBlood,
-      childName: patient.fullName,
-      childNik: patientNik,
-      childBirthDate: patient.birthDate,
-      childSex: normalizedGender,
+      domicileAddress: domicileText,
+      identityCardAddress: identityCardText,
     };
+
+    if (flow === 'pregnancy' || flow === 'maternity') {
+      reusableIdentity.motherName = patient.fullName;
+      reusableIdentity.motherNik = patientNik;
+      reusableIdentity.motherBirthDate = patient.birthDate;
+      reusableIdentity.motherBloodType = normalizedBlood;
+    } else if (flow === 'immunization') {
+      reusableIdentity.childName = patient.fullName;
+      reusableIdentity.childNik = patientNik;
+      reusableIdentity.childBirthDate = patient.birthDate;
+      reusableIdentity.childSex = normalizedGender;
+      if (patient.motherName) {
+        reusableIdentity.motherName = patient.motherName;
+      }
+    }
 
     const prefilledValues: Record<string, any> = {
       phone: patient.phone || user?.phone || '',
       email: patient.email || user?.email || '',
-      address: addressText,
+      address: domicileText || identityCardText,
       phoneNumber: patient.phone || user?.phone || '',
       parentPhone: patient.phone || user?.phone || '',
-      domicileAddress: addressText,
-      identityCardAddress: addressText,
-      childAddress: addressText,
+      domicileAddress: domicileText,
+      identityCardAddress: identityCardText,
+      childAddress: domicileText || identityCardText,
       motherJob: patient.occupation || '',
     };
 

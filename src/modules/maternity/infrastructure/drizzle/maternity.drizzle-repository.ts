@@ -82,11 +82,17 @@ export class MaternityDrizzleRepository implements MaternityRepository {
         }
         if (!motherBirthDate) motherBirthDate = patient.birthDate || undefined;
         if (!motherPhone) motherPhone = patient.phone || undefined;
-        if (!domicileAddress && patient.patientAddresses?.[0]) {
-          domicileAddress =
-            patient.patientAddresses[0].fullAddress ||
-            patient.patientAddresses[0].line1 ||
-            undefined;
+        if (!domicileAddress) {
+          const dom = patient.patientAddresses?.find((a) => a.type === 'domicile');
+          if (dom) {
+            domicileAddress = dom.fullAddress || dom.line1 || undefined;
+          }
+        }
+        if (!dto.identityCardAddress) {
+          const idc = patient.patientAddresses?.find((a) => a.type === 'identity_card');
+          if (idc) {
+            dto.identityCardAddress = idc.fullAddress || idc.line1 || undefined;
+          }
         }
       }
 

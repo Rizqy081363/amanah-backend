@@ -9,6 +9,12 @@ export class PatientRecordMapper {
     const primaryAddress =
       record.patientAddresses?.find((a: any) => a.isPrimary) ||
       record.patientAddresses?.[0];
+    const domicileAddressRecord = record.patientAddresses?.find(
+      (a: any) => a.type === 'domicile'
+    );
+    const identityCardAddressRecord = record.patientAddresses?.find(
+      (a: any) => a.type === 'identity_card'
+    );
     const primaryEmergency = record.patientEmergencyContacts?.[0];
     const primaryAffiliation =
       record.patientAffiliations?.find((a: any) => a.isPrimary) ||
@@ -82,6 +88,12 @@ export class PatientRecordMapper {
       phone: resolvedPhone,
       email: resolvedEmail,
       fullAddress: primaryAddress?.fullAddress || '',
+      domicileAddress:
+        domicileAddressRecord?.fullAddress || domicileAddressRecord?.line1 || null,
+      identityCardAddress:
+        identityCardAddressRecord?.fullAddress ||
+        identityCardAddressRecord?.line1 ||
+        null,
       line1: primaryAddress?.line1 || null,
       provinceName: primaryAddress?.provinceName || null,
       provinceCode: primaryAddress?.provinceCode || null,

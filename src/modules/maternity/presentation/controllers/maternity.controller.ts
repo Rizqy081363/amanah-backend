@@ -41,6 +41,13 @@ import {
   MATERNITY_REPOSITORY,
   MaternityRepository,
 } from '../../domain/repositories/maternity.repository.interface';
+import { zodPipe } from '../../../../common/validation';
+import {
+  CreateMaternityIntakeSchema,
+  type CreateMaternityIntakeInput,
+  UpdateMaternityIntakeSchema,
+  type UpdateMaternityIntakeInput,
+} from '../../../medical-records/presentation/dto/update-intake.schema';
 import { CreateMaternityIntakeDto } from '../dto/create-maternity-intake.dto';
 import { MaternityHistoryQueryDto } from '../dto/maternity-query.dto';
 import { UpdateMaternityIntakeDto } from '../dto/update-maternity-intake.dto';
@@ -69,7 +76,7 @@ export class MaternityController {
   })
   @ApiCreatedResponse({ description: 'Intake kehamilan berhasil disimpan' })
   async createIntake(
-    @Body() body: CreateMaternityIntakeDto,
+    @Body(zodPipe(CreateMaternityIntakeSchema)) body: CreateMaternityIntakeInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
     if (isPatientUser(user)) {
@@ -88,7 +95,7 @@ export class MaternityController {
         }
       }
     }
-    return this.createIntakeUseCase.execute(body, user?.id);
+    return this.createIntakeUseCase.execute(body as any, user?.id);
   }
 
   @Get('intakes/:id')
@@ -126,9 +133,9 @@ export class MaternityController {
   })
   async updateIntakeById(
     @Param('id') id: string,
-    @Body() body: UpdateMaternityIntakeDto,
+    @Body(zodPipe(UpdateMaternityIntakeSchema)) body: UpdateMaternityIntakeInput,
   ) {
-    return this.updateIntakeUseCase.execute(id, body);
+    return this.updateIntakeUseCase.execute(id, body as any);
   }
 
   @Get('appointment/:appointmentId')

@@ -59,6 +59,8 @@ import { zodPipe } from '../../../common/validation';
 import {
   UpdateMedicalIntakeSchema,
   type UpdateMedicalIntakeInput,
+  CreateMaternityIntakeSchema,
+  type CreateMaternityIntakeInput,
   UpdateMaternityIntakeSchema,
   type UpdateMaternityIntakeInput,
 } from './dto/update-intake.schema';
@@ -175,10 +177,10 @@ export class MedicalIntakesController {
   })
   @ApiCreatedResponse({ description: 'Intake kehamilan berhasil disimpan' })
   async createMaternityIntake(
-    @Body() body: CreateMaternityIntakeDto,
+    @Body(zodPipe(CreateMaternityIntakeSchema)) body: CreateMaternityIntakeInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.medicalRecordRepo.createMaternalIntake(body, user?.id);
+    return this.medicalRecordRepo.createMaternalIntake(body as any, user?.id);
   }
 
   @Post('immunization')

@@ -38,6 +38,8 @@ export class PatientEntity {
   phone: string;
   email?: string | null;
   fullAddress: string;
+  domicileAddress?: string | null;
+  identityCardAddress?: string | null;
   line1?: string | null;
   provinceName?: string | null;
   provinceCode?: string | null;
