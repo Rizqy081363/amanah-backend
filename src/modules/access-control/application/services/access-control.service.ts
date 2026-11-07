@@ -7,6 +7,8 @@ import {
 import {
   ACCESS_CONTROL_REPOSITORY,
   AccessControlRepository,
+  BulkPageActionData,
+  BulkPageActionResult,
   CreatePageData,
   CreateRoleInput,
   UpdatePageData,
@@ -187,6 +189,20 @@ export class AccessControlService {
       { pageId: parentId, action: 'children_detached' },
     );
     return count;
+  }
+
+  async bulkPageAction(data: BulkPageActionData): Promise<BulkPageActionResult> {
+    const result = await this.repository.bulkPageAction(data);
+    void this.realtimeGateway?.emitToRoom?.(
+      REALTIME_ROOMS.clinic,
+      'roles:updated',
+      {
+        action: 'bulk_page_action',
+        bulkAction: data.action,
+        count: result.updatedCount,
+      },
+    );
+    return result;
   }
 
   async deletePage(id: string): Promise<void> {

@@ -20,6 +20,8 @@ import {
 } from '../../../../database/schema/amanah.schema';
 import {
   AccessControlRepository,
+  BulkPageActionData,
+  BulkPageActionResult,
   CreatePageData,
   CreateRoleInput,
   UpdatePageData,
@@ -818,6 +820,11 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
       if (!targetParent) {
         throw new NotFoundException(`Folder induk tujuan dengan ID ${data.parentPageId} tidak ditemukan`);
       }
+      if (existing.audience !== targetParent.audience) {
+        throw new BadRequestException(
+          `Zona Terlarang: Halaman portal ${existing.audience} tidak dapat dipindahkan ke kategori portal ${targetParent.audience}`
+        );
+      }
     }
 
     await this.db
@@ -853,6 +860,143 @@ export class AccessControlDrizzleRepository implements AccessControlRepository {
       .where(eq(applicationPages.parentPageId, parentId));
 
     return result.rowCount ?? 0;
+  }
+
+  async bulkPageAction(data: BulkPageActionData): Promise<BulkPageActionResult> {
+    const { action, pageIds, targetParentId, isEnabled, restoreStates } = data;
+
+    if (!pageIds || pageIds.length === 0) {
+      throw new BadRequestException('Daftar ID halaman tidak boleh kosong');
+    }
+
+    // Snapshot authoritative previous states from database before modification
+    const existingPages = await this.db.query.applicationPages.findMany({
+      where: inArray(applicationPages.id, pageIds),
+      columns: {
+        id: true,
+        name: true,
+        parentPageId: true,
+        audience: true,
+        displayOrder: true,
+        isEnabled: true,
+      },
+    });
+
+    if (existingPages.length === 0) {
+      throw new NotFoundException('Tidak ada halaman yang ditemukan dengan ID yang diberikan');
+    }
+
+    const previousStates = existingPages.map((p) => ({
+      id: p.id,
+      name: p.name,
+      parentPageId: p.parentPageId ?? null,
+      displayOrder: p.displayOrder,
+      isEnabled: p.isEnabled,
+    }));
+
+    const now = new Date().toISOString();
+    let updatedCount = 0;
+
+    switch (action) {
+      case 'move': {
+        if (targetParentId) {
+          const parent = await this.findPageById(targetParentId);
+          if (!parent) {
+            throw new NotFoundException(`Kategori tujuan dengan ID ${targetParentId} tidak ditemukan`);
+          }
+          if (pageIds.includes(targetParentId)) {
+            throw new BadRequestException('Halaman tidak dapat menjadi folder induk bagi dirinya sendiri');
+          }
+          // Strict Red Zone Validation: Disallow cross-audience relocation
+          for (const page of existingPages) {
+            if (page.audience !== parent.audience) {
+              throw new BadRequestException(
+                `Zona Terlarang: Halaman portal ${page.audience} tidak dapat dipindahkan ke kategori portal ${parent.audience}`
+              );
+            }
+          }
+        }
+        const res = await this.db
+          .update(applicationPages)
+          .set({
+            parentPageId: targetParentId ?? null,
+            updatedAt: now,
+          })
+          .where(inArray(applicationPages.id, pageIds));
+        updatedCount = res.rowCount ?? 0;
+        break;
+      }
+
+      case 'reorder': {
+        for (let i = 0; i < pageIds.length; i++) {
+          const res = await this.db
+            .update(applicationPages)
+            .set({
+              displayOrder: i + 1,
+              updatedAt: now,
+            })
+            .where(eq(applicationPages.id, pageIds[i]));
+          updatedCount += res.rowCount ?? 0;
+        }
+        break;
+      }
+
+      case 'detach': {
+        const res = await this.db
+          .update(applicationPages)
+          .set({
+            parentPageId: null,
+            updatedAt: now,
+          })
+          .where(inArray(applicationPages.id, pageIds));
+        updatedCount = res.rowCount ?? 0;
+        break;
+      }
+
+      case 'toggle_status': {
+        if (isEnabled === undefined) {
+          throw new BadRequestException('Status isEnabled wajib diisi untuk aksi toggle_status');
+        }
+        const res = await this.db
+          .update(applicationPages)
+          .set({
+            isEnabled,
+            updatedAt: now,
+          })
+          .where(inArray(applicationPages.id, pageIds));
+        updatedCount = res.rowCount ?? 0;
+        break;
+      }
+
+      case 'restore': {
+        if (!restoreStates || restoreStates.length === 0) {
+          throw new BadRequestException('Data restoreStates wajib diisi untuk aksi restore');
+        }
+        for (const item of restoreStates) {
+          const res = await this.db
+            .update(applicationPages)
+            .set({
+              ...(item.parentPageId !== undefined ? { parentPageId: item.parentPageId } : {}),
+              ...(item.displayOrder !== undefined ? { displayOrder: item.displayOrder } : {}),
+              ...(item.isEnabled !== undefined ? { isEnabled: item.isEnabled } : {}),
+              updatedAt: now,
+            })
+            .where(eq(applicationPages.id, item.id));
+          updatedCount += res.rowCount ?? 0;
+        }
+        break;
+      }
+
+      default:
+        throw new BadRequestException(`Aksi ${action} tidak didukung`);
+    }
+
+    return {
+      success: true,
+      updatedCount,
+      affectedPageIds: pageIds,
+      previousStates,
+    };
   }
 
   async deletePage(id: string): Promise<void> {

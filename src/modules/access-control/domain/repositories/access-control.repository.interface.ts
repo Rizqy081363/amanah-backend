@@ -48,6 +48,32 @@ export interface UpdatePageData {
   isEnabled?: boolean;
 }
 
+export interface BulkPageActionData {
+  action: 'move' | 'detach' | 'toggle_status' | 'restore' | 'reorder';
+  pageIds: string[];
+  targetParentId?: string | null;
+  isEnabled?: boolean;
+  restoreStates?: Array<{
+    id: string;
+    parentPageId?: string | null;
+    displayOrder?: number;
+    isEnabled?: boolean;
+  }>;
+}
+
+export interface BulkPageActionResult {
+  success: boolean;
+  updatedCount: number;
+  affectedPageIds: string[];
+  previousStates: Array<{
+    id: string;
+    name: string;
+    parentPageId: string | null;
+    displayOrder: number;
+    isEnabled: boolean;
+  }>;
+}
+
 export interface AccessControlRepository {
   findAllRoles(): Promise<RoleEntity[]>;
   findRoleTree(): Promise<RoleEntity[]>;
@@ -74,6 +100,7 @@ export interface AccessControlRepository {
   createPage(data: CreatePageData): Promise<ApplicationPageEntity>;
   updatePage(id: string, data: UpdatePageData): Promise<ApplicationPageEntity>;
   detachChildren(parentId: string): Promise<number>;
+  bulkPageAction(data: BulkPageActionData): Promise<BulkPageActionResult>;
   deletePage(id: string): Promise<void>;
   togglePageEnabled(
     id: string,

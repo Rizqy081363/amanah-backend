@@ -23,6 +23,8 @@ import type { AuthenticatedUser } from '../../../common/auth/authenticated-user.
 import { RoleAudience } from '../domain/entities/role.entity';
 import { AccessControlService } from '../application/services/access-control.service';
 import {
+  BulkPageActionInput,
+  BulkPageActionSchema,
   CreatePageInput,
   CreatePageSchema,
   PageParamInput,
@@ -90,6 +92,19 @@ export class AdminPagesController {
   })
   async createPage(@Body(zodPipe(CreatePageSchema)) dto: CreatePageInput) {
     return this.service.createPage(dto);
+  }
+
+  @Post('bulk')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions('pages:manage', 'roles:manage')
+  @ApiOperation({
+    summary:
+      'Eksekusi aksi massal halaman aplikasi (pemindahan kategori, pelepasan mandiri, toggle aktif, restore)',
+  })
+  async bulkPageAction(
+    @Body(zodPipe(BulkPageActionSchema)) dto: BulkPageActionInput,
+  ) {
+    return this.service.bulkPageAction(dto);
   }
 
   @Patch(':id')

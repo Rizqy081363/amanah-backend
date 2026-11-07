@@ -7,3 +7,4 @@ export * from './assign-pages.schema';
 export * from './toggle-page.schema';
 export * from './create-page.schema';
 export * from './update-page.schema';
+export * from './bulk-page-action.schema';
