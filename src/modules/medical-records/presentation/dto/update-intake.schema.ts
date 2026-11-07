@@ -220,6 +220,25 @@ export function refineHphtDate(
   }
 }
 
+export function refineNikUniqueness(
+  data: {
+    motherNik?: string | null;
+    partnerNik?: string | null;
+    husband?: { nik?: string | null } | null;
+  },
+  ctx: z.RefinementCtx,
+) {
+  const mNik = data.motherNik?.trim();
+  const pNik = (data.partnerNik || data.husband?.nik)?.trim();
+  if (mNik && pNik && mNik === pNik) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'NIK Suami tidak boleh sama dengan NIK Ibu',
+      path: ['partnerNik'],
+    });
+  }
+}
+
 export const CreateMaternityIntakeSchema = z
   .object({
     patientId: z.string().uuid({ message: 'ID pasien harus berupa UUID valid' }),
@@ -314,7 +333,8 @@ export const CreateMaternityIntakeSchema = z
   })
   .superRefine(refineObstetricCounts)
   .superRefine(refineMarriageDate)
-  .superRefine(refineHphtDate);
+  .superRefine(refineHphtDate)
+  .superRefine(refineNikUniqueness);
 
 export type CreateMaternityIntakeInput = z.infer<
   typeof CreateMaternityIntakeSchema
@@ -396,7 +416,8 @@ export const UpdateMaternityIntakeSchema = z
   })
   .superRefine(refineObstetricCounts)
   .superRefine(refineMarriageDate)
-  .superRefine(refineHphtDate);
+  .superRefine(refineHphtDate)
+  .superRefine(refineNikUniqueness);
 
 export type UpdateMaternityIntakeInput = z.infer<
   typeof UpdateMaternityIntakeSchema

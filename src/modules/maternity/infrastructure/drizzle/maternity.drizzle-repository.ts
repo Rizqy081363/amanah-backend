@@ -5,7 +5,7 @@ import {
   Injectable,
   Optional,
 } from '@nestjs/common';
-import { and, count, desc, eq, ilike, inArray, or } from 'drizzle-orm';
+import { and, count, desc, eq, ilike, inArray, ne, or } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
@@ -93,6 +93,55 @@ export class MaternityDrizzleRepository implements MaternityRepository {
           if (idc) {
             dto.identityCardAddress = idc.fullAddress || idc.line1 || undefined;
           }
+        }
+      }
+
+      // Validate NIK collision and patient uniqueness
+      const cleanPartnerNik = this.nikSecurity.normalize(
+        dto.partnerNik || dto.husband?.nik || '',
+      );
+      const cleanMotherNik = this.nikSecurity.normalize(motherNik || '');
+
+      if (
+        cleanMotherNik &&
+        cleanPartnerNik &&
+        cleanMotherNik === cleanPartnerNik
+      ) {
+        throw new BadRequestException(
+          'NIK Suami tidak boleh sama dengan NIK Ibu',
+        );
+      }
+
+      if (cleanMotherNik && cleanMotherNik.length === 16) {
+        const blindIndex = this.nikSecurity.computeBlindIndex(cleanMotherNik);
+        const existingPatient = await tx.query.patientProfiles.findFirst({
+          where: and(
+            or(
+              eq(patientProfiles.nationalIdHash, blindIndex),
+              eq(patientProfiles.nationalIdHash, cleanMotherNik),
+              eq(patientProfiles.nationalIdEncrypted, cleanMotherNik),
+            ),
+            ne(patientProfiles.id, dto.patientId),
+          ),
+          columns: { id: true },
+        });
+
+        if (existingPatient) {
+          throw new BadRequestException(
+            'NIK Ibu sudah terdaftar pada rekam medis pasien lain',
+          );
+        }
+
+        const secured = this.nikSecurity.secure(cleanMotherNik);
+        if (secured) {
+          await tx
+            .update(patientProfiles)
+            .set({
+              nationalIdEncrypted: secured.encrypted,
+              nationalIdHash: secured.blindIndex,
+              updatedAt: new Date().toISOString(),
+            })
+            .where(eq(patientProfiles.id, dto.patientId));
         }
       }
 
@@ -334,6 +383,39 @@ export class MaternityDrizzleRepository implements MaternityRepository {
 
       const intakeId = existing.id;
 
+      const existingHusband = await tx.query.maternalHusbandProfiles.findFirst({
+        where: eq(maternalHusbandProfiles.maternalIntakeId, intakeId),
+      });
+
+      const effectiveMotherNik =
+        dto.motherNik !== undefined
+          ? this.nikSecurity.normalize(dto.motherNik) || ''
+          : this.nikSecurity.normalize(existing.motherNik) || '';
+
+      const rawPartnerNik =
+        dto.partnerNik !== undefined
+          ? dto.partnerNik
+          : dto.husband?.nik !== undefined
+            ? dto.husband.nik
+            : undefined;
+
+      const effectivePartnerNik =
+        rawPartnerNik !== undefined
+          ? this.nikSecurity.normalize(rawPartnerNik) || null
+          : this.nikSecurity.normalize(
+              existing.partnerNik || existingHusband?.nik || '',
+            ) || null;
+
+      if (
+        effectiveMotherNik &&
+        effectivePartnerNik &&
+        effectiveMotherNik === effectivePartnerNik
+      ) {
+        throw new BadRequestException(
+          'NIK Suami tidak boleh sama dengan NIK Ibu',
+        );
+      }
+
       // Obstetric recalculation if HPHT updated
       let estimatedDueDate = dto.estimatedDueDate;
       let gestationalAgeWeeks = dto.gestationalAgeWeeks;
@@ -353,7 +435,43 @@ export class MaternityDrizzleRepository implements MaternityRepository {
       // Update maternalHealthIntakes fields
       const patchValues: Record<string, any> = {};
       if (dto.motherName !== undefined) patchValues.motherName = dto.motherName;
-      if (dto.motherNik !== undefined) patchValues.motherNik = dto.motherNik;
+      if (dto.motherNik !== undefined) {
+        const cleanMotherNik = this.nikSecurity.normalize(dto.motherNik);
+        patchValues.motherNik = cleanMotherNik || '';
+
+        if (cleanMotherNik && cleanMotherNik.length === 16) {
+          const blindIndex = this.nikSecurity.computeBlindIndex(cleanMotherNik);
+          const duplicatePatient = await tx.query.patientProfiles.findFirst({
+            where: and(
+              or(
+                eq(patientProfiles.nationalIdHash, blindIndex),
+                eq(patientProfiles.nationalIdHash, cleanMotherNik),
+                eq(patientProfiles.nationalIdEncrypted, cleanMotherNik),
+              ),
+              ne(patientProfiles.id, existing.patientId),
+            ),
+            columns: { id: true },
+          });
+
+          if (duplicatePatient) {
+            throw new BadRequestException(
+              'NIK Ibu sudah terdaftar pada rekam medis pasien lain',
+            );
+          }
+
+          const secured = this.nikSecurity.secure(cleanMotherNik);
+          if (secured) {
+            await tx
+              .update(patientProfiles)
+              .set({
+                nationalIdEncrypted: secured.encrypted,
+                nationalIdHash: secured.blindIndex,
+                updatedAt: new Date().toISOString(),
+              })
+              .where(eq(patientProfiles.id, existing.patientId));
+          }
+        }
+      }
       if (dto.motherBirthDate !== undefined)
         patchValues.motherBirthDate = dto.motherBirthDate;
       if (dto.motherAge !== undefined) patchValues.motherAge = dto.motherAge;
@@ -479,10 +597,6 @@ export class MaternityDrizzleRepository implements MaternityRepository {
 
       // Husband Profile Upsert
       if (dto.husband) {
-        const existingHusband =
-          await tx.query.maternalHusbandProfiles.findFirst({
-            where: eq(maternalHusbandProfiles.maternalIntakeId, intakeId),
-          });
         if (existingHusband) {
           await tx
             .update(maternalHusbandProfiles)
