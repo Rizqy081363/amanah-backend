@@ -65,13 +65,22 @@ export class CreatePatientAffiliationUseCase {
       if (!dto.relationshipType) dto.relationshipType = relTypeRecord.code;
     }
 
-    const isSelfProfile = Boolean(dto.isPrimary || relTypeRecord?.isSystem);
+    const isSelfProfile = Boolean(
+      dto.isPrimary ||
+      relTypeRecord?.code === 'self' ||
+      relTypeRecord?.code === 'diri_sendiri' ||
+      relTypeRecord?.isSystem
+    );
 
     if (isSelfProfile) {
       const existingUserAffiliations =
         await this.affiliationRepo.findByUserId(userId);
       const hasPrimary = existingUserAffiliations.some(
-        (aff) => aff.isPrimary || aff.isSystem,
+        (aff) =>
+          aff.isPrimary ||
+          aff.isSystem ||
+          aff.relationshipType === 'self' ||
+          aff.relationshipType === 'diri_sendiri',
       );
       if (hasPrimary) {
         throw new ConflictException({

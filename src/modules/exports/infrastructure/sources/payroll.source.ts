@@ -272,17 +272,18 @@ export class PayrollExportSource implements ExportSource {
             ? new Date(r.createdAt).toISOString().split('T')[0]
             : r.periodStart);
         const dateObj = new Date(`${rawDate}T00:00:00Z`);
+        const now = new Date();
         const monthNum = !isNaN(dateObj.getMonth())
           ? dateObj.getMonth() + 1
-          : 10;
+          : now.getMonth() + 1;
         const yearNum = !isNaN(dateObj.getFullYear())
           ? dateObj.getFullYear()
-          : 2026;
+          : now.getFullYear();
 
         return {
           ...r,
           entryDate: rawDate,
-          periodMonth: ID_MONTH_NAMES[monthNum] || 'Oktober',
+          periodMonth: ID_MONTH_NAMES[monthNum] || ID_MONTH_NAMES[now.getMonth() + 1],
           periodYear: yearNum,
         };
       });
@@ -298,7 +299,7 @@ export class PayrollExportSource implements ExportSource {
       PAYROLL_ENTRY_TYPE_MAP[row.entryType] ?? 'Upah Pelayanan';
     const dateStr = row.entryDate ?? '-';
     const monthStr = row.periodMonth ?? '-';
-    const yearNum = row.periodYear ?? 2026;
+    const yearNum = row.periodYear ?? new Date().getFullYear();
 
     return [
       index,
@@ -634,11 +635,15 @@ export class PayrollExportSource implements ExportSource {
     }
 
     const startObj = new Date(`${period.periodStart}T00:00:00Z`);
-    const monthNum = !isNaN(startObj.getMonth()) ? startObj.getMonth() + 1 : 10;
+    const now = new Date();
+    const monthNum = !isNaN(startObj.getMonth())
+      ? startObj.getMonth() + 1
+      : now.getMonth() + 1;
     const yearNum = !isNaN(startObj.getFullYear())
       ? startObj.getFullYear()
-      : 2026;
-    const periodMonth = ID_MONTH_NAMES[monthNum] || 'Oktober';
+      : now.getFullYear();
+    const periodMonth =
+      ID_MONTH_NAMES[monthNum] || ID_MONTH_NAMES[now.getMonth() + 1];
 
     const totals: ReportTotals = {
       grossEarnings: Math.round(totalGross),

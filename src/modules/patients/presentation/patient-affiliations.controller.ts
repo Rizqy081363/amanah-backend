@@ -186,12 +186,12 @@ export class PatientAffiliationsController {
   }
 
   @Post('nik/availability')
-  @RequirePermissions('patients:register', 'patients:manage', 'appointments:book')
+  @RequirePermissions('patients:manage')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Cek ketersediaan NIK secara real-time untuk pendaftaran pasien',
+    summary: 'Cek ketersediaan NIK administratif internal (terbatas staf berwenang)',
     description:
-      'Memeriksa apakah NIK sudah terdaftar dalam sistem tanpa membocorkan identitas pemilik NIK.',
+      'Pemeriksaan administratif internal untuk staf klinik saat admisi pasien. Terkunci dari akses publik untuk mencegah Identity Enumeration.',
   })
   async checkNikAvailability(
     @Body() dto: VerifyNikAvailabilityDto,

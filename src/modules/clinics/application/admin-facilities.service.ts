@@ -18,6 +18,7 @@ import {
   type SQL,
 } from 'drizzle-orm';
 import { CanonicalSlugHelper } from '@common/utils';
+import { PROTECTED_RELATIONSHIP_CODES } from '@/common/constants/relationship.constants';
 import { RedisService } from '../../../common/redis/redis.service';
 import { DRIZZLE_SOURCE } from '../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../database/drizzle/drizzle.provider';
@@ -1909,29 +1910,17 @@ export class AdminFacilitiesService {
     };
     if (dto.name !== undefined) updates.name = dto.name.trim();
 
-    // Auto re-slugging: jika kode tidak ditentukan manual dan nama berubah, buat slug baru yang selaras
-    if (
-      dto.code === undefined &&
-      dto.name !== undefined &&
-      dto.name.trim() !== existing.name
-    ) {
-      const newDerivedCode = await this.resolveUniqueCode(
-        undefined,
-        dto.name.trim(),
-        'rel',
-        async (candidate) => {
-          const found = await this.db.query.patientRelationshipTypes.findFirst({
-            where: and(
-              eq(patientRelationshipTypes.code, candidate),
-              ne(patientRelationshipTypes.id, id),
-            ),
-          });
-          return Boolean(found);
-        },
-      );
-      updates.code = newDerivedCode;
-    } else if (dto.code !== undefined) {
+    // Kode relasi inti sistem (self, spouse, child, parent) tidak boleh diubah atau di-reslug otomatis
+    if (dto.code !== undefined) {
       const normalizedCode = dto.code.trim().toLowerCase().replace(/-/g, '_');
+      if (
+        (existing.isSystem || PROTECTED_RELATIONSHIP_CODES.has(existing.code)) &&
+        normalizedCode !== existing.code
+      ) {
+        throw new ConflictException(
+          `Kode relasi inti sistem '${existing.code}' dilindungi dan tidak dapat diubah.`,
+        );
+      }
       if (normalizedCode !== existing.code) {
         const duplicate =
           await this.db.query.patientRelationshipTypes.findFirst({
@@ -2025,9 +2014,9 @@ export class AdminFacilitiesService {
       );
     }
 
-    if (existing.isSystem) {
+    if (existing.isSystem || PROTECTED_RELATIONSHIP_CODES.has(existing.code)) {
       throw new ConflictException(
-        `Relasi sistem '${existing.name}' dilindungi dan tidak dapat dihapus permanen.`,
+        `Relasi inti sistem '${existing.name}' dilindungi dan tidak dapat dihapus permanen.`,
       );
     }
 

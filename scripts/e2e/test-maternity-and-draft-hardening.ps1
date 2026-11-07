@@ -231,6 +231,46 @@ try {
         Write-Host "Pass: Zod correctly rejected marriageDate=2004-07-23 with motherBirthDate=2004-08-23: $($hasMarriageError.reason)" -ForegroundColor Green
     }
 
+    # --------------------------------------------------------------------------
+    # 7. HPHT Date Validation: Reject Date Before Birth & Future Dates
+    # --------------------------------------------------------------------------
+    Write-Host "`n--- Step 7: Testing HPHT Date Validation (Before Birth & Future) ---" -ForegroundColor Yellow
+    $invalidHphtPayload = @{
+        patientId = $patientId1
+        motherName = "Test Ibu Hamil"
+        motherBirthDate = "2004-08-23"
+        hpht = "1999-05-10" # Before birthdate!
+        gravidaCount = 1
+        parityCount = 0
+        abortionCount = 0
+        livingChildrenCount = 0
+        gestationalAgeWeeks = 10
+        estimatedDueDate = "2026-12-15"
+        currentComplaints = "Pemeriksaan ANC"
+    } | ConvertTo-Json
+
+    try {
+        $res = Invoke-RestMethod -Uri "$apiUrl/maternity/intakes" -Method Post -Body $invalidHphtPayload -Headers $adminAuth.headers
+        Write-Host "UNEXPECTED: Endpoint accepted HPHT date before birthdate!" -ForegroundColor Red
+        exit 1
+    } catch {
+        $rawResponse = $_.ErrorDetails.Message
+        if (-not $rawResponse -and $_.Exception.Response) {
+            $stream = $_.Exception.Response.GetResponseStream()
+            if ($stream.CanSeek) { $stream.Position = 0 }
+            $reader = [System.IO.StreamReader]::new($stream)
+            $rawResponse = $reader.ReadToEnd()
+        }
+
+        $statusCode = [int]$_.Exception.Response.StatusCode
+        Assert-Test "Rejected HPHT date before birth with 400 Bad Request" ($statusCode -eq 400) "Expected 400 Bad Request"
+
+        $json = $rawResponse | ConvertFrom-Json
+        $hasHphtError = ($json.invalidParams | Where-Object { $_.reason -match "lebih awal dari tanggal lahir" -or $_.reason -match "HPHT" })
+        Assert-Test "Contains domain error explaining HPHT cannot be before birth" ($null -ne $hasHphtError) "Missing HPHT error message in RFC 7807 response"
+        Write-Host "Pass: Zod correctly rejected hpht=1999-05-10 with motherBirthDate=2004-08-23: $($hasHphtError.reason)" -ForegroundColor Green
+    }
+
     Write-Host "`n==============================================================================" -ForegroundColor Green
     Write-Host " ALL MATERNITY HARDENING & DRAFT TESTS PASSED WITH 100% SUCCESS!" -ForegroundColor Green
     Write-Host "==============================================================================" -ForegroundColor Green

@@ -178,7 +178,8 @@ export class MaternityDrizzleRepository implements MaternityRepository {
           posyandu: dto.posyandu || null,
           puskesmas: dto.puskesmas || null,
           partnerName: dto.partnerName || dto.husband?.fullName || null,
-          partnerNik: dto.partnerNik || dto.husband?.nik || null,
+          partnerNik:
+            this.nikSecurity.normalize(dto.partnerNik || dto.husband?.nik) || null,
           partnerBirthDate: dto.partnerBirthDate || dto.husband?.birthDate || null,
           partnerAge: dto.partnerAge || dto.husband?.age || null,
           partnerJob: dto.partnerJob || dto.husband?.job || null,
@@ -240,7 +241,10 @@ export class MaternityDrizzleRepository implements MaternityRepository {
         await tx.insert(maternalHusbandProfiles).values({
           maternalIntakeId: intake.id,
           fullName: dto.husband.fullName,
-          nik: dto.husband.nik || null,
+          nik:
+            (dto.husband.nik
+              ? this.nikSecurity.normalize(dto.husband.nik)
+              : null) || null,
           birthDate: dto.husband.birthDate || null,
           age: dto.husband.age || null,
           job: dto.husband.job || null,
@@ -373,7 +377,9 @@ export class MaternityDrizzleRepository implements MaternityRepository {
 
       if (dto.partnerName !== undefined)
         patchValues.partnerName = dto.partnerName;
-      if (dto.partnerNik !== undefined) patchValues.partnerNik = dto.partnerNik;
+      if (dto.partnerNik !== undefined)
+        patchValues.partnerNik =
+          this.nikSecurity.normalize(dto.partnerNik) || null;
       if (dto.partnerBirthDate !== undefined)
         patchValues.partnerBirthDate = dto.partnerBirthDate;
       if (dto.partnerAge !== undefined) patchValues.partnerAge = dto.partnerAge;
@@ -482,7 +488,10 @@ export class MaternityDrizzleRepository implements MaternityRepository {
             .update(maternalHusbandProfiles)
             .set({
               fullName: dto.husband.fullName || existingHusband.fullName,
-              nik: dto.husband.nik !== undefined ? dto.husband.nik : existingHusband.nik,
+              nik:
+                dto.husband.nik !== undefined
+                  ? this.nikSecurity.normalize(dto.husband.nik) || null
+                  : existingHusband.nik,
               birthDate:
                 dto.husband.birthDate !== undefined
                   ? dto.husband.birthDate
@@ -514,7 +523,10 @@ export class MaternityDrizzleRepository implements MaternityRepository {
           await tx.insert(maternalHusbandProfiles).values({
             maternalIntakeId: intakeId,
             fullName: dto.husband.fullName,
-            nik: dto.husband.nik || null,
+            nik:
+              (dto.husband.nik
+                ? this.nikSecurity.normalize(dto.husband.nik)
+                : null) || null,
             birthDate: dto.husband.birthDate || null,
             age: dto.husband.age || null,
             job: dto.husband.job || null,

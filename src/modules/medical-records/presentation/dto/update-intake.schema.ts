@@ -175,6 +175,51 @@ export function refineMarriageDate(
   }
 }
 
+export function refineHphtDate(
+  data: {
+    hpht?: string | null;
+    motherBirthDate?: string | null;
+  },
+  ctx: z.RefinementCtx,
+) {
+  if (!data.hpht || data.hpht.trim() === '') return;
+  const hDate = new Date(data.hpht);
+  if (isNaN(hDate.getTime())) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Format tanggal HPHT tidak valid',
+      path: ['hpht'],
+    });
+    return;
+  }
+
+  const today = new Date();
+  today.setHours(23, 59, 59, 999);
+  if (hDate > today) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Tanggal HPHT tidak boleh di masa depan',
+      path: ['hpht'],
+    });
+    return;
+  }
+
+  if (data.motherBirthDate && data.motherBirthDate.trim() !== '') {
+    const bDate = new Date(data.motherBirthDate);
+    if (!isNaN(bDate.getTime())) {
+      if (hDate <= bDate) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            'Tanggal HPHT tidak boleh lebih awal dari tanggal lahir pasien',
+          path: ['hpht'],
+        });
+        return;
+      }
+    }
+  }
+}
+
 export const CreateMaternityIntakeSchema = z
   .object({
     patientId: z.string().uuid({ message: 'ID pasien harus berupa UUID valid' }),
@@ -268,7 +313,8 @@ export const CreateMaternityIntakeSchema = z
     healthConditions: z.array(HealthConditionItemSchema).optional().nullable(),
   })
   .superRefine(refineObstetricCounts)
-  .superRefine(refineMarriageDate);
+  .superRefine(refineMarriageDate)
+  .superRefine(refineHphtDate);
 
 export type CreateMaternityIntakeInput = z.infer<
   typeof CreateMaternityIntakeSchema
@@ -349,7 +395,8 @@ export const UpdateMaternityIntakeSchema = z
     healthConditions: z.array(HealthConditionItemSchema).optional(),
   })
   .superRefine(refineObstetricCounts)
-  .superRefine(refineMarriageDate);
+  .superRefine(refineMarriageDate)
+  .superRefine(refineHphtDate);
 
 export type UpdateMaternityIntakeInput = z.infer<
   typeof UpdateMaternityIntakeSchema

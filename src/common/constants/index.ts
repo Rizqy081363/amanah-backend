@@ -5,5 +5,6 @@ export * from './mail.constants';
 export * from './notification-audience.constants';
 export * from './pagination.constants';
 export * from './rate-limit.constants';
+export * from './relationship.constants';
 export * from './role-audience.constants';
 export * from './user-status.constants';
