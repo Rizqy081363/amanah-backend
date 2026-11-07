@@ -80,6 +80,7 @@
     "build:docker": "bun run build",
     "docker:build": "docker compose build api && docker image prune -f",
     "docker:reload": "docker compose up -d --no-deps --build api && docker image prune -f",
+    "docker:env": "bun ./scripts/dev/docker-sync.ts --env",
     "docker:prune": "bun ./scripts/dev/docker-clean.ts",
     "docker:clean": "bun ./scripts/dev/docker-clean.ts",
     "docker:clean:orphans": "bun ./scripts/dev/docker-clean.ts --prune-orphans",

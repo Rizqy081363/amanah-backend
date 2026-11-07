@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-import { existsSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { resolve } from 'node:path';
 
@@ -61,6 +61,36 @@ const runningCheck = spawnSync('docker', ['compose', 'ps', '--status', 'running'
 const isRunning = Boolean(runningCheck.stdout && runningCheck.stdout.trim());
 
 if (isRunning) {
+  const forceEnv = process.argv.includes('--env') || process.argv.includes('-e');
+  let envChanged = forceEnv;
+
+  if (!envChanged) {
+    const envPath = resolve(repoRoot, '.env');
+    if (existsSync(envPath)) {
+      const envMtime = statSync(envPath).mtimeMs;
+      const inspectRes = spawnSync('docker', ['inspect', 'backend-api-1', '--format', '{{.Created}}'], {
+        cwd: repoRoot,
+        encoding: 'utf8',
+        shell: process.platform === 'win32',
+      });
+      if (inspectRes.status === 0 && inspectRes.stdout && inspectRes.stdout.trim()) {
+        const containerCreated = new Date(inspectRes.stdout.trim()).getTime();
+        if (envMtime > containerCreated) {
+          envChanged = true;
+        }
+      }
+    }
+  }
+
+  if (envChanged) {
+    console.log('[Docker Sync] Terdeteksi perubahan pada .env. Merefresh container dengan environment baru...');
+    spawnSync('docker', ['compose', 'up', '-d', '--no-deps', 'api'], {
+      cwd: repoRoot,
+      stdio: 'inherit',
+      shell: process.platform === 'win32',
+    });
+  }
+
   console.log('[Docker Sync] Container api aktif. Menyalin build artifacts (dist) ke container...');
   const cpResult = spawnSync('docker', ['compose', 'cp', 'dist/.', 'api:/usr/src/app/dist/'], {
     cwd: repoRoot,
