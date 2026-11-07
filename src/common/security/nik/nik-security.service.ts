@@ -18,29 +18,27 @@ export class NikSecurityService implements INikSecurityService {
   private readonly encryptionKey: Buffer;
 
   constructor(private readonly configService: ConfigService) {
-    const customPepper = this.configService.get<string>('NIK_BLIND_INDEX_PEPPER');
-    const customKey = this.configService.get<string>('NIK_ENCRYPTION_KEY');
-    const fallbackSecret =
-      this.configService.get<string>('AUTH_JWT_SECRET') ||
-      this.configService.get<string>('BETTER_AUTH_SECRET') ||
-      'amanah-healthcare-secure-default-secret-seed-32-chars';
+    const pepper = this.configService.get<string>('NIK_BLIND_INDEX_PEPPER');
+    const key = this.configService.get<string>('NIK_ENCRYPTION_KEY');
 
-    this.pepper =
-      customPepper && customPepper.trim().length >= 16
-        ? customPepper.trim()
-        : createHmac('sha256', fallbackSecret)
-            .update('amanah-nik-blind-index-pepper-seed')
-            .digest('hex');
-
-    if (customKey && customKey.trim().length === 64) {
-      this.encryptionKey = Buffer.from(customKey.trim(), 'hex');
-    } else if (customKey && customKey.trim().length === 32) {
-      this.encryptionKey = Buffer.from(customKey.trim(), 'utf-8');
-    } else {
-      this.encryptionKey = createHmac('sha256', fallbackSecret)
-        .update('amanah-nik-aes-gcm-encryption-key-seed')
-        .digest();
+    if (!pepper || pepper.trim().length < 16) {
+      throw new Error(
+        'NIK_BLIND_INDEX_PEPPER is required in environment and must be at least 16 characters long',
+      );
     }
+
+    const trimmedKey = key?.trim();
+    if (!trimmedKey || (trimmedKey.length !== 64 && trimmedKey.length !== 32)) {
+      throw new Error(
+        'NIK_ENCRYPTION_KEY is required in environment and must be a 64-hex-character or 32-character string',
+      );
+    }
+
+    this.pepper = pepper.trim();
+    this.encryptionKey =
+      trimmedKey.length === 64
+        ? Buffer.from(trimmedKey, 'hex')
+        : Buffer.from(trimmedKey, 'utf-8');
   }
 
   /**
