@@ -110,16 +110,18 @@ const PATIENT_PERMISSIONS = [
   'app:access',
   'profile:read',
   'profile:update',
+  'patients:read',
+  'patients:register',
   'appointments:book',
   'appointments:read',
   'appointments:manage',
   'schedules:read',
   'queue:read',
+  'records:read',
+  'records:write',
   'chat:read',
   'chat:send',
   'notifications:read',
-  'patients:register',
-  'records:read',
 ];
 
 // CANONICAL ROLES (Flat RBAC)
