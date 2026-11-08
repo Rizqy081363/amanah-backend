@@ -11,12 +11,12 @@ import {
   Patch,
   Post,
   Query,
+  UseFilters,
   UseGuards,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiCreatedResponse,
-  ApiOkResponse,
   ApiOperation,
   ApiParam,
   ApiTags,
@@ -29,6 +29,13 @@ import {
   PermissionsGuard,
   RequirePermissions,
 } from '../../../../common/auth';
+import { zodPipe } from '../../../../common/validation';
+import {
+  type CreateMaternityIntakeInput,
+  CreateMaternityIntakeSchema,
+  type UpdateMaternityIntakeInput,
+  UpdateMaternityIntakeSchema,
+} from '../../../medical-records/presentation/dto/update-intake.schema';
 import {
   PATIENT_REPOSITORY,
   type PatientRepository,
@@ -41,24 +48,13 @@ import { CreateMaternityIntakeUseCase } from '../../application/use-cases/create
 import { GetMaternityHistoryUseCase } from '../../application/use-cases/get-maternity-history.use-case';
 import { GetMaternityIntakeUseCase } from '../../application/use-cases/get-maternity-intake.use-case';
 import { UpdateMaternityIntakeUseCase } from '../../application/use-cases/update-maternity-intake.use-case';
-import {
-  MATERNITY_REPOSITORY,
-  MaternityRepository,
-} from '../../domain/repositories/maternity.repository.interface';
-import { zodPipe } from '../../../../common/validation';
-import {
-  CreateMaternityIntakeSchema,
-  type CreateMaternityIntakeInput,
-  UpdateMaternityIntakeSchema,
-  type UpdateMaternityIntakeInput,
-} from '../../../medical-records/presentation/dto/update-intake.schema';
-import { CreateMaternityIntakeDto } from '../dto/create-maternity-intake.dto';
 import { MaternityHistoryQueryDto } from '../dto/maternity-query.dto';
-import { UpdateMaternityIntakeDto } from '../dto/update-maternity-intake.dto';
+import { MaternityDomainErrorFilter } from '../filters/maternity-domain-error.filter';
 
 @ApiTags('Maternity (Praktik Mandiri Bidan & Kesehatan Ibu Hamil)')
 @ApiBearerAuth('access-token')
 @UseGuards(HybridAuthGuard, PermissionsGuard)
+@UseFilters(MaternityDomainErrorFilter)
 @Controller({ path: 'maternity', version: '1' })
 export class MaternityController {
   constructor(
@@ -66,8 +62,6 @@ export class MaternityController {
     private readonly updateIntakeUseCase: UpdateMaternityIntakeUseCase,
     private readonly getIntakeUseCase: GetMaternityIntakeUseCase,
     private readonly getHistoryUseCase: GetMaternityHistoryUseCase,
-    @Inject(MATERNITY_REPOSITORY)
-    private readonly maternityRepo: MaternityRepository,
     @Inject(PATIENT_AFFILIATION_REPOSITORY)
     private readonly affiliationRepo: PatientAffiliationRepository,
     @Inject(PATIENT_REPOSITORY)
@@ -107,7 +101,8 @@ export class MaternityController {
   })
   @ApiCreatedResponse({ description: 'Intake kehamilan berhasil disimpan' })
   async createIntake(
-    @Body(zodPipe(CreateMaternityIntakeSchema)) body: CreateMaternityIntakeInput,
+    @Body(zodPipe(CreateMaternityIntakeSchema))
+    body: CreateMaternityIntakeInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
     if (isExternalUser(user)) {
@@ -142,7 +137,8 @@ export class MaternityController {
   })
   async updateIntakeById(
     @Param('id') id: string,
-    @Body(zodPipe(UpdateMaternityIntakeSchema)) body: UpdateMaternityIntakeInput,
+    @Body(zodPipe(UpdateMaternityIntakeSchema))
+    body: UpdateMaternityIntakeInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
     if (isExternalUser(user)) {
@@ -157,7 +153,8 @@ export class MaternityController {
   @Get('appointment/:appointmentId')
   @RequirePermissions('records:read')
   @ApiOperation({
-    summary: 'Mendapatkan intake maternal berdasarkan ID Appointment / Janji Temu',
+    summary:
+      'Mendapatkan intake maternal berdasarkan ID Appointment / Janji Temu',
   })
   async getByAppointmentId(
     @Param('appointmentId') appointmentId: string,
@@ -187,9 +184,7 @@ export class MaternityController {
 
     if (isExternalUser(user)) {
       const myId = user.patient?.id;
-      const userAffiliations = await this.affiliationRepo.findByUserId(
-        user.id,
-      );
+      const userAffiliations = await this.affiliationRepo.findByUserId(user.id);
       const affiliatedIds = userAffiliations.map((a: any) => a.patientId);
       const allowed = Array.from(
         new Set([...(myId ? [myId] : []), ...affiliatedIds]),

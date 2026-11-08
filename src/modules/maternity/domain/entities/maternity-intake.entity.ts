@@ -5,7 +5,6 @@ import { MaternalPreviousPregnancyEntity } from './maternal-previous-pregnancy.e
 
 export class MaternityIntakeEntity {
   id!: string;
-  intakeSubmissionId?: string | null;
   patientId!: string;
   appointmentId?: string | null;
   motherNik!: string;

@@ -3750,7 +3750,6 @@ export const maternalHealthIntakes = pgTable(
   'maternal_health_intakes',
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
-    intakeSubmissionId: uuid('intake_submission_id'),
     patientId: uuid('patient_id').notNull(),
     appointmentId: uuid('appointment_id'),
     motherNik: varchar('mother_nik', { length: 16 }).notNull(),
@@ -3850,15 +3849,7 @@ export const maternalHealthIntakes = pgTable(
   (table) => [
     index('maternal_health_intakes_patient_idx').on(table.patientId),
     index('idx_maternal_intakes_patient_date').on(table.patientId, table.createdAt),
-    index('maternal_health_intakes_submission_idx').on(
-      table.intakeSubmissionId,
-    ),
     index('maternal_health_intakes_appointment_idx').on(table.appointmentId),
-    foreignKey({
-      columns: [table.intakeSubmissionId],
-      foreignColumns: [medicalIntakeSubmissions.id],
-      name: 'maternal_health_intakes_submission_id_fkey',
-    }).onDelete('cascade'),
     foreignKey({
       columns: [table.patientId],
       foreignColumns: [patientProfiles.id],
@@ -3966,7 +3957,6 @@ export const childImmunizationIntakes = pgTable(
   'child_immunization_intakes',
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
-    intakeSubmissionId: uuid('intake_submission_id').notNull(),
     patientId: uuid('patient_id').notNull(),
     appointmentId: uuid('appointment_id'),
     childName: varchar('child_name', { length: 255 }).notNull(),
@@ -3989,15 +3979,7 @@ export const childImmunizationIntakes = pgTable(
   },
   (table) => [
     index('child_immunization_intakes_patient_idx').on(table.patientId),
-    index('child_immunization_intakes_submission_idx').on(
-      table.intakeSubmissionId,
-    ),
     index('child_immunization_intakes_appointment_idx').on(table.appointmentId),
-    foreignKey({
-      columns: [table.intakeSubmissionId],
-      foreignColumns: [medicalIntakeSubmissions.id],
-      name: 'child_immunization_intakes_submission_id_fkey',
-    }).onDelete('cascade'),
     foreignKey({
       columns: [table.patientId],
       foreignColumns: [patientProfiles.id],

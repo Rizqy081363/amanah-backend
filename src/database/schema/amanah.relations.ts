@@ -769,18 +769,12 @@ export const medicalIntakeSubmissionsRelations = relations(
       references: [users.id],
     }),
     clinicalEncounters: many(clinicalEncounters),
-    maternalHealthIntake: one(maternalHealthIntakes),
-    childImmunizationIntake: one(childImmunizationIntakes),
   }),
 );
 
 export const maternalHealthIntakesRelations = relations(
   maternalHealthIntakes,
   ({ one, many }) => ({
-    intakeSubmission: one(medicalIntakeSubmissions, {
-      fields: [maternalHealthIntakes.intakeSubmissionId],
-      references: [medicalIntakeSubmissions.id],
-    }),
     patientProfile: one(patientProfiles, {
       fields: [maternalHealthIntakes.patientId],
       references: [patientProfiles.id],
@@ -819,10 +813,6 @@ export const maternalContraceptiveHistoriesRelations = relations(
 export const childImmunizationIntakesRelations = relations(
   childImmunizationIntakes,
   ({ one, many }) => ({
-    intakeSubmission: one(medicalIntakeSubmissions, {
-      fields: [childImmunizationIntakes.intakeSubmissionId],
-      references: [medicalIntakeSubmissions.id],
-    }),
     patientProfile: one(patientProfiles, {
       fields: [childImmunizationIntakes.patientId],
       references: [patientProfiles.id],

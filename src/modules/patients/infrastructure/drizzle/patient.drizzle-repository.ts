@@ -468,18 +468,20 @@ export class PatientDrizzleRepository implements PatientRepository {
       updatedAt: new Date().toISOString(),
     };
 
-    if (d.fullName !== undefined) updateValues.fullName = d.fullName.trim();
-    if (d.phone !== undefined) updateValues.phone = d.phone.trim();
+    if (d.fullName !== undefined)
+      updateValues.fullName = d.fullName ? d.fullName.trim() : existing.fullName;
+    if (d.phone !== undefined) updateValues.phone = d.phone ? d.phone.trim() : null;
     if (d.email !== undefined)
       updateValues.email = d.email ? d.email.trim() : null;
     if (d.motherName !== undefined)
-      updateValues.motherName = d.motherName.trim();
+      updateValues.motherName = d.motherName ? d.motherName.trim() : null;
     if (d.birthPlace !== undefined)
-      updateValues.birthPlace = d.birthPlace.trim();
-    if (d.birthDate !== undefined) updateValues.birthDate = d.birthDate;
+      updateValues.birthPlace = d.birthPlace ? d.birthPlace.trim() : null;
+    if (d.birthDate !== undefined) updateValues.birthDate = d.birthDate || existing.birthDate;
 
     if (
       d.medicalRecordNumber !== undefined &&
+      d.medicalRecordNumber &&
       d.medicalRecordNumber.trim() !== ''
     ) {
       const cleanRm = d.medicalRecordNumber.trim();
@@ -504,32 +506,38 @@ export class PatientDrizzleRepository implements PatientRepository {
     }
 
     if (d.occupation !== undefined)
-      updateValues.occupation = d.occupation.trim();
+      updateValues.occupation = d.occupation ? d.occupation.trim() : null;
     if (d.medicalHistory !== undefined)
       updateValues.medicalHistorySummary = d.medicalHistory;
     if (d.avatarUrl !== undefined) updateValues.avatarUrl = d.avatarUrl;
     if (d.status !== undefined) updateValues.status = d.status;
 
-    if (d.nik !== undefined && d.nik.trim() !== '') {
-      const securedNik = this.nikSecurity.secure(d.nik);
-      if (securedNik) {
-        const existingDecrypted =
-          this.nikSecurity.decrypt(existing.nationalIdEncrypted) ||
-          existing.nationalIdEncrypted;
-        if (
-          securedNik.normalized !== existingDecrypted &&
-          securedNik.blindIndex !== existing.nationalIdHash
-        ) {
-          const duplicateNik = await this.findByNik(securedNik.normalized);
-          if (duplicateNik && duplicateNik.id !== id) {
-            throw new ConflictException({
-              code: 'DUPLICATE_NIK',
-              message: 'NIK ini sudah terdaftar pada rekam medis pasien lain.',
-            });
+    if (d.nik !== undefined) {
+      const cleanNik = d.nik ? d.nik.trim() : '';
+      if (cleanNik !== '') {
+        const securedNik = this.nikSecurity.secure(cleanNik);
+        if (securedNik) {
+          const existingDecrypted =
+            this.nikSecurity.decrypt(existing.nationalIdEncrypted) ||
+            existing.nationalIdEncrypted;
+          if (
+            securedNik.normalized !== existingDecrypted &&
+            securedNik.blindIndex !== existing.nationalIdHash
+          ) {
+            const duplicateNik = await this.findByNik(securedNik.normalized);
+            if (duplicateNik && duplicateNik.id !== id) {
+              throw new ConflictException({
+                code: 'DUPLICATE_NIK',
+                message: 'NIK ini sudah terdaftar pada rekam medis pasien lain.',
+              });
+            }
+            updateValues.nationalIdEncrypted = securedNik.encrypted;
+            updateValues.nationalIdHash = securedNik.blindIndex;
           }
-          updateValues.nationalIdEncrypted = securedNik.encrypted;
-          updateValues.nationalIdHash = securedNik.blindIndex;
         }
+      } else {
+        updateValues.nationalIdEncrypted = null;
+        updateValues.nationalIdHash = null;
       }
     }
 
@@ -597,22 +605,29 @@ export class PatientDrizzleRepository implements PatientRepository {
       }
 
       if (existingAddress) {
-        await this.db
-          .update(patientAddresses)
-          .set({
-            line1: line1ToUse || existingAddress.line1,
-            fullAddress: fullAddressToUse || existingAddress.fullAddress,
-            provinceCode: provCodeToUse,
-            provinceName: provNameToUse || null,
-            regencyCode: regCodeToUse,
-            regencyName: regNameToUse || null,
-            districtCode: distCodeToUse,
-            districtName: distNameToUse || null,
-            villageCode: villCodeToUse,
-            villageName: villNameToUse || null,
-            updatedAt: new Date().toISOString(),
-          })
-          .where(eq(patientAddresses.id, existingAddress.id));
+        const targetLine1 = line1 !== undefined ? line1?.trim() : existingAddress.line1;
+        if (!targetLine1) {
+          await this.db
+            .delete(patientAddresses)
+            .where(eq(patientAddresses.id, existingAddress.id));
+        } else {
+          await this.db
+            .update(patientAddresses)
+            .set({
+              line1: targetLine1,
+              fullAddress: fullAddressToUse || targetLine1,
+              provinceCode: provCodeToUse,
+              provinceName: provNameToUse || null,
+              regencyCode: regCodeToUse,
+              regencyName: regNameToUse || null,
+              districtCode: distCodeToUse,
+              districtName: distNameToUse || null,
+              villageCode: villCodeToUse,
+              villageName: villNameToUse || null,
+              updatedAt: new Date().toISOString(),
+            })
+            .where(eq(patientAddresses.id, existingAddress.id));
+        }
       } else if (line1ToUse && fullAddressToUse) {
         await this.db.insert(patientAddresses).values({
           patientId: id,
@@ -648,24 +663,25 @@ export class PatientDrizzleRepository implements PatientRepository {
         });
 
       if (existingContact) {
-        await this.db
-          .update(patientEmergencyContacts)
-          .set({
-            name:
-              emergencyName !== undefined
-                ? emergencyName.trim()
-                : existingContact.name,
-            phone:
-              emergencyPhone !== undefined
-                ? emergencyPhone.trim()
-                : existingContact.phone,
-            relationship:
-              emergencyRel !== undefined
-                ? emergencyRel.trim()
-                : existingContact.relationship,
-            updatedAt: new Date().toISOString(),
-          })
-          .where(eq(patientEmergencyContacts.id, existingContact.id));
+        const targetPhone = emergencyPhone !== undefined ? emergencyPhone?.trim() : existingContact.phone;
+        const targetName = emergencyName !== undefined ? emergencyName?.trim() : existingContact.name;
+        const targetRel = emergencyRel !== undefined ? emergencyRel?.trim() : existingContact.relationship;
+
+        if (!targetPhone) {
+          await this.db
+            .delete(patientEmergencyContacts)
+            .where(eq(patientEmergencyContacts.id, existingContact.id));
+        } else {
+          await this.db
+            .update(patientEmergencyContacts)
+            .set({
+              name: targetName || null,
+              phone: targetPhone,
+              relationship: targetRel || null,
+              updatedAt: new Date().toISOString(),
+            })
+            .where(eq(patientEmergencyContacts.id, existingContact.id));
+        }
       } else if (emergencyPhone?.trim()) {
         await this.db.insert(patientEmergencyContacts).values({
           patientId: id,

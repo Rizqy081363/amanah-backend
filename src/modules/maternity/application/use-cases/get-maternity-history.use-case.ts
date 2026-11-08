@@ -1,11 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { MaternityIntakeEntity } from '../../domain/entities/maternity-intake.entity';
 import {
   MATERNITY_REPOSITORY,
   MaternityHistoryQuery,
   MaternityHistoryResult,
   MaternityRepository,
 } from '../../domain/repositories/maternity.repository.interface';
-import { MaternityIntakeEntity } from '../../domain/entities/maternity-intake.entity';
 
 @Injectable()
 export class GetMaternityHistoryUseCase {
@@ -21,7 +21,9 @@ export class GetMaternityHistoryUseCase {
     return this.maternityRepo.findMaternalHistory(patientIds, query);
   }
 
-  async executeByPatientId(patientId: string): Promise<MaternityIntakeEntity[]> {
+  async executeByPatientId(
+    patientId: string,
+  ): Promise<MaternityIntakeEntity[]> {
     return this.maternityRepo.findByPatientId(patientId);
   }
 }

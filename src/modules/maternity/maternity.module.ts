@@ -1,5 +1,4 @@
-import { forwardRef, Module } from '@nestjs/common';
-import { AppointmentsModule } from '../appointments/appointments.module';
+import { Module } from '@nestjs/common';
 import { PatientsModule } from '../patients/patients.module';
 import { CreateMaternityIntakeUseCase } from './application/use-cases/create-maternity-intake.use-case';
 import { GetMaternityHistoryUseCase } from './application/use-cases/get-maternity-history.use-case';
@@ -11,10 +10,7 @@ import { MaternityDrizzleRepository } from './infrastructure/drizzle/maternity.d
 import { MaternityController } from './presentation/controllers/maternity.controller';
 
 @Module({
-  imports: [
-    PatientsModule,
-    forwardRef(() => AppointmentsModule),
-  ],
+  imports: [PatientsModule],
   controllers: [MaternityController],
   providers: [
     ObstetricCalculatorService,

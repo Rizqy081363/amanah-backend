@@ -1,9 +1,10 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
+import { MaternityIntakeEntity } from '../../domain/entities/maternity-intake.entity';
+import { MaternityIntakeNotFoundError } from '../../domain/errors/maternity.errors';
 import {
   MATERNITY_REPOSITORY,
   MaternityRepository,
 } from '../../domain/repositories/maternity.repository.interface';
-import { MaternityIntakeEntity } from '../../domain/entities/maternity-intake.entity';
 
 @Injectable()
 export class GetMaternityIntakeUseCase {
@@ -15,9 +16,7 @@ export class GetMaternityIntakeUseCase {
   async executeById(id: string): Promise<MaternityIntakeEntity> {
     const intake = await this.maternityRepo.findById(id);
     if (!intake) {
-      throw new NotFoundException(
-        `Data intake kehamilan dengan ID ${id} tidak ditemukan`,
-      );
+      throw new MaternityIntakeNotFoundError(id);
     }
     return intake;
   }
@@ -27,9 +26,7 @@ export class GetMaternityIntakeUseCase {
   ): Promise<MaternityIntakeEntity> {
     const intake = await this.maternityRepo.findByAppointmentId(appointmentId);
     if (!intake) {
-      throw new NotFoundException(
-        `Data intake kehamilan untuk appointment ${appointmentId} tidak ditemukan`,
-      );
+      throw new MaternityIntakeNotFoundError(appointmentId);
     }
     return intake;
   }

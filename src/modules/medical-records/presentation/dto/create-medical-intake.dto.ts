@@ -53,7 +53,7 @@ export class CreateMedicalIntakeDto {
 
   @ApiProperty({
     example: {
-      keluhanUtama: 'Mual muntah hebat di pagi hari',
+      complaint: 'Mual muntah hebat di pagi hari',
       riwayatAlergi: 'Tidak ada',
       hpht: '2026-01-10',
       merokok: false,

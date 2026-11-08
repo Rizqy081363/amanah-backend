@@ -4,7 +4,7 @@ import { IsNotEmpty, IsObject } from 'class-validator';
 export class UpdateMedicalIntakeDto {
   @ApiProperty({
     example: {
-      keluhanUtama: 'Batuk pilek sejak 2 hari yang lalu',
+      complaint: 'Batuk pilek sejak 2 hari yang lalu',
       riwayatAlergi: 'Alergi amoksisilin',
     },
     description: 'Jawaban isian kuesioner skrining / intake medis',

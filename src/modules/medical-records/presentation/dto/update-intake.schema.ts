@@ -3,7 +3,9 @@ import { z } from 'zod';
 export const UpdateMedicalIntakeSchema = z.object({
   answers: z.record(z.string(), z.any()),
 });
-export type UpdateMedicalIntakeInput = z.infer<typeof UpdateMedicalIntakeSchema>;
+export type UpdateMedicalIntakeInput = z.infer<
+  typeof UpdateMedicalIntakeSchema
+>;
 
 export const HealthConditionItemSchema = z.object({
   conditionCode: z.string().min(1, { message: 'Kode kondisi wajib diisi' }),
@@ -129,7 +131,7 @@ export function refineMarriageDate(
 ) {
   if (!data.marriageDate || data.marriageDate.trim() === '') return;
   const mDate = new Date(data.marriageDate);
-  if (isNaN(mDate.getTime())) {
+  if (Number.isNaN(mDate.getTime())) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: 'Format tanggal menikah tidak valid',
@@ -151,7 +153,7 @@ export function refineMarriageDate(
 
   if (data.motherBirthDate && data.motherBirthDate.trim() !== '') {
     const bDate = new Date(data.motherBirthDate);
-    if (!isNaN(bDate.getTime())) {
+    if (!Number.isNaN(bDate.getTime())) {
       if (mDate <= bDate) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -184,7 +186,7 @@ export function refineHphtDate(
 ) {
   if (!data.hpht || data.hpht.trim() === '') return;
   const hDate = new Date(data.hpht);
-  if (isNaN(hDate.getTime())) {
+  if (Number.isNaN(hDate.getTime())) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: 'Format tanggal HPHT tidak valid',
@@ -206,7 +208,7 @@ export function refineHphtDate(
 
   if (data.motherBirthDate && data.motherBirthDate.trim() !== '') {
     const bDate = new Date(data.motherBirthDate);
-    if (!isNaN(bDate.getTime())) {
+    if (!Number.isNaN(bDate.getTime())) {
       if (hDate <= bDate) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -239,9 +241,30 @@ export function refineNikUniqueness(
   }
 }
 
+export const HusbandInputSchema = z
+  .object({
+    fullName: z.string().max(255).optional().nullable(),
+    nik: z
+      .string()
+      .regex(/^\d{16}$/, { message: 'NIK suami harus berupa 16 digit angka' })
+      .optional()
+      .or(z.literal(''))
+      .nullable(),
+    birthDate: z.string().optional().nullable(),
+    age: z.coerce.number().optional().nullable(),
+    job: z.string().optional().nullable(),
+    education: z.string().optional().nullable(),
+    bloodType: z.string().optional().nullable(),
+    phoneNumber: z.string().optional().nullable(),
+  })
+  .optional()
+  .nullable();
+
 export const CreateMaternityIntakeSchema = z
   .object({
-    patientId: z.string().uuid({ message: 'ID pasien harus berupa UUID valid' }),
+    patientId: z
+      .string()
+      .uuid({ message: 'ID pasien harus berupa UUID valid' }),
     appointmentId: z
       .string()
       .uuid({ message: 'ID appointment harus berupa UUID valid' })
@@ -326,7 +349,7 @@ export const CreateMaternityIntakeSchema = z
     allergyInfo: z.string().optional().nullable(),
     otherNotes: z.string().optional().nullable(),
 
-    husband: z.any().optional().nullable(),
+    husband: HusbandInputSchema,
     previousPregnancies: z.array(z.any()).optional().nullable(),
     contraceptiveHistories: z.array(z.any()).optional().nullable(),
     healthConditions: z.array(HealthConditionItemSchema).optional().nullable(),
@@ -342,77 +365,79 @@ export type CreateMaternityIntakeInput = z.infer<
 
 export const UpdateMaternityIntakeSchema = z
   .object({
-    motherName: z.string().optional(),
+    motherName: z.string().optional().nullable(),
     motherNik: z
       .string()
       .regex(/^\d{16}$/, { message: 'NIK ibu harus berupa 16 digit angka' })
       .optional()
+      .nullable()
       .or(z.literal('')),
-    motherBirthDate: z.string().optional(),
-    motherAge: z.coerce.number().optional(),
-    marriageOrder: z.coerce.number().optional(),
-    marriageDate: z.string().optional(),
-    motherJob: z.string().optional(),
-    motherEducation: z.string().optional(),
-    religion: z.string().optional(),
-    phoneNumber: z.string().optional(),
-    domicileAddress: z.string().optional(),
-    identityCardAddress: z.string().optional(),
-    dasawisma: z.string().optional(),
-    posyandu: z.string().optional(),
-    puskesmas: z.string().optional(),
+    motherBirthDate: z.string().optional().nullable(),
+    motherAge: z.coerce.number().optional().nullable(),
+    marriageOrder: z.coerce.number().optional().nullable(),
+    marriageDate: z.string().optional().nullable(),
+    motherJob: z.string().optional().nullable(),
+    motherEducation: z.string().optional().nullable(),
+    religion: z.string().optional().nullable(),
+    phoneNumber: z.string().optional().nullable(),
+    domicileAddress: z.string().optional().nullable(),
+    identityCardAddress: z.string().optional().nullable(),
+    dasawisma: z.string().optional().nullable(),
+    posyandu: z.string().optional().nullable(),
+    puskesmas: z.string().optional().nullable(),
 
-    partnerName: z.string().optional(),
+    partnerName: z.string().optional().nullable(),
     partnerNik: z
       .string()
       .regex(/^\d{16}$/, { message: 'NIK suami harus berupa 16 digit angka' })
       .optional()
+      .nullable()
       .or(z.literal('')),
-    partnerBirthDate: z.string().optional(),
-    partnerAge: z.coerce.number().optional(),
-    partnerJob: z.string().optional(),
-    partnerEducation: z.string().optional(),
-    partnerBloodType: z.string().optional(),
-    partnerPhone: z.string().optional(),
+    partnerBirthDate: z.string().optional().nullable(),
+    partnerAge: z.coerce.number().optional().nullable(),
+    partnerJob: z.string().optional().nullable(),
+    partnerEducation: z.string().optional().nullable(),
+    partnerBloodType: z.string().optional().nullable(),
+    partnerPhone: z.string().optional().nullable(),
 
-    heightCm: z.coerce.number().optional(),
-    prePregnancyWeightKg: z.coerce.number().optional(),
-    upperArmCircumferenceCm: z.coerce.number().optional(),
-    initialBmi: z.coerce.number().optional(),
-    tetanusStatus: z.string().optional(),
-    motherBloodType: z.string().optional(),
+    heightCm: z.coerce.number().optional().nullable(),
+    prePregnancyWeightKg: z.coerce.number().optional().nullable(),
+    upperArmCircumferenceCm: z.coerce.number().optional().nullable(),
+    initialBmi: z.coerce.number().optional().nullable(),
+    tetanusStatus: z.string().optional().nullable(),
+    motherBloodType: z.string().optional().nullable(),
 
-    hpht: z.string().optional(),
-    estimatedDueDate: z.string().optional(),
-    gestationalAgeWeeks: z.coerce.number().optional(),
-    gestationalAgeFormatted: z.string().optional(),
-    currentComplaints: z.string().optional(),
+    hpht: z.string().optional().nullable(),
+    estimatedDueDate: z.string().optional().nullable(),
+    gestationalAgeWeeks: z.coerce.number().optional().nullable(),
+    gestationalAgeFormatted: z.string().optional().nullable(),
+    currentComplaints: z.string().optional().nullable(),
 
-    gravidaCount: z.coerce.number().optional(),
-    parityCount: z.coerce.number().optional(),
-    abortionCount: z.coerce.number().optional(),
-    livingChildrenCount: z.coerce.number().optional(),
-    hasPreviousPregnancyHistory: z.boolean().optional(),
-    hasContraceptionHistory: z.boolean().optional(),
+    gravidaCount: z.coerce.number().optional().nullable(),
+    parityCount: z.coerce.number().optional().nullable(),
+    abortionCount: z.coerce.number().optional().nullable(),
+    livingChildrenCount: z.coerce.number().optional().nullable(),
+    hasPreviousPregnancyHistory: z.boolean().optional().nullable(),
+    hasContraceptionHistory: z.boolean().optional().nullable(),
 
-    smokedBeforePregnancy: z.string().optional(),
-    alcoholBeforePregnancy: z.boolean().optional(),
-    irregularDietBeforePregnancy: z.boolean().optional(),
-    reducedPhysicalActivityBeforePregnancy: z.boolean().optional(),
-    unprescribedMedicationBeforePregnancy: z.boolean().optional(),
-    concerningCosmeticUseBeforePregnancy: z.boolean().optional(),
-    pesticideExposureBeforePregnancy: z.boolean().optional(),
-    chemicalExposureBeforePregnancy: z.boolean().optional(),
-    smokeExposureBeforePregnancy: z.boolean().optional(),
+    smokedBeforePregnancy: z.string().optional().nullable(),
+    alcoholBeforePregnancy: z.boolean().optional().nullable(),
+    irregularDietBeforePregnancy: z.boolean().optional().nullable(),
+    reducedPhysicalActivityBeforePregnancy: z.boolean().optional().nullable(),
+    unprescribedMedicationBeforePregnancy: z.boolean().optional().nullable(),
+    concerningCosmeticUseBeforePregnancy: z.boolean().optional().nullable(),
+    pesticideExposureBeforePregnancy: z.boolean().optional().nullable(),
+    chemicalExposureBeforePregnancy: z.boolean().optional().nullable(),
+    smokeExposureBeforePregnancy: z.boolean().optional().nullable(),
 
-    concerningEnvironmentNotes: z.string().optional(),
-    allergyInfo: z.string().optional(),
-    otherNotes: z.string().optional(),
+    concerningEnvironmentNotes: z.string().optional().nullable(),
+    allergyInfo: z.string().optional().nullable(),
+    otherNotes: z.string().optional().nullable(),
 
-    husband: z.any().optional(),
-    previousPregnancies: z.array(z.any()).optional(),
-    contraceptiveHistories: z.array(z.any()).optional(),
-    healthConditions: z.array(HealthConditionItemSchema).optional(),
+    husband: HusbandInputSchema,
+    previousPregnancies: z.array(z.any()).optional().nullable(),
+    contraceptiveHistories: z.array(z.any()).optional().nullable(),
+    healthConditions: z.array(HealthConditionItemSchema).optional().nullable(),
   })
   .superRefine(refineObstetricCounts)
   .superRefine(refineMarriageDate)

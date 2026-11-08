@@ -444,31 +444,12 @@ export class AppointmentCreationHandler {
       await db
         .update(maternalHealthIntakes)
         .set({ appointmentId: apt.id })
-        .where(
-          or(
-            eq(maternalHealthIntakes.id, data.sourceIntakeId),
-            eq(maternalHealthIntakes.intakeSubmissionId, data.sourceIntakeId),
-          ),
-        );
+        .where(eq(maternalHealthIntakes.id, data.sourceIntakeId));
 
-      const imm = await db.query.childImmunizationIntakes.findFirst({
-        where: or(
-          eq(childImmunizationIntakes.id, data.sourceIntakeId),
-          eq(childImmunizationIntakes.intakeSubmissionId, data.sourceIntakeId),
-        ),
-      });
-      if (imm) {
-        await db
-          .update(childImmunizationIntakes)
-          .set({ appointmentId: apt.id })
-          .where(eq(childImmunizationIntakes.id, imm.id));
-        if (imm.intakeSubmissionId) {
-          await db
-            .update(medicalIntakeSubmissions)
-            .set({ appointmentId: apt.id })
-            .where(eq(medicalIntakeSubmissions.id, imm.intakeSubmissionId));
-        }
-      }
+      await db
+        .update(childImmunizationIntakes)
+        .set({ appointmentId: apt.id })
+        .where(eq(childImmunizationIntakes.id, data.sourceIntakeId));
 
       await db
         .update(medicalIntakeSubmissions)

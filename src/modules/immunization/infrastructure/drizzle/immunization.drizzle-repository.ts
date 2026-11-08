@@ -13,7 +13,6 @@ import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
   appointments,
   childImmunizationIntakes,
-  medicalIntakeSubmissions,
   patientProfiles,
 } from '../../../../database/schema/amanah.schema';
 import { childImmunizationEntries } from '../../../../database/schema/immunization.schema';
@@ -106,39 +105,9 @@ export class ImmunizationDrizzleRepository implements IImmunizationRepository {
         throw new BadRequestException('Jenis kelamin anak (childSex) wajib diisi');
       }
 
-      // 2. Insert intake submission metadata
-      const [submission] = await tx
-        .insert(medicalIntakeSubmissions)
-        .values({
-          appointmentId: data.appointmentId || null,
-          patientId: data.patientId,
-          flow: 'immunization',
-          schemaVersion: 'v2',
-          schemaTitle: 'Form Pendaftaran Imunisasi Anak - Amanah Health Care',
-          answers: {
-            childName: targetName || '',
-            childNik: targetNik || '',
-            childBirthDate: targetBirthDate || '',
-            childSex: targetSex,
-            parentPhone: targetPhone || '',
-            fatherName: data.fatherName || '',
-            motherName: targetMotherName || '',
-            childAddress: targetAddress || '',
-            previousVaccineHistory: data.previousVaccineHistory || '',
-            childAllergyHistory: data.childAllergyHistory || '',
-          },
-          automatic: {
-            childAgeAtSubmit: data.childAgeFormatted || '',
-          },
-          submittedBy: submittedByUserId || null,
-        })
-        .returning();
-
-      // 3. Insert child immunization intake header
       const [intake] = await tx
         .insert(childImmunizationIntakes)
         .values({
-          intakeSubmissionId: submission.id,
           patientId: data.patientId,
           appointmentId: data.appointmentId || null,
           childName: targetName || '',
@@ -165,30 +134,21 @@ export class ImmunizationDrizzleRepository implements IImmunizationRepository {
   ): Promise<ChildImmunizationIntakeEntity | null> {
     return this.db.transaction(async (tx) => {
       const existing = await tx.query.childImmunizationIntakes.findFirst({
-        where: or(
-          eq(childImmunizationIntakes.id, id),
-          eq(childImmunizationIntakes.intakeSubmissionId, id),
-        ),
+        where: eq(childImmunizationIntakes.id, id),
       });
 
       if (!existing) {
         return null;
       }
 
-      // Check appointment status lock
-      if (existing.intakeSubmissionId) {
-        const sub = await tx.query.medicalIntakeSubmissions.findFirst({
-          where: eq(medicalIntakeSubmissions.id, existing.intakeSubmissionId),
+      if (existing.appointmentId) {
+        const app = await tx.query.appointments.findFirst({
+          where: eq(appointments.id, existing.appointmentId),
         });
-        if (sub?.appointmentId) {
-          const app = await tx.query.appointments.findFirst({
-            where: eq(appointments.id, sub.appointmentId),
-          });
-          if (app?.status === 'completed') {
-            throw new ForbiddenException(
-              'Rekam medis pada janji temu yang telah selesai bersifat terkunci dan tidak dapat diubah.',
-            );
-          }
+        if (app?.status === 'completed') {
+          throw new ForbiddenException(
+            'Rekam medis pada janji temu yang telah selesai bersifat terkunci dan tidak dapat diubah.',
+          );
         }
       }
 
@@ -334,13 +294,7 @@ export class ImmunizationDrizzleRepository implements IImmunizationRepository {
 
   async findIntakeById(id: string): Promise<any | null> {
     const intake = await this.db.query.childImmunizationIntakes.findFirst({
-      where: or(
-        eq(childImmunizationIntakes.id, id),
-        eq(childImmunizationIntakes.intakeSubmissionId, id),
-      ),
-      with: {
-        intakeSubmission: true,
-      },
+      where: eq(childImmunizationIntakes.id, id),
     });
 
     if (!intake) return null;
@@ -371,18 +325,12 @@ export class ImmunizationDrizzleRepository implements IImmunizationRepository {
       provinceName: dom?.provinceName || null,
       provinceCode: dom?.provinceCode || null,
       entries: cumulativeLedger,
-      answers: (intake.intakeSubmission?.answers as Record<string, any>) || {},
-      automatic:
-        (intake.intakeSubmission?.automatic as Record<string, any>) || {},
     };
   }
 
   async findIntakeByAppointmentId(appointmentId: string): Promise<any | null> {
     const intake = await this.db.query.childImmunizationIntakes.findFirst({
       where: eq(childImmunizationIntakes.appointmentId, appointmentId),
-      with: {
-        intakeSubmission: true,
-      },
       orderBy: [desc(childImmunizationIntakes.createdAt)],
     });
 
@@ -414,9 +362,6 @@ export class ImmunizationDrizzleRepository implements IImmunizationRepository {
       provinceName: dom?.provinceName || null,
       provinceCode: dom?.provinceCode || null,
       entries: cumulativeLedger,
-      answers: (intake.intakeSubmission?.answers as Record<string, any>) || {},
-      automatic:
-        (intake.intakeSubmission?.automatic as Record<string, any>) || {},
     };
   }
 
@@ -613,9 +558,6 @@ export class ImmunizationDrizzleRepository implements IImmunizationRepository {
       limit,
       offset,
       orderBy: [desc(childImmunizationIntakes.createdAt)],
-      with: {
-        intakeSubmission: true,
-      },
     });
 
     return {

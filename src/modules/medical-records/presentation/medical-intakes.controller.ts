@@ -201,9 +201,7 @@ export class MedicalIntakesController {
 
   @Get('by-appointment/:appointmentId')
   @RequirePermissions('records:read')
-  @ApiOperation({
-    summary: 'Mendapatkan data intake lengkap berdasarkan ID Kunjungan',
-  })
+  @ApiOperation({ summary: 'Mendapatkan data intake lengkap berdasarkan ID Kunjungan' })
   @ApiParam({ name: 'appointmentId', description: 'ID unik appointment' })
   @ApiOkResponse({ description: 'Data intake berhasil ditemukan' })
   async getUnifiedIntakeByAppointmentId(
@@ -477,14 +475,8 @@ export class MedicalIntakesController {
 
   @Patch(':id')
   @RequirePermissions('records:write')
-  @ApiOperation({
-    summary:
-      'Update formulir intake medis (jawaban kuesioner) by ID (Admin / Staf Dokter/Bidan)',
-  })
-  @ApiParam({
-    name: 'id',
-    description: 'ID unik formulir intake submission',
-  })
+  @ApiOperation({ summary: 'Update formulir intake medis by ID' })
+  @ApiParam({ name: 'id', description: 'ID unik formulir intake submission' })
   async updateIntakeById(
     @Param('id') id: string,
     @Body(zodPipe(UpdateMedicalIntakeSchema)) body: UpdateMedicalIntakeInput,

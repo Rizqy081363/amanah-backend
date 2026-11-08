@@ -15,13 +15,17 @@ import {
   Min,
   ValidateIf,
 } from 'class-validator';
-import { gender, type Gender } from '../../../../database/schema';
+import { type Gender, gender } from '../../../../database/schema';
 
 export class HusbandProfileDto {
-  @ApiProperty({ example: 'Ahmad Fauzi', description: 'Nama lengkap suami' })
-  @IsString()
-  @IsNotEmpty()
-  fullName!: string;
+  @ApiPropertyOptional({
+    example: 'Ahmad Fauzi',
+    description: 'Nama lengkap suami',
+  })
+  @IsString({ message: 'Nama lengkap suami harus berupa teks' })
+  @MaxLength(255, { message: 'Nama lengkap suami maksimal 255 karakter' })
+  @IsOptional()
+  fullName?: string;
 
   @ApiPropertyOptional({
     example: '3201234567890002',

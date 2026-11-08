@@ -3,7 +3,7 @@ import type { Gender } from '../../../../database/schema';
 
 export interface ChildImmunizationIntakeEntity {
   id: string;
-  intakeSubmissionId: string;
+  intakeSubmissionId?: string | null;
   patientId: string;
   appointmentId?: string | null;
   childName: string;

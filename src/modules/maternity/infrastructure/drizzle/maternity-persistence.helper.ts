@@ -1,8 +1,5 @@
+import { PersistMaternityIntakePatch } from '../../domain/commands/maternity.commands';
 import { MaternityIntakeEntity } from '../../domain/entities/maternity-intake.entity';
-import {
-  ContraceptiveHistoryItemDto,
-  PreviousPregnancyItemDto,
-} from '../../presentation/dto/maternity-components.dto';
 
 export function toSafeInt(
   val: unknown,
@@ -10,7 +7,8 @@ export function toSafeInt(
   max: number = 2147483647,
 ): number | null {
   if (val === undefined || val === null || val === '') return null;
-  const normalized = typeof val === 'string' ? val.trim().replace(',', '.') : val;
+  const normalized =
+    typeof val === 'string' ? val.trim().replace(',', '.') : val;
   const n = Number(normalized);
   if (!Number.isFinite(n)) return null;
   return Math.max(min, Math.min(max, Math.trunc(n)));
@@ -18,7 +16,8 @@ export function toSafeInt(
 
 export function toSafeNumber(val: unknown): number | null {
   if (val === undefined || val === null || val === '') return null;
-  const normalized = typeof val === 'string' ? val.trim().replace(',', '.') : val;
+  const normalized =
+    typeof val === 'string' ? val.trim().replace(',', '.') : val;
   const n = Number(normalized);
   if (!Number.isFinite(n)) return null;
   return n;
@@ -30,10 +29,11 @@ export function toSafeNumericString(
   scale: number = 1,
 ): string | null {
   if (val === undefined || val === null || val === '') return null;
-  const normalized = typeof val === 'string' ? val.trim().replace(',', '.') : val;
+  const normalized =
+    typeof val === 'string' ? val.trim().replace(',', '.') : val;
   const n = Number(normalized);
   if (!Number.isFinite(n) || n < 0) return null;
-  const maxVal = Math.pow(10, maxPrecisionDigits) - Math.pow(10, -scale);
+  const maxVal = 10 ** maxPrecisionDigits - 10 ** -scale;
   const clamped = Math.min(maxVal, n);
   return clamped.toFixed(scale);
 }
@@ -46,7 +46,18 @@ export function toSafeString(val: unknown, maxLength?: number): string | null {
 }
 
 export function mapPreviousPregnancyRow(
-  p: PreviousPregnancyItemDto,
+  p: {
+    orderNumber?: number;
+    birthYear?: string | null;
+    birthWeightGrams?: number | null;
+    birthLengthCm?: number | string | null;
+    childSex?: string | null;
+    gestationalAgeAtBirth?: string | null;
+    birthAttendant?: string | null;
+    deliveryMethod?: string | null;
+    deliveryPlace?: string | null;
+    complications?: string | null;
+  },
   maternalIntakeId: string,
   idx: number,
 ) {
@@ -66,7 +77,15 @@ export function mapPreviousPregnancyRow(
 }
 
 export function mapContraceptiveHistoryRow(
-  c: ContraceptiveHistoryItemDto,
+  c: {
+    orderNumber?: number;
+    startDate?: string | null;
+    contraceptiveType?: string | null;
+    durationText?: string | null;
+    stopDate?: string | null;
+    problems?: string | null;
+    sideEffects?: string | null;
+  },
   maternalIntakeId: string,
   idx: number,
 ) {
@@ -85,7 +104,6 @@ export function mapContraceptiveHistoryRow(
 export function mapToMaternityEntity(record: any): MaternityIntakeEntity {
   return new MaternityIntakeEntity({
     id: record.id,
-    intakeSubmissionId: record.intakeSubmissionId,
     patientId: record.patientId,
     appointmentId: record.appointmentId,
     motherNik: record.motherNik,
@@ -136,8 +154,7 @@ export function mapToMaternityEntity(record: any): MaternityIntakeEntity {
       record.unprescribedMedicationBeforePregnancy,
     concerningCosmeticUseBeforePregnancy:
       record.concerningCosmeticUseBeforePregnancy,
-    pesticideExposureBeforePregnancy:
-      record.pesticideExposureBeforePregnancy,
+    pesticideExposureBeforePregnancy: record.pesticideExposureBeforePregnancy,
     chemicalExposureBeforePregnancy: record.chemicalExposureBeforePregnancy,
     smokeExposureBeforePregnancy: record.smokeExposureBeforePregnancy,
     concerningEnvironmentNotes: record.concerningEnvironmentNotes,
@@ -162,4 +179,42 @@ export function mapToMaternityEntity(record: any): MaternityIntakeEntity {
       createdAt: hc.createdAt,
     })),
   });
+}
+
+const NON_HEADER_KEYS = new Set([
+  'husband',
+  'previousPregnancies',
+  'contraceptiveHistories',
+  'healthConditions',
+  'patientIdentitySync',
+  'appointmentComplaintSync',
+  'submittedByUserId',
+]);
+
+const NUMERIC_COLUMNS: Record<string, [number, number]> = {
+  heightCm: [3, 2],
+  prePregnancyWeightKg: [3, 2],
+  upperArmCircumferenceCm: [3, 1],
+  initialBmi: [3, 1],
+  gestationalAgeWeeks: [3, 1],
+};
+
+export function buildMaternalHeaderPatch(
+  patch: PersistMaternityIntakePatch,
+): Record<string, unknown> {
+  const headerPatch: Record<string, unknown> = {};
+
+  for (const [key, value] of Object.entries(patch)) {
+    if (value === undefined || NON_HEADER_KEYS.has(key)) continue;
+
+    if (key in NUMERIC_COLUMNS) {
+      const [digits, scale] = NUMERIC_COLUMNS[key];
+      headerPatch[key] = toSafeNumericString(value, digits, scale);
+    } else {
+      headerPatch[key] = value;
+    }
+  }
+
+  headerPatch.updatedAt = new Date().toISOString();
+  return headerPatch;
 }

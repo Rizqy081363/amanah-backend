@@ -7,20 +7,21 @@ import {
 } from '@nestjs/common';
 import { isUUID } from 'class-validator';
 import { desc, eq, or } from 'drizzle-orm';
+import { NikSecurityService } from '../../../../common/security/nik';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
   appointments,
   medicalIntakeSubmissions,
-  patientProfiles,
 } from '../../../../database/schema';
 import { AppointmentsService } from '../../../appointments/application/appointments.service';
 import { ImmunizationDrizzleRepository } from '../../../immunization/infrastructure/drizzle/immunization.drizzle-repository';
-import { formatBloodTypeDisplay } from '../../../patients/domain/data/patient-reference.data';
+import { CreateMaternityIntakeUseCase } from '../../../maternity/application/use-cases/create-maternity-intake.use-case';
+import { UpdateMaternityIntakeUseCase } from '../../../maternity/application/use-cases/update-maternity-intake.use-case';
+import { MaternityDrizzleRepository } from '../../../maternity/infrastructure/drizzle/maternity.drizzle-repository';
 import { CreateMaternityIntakeDto } from '../../../maternity/presentation/dto/create-maternity-intake.dto';
 import { UpdateMaternityIntakeDto } from '../../../maternity/presentation/dto/update-maternity-intake.dto';
-import { MaternityDrizzleRepository } from '../../../maternity/infrastructure/drizzle/maternity.drizzle-repository';
-import { NikSecurityService } from '../../../../common/security/nik';
+import { formatBloodTypeDisplay } from '../../../patients/domain/data/patient-reference.data';
 
 @Injectable()
 export class KiaIntakeDrizzleRepository {
@@ -28,6 +29,8 @@ export class KiaIntakeDrizzleRepository {
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,
     private readonly maternalRepo: MaternityDrizzleRepository,
+    private readonly createMaternalUseCase: CreateMaternityIntakeUseCase,
+    private readonly updateMaternalUseCase: UpdateMaternityIntakeUseCase,
     private readonly immunizationRepo: ImmunizationDrizzleRepository,
     private readonly nikSecurity: NikSecurityService,
     @Optional()
@@ -39,14 +42,14 @@ export class KiaIntakeDrizzleRepository {
     dto: CreateMaternityIntakeDto,
     submittedByUserId?: string,
   ): Promise<any> {
-    return this.maternalRepo.create(dto, submittedByUserId);
+    return this.createMaternalUseCase.execute(dto, submittedByUserId);
   }
 
   async updateMaternalIntake(
     id: string,
     dto: UpdateMaternityIntakeDto,
   ): Promise<any> {
-    return this.maternalRepo.update(id, dto);
+    return this.updateMaternalUseCase.execute(id, dto);
   }
 
   async findMaternalIntakeById(id: string): Promise<any | null> {
@@ -70,10 +73,7 @@ export class KiaIntakeDrizzleRepository {
     return this.immunizationRepo.createIntake(dto, submittedByUserId);
   }
 
-  async updateImmunizationIntake(
-    id: string,
-    dto: any,
-  ): Promise<any> {
+  async updateImmunizationIntake(id: string, dto: any): Promise<any> {
     return this.immunizationRepo.updateIntake(id, dto);
   }
 
@@ -81,7 +81,7 @@ export class KiaIntakeDrizzleRepository {
     id: string,
     answers: Record<string, any>,
   ): Promise<any> {
-    let existing = await this.db.query.medicalIntakeSubmissions.findFirst({
+    const existing = await this.db.query.medicalIntakeSubmissions.findFirst({
       where: or(
         eq(medicalIntakeSubmissions.id, id),
         eq(medicalIntakeSubmissions.appointmentId, id),
@@ -98,10 +98,18 @@ export class KiaIntakeDrizzleRepository {
             'Rekam medis pada janji temu yang telah selesai bersifat terkunci dan tidak dapat diubah.',
           );
         }
-        if (answers.complaint || answers.keluhanUtama) {
+        if ('complaint' in answers) {
+          const nextComplaint =
+            typeof answers.complaint === 'string' &&
+            answers.complaint.trim().length > 0
+              ? answers.complaint.trim()
+              : null;
           await this.db
             .update(appointments)
-            .set({ complaint: answers.complaint || answers.keluhanUtama })
+            .set({
+              complaint: nextComplaint,
+              updatedAt: new Date().toISOString(),
+            })
             .where(eq(appointments.id, existing.appointmentId));
         }
       }
@@ -126,11 +134,16 @@ export class KiaIntakeDrizzleRepository {
           'Rekam medis pada janji temu yang telah selesai bersifat terkunci dan tidak dapat diubah.',
         );
       }
-      if (answers.complaint || answers.keluhanUtama) {
+      if ('complaint' in answers) {
+        const nextComplaint =
+          typeof answers.complaint === 'string' &&
+          answers.complaint.trim().length > 0
+            ? answers.complaint.trim()
+            : null;
         await this.db
           .update(appointments)
           .set({
-            complaint: answers.complaint || answers.keluhanUtama,
+            complaint: nextComplaint,
             updatedAt: new Date().toISOString(),
           })
           .where(eq(appointments.id, id));
@@ -178,9 +191,7 @@ export class KiaIntakeDrizzleRepository {
       typeof rawRelType === 'string' ? rawRelType.toLowerCase() : '';
 
     const isPrimaryAccount = Boolean(
-      profile.user?.id ||
-        aff?.isPrimary ||
-        aff?.relationshipType?.isSystem,
+      profile.user?.id || aff?.isPrimary || aff?.relationshipType?.isSystem,
     );
 
     let relationshipContext: string | null = null;
@@ -201,7 +212,7 @@ export class KiaIntakeDrizzleRepository {
     }
 
     const decryptedNik = profile.nationalIdEncrypted
-      ? (this.nikSecurity.decrypt(profile.nationalIdEncrypted) || '')
+      ? this.nikSecurity.decrypt(profile.nationalIdEncrypted) || ''
       : '';
     const maskedNik = decryptedNik || null;
 
@@ -360,50 +371,6 @@ export class KiaIntakeDrizzleRepository {
           ...immunization,
           appointmentId,
           patient: patientData,
-        },
-      };
-    }
-
-    const genericIntake =
-      await this.db.query.medicalIntakeSubmissions.findFirst({
-        where: eq(medicalIntakeSubmissions.appointmentId, appointmentId),
-        with: {
-          patientProfile: {
-            with: {
-              patientAddresses: true,
-              patientAffiliations: {
-                with: {
-                  user: true,
-                  relationshipType: true,
-                },
-              },
-              patientAllergies: true,
-              patientEmergencyContacts: true,
-              user: true,
-            },
-          },
-          appointment: {
-            with: {
-              clinicService: true,
-            },
-          },
-        },
-        orderBy: [desc(medicalIntakeSubmissions.submittedAt)],
-      });
-
-    if (genericIntake) {
-      return {
-        flow: genericIntake.flow,
-        type: 'generic',
-        data: {
-          ...baseAppointmentData,
-          ...genericIntake,
-          serviceName:
-            fullAppt?.layananName ||
-            genericIntake.appointment?.clinicService?.name,
-          patient:
-            patientData ||
-            this.mapPatientProfile(genericIntake.patientProfile, fullAppt),
         },
       };
     }
