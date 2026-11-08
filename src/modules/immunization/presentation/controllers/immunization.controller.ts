@@ -1,9 +1,11 @@
 import {
   Body,
   Controller,
+  ForbiddenException,
   Get,
   HttpCode,
   HttpStatus,
+  Inject,
   NotFoundException,
   Param,
   Patch,
@@ -23,9 +25,18 @@ import {
   AuthenticatedUser,
   CurrentUser,
   HybridAuthGuard,
+  isExternalUser,
   PermissionsGuard,
   RequirePermissions,
 } from '../../../../common/auth';
+import {
+  PATIENT_REPOSITORY,
+  type PatientRepository,
+} from '../../../patients/domain/repositories/patient.repository';
+import {
+  PATIENT_AFFILIATION_REPOSITORY,
+  type PatientAffiliationRepository,
+} from '../../../patients/domain/repositories/patient-affiliation.repository';
 import { CreateImmunizationIntakeUseCase } from '../../application/use-cases/create-immunization-intake.use-case';
 import { GetChildImmunizationLedgerUseCase } from '../../application/use-cases/get-child-immunization-ledger.use-case';
 import { GetImmunizationHistoryUseCase } from '../../application/use-cases/get-immunization-history.use-case';
@@ -45,7 +56,36 @@ export class ImmunizationController {
     private readonly updateEntryUseCase: UpdateImmunizationEntryUseCase,
     private readonly getLedgerUseCase: GetChildImmunizationLedgerUseCase,
     private readonly getHistoryUseCase: GetImmunizationHistoryUseCase,
+    @Inject(PATIENT_REPOSITORY)
+    private readonly patientRepo: PatientRepository,
+    @Inject(PATIENT_AFFILIATION_REPOSITORY)
+    private readonly affiliationRepo: PatientAffiliationRepository,
   ) {}
+
+  private async assertPatientAccess(
+    patientId: string,
+    user: AuthenticatedUser,
+  ): Promise<void> {
+    if (!isExternalUser(user)) {
+      return;
+    }
+    if (user.patient?.id === patientId) {
+      return;
+    }
+    const ownPatient = await this.patientRepo.findByUserId(user.id);
+    if (ownPatient?.id === patientId) {
+      return;
+    }
+    const isAffiliated = await this.affiliationRepo.findByUserAndPatient(
+      user.id,
+      patientId,
+    );
+    if (!isAffiliated) {
+      throw new ForbiddenException(
+        'Akses ditolak: Anda tidak memiliki wewenang untuk mengakses data imunisasi pasien lain.',
+      );
+    }
+  }
 
   @Post('intakes')
   @RequirePermissions('records:write')
@@ -60,6 +100,9 @@ export class ImmunizationController {
     @Body() body: CreateImmunizationIntakeDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
+    if (isExternalUser(user) && body.patientId) {
+      await this.assertPatientAccess(body.patientId, user);
+    }
     return this.createIntakeUseCase.execute(body, user?.id);
   }
 
@@ -69,11 +112,15 @@ export class ImmunizationController {
     summary: 'Mendapatkan detail formulir imunisasi dan ledger 15 baris by ID',
   })
   @ApiParam({ name: 'id', description: 'ID intake atau submission' })
-  async getIntakeById(@Param('id') id: string) {
+  async getIntakeById(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     const intake = await this.getLedgerUseCase.executeByIntakeId(id);
     if (!intake) {
       throw new NotFoundException('Data rekam medis imunisasi tidak ditemukan');
     }
+    await this.assertPatientAccess(intake.patientId, user);
     return intake;
   }
 
@@ -86,6 +133,7 @@ export class ImmunizationController {
   @ApiParam({ name: 'appointmentId', description: 'ID unik janji temu' })
   async getIntakeByAppointmentId(
     @Param('appointmentId') appointmentId: string,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
     const intake =
       await this.getLedgerUseCase.executeByAppointmentId(appointmentId);
@@ -94,6 +142,7 @@ export class ImmunizationController {
         'Data imunisasi untuk kunjungan ini tidak ditemukan',
       );
     }
+    await this.assertPatientAccess(intake.patientId, user);
     return intake;
   }
 
@@ -105,7 +154,13 @@ export class ImmunizationController {
   async updateIntakeById(
     @Param('id') id: string,
     @Body() body: UpdateImmunizationIntakeDto,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
+    const intake = await this.getLedgerUseCase.executeByIntakeId(id);
+    if (!intake) {
+      throw new NotFoundException('Data rekam medis imunisasi tidak ditemukan');
+    }
+    await this.assertPatientAccess(intake.patientId, user);
     const updated = await this.updateEntryUseCase.executeIntakeUpdate(id, body);
     if (body.entries && body.entries.length > 0 && updated.patientId) {
       await this.updateEntryUseCase.executeClinicalEntriesUpsert(
@@ -126,7 +181,11 @@ export class ImmunizationController {
   })
   @ApiParam({ name: 'patientId', description: 'ID profil pasien anak' })
   @ApiOkResponse({ description: 'Daftar 15 baris kumulatif imunisasi anak' })
-  async getChildLedger(@Param('patientId') patientId: string) {
+  async getChildLedger(
+    @Param('patientId') patientId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    await this.assertPatientAccess(patientId, user);
     return this.getLedgerUseCase.execute(patientId);
   }
 
@@ -143,6 +202,11 @@ export class ImmunizationController {
     @Body() body: SaveClinicalEntriesDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
+    if (isExternalUser(user)) {
+      throw new ForbiddenException(
+        'Akses ditolak: Hanya staf klinik yang diizinkan mencatat entri klinis imunisasi.',
+      );
+    }
     return this.updateEntryUseCase.executeClinicalEntriesUpsert(
       patientId,
       '',
@@ -157,7 +221,15 @@ export class ImmunizationController {
   @ApiOperation({
     summary: 'Mendapatkan riwayat registrasi dan rekam imunisasi anak (Paginasi)',
   })
-  async getHistory(@Query() query: ImmunizationHistoryQueryDto) {
+  async getHistory(
+    @Query() query: ImmunizationHistoryQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    if (isExternalUser(user)) {
+      throw new ForbiddenException(
+        'Akses ditolak: Hanya staf klinik yang diizinkan mengakses riwayat imunisasi umum.',
+      );
+    }
     return this.getHistoryUseCase.execute(query);
   }
 }

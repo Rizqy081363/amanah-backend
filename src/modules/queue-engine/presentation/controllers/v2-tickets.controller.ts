@@ -17,7 +17,7 @@ import {
   type AuthenticatedUser,
   CurrentUser,
   HybridAuthGuard,
-  isPatientUser,
+  isExternalUser,
   PermissionsGuard,
   Public,
   RequirePermissions,
@@ -423,7 +423,7 @@ export class V2TicketsController {
       throw new NotFoundException(`Ticket not found: ${id}`);
     }
 
-    if (isPatientUser(user)) {
+    if (isExternalUser(user)) {
       const patientId = user.patient?.id;
       const [patientProfile] = oldTicket.patientId
         ? await this.db

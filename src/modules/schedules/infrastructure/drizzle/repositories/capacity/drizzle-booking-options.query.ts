@@ -12,6 +12,7 @@ import {
   shiftExceptions,
 } from '@database/schema';
 import { filterEffectiveDoctorAssignments } from '@modules/schedules/domain/services/doctor-session-operational.resolver';
+import { parseTimeToMinutes } from '@modules/schedules/domain/services/shift-duration.helper';
 import {
   type DateDisplayFormatStyle,
   formatIndoDate,
@@ -260,7 +261,13 @@ export class DrizzleBookingOptionsQuery {
       );
 
       // Temporal checks
-      const isPast = isToday && currentClockTime >= endTime;
+      const currentMin = parseTimeToMinutes(currentClockTime);
+      const startMin = parseTimeToMinutes(startTime);
+      let endMin = parseTimeToMinutes(endTime);
+      if (endMin <= startMin) {
+        endMin += 1440;
+      }
+      const isPast = isToday && currentMin >= endMin;
 
       // Status resolution
       let isDisabled = false;

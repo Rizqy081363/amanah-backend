@@ -16,7 +16,6 @@ const MINIMUM_SESSION_NET_HOURS = 0.5;
 const DEFAULT_SHIFT_GROSS_HOURS = 6.0;
 
 const MINUTES_IN_AN_HOUR = 60;
-const MIDDAY_MINUTES = 12 * MINUTES_IN_AN_HOUR;
 const MIDNIGHT_MINUTES = 24 * MINUTES_IN_AN_HOUR;
 
 export interface SessionNetHoursParams {
@@ -49,14 +48,7 @@ function calculateGrossHours(startsAt: string, endsAt: string): number {
   const startMin = parseTimeToMinutes(startsAt);
   let endMin = parseTimeToMinutes(endsAt);
 
-  // Khusus shift malam yang berakhir pada tengah malam: '24:00' atau '00:00'
-  if (
-    (endsAt.startsWith('24:') || endsAt.startsWith('00:')) &&
-    startMin >= MIDDAY_MINUTES
-  ) {
-    endMin = MIDNIGHT_MINUTES;
-  } else if (endMin <= startMin) {
-    // Penanganan midnight crossing (contoh: shift malam mulai 22:00, selesai 06:00)
+  if (endMin <= startMin) {
     endMin += MIDNIGHT_MINUTES;
   }
 

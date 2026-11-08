@@ -32,7 +32,7 @@ import {
   AuthenticatedUser,
   CurrentUser,
   HybridAuthGuard,
-  isPatientUser,
+  isExternalUser,
   PermissionsGuard,
   RequirePermissions,
 } from '../../../common/auth';
@@ -277,7 +277,7 @@ export class PatientsController {
     @Query() query: PatientDirectoryQueryDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    if (isPatientUser(user)) {
+    if (isExternalUser(user)) {
       const patient = await this.patientRepo.findByUserId(user.id);
       const affiliated = await this.affiliationRepo.findByUserId(user.id);
       const allowedIds: string[] = [];
@@ -304,7 +304,16 @@ export class PatientsController {
       'Mengambil daftar pasien dengan filter pencarian nama, nomor RM, atau NIK.',
   })
   @ApiOkResponse({ description: 'Daftar pasien berhasil diambil' })
-  async getPatients(@Query() query: QueryPatientDto) {
+  async getPatients(
+    @Query() query: QueryPatientDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    if (isExternalUser(user)) {
+      throw new ForbiddenException(
+        'Akses ditolak: Hanya staf klinik yang diizinkan mengakses daftar pasien umum.',
+      );
+    }
+
     if (query.nik) {
       const patient = await this.patientRepo.findByNik(query.nik);
       return patient ? [patient] : [];
@@ -345,7 +354,7 @@ export class PatientsController {
       throw new NotFoundException(`Pasien dengan ID ${id} tidak ditemukan`);
     }
 
-    if (isPatientUser(user) && patient.userId !== user.id) {
+    if (isExternalUser(user) && patient.userId !== user.id) {
       const isAffiliated = await this.affiliationRepo.findByUserAndPatient(
         user.id,
         id,
@@ -390,7 +399,7 @@ export class PatientsController {
       throw new NotFoundException(`Pasien dengan ID ${id} tidak ditemukan`);
     }
 
-    if (isPatientUser(user) && existing.userId !== user.id) {
+    if (isExternalUser(user) && existing.userId !== user.id) {
       const isAffiliated = await this.affiliationRepo.findByUserAndPatient(
         user.id,
         id,

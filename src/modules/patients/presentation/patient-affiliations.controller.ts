@@ -28,6 +28,7 @@ import {
   AuthenticatedUser,
   CurrentUser,
   HybridAuthGuard,
+  isExternalUser,
   PermissionsGuard,
   RequirePermissions,
 } from '../../../common/auth';
@@ -330,6 +331,19 @@ export class PatientAffiliationsController {
         code: 'PATIENT_NOT_FOUND',
         message: 'Profil pasien tidak ditemukan.',
       });
+    }
+
+    if (isExternalUser(user) && profile.userId !== user.id) {
+      const isAffiliated = await this.affiliationRepo.findByUserAndPatient(
+        user.id,
+        patientId,
+      );
+      if (!isAffiliated) {
+        throw new ForbiddenException({
+          code: 'FORBIDDEN_PATIENT_ACCESS',
+          message: 'Anda tidak memiliki wewenang untuk melihat NIK pasien ini.',
+        });
+      }
     }
 
     const decrypted = profile.nationalIdEncrypted

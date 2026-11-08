@@ -25,10 +25,14 @@ import {
   type AuthenticatedUser,
   CurrentUser,
   HybridAuthGuard,
-  isPatientUser,
+  isExternalUser,
   PermissionsGuard,
   RequirePermissions,
 } from '../../../../common/auth';
+import {
+  PATIENT_REPOSITORY,
+  type PatientRepository,
+} from '../../../patients/domain/repositories/patient.repository';
 import {
   PATIENT_AFFILIATION_REPOSITORY,
   type PatientAffiliationRepository,
@@ -66,7 +70,34 @@ export class MaternityController {
     private readonly maternityRepo: MaternityRepository,
     @Inject(PATIENT_AFFILIATION_REPOSITORY)
     private readonly affiliationRepo: PatientAffiliationRepository,
+    @Inject(PATIENT_REPOSITORY)
+    private readonly patientRepo: PatientRepository,
   ) {}
+
+  private async assertPatientAccess(
+    patientId: string,
+    user: AuthenticatedUser,
+  ): Promise<void> {
+    if (!isExternalUser(user)) {
+      return;
+    }
+    if (user.patient?.id === patientId) {
+      return;
+    }
+    const ownPatient = await this.patientRepo.findByUserId(user.id);
+    if (ownPatient?.id === patientId) {
+      return;
+    }
+    const isAffiliated = await this.affiliationRepo.findByUserAndPatient(
+      user.id,
+      patientId,
+    );
+    if (!isAffiliated) {
+      throw new ForbiddenException(
+        'Tidak memiliki wewenang untuk melihat rekam medis ini',
+      );
+    }
+  }
 
   @Post('intakes')
   @RequirePermissions('records:write')
@@ -79,21 +110,8 @@ export class MaternityController {
     @Body(zodPipe(CreateMaternityIntakeSchema)) body: CreateMaternityIntakeInput,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    if (isPatientUser(user)) {
-      if (!user.patient?.id) {
-        throw new ForbiddenException('Profil pasien Anda belum terdaftar');
-      }
-      if (body.patientId !== user.patient.id) {
-        const isAffiliated = await this.affiliationRepo.findByUserAndPatient(
-          user.id,
-          body.patientId,
-        );
-        if (!isAffiliated) {
-          throw new ForbiddenException(
-            'Tidak memiliki wewenang untuk mengisi form pasien lain',
-          );
-        }
-      }
+    if (isExternalUser(user)) {
+      await this.assertPatientAccess(body.patientId, user);
     }
     return this.createIntakeUseCase.execute(body as any, user?.id);
   }
@@ -109,19 +127,10 @@ export class MaternityController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     const intake = await this.getIntakeUseCase.executeById(id);
-    if (isPatientUser(user)) {
-      if (intake.patientId !== user.patient?.id) {
-        const isAffiliated = await this.affiliationRepo.findByUserAndPatient(
-          user.id,
-          intake.patientId,
-        );
-        if (!isAffiliated) {
-          throw new ForbiddenException(
-            'Tidak memiliki wewenang melihat rekam medis ini',
-          );
-        }
-      }
+    if (!intake) {
+      throw new NotFoundException('Data maternal intake tidak ditemukan');
     }
+    await this.assertPatientAccess(intake.patientId, user);
     return intake;
   }
 
@@ -134,7 +143,14 @@ export class MaternityController {
   async updateIntakeById(
     @Param('id') id: string,
     @Body(zodPipe(UpdateMaternityIntakeSchema)) body: UpdateMaternityIntakeInput,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
+    if (isExternalUser(user)) {
+      const existing = await this.getIntakeUseCase.executeById(id);
+      if (existing) {
+        await this.assertPatientAccess(existing.patientId, user);
+      }
+    }
     return this.updateIntakeUseCase.execute(id, body as any);
   }
 
@@ -143,8 +159,19 @@ export class MaternityController {
   @ApiOperation({
     summary: 'Mendapatkan intake maternal berdasarkan ID Appointment / Janji Temu',
   })
-  async getByAppointmentId(@Param('appointmentId') appointmentId: string) {
-    return this.getIntakeUseCase.executeByAppointmentId(appointmentId);
+  async getByAppointmentId(
+    @Param('appointmentId') appointmentId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const intake =
+      await this.getIntakeUseCase.executeByAppointmentId(appointmentId);
+    if (!intake) {
+      throw new NotFoundException(
+        'Data maternal untuk kunjungan ini tidak ditemukan',
+      );
+    }
+    await this.assertPatientAccess(intake.patientId, user);
+    return intake;
   }
 
   @Get('history')
@@ -158,16 +185,25 @@ export class MaternityController {
   ) {
     let patientIds: string[] = [];
 
-    if (isPatientUser(user)) {
-      if (!user.patient?.id) {
-        throw new ForbiddenException('Profil pasien Anda belum terdaftar');
-      }
-      const myId = user.patient.id;
+    if (isExternalUser(user)) {
+      const myId = user.patient?.id;
       const userAffiliations = await this.affiliationRepo.findByUserId(
         user.id,
       );
       const affiliatedIds = userAffiliations.map((a: any) => a.patientId);
-      const allowed = Array.from(new Set([myId, ...affiliatedIds]));
+      const allowed = Array.from(
+        new Set([...(myId ? [myId] : []), ...affiliatedIds]),
+      );
+
+      if (allowed.length === 0) {
+        return {
+          data: [],
+          total: 0,
+          page: query.page || 1,
+          limit: query.limit || 10,
+          totalPages: 0,
+        };
+      }
 
       if (query.patientId && !allowed.includes(query.patientId)) {
         throw new ForbiddenException(
@@ -193,19 +229,7 @@ export class MaternityController {
     @Param('patientId') patientId: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    if (isPatientUser(user)) {
-      if (patientId !== user.patient?.id) {
-        const isAffiliated = await this.affiliationRepo.findByUserAndPatient(
-          user.id,
-          patientId,
-        );
-        if (!isAffiliated) {
-          throw new ForbiddenException(
-            'Tidak memiliki wewenang melihat riwayat pasien ini',
-          );
-        }
-      }
-    }
+    await this.assertPatientAccess(patientId, user);
     return this.getHistoryUseCase.executeByPatientId(patientId);
   }
 }

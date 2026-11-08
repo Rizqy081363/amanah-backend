@@ -30,7 +30,7 @@ import {
   type AuthenticatedUser,
   CurrentUser,
   HybridAuthGuard,
-  isPatientUser,
+  isExternalUser,
   PermissionsGuard,
   RequirePermissions,
 } from '../../../common/auth';
@@ -91,7 +91,7 @@ export class MedicalIntakesController {
     patientId: string,
     user: AuthenticatedUser,
   ): Promise<void> {
-    if (!isPatientUser(user)) {
+    if (!isExternalUser(user)) {
       return;
     }
     if (user.patient?.id === patientId) {
@@ -260,7 +260,7 @@ export class MedicalIntakesController {
   ) {
     let targetPatientIds: string[] | undefined = undefined;
 
-    if (isPatientUser(user)) {
+    if (isExternalUser(user)) {
       const userAffiliations = await this.affiliationRepo.findByUserId(user.id);
       const allowedIds = userAffiliations.map((a) => a.patientId);
 
@@ -309,7 +309,7 @@ export class MedicalIntakesController {
   ) {
     let targetPatientIds: string[] | undefined = undefined;
 
-    if (isPatientUser(user)) {
+    if (isExternalUser(user)) {
       const userAffiliations = await this.affiliationRepo.findByUserId(user.id);
       const allowedIds = userAffiliations.map((a) => a.patientId);
 

@@ -91,3 +91,11 @@ export function isPatientUser(
 ): user is AuthenticatedUser & { patient: AuthenticatedPatientProfile } {
   return user.audience === ROLE_AUDIENCE.EXTERNAL && user.patient !== null;
 }
+
+/**
+ * Type guard for External / Patient actor (Audience is EXTERNAL).
+ * Strictly identifies external patient portal users before and after patient profile creation.
+ */
+export function isExternalUser(user: AuthenticatedUser): boolean {
+  return user.audience === ROLE_AUDIENCE.EXTERNAL;
+}

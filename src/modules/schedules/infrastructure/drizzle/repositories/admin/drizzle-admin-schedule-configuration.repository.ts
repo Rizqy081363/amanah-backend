@@ -44,6 +44,7 @@ import {
   validateWeeklyTemplatesNonOverlap,
 } from '@modules/schedules/domain/services/shift-overlap.validator';
 import { reassignChronologicalSortOrders } from '@modules/schedules/domain/services/session-chronology.service';
+import { parseTimeToMinutes } from '@modules/schedules/domain/services/shift-duration.helper';
 import { and, asc, eq, ne } from 'drizzle-orm';
 import {
   ClinicSettingCategory,
@@ -347,6 +348,18 @@ export class DrizzleAdminScheduleConfigurationRepository {
 
     for (const def of defs) {
       const normalizedSort = sortOrderMap.get(def.id);
+      let effectiveEndsAt = def.defaultEndsAt;
+      if (effectiveEndsAt) {
+        const startToUse =
+          def.defaultStartsAt ||
+          existingDefs.find((e: any) => e.id === def.id)?.defaultStartsAt;
+        const sMin = startToUse ? parseTimeToMinutes(startToUse) : 0;
+        const eMin = parseTimeToMinutes(effectiveEndsAt);
+        if (eMin === 0 && sMin > 0) {
+          effectiveEndsAt = effectiveEndsAt.replace(/^00:00/, '24:00');
+        }
+      }
+
       const updateData: any = {
         ...(typeof def.isActive === 'boolean' && { isActive: def.isActive }),
         ...(typeof def.label === 'string' && { label: def.label }),
@@ -359,7 +372,7 @@ export class DrizzleAdminScheduleConfigurationRepository {
           sortOrder: normalizedSort,
         }),
         ...(def.defaultStartsAt && { defaultStartsAt: def.defaultStartsAt }),
-        ...(def.defaultEndsAt && { defaultEndsAt: def.defaultEndsAt }),
+        ...(effectiveEndsAt && { defaultEndsAt: effectiveEndsAt }),
         updatedAt: now,
       };
 
@@ -370,13 +383,13 @@ export class DrizzleAdminScheduleConfigurationRepository {
 
       // Cascade perubahan jam baku master ke seluruh jadwal mingguan (session_schedule)
       const hasTimeUpdate =
-        Boolean(def.defaultStartsAt) || Boolean(def.defaultEndsAt);
+        Boolean(def.defaultStartsAt) || Boolean(effectiveEndsAt);
       if (hasTimeUpdate) {
         await executor
           .update(sessionSchedules)
           .set({
             ...(def.defaultStartsAt && { startsAt: def.defaultStartsAt }),
-            ...(def.defaultEndsAt && { endsAt: def.defaultEndsAt }),
+            ...(effectiveEndsAt && { endsAt: effectiveEndsAt }),
             updatedAt: now,
           })
           .where(eq(sessionSchedules.sessionId, def.id));
@@ -587,6 +600,13 @@ export class DrizzleAdminScheduleConfigurationRepository {
 
     const isActive = dto.isActive ?? true;
 
+    const startMin = parseTimeToMinutes(dto.defaultStartsAt);
+    const endMin = parseTimeToMinutes(dto.defaultEndsAt);
+    const canonicalEndsAt =
+      endMin === 0 && startMin > 0
+        ? dto.defaultEndsAt.replace(/^00:00/, '24:00')
+        : dto.defaultEndsAt;
+
     // 1. Query all existing defs to determine true chronological positions
     const allExisting = await this.db
       .select({
@@ -619,7 +639,7 @@ export class DrizzleAdminScheduleConfigurationRepository {
         sortOrder: 0,
         isActive,
         startsAt: dto.defaultStartsAt,
-        endsAt: dto.defaultEndsAt,
+        endsAt: canonicalEndsAt,
       },
     ];
 
@@ -633,9 +653,9 @@ export class DrizzleAdminScheduleConfigurationRepository {
       sortOrder: 0,
       isActive,
       defaultStartsAt: dto.defaultStartsAt,
-      defaultEndsAt: dto.defaultEndsAt,
+      defaultEndsAt: canonicalEndsAt,
       startsAt: dto.defaultStartsAt,
-      endsAt: dto.defaultEndsAt,
+      endsAt: canonicalEndsAt,
     };
 
     const allReassigned = reassignChronologicalSortOrders([
@@ -661,7 +681,7 @@ export class DrizzleAdminScheduleConfigurationRepository {
           sortOrder,
           isActive,
           defaultStartsAt: dto.defaultStartsAt,
-          defaultEndsAt: dto.defaultEndsAt,
+          defaultEndsAt: canonicalEndsAt,
           createdAt: now,
           updatedAt: now,
         })
@@ -690,8 +710,8 @@ export class DrizzleAdminScheduleConfigurationRepository {
           sessionId: createdId,
           dow: day.dow,
           startsAt: dto.defaultStartsAt,
-          endsAt: dto.defaultEndsAt,
-          isActive: true,
+          endsAt: canonicalEndsAt,
+          isActive: isActive,
           createdAt: now,
           updatedAt: now,
         });
@@ -703,7 +723,7 @@ export class DrizzleAdminScheduleConfigurationRepository {
     const startTimeStr = dto.defaultStartsAt
       ? dto.defaultStartsAt.slice(0, 5)
       : '';
-    const endTimeStr = dto.defaultEndsAt ? dto.defaultEndsAt.slice(0, 5) : '';
+    const endTimeStr = canonicalEndsAt ? canonicalEndsAt.slice(0, 5) : '';
 
     return {
       id: createdId,
@@ -717,9 +737,9 @@ export class DrizzleAdminScheduleConfigurationRepository {
       sortOrder,
       isActive,
       defaultStartsAt: dto.defaultStartsAt,
-      defaultEndsAt: dto.defaultEndsAt,
+      defaultEndsAt: canonicalEndsAt,
       canonicalStartsAt: dto.defaultStartsAt,
-      canonicalEndsAt: dto.defaultEndsAt,
+      canonicalEndsAt: canonicalEndsAt,
     };
   }
 
@@ -742,7 +762,11 @@ export class DrizzleAdminScheduleConfigurationRepository {
 
     const current = existing[0];
     const newStartsAt = dto.defaultStartsAt || current.defaultStartsAt;
-    const newEndsAt = dto.defaultEndsAt || current.defaultEndsAt;
+    const rawEndsAt = dto.defaultEndsAt || current.defaultEndsAt;
+    const sMin = parseTimeToMinutes(newStartsAt);
+    const eMin = parseTimeToMinutes(rawEndsAt);
+    const newEndsAt =
+      eMin === 0 && sMin > 0 ? rawEndsAt.replace(/^00:00/, '24:00') : rawEndsAt;
     const newIsActive =
       typeof dto.isActive === 'boolean' ? dto.isActive : current.isActive;
     const newSortOrder =

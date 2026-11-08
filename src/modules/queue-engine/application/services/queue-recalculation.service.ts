@@ -459,8 +459,11 @@ export class QueueRecalculationService {
       timeStr: string,
       tz: string,
     ): Date => {
-      const cleanTime = timeStr.length === 5 ? `${timeStr}:00` : timeStr;
-      if (cleanTime.startsWith('24:00')) {
+      const parts = timeStr.trim().split(':');
+      const hours = Number(parts[0]) || 0;
+      const minutes = Number(parts[1]) || 0;
+      const seconds = Number(parts[2]) || 0;
+      if (hours === 24) {
         return new Date(
           Temporal.PlainDate.from(dateStr)
             .add({ days: 1 })
@@ -468,15 +471,21 @@ export class QueueRecalculationService {
             .toInstant().epochMilliseconds,
         );
       }
+      const pad = (n: number) => String(n).padStart(2, '0');
       return new Date(
-        Temporal.PlainDateTime.from(`${dateStr}T${cleanTime}`)
+        Temporal.PlainDateTime.from(
+          `${dateStr}T${pad(hours)}:${pad(minutes)}:${pad(seconds)}`,
+        )
           .toZonedDateTime(tz)
           .toInstant().epochMilliseconds,
       );
     };
 
     const startDate = parseSessionBoundary(serviceDate, startTime, timezone);
-    const endDate = parseSessionBoundary(serviceDate, endTime, timezone);
+    let endDate = parseSessionBoundary(serviceDate, endTime, timezone);
+    if (endDate <= startDate) {
+      endDate = new Date(endDate.getTime() + 24 * 60 * 60 * 1000);
+    }
 
     return { start: startDate, end: endDate };
   }

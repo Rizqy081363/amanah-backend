@@ -21,6 +21,7 @@ import {
   ScheduleOperationalStatus,
 } from '@modules/schedules/domain/entities/schedule.entity';
 import { SchedulePatientEligibilityHelper } from '@modules/schedules/domain/helpers/schedule-patient-eligibility.helper';
+import { parseClockTime } from '@modules/schedules/domain/schedule-projection';
 import {
   resolveAggregateOperationalStatus,
   resolveSessionOperationalStatus,
@@ -384,13 +385,20 @@ export class DrizzleAdminDoctorScheduleListQuery {
       const isToday = targetDate === clinicTodayStr;
       let effectiveOpStatus = aggregateOpStatus;
       if (isToday) {
-        const liveSession = dailySessions.find(
-          (s) =>
-            clinicNowTimeStr >= s.startTime &&
-            clinicNowTimeStr < s.endTime &&
+        const currentMin = parseClockTime(clinicNowTimeStr);
+        const liveSession = dailySessions.find((s) => {
+          const sStart = parseClockTime(s.startTime);
+          let sEnd = parseClockTime(s.endTime);
+          if (sEnd <= sStart) {
+            sEnd += 1440;
+          }
+          return (
+            currentMin >= sStart &&
+            currentMin < sEnd &&
             (s.sessionStatus === ScheduleOperationalStatus.OPEN ||
-              s.sessionStatus === ScheduleOperationalStatus.REPLACEMENT),
-        );
+              s.sessionStatus === ScheduleOperationalStatus.REPLACEMENT)
+          );
+        });
         effectiveOpStatus = liveSession
           ? liveSession.sessionStatus
           : aggregateOpStatus;
@@ -416,13 +424,19 @@ export class DrizzleAdminDoctorScheduleListQuery {
         upcomingSchedule = null;
       } else {
         if (isToday) {
-          const liveSession = dailySessions.find(
-            (s) =>
-              clinicNowTimeStr >= s.startTime && clinicNowTimeStr < s.endTime,
-          );
-          const nextSession = dailySessions.find(
-            (s) => clinicNowTimeStr < s.startTime,
-          );
+          const currentMin = parseClockTime(clinicNowTimeStr);
+          const liveSession = dailySessions.find((s) => {
+            const sStart = parseClockTime(s.startTime);
+            let sEnd = parseClockTime(s.endTime);
+            if (sEnd <= sStart) {
+              sEnd += 1440;
+            }
+            return currentMin >= sStart && currentMin < sEnd;
+          });
+          const nextSession = dailySessions.find((s) => {
+            const sStart = parseClockTime(s.startTime);
+            return currentMin < sStart;
+          });
 
           upcomingSchedule =
             liveSession?.timeRange ||

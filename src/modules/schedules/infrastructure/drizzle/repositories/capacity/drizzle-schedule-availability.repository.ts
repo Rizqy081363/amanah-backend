@@ -72,7 +72,10 @@ export class DrizzleScheduleAvailabilityRepository {
   ): void {
     const startMinutes = parseClockTime(selectedStartTime);
     const boundaryStart = parseClockTime(context.boundaryStartTime);
-    const boundaryEnd = parseClockTime(context.boundaryEndTime);
+    let boundaryEnd = parseClockTime(context.boundaryEndTime);
+    if (boundaryEnd <= boundaryStart) {
+      boundaryEnd += 1440;
+    }
 
     if (startMinutes < boundaryStart || startMinutes >= boundaryEnd) {
       throw new UnprocessableEntityException({

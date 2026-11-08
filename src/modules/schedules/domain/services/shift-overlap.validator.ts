@@ -16,14 +16,9 @@ export interface ShiftTimeInterval {
  */
 function parseTimeEndToMinutes(endsAt: string, startsAtMinutes = 0): number {
   if (!endsAt) return 0;
-  const trimmed = endsAt.trim();
-  if (trimmed.startsWith('24:')) {
-    return 1440;
-  }
-  const min = parseTimeToMinutes(trimmed);
-  // Jika berakhir di 00:00 dan shift mulai setelah siang (misal 18:00), maka 00:00 adalah midnight (1440 menit)
-  if (min === 0 && startsAtMinutes >= 12 * 60) {
-    return 1440;
+  let min = parseTimeToMinutes(endsAt);
+  if (min === 0 && startsAtMinutes > 0) {
+    min = 1440;
   }
   return min;
 }

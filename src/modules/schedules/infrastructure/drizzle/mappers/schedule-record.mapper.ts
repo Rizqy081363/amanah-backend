@@ -105,7 +105,11 @@ function mapScheduleRecordToEntity(
   const currentMinutes = wibTime.getHours() * 60 + wibTime.getMinutes();
   const isPastDate = record.scheduleDate < todayStr;
   const isToday = record.scheduleDate === todayStr;
-  const endMinutes = endTimeFormatted ? parseClockTime(endTimeFormatted) : 1440;
+  const startMinutes = startTimeFormatted ? parseClockTime(startTimeFormatted) : 0;
+  let endMinutes = endTimeFormatted ? parseClockTime(endTimeFormatted) : 1440;
+  if (endMinutes <= startMinutes) {
+    endMinutes += 1440;
+  }
   const isPast = isPastDate || (isToday && endMinutes <= currentMinutes);
 
   let effectiveStatus = record.isReplacement

@@ -34,7 +34,7 @@ import {
   type AuthenticatedUser,
   CurrentUser,
   HybridAuthGuard,
-  isPatientUser,
+  isExternalUser,
   PermissionsGuard,
   RequirePermissions,
 } from '../../../common/auth';
@@ -81,7 +81,7 @@ export class MedicalRecordsController {
     patientId: string,
     user: AuthenticatedUser,
   ): Promise<void> {
-    if (!isPatientUser(user)) {
+    if (!isExternalUser(user)) {
       return;
     }
     if (user.patient?.id === patientId) {
@@ -163,7 +163,7 @@ export class MedicalRecordsController {
     @Query() query: QueryMedicalRecordDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    if (isPatientUser(user)) {
+    if (isExternalUser(user)) {
       if (query.patientId) {
         await this.assertPatientAccess(query.patientId, user);
       } else {

@@ -1,6 +1,7 @@
 import { SHIFT_EXCEPTION_TYPE } from '@modules/appointments/domain/constants/appointment-lifecycle.constants';
 import { ScheduleClosureReason } from '../entities/schedule.entity';
 import { type SessionShiftType } from '../factories/schedule-session.factory';
+import { parseTimeToMinutes } from './shift-duration.helper';
 
 interface DoctorSessionAssignmentContext {
   id?: string;
@@ -181,7 +182,14 @@ export function resolveDoctorSessionOperability(
         }
 
         if (isToday && clinicNowTimeStr) {
-          const hasEnded = clinicNowTimeStr >= endTime;
+          const currentMin = parseTimeToMinutes(clinicNowTimeStr);
+          const startMin = parseTimeToMinutes(startTime);
+          let endMin = parseTimeToMinutes(endTime);
+          if (endMin <= startMin) {
+            endMin += 1440;
+          }
+
+          const hasEnded = currentMin >= endMin;
           if (hasEnded) {
             return {
               isOperable: true,
@@ -196,7 +204,7 @@ export function resolveDoctorSessionOperability(
             };
           }
 
-          const notStarted = clinicNowTimeStr < startTime;
+          const notStarted = currentMin < startMin;
           if (notStarted) {
             return {
               isOperable: true,

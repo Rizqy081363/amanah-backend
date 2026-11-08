@@ -14,6 +14,7 @@
     "db:atlas": "bun ./tools/dbatlas/bin/cli.ts generate",
     "db:atlas:check": "bun ./tools/dbatlas/bin/cli.ts check",
     "db:atlas:doctor": "bun ./tools/dbatlas/bin/cli.ts doctor",
+    "db:seed:3months": "bun ./scripts/dev/seeder-3months/index.ts",
     "db:seed:dev": "bun ./src/database/seeds/drizzle/seed.ts",
     "db:seed:staff": "bun ./src/database/seeds/staff.seeder.ts",
     "db:seed:payroll": "bun ./src/database/seeds/payroll-attendance.seeder.ts",

@@ -20,13 +20,9 @@ export function parseSessionEndToMinutes(
   startsAtMinutes = 0,
 ): number {
   if (!timeStr) return 0;
-  const trimmed = timeStr.trim();
-  if (trimmed.startsWith('24:')) {
-    return 1440;
-  }
-  const min = parseTimeToMinutes(trimmed);
-  if (min === 0 && startsAtMinutes >= 12 * 60) {
-    return 1440;
+  let min = parseTimeToMinutes(timeStr);
+  if (min === 0 && startsAtMinutes > 0) {
+    min = 1440;
   }
   return min;
 }
