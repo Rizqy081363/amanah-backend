@@ -21,7 +21,7 @@ describe('NikSecurityService - Strict Environment Keys', () => {
     const secured = service.secure(sampleNik);
     expect(secured).not.toBeNull();
     expect(secured?.blindIndex).toHaveLength(64);
-    expect(secured?.masked).toBe('3201••••••••0001');
+    expect(secured?.masked).toBe('••••••••••••••••');
 
     const decrypted = service.decrypt(secured?.encrypted);
     expect(decrypted).toBe(sampleNik);

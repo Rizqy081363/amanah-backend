@@ -35,14 +35,8 @@ export class AuthUserMapper {
       p?.patientAddresses?.[0];
     const primaryEmergency = p?.patientEmergencyContacts?.[0];
 
-    const rawPatientNik = p?.nationalIdEncrypted || p?.nationalIdHash || null;
-    const decryptedPatientNik = nikSecurity && p?.nationalIdEncrypted
-      ? nikSecurity.decrypt(p.nationalIdEncrypted)
-      : rawPatientNik && !rawPatientNik.includes(':')
-        ? rawPatientNik
-        : null;
-    const maskedPatientNik = nikSecurity && rawPatientNik
-      ? nikSecurity.mask(rawPatientNik)
+    const decryptedPatientNik = (nikSecurity && p?.nationalIdEncrypted)
+      ? (nikSecurity.decrypt(p.nationalIdEncrypted) || null)
       : null;
 
     const patient = p
@@ -51,7 +45,7 @@ export class AuthUserMapper {
           userId: p.userId,
           medicalRecordNumber: p.medicalRecordNumber,
           nik: decryptedPatientNik,
-          maskedNik: maskedPatientNik,
+          maskedNik: decryptedPatientNik,
           fullName: p.fullName,
           gender: p.gender || null,
           birthPlace: p.birthPlace || null,

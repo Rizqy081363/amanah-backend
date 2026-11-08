@@ -108,18 +108,9 @@ export class MedicalRecordDrizzleRepository implements MedicalRecordRepository {
             id: r.patientProfile.id,
             fullName: r.patientProfile.fullName,
             medicalRecordNumber: r.patientProfile.medicalRecordNumber,
-            nik:
-              (r.patientProfile.nationalIdEncrypted
-                ? this.nikSecurity.decrypt(r.patientProfile.nationalIdEncrypted)
-                : r.patientProfile.nationalIdHash &&
-                    !r.patientProfile.nationalIdHash.includes(':')
-                  ? r.patientProfile.nationalIdHash
-                  : null) || null,
-            maskedNik:
-              this.nikSecurity.mask(
-                r.patientProfile.nationalIdEncrypted ||
-                  r.patientProfile.nationalIdHash,
-              ) || null,
+            nik: r.patientProfile.nationalIdEncrypted
+              ? this.nikSecurity.decrypt(r.patientProfile.nationalIdEncrypted)
+              : null,
             gender: r.patientProfile.gender,
             birthDate: r.patientProfile.birthDate,
             phone: r.patientProfile.phone,

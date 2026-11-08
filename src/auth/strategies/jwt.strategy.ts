@@ -180,12 +180,12 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
             id: patientProfile.id,
             userId: user.id,
             medicalRecordNumber: patientProfile.medicalRecordNumber,
-            nik:
-              (patientProfile.nationalIdEncrypted
-                ? this.nikSecurity.decrypt(patientProfile.nationalIdEncrypted)
-                : null) || null,
-            maskedNik:
-              this.nikSecurity.mask(patientProfile.nationalIdEncrypted) || null,
+            nik: patientProfile.nationalIdEncrypted
+              ? this.nikSecurity.decrypt(patientProfile.nationalIdEncrypted)
+              : null,
+            maskedNik: patientProfile.nationalIdEncrypted
+              ? this.nikSecurity.decrypt(patientProfile.nationalIdEncrypted)
+              : null,
             fullName: patientProfile.fullName,
             gender: patientProfile.gender || null,
             birthPlace: patientProfile.birthPlace,

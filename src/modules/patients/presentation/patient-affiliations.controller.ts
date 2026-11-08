@@ -332,18 +332,16 @@ export class PatientAffiliationsController {
       });
     }
 
-    const decrypted =
-      this.nikSecurity.decrypt(profile.nationalIdEncrypted) ||
-      profile.nationalIdEncrypted ||
-      null;
-    const masked = this.nikSecurity.mask(decrypted);
+    const decrypted = profile.nationalIdEncrypted
+      ? this.nikSecurity.decrypt(profile.nationalIdEncrypted)
+      : null;
 
     return {
       success: true,
       data: {
         patientId: profile.id,
         nik: decrypted,
-        maskedNik: masked,
+        maskedNik: decrypted,
       },
     };
   }

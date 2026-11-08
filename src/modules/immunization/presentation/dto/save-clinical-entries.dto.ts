@@ -81,8 +81,6 @@ export class ClinicalEntryInputDto {
   )
   @ValidateIf((_, val) => val !== null && val !== undefined)
   @IsNumber()
-  @Min(0.5)
-  @Max(150)
   @IsOptional()
   weightKg?: number | null;
 
@@ -95,8 +93,6 @@ export class ClinicalEntryInputDto {
   )
   @ValidateIf((_, val) => val !== null && val !== undefined)
   @IsNumber()
-  @Min(20)
-  @Max(250)
   @IsOptional()
   heightCm?: number | null;
 
@@ -109,8 +105,6 @@ export class ClinicalEntryInputDto {
   )
   @ValidateIf((_, val) => val !== null && val !== undefined)
   @IsNumber()
-  @Min(10)
-  @Max(100)
   @IsOptional()
   headCircumferenceCm?: number | null;
 
@@ -123,8 +117,6 @@ export class ClinicalEntryInputDto {
   )
   @ValidateIf((_, val) => val !== null && val !== undefined)
   @IsNumber()
-  @Min(30)
-  @Max(45)
   @IsOptional()
   temperatureCelsius?: number | null;
 

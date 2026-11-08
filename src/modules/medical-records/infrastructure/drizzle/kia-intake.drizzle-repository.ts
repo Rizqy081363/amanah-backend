@@ -201,12 +201,9 @@ export class KiaIntakeDrizzleRepository {
     }
 
     const decryptedNik = profile.nationalIdEncrypted
-      ? this.nikSecurity.decrypt(profile.nationalIdEncrypted)
-      : profile.nationalIdHash && !profile.nationalIdHash.includes(':')
-        ? profile.nationalIdHash
-        : '';
-    const maskedNik =
-      this.nikSecurity.mask(profile.nationalIdEncrypted || profile.nationalIdHash) || null;
+      ? (this.nikSecurity.decrypt(profile.nationalIdEncrypted) || '')
+      : '';
+    const maskedNik = decryptedNik || null;
 
     return {
       id: profile.id,

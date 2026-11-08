@@ -1034,8 +1034,9 @@ export class PatientDrizzleRepository implements PatientRepository {
       }
       if (Number.isNaN(age) || age < 0) age = 0;
 
-      const rawNik = r.nationalIdEncrypted || r.nationalIdHash || null;
-      const maskedNik = this.nikSecurity.mask(rawNik) || null;
+      const decryptedNik = r.nationalIdEncrypted
+        ? this.nikSecurity.decrypt(r.nationalIdEncrypted)
+        : null;
 
       const resolvedUserId = r.userId || null;
       const resolvedDirectAvatar =
@@ -1049,7 +1050,8 @@ export class PatientDrizzleRepository implements PatientRepository {
         avatarUrl: finalAvatarUrl,
         medicalRecordNumber: r.medicalRecordNumber,
         fullName: r.fullName,
-        maskedNik,
+        nik: decryptedNik,
+        maskedNik: decryptedNik,
         gender: r.gender as 'male' | 'female',
         birthDate: r.birthDate,
         birthPlace: r.birthPlace || null,

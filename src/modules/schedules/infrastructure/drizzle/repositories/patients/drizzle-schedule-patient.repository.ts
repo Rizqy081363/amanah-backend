@@ -450,18 +450,8 @@ export class DrizzleSchedulePatientRepository {
             medicalRecordNumber:
               apt.patientProfile?.medicalRecordNumber || 'RM-UNKNOWN',
             nik:
-              (this.nikSecurity && apt.patientProfile?.nationalIdEncrypted
+              (this.nikSecurity && apt.patientProfile?.nationalIdEncrypted)
                 ? this.nikSecurity.decrypt(apt.patientProfile.nationalIdEncrypted)
-                : apt.patientProfile?.nationalIdHash &&
-                    !apt.patientProfile.nationalIdHash.includes(':')
-                  ? apt.patientProfile.nationalIdHash
-                  : null) ?? null,
-            maskedNik:
-              this.nikSecurity
-                ? this.nikSecurity.mask(
-                    apt.patientProfile?.nationalIdEncrypted ||
-                      apt.patientProfile?.nationalIdHash,
-                  ) ?? null
                 : null,
             gender: apt.patientProfile?.gender || null,
             birthDate: apt.patientProfile?.birthDate || '',

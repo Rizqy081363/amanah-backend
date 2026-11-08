@@ -17,6 +17,15 @@ export interface CreateImmunizationIntakeData {
   fatherName?: string | null;
   motherName?: string | null;
   childAddress?: string | null;
+  line1?: string | null;
+  provinceCode?: string | null;
+  provinceName?: string | null;
+  regencyCode?: string | null;
+  regencyName?: string | null;
+  districtCode?: string | null;
+  districtName?: string | null;
+  villageCode?: string | null;
+  villageName?: string | null;
   previousVaccineHistory?: string | null;
   childAllergyHistory?: string | null;
 }
@@ -31,6 +40,15 @@ export interface UpdateImmunizationIntakeData {
   fatherName?: string;
   motherName?: string;
   childAddress?: string;
+  line1?: string;
+  provinceCode?: string;
+  provinceName?: string;
+  regencyCode?: string;
+  regencyName?: string;
+  districtCode?: string;
+  districtName?: string;
+  villageCode?: string;
+  villageName?: string;
   previousVaccineHistory?: string;
   childAllergyHistory?: string;
   entries?: SaveClinicalEntryData[];

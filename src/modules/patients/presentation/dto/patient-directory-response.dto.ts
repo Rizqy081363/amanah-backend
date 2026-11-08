@@ -12,11 +12,17 @@ export class PatientDirectoryItemDto {
   fullName: string;
 
   @ApiProperty({
-    description: 'NIK yang telah disensor demi privasi data',
+    description: 'NIK asli pasien (16 digit)',
     nullable: true,
-    example: '3201********0001',
+    example: '3201012345670001',
   })
-  maskedNik: string | null;
+  nik: string | null;
+
+  @ApiPropertyOptional({
+    description: 'Alias untuk NIK pasien',
+    nullable: true,
+  })
+  maskedNik?: string | null;
 
   @ApiProperty({ enum: gender.enumValues, description: 'Jenis kelamin' })
   gender: Gender;

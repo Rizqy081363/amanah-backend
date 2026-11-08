@@ -157,28 +157,14 @@ export class NikSecurityService implements INikSecurityService {
   }
 
   /**
-   * Formats a NIK into a safe masked string for display.
-   * Format: `3201••••••••1234`
+   * Formats a NIK into a safe fully masked string for display.
+   * Format: `••••••••••••••••` (Full masking, zero spoilers)
    */
   mask(nikOrCiphertext: string | null | undefined): string {
     if (!nikOrCiphertext) {
       return '';
     }
-
-    const decrypted = this.decrypt(nikOrCiphertext) || this.normalize(nikOrCiphertext);
-    if (!decrypted) {
-      return '';
-    }
-
-    if (decrypted.length === 16) {
-      return `${decrypted.slice(0, 4)}••••••••${decrypted.slice(-4)}`;
-    }
-
-    if (decrypted.length > 8) {
-      return `${decrypted.slice(0, 3)}••••••••${decrypted.slice(-3)}`;
-    }
-
-    return '••••••••';
+    return '••••••••••••••••';
   }
 
   /**

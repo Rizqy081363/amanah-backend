@@ -61,6 +61,19 @@ export class ImmunizationDrizzleRepository implements IImmunizationRepository {
       let targetMotherName = data.motherName?.trim();
       let targetAddress = data.childAddress?.trim();
 
+      if (data.line1 || data.provinceName || data.regencyName) {
+        const parts = [
+          data.line1?.trim(),
+          data.villageName?.trim() ? `Kel. ${data.villageName.trim()}` : '',
+          data.districtName?.trim() ? `Kec. ${data.districtName.trim()}` : '',
+          data.regencyName?.trim(),
+          data.provinceName?.trim() ? `Prov. ${data.provinceName.trim()}` : '',
+        ].filter(Boolean);
+        if (parts.length > 0) {
+          targetAddress = parts.join(', ');
+        }
+      }
+
       const patient = await tx.query.patientProfiles.findFirst({
         where: eq(patientProfiles.id, data.patientId),
         with: {
@@ -196,6 +209,24 @@ export class ImmunizationDrizzleRepository implements IImmunizationRepository {
       if (data.motherName !== undefined) updateData.motherName = data.motherName;
       if (data.childAddress !== undefined)
         updateData.childAddress = data.childAddress;
+      if (
+        data.line1 !== undefined ||
+        data.provinceName !== undefined ||
+        data.regencyName !== undefined ||
+        data.districtName !== undefined ||
+        data.villageName !== undefined
+      ) {
+        const parts = [
+          data.line1?.trim(),
+          data.villageName?.trim() ? `Kel. ${data.villageName.trim()}` : '',
+          data.districtName?.trim() ? `Kec. ${data.districtName.trim()}` : '',
+          data.regencyName?.trim(),
+          data.provinceName?.trim() ? `Prov. ${data.provinceName.trim()}` : '',
+        ].filter(Boolean);
+        if (parts.length > 0) {
+          updateData.childAddress = parts.join(', ');
+        }
+      }
       if (data.previousVaccineHistory !== undefined)
         updateData.previousVaccineHistory = data.previousVaccineHistory;
       if (data.childAllergyHistory !== undefined)
@@ -314,12 +345,31 @@ export class ImmunizationDrizzleRepository implements IImmunizationRepository {
 
     if (!intake) return null;
 
-    const cumulativeLedger = await this.findChildCumulativeLedger(
-      intake.patientId,
-    );
+    const [cumulativeLedger, patient] = await Promise.all([
+      this.findChildCumulativeLedger(intake.patientId),
+      this.db.query.patientProfiles.findFirst({
+        where: eq(patientProfiles.id, intake.patientId),
+        with: {
+          patientAddresses: true,
+        },
+      }),
+    ]);
+
+    const dom =
+      patient?.patientAddresses?.find((a) => a.type === 'domicile') ||
+      patient?.patientAddresses?.[0];
 
     return {
       ...intake,
+      line1: dom?.line1 || null,
+      villageName: dom?.villageName || null,
+      villageCode: dom?.villageCode || null,
+      districtName: dom?.districtName || null,
+      districtCode: dom?.districtCode || null,
+      regencyName: dom?.regencyName || null,
+      regencyCode: dom?.regencyCode || null,
+      provinceName: dom?.provinceName || null,
+      provinceCode: dom?.provinceCode || null,
       entries: cumulativeLedger,
       answers: (intake.intakeSubmission?.answers as Record<string, any>) || {},
       automatic:
@@ -338,12 +388,31 @@ export class ImmunizationDrizzleRepository implements IImmunizationRepository {
 
     if (!intake) return null;
 
-    const cumulativeLedger = await this.findChildCumulativeLedger(
-      intake.patientId,
-    );
+    const [cumulativeLedger, patient] = await Promise.all([
+      this.findChildCumulativeLedger(intake.patientId),
+      this.db.query.patientProfiles.findFirst({
+        where: eq(patientProfiles.id, intake.patientId),
+        with: {
+          patientAddresses: true,
+        },
+      }),
+    ]);
+
+    const dom =
+      patient?.patientAddresses?.find((a) => a.type === 'domicile') ||
+      patient?.patientAddresses?.[0];
 
     return {
       ...intake,
+      line1: dom?.line1 || null,
+      villageName: dom?.villageName || null,
+      villageCode: dom?.villageCode || null,
+      districtName: dom?.districtName || null,
+      districtCode: dom?.districtCode || null,
+      regencyName: dom?.regencyName || null,
+      regencyCode: dom?.regencyCode || null,
+      provinceName: dom?.provinceName || null,
+      provinceCode: dom?.provinceCode || null,
       entries: cumulativeLedger,
       answers: (intake.intakeSubmission?.answers as Record<string, any>) || {},
       automatic:

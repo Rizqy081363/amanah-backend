@@ -267,16 +267,13 @@ export class HybridAuthGuard extends AuthGuard('jwt') implements CanActivate {
               userId: userRecord.id,
               medicalRecordNumber: patientProfile.medicalRecordNumber,
               nik:
-                (this.nikSecurity && patientProfile.nationalIdEncrypted
-                  ? this.nikSecurity.decrypt(patientProfile.nationalIdEncrypted)
-                  : patientProfile.nationalIdEncrypted &&
-                      !patientProfile.nationalIdEncrypted.includes(':')
-                    ? patientProfile.nationalIdEncrypted
-                    : null) || '',
+                (this.nikSecurity && patientProfile.nationalIdEncrypted)
+                  ? (this.nikSecurity.decrypt(patientProfile.nationalIdEncrypted) || '')
+                  : '',
               maskedNik:
-                this.nikSecurity && patientProfile.nationalIdEncrypted
-                  ? this.nikSecurity.mask(patientProfile.nationalIdEncrypted)
-                  : null,
+                (this.nikSecurity && patientProfile.nationalIdEncrypted)
+                  ? (this.nikSecurity.decrypt(patientProfile.nationalIdEncrypted) || '')
+                  : '',
               fullName: patientProfile.fullName,
               gender: patientProfile.gender || null,
               birthPlace: patientProfile.birthPlace,

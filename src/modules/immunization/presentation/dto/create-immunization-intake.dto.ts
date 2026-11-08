@@ -78,6 +78,51 @@ export class CreateImmunizationIntakeDto {
   @IsOptional()
   childAddress?: string;
 
+  @ApiPropertyOptional({ example: 'Jl. Anyelir I No. 243' })
+  @IsString()
+  @IsOptional()
+  line1?: string;
+
+  @ApiPropertyOptional({ example: '34' })
+  @IsString()
+  @IsOptional()
+  provinceCode?: string;
+
+  @ApiPropertyOptional({ example: 'DI YOGYAKARTA' })
+  @IsString()
+  @IsOptional()
+  provinceName?: string;
+
+  @ApiPropertyOptional({ example: '3404' })
+  @IsString()
+  @IsOptional()
+  regencyCode?: string;
+
+  @ApiPropertyOptional({ example: 'KABUPATEN SLEMAN' })
+  @IsString()
+  @IsOptional()
+  regencyName?: string;
+
+  @ApiPropertyOptional({ example: '340407' })
+  @IsString()
+  @IsOptional()
+  districtCode?: string;
+
+  @ApiPropertyOptional({ example: 'DEPOK' })
+  @IsString()
+  @IsOptional()
+  districtName?: string;
+
+  @ApiPropertyOptional({ example: '3404072001' })
+  @IsString()
+  @IsOptional()
+  villageCode?: string;
+
+  @ApiPropertyOptional({ example: 'CONDONGCATUR' })
+  @IsString()
+  @IsOptional()
+  villageName?: string;
+
   @ApiPropertyOptional({
     example: 'HB 0 sudah diberikan setelah lahir di RS bersalin',
     description: 'Riwayat vaksin sebelumnya berupa teks bebas',

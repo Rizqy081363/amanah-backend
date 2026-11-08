@@ -48,33 +48,16 @@ export class PatientRecordMapper {
         : record.user.lastLoginAt.toISOString()
       : null;
 
-    let decryptedNik = '';
-    let maskedNik: string | null = null;
-
-    if (nikSecurity) {
-      if (record.nationalIdEncrypted) {
-        decryptedNik = nikSecurity.decrypt(record.nationalIdEncrypted) || '';
-        maskedNik = decryptedNik ? nikSecurity.mask(decryptedNik) : null;
-      } else if (record.nationalIdHash) {
-        maskedNik = null;
-      }
-    } else {
-      const rawNikSource = record.nationalIdEncrypted || record.nationalIdHash || '';
-      // If raw source is AES-256-GCM ciphertext (contains colons), do not leak ciphertext
-      if (rawNikSource && !rawNikSource.includes(':')) {
-        decryptedNik = rawNikSource;
-        maskedNik = rawNikSource.length >= 8
-          ? `${rawNikSource.slice(0, 4)}••••••••${rawNikSource.slice(-4)}`
-          : '••••••••';
-      }
-    }
+    const decryptedNik = (nikSecurity && record.nationalIdEncrypted)
+      ? (nikSecurity.decrypt(record.nationalIdEncrypted) || '')
+      : '';
 
     return {
       id: record.id,
       userId: record.userId || '',
       medicalRecordNumber: record.medicalRecordNumber,
       nik: decryptedNik,
-      maskedNik,
+      maskedNik: decryptedNik || null,
       fullName: record.fullName,
       gender: (record.gender as 'male' | 'female') || 'male',
       birthPlace: record.birthPlace || '',

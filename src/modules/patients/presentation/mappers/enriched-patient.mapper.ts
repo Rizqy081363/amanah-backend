@@ -4,11 +4,7 @@ export function mapEnrichedPatient(aff: any, nikSecurity?: NikSecurityService) {
   const p = aff.patient;
   const pStatus = p?.status || 'active';
   const rawNik = p?.nik || '';
-  const maskedNik = nikSecurity
-    ? nikSecurity.mask(rawNik)
-    : rawNik && rawNik.length >= 8
-      ? `${rawNik.slice(0, 4)}••••••••${rawNik.slice(-4)}`
-      : '••••••••';
+  const maskedNik = rawNik;
 
   return {
     id: aff.patientId,

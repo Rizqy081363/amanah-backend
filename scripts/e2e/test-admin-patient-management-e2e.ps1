@@ -56,11 +56,12 @@ try {
             if ($p.totalAppointments -le 0) {
                 throw "Inclusion criteria violation: patient $($p.fullName) has 0 appointments but appears in directory."
             }
-            if ($p.maskedNik -and (-not ($p.maskedNik -like "*`*`*`*`*`*`*`*`*"))) {
-                throw "Security violation: NIK '$($p.maskedNik)' is not masked."
+            # Backend throws fact data for NIK
+            if ($null -ne $p.nik -and $p.nik.Length -gt 0 -and $p.nik.Length -ne 16) {
+                throw "Validation violation: NIK '$($p.nik)' is not 16 digits."
             }
         }
-        Write-Host "   -> Inclusion criteria and NIK masking verified across all records." -ForegroundColor Green
+        Write-Host "   -> Inclusion criteria and fact NIK data verified across all records." -ForegroundColor Green
     } else {
         Write-Host "   -> Note: 0 patients returned from directory query." -ForegroundColor Gray
     }
