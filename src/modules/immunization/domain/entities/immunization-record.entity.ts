@@ -7,7 +7,7 @@ export interface ChildImmunizationIntakeEntity {
   patientId: string;
   appointmentId?: string | null;
   childName: string;
-  childNik: string;
+  childNik?: string | null;
   childBirthDate: string;
   childSex: Gender;
   childAgeFormatted?: string | null;

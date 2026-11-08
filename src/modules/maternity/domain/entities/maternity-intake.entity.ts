@@ -7,7 +7,7 @@ export class MaternityIntakeEntity {
   id!: string;
   patientId!: string;
   appointmentId?: string | null;
-  motherNik!: string;
+  motherNik?: string | null;
   motherName!: string;
   motherBirthDate?: string | null;
   motherAge?: number | null;

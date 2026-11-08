@@ -112,20 +112,23 @@ export class UpdateMaternityIntakeUseCase {
     validateDiagnosisYears(dto.healthConditions, effectiveBirthDate);
 
     let patientIdentitySync: {
-      nationalIdEncrypted: string;
-      nationalIdHash: string;
+      nationalIdEncrypted: string | null;
+      nationalIdHash: string | null;
     } | null = null;
-    if (
-      dto.motherNik !== undefined &&
-      effectiveMotherNik &&
-      effectiveMotherNik.length === 16
-    ) {
-      const blindIndex = this.nikSecurity.computeBlindIndex(effectiveMotherNik);
-      const secured = this.nikSecurity.secure(effectiveMotherNik);
-      if (secured) {
+    if (dto.motherNik !== undefined) {
+      if (effectiveMotherNik && effectiveMotherNik.length === 16) {
+        const blindIndex = this.nikSecurity.computeBlindIndex(effectiveMotherNik);
+        const secured = this.nikSecurity.secure(effectiveMotherNik);
+        if (secured) {
+          patientIdentitySync = {
+            nationalIdEncrypted: secured.encrypted,
+            nationalIdHash: blindIndex,
+          };
+        }
+      } else if (!effectiveMotherNik) {
         patientIdentitySync = {
-          nationalIdEncrypted: secured.encrypted,
-          nationalIdHash: blindIndex,
+          nationalIdEncrypted: null,
+          nationalIdHash: null,
         };
       }
     }
@@ -189,7 +192,7 @@ export class UpdateMaternityIntakeUseCase {
     }
 
     if (dto.motherName !== undefined) patch.motherName = dto.motherName.trim();
-    if (dto.motherNik !== undefined) patch.motherNik = effectiveMotherNik;
+    if (dto.motherNik !== undefined) patch.motherNik = effectiveMotherNik || null;
     if (rawPartnerNik !== undefined) patch.partnerNik = effectivePartnerNik;
     if (effectiveBmi !== undefined) patch.initialBmi = effectiveBmi;
     if (estimatedDueDate !== undefined)

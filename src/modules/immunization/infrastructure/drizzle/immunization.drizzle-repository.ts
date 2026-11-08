@@ -132,15 +132,15 @@ export class ImmunizationDrizzleRepository implements IImmunizationRepository {
     id: string,
     data: UpdateImmunizationIntakeData,
   ): Promise<ChildImmunizationIntakeEntity | null> {
-    return this.db.transaction(async (tx) => {
-      const existing = await tx.query.childImmunizationIntakes.findFirst({
-        where: eq(childImmunizationIntakes.id, id),
-      });
+    const existing = await this.db.query.childImmunizationIntakes.findFirst({
+      where: eq(childImmunizationIntakes.id, id),
+    });
 
-      if (!existing) {
-        return null;
-      }
+    if (!existing) {
+      return null;
+    }
 
+    await this.db.transaction(async (tx) => {
       if (existing.appointmentId) {
         const app = await tx.query.appointments.findFirst({
           where: eq(appointments.id, existing.appointmentId),
@@ -157,7 +157,34 @@ export class ImmunizationDrizzleRepository implements IImmunizationRepository {
       };
 
       if (data.childName !== undefined) updateData.childName = data.childName;
-      if (data.childNik !== undefined) updateData.childNik = data.childNik;
+      if (data.childNik !== undefined) {
+        updateData.childNik = data.childNik || null;
+        if (data.childNik && data.childNik.trim().length === 16) {
+          const secured = this.nikSecurity.secure(data.childNik.trim());
+          const blindIndex = this.nikSecurity.computeBlindIndex(
+            data.childNik.trim(),
+          );
+          if (secured) {
+            await tx
+              .update(patientProfiles)
+              .set({
+                nationalIdEncrypted: secured.encrypted,
+                nationalIdHash: blindIndex,
+                updatedAt: new Date().toISOString(),
+              })
+              .where(eq(patientProfiles.id, existing.patientId));
+          }
+        } else if (!data.childNik || data.childNik.trim() === '') {
+          await tx
+            .update(patientProfiles)
+            .set({
+              nationalIdEncrypted: null,
+              nationalIdHash: null,
+              updatedAt: new Date().toISOString(),
+            })
+            .where(eq(patientProfiles.id, existing.patientId));
+        }
+      }
       if (data.childBirthDate !== undefined)
         updateData.childBirthDate = data.childBirthDate;
       if (data.childSex !== undefined) updateData.childSex = data.childSex;
@@ -286,10 +313,10 @@ export class ImmunizationDrizzleRepository implements IImmunizationRepository {
             });
         }
       }
-
-      const fullIntake = await this.findIntakeById(existing.id);
-      return fullIntake as ChildImmunizationIntakeEntity;
     });
+
+    const fullIntake = await this.findIntakeById(existing.id);
+    return fullIntake as ChildImmunizationIntakeEntity;
   }
 
   async findIntakeById(id: string): Promise<any | null> {

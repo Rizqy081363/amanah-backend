@@ -43,7 +43,7 @@ export interface PersistMaternityIntakeCommand {
   patientId: string;
   appointmentId?: string | null;
   motherName: string;
-  motherNik: string;
+  motherNik?: string | null;
   motherBirthDate?: string | null;
   motherAge?: number | null;
   marriageOrder?: number | null;
@@ -99,8 +99,8 @@ export interface PersistMaternityIntakeCommand {
   healthConditions?: PersistHealthConditionCommand[];
   submittedByUserId?: string | null;
   patientIdentitySync?: {
-    nationalIdEncrypted: string;
-    nationalIdHash: string;
+    nationalIdEncrypted: string | null;
+    nationalIdHash: string | null;
   } | null;
   appointmentComplaintSync?: {
     appointmentId: string;

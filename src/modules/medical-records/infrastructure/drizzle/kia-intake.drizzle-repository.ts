@@ -13,6 +13,7 @@ import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
   appointments,
   medicalIntakeSubmissions,
+  patientProfiles,
 } from '../../../../database/schema';
 import { AppointmentsService } from '../../../appointments/application/appointments.service';
 import { ImmunizationDrizzleRepository } from '../../../immunization/infrastructure/drizzle/immunization.drizzle-repository';
@@ -267,7 +268,18 @@ export class KiaIntakeDrizzleRepository {
     const appt = await this.db.query.appointments.findFirst({
       where: eq(appointments.id, appointmentId),
       with: {
-        patientProfile: {
+        clinicService: true,
+        clinicRoom: true,
+      },
+    });
+
+    if (!appt) {
+      return null;
+    }
+
+    const patientProfileData = appt.patientId
+      ? await this.db.query.patientProfiles.findFirst({
+          where: eq(patientProfiles.id, appt.patientId),
           with: {
             patientAddresses: true,
             patientAffiliations: {
@@ -280,20 +292,11 @@ export class KiaIntakeDrizzleRepository {
             patientEmergencyContacts: true,
             user: true,
           },
-        },
-        clinicService: true,
-        clinicRoom: true,
-        practitioner: {
-          with: {
-            staffProfile: true,
-            medicalSpecialty: true,
-          },
-        },
-      },
-    });
+        })
+      : null;
 
-    const patientData = appt?.patientProfile
-      ? this.mapPatientProfile(appt.patientProfile, fullAppt)
+    const patientData = patientProfileData
+      ? this.mapPatientProfile(patientProfileData, fullAppt)
       : null;
 
     const baseAppointmentData = {
@@ -316,11 +319,11 @@ export class KiaIntakeDrizzleRepository {
       sessionName: fullAppt?.sessionName || null,
       doctorName:
         fullAppt?.doctorName ||
-        appt?.practitioner?.staffProfile?.fullName ||
+        (appt as any)?.practitioner?.staffProfile?.fullName ||
         null,
       doctorSpecialty:
         fullAppt?.doctorSpecialty ||
-        appt?.practitioner?.medicalSpecialty?.name ||
+        (appt as any)?.practitioner?.medicalSpecialty?.name ||
         null,
       roomName: fullAppt?.roomName || appt?.clinicRoom?.name || null,
       poliklinikId: fullAppt?.poliklinikId || null,
@@ -375,7 +378,7 @@ export class KiaIntakeDrizzleRepository {
       };
     }
 
-    if (appt?.patientProfile) {
+    if (appt) {
       return {
         flow: appt.medicalFlow || 'regular',
         type: 'regular',

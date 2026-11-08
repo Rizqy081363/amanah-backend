@@ -13,6 +13,7 @@ import {
   Max,
   MaxLength,
   Min,
+  MinLength,
   ValidateNested,
 } from 'class-validator';
 import {
@@ -25,6 +26,7 @@ import {
 export class UpdateMaternityIntakeDto {
   @ApiPropertyOptional({ example: 'Siti Aminah' })
   @IsString()
+  @MinLength(1)
   @MaxLength(255)
   @IsOptional()
   motherName?: string;

@@ -7,6 +7,7 @@ import {
   IsOptional,
   IsString,
   Length,
+  MinLength,
   ValidateNested,
 } from 'class-validator';
 import { gender, type Gender } from '../../../../database/schema';
@@ -15,6 +16,7 @@ import { ClinicalEntryInputDto } from './save-clinical-entries.dto';
 export class UpdateImmunizationIntakeDto {
   @ApiPropertyOptional({ example: 'Aisyah Putri Ramadhani' })
   @IsString()
+  @MinLength(1)
   @IsOptional()
   childName?: string;
 
@@ -44,6 +46,7 @@ export class UpdateImmunizationIntakeDto {
 
   @ApiPropertyOptional({ example: '081234567890' })
   @IsString()
+  @MinLength(1)
   @IsOptional()
   parentPhone?: string;
 

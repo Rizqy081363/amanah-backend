@@ -9,7 +9,7 @@ export interface CreateImmunizationIntakeData {
   patientId: string;
   appointmentId?: string | null;
   childName?: string;
-  childNik?: string;
+  childNik?: string | null;
   childBirthDate?: string;
   childSex?: Gender;
   childAgeFormatted?: string | null;
@@ -32,7 +32,7 @@ export interface CreateImmunizationIntakeData {
 
 export interface UpdateImmunizationIntakeData {
   childName?: string;
-  childNik?: string;
+  childNik?: string | null;
   childBirthDate?: string;
   childSex?: Gender;
   childAgeFormatted?: string;

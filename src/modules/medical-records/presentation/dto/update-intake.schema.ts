@@ -365,7 +365,10 @@ export type CreateMaternityIntakeInput = z.infer<
 
 export const UpdateMaternityIntakeSchema = z
   .object({
-    motherName: z.string().optional().nullable(),
+    motherName: z
+      .string()
+      .min(1, { message: 'Nama lengkap ibu wajib diisi' })
+      .optional(),
     motherNik: z
       .string()
       .regex(/^\d{16}$/, { message: 'NIK ibu harus berupa 16 digit angka' })
