@@ -256,7 +256,8 @@ export class AppointmentNotificationPublisher {
       doctorName?: string | null;
       practitionerName?: string | null;
       roomName?: string | null;
-      type: 'practitioner' | 'doctor' | 'room';
+      serviceName?: string | null;
+      type: 'practitioner' | 'doctor' | 'room' | 'service';
     },
     user?: any,
   ): Promise<void> {

@@ -51,6 +51,7 @@ import { RevertProposalDto } from './dto/revert-proposal.dto';
 import { CancelAppointmentDto } from './dto/cancel-appointment.dto';
 import { ChangeAppointmentDoctorDto } from './dto/change-appointment-doctor.dto';
 import { ChangeAppointmentRoomDto } from './dto/change-appointment-room.dto';
+import { ChangeAppointmentServiceDto } from './dto/change-appointment-service.dto';
 import { ProposeCancellationDto } from './dto/propose-cancellation.dto';
 import { ProposeRescheduleDto } from './dto/propose-reschedule.dto';
 import { AppointmentDomainExceptionFilter } from './filters/appointment-domain-exception.filter';
@@ -230,6 +231,34 @@ export class AdminAppointmentsController {
     );
     return {
       message: 'Ruangan berhasil dialihkan',
+      data: updated,
+    };
+  }
+
+  @Patch(':appointmentId/service')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Mengubah layanan medis janji temu pasien (Admin/Staf)',
+    description:
+      'Mengalihkan layanan medis janji temu secara transaksional dan menyinkronkan data tiket antrean.',
+  })
+  @ApiParam({
+    name: 'appointmentId',
+    description: 'ID unik janji temu pasien (UUID)',
+  })
+  async changeService(
+    @Param('appointmentId', new ParseUUIDPipe()) appointmentId: string,
+    @Body() body: ChangeAppointmentServiceDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const updated = await this.assignmentService.changeService(
+      appointmentId,
+      body.serviceId,
+      user,
+    );
+    return {
+      message: 'Layanan medis berhasil dialihkan',
       data: updated,
     };
   }

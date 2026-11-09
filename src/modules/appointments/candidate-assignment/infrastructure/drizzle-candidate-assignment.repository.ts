@@ -5,6 +5,7 @@ import {
   appointmentStatusEvents,
   appointments,
   clinicRooms,
+  clinicServices,
   doctorAssignments,
   practitioners,
   queueTickets,
@@ -361,6 +362,58 @@ export class DrizzleCandidateAssignmentRepository {
         .update(queueTickets)
         .set({
           roomId: params.targetRoomId,
+        })
+        .where(eq(queueTickets.appointmentId, params.appointmentId));
+
+      if (params.reason) {
+        await tx.insert(appointmentStatusEvents).values({
+          appointmentId: params.appointmentId,
+          previousStatus: params.previousStatus as any,
+          newStatus: params.previousStatus as any,
+          reason: params.reason,
+          changedBy: (params.updatedBy || null) as any,
+        });
+      }
+    });
+  }
+
+  async findActiveClinicService(serviceId: string) {
+    const [svc] = await this.db
+      .select({
+        id: clinicServices.id,
+        name: clinicServices.name,
+        serviceCategoryId: clinicServices.serviceCategoryId,
+        isActive: clinicServices.isActive,
+      })
+      .from(clinicServices)
+      .where(and(eq(clinicServices.id, serviceId), eq(clinicServices.isActive, true)))
+      .limit(1);
+    return svc || null;
+  }
+
+  async updateAppointmentServiceTransactional(params: {
+    appointmentId: string;
+    targetServiceId: string;
+    targetCategoryId?: string | null;
+    updatedBy?: string | null;
+    reason?: string;
+    previousStatus: string;
+  }) {
+    return this.db.transaction(async (tx) => {
+      await tx
+        .update(appointments)
+        .set({
+          serviceId: params.targetServiceId,
+          updatedBy: params.updatedBy,
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(appointments.id, params.appointmentId));
+
+      await tx
+        .update(queueTickets)
+        .set({
+          serviceId: params.targetServiceId,
+          ...(params.targetCategoryId ? { categoryId: params.targetCategoryId } : {}),
         })
         .where(eq(queueTickets.appointmentId, params.appointmentId));
 

@@ -293,6 +293,92 @@ export class CandidateAssignmentService implements ICandidateAssignmentPort {
     return updated;
   }
 
+  async changeService(
+    appointmentId: string,
+    targetServiceId: string,
+    user?: any,
+  ): Promise<AppointmentEntity> {
+    const context =
+      await this.repository.findAppointmentWithContext(appointmentId);
+    if (!context || !context.appointment) {
+      throw new AppointmentNotFoundException(appointmentId);
+    }
+
+    const { appointment: apt } = context;
+
+    if (isTerminalAppointmentStatus(apt.status)) {
+      throw new AppointmentTerminalStateException(apt.status);
+    }
+
+    if (apt.serviceId === targetServiceId) {
+      const existing = await this.findAppointmentById(appointmentId);
+      if (!existing) throw new AppointmentNotFoundException(appointmentId);
+      return existing;
+    }
+
+    const targetService =
+      await this.repository.findActiveClinicService(targetServiceId);
+    if (!targetService) {
+      throw new BadRequestException('Layanan medis tidak ditemukan atau tidak aktif');
+    }
+
+    const currentUserId = user?.id || user?.sub || null;
+
+    await this.repository.updateAppointmentServiceTransactional({
+      appointmentId,
+      targetServiceId,
+      targetCategoryId: targetService.serviceCategoryId,
+      updatedBy: currentUserId,
+      reason: `Tugaskan layanan medis ke ${targetService.name}`,
+      previousStatus: apt.status,
+    });
+
+    // Invalidate Redis caches
+    await Promise.allSettled([
+      this.redisService.deleteByPrefix('queue:'),
+      this.redisService.deleteByPrefix('appointments:'),
+      this.redisService.invalidateTags(
+        'queue',
+        'daily',
+        'display',
+        'schedule',
+        'schedule:list',
+        'schedule:detail',
+        'schedule:patients',
+        'appointments',
+        'appointments:me',
+      ),
+    ]);
+
+    const updated = await this.findAppointmentById(appointmentId);
+    if (!updated) throw new AppointmentNotFoundException(appointmentId);
+
+    // Publish real-time event
+    await this.notificationPublisher.publishAssignmentChanged(
+      updated,
+      {
+        doctorName: updated.doctorName,
+        roomName: updated.roomName,
+        serviceName: targetService.name,
+        type: 'service',
+      },
+      user,
+    );
+
+    if (this.realtimeEmitter) {
+      await this.realtimeEmitter.emitStatusChanged({
+        appointmentId: updated.id,
+        status: updated.status,
+        previousStatus: toDomainStatus(apt.status),
+        queueNumber: Number(updated.queueNumber) || 1,
+        practitionerId: updated.staffId || '',
+        patientUserId: updated.patientUserId,
+      });
+    }
+
+    return updated;
+  }
+
   async bulkChangeDoctor(
     appointmentIds: string[],
     targetDoctorId: string,

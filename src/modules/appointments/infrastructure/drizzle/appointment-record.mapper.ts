@@ -212,6 +212,8 @@ export class AppointmentRecordMapper {
       avatarUrl,
       poliklinikId: poliId,
       poliklinikName: resolvedPoliName,
+      categoryId: apt.clinicService?.serviceCategory?.id || null,
+      categoryName: apt.clinicService?.serviceCategory?.name || null,
       layananId: apt.serviceId,
       layananName: apt.clinicService?.name || null,
       staffId: apt.practitionerId || null,

@@ -35,6 +35,14 @@ export class AppointmentAssignmentService implements ICandidateAssignmentPort {
     return this.delegate.changeRoom(appointmentId, targetRoomId, user);
   }
 
+  async changeService(
+    appointmentId: string,
+    targetServiceId: string,
+    user?: any,
+  ): Promise<AppointmentEntity> {
+    return this.delegate.changeService(appointmentId, targetServiceId, user);
+  }
+
   async bulkChangeDoctor(
     appointmentIds: string[],
     targetDoctorId: string,

@@ -19,6 +19,8 @@ export class AppointmentEntity {
   avatarUrl?: string | null;
   poliklinikId: string;
   poliklinikName?: string;
+  categoryId?: string | null;
+  categoryName?: string | null;
   layananId: string;
   layananName?: string;
   staffId?: string | null;

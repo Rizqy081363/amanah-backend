@@ -29,6 +29,12 @@ export interface ICandidateAssignmentPort {
     user?: any,
   ): Promise<AppointmentEntity>;
 
+  changeService(
+    appointmentId: string,
+    targetServiceId: string,
+    user?: any,
+  ): Promise<AppointmentEntity>;
+
   bulkChangeDoctor(
     appointmentIds: string[],
     targetDoctorId: string,
