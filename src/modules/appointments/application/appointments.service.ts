@@ -194,6 +194,8 @@ export class AppointmentsService {
       roomId: query.roomId,
       roomName: query.roomName,
       proposalStatus: query.proposalStatus,
+      allowedPatientIds: query.allowedPatientIds,
+      createdById: query.createdById,
     });
 
     return {
@@ -299,7 +301,8 @@ export class AppointmentsService {
   }
 
   async findMyQueue(
-    _patientIdOrUserId: string,
+    allowedPatientIds: string[],
+    userId: string,
     today: BusinessDate,
     poliklinikId?: string,
   ): Promise<QueueResponseEnvelope<AppointmentEntity[]>> {
@@ -307,11 +310,18 @@ export class AppointmentsService {
       poliklinikId || '',
       today,
     );
+    const filtered = daily.filter((apt) => {
+      const isAllowedPatient =
+        apt.patientId && allowedPatientIds.includes(apt.patientId);
+      const isCreator = apt.createdBy === userId;
+      const isPatientUser = apt.patientUserId === userId;
+      return Boolean(isAllowedPatient || isCreator || isPatientUser);
+    });
     return {
       businessDate: today,
       clinicTimezone: this.getClinicTimezone(),
       generatedAt: this.getNowIso(),
-      items: daily,
+      items: filtered,
     };
   }
 

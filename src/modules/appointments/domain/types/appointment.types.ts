@@ -142,6 +142,7 @@ export interface AppointmentRecord {
   bookingCode: string;
   patientId: string;
   patientUserId?: string | null;
+  createdBy?: string | null;
   isAffiliated?: boolean;
   affiliationRelationship?: string | null;
   parentUserId?: string | null;

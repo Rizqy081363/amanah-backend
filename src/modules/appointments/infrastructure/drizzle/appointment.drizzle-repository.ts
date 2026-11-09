@@ -231,9 +231,30 @@ export class AppointmentDrizzleRepository implements AppointmentRepository {
       roomId?: string;
       roomName?: string;
       proposalStatus?: string;
+      allowedPatientIds?: string[];
+      createdById?: string;
     },
   ): Promise<AppointmentFindAllResult> {
     const conditions: any[] = [];
+
+    if (filters?.allowedPatientIds !== undefined || filters?.createdById !== undefined) {
+      const allowedIds = filters.allowedPatientIds || [];
+      const createdBy = filters.createdById;
+      if (allowedIds.length > 0 && createdBy) {
+        conditions.push(
+          or(
+            eq(appointments.createdBy, createdBy),
+            inArray(appointments.patientId, allowedIds),
+          ),
+        );
+      } else if (allowedIds.length > 0) {
+        conditions.push(inArray(appointments.patientId, allowedIds));
+      } else if (createdBy) {
+        conditions.push(eq(appointments.createdBy, createdBy));
+      } else {
+        conditions.push(sql`1 = 0`);
+      }
+    }
 
     // 1. Scheduled Date filter
     if (filters?.date) {

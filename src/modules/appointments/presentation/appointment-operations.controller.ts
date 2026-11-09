@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  ForbiddenException,
   HttpCode,
   HttpStatus,
   Param,
@@ -18,11 +19,11 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import { isExternalUser, type AuthenticatedUser } from '../../../common/auth';
 import { CurrentUser } from '../../../common/auth/current-user.decorator';
 import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
 import { PermissionsGuard } from '../../../common/auth/permissions.guard';
 import { RequirePermissions } from '../../../common/auth/permissions.decorator';
-import { AuthenticatedUser } from '../../../common/auth/authenticated-user.interface';
 import { CancelAppointmentUseCase } from '../application/use-cases/cancel-appointment.use-case';
 import { CompleteServiceUseCase } from '../application/use-cases/complete-service.use-case';
 import { StartServiceUseCase } from '../application/use-cases/start-service.use-case';
@@ -59,6 +60,11 @@ export class AppointmentOperationsController {
     @Param('id') id: string,
     @CurrentUser() user?: AuthenticatedUser,
   ) {
+    if (user && isExternalUser(user)) {
+      throw new ForbiddenException(
+        'Akses ditolak: Pasien eksternal tidak diizinkan memulai pemeriksaan.',
+      );
+    }
     return this.startServiceUseCase.execute(id, user);
   }
 
@@ -82,6 +88,11 @@ export class AppointmentOperationsController {
     @Param('id') id: string,
     @CurrentUser() user?: AuthenticatedUser,
   ) {
+    if (user && isExternalUser(user)) {
+      throw new ForbiddenException(
+        'Akses ditolak: Pasien eksternal tidak diizinkan menyelesaikan pemeriksaan.',
+      );
+    }
     return this.completeServiceUseCase.execute(id, user);
   }
 
@@ -118,7 +129,12 @@ export class AppointmentOperationsController {
   @ApiForbiddenResponse({
     description: 'Akses ditolak: Diperlukan izin appointments:manage',
   })
-  async sweepLate() {
+  async sweepLate(@CurrentUser() user?: AuthenticatedUser) {
+    if (user && isExternalUser(user)) {
+      throw new ForbiddenException(
+        'Akses ditolak: Pasien eksternal tidak diizinkan mengeksekusi sapuan keterlambatan.',
+      );
+    }
     const sweptCount = await this.sweepLateAppointmentsUseCase.execute();
     return { success: true, sweptCount };
   }

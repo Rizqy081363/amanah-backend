@@ -8,6 +8,7 @@ import {
   Headers,
   HttpCode,
   HttpStatus,
+  Inject,
   NotFoundException,
   Optional,
   Param,
@@ -34,7 +35,7 @@ import {
 } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { NOTIFICATION_AUDIENCE } from '../../../common/constants/notification-audience.constants';
-import type { AuthenticatedUser } from '../../../common/auth';
+import { isExternalUser, type AuthenticatedUser } from '../../../common/auth';
 import { CurrentUser } from '../../../common/auth/current-user.decorator';
 import { HybridAuthGuard } from '../../../common/auth/hybrid-auth.guard';
 import { PermissionsGuard } from '../../../common/auth/permissions.guard';
@@ -47,6 +48,13 @@ import {
   ClinicTimeService,
   parseBusinessDate,
 } from '../../../common/time/clinic-time.service';
+import { DRIZZLE_SOURCE } from '../../../database/drizzle/drizzle.constants';
+import { DrizzleDatabase } from '../../../database/drizzle/drizzle.provider';
+import {
+  patientAffiliations,
+  patientProfiles,
+} from '../../../database/schema/amanah.schema';
+import { eq } from 'drizzle-orm';
 import { AppointmentsService } from '../application/appointments.service';
 import { GenerateCheckInQrUseCase } from '../application/use-cases/generate-check-in-qr.use-case';
 import { PerformCheckInUseCase } from '../application/use-cases/perform-check-in.use-case';
@@ -68,11 +76,86 @@ export class AppointmentsController {
   constructor(
     private readonly appointmentsService: AppointmentsService,
     private readonly clinicTimeService: ClinicTimeService,
+    @Inject(DRIZZLE_SOURCE)
+    private readonly db: DrizzleDatabase,
     @Optional()
     private readonly generateCheckInQrUseCase?: GenerateCheckInQrUseCase,
     @Optional()
     private readonly performCheckInUseCase?: PerformCheckInUseCase,
   ) {}
+
+  private async getAllowedPatientIds(
+    user: AuthenticatedUser,
+  ): Promise<string[]> {
+    const ownPatientId =
+      user.patient?.id ||
+      (
+        await this.db.query.patientProfiles.findFirst({
+          where: eq(patientProfiles.userId, user.id),
+          columns: { id: true },
+        })
+      )?.id;
+
+    const affiliations = await this.db.query.patientAffiliations.findMany({
+      where: eq(patientAffiliations.userId, user.id),
+      columns: { patientId: true },
+    });
+
+    const ids = new Set<string>();
+    if (ownPatientId) {
+      ids.add(ownPatientId);
+    }
+    for (const aff of affiliations) {
+      if (aff.patientId) {
+        ids.add(aff.patientId);
+      }
+    }
+    return Array.from(ids);
+  }
+
+  private async assertPatientAccess(
+    patientId: string,
+    user: AuthenticatedUser,
+  ): Promise<void> {
+    if (!isExternalUser(user)) {
+      return;
+    }
+    const allowed = await this.getAllowedPatientIds(user);
+    if (!allowed.includes(patientId)) {
+      throw new ForbiddenException(
+        'Akses ditolak: Anda tidak memiliki wewenang untuk mengakses data janji temu pasien lain.',
+      );
+    }
+  }
+
+  private async assertAppointmentAccess(
+    appointment: any,
+    user: AuthenticatedUser,
+  ): Promise<void> {
+    if (!isExternalUser(user)) {
+      return;
+    }
+    const isOwner =
+      appointment.createdBy === user.id ||
+      appointment.patientUserId === user.id ||
+      appointment.parentUserId === user.id ||
+      (user.patient?.id && appointment.patientId === user.patient.id);
+
+    if (isOwner) {
+      return;
+    }
+
+    if (appointment.patientId) {
+      const allowed = await this.getAllowedPatientIds(user);
+      if (allowed.includes(appointment.patientId)) {
+        return;
+      }
+    }
+
+    throw new ForbiddenException(
+      'Akses ditolak: Anda tidak memiliki wewenang untuk mengakses janji temu ini.',
+    );
+  }
 
   @ApiBearerAuth('access-token')
   @UseGuards(HybridAuthGuard, PermissionsGuard)
@@ -100,6 +183,9 @@ export class AppointmentsController {
     @Body(zodPipe(CreateAppointmentSchema)) body: CreateAppointmentDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
+    if (body.patientId && isExternalUser(user)) {
+      await this.assertPatientAccess(body.patientId, user);
+    }
     return this.appointmentsService.createAppointment(body, user);
   }
 
@@ -117,7 +203,18 @@ export class AppointmentsController {
   @ApiForbiddenResponse({
     description: 'Akses ditolak: Diperlukan izin appointments:read',
   })
-  async getAppointments(@Query() query: QueryAppointmentDto) {
+  async getAppointments(
+    @Query() query: QueryAppointmentDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    if (isExternalUser(user)) {
+      if (query.patientId) {
+        await this.assertPatientAccess(query.patientId, user);
+      } else {
+        (query as any).allowedPatientIds = await this.getAllowedPatientIds(user);
+        (query as any).createdById = user.id;
+      }
+    }
     return this.appointmentsService.findAll(query);
   }
 
@@ -177,7 +274,13 @@ export class AppointmentsController {
     @Query('poliklinikId') poliklinikId?: string,
     @Query('date') date?: string,
     @Query('session') session?: string,
+    @CurrentUser() user?: AuthenticatedUser,
   ) {
+    if (user && isExternalUser(user)) {
+      throw new ForbiddenException(
+        'Akses ditolak: Pasien eksternal tidak diizinkan mengakses antrean harian klinik.',
+      );
+    }
     const targetDate = date || this.clinicTimeService.today();
     const businessDate = parseBusinessDate(targetDate);
     return this.appointmentsService.findDailyQueue(
@@ -203,9 +306,10 @@ export class AppointmentsController {
     @CurrentUser() user: AuthenticatedUser,
     @Query('poliklinikId') poliklinikId?: string,
   ) {
-    const patientId = user.patient?.id || user.id;
+    const allowedPatientIds = await this.getAllowedPatientIds(user);
     return this.appointmentsService.findMyQueue(
-      patientId,
+      allowedPatientIds,
+      user.id,
       this.clinicTimeService.today(),
       poliklinikId,
     );
@@ -230,6 +334,9 @@ export class AppointmentsController {
     const resolvedPatientId = patientId || user?.patient?.id;
     if (!resolvedPatientId || !date) {
       return { hasActiveTicket: false, activeTicket: null };
+    }
+    if (user && isExternalUser(user)) {
+      await this.assertPatientAccess(resolvedPatientId, user);
     }
     const ticket = await this.appointmentsService.findActiveTicket({
       patientId: resolvedPatientId,
@@ -279,6 +386,11 @@ export class AppointmentsController {
     @Query('doctorId') queryDoctorId?: string,
     @CurrentUser() user?: AuthenticatedUser,
   ) {
+    if (user && isExternalUser(user)) {
+      throw new ForbiddenException(
+        'Akses ditolak: Pasien eksternal tidak diizinkan mengakses antrean dokter.',
+      );
+    }
     const practitionerId =
       queryDoctorId || user?.staff?.practitionerId || user?.staff?.id;
     if (!practitionerId) {
@@ -317,19 +429,7 @@ export class AppointmentsController {
       throw new NotFoundException(`Kunjungan tidak ditemukan`);
     }
 
-    if (user.audience === NOTIFICATION_AUDIENCE.EXTERNAL) {
-      const isOwner =
-        user.id === appointment.patientUserId ||
-        user.id === appointment.parentUserId ||
-        user.id === appointment.createdBy ||
-        (user.patient?.id && user.patient.id === appointment.patientId);
-
-      if (!isOwner) {
-        throw new ForbiddenException(
-          'Anda tidak memiliki wewenang untuk melihat data janji temu pasien lain.',
-        );
-      }
-    }
+    await this.assertAppointmentAccess(appointment, user);
 
     if (res && appointment.version) {
       res.setHeader('ETag', formatETag(appointment.version));
@@ -357,11 +457,16 @@ export class AppointmentsController {
   @Idempotent()
   async checkInAppointment(
     @Param('id') id: string,
-    @CurrentUser() user?: any,
+    @CurrentUser() user: AuthenticatedUser,
     @Headers('if-match') ifMatch?: string,
     @Body('version') bodyVersion?: string,
     @Res({ passthrough: true }) res?: Response,
   ) {
+    const appointment = await this.appointmentsService.findById(id);
+    if (!appointment) {
+      throw new NotFoundException(`Kunjungan tidak ditemukan`);
+    }
+    await this.assertAppointmentAccess(appointment, user);
     const result = await this.appointmentsService.checkIn(
       id,
       user,
@@ -384,11 +489,22 @@ export class AppointmentsController {
     description:
       'Menghasilkan token QR Code dan 6 digit kode acak verifikasi check-in.',
   })
-  async generateCheckInQr(@Param('id') id: string, @CurrentUser() user?: any) {
+  async generateCheckInQr(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    if (user && isExternalUser(user)) {
+      throw new ForbiddenException(
+        'Akses ditolak: Pasien eksternal tidak diizinkan membuat QR check-in.',
+      );
+    }
     if (!this.generateCheckInQrUseCase) {
       throw new NotFoundException('Fitur QR check-in belum diaktifkan');
     }
-    return this.generateCheckInQrUseCase.execute(id, user?.id || user?.sub);
+    return this.generateCheckInQrUseCase.execute(
+      id,
+      user?.id || (user as any)?.sub,
+    );
   }
 
   @ApiBearerAuth('access-token')
@@ -440,6 +556,11 @@ export class AppointmentsController {
     @Body('version') bodyVersion?: string,
     @Res({ passthrough: true }) res?: Response,
   ) {
+    if (user && isExternalUser(user)) {
+      throw new ForbiddenException(
+        'Akses ditolak: Pasien eksternal tidak diizinkan memanggil antrean.',
+      );
+    }
     const result = await this.appointmentsService.callPatient(
       id,
       user.staff?.practitionerId || user.staff?.id,
@@ -477,6 +598,11 @@ export class AppointmentsController {
     @Body('version') bodyVersion?: string,
     @Res({ passthrough: true }) res?: Response,
   ) {
+    if (user && isExternalUser(user)) {
+      throw new ForbiddenException(
+        'Akses ditolak: Pasien eksternal tidak diizinkan menyelesaikan pemeriksaan.',
+      );
+    }
     const result = await this.appointmentsService.complete(
       id,
       user,
@@ -520,11 +646,18 @@ export class AppointmentsController {
   async cancelAppointment(
     @Param('id') id: string,
     @Body('reason') reason?: string,
-    @CurrentUser() user?: any,
+    @CurrentUser() user?: AuthenticatedUser,
     @Headers('if-match') ifMatch?: string,
     @Body('version') bodyVersion?: string,
     @Res({ passthrough: true }) res?: Response,
   ) {
+    if (user && isExternalUser(user)) {
+      const appointment = await this.appointmentsService.findById(id);
+      if (!appointment) {
+        throw new NotFoundException(`Kunjungan tidak ditemukan`);
+      }
+      await this.assertAppointmentAccess(appointment, user);
+    }
     const result = await this.appointmentsService.cancel(
       id,
       reason,
@@ -558,6 +691,13 @@ export class AppointmentsController {
     @Param('id') id: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
+    if (isExternalUser(user)) {
+      const appointment = await this.appointmentsService.findById(id);
+      if (!appointment) {
+        throw new NotFoundException(`Janji temu tidak ditemukan`);
+      }
+      await this.assertAppointmentAccess(appointment, user);
+    }
     return this.appointmentsService.getRescheduleOptions(id, user.id, user);
   }
 
@@ -585,6 +725,13 @@ export class AppointmentsController {
     @Body(zodPipe(RescheduleAppointmentSchema)) dto: RescheduleAppointmentDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
+    if (isExternalUser(user)) {
+      const appointment = await this.appointmentsService.findById(id);
+      if (!appointment) {
+        throw new NotFoundException(`Janji temu tidak ditemukan`);
+      }
+      await this.assertAppointmentAccess(appointment, user);
+    }
     return this.appointmentsService.reschedule(id, dto, user.id, user);
   }
 
@@ -612,10 +759,15 @@ export class AppointmentsController {
   async updateStatus(
     @Param('id') id: string,
     @Body() body: UpdateAppointmentStatusDto,
-    @CurrentUser() user?: any,
+    @CurrentUser() user?: AuthenticatedUser,
     @Headers('if-match') ifMatch?: string,
     @Res({ passthrough: true }) res?: Response,
   ) {
+    if (user && isExternalUser(user)) {
+      throw new ForbiddenException(
+        'Akses ditolak: Pasien eksternal tidak diizinkan mengubah status antrean secara langsung.',
+      );
+    }
     const expectedVersion = ifMatch || (body as any)?.version;
     const result = await this.appointmentsService.updateStatus(
       id,
@@ -650,7 +802,15 @@ export class AppointmentsController {
   @ApiForbiddenResponse({
     description: 'Akses ditolak: Diperlukan izin appointments:manage',
   })
-  async deleteAppointment(@Param('id') id: string, @CurrentUser() user?: any) {
+  async deleteAppointment(
+    @Param('id') id: string,
+    @CurrentUser() user?: AuthenticatedUser,
+  ) {
+    if (user && isExternalUser(user)) {
+      throw new ForbiddenException(
+        'Akses ditolak: Pasien eksternal tidak diizinkan menghapus data janji temu.',
+      );
+    }
     await this.appointmentsService.delete(id, user);
   }
 }

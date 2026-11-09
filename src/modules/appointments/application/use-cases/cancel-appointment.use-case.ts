@@ -24,6 +24,10 @@ import {
   REALTIME_EMITTER_PORT,
   type RealtimeEmitterPort,
 } from '../ports/realtime-emitter.port';
+import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
+import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
+import { patientAffiliations } from '../../../../database/schema/amanah.schema';
+import { and, eq } from 'drizzle-orm';
 
 @Injectable()
 export class CancelAppointmentUseCase {
@@ -35,13 +39,19 @@ export class CancelAppointmentUseCase {
     @Inject(REALTIME_EMITTER_PORT)
     private readonly realtimeEmitter: RealtimeEmitterPort,
     @Optional()
+    @Inject(DRIZZLE_SOURCE)
+    private readonly db?: DrizzleDatabase,
+    @Optional()
     @Inject(PUSH_NOTIFICATION_PORT)
     private readonly pushNotification?: PushNotificationPort,
     @Optional()
+    @Inject(RedisService)
     private readonly redisService?: RedisService,
     @Optional()
+    @Inject(QueuePositionRecalculationService)
     private readonly queuePositionRecalculationService?: QueuePositionRecalculationService,
     @Optional()
+    @Inject(AppointmentNotificationPublisher)
     private readonly notificationPublisher?: AppointmentNotificationPublisher,
   ) {}
 
@@ -59,8 +69,23 @@ export class CancelAppointmentUseCase {
       }
       const isOwner =
         existing.patientUserId === user.id ||
+        existing.createdBy === user.id ||
         (user.patient?.id && existing.patientId === user.patient.id);
-      if (!isOwner) {
+
+      let isAffiliated = false;
+      if (!isOwner && this.db && existing.patientId) {
+        const affiliation = await this.db.query.patientAffiliations.findFirst({
+          where: and(
+            eq(patientAffiliations.userId, user.id),
+            eq(patientAffiliations.patientId, existing.patientId),
+          ),
+        });
+        if (affiliation) {
+          isAffiliated = true;
+        }
+      }
+
+      if (!isOwner && !isAffiliated) {
         throw new ForbiddenException(
           'Anda tidak memiliki akses untuk membatalkan janji temu ini.',
         );

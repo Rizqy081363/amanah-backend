@@ -742,6 +742,7 @@ export class AppointmentHardenedDrizzleRepository
       bookingCode: apt.bookingCode || '',
       patientId: apt.patientId,
       patientUserId,
+      createdBy: apt.createdBy || null,
       isAffiliated,
       affiliationRelationship,
       parentUserId,

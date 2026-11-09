@@ -128,4 +128,10 @@ export class QueryAppointmentDto {
   @Max(MAX_PAGE_SIZE)
   @IsOptional()
   limit?: number = DEFAULT_PAGE_SIZE;
+
+  @IsOptional()
+  allowedPatientIds?: string[];
+
+  @IsOptional()
+  createdById?: string;
 }
