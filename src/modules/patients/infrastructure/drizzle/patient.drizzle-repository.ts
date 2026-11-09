@@ -1,4 +1,5 @@
 import { ConflictException, Inject, Injectable } from '@nestjs/common';
+import { isUUID } from 'class-validator';
 import {
   and,
   asc,
@@ -283,6 +284,7 @@ export class PatientDrizzleRepository implements PatientRepository {
       .select({
         userId: patientAffiliations.userId,
         relationshipType: patientRelationshipTypes.code,
+        relationshipName: patientRelationshipTypes.name,
         relationLabel: patientAffiliations.relationLabel,
       })
       .from(patientAffiliations)
@@ -301,7 +303,7 @@ export class PatientDrizzleRepository implements PatientRepository {
     if (affiliationAsChild.length > 0) {
       const aff = affiliationAsChild[0];
       relationshipType = aff.relationshipType;
-      relationLabel = aff.relationLabel;
+      relationLabel = aff.relationLabel || aff.relationshipName || null;
 
       const masterProfile = await this.db
         .select({
@@ -321,6 +323,32 @@ export class PatientDrizzleRepository implements PatientRepository {
         masterPatientId = masterProfile[0].id;
         masterPatientName = masterProfile[0].fullName;
         isMaster = false;
+      }
+    }
+
+    if (!relationshipType) {
+      const primaryAff = await this.db
+        .select({
+          relationshipType: patientRelationshipTypes.code,
+          relationshipName: patientRelationshipTypes.name,
+          relationLabel: patientAffiliations.relationLabel,
+        })
+        .from(patientAffiliations)
+        .leftJoin(
+          patientRelationshipTypes,
+          eq(patientAffiliations.relationshipTypeId, patientRelationshipTypes.id),
+        )
+        .where(
+          and(
+            eq(patientAffiliations.patientId, id),
+            eq(patientAffiliations.isPrimary, true),
+          ),
+        )
+        .limit(1);
+
+      if (primaryAff.length > 0) {
+        relationshipType = primaryAff[0].relationshipType;
+        relationLabel = primaryAff[0].relationLabel || primaryAff[0].relationshipName || null;
       }
     }
 
@@ -692,6 +720,36 @@ export class PatientDrizzleRepository implements PatientRepository {
       }
     }
 
+    if (d.relationshipType !== undefined || d.relationshipTypeId !== undefined) {
+      let relTypeId = d.relationshipTypeId;
+      if (!relTypeId && d.relationshipType) {
+        const trimmed = String(d.relationshipType).trim();
+        const found = await this.db.query.patientRelationshipTypes.findFirst({
+          where: isUUID(trimmed)
+            ? eq(patientRelationshipTypes.id, trimmed)
+            : eq(patientRelationshipTypes.code, trimmed.toLowerCase()),
+        });
+        if (found) {
+          relTypeId = found.id;
+        }
+      }
+      if (relTypeId) {
+        const existingAff = await this.db.query.patientAffiliations.findFirst({
+          where: eq(patientAffiliations.patientId, id),
+        });
+        if (existingAff) {
+          await this.db
+            .update(patientAffiliations)
+            .set({
+              relationshipTypeId: relTypeId,
+              relationLabel: null,
+              updatedAt: new Date().toISOString(),
+            })
+            .where(eq(patientAffiliations.patientId, id));
+        }
+      }
+    }
+
     return this.findById(id);
   }
 
@@ -998,7 +1056,7 @@ export class PatientDrizzleRepository implements PatientRepository {
           LIMIT 1
         )`,
         relLabel: sql<string | null>`(
-          SELECT COALESCE(pa.relation_label, prt.name) FROM patient_affiliations pa
+          SELECT COALESCE(NULLIF(TRIM(pa.relation_label), ''), prt.name) FROM patient_affiliations pa
           JOIN patient_relationship_types prt ON prt.id = pa.relationship_type_id
           WHERE pa.patient_id = patient_profiles.id
           ORDER BY pa.is_primary DESC, pa.created_at DESC
@@ -1146,7 +1204,7 @@ export class PatientDrizzleRepository implements PatientRepository {
             relationshipType: patientRelationshipTypes.code,
             relationLabel: sql<
               string | null
-            >`COALESCE(${patientAffiliations.relationLabel}, ${patientRelationshipTypes.name})`,
+            >`COALESCE(NULLIF(TRIM(${patientAffiliations.relationLabel}), ''), ${patientRelationshipTypes.name})`,
             hasOwnAccount: sql<boolean>`${patientProfiles.userId} IS NOT NULL`,
             fullAddress: sql<string | null>`(
               SELECT COALESCE(full_address, line1)

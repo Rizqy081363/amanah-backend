@@ -150,6 +150,16 @@ export const UpdatePatientSchema = z
       .nullable()
       .optional()
       .or(z.literal('')),
+    relationshipType: z
+      .string()
+      .nullable()
+      .optional()
+      .or(z.literal('')),
+    relationshipTypeId: z
+      .string()
+      .uuid()
+      .nullable()
+      .optional(),
     medicalHistory: z
       .string()
       .max(2000)

@@ -49,7 +49,7 @@ export class AppointmentRecordMapper {
       apt?.queueTickets?.[0]?.sessionDef ??
       apt?.sessionDef;
     const session = AppointmentRecordMapper.resolveSession(apt, ticket);
-    const sessionName = sessionDef?.code ?? null;
+    const sessionName = sessionDef?.label ?? sessionDef?.code ?? null;
 
     const effectiveStartTime =
       sessionDef?.defaultStartsAt || apt.scheduledStartTime || null;
@@ -60,8 +60,8 @@ export class AppointmentRecordMapper {
     const isAffiliated =
       !apt.patientProfile?.userId && Boolean(primaryAffiliation);
     const affiliationRelationship =
+      primaryAffiliation?.relationshipType?.name ||
       primaryAffiliation?.relationLabel ||
-      primaryAffiliation?.relationshipType ||
       null;
     const parentUserId =
       apt.patientProfile?.userId ||

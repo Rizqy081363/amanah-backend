@@ -102,7 +102,7 @@ export class AppointmentHardenedDrizzleRepository
         patientProfile: {
           with: {
             user: true,
-            patientAffiliations: { with: { user: true } },
+            patientAffiliations: { with: { user: true, relationshipType: true } },
           },
         },
         clinicService: true,
@@ -113,7 +113,7 @@ export class AppointmentHardenedDrizzleRepository
             medicalSpecialty: true,
           },
         },
-        queueTickets: true,
+        queueTickets: { with: { sessionDef: true } },
         appointmentChangeProposals: true,
       },
     });
@@ -613,7 +613,7 @@ export class AppointmentHardenedDrizzleRepository
         patientProfile: {
           with: {
             user: true,
-            patientAffiliations: { with: { user: true } },
+            patientAffiliations: { with: { user: true, relationshipType: true } },
           },
         },
         clinicService: true,
@@ -624,7 +624,7 @@ export class AppointmentHardenedDrizzleRepository
             medicalSpecialty: true,
           },
         },
-        queueTickets: true,
+        queueTickets: { with: { sessionDef: true } },
         appointmentChangeProposals: true,
       },
     });

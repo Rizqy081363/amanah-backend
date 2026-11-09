@@ -56,7 +56,7 @@ export class PatientAffiliationDrizzleRepository
         record.relationLabel ||
         '';
       entity.relationLabel =
-        record.relationLabel || record.relationshipType?.name || null;
+        record.relationshipType?.name || record.relationLabel || null;
       entity.iconName = record.relationshipType?.iconName || null;
       entity.isSystem = Boolean(record.relationshipType?.isSystem);
       entity.isPrimary = record.isPrimary;
@@ -106,7 +106,7 @@ export class PatientAffiliationDrizzleRepository
       record.relationLabel ||
       '';
     entity.relationLabel =
-      record.relationLabel || record.relationshipType?.name || null;
+      record.relationshipType?.name || record.relationLabel || null;
     entity.iconName = record.relationshipType?.iconName || null;
     entity.isSystem = Boolean(record.relationshipType?.isSystem);
     entity.isPrimary = record.isPrimary;
