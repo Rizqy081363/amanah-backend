@@ -159,31 +159,6 @@ export class ImmunizationDrizzleRepository implements IImmunizationRepository {
       if (data.childName !== undefined) updateData.childName = data.childName;
       if (data.childNik !== undefined) {
         updateData.childNik = data.childNik || null;
-        if (data.childNik && data.childNik.trim().length === 16) {
-          const secured = this.nikSecurity.secure(data.childNik.trim());
-          const blindIndex = this.nikSecurity.computeBlindIndex(
-            data.childNik.trim(),
-          );
-          if (secured) {
-            await tx
-              .update(patientProfiles)
-              .set({
-                nationalIdEncrypted: secured.encrypted,
-                nationalIdHash: blindIndex,
-                updatedAt: new Date().toISOString(),
-              })
-              .where(eq(patientProfiles.id, existing.patientId));
-          }
-        } else if (!data.childNik || data.childNik.trim() === '') {
-          await tx
-            .update(patientProfiles)
-            .set({
-              nationalIdEncrypted: null,
-              nationalIdHash: null,
-              updatedAt: new Date().toISOString(),
-            })
-            .where(eq(patientProfiles.id, existing.patientId));
-        }
       }
       if (data.childBirthDate !== undefined)
         updateData.childBirthDate = data.childBirthDate;

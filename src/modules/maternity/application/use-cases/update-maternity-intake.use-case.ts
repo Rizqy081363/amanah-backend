@@ -13,6 +13,10 @@ import {
   MATERNITY_REPOSITORY,
   MaternityRepository,
 } from '../../domain/repositories/maternity.repository.interface';
+import {
+  PATIENT_REPOSITORY,
+  type PatientRepository,
+} from '../../../patients/domain/repositories/patient.repository';
 import { ObstetricCalculatorService } from '../../domain/services/obstetric-calculator.service';
 import { UpdateMaternityIntakeDto } from '../../presentation/dto/update-maternity-intake.dto';
 
@@ -70,6 +74,8 @@ export class UpdateMaternityIntakeUseCase {
   constructor(
     @Inject(MATERNITY_REPOSITORY)
     private readonly maternityRepo: MaternityRepository,
+    @Inject(PATIENT_REPOSITORY)
+    private readonly patientRepo: PatientRepository,
     private readonly obstetricCalculator: ObstetricCalculatorService,
     private readonly nikSecurity: NikSecurityService,
   ) {}
@@ -111,25 +117,18 @@ export class UpdateMaternityIntakeUseCase {
 
     validateDiagnosisYears(dto.healthConditions, effectiveBirthDate);
 
-    let patientIdentitySync: {
-      nationalIdEncrypted: string | null;
-      nationalIdHash: string | null;
-    } | null = null;
-    if (dto.motherNik !== undefined) {
-      if (effectiveMotherNik && effectiveMotherNik.length === 16) {
-        const blindIndex = this.nikSecurity.computeBlindIndex(effectiveMotherNik);
-        const secured = this.nikSecurity.secure(effectiveMotherNik);
-        if (secured) {
-          patientIdentitySync = {
-            nationalIdEncrypted: secured.encrypted,
-            nationalIdHash: blindIndex,
-          };
-        }
-      } else if (!effectiveMotherNik) {
-        patientIdentitySync = {
-          nationalIdEncrypted: null,
-          nationalIdHash: null,
-        };
+    if (existing.patientId) {
+      const patientPatch: Record<string, any> = {};
+      if (dto.motherName !== undefined) patientPatch.fullName = dto.motherName ? dto.motherName.trim() : '';
+      if (dto.motherNik !== undefined) patientPatch.nik = dto.motherNik ? dto.motherNik.trim() : null;
+      if (dto.motherBirthDate !== undefined) patientPatch.birthDate = dto.motherBirthDate;
+      if (dto.phoneNumber !== undefined) patientPatch.phone = dto.phoneNumber;
+      if (dto.domicileAddress !== undefined) patientPatch.fullAddress = dto.domicileAddress;
+      if (dto.motherJob !== undefined) patientPatch.occupation = dto.motherJob;
+      if (dto.motherBloodType !== undefined) patientPatch.bloodType = dto.motherBloodType;
+
+      if (Object.keys(patientPatch).length > 0) {
+        await this.patientRepo.update(existing.patientId, patientPatch);
       }
     }
 
@@ -264,8 +263,6 @@ export class UpdateMaternityIntakeUseCase {
         notes: normalizeNullableString(h.notes),
       }));
     }
-
-    patch.patientIdentitySync = patientIdentitySync;
 
     const updated = await this.maternityRepo.update(id, patch);
     if (!updated) {

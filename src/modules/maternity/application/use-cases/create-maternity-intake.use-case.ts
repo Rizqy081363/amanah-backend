@@ -1,9 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { eq } from 'drizzle-orm';
 import { NikSecurityService } from '../../../../common/security/nik';
-import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
-import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
-import { patientProfiles } from '../../../../database/schema/amanah.schema';
 import { PersistMaternityIntakeCommand } from '../../domain/commands/maternity.commands';
 import { MaternityIntakeEntity } from '../../domain/entities/maternity-intake.entity';
 import { MaternityPatientNotFoundError } from '../../domain/errors/maternity.errors';
@@ -17,6 +13,10 @@ import {
   MATERNITY_REPOSITORY,
   MaternityRepository,
 } from '../../domain/repositories/maternity.repository.interface';
+import {
+  PATIENT_REPOSITORY,
+  type PatientRepository,
+} from '../../../patients/domain/repositories/patient.repository';
 import { ObstetricCalculatorService } from '../../domain/services/obstetric-calculator.service';
 import { CreateMaternityIntakeDto } from '../../presentation/dto/create-maternity-intake.dto';
 
@@ -25,8 +25,8 @@ export class CreateMaternityIntakeUseCase {
   constructor(
     @Inject(MATERNITY_REPOSITORY)
     private readonly maternityRepo: MaternityRepository,
-    @Inject(DRIZZLE_SOURCE)
-    private readonly db: DrizzleDatabase,
+    @Inject(PATIENT_REPOSITORY)
+    private readonly patientRepo: PatientRepository,
     private readonly obstetricCalculator: ObstetricCalculatorService,
     private readonly nikSecurity: NikSecurityService,
   ) {}
@@ -35,46 +35,26 @@ export class CreateMaternityIntakeUseCase {
     dto: CreateMaternityIntakeDto,
     submittedByUserId?: string,
   ): Promise<MaternityIntakeEntity> {
-    const patient = await this.db.query.patientProfiles.findFirst({
-      where: eq(patientProfiles.id, dto.patientId),
-      with: {
-        patientAddresses: true,
-      },
-    });
+    const patient = await this.patientRepo.findById(dto.patientId);
 
     if (!patient) {
       throw new MaternityPatientNotFoundError(dto.patientId);
     }
 
-    let motherName = normalizeNullableString(dto.motherName);
-    let motherNik = normalizeNullableString(dto.motherNik);
-    let motherBirthDate = normalizeNullableString(dto.motherBirthDate);
-    let motherPhone = normalizeNullableString(dto.phoneNumber);
-    let domicileAddress = normalizeNullableString(dto.domicileAddress);
-    let identityCardAddress = normalizeNullableString(dto.identityCardAddress);
-
-    if (!motherName) motherName = patient.fullName;
-    if (!motherNik) {
-      motherNik = patient.nationalIdEncrypted
-        ? this.nikSecurity.decrypt(patient.nationalIdEncrypted) || ''
-        : '';
-    }
-    if (!motherBirthDate) motherBirthDate = patient.birthDate || null;
-    if (!motherPhone) motherPhone = patient.phone || null;
-    if (!domicileAddress) {
-      const dom = patient.patientAddresses?.find((a) => a.type === 'domicile');
-      if (dom) {
-        domicileAddress = dom.fullAddress || dom.line1 || null;
-      }
-    }
-    if (!identityCardAddress) {
-      const idc = patient.patientAddresses?.find(
-        (a) => a.type === 'identity_card',
-      );
-      if (idc) {
-        identityCardAddress = idc.fullAddress || idc.line1 || null;
-      }
-    }
+    const motherName = normalizeNullableString(dto.motherName) || patient.fullName;
+    const motherNik = normalizeNullableString(dto.motherNik) || patient.nik || '';
+    const motherBirthDate = normalizeNullableString(dto.motherBirthDate) || patient.birthDate || null;
+    const motherPhone = normalizeNullableString(dto.phoneNumber) || patient.phone || null;
+    const domicileAddress =
+      normalizeNullableString(dto.domicileAddress) ||
+      patient.domicileAddress ||
+      patient.fullAddress ||
+      null;
+    const identityCardAddress =
+      normalizeNullableString(dto.identityCardAddress) ||
+      patient.identityCardAddress ||
+      patient.fullAddress ||
+      null;
 
     const cleanMotherNik = this.nikSecurity.normalize(motherNik || '');
     const cleanPartnerNik = this.nikSecurity.normalize(
@@ -84,21 +64,8 @@ export class CreateMaternityIntakeUseCase {
     assertDistinctNiks(cleanMotherNik, cleanPartnerNik);
     validateDiagnosisYears(dto.healthConditions, motherBirthDate);
 
-    let patientIdentitySync: {
-      nationalIdEncrypted: string;
-      nationalIdHash: string;
-    } | null = null;
-    if (cleanMotherNik && cleanMotherNik.length === 16) {
-      const blindIndex = this.nikSecurity.computeBlindIndex(cleanMotherNik);
-      if (patient.nationalIdHash !== blindIndex) {
-        const secured = this.nikSecurity.secure(cleanMotherNik);
-        if (secured) {
-          patientIdentitySync = {
-            nationalIdEncrypted: secured.encrypted,
-            nationalIdHash: secured.blindIndex,
-          };
-        }
-      }
+    if (cleanMotherNik && cleanMotherNik.length === 16 && patient.nik !== cleanMotherNik) {
+      await this.patientRepo.update(patient.id, { nik: cleanMotherNik });
     }
 
     let estimatedDueDate = dto.estimatedDueDate || null;
@@ -229,7 +196,6 @@ export class CreateMaternityIntakeUseCase {
         notes: normalizeNullableString(h.notes),
       })),
       submittedByUserId: submittedByUserId || null,
-      patientIdentitySync,
       appointmentComplaintSync:
         dto.appointmentId && dto.currentComplaints
           ? {

@@ -5,7 +5,6 @@ import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
   appointments,
   maternalHealthIntakes,
-  patientProfiles,
 } from '../../../../database/schema/amanah.schema';
 import {
   PersistMaternityIntakeCommand,
@@ -47,17 +46,6 @@ export class MaternityDrizzleRepository implements MaternityRepository {
   ): Promise<MaternityIntakeEntity> {
     try {
       const intakeId = await this.db.transaction(async (tx) => {
-        if (cmd.patientIdentitySync) {
-          await tx
-            .update(patientProfiles)
-            .set({
-              nationalIdEncrypted: cmd.patientIdentitySync.nationalIdEncrypted,
-              nationalIdHash: cmd.patientIdentitySync.nationalIdHash,
-              updatedAt: new Date().toISOString(),
-            })
-            .where(eq(patientProfiles.id, cmd.patientId));
-        }
-
         const [intake] = await tx
           .insert(maternalHealthIntakes)
           .values({
@@ -178,18 +166,6 @@ export class MaternityDrizzleRepository implements MaternityRepository {
 
         if (!existing) return null;
         const intakeId = existing.id;
-
-        if (patch.patientIdentitySync) {
-          await tx
-            .update(patientProfiles)
-            .set({
-              nationalIdEncrypted:
-                patch.patientIdentitySync.nationalIdEncrypted,
-              nationalIdHash: patch.patientIdentitySync.nationalIdHash,
-              updatedAt: new Date().toISOString(),
-            })
-            .where(eq(patientProfiles.id, existing.patientId));
-        }
 
         if (patch.appointmentComplaintSync && existing.appointmentId) {
           await tx
