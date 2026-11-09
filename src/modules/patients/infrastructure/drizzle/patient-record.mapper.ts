@@ -130,6 +130,7 @@ export class PatientRecordMapper {
       isMaster: record.isMaster ?? true,
       hasOwnAccount: record.hasOwnAccount ?? Boolean(record.userId),
       affiliateCount: Number(record.affiliateCount ?? 0),
+      relationshipTypeId: record.relationshipTypeId ?? null,
       relationshipType: record.relationshipType ?? null,
       relationLabel: record.relationLabel ?? null,
       masterPatientId: record.masterPatientId ?? null,

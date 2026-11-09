@@ -72,6 +72,7 @@ export class PatientEntity {
   isMaster?: boolean;
   hasOwnAccount?: boolean;
   affiliateCount?: number;
+  relationshipTypeId?: string | null;
   relationshipType?: string | null;
   relationLabel?: string | null;
   masterPatientId?: string | null;

@@ -1,5 +1,4 @@
 import { ConflictException, Inject, Injectable } from '@nestjs/common';
-import { isUUID } from 'class-validator';
 import {
   and,
   asc,
@@ -272,6 +271,7 @@ export class PatientDrizzleRepository implements PatientRepository {
     };
 
     // 2. Affiliation paradigm metadata resolution
+    let relationshipTypeId: string | null = null;
     let relationshipType: string | null = null;
     let relationLabel: string | null = null;
     let masterPatientId: string | null = null;
@@ -283,6 +283,7 @@ export class PatientDrizzleRepository implements PatientRepository {
     const affiliationAsChild = await this.db
       .select({
         userId: patientAffiliations.userId,
+        relationshipTypeId: patientAffiliations.relationshipTypeId,
         relationshipType: patientRelationshipTypes.code,
         relationshipName: patientRelationshipTypes.name,
         relationLabel: patientAffiliations.relationLabel,
@@ -302,6 +303,7 @@ export class PatientDrizzleRepository implements PatientRepository {
 
     if (affiliationAsChild.length > 0) {
       const aff = affiliationAsChild[0];
+      relationshipTypeId = aff.relationshipTypeId;
       relationshipType = aff.relationshipType;
       relationLabel = aff.relationLabel || aff.relationshipName || null;
 
@@ -329,6 +331,7 @@ export class PatientDrizzleRepository implements PatientRepository {
     if (!relationshipType) {
       const primaryAff = await this.db
         .select({
+          relationshipTypeId: patientAffiliations.relationshipTypeId,
           relationshipType: patientRelationshipTypes.code,
           relationshipName: patientRelationshipTypes.name,
           relationLabel: patientAffiliations.relationLabel,
@@ -347,6 +350,7 @@ export class PatientDrizzleRepository implements PatientRepository {
         .limit(1);
 
       if (primaryAff.length > 0) {
+        relationshipTypeId = primaryAff[0].relationshipTypeId;
         relationshipType = primaryAff[0].relationshipType;
         relationLabel = primaryAff[0].relationLabel || primaryAff[0].relationshipName || null;
       }
@@ -381,6 +385,7 @@ export class PatientDrizzleRepository implements PatientRepository {
       isMaster,
       hasOwnAccount: Boolean(record.userId),
       affiliateCount,
+      relationshipTypeId,
       relationshipType,
       relationLabel,
       masterPatientId,
@@ -720,33 +725,20 @@ export class PatientDrizzleRepository implements PatientRepository {
       }
     }
 
-    if (d.relationshipType !== undefined || d.relationshipTypeId !== undefined) {
-      let relTypeId = d.relationshipTypeId;
-      if (!relTypeId && d.relationshipType) {
-        const trimmed = String(d.relationshipType).trim();
-        const found = await this.db.query.patientRelationshipTypes.findFirst({
-          where: isUUID(trimmed)
-            ? eq(patientRelationshipTypes.id, trimmed)
-            : eq(patientRelationshipTypes.code, trimmed.toLowerCase()),
-        });
-        if (found) {
-          relTypeId = found.id;
-        }
-      }
-      if (relTypeId) {
-        const existingAff = await this.db.query.patientAffiliations.findFirst({
-          where: eq(patientAffiliations.patientId, id),
-        });
-        if (existingAff) {
-          await this.db
-            .update(patientAffiliations)
-            .set({
-              relationshipTypeId: relTypeId,
-              relationLabel: null,
-              updatedAt: new Date().toISOString(),
-            })
-            .where(eq(patientAffiliations.patientId, id));
-        }
+    const relTypeId = d.relationshipTypeId || d.relationshipType;
+    if (relTypeId) {
+      const existingAff = await this.db.query.patientAffiliations.findFirst({
+        where: eq(patientAffiliations.patientId, id),
+      });
+      if (existingAff) {
+        await this.db
+          .update(patientAffiliations)
+          .set({
+            relationshipTypeId: relTypeId,
+            relationLabel: null,
+            updatedAt: new Date().toISOString(),
+          })
+          .where(eq(patientAffiliations.patientId, id));
       }
     }
 
