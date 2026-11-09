@@ -256,6 +256,7 @@ export class AdminAppointmentsController {
       appointmentId,
       body.serviceId,
       user,
+      { complaint: body.complaint },
     );
     return {
       message: 'Layanan medis berhasil dialihkan',

@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -12,6 +13,7 @@ import {
   NotFoundException,
   Optional,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
@@ -56,8 +58,10 @@ import {
 } from '../../../database/schema/amanah.schema';
 import { eq } from 'drizzle-orm';
 import { AppointmentsService } from '../application/appointments.service';
+import { AppointmentAssignmentService } from '../application/services/appointment-assignment.service';
 import { GenerateCheckInQrUseCase } from '../application/use-cases/generate-check-in-qr.use-case';
 import { PerformCheckInUseCase } from '../application/use-cases/perform-check-in.use-case';
+import { ChangeAppointmentServiceDto } from './dto/change-appointment-service.dto';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { CreateAppointmentSchema } from './dto/create-appointment.schema';
 import { PerformCheckInDto } from './dto/perform-check-in.dto';
@@ -82,6 +86,8 @@ export class AppointmentsController {
     private readonly generateCheckInQrUseCase?: GenerateCheckInQrUseCase,
     @Optional()
     private readonly performCheckInUseCase?: PerformCheckInUseCase,
+    @Optional()
+    private readonly assignmentService?: AppointmentAssignmentService,
   ) {}
 
   private async getAllowedPatientIds(
@@ -733,6 +739,48 @@ export class AppointmentsController {
       await this.assertAppointmentAccess(appointment, user);
     }
     return this.appointmentsService.reschedule(id, dto, user.id, user);
+  }
+
+  @ApiBearerAuth('access-token')
+  @UseGuards(HybridAuthGuard, PermissionsGuard)
+  @RequirePermissions('appointments:book', 'appointments:manage')
+  @Patch(':id/service')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Mengubah layanan medis janji temu pasien (Pasien / Staf)',
+    description:
+      'Mengalihkan layanan medis janji temu secara transaksional dan menyinkronkan data tiket antrean.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'ID unik janji temu pasien (UUID)',
+  })
+  async changeService(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() body: ChangeAppointmentServiceDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    if (isExternalUser(user)) {
+      const appointment = await this.appointmentsService.findById(id);
+      if (!appointment) {
+        throw new NotFoundException(`Janji temu tidak ditemukan`);
+      }
+      await this.assertAppointmentAccess(appointment, user);
+    }
+    if (!this.assignmentService) {
+      throw new BadRequestException(
+        'Layanan penugasan janji temu tidak tersedia',
+      );
+    }
+    const updated = await this.assignmentService.changeService(
+      id,
+      body.serviceId,
+      user,
+    );
+    return {
+      message: 'Layanan medis berhasil dialihkan',
+      data: updated,
+    };
   }
 
   @ApiBearerAuth('access-token')

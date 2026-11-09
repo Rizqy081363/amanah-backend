@@ -33,6 +33,7 @@ export interface ICandidateAssignmentPort {
     appointmentId: string,
     targetServiceId: string,
     user?: any,
+    options?: { complaint?: string },
   ): Promise<AppointmentEntity>;
 
   bulkChangeDoctor(

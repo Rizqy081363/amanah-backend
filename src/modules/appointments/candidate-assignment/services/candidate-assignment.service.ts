@@ -13,6 +13,7 @@ import {
 } from '../../application/ports/realtime-emitter.port';
 import {
   DB_APPOINTMENT_STATUS,
+  isAppointmentServiceModifiable,
   isTerminalAppointmentStatus,
 } from '../../domain/constants/appointment-lifecycle.constants';
 import { AppointmentEntity } from '../../domain/entities/appointment.entity';
@@ -60,8 +61,10 @@ export class CandidateAssignmentService implements ICandidateAssignmentPort {
 
     const { appointment: apt } = context;
 
-    if (isTerminalAppointmentStatus(apt.status)) {
-      throw new AppointmentTerminalStateException(apt.status);
+    if (!isAppointmentServiceModifiable(apt.status)) {
+      throw new BadRequestException(
+        `Layanan janji temu tidak dapat diubah pada status '${apt.status}'. Pemeriksaan yang sedang berlangsung (in_service) atau selesai (completed) tidak dapat dialihkan.`,
+      );
     }
 
     if (apt.status === DB_APPOINTMENT_STATUS.IN_SERVICE) {
@@ -220,8 +223,10 @@ export class CandidateAssignmentService implements ICandidateAssignmentPort {
 
     const { appointment: apt } = context;
 
-    if (isTerminalAppointmentStatus(apt.status)) {
-      throw new AppointmentTerminalStateException(apt.status);
+    if (!isAppointmentServiceModifiable(apt.status)) {
+      throw new BadRequestException(
+        `Layanan janji temu tidak dapat diubah pada status '${apt.status}'. Pemeriksaan yang sedang berlangsung (in_service) atau selesai (completed) tidak dapat dialihkan.`,
+      );
     }
 
     if (apt.roomId === targetRoomId) {
@@ -297,6 +302,7 @@ export class CandidateAssignmentService implements ICandidateAssignmentPort {
     appointmentId: string,
     targetServiceId: string,
     user?: any,
+    options?: { complaint?: string },
   ): Promise<AppointmentEntity> {
     const context =
       await this.repository.findAppointmentWithContext(appointmentId);
@@ -306,11 +312,31 @@ export class CandidateAssignmentService implements ICandidateAssignmentPort {
 
     const { appointment: apt } = context;
 
-    if (isTerminalAppointmentStatus(apt.status)) {
-      throw new AppointmentTerminalStateException(apt.status);
+    if (!isAppointmentServiceModifiable(apt.status)) {
+      throw new BadRequestException(
+        `Layanan janji temu tidak dapat diubah pada status '${apt.status}'. Pemeriksaan yang sedang berlangsung (in_service) atau selesai (completed) tidak dapat dialihkan.`,
+      );
     }
 
+    const currentUserId = user?.id || null;
+
     if (apt.serviceId === targetServiceId) {
+      if (
+        options?.complaint !== undefined &&
+        options.complaint !== apt.complaint
+      ) {
+        await this.repository.updateAppointmentServiceTransactional({
+          appointmentId,
+          targetServiceId,
+          targetCategoryId: apt.clinicService?.serviceCategoryId || null,
+          targetMedicalFlow: apt.medicalFlow,
+          targetQueuePrefix: undefined,
+          complaint: options.complaint,
+          updatedBy: currentUserId,
+          reason: 'Perbarui keluhan utama janji temu',
+          previousStatus: apt.status,
+        });
+      }
       const existing = await this.findAppointmentById(appointmentId);
       if (!existing) throw new AppointmentNotFoundException(appointmentId);
       return existing;
@@ -322,7 +348,6 @@ export class CandidateAssignmentService implements ICandidateAssignmentPort {
       throw new BadRequestException('Layanan medis tidak ditemukan atau tidak aktif');
     }
 
-    const currentUserId = user?.id || null;
     const targetMedicalFlow =
       (targetService.intakeFormCode as 'pregnancy' | 'immunization') || null;
 
@@ -331,7 +356,9 @@ export class CandidateAssignmentService implements ICandidateAssignmentPort {
       targetServiceId,
       targetCategoryId: targetService.serviceCategoryId,
       targetMedicalFlow,
-      targetQueuePrefix: targetService.codePrefix,
+      targetQueuePrefix: targetService.resolvedPrefix || targetService.codePrefix,
+      targetUnitId: targetService.unitId,
+      complaint: options?.complaint,
       updatedBy: currentUserId,
       reason: `Tugaskan layanan medis ke ${targetService.name}`,
       previousStatus: apt.status,

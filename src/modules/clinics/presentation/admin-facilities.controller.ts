@@ -82,6 +82,7 @@ export class AdminFacilitiesController {
   // ==========================================
 
   @Get('unit-types')
+  @RequirePermissions('clinics:manage', 'appointments:read', 'appointments:book')
   @ApiOperation({
     summary: 'Mendapatkan seluruh daftar tipe unit fasilitas (Admin)',
     description:
@@ -143,6 +144,7 @@ export class AdminFacilitiesController {
   // ==========================================
 
   @Get('units')
+  @RequirePermissions('clinics:manage', 'appointments:read', 'appointments:book')
   @ApiOperation({
     summary: 'Mendapatkan seluruh daftar unit poliklinik fasilitas (Admin)',
     description:
@@ -305,6 +307,7 @@ export class AdminFacilitiesController {
   // ==========================================
 
   @Get('categories')
+  @RequirePermissions('clinics:manage', 'appointments:read', 'appointments:book')
   @ApiOperation({
     summary: 'Mendapatkan daftar kategori layanan (Admin)',
     description:
@@ -408,6 +411,7 @@ export class AdminFacilitiesController {
   // ==========================================
 
   @Get('services')
+  @RequirePermissions('clinics:manage', 'appointments:read', 'appointments:book')
   @ApiOperation({
     summary: 'Mendapatkan daftar services (Admin)',
     description:
@@ -487,6 +491,7 @@ export class AdminFacilitiesController {
   // ==========================================
 
   @Get('forms')
+  @RequirePermissions('clinics:manage', 'appointments:read', 'appointments:book')
   @ApiOperation({
     summary: 'Mendapatkan daftar formulir rekam medis / intake klinis (Admin)',
     description:

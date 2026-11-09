@@ -1,4 +1,3 @@
-import { describe, expect, it } from 'bun:test';
 import { BadRequestException } from '@nestjs/common';
 import {
   AppointmentNotFoundException,
@@ -19,23 +18,23 @@ describe('CandidateAssignmentService - changeService Logic', () => {
     expect(execute()).rejects.toBeInstanceOf(AppointmentNotFoundException);
   });
 
-  it('rejects service change if appointment is in terminal state (completed / cancelled)', async () => {
-    const apt = {
-      id: 'apt-1',
-      status: 'completed',
-      serviceId: 'old-service-id',
-    };
+  it('rejects service change if appointment is in in_service or completed state, but permits pre-service states', async () => {
+    const isModifiable = (status: string) =>
+      !['in_service', 'completed'].includes(status);
 
-    const isTerminal = (status: string) =>
-      ['completed', 'cancelled'].includes(status);
-
-    const execute = async () => {
-      if (isTerminal(apt.status)) {
-        throw new AppointmentTerminalStateException(apt.status);
+    const checkState = async (status: string) => {
+      if (!isModifiable(status)) {
+        throw new BadRequestException('Cannot modify appointment');
       }
+      return true;
     };
 
-    expect(execute()).rejects.toBeInstanceOf(AppointmentTerminalStateException);
+    expect(checkState('in_service')).rejects.toBeInstanceOf(BadRequestException);
+    expect(checkState('completed')).rejects.toBeInstanceOf(BadRequestException);
+    expect(await checkState('booked')).toBe(true);
+    expect(await checkState('waiting')).toBe(true);
+    expect(await checkState('late')).toBe(true);
+    expect(await checkState('cancelled')).toBe(true);
   });
 
   it('returns existing appointment idempotently if target service matches current service', async () => {
@@ -49,7 +48,7 @@ describe('CandidateAssignmentService - changeService Logic', () => {
       if (apt.serviceId === targetServiceId) {
         return { ...apt, unchanged: true };
       }
-      return { ...apt, serviceId: targetServiceId };
+      return { ...apt, unchanged: false, serviceId: targetServiceId };
     };
 
     const result = await changeService('same-service-id');

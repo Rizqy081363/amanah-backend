@@ -268,7 +268,11 @@ export class KiaIntakeDrizzleRepository {
     const appt = await this.db.query.appointments.findFirst({
       where: eq(appointments.id, appointmentId),
       with: {
-        clinicService: true,
+        clinicService: {
+          with: {
+            intakeForm: true,
+          },
+        },
         clinicRoom: true,
       },
     });
@@ -348,48 +352,69 @@ export class KiaIntakeDrizzleRepository {
       patient: patientData,
     };
 
-    const maternal =
-      await this.findMaternalIntakeByAppointmentId(appointmentId);
-    if (maternal) {
+    const activeFlow =
+      (appt.clinicService as any)?.intakeForm?.code || appt.medicalFlow || null;
+
+    if (activeFlow === 'pregnancy') {
+      const maternal =
+        await this.findMaternalIntakeByAppointmentId(appointmentId);
+      if (maternal) {
+        return {
+          flow: 'pregnancy',
+          type: 'maternal',
+          data: {
+            ...baseAppointmentData,
+            ...maternal,
+            appointmentId,
+            patient: patientData,
+          },
+        };
+      }
       return {
         flow: 'pregnancy',
         type: 'maternal',
         data: {
           ...baseAppointmentData,
-          ...maternal,
           appointmentId,
           patient: patientData,
         },
       };
     }
 
-    const immunization =
-      await this.findImmunizationIntakeByAppointmentId(appointmentId);
-    if (immunization) {
+    if (activeFlow === 'immunization') {
+      const immunization =
+        await this.findImmunizationIntakeByAppointmentId(appointmentId);
+      if (immunization) {
+        return {
+          flow: 'immunization',
+          type: 'immunization',
+          data: {
+            ...baseAppointmentData,
+            ...immunization,
+            appointmentId,
+            patient: patientData,
+          },
+        };
+      }
       return {
         flow: 'immunization',
         type: 'immunization',
         data: {
           ...baseAppointmentData,
-          ...immunization,
           appointmentId,
           patient: patientData,
         },
       };
     }
 
-    if (appt) {
-      return {
-        flow: appt.medicalFlow || 'regular',
-        type: 'regular',
-        data: {
-          ...baseAppointmentData,
-          patient: patientData,
-        },
-      };
-    }
-
-    return null;
+    return {
+      flow: 'regular',
+      type: 'regular',
+      data: {
+        ...baseAppointmentData,
+        patient: patientData,
+      },
+    };
   }
 
   async findLatestImmunizationByPatientId(

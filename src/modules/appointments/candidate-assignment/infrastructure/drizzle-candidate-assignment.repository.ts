@@ -4,20 +4,25 @@ import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
 import {
   appointmentStatusEvents,
   appointments,
+  childImmunizationIntakes,
   clinicRooms,
   clinicServices,
+  clinicUnits,
   clinicalIntakeForms,
   doctorAssignments,
+  maternalHealthIntakes,
+  medicalIntakeSubmissions,
   practitioners,
   queueTickets,
   replacementOpportunities,
+  serviceCategories,
   sessionDefs,
   shiftExceptions,
   staffAttendanceRecords,
   staffLeaveRequests,
 } from '@database/schema';
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, gte, inArray, isNull, lte, or, sql } from 'drizzle-orm';
+import { and, eq, gte, inArray, isNull, lte, ne, or, sql } from 'drizzle-orm';
 import {
   QUEUE_TICKET_STATUS,
   SHIFT_EXCEPTION_TYPE,
@@ -385,17 +390,35 @@ export class DrizzleCandidateAssignmentRepository {
         name: clinicServices.name,
         codePrefix: clinicServices.codePrefix,
         serviceCategoryId: clinicServices.serviceCategoryId,
+        categoryCodePrefix: serviceCategories.codePrefix,
+        unitId: serviceCategories.unitId,
+        unitQueuePrefix: clinicUnits.queuePrefix,
+        unitName: clinicUnits.name,
         intakeFormCode: clinicalIntakeForms.code,
         isActive: clinicServices.isActive,
       })
       .from(clinicServices)
+      .leftJoin(
+        serviceCategories,
+        eq(clinicServices.serviceCategoryId, serviceCategories.id),
+      )
+      .leftJoin(clinicUnits, eq(serviceCategories.unitId, clinicUnits.id))
       .leftJoin(
         clinicalIntakeForms,
         eq(clinicServices.intakeFormId, clinicalIntakeForms.id),
       )
       .where(and(eq(clinicServices.id, serviceId), eq(clinicServices.isActive, true)))
       .limit(1);
-    return svc || null;
+
+    if (!svc) return null;
+
+    const resolvedPrefix =
+      svc.codePrefix || svc.categoryCodePrefix || svc.unitQueuePrefix || 'A';
+
+    return {
+      ...svc,
+      resolvedPrefix,
+    };
   }
 
   async updateAppointmentServiceTransactional(params: {
@@ -404,20 +427,50 @@ export class DrizzleCandidateAssignmentRepository {
     targetCategoryId?: string | null;
     targetMedicalFlow?: 'pregnancy' | 'immunization' | null;
     targetQueuePrefix?: string;
+    targetUnitId?: string | null;
+    complaint?: string;
     updatedBy?: string | null;
     reason?: string;
     previousStatus: string;
   }) {
     return this.db.transaction(async (tx) => {
-      await tx
-        .update(appointments)
-        .set({
-          serviceId: params.targetServiceId,
-          medicalFlow: (params.targetMedicalFlow || null) as any,
-          updatedBy: params.updatedBy,
-          updatedAt: new Date().toISOString(),
+      // 1. Fetch current appointment and room
+      const [currentApt] = await tx
+        .select({
+          id: appointments.id,
+          roomId: appointments.roomId,
+          practitionerId: appointments.practitionerId,
         })
-        .where(eq(appointments.id, params.appointmentId));
+        .from(appointments)
+        .where(eq(appointments.id, params.appointmentId))
+        .limit(1);
+
+      let targetRoomId = currentApt?.roomId || null;
+
+      // Check if current room matches the new unit
+      if (params.targetUnitId && currentApt?.roomId) {
+        const [currentRoom] = await tx
+          .select({ id: clinicRooms.id, unitId: clinicRooms.unitId })
+          .from(clinicRooms)
+          .where(eq(clinicRooms.id, currentApt.roomId))
+          .limit(1);
+
+        if (currentRoom && currentRoom.unitId !== params.targetUnitId) {
+          // Re-evaluate room in target unit: preferred room or first active room in that unit
+          const [matchingRoom] = await tx
+            .select({ id: clinicRooms.id })
+            .from(clinicRooms)
+            .where(
+              and(
+                eq(clinicRooms.unitId, params.targetUnitId),
+                eq(clinicRooms.isActive, true),
+              ),
+            )
+            .limit(1);
+
+          targetRoomId = matchingRoom?.id || null;
+        }
+      }
 
       const [existingTicket] = await tx
         .select({
@@ -431,6 +484,8 @@ export class DrizzleCandidateAssignmentRepository {
         .limit(1);
 
       let newTicketNumber = existingTicket?.queueNumber;
+      let newNumericQueueNumber: number | null = null;
+
       if (existingTicket?.queueNumber && params.targetQueuePrefix) {
         // Extract sequence/session suffix, e.g. 'UM-P002' -> suffix 'P002' or 'UM-003' -> '003'
         const match = existingTicket.queueNumber.match(/^([A-Za-z0-9]+)-(.*)$/);
@@ -487,16 +542,63 @@ export class DrizzleCandidateAssignmentRepository {
             }
           }
         }
+
+        const numericExtract = newTicketNumber.match(/\d+$/);
+        if (numericExtract) {
+          newNumericQueueNumber = parseInt(numericExtract[0], 10);
+        }
       }
+
+      await tx
+        .update(appointments)
+        .set({
+          serviceId: params.targetServiceId,
+          medicalFlow: (params.targetMedicalFlow || null) as any,
+          roomId: targetRoomId,
+          ...(params.complaint !== undefined ? { complaint: params.complaint } : {}),
+          ...(newNumericQueueNumber !== null ? { queueNumber: newNumericQueueNumber } : {}),
+          updatedBy: params.updatedBy,
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(appointments.id, params.appointmentId));
 
       await tx
         .update(queueTickets)
         .set({
           serviceId: params.targetServiceId,
           ...(params.targetCategoryId ? { categoryId: params.targetCategoryId } : {}),
+          roomId: targetRoomId,
           ...(newTicketNumber ? { queueNumber: newTicketNumber } : {}),
         })
         .where(eq(queueTickets.appointmentId, params.appointmentId));
+
+      // Delete aborted intake records from this appointment to prevent database bloat
+      if (params.targetMedicalFlow !== 'pregnancy') {
+        await tx
+          .delete(maternalHealthIntakes)
+          .where(eq(maternalHealthIntakes.appointmentId, params.appointmentId));
+      }
+
+      if (params.targetMedicalFlow !== 'immunization') {
+        await tx
+          .delete(childImmunizationIntakes)
+          .where(eq(childImmunizationIntakes.appointmentId, params.appointmentId));
+      }
+
+      if (!params.targetMedicalFlow) {
+        await tx
+          .delete(medicalIntakeSubmissions)
+          .where(eq(medicalIntakeSubmissions.appointmentId, params.appointmentId));
+      } else {
+        await tx
+          .delete(medicalIntakeSubmissions)
+          .where(
+            and(
+              eq(medicalIntakeSubmissions.appointmentId, params.appointmentId),
+              ne(medicalIntakeSubmissions.flow, params.targetMedicalFlow),
+            ),
+          );
+      }
 
       if (params.reason) {
         await tx.insert(appointmentStatusEvents).values({

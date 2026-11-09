@@ -40,6 +40,19 @@ export function isTerminalAppointmentStatus(
   );
 }
 
+/**
+ * Evaluates whether an appointment is eligible for service, clinic unit, or intake correction.
+ * Allowed in pre-consultation and error correction states (booked, waiting, late, cancelled, no_show).
+ * Strictly prohibited once consultation has commenced (in_service) or finalized (completed).
+ */
+export function isAppointmentServiceModifiable(
+  status: string | null | undefined,
+): boolean {
+  if (!status) return false;
+  const s = status.toLowerCase();
+  return s !== DB_APPOINTMENT_STATUS.IN_SERVICE && s !== DB_APPOINTMENT_STATUS.COMPLETED;
+}
+
 export const QUEUE_TICKET_STATUS = {
   WAITING: 'waiting',
   CALLED: 'called',

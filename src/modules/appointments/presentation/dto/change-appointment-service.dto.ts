@@ -1,5 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsUUID } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
 
 export class ChangeAppointmentServiceDto {
   @ApiProperty({
@@ -9,4 +9,11 @@ export class ChangeAppointmentServiceDto {
   @IsUUID('4', { message: 'ID layanan harus berformat UUID v4 valid' })
   @IsNotEmpty({ message: 'Target serviceId wajib diisi' })
   serviceId: string;
+
+  @ApiPropertyOptional({
+    description: 'Keluhan pasien yang diperbarui (opsional)',
+  })
+  @IsString()
+  @IsOptional()
+  complaint?: string;
 }
