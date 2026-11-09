@@ -4,7 +4,8 @@ export type AppointmentStatus =
   | 'IN_SERVICE'
   | 'COMPLETED'
   | 'CANCELLED'
-  | 'LATE';
+  | 'LATE'
+  | 'NO_SHOW';
 
 export type DbAppointmentStatus =
   | 'booked'
@@ -31,7 +32,8 @@ export type AppointmentAction =
 export function toDomainStatus(
   dbStatus: DbAppointmentStatus | string | null | undefined,
 ): AppointmentStatus {
-  switch (dbStatus) {
+  const normalized = dbStatus?.toLowerCase();
+  switch (normalized) {
     case 'booked':
       return 'BOOKED';
     case 'in_service':
@@ -42,8 +44,9 @@ export function toDomainStatus(
     case 'no_doctor':
       return 'CANCELLED';
     case 'late':
-    case 'no_show':
       return 'LATE';
+    case 'no_show':
+      return 'NO_SHOW';
     default:
       return 'WAITING';
   }
@@ -63,6 +66,8 @@ export function toDbStatus(
       return 'cancelled';
     case 'LATE':
       return 'late';
+    case 'NO_SHOW':
+      return 'no_show';
     default:
       return 'waiting';
   }

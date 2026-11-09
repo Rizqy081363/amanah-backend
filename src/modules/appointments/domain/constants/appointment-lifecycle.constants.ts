@@ -24,6 +24,7 @@ export type DbAppointmentStatusValue =
 export const TERMINAL_APPOINTMENT_STATUSES = [
   DB_APPOINTMENT_STATUS.COMPLETED,
   DB_APPOINTMENT_STATUS.CANCELLED,
+  DB_APPOINTMENT_STATUS.NO_SHOW,
 ] as const;
 
 export function isTerminalAppointmentStatus(
@@ -31,7 +32,11 @@ export function isTerminalAppointmentStatus(
 ): boolean {
   return (
     status === DB_APPOINTMENT_STATUS.COMPLETED ||
-    status === DB_APPOINTMENT_STATUS.CANCELLED
+    status === DB_APPOINTMENT_STATUS.CANCELLED ||
+    status === DB_APPOINTMENT_STATUS.NO_SHOW ||
+    status === DOMAIN_APPOINTMENT_STATUS.COMPLETED ||
+    status === DOMAIN_APPOINTMENT_STATUS.CANCELLED ||
+    status === DOMAIN_APPOINTMENT_STATUS.NO_SHOW
   );
 }
 
@@ -51,6 +56,7 @@ export const DOMAIN_APPOINTMENT_STATUS = {
   COMPLETED: 'COMPLETED',
   CANCELLED: 'CANCELLED',
   LATE: 'LATE',
+  NO_SHOW: 'NO_SHOW',
 } as const;
 
 export const APPOINTMENT_EVENTS = {

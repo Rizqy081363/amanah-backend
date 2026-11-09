@@ -19,6 +19,7 @@ import {
   appointments,
   appointmentStatusEvents,
   queueTickets,
+  sessionDefs,
 } from '../../../../database/schema';
 import { QueuePositionRecalculationService } from '../../../queue-engine/application/services/queue-position-recalculation.service';
 import { CLINIC_POLICY_FALLBACK_CONFIG } from '../../../schedules/domain/constants/schedule.constants';
@@ -438,14 +439,80 @@ export class AppointmentHardenedDrizzleRepository
     return full!;
   }
 
-  async sweepLateness(threshold: Date): Promise<number> {
-    const maxAttempts = this.clinicConfig
+  async sweepLateness(threshold: Date, now: Date = new Date()): Promise<number> {
+    const graceMinutes = this.clinicConfig
       ? await this.clinicConfig
-          .getNumber('queue.no_show_call_attempts')
-          .catch(() => 2)
-      : 2;
+          .getNumber('queue.no_show_grace_minutes')
+          .catch(() => 10)
+      : 10;
 
-    const candidates = await this.db
+    const nowIso = now.toISOString();
+    const todayDate = nowIso.slice(0, 10);
+
+    // 1. Phase 1: Close finished sessions / elapsed operating days -> NO_SHOW (Not CANCELLED)
+    // Any appointment still in BOOKED or LATE whose session has officially ended
+    // (+ grace minutes) or whose scheduled date has completely passed transitions to NO_SHOW.
+    const noShowCandidates = await this.db
+      .select({
+        id: appointments.id,
+        scheduledDate: appointments.scheduledDate,
+        practitionerId: appointments.practitionerId,
+        status: appointments.status,
+      })
+      .from(appointments)
+      .leftJoin(queueTickets, eq(queueTickets.appointmentId, appointments.id))
+      .leftJoin(sessionDefs, eq(sessionDefs.id, queueTickets.sessionId))
+      .where(
+        and(
+          inArray(appointments.status, [
+            DB_APPOINTMENT_STATUS.BOOKED,
+            DB_APPOINTMENT_STATUS.LATE,
+          ] as any),
+          or(
+            lt(appointments.scheduledDate, todayDate),
+            and(
+              eq(appointments.scheduledDate, todayDate),
+              sql`(${appointments.scheduledDate} || ' ' || COALESCE(${sessionDefs.defaultEndsAt}, ${appointments.scheduledEndTime}, '23:59:59'))::timestamptz + (${graceMinutes} * interval '1 minute') <= ${nowIso}::timestamptz`,
+            ),
+          ),
+        ),
+      );
+
+    const noShowIds = noShowCandidates.map((c) => c.id);
+
+    if (noShowIds.length > 0) {
+      await this.db
+        .update(appointments)
+        .set({
+          status: DB_APPOINTMENT_STATUS.NO_SHOW,
+          updatedAt: nowIso,
+        })
+        .where(inArray(appointments.id, noShowIds));
+
+      await this.db
+        .update(queueTickets)
+        .set({
+          status: QUEUE_TICKET_STATUS.SKIPPED,
+          waitingPosition: null,
+          updatedAt: nowIso,
+        })
+        .where(inArray(queueTickets.appointmentId, noShowIds));
+
+      await this.db.insert(appointmentStatusEvents).values(
+        noShowCandidates.map((c) => ({
+          appointmentId: c.id,
+          previousStatus: c.status as any,
+          newStatus: DB_APPOINTMENT_STATUS.NO_SHOW as any,
+          reason:
+            'Tidak hadir (No-Show): sesi operasional klinik telah berakhir tanpa kehadiran pasien',
+        })),
+      );
+    }
+
+    // 2. Phase 2: Overdue Check-In during active session -> LATE
+    // Only BOOKED appointments whose arrival time has passed tolerance window, but whose session is STILL ACTIVE.
+    // They are marked LATE and demoted to queue tail, giving them the chance to check in when they arrive.
+    const lateCandidates = await this.db
       .select({
         id: appointments.id,
         scheduledDate: appointments.scheduledDate,
@@ -455,82 +522,15 @@ export class AppointmentHardenedDrizzleRepository
       .from(appointments)
       .where(
         and(
-          inArray(appointments.status, [
-            DB_APPOINTMENT_STATUS.BOOKED,
-            DB_APPOINTMENT_STATUS.LATE,
-          ] as any),
+          eq(appointments.status, DB_APPOINTMENT_STATUS.BOOKED as any),
           sql`COALESCE(${appointments.estimatedStartAt}, (${appointments.scheduledDate} || ' ' || ${appointments.scheduledStartTime})::timestamptz) <= ${threshold.toISOString()}::timestamptz`,
+          noShowIds.length > 0
+            ? sql`${appointments.id} NOT IN (${sql.join(noShowIds.map((id) => sql`${id}`), sql`, `)})`
+            : sql`TRUE`,
         ),
       );
 
-    if (candidates.length === 0) return 0;
-
-    const ids = candidates.map((c) => c.id);
-
-    const lateEvents = await this.db
-      .select({
-        appointmentId: appointmentStatusEvents.appointmentId,
-        lateCount: sql<number>`count(*)::int`,
-      })
-      .from(appointmentStatusEvents)
-      .where(
-        and(
-          inArray(appointmentStatusEvents.appointmentId, ids),
-          eq(appointmentStatusEvents.newStatus, DB_APPOINTMENT_STATUS.LATE),
-        ),
-      )
-      .groupBy(appointmentStatusEvents.appointmentId);
-
-    const lateCountMap = new Map<string, number>();
-    for (const le of lateEvents) {
-      if (le.appointmentId) {
-        lateCountMap.set(le.appointmentId, le.lateCount);
-      }
-    }
-
-    const toDemoteIds: string[] = [];
-    const toCancelIds: string[] = [];
-
-    for (const c of candidates) {
-      const prevCount = lateCountMap.get(c.id) || 0;
-      if (prevCount + 1 >= maxAttempts) {
-        toCancelIds.push(c.id);
-      } else {
-        toDemoteIds.push(c.id);
-      }
-    }
-
-    const nowIso = new Date().toISOString();
-
-    if (toCancelIds.length > 0) {
-      await this.db
-        .update(appointments)
-        .set({
-          status: DB_APPOINTMENT_STATUS.CANCELLED,
-          cancelledAt: nowIso,
-          cancelReason: `Otomatis dibatalkan: melebihi batas toleransi kehadiran (${maxAttempts}x)`,
-          updatedAt: nowIso,
-        })
-        .where(inArray(appointments.id, toCancelIds));
-
-      await this.db
-        .update(queueTickets)
-        .set({
-          status: QUEUE_TICKET_STATUS.CANCELLED,
-          waitingPosition: null,
-          updatedAt: nowIso,
-        })
-        .where(inArray(queueTickets.appointmentId, toCancelIds));
-
-      await this.db.insert(appointmentStatusEvents).values(
-        toCancelIds.map((id) => ({
-          appointmentId: id,
-          previousStatus: DB_APPOINTMENT_STATUS.LATE as any,
-          newStatus: DB_APPOINTMENT_STATUS.CANCELLED as any,
-          reason: `Otomatis dibatalkan: melebihi batas toleransi kehadiran (${maxAttempts}x)`,
-        })),
-      );
-    }
+    const toDemoteIds = lateCandidates.map((c) => c.id);
 
     if (toDemoteIds.length > 0) {
       await this.db
@@ -544,18 +544,19 @@ export class AppointmentHardenedDrizzleRepository
       await this.db.insert(appointmentStatusEvents).values(
         toDemoteIds.map((id) => ({
           appointmentId: id,
-          previousStatus: (candidates.find((c) => c.id === id)?.status ||
-            DB_APPOINTMENT_STATUS.BOOKED) as any,
+          previousStatus: DB_APPOINTMENT_STATUS.BOOKED as any,
           newStatus: DB_APPOINTMENT_STATUS.LATE as any,
-          reason: `Terlambat hadir: digeser ke antrean paling belakang (percobaan ke-${(lateCountMap.get(id) || 0) + 1})`,
+          reason:
+            'Terlambat hadir: melewati batas toleransi waktu kedatangan, digeser ke antrean belakang',
         })),
       );
     }
 
-    if (this.queuePositionRecalculationService) {
+    const allAffected = [...noShowCandidates, ...lateCandidates];
+    if (this.queuePositionRecalculationService && allAffected.length > 0) {
       await this.queuePositionRecalculationService
         .recalculatePartitions(
-          candidates.map((u) => ({
+          allAffected.map((u) => ({
             serviceDate: u.scheduledDate,
             practitionerId: u.practitionerId,
           })),
@@ -563,7 +564,7 @@ export class AppointmentHardenedDrizzleRepository
         .catch(() => {});
     }
 
-    return candidates.length;
+    return allAffected.length;
   }
 
   async list(filter: AppointmentFilter): Promise<AppointmentListResult> {

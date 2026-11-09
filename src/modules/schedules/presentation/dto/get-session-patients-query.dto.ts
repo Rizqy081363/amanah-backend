@@ -10,6 +10,7 @@ export class GetSessionPatientsQueryDto {
       'in_service',
       'completed',
       'cancelled',
+      'late',
       'no_show',
       'all',
     ],
@@ -23,6 +24,7 @@ export class GetSessionPatientsQueryDto {
     'in_service',
     'completed',
     'cancelled',
+    'late',
     'no_show',
     'all',
   ])

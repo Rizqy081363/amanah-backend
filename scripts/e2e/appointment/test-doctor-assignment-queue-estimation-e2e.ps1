@@ -33,7 +33,7 @@ Write-Host "`n[STEP 1] Authenticating Admin & Patient and Discovering Master Dat
 $backendRoot = (Resolve-Path "$PSScriptRoot\..\..\..").Path
 Push-Location $backendRoot
 $adminJwt = (bun run ./scripts/dev/get-jwt-user.ts --email admin@amanah.com --raw | Select-Object -Last 1).Trim()
-$patientJwt = (bun run ./scripts/dev/get-jwt-user.ts --email lexguarddidier@gmail.com --raw | Select-Object -Last 1).Trim()
+$patientJwt = (bun run ./scripts/dev/get-jwt-user.ts --email blueleather11@gmail.com --raw | Select-Object -Last 1).Trim()
 Pop-Location
 
 Assert-Test "Admin authenticated via dynamic JWT" ($adminJwt.Length -gt 20)
@@ -43,7 +43,7 @@ Assert-Test "Patient authenticated via dynamic JWT" ($patientJwt.Length -gt 20)
 $patientHeaders = @{ Authorization = "Bearer $patientJwt"; "Content-Type" = "application/json" }
 
 # Dynamic Patient Profile
-$patientSqlRes = Run-DockerSql "SELECT id FROM patient_profiles WHERE user_id = 'ef2973a6-963d-4853-b8c1-e30101d15299' LIMIT 1;"
+$patientSqlRes = Run-DockerSql "SELECT p.id FROM patient_profiles p JOIN users u ON u.id = p.user_id WHERE u.email = 'blueleather11@gmail.com' LIMIT 1;"
 $patientId = if ($patientSqlRes) { $patientSqlRes.ToString().Trim() } else { "a78cb62e-17be-45de-b058-9d3a5bc9e646" }
 Assert-Test "Patient profile resolved" ($patientId.Length -gt 20)
 
@@ -103,6 +103,7 @@ $bookPayload = @{
     session = $sessionCode
     visitType = "new_visit"
     complaint = "E2E Estimation Invariant Test"
+    consentOverCapacity = $true
 } | ConvertTo-Json
 
 $createdAppt = Get-ResponseData (Invoke-RestMethod -Uri "$apiUrl/appointments" -Method Post -Body $bookPayload -Headers $patientHeaders)
@@ -198,9 +199,10 @@ $bookPayload2 = @{
     session = $sessionCode
     visitType = "new_visit"
     complaint = "E2E Sequential Estimation Test"
+    consentOverCapacity = $true
 } | ConvertTo-Json
 
-$createdAppt2 = Get-ResponseData (Invoke-RestMethod -Uri "$apiUrl/appointments" -Method Post -Body $bookPayload2 -Headers $patientHeaders)
+$createdAppt2 = Get-ResponseData (Invoke-RestMethod -Uri "$apiUrl/appointments" -Method Post -Body $bookPayload2 -Headers $adminHeaders)
 $appt2Id = $createdAppt2.id
 Assert-Test "Second appointment created successfully" ($null -ne $appt2Id)
 
@@ -288,39 +290,37 @@ Assert-Test "On-time Patient 2 compacted forward to position 1" ($p2WaitPos -eq 
 Assert-Test "Late Patient 1 demoted to queue tail at position 2" ($p1WaitPos -eq "2")
 
 # ------------------------------------------------------------------------------
-# STEP 9: EDGE CASE - MAX LATENESS ATTEMPTS TRANSITION TO CANCELLED
+# STEP 9: EDGE CASE - EXPIRED SESSION TRANSITION TO NO_SHOW
 # ------------------------------------------------------------------------------
-Write-Host "`n[STEP 9] Edge Case: Patient 1 exceeds max lateness attempts -> CANCELLED..." -ForegroundColor Yellow
+Write-Host "`n[STEP 9] Edge Case: Patient 1 session closes without check-in -> NO_SHOW..." -ForegroundColor Yellow
 
-# Simulate Patient 1 also missing their demoted tail slot (set estimatedStartAt to past time again)
-$null = Run-DockerSql "UPDATE appointments SET estimated_start_at = '$pastTime' WHERE id = '$apptId';"
-$null = Run-DockerSql "UPDATE queue_tickets SET projected_start = '$pastTime' WHERE appointment_id = '$apptId';"
+# Simulate Patient 1 appointment session has elapsed in the past
+$null = Run-DockerSql "UPDATE appointments SET scheduled_date = '2020-01-01', scheduled_end_time = '00:01:00' WHERE id = '$apptId';"
 
-# Trigger second sweep (lateCount becomes 2 >= maxAttempts 2)
+# Trigger sweep (session elapsed -> NO_SHOW)
 $sweepRes2 = Invoke-RestMethod -Uri "$apiUrl/appointments/sweep-late" -Method Post -Headers $adminHeaders
 Write-Host " Swept Count (Second Pass): $($sweepRes2.sweptCount)" -ForegroundColor Cyan
 Assert-Test "Second sweep executed" ($sweepRes2.sweptCount -ge 1)
 
-# Verify Patient 1 transitioned to CANCELLED
-$p1CancelledCheck = (Run-DockerSql "SELECT status, cancel_reason, cancelled_at::text FROM appointments WHERE id = '$apptId';").Trim()
-$p1CancelParts = $p1CancelledCheck -split '\|'
-$p1Status = $p1CancelParts[0].Trim()
-$p1CancelReason = $p1CancelParts[1].Trim()
-$p1CancelledAt = $p1CancelParts[2].Trim()
+# Verify Patient 1 transitioned to NO_SHOW
+$p1NoShowCheck = (Run-DockerSql "SELECT status FROM appointments WHERE id = '$apptId';").Trim()
+Assert-Test "Patient 1 status transitioned to no_show" ($p1NoShowCheck -eq "no_show")
 
-Assert-Test "Patient 1 status transitioned to cancelled" ($p1Status -eq "cancelled")
-Assert-Test "Patient 1 cancellation reason notes exceeding tolerance" ($p1CancelReason -match "Otomatis dibatalkan")
-Assert-Test "Patient 1 cancelled_at timestamp is populated" ($p1CancelledAt.Length -gt 10)
+# Verify audit event in appointment_status_events
+$eventCheck2 = (Run-DockerSql "SELECT new_status, reason FROM appointment_status_events WHERE appointment_id = '$apptId' ORDER BY created_at DESC LIMIT 1;").Trim()
+$eventParts2 = $eventCheck2 -split '\|'
+Assert-Test "Audit event recorded status transition to no_show" ($eventParts2[0].Trim() -eq "no_show")
+Assert-Test "Audit event reason notes session closure" ($eventParts2[1].Trim() -match "Tidak hadir")
 
-# Verify Patient 1 Queue Ticket is CANCELLED and waiting_position released (NULL)
-$p1TicketCancel = (Run-DockerSql "SELECT status, waiting_position FROM queue_tickets WHERE appointment_id = '$apptId';").Trim()
-$p1TicketParts = $p1TicketCancel -split '\|'
-Assert-Test "Patient 1 queue ticket status is cancelled" ($p1TicketParts[0].Trim() -eq "cancelled")
+# Verify Patient 1 Queue Ticket is SKIPPED and waiting_position released (NULL)
+$p1TicketNoShow = (Run-DockerSql "SELECT status, waiting_position FROM queue_tickets WHERE appointment_id = '$apptId';").Trim()
+$p1TicketParts = $p1TicketNoShow -split '\|'
+Assert-Test "Patient 1 queue ticket status is skipped" ($p1TicketParts[0].Trim() -eq "skipped")
 Assert-Test "Patient 1 queue ticket waiting_position is released (NULL)" ([string]::IsNullOrEmpty($p1TicketParts[1].Trim()))
 
 # Patient 2 remains position 1
 $p2RemainPos = (Run-DockerSql "SELECT waiting_position FROM queue_tickets WHERE appointment_id = '$appt2Id';").Trim()
-Assert-Test "Patient 2 remains at position 1 after Patient 1 cancelled" ($p2RemainPos -eq "1")
+Assert-Test "Patient 2 remains at position 1 after Patient 1 no_show" ($p2RemainPos -eq "1")
 
 # ------------------------------------------------------------------------------
 # STEP 10: EDGE CASE - CHECKED-IN / WAITING PATIENTS IMMUNE TO LATENESS SWEEP
@@ -336,9 +336,10 @@ $bookPayload3 = @{
     session = $sessionCode
     visitType = "new_visit"
     complaint = "E2E Immunity Test"
+    consentOverCapacity = $true
 } | ConvertTo-Json
 
-$createdAppt3 = Get-ResponseData (Invoke-RestMethod -Uri "$apiUrl/appointments" -Method Post -Body $bookPayload3 -Headers $patientHeaders)
+$createdAppt3 = Get-ResponseData (Invoke-RestMethod -Uri "$apiUrl/appointments" -Method Post -Body $bookPayload3 -Headers $adminHeaders)
 $appt3Id = $createdAppt3.id
 
 # Assign doctor & room

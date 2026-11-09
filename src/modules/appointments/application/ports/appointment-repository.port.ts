@@ -58,6 +58,6 @@ export interface AppointmentRepositoryPort {
   ): Promise<AppointmentRecord>;
   updateLastCalledAt(id: string, calledAt: Date): Promise<AppointmentRecord>;
   transitionStatus(input: TransitionStatusInput): Promise<AppointmentRecord>;
-  sweepLateness(threshold: Date): Promise<number>;
+  sweepLateness(threshold: Date, now?: Date): Promise<number>;
   list(filter: AppointmentFilter): Promise<AppointmentListResult>;
 }

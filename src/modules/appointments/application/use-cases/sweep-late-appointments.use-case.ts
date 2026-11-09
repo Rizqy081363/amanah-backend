@@ -20,10 +20,10 @@ export class SweepLateAppointmentsUseCase {
       await this.policyReader.getCheckInOverflowMinutes();
     const overflowMs = overflowMinutes * 60_000;
     const threshold = new Date(now.getTime() - overflowMs);
-    const sweptCount = await this.appointmentRepo.sweepLateness(threshold);
+    const sweptCount = await this.appointmentRepo.sweepLateness(threshold, now);
     if (sweptCount > 0) {
       this.logger.log(
-        `Swept ${sweptCount} appointments to LATE status (threshold: ${overflowMinutes}m)`,
+        `Swept ${sweptCount} appointments for lateness / session closure (overflow: ${overflowMinutes}m)`,
       );
     }
     return sweptCount;

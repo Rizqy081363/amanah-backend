@@ -5,40 +5,32 @@ import type { AppointmentStatus } from '../../domain/types/appointment.types';
 export class UpdateAppointmentStatusDto {
   @ApiProperty({
     enum: [
+      'BOOKED',
       'WAITING',
       'IN_SERVICE',
       'COMPLETED',
       'CANCELLED',
       'LATE',
-      'SUDAH_BUAT_JANJI',
-      'SUDAH_DATANG',
-      'MENUNGGU',
-      'SEDANG_DIPERIKSA',
-      'SELESAI',
-      'BATAL',
+      'NO_SHOW',
     ],
     example: 'IN_SERVICE',
-    description: 'Status siklus pelayanan antrean dan kunjungan',
+    description: 'Status kanonikal siklus pelayanan antrean dan kunjungan',
   })
   @IsEnum([
+    'BOOKED',
     'WAITING',
     'IN_SERVICE',
     'COMPLETED',
     'CANCELLED',
     'LATE',
-    'SUDAH_BUAT_JANJI',
-    'SUDAH_DATANG',
-    'MENUNGGU',
-    'SEDANG_DIPERIKSA',
-    'SELESAI',
-    'BATAL',
+    'NO_SHOW',
   ])
   @IsNotEmpty()
-  status: AppointmentStatus | string;
+  status: AppointmentStatus;
 
   @ApiPropertyOptional({
     example: 'Pasien tidak hadir',
-    description: 'Alasan pembatalan',
+    description: 'Alasan pembatalan atau perubahan status',
   })
   @IsString()
   @IsOptional()
