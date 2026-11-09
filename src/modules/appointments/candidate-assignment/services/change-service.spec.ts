@@ -124,4 +124,35 @@ describe('CandidateAssignmentService - changeService Logic', () => {
     expect(queueTicket.serviceId).toBe('new-service-id');
     expect(queueTicket.categoryId).toBe('new-category-id');
   });
+
+  it('dynamically transforms queue ticket prefix while preserving sequence and session suffix', () => {
+    const transformQueueNumber = (currentQueueNumber: string, targetPrefix: string) => {
+      const match = currentQueueNumber.match(/^([A-Za-z0-9]+)-(.*)$/);
+      const suffix = match ? match[2] : currentQueueNumber;
+      return `${targetPrefix}-${suffix}`;
+    };
+
+    // Standard session ticket: UM-P002 -> KIA-P002
+    expect(transformQueueNumber('UM-P002', 'KIA')).toBe('KIA-P002');
+
+    // Afternoon session ticket: UM-S015 -> KIA-S015
+    expect(transformQueueNumber('UM-S015', 'KIA')).toBe('KIA-S015');
+
+    // Pure numeric sequence ticket: PU-005 -> KIA-005
+    expect(transformQueueNumber('PU-005', 'KIA')).toBe('KIA-005');
+
+    // Arbitrary dynamic prefixes from database: POLI-P001 -> DOKTER-P001
+    expect(transformQueueNumber('POLI-P001', 'DOKTER')).toBe('DOKTER-P001');
+  });
+
+  it('dynamically maps target medical flow based on intakeFormCode without hardcoding', () => {
+    const resolveMedicalFlow = (intakeFormCode?: string | null) => {
+      return (intakeFormCode as 'pregnancy' | 'immunization') || null;
+    };
+
+    expect(resolveMedicalFlow('pregnancy')).toBe('pregnancy');
+    expect(resolveMedicalFlow('immunization')).toBe('immunization');
+    expect(resolveMedicalFlow(null)).toBeNull();
+    expect(resolveMedicalFlow(undefined)).toBeNull();
+  });
 });

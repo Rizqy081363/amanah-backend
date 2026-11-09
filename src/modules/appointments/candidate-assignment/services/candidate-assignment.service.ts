@@ -322,12 +322,16 @@ export class CandidateAssignmentService implements ICandidateAssignmentPort {
       throw new BadRequestException('Layanan medis tidak ditemukan atau tidak aktif');
     }
 
-    const currentUserId = user?.id || user?.sub || null;
+    const currentUserId = user?.id || null;
+    const targetMedicalFlow =
+      (targetService.intakeFormCode as 'pregnancy' | 'immunization') || null;
 
     await this.repository.updateAppointmentServiceTransactional({
       appointmentId,
       targetServiceId,
       targetCategoryId: targetService.serviceCategoryId,
+      targetMedicalFlow,
+      targetQueuePrefix: targetService.codePrefix,
       updatedBy: currentUserId,
       reason: `Tugaskan layanan medis ke ${targetService.name}`,
       previousStatus: apt.status,

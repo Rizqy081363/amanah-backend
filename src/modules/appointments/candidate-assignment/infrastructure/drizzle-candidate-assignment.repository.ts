@@ -6,6 +6,7 @@ import {
   appointments,
   clinicRooms,
   clinicServices,
+  clinicalIntakeForms,
   doctorAssignments,
   practitioners,
   queueTickets,
@@ -382,10 +383,16 @@ export class DrizzleCandidateAssignmentRepository {
       .select({
         id: clinicServices.id,
         name: clinicServices.name,
+        codePrefix: clinicServices.codePrefix,
         serviceCategoryId: clinicServices.serviceCategoryId,
+        intakeFormCode: clinicalIntakeForms.code,
         isActive: clinicServices.isActive,
       })
       .from(clinicServices)
+      .leftJoin(
+        clinicalIntakeForms,
+        eq(clinicServices.intakeFormId, clinicalIntakeForms.id),
+      )
       .where(and(eq(clinicServices.id, serviceId), eq(clinicServices.isActive, true)))
       .limit(1);
     return svc || null;
@@ -395,6 +402,8 @@ export class DrizzleCandidateAssignmentRepository {
     appointmentId: string;
     targetServiceId: string;
     targetCategoryId?: string | null;
+    targetMedicalFlow?: 'pregnancy' | 'immunization' | null;
+    targetQueuePrefix?: string;
     updatedBy?: string | null;
     reason?: string;
     previousStatus: string;
@@ -404,16 +413,88 @@ export class DrizzleCandidateAssignmentRepository {
         .update(appointments)
         .set({
           serviceId: params.targetServiceId,
+          medicalFlow: (params.targetMedicalFlow || null) as any,
           updatedBy: params.updatedBy,
           updatedAt: new Date().toISOString(),
         })
         .where(eq(appointments.id, params.appointmentId));
+
+      const [existingTicket] = await tx
+        .select({
+          id: queueTickets.id,
+          queueNumber: queueTickets.queueNumber,
+          queueDate: queueTickets.queueDate,
+          doctorId: queueTickets.doctorId,
+        })
+        .from(queueTickets)
+        .where(eq(queueTickets.appointmentId, params.appointmentId))
+        .limit(1);
+
+      let newTicketNumber = existingTicket?.queueNumber;
+      if (existingTicket?.queueNumber && params.targetQueuePrefix) {
+        // Extract sequence/session suffix, e.g. 'UM-P002' -> suffix 'P002' or 'UM-003' -> '003'
+        const match = existingTicket.queueNumber.match(/^([A-Za-z0-9]+)-(.*)$/);
+        const suffix = match ? match[2] : existingTicket.queueNumber;
+        newTicketNumber = `${params.targetQueuePrefix}-${suffix}`;
+
+        // Ensure collision-free within target active ticket scope
+        const ticketScopeCondition = existingTicket.doctorId
+          ? and(
+              eq(queueTickets.doctorId, existingTicket.doctorId),
+              eq(queueTickets.queueDate, existingTicket.queueDate),
+              eq(queueTickets.queueNumber, newTicketNumber),
+            )
+          : and(
+              isNull(queueTickets.doctorId),
+              eq(queueTickets.serviceId, params.targetServiceId),
+              eq(queueTickets.queueDate, existingTicket.queueDate),
+              eq(queueTickets.queueNumber, newTicketNumber),
+            );
+
+        const [conflict] = await tx
+          .select({ id: queueTickets.id })
+          .from(queueTickets)
+          .where(and(ticketScopeCondition, sql`${queueTickets.id} != ${existingTicket.id}`))
+          .limit(1);
+
+        if (conflict) {
+          const numericMatch = suffix.match(/\d+$/);
+          let index = numericMatch ? parseInt(numericMatch[0], 10) : 1;
+          const nonDigitPrefix = suffix.replace(/\d+$/, '');
+          while (true) {
+            index++;
+            const candidate = `${params.targetQueuePrefix}-${nonDigitPrefix}${String(index).padStart(3, '0')}`;
+            const [taken] = await tx
+              .select({ id: queueTickets.id })
+              .from(queueTickets)
+              .where(
+                and(
+                  existingTicket.doctorId
+                    ? eq(queueTickets.doctorId, existingTicket.doctorId)
+                    : and(
+                        isNull(queueTickets.doctorId),
+                        eq(queueTickets.serviceId, params.targetServiceId),
+                      ),
+                  eq(queueTickets.queueDate, existingTicket.queueDate),
+                  eq(queueTickets.queueNumber, candidate),
+                  sql`${queueTickets.id} != ${existingTicket.id}`,
+                ),
+              )
+              .limit(1);
+            if (!taken) {
+              newTicketNumber = candidate;
+              break;
+            }
+          }
+        }
+      }
 
       await tx
         .update(queueTickets)
         .set({
           serviceId: params.targetServiceId,
           ...(params.targetCategoryId ? { categoryId: params.targetCategoryId } : {}),
+          ...(newTicketNumber ? { queueNumber: newTicketNumber } : {}),
         })
         .where(eq(queueTickets.appointmentId, params.appointmentId));
 
