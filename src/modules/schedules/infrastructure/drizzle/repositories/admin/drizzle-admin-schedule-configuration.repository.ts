@@ -5,6 +5,7 @@ import { ISchedulerPort, SCHEDULER_PORT } from '@common/scheduler';
 import { RedisService } from '@common/redis/redis.service';
 import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
+import { CascadeScheduleDeactivationUseCase } from '../../../../application/use-cases/cascade-schedule-deactivation.use-case';
 import {
   clinicRooms,
   clinicSettings,
@@ -34,6 +35,7 @@ import {
 } from '@modules/schedules/presentation/dto/admin-schedule-configuration.dto';
 import {
   BadRequestException,
+  forwardRef,
   Inject,
   Injectable,
   NotFoundException,
@@ -119,6 +121,9 @@ export class DrizzleAdminScheduleConfigurationRepository {
     private readonly db: DrizzleDatabase,
     private readonly clinicConfigService: ClinicConfigService,
     private readonly impactEvaluator: DrizzleScheduleConfigurationImpactEvaluator,
+    @Optional()
+    @Inject(forwardRef(() => CascadeScheduleDeactivationUseCase))
+    private readonly cascadeUseCase?: CascadeScheduleDeactivationUseCase,
     @Optional()
     @Inject(RedisService)
     private readonly redisService?: RedisService,
@@ -495,6 +500,14 @@ export class DrizzleAdminScheduleConfigurationRepository {
           updatedAt: now,
         });
       }
+
+      if (item.isActive === false && this.cascadeUseCase) {
+        await this.cascadeUseCase.cascadeWeeklyTemplateDeactivation(
+          item.dow,
+          item.sessionId,
+          executor,
+        );
+      }
     }
     if (executor === this.db) {
       await this.invalidateCaches();
@@ -561,6 +574,10 @@ export class DrizzleAdminScheduleConfigurationRepository {
               updatedAt: now,
             })
             .where(eq(masterDays.dow, item.dow));
+
+          if (item.isActive === false && this.cascadeUseCase) {
+            await this.cascadeUseCase.cascadeOperatingDayDeactivation(item.dow, tx);
+          }
         }
       }
     });

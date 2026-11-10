@@ -13,8 +13,16 @@ import {
   AppointmentNotCheckedInError,
   AppointmentNotFoundError,
   AppointmentQueueTurnNotReachedError,
+  CheckInAlreadyUsedError,
+  CheckInExpiredError,
+  CheckInForbiddenError,
+  CheckInNotTodayError,
+  CheckInWindowExpiredError,
+  CheckInWindowTooEarlyError,
   DailyQuotaExceededError,
   DoctorAlreadyServingError,
+  InvalidCheckInCodeError,
+  InvalidCheckInQrError,
   InvalidStatusTransitionError,
   PatientActiveTicketConflictError,
   SchedulePolicyNotFoundError,
@@ -42,6 +50,9 @@ export class AppointmentDomainExceptionFilter implements ExceptionFilter {
     } else if (exception instanceof AppointmentNotFoundError) {
       status = HttpStatus.NOT_FOUND;
       errorName = 'Not Found';
+    } else if (exception instanceof CheckInForbiddenError) {
+      status = HttpStatus.FORBIDDEN;
+      errorName = 'Forbidden';
     } else if (
       exception instanceof AppointmentMissingDoctorError ||
       exception instanceof AppointmentMissingRoomError ||
@@ -50,7 +61,14 @@ export class AppointmentDomainExceptionFilter implements ExceptionFilter {
       exception instanceof DoctorAlreadyServingError ||
       exception instanceof AppointmentQueueTurnNotReachedError ||
       exception instanceof DailyQuotaExceededError ||
-      exception instanceof SchedulePolicyNotFoundError
+      exception instanceof SchedulePolicyNotFoundError ||
+      exception instanceof InvalidCheckInQrError ||
+      exception instanceof InvalidCheckInCodeError ||
+      exception instanceof CheckInAlreadyUsedError ||
+      exception instanceof CheckInExpiredError ||
+      exception instanceof CheckInWindowTooEarlyError ||
+      exception instanceof CheckInWindowExpiredError ||
+      exception instanceof CheckInNotTodayError
     ) {
       status = HttpStatus.BAD_REQUEST;
       errorName = 'Bad Request';

@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, Logger } from '@nestjs/common';
 import { and, eq, gte, inArray } from 'drizzle-orm';
 import { type AuthenticatedUser, isAdminUser } from '../../../../common/auth';
 import { DomainForbiddenException } from '../../../../common/exceptions';
@@ -28,6 +28,7 @@ export class UpdateOperationalShiftUseCase {
   constructor(
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,
+    @Inject(forwardRef(() => DrizzleAdminScheduleConfigurationRepository))
     private readonly configRepo: DrizzleAdminScheduleConfigurationRepository,
     private readonly queueEventPublisher: QueueEventPublisher,
     private readonly clinicTimeService: ClinicTimeService,

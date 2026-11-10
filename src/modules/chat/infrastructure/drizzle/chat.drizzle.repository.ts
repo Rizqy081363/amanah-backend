@@ -6,6 +6,8 @@ import {
   eq,
   exists,
   ilike,
+  isNotNull,
+  isNull,
   lt,
   ne,
   notExists,
@@ -44,14 +46,11 @@ export class ChatDrizzleRepository implements ChatRepositoryInterface {
     private readonly db: DrizzleDatabase,
   ) {}
 
-  async findOpenConversationByUserId(
+  async findConversationByUserId(
     userId: string,
   ): Promise<ConversationEntity | null> {
     const record = await this.db.query.conversations.findFirst({
-      where: and(
-        eq(conversations.userId, userId),
-        eq(conversations.status, 'open'),
-      ),
+      where: eq(conversations.userId, userId),
       with: {
         user: true,
         patientProfile: true,
@@ -62,14 +61,11 @@ export class ChatDrizzleRepository implements ChatRepositoryInterface {
     return record ? this.mapConversation(record) : null;
   }
 
-  async findOpenConversationByGuestId(
+  async findConversationByGuestId(
     guestId: string,
   ): Promise<ConversationEntity | null> {
     const record = await this.db.query.conversations.findFirst({
-      where: and(
-        eq(conversations.guestId, guestId),
-        eq(conversations.status, 'open'),
-      ),
+      where: eq(conversations.guestId, guestId),
       with: {
         staffProfile: true,
       },
@@ -78,15 +74,12 @@ export class ChatDrizzleRepository implements ChatRepositoryInterface {
     return record ? this.mapConversation(record) : null;
   }
 
-  async findOpenConversationByGuestEmail(
+  async findConversationByGuestEmail(
     email: string,
   ): Promise<ConversationEntity | null> {
     const normalizedEmail = email.trim().toLowerCase();
     const record = await this.db.query.conversations.findFirst({
-      where: and(
-        ilike(conversations.guestEmail, normalizedEmail),
-        eq(conversations.status, 'open'),
-      ),
+      where: ilike(conversations.guestEmail, normalizedEmail),
       with: {
         staffProfile: true,
       },
@@ -112,7 +105,7 @@ export class ChatDrizzleRepository implements ChatRepositoryInterface {
     params: CreateConversationParams,
   ): Promise<ConversationEntity> {
     if (params.userId) {
-      const existing = await this.findOpenConversationByUserId(params.userId);
+      const existing = await this.findConversationByUserId(params.userId);
       if (existing) {
         return existing;
       }
@@ -128,7 +121,6 @@ export class ChatDrizzleRepository implements ChatRepositoryInterface {
       const [inserted] = await this.db
         .insert(conversations)
         .values({
-          status: 'open',
           userId: params.userId,
           patientId: patientId || null,
         })
@@ -139,20 +131,20 @@ export class ChatDrizzleRepository implements ChatRepositoryInterface {
         return (await this.findConversationById(inserted.id))!;
       }
 
-      const openFallback = await this.findOpenConversationByUserId(
+      const openFallback = await this.findConversationByUserId(
         params.userId,
       );
       if (openFallback) return openFallback;
     }
 
     if (params.guestId) {
-      const existing = await this.findOpenConversationByGuestId(params.guestId);
+      const existing = await this.findConversationByGuestId(params.guestId);
       if (existing) {
         return existing;
       }
 
       if (params.guestEmail) {
-        const existingByEmail = await this.findOpenConversationByGuestEmail(
+        const existingByEmail = await this.findConversationByGuestEmail(
           params.guestEmail,
         );
         if (existingByEmail) {
@@ -169,7 +161,6 @@ export class ChatDrizzleRepository implements ChatRepositoryInterface {
       const [inserted] = await this.db
         .insert(conversations)
         .values({
-          status: 'open',
           guestId: params.guestId,
           guestName: params.guestName || 'Tamu',
           guestEmail: params.guestEmail,
@@ -181,13 +172,13 @@ export class ChatDrizzleRepository implements ChatRepositoryInterface {
         return (await this.findConversationById(inserted.id))!;
       }
 
-      const openFallback = await this.findOpenConversationByGuestId(
+      const openFallback = await this.findConversationByGuestId(
         params.guestId,
       );
       if (openFallback) return openFallback;
 
       if (params.guestEmail) {
-        const emailFallback = await this.findOpenConversationByGuestEmail(
+        const emailFallback = await this.findConversationByGuestEmail(
           params.guestEmail,
         );
         if (emailFallback) return emailFallback;
@@ -199,34 +190,12 @@ export class ChatDrizzleRepository implements ChatRepositoryInterface {
     );
   }
 
-  async closeConversation(id: string): Promise<ConversationEntity> {
-    const nowIso = new Date().toISOString();
-    await this.db
-      .update(conversations)
-      .set({
-        status: 'closed',
-        closedAt: nowIso,
-        updatedAt: nowIso,
-      })
-      .where(eq(conversations.id, id));
-
-    const updated = await this.findConversationById(id);
-    if (!updated) {
-      throw new Error(`Conversation ${id} not found`);
-    }
-    return updated;
-  }
-
   async findAdminConversations(
     params: AdminConversationQueryParams,
   ): Promise<PaginatedResult<ConversationEntity>> {
     const limit = Math.min(Math.max(params.limit || 20, 1), 100);
     const conditions = [];
     const activityOrder = sql`coalesce(${conversations.lastMessageAt}, ${conversations.createdAt})`;
-
-    if (params.status) {
-      conditions.push(eq(conversations.status, params.status));
-    }
 
     if (params.awaitingReply !== undefined) {
       conditions.push(eq(conversations.awaitingReply, params.awaitingReply));
@@ -287,18 +256,25 @@ export class ChatDrizzleRepository implements ChatRepositoryInterface {
           previews.set(r.id, lastMsg.body);
         }
 
-        if (r.awaitingReply) {
-          const unread = await this.db.query.messages.findMany({
-            where: and(
-              eq(messages.conversationId, r.id),
-              eq(messages.senderRole, CHAT_SENDER_ROLE.EXTERNAL),
-              r.lastAdminMessageAt
-                ? sql`${messages.createdAt} > ${r.lastAdminMessageAt}`
-                : sql`TRUE`,
-            ),
-            columns: { id: true },
-          });
-          unreadCounts.set(r.id, Math.max(unread.length, 1));
+        if (r.lastCustomerMessageAt) {
+          const hasUnread =
+            !r.adminLastReadAt ||
+            new Date(r.lastCustomerMessageAt) > new Date(r.adminLastReadAt);
+          if (hasUnread) {
+            const unread = await this.db.query.messages.findMany({
+              where: and(
+                eq(messages.conversationId, r.id),
+                eq(messages.senderRole, CHAT_SENDER_ROLE.EXTERNAL),
+                r.adminLastReadAt
+                  ? sql`${messages.createdAt} > ${r.adminLastReadAt}`
+                  : sql`TRUE`,
+              ),
+              columns: { id: true },
+            });
+            unreadCounts.set(r.id, Math.max(unread.length, 1));
+          } else {
+            unreadCounts.set(r.id, 0);
+          }
         } else {
           unreadCounts.set(r.id, 0);
         }
@@ -504,10 +480,7 @@ export class ChatDrizzleRepository implements ChatRepositoryInterface {
       .leftJoin(patientProfiles, eq(patientProfiles.userId, users.id))
       .leftJoin(
         conversations,
-        and(
-          eq(conversations.userId, users.id),
-          eq(conversations.status, 'open'),
-        ),
+        eq(conversations.userId, users.id),
       )
       .where(and(...conditions))
       .orderBy(asc(users.name))
@@ -531,6 +504,70 @@ export class ChatDrizzleRepository implements ChatRepositoryInterface {
     return Array.from(candidateMap.values());
   }
 
+  async countAdminUnreadSummary(): Promise<{
+    totalUnread: number;
+    awaitingReplyCount: number;
+  }> {
+    const unreadConvs = await this.db.query.conversations.findMany({
+      where: and(
+        isNotNull(conversations.lastCustomerMessageAt),
+        or(
+          isNull(conversations.adminLastReadAt),
+          sql`${conversations.lastCustomerMessageAt} > ${conversations.adminLastReadAt}`,
+        ),
+      ),
+      columns: {
+        id: true,
+        adminLastReadAt: true,
+      },
+    });
+
+    let totalUnread = 0;
+    for (const conv of unreadConvs) {
+      const unread = await this.db.query.messages.findMany({
+        where: and(
+          eq(messages.conversationId, conv.id),
+          eq(messages.senderRole, CHAT_SENDER_ROLE.EXTERNAL),
+          conv.adminLastReadAt
+            ? sql`${messages.createdAt} > ${conv.adminLastReadAt}`
+            : sql`TRUE`,
+        ),
+        columns: { id: true },
+      });
+      totalUnread += Math.max(unread.length, 1);
+    }
+
+    const awaitingReplyRes = await this.db
+      .select({ count: sql<number>`count(*)` })
+      .from(conversations)
+      .where(eq(conversations.awaitingReply, true));
+
+    return {
+      totalUnread,
+      awaitingReplyCount: Number(awaitingReplyRes[0]?.count ?? 0),
+    };
+  }
+
+  async markAdminConversationAsRead(conversationId: string): Promise<void> {
+    await this.db
+      .update(conversations)
+      .set({
+        adminLastReadAt: sql`GREATEST(NOW(), COALESCE(${conversations.lastCustomerMessageAt}, NOW()), COALESCE(${conversations.lastMessageAt}, NOW()))`,
+        updatedAt: sql`NOW()`,
+      })
+      .where(eq(conversations.id, conversationId));
+  }
+
+  async markCustomerConversationAsRead(conversationId: string): Promise<void> {
+    await this.db
+      .update(conversations)
+      .set({
+        customerLastReadAt: sql`GREATEST(NOW(), COALESCE(${conversations.lastAdminMessageAt}, NOW()), COALESCE(${conversations.lastMessageAt}, NOW()))`,
+        updatedAt: sql`NOW()`,
+      })
+      .where(eq(conversations.id, conversationId));
+  }
+
   private mapConversation(
     record: any,
     lastMessagePreview?: string | null,
@@ -550,7 +587,6 @@ export class ChatDrizzleRepository implements ChatRepositoryInterface {
 
     return new ConversationEntity({
       id: record.id,
-      status: record.status,
       userId: record.userId,
       patientId: record.patientId,
       guestId: record.guestId,
@@ -566,9 +602,10 @@ export class ChatDrizzleRepository implements ChatRepositoryInterface {
       lastCustomerMessageAt: record.lastCustomerMessageAt,
       lastAdminMessageAt: record.lastAdminMessageAt,
       firstAdminReplyAt: record.firstAdminReplyAt,
+      adminLastReadAt: record.adminLastReadAt,
+      customerLastReadAt: record.customerLastReadAt,
       awaitingReply: Boolean(record.awaitingReply),
       createdAt: record.createdAt,
-      closedAt: record.closedAt,
       updatedAt: record.updatedAt,
       lastMessagePreview: lastMessagePreview ?? null,
       unreadCount,

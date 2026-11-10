@@ -2,7 +2,6 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import {
   IsBoolean,
-  IsEnum,
   IsInt,
   IsOptional,
   IsString,
@@ -11,15 +10,6 @@ import {
 } from 'class-validator';
 
 export class AdminConversationQueryDto {
-  @ApiPropertyOptional({
-    description: 'Filter by conversation status',
-    enum: ['open', 'closed'],
-    example: 'open',
-  })
-  @IsEnum(['open', 'closed'])
-  @IsOptional()
-  status?: 'open' | 'closed';
-
   @ApiPropertyOptional({
     description: 'Filter threads waiting for admin response',
     example: true,

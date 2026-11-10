@@ -19,6 +19,10 @@ import {
   StaffRepository,
 } from '../../domain/repositories/staff.repository';
 import { NikSecurityService } from '../../../../common/security/nik';
+import {
+  AUTH_PROVIDER,
+  type AuthProvider,
+} from '../../../../common/constants/auth-providers.constants';
 
 @Injectable()
 export class StaffDrizzleRepository implements StaffRepository {
@@ -88,6 +92,15 @@ export class StaffDrizzleRepository implements StaffRepository {
       operationalStatus = 'active';
     }
 
+    const rawAccounts: Array<{ providerId: string }> = r.user?.authAccounts ?? [];
+    const authProviders: AuthProvider[] = rawAccounts
+      .map((acc) => acc.providerId)
+      .filter((pid): pid is AuthProvider =>
+        pid === AUTH_PROVIDER.GOOGLE || pid === AUTH_PROVIDER.CREDENTIAL,
+      );
+    const hasGoogle = authProviders.includes(AUTH_PROVIDER.GOOGLE);
+    const hasPassword = authProviders.includes(AUTH_PROVIDER.CREDENTIAL);
+
     return {
       id: r.id,
       userId: r.userId || '',
@@ -116,6 +129,9 @@ export class StaffDrizzleRepository implements StaffRepository {
       isActive: operationalStatus === 'active',
       status: operationalStatus,
       isPendingVerification: operationalStatus === 'pending',
+      authProviders,
+      hasGoogle,
+      hasPassword,
       invitationId: pendingInvitation?.id || null,
       address: addressRecord
         ? {
@@ -181,6 +197,15 @@ export class StaffDrizzleRepository implements StaffRepository {
       with: {
         clinicUnit: true,
         role: true,
+        user: {
+          with: {
+            authAccounts: {
+              columns: {
+                providerId: true,
+              },
+            },
+          },
+        },
       },
     });
 
@@ -196,6 +221,15 @@ export class StaffDrizzleRepository implements StaffRepository {
           with: {
             clinicUnit: true,
             role: true,
+            user: {
+              with: {
+                authAccounts: {
+                  columns: {
+                    providerId: true,
+                  },
+                },
+              },
+            },
           },
         });
       }
@@ -248,6 +282,15 @@ export class StaffDrizzleRepository implements StaffRepository {
       with: {
         clinicUnit: true,
         role: true,
+        user: {
+          with: {
+            authAccounts: {
+              columns: {
+                providerId: true,
+              },
+            },
+          },
+        },
       },
     });
     if (!record) return null;
@@ -363,6 +406,15 @@ export class StaffDrizzleRepository implements StaffRepository {
           addresses: true,
           clinicUnit: true,
           role: true,
+          user: {
+            with: {
+              authAccounts: {
+                columns: {
+                  providerId: true,
+                },
+              },
+            },
+          },
         },
       }),
       this.db.query.staffLeaveRequests.findMany({
@@ -543,21 +595,25 @@ export class StaffDrizzleRepository implements StaffRepository {
     };
     if (data.fullName !== undefined) updateValues.fullName = data.fullName;
     if (data.profession !== undefined)
-      updateValues.positionTitle = data.profession;
-    if (data.roleId !== undefined) updateValues.roleId = data.roleId;
+      updateValues.positionTitle = data.profession ? data.profession.trim() : null;
+    if (data.roleId !== undefined) updateValues.roleId = data.roleId || null;
     if (data.birthPlace !== undefined)
-      updateValues.birthPlace = data.birthPlace;
-    if (data.birthDate !== undefined) updateValues.birthDate = data.birthDate;
+      updateValues.birthPlace = data.birthPlace ? data.birthPlace.trim() : null;
+    if (data.birthDate !== undefined) updateValues.birthDate = data.birthDate || null;
     if (data.gender !== undefined) updateValues.gender = data.gender;
     if (data.nationalId !== undefined) {
-      const securedNik = data.nationalId ? this.nikSecurity.secure(data.nationalId) : null;
+      const cleanNik =
+        data.nationalId && typeof data.nationalId === 'string'
+          ? data.nationalId.trim()
+          : null;
+      const securedNik = cleanNik ? this.nikSecurity.secure(cleanNik) : null;
       updateValues.nationalIdHash = securedNik?.blindIndex || null;
       updateValues.nationalIdEncrypted = securedNik?.encrypted || null;
     }
     // Note: staffProfiles.email is authoritative only through the account identity lifecycle.
     if (data.phoneNumber !== undefined) updateValues.phone = data.phoneNumber;
     if (data.poliklinikId !== undefined)
-      updateValues.primaryUnitId = data.poliklinikId;
+      updateValues.primaryUnitId = data.poliklinikId || null;
     if (data.photoUrl !== undefined) updateValues.avatarUrl = data.photoUrl;
     if (data.isActive !== undefined)
       updateValues.status = data.isActive ? 'active' : 'inactive';

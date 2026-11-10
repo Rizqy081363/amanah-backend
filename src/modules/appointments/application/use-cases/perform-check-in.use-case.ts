@@ -1,37 +1,7 @@
-import {
-  BadRequestException,
-  ForbiddenException,
-  Inject,
-  Injectable,
-  Logger,
-  NotFoundException,
-  Optional,
-} from '@nestjs/common';
-import { RedisService } from '../../../../common/redis/redis.service';
-import { ClinicTimeService } from '../../../../common/time/clinic-time.service';
-import { NOTIFICATION_AUDIENCE } from '../../../../common/constants/notification-audience.constants';
-import { QueueEventPublisher } from '../../../queue-engine/application/services/queue-event-publisher.service';
-import { DOMAIN_APPOINTMENT_STATUS } from '../../domain/constants/appointment-lifecycle.constants';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import type { AppointmentEntity } from '../../domain/entities/appointment.entity';
-import {
-  APPOINTMENT_REPOSITORY,
-  type AppointmentRepository,
-} from '../../domain/repositories/appointment.repository';
-import { isAppointmentWithinCheckInWindow } from '../../domain/services/appointment-check-in-window.predicate';
-import { AppointmentPolicyReader } from '../../domain/services/appointment-policy.reader';
-import { AppointmentNotificationPublisher } from '../appointment-notification.publisher';
-import {
-  APPOINTMENT_CHECK_IN_REPOSITORY_PORT,
-  type AppointmentCheckInRepositoryPort,
-} from '../ports/appointment-check-in.repository.port';
-import {
-  PUSH_NOTIFICATION_PORT,
-  type PushNotificationPort,
-} from '../ports/push-notification.port';
-import {
-  REALTIME_EMITTER_PORT,
-  type RealtimeEmitterPort,
-} from '../ports/realtime-emitter.port';
+import { PerformManualCheckInUseCase } from './perform-manual-check-in.use-case';
+import { PerformQrCheckInUseCase } from './perform-qr-check-in.use-case';
 
 export interface PerformCheckInInput {
   token?: string;
@@ -41,27 +11,9 @@ export interface PerformCheckInInput {
 
 @Injectable()
 export class PerformCheckInUseCase {
-  private readonly logger = new Logger(PerformCheckInUseCase.name);
-
   constructor(
-    @Inject(APPOINTMENT_REPOSITORY)
-    private readonly appointmentRepo: AppointmentRepository,
-    @Inject(APPOINTMENT_CHECK_IN_REPOSITORY_PORT)
-    private readonly checkInRepo: AppointmentCheckInRepositoryPort,
-    @Inject(REALTIME_EMITTER_PORT)
-    private readonly realtimeEmitter: RealtimeEmitterPort,
-    private readonly clinicTimeService: ClinicTimeService,
-    @Optional()
-    @Inject(PUSH_NOTIFICATION_PORT)
-    private readonly pushNotification?: PushNotificationPort,
-    @Optional()
-    private readonly redisService?: RedisService,
-    @Optional()
-    private readonly notificationPublisher?: AppointmentNotificationPublisher,
-    @Optional()
-    private readonly queueEventPublisher?: QueueEventPublisher,
-    @Optional()
-    private readonly policyReader?: AppointmentPolicyReader,
+    private readonly qrCheckInUseCase: PerformQrCheckInUseCase,
+    private readonly manualCheckInUseCase: PerformManualCheckInUseCase,
   ) {}
 
   async execute(
@@ -69,205 +21,20 @@ export class PerformCheckInUseCase {
     actorUser?: any,
   ): Promise<AppointmentEntity> {
     const { token, manualCode } = input;
-    if (!token && !manualCode) {
-      throw new BadRequestException(
-        'Token QR atau Kode Verifikasi Manual wajib disertakan untuk melakukan check-in.',
+
+    if (token && typeof token === 'string' && token.trim()) {
+      return this.qrCheckInUseCase.execute({ token: token.trim() }, actorUser);
+    }
+
+    if (manualCode && typeof manualCode === 'string' && manualCode.trim()) {
+      return this.manualCheckInUseCase.execute(
+        { manualCode: manualCode.trim() },
+        actorUser,
       );
     }
 
-    let checkInRecord = null;
-    if (token) {
-      checkInRecord = await this.checkInRepo.findByToken(token.trim());
-    } else if (manualCode) {
-      const cleanCode = manualCode
-        .trim()
-        .toUpperCase()
-        .replace(/[^A-Z0-9]/g, '');
-      checkInRecord = await this.checkInRepo.findByManualCode(cleanCode);
-    }
-
-    if (!checkInRecord) {
-      throw new BadRequestException(
-        'Kode atau QR token check-in tidak valid atau sudah digunakan.',
-      );
-    }
-
-    const appointment = await this.appointmentRepo.findById(
-      checkInRecord.appointmentId,
+    throw new BadRequestException(
+      'Token QR atau Kode Verifikasi Manual wajib disertakan untuk melakukan check-in.',
     );
-    if (!appointment) {
-      throw new NotFoundException('Janji temu tidak ditemukan.');
-    }
-
-    if (actorUser && actorUser.audience === NOTIFICATION_AUDIENCE.EXTERNAL) {
-      const callerUserId = actorUser.id || actorUser.sub;
-      const isOwner =
-        callerUserId === appointment.patientUserId ||
-        callerUserId === appointment.parentUserId ||
-        callerUserId === appointment.createdBy ||
-        actorUser.patient?.id === appointment.patientId;
-      if (!isOwner) {
-        throw new ForbiddenException(
-          'Anda tidak memiliki izin untuk melakukan check-in janji temu ini.',
-        );
-      }
-    }
-
-    if (checkInRecord.isUsed) {
-      if (appointment.status === DOMAIN_APPOINTMENT_STATUS.WAITING) {
-        return appointment;
-      }
-      throw new BadRequestException(
-        'Kode atau QR token check-in ini sudah pernah digunakan.',
-      );
-    }
-
-    if (new Date() > checkInRecord.expiresAt) {
-      throw new BadRequestException(
-        'Kode atau QR token check-in telah kedaluwarsa.',
-      );
-    }
-
-    if (!appointment.staffId && !appointment.doctorId) {
-      throw new BadRequestException(
-        'Dokter penanggung jawab belum ditugaskan untuk janji temu ini. Pasien tidak dapat check-in sebelum dokter ditugaskan.',
-      );
-    }
-
-    if (!appointment.roomId) {
-      throw new BadRequestException(
-        'Ruangan periksa belum ditugaskan untuk janji temu ini. Pasien tidak dapat check-in sebelum ruangan ditugaskan.',
-      );
-    }
-
-    if (appointment.status === DOMAIN_APPOINTMENT_STATUS.WAITING) {
-      return appointment;
-    }
-
-    if (
-      appointment.status !== DOMAIN_APPOINTMENT_STATUS.BOOKED &&
-      appointment.status !== DOMAIN_APPOINTMENT_STATUS.LATE
-    ) {
-      throw new BadRequestException(
-        `Janji temu ini tidak dalam status yang dapat melakukan check-in (status saat ini: ${appointment.status}).`,
-      );
-    }
-
-    if (appointment.appointmentDate && this.policyReader) {
-      const thresholds = await this.policyReader.getQueueThresholds();
-      const checkInEval = isAppointmentWithinCheckInWindow({
-        scheduledDate: appointment.appointmentDate,
-        scheduledStartTime: appointment.scheduledStartTime,
-        scheduledEndTime: appointment.scheduledEndTime,
-        todayDateStr: this.clinicTimeService.today(),
-        currentTimeStr: this.clinicTimeService.getCurrentTimeString(),
-        arriveEarlyMinutes: thresholds.arriveEarlyMinutes,
-        overflowToleranceMinutes: thresholds.overflowToleranceMinutes,
-      });
-
-      if (!checkInEval.isOpen) {
-        if (checkInEval.reason === 'TOO_EARLY') {
-          throw new BadRequestException(
-            `Waktu check-in untuk janji temu ini belum dibuka. Check-in dibuka mulai pukul ${checkInEval.openTimeStr} WIB.`,
-          );
-        }
-        if (checkInEval.reason === 'NOT_TODAY') {
-          throw new BadRequestException(
-            `Check-in hanya dapat dilakukan pada hari pelayanan yang dijadwalkan (${appointment.appointmentDate}).`,
-          );
-        }
-        if (checkInEval.reason === 'EXPIRED') {
-          throw new BadRequestException(
-            `Waktu check-in untuk janji temu ini telah berakhir (tutup pukul ${checkInEval.closeTimeStr} WIB).`,
-          );
-        }
-        throw new BadRequestException('Waktu check-in tidak valid.');
-      }
-    }
-
-    // In the queue ticketing model, physically attending patients are never rejected.
-    // Check-in transitions status to WAITING and marks physical arrival at clinic.
-
-    const actorUserId = actorUser?.id || actorUser?.sub || null;
-
-    const updated = await this.appointmentRepo.updateStatus(
-      appointment.id,
-      DOMAIN_APPOINTMENT_STATUS.WAITING,
-      undefined,
-      'Check-in mandiri/kiosk kedatangan pasien di klinik',
-    );
-
-    if (!updated) {
-      throw new NotFoundException(
-        `Gagal memperbarui status janji temu ${appointment.id}`,
-      );
-    }
-
-    await this.checkInRepo.markAsUsed(checkInRecord.id, actorUserId);
-
-    if (this.redisService) {
-      await Promise.allSettled([
-        this.redisService.deleteByPrefix('queue:daily'),
-        this.redisService.deleteByPrefix('queue:display'),
-        this.redisService.invalidateTags(
-          'queue',
-          'daily',
-          'display',
-          'appointments',
-          'appointments:me',
-        ),
-      ]);
-    }
-
-    await this.realtimeEmitter.emitStatusChanged({
-      appointmentId: updated.id,
-      status: DOMAIN_APPOINTMENT_STATUS.WAITING,
-      previousStatus: DOMAIN_APPOINTMENT_STATUS.BOOKED,
-      queueNumber: Number(updated.queueNumber) || 1,
-      practitionerId: updated.staffId || '',
-      patientUserId: updated.patientUserId,
-    });
-
-    if (this.queueEventPublisher && updated.appointmentDate) {
-      this.queueEventPublisher
-        .publishProgression({
-          eventType: 'checked_in',
-          serviceDate: updated.appointmentDate,
-          appointmentId: updated.id,
-        })
-        .catch((err) => {
-          this.logger.warn(
-            `Failed to publish queue progression on check-in for ${updated.id}: ${err.message}`,
-          );
-        });
-    }
-
-    if (this.notificationPublisher) {
-      await this.notificationPublisher.publishCheckedIn(updated, actorUser);
-    }
-
-    const targetUserId =
-      updated.parentUserId || updated.patientUserId || updated.createdBy;
-    if (this.pushNotification && targetUserId) {
-      this.pushNotification
-        .sendPush({
-          userId: targetUserId,
-          title: 'Check-in Berhasil',
-          body: `Pasien ${updated.patientName || 'Pasien'} (Nomor antrean ${updated.queueNumber}) telah berhasil check-in dan kini menunggu panggilan di ${updated.poliklinikName || 'Poliklinik'}.`,
-          data: {
-            appointmentId: updated.id,
-            queueNumber: String(updated.queueNumber),
-            status: DOMAIN_APPOINTMENT_STATUS.WAITING,
-            checkedInAt: new Date().toISOString(),
-          },
-        })
-        .catch((err) => {
-          this.logger.warn(
-            `Push notification failed on check-in for target ${targetUserId}: ${err.message}`,
-          );
-        });
-    }
-
-    return updated;
   }
 }

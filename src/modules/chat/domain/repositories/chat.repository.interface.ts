@@ -1,9 +1,6 @@
 import { ChatMessageEntity } from '../entities/chat-message.entity';
 import type { ChatSenderRole } from '../constants/chat-lifecycle.constants';
-import {
-  ConversationEntity,
-  ConversationStatus,
-} from '../entities/conversation.entity';
+import { ConversationEntity } from '../entities/conversation.entity';
 
 export const CHAT_REPOSITORY = Symbol('CHAT_REPOSITORY');
 
@@ -16,7 +13,6 @@ export interface CreateConversationParams {
 }
 
 export interface AdminConversationQueryParams {
-  status?: ConversationStatus;
   awaitingReply?: boolean;
   search?: string;
   cursor?: string;
@@ -61,20 +57,19 @@ export interface ChatCandidateUser {
 }
 
 export interface ChatRepositoryInterface {
-  findOpenConversationByUserId(
+  findConversationByUserId(
     userId: string,
   ): Promise<ConversationEntity | null>;
-  findOpenConversationByGuestId(
+  findConversationByGuestId(
     guestId: string,
   ): Promise<ConversationEntity | null>;
-  findOpenConversationByGuestEmail(
+  findConversationByGuestEmail(
     email: string,
   ): Promise<ConversationEntity | null>;
   findConversationById(id: string): Promise<ConversationEntity | null>;
   createConversation(
     params: CreateConversationParams,
   ): Promise<ConversationEntity>;
-  closeConversation(id: string): Promise<ConversationEntity>;
   findAdminConversations(
     params: AdminConversationQueryParams,
   ): Promise<PaginatedResult<ConversationEntity>>;
@@ -91,4 +86,10 @@ export interface ChatRepositoryInterface {
     limit?: number,
     currentUserId?: string,
   ): Promise<ChatCandidateUser[]>;
+  countAdminUnreadSummary(): Promise<{
+    totalUnread: number;
+    awaitingReplyCount: number;
+  }>;
+  markAdminConversationAsRead(conversationId: string): Promise<void>;
+  markCustomerConversationAsRead(conversationId: string): Promise<void>;
 }

@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 import {
   IsBoolean,
   IsOptional,
@@ -67,23 +67,27 @@ export class UpdateStaffDto {
   @IsOptional()
   fullName?: string;
 
-  @ApiPropertyOptional({ example: 'Dokter Spesialis Anak Senior' })
+  @ApiPropertyOptional({ example: 'Dokter Spesialis Anak Senior', nullable: true })
   @IsString()
   @IsOptional()
-  profession?: string;
+  @Transform(({ value }) => (value === '' ? null : value))
+  profession?: string | null;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ nullable: true })
   @IsString()
   @IsOptional()
-  poliklinikId?: string;
+  @Transform(({ value }) => (value === '' ? null : value))
+  poliklinikId?: string | null;
 
   @ApiPropertyOptional({
     description: 'Nomor Izin Praktik (SIP / STR) untuk dokter atau bidan',
     example: 'SIP.446/123/DISKES/2026',
+    nullable: true,
   })
   @IsString()
   @IsOptional()
-  licenseNumber?: string;
+  @Transform(({ value }) => (value === '' ? null : value))
+  licenseNumber?: string | null;
 
   @ApiPropertyOptional({ example: '081299887711' })
   @IsString()
@@ -93,30 +97,35 @@ export class UpdateStaffDto {
   @ApiPropertyOptional({
     description: 'ID Peran dinamis staf (FK ke tabel roles)',
     example: 'b5119e8f-f3b9-41b6-a21d-6116e0b3e03f',
+    nullable: true,
   })
   @IsUUID()
   @IsOptional()
-  roleId?: string;
+  @Transform(({ value }) => (value === '' ? null : value))
+  roleId?: string | null;
 
-  @ApiPropertyOptional({ example: 'Jakarta' })
+  @ApiPropertyOptional({ example: 'Jakarta', nullable: true })
   @IsString()
   @IsOptional()
-  birthPlace?: string;
+  @Transform(({ value }) => (value === '' ? null : value))
+  birthPlace?: string | null;
 
-  @ApiPropertyOptional({ example: '1985-05-20' })
+  @ApiPropertyOptional({ example: '1985-05-20', nullable: true })
   @IsString()
   @IsOptional()
-  birthDate?: string;
+  @Transform(({ value }) => (value === '' ? null : value))
+  birthDate?: string | null;
 
   @ApiPropertyOptional({ enum: gender.enumValues, example: 'male' })
   @IsString()
   @IsOptional()
   gender?: Gender;
 
-  @ApiPropertyOptional({ example: '3171234567890001' })
+  @ApiPropertyOptional({ example: '3171234567890001', nullable: true })
   @IsString()
   @IsOptional()
-  nationalId?: string;
+  @Transform(({ value }) => (value === '' ? null : value))
+  nationalId?: string | null;
 
   @ApiPropertyOptional({ example: 'staff@example.com' })
   @IsString()

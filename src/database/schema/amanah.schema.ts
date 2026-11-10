@@ -95,10 +95,6 @@ export const conversationParticipantRole = pgEnum(
   'conversation_participant_role',
   ['patient', 'staff', 'system'],
 );
-export const conversationStatus = pgEnum('conversation_status', [
-  'open',
-  'closed',
-]);
 export const dataExportStatus = pgEnum('data_export_status', [
   'queued',
   'processing',
@@ -2857,7 +2853,6 @@ export const conversations = pgTable(
   'conversations',
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
-    status: conversationStatus().default('open').notNull(),
     userId: uuid('user_id'),
     patientId: uuid('patient_id'),
     guestId: uuid('guest_id'),
@@ -2869,9 +2864,7 @@ export const conversations = pgTable(
     lastMessageAt: timestamp('last_message_at', {
       withTimezone: true,
       mode: 'string',
-    })
-      .defaultNow()
-      .notNull(),
+    }),
     lastCustomerMessageAt: timestamp('last_customer_message_at', {
       withTimezone: true,
       mode: 'string',
@@ -2884,33 +2877,39 @@ export const conversations = pgTable(
       withTimezone: true,
       mode: 'string',
     }),
+    adminLastReadAt: timestamp('admin_last_read_at', {
+      withTimezone: true,
+      mode: 'string',
+    }),
+    customerLastReadAt: timestamp('customer_last_read_at', {
+      withTimezone: true,
+      mode: 'string',
+    }),
     awaitingReply: boolean('awaiting_reply').generatedAlwaysAs(
       sql`last_customer_message_at IS NOT NULL AND (last_admin_message_at IS NULL OR last_customer_message_at > last_admin_message_at)`,
     ),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
       .notNull(),
-    closedAt: timestamp('closed_at', { withTimezone: true, mode: 'string' }),
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
       .notNull(),
   },
   (table) => [
-    uniqueIndex('conversations_one_open_per_user_uidx')
+    uniqueIndex('conversations_user_id_uidx')
       .on(table.userId)
-      .where(sql`status = 'open' AND user_id IS NOT NULL`),
-    uniqueIndex('conversations_one_open_per_guest_uidx')
+      .where(sql`user_id IS NOT NULL`),
+    uniqueIndex('conversations_guest_id_uidx')
       .on(table.guestId)
-      .where(sql`status = 'open' AND guest_id IS NOT NULL`),
+      .where(sql`guest_id IS NOT NULL`),
     index('conversations_inbox_idx').using(
       'btree',
-      table.status.asc().nullsLast().op('enum_ops'),
       table.lastMessageAt.desc().nullsLast().op('timestamptz_ops'),
       table.id.desc().nullsLast().op('uuid_ops'),
     ),
     index('conversations_awaiting_reply_idx')
       .on(table.lastCustomerMessageAt)
-      .where(sql`status = 'open' AND awaiting_reply = true`),
+      .where(sql`awaiting_reply = true`),
     index('conversations_patient_idx').using(
       'btree',
       table.patientId.asc().nullsLast().op('uuid_ops'),
@@ -2938,10 +2937,6 @@ export const conversations = pgTable(
     check(
       'conversations_identity_chk',
       sql`(user_id IS NOT NULL AND guest_id IS NULL AND guest_name IS NULL AND guest_email IS NULL) OR (user_id IS NULL AND guest_id IS NOT NULL AND guest_name IS NOT NULL AND guest_email IS NOT NULL)`,
-    ),
-    check(
-      'conversations_closed_at_chk',
-      sql`(status = 'closed') = (closed_at IS NOT NULL)`,
     ),
   ],
 );
@@ -3487,9 +3482,19 @@ export const supportFaqs = pgTable(
   'support_faqs',
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
+    serviceId: uuid('service_id').references(() => clinicServices.id, {
+      onDelete: 'set null',
+    }),
+    categoryId: uuid('category_id').references(() => serviceCategories.id, {
+      onDelete: 'set null',
+    }),
     category: text().notNull(),
     title: text().notNull(),
     solutionSteps: text('solution_steps').array().default(['']).notNull(),
+    paths: text('paths')
+      .array()
+      .default(sql`'{"/"}'::text[]`)
+      .notNull(),
     displayOrder: integer('display_order').default(0).notNull(),
     isPublished: boolean('is_published').default(true).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
@@ -3505,6 +3510,8 @@ export const supportFaqs = pgTable(
       table.isPublished.asc().nullsLast().op('int4_ops'),
       table.displayOrder.asc().nullsLast().op('int4_ops'),
     ),
+    index('idx_support_faqs_service_id').on(table.serviceId),
+    index('idx_support_faqs_category_id').on(table.categoryId),
     check(
       'support_faqs_category_not_blank',
       sql`length(TRIM(BOTH FROM category)) > 0`,
@@ -3524,10 +3531,14 @@ export const clinicFacilities = pgTable(
   'clinic_facilities',
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
+    serviceId: uuid('service_id').references(() => clinicServices.id, {
+      onDelete: 'set null',
+    }),
     slug: text().notNull(),
     title: text().notNull(),
     summary: text(),
     imageUrl: text('image_url'),
+    ctaUrl: text('cta_url').default('/kontak').notNull(),
     displayOrder: integer('display_order').default(0).notNull(),
     isPublished: boolean('is_published').default(true).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
@@ -3539,6 +3550,7 @@ export const clinicFacilities = pgTable(
   },
   (table) => [
     unique('clinic_facilities_slug_key').on(table.slug),
+    index('idx_clinic_facilities_service_id').on(table.serviceId),
     check(
       'clinic_facilities_slug_format',
       sql`slug ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'::text`,

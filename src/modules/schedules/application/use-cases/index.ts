@@ -1,3 +1,4 @@
+export * from './cascade-schedule-deactivation.use-case';
 export * from './create-schedule.use-case';
 export * from './create-operational-shift.use-case';
 export * from './delete-schedule-session.use-case';

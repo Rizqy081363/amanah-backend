@@ -1,0 +1,87 @@
+-- Initial Promotions Seeder
+-- Linked to real clinic services in PostgreSQL
+
+DELETE FROM promotions WHERE title IN (
+  'Konsultasi Dokter Umum & Cek Kesehatan',
+  'Paket USG Kandungan 2D & 4D Bersama Bidan',
+  'Layanan Persalinan 24 Jam Ramah Ibu dan Anak'
+);
+
+INSERT INTO promotions (
+  service_id, title, summary, body, terms,
+  image_type, image_value, image_alt,
+  cta_label, cta_url,
+  show_banner, show_modal, show_section,
+  modal_frequency, modal_delay_sec,
+  priority, is_published,
+  broadcast_to_users, broadcast_channels,
+  created_by, updated_by
+) VALUES (
+  (SELECT id FROM clinic_services WHERE code = 'pemeriksaan_dokter_umum' LIMIT 1),
+  'Konsultasi Dokter Umum & Cek Kesehatan',
+  'Pemeriksaan kesehatan menyeluruh bersama dokter umum berpengalaman setiap Senin - Sabtu.',
+  'Dapatkan pemeriksaan kesehatan menyeluruh mencakup anamnesis klinis, cek fisik komprehensif, dan rujukan pengobatan tepat sasaran di Poliklinik Umum Amanah Healthcare.',
+  'Berlaku untuk pasien umum dan BPJS. Pendaftaran dapat dilakukan secara langsung atau reservasi online.',
+  'static',
+  '/promo/pemeriksaan-dokter-umum.webp',
+  'Dokter umum memeriksa pasien di ruang konsultasi',
+  'Jadwalkan Janji Temu',
+  '/booking',
+  true,
+  false,
+  true,
+  'once_per_day',
+  3,
+  10,
+  true,
+  true,
+  ARRAY['in_app', 'push']::text[],
+  (SELECT id FROM users WHERE email = 'admin@amanah.com' LIMIT 1),
+  (SELECT id FROM users WHERE email = 'admin@amanah.com' LIMIT 1)
+),
+(
+  (SELECT id FROM clinic_services WHERE code = 'usg_kandungan' LIMIT 1),
+  'Paket USG Kandungan 2D & 4D Bersama Bidan',
+  'Pantau tumbuh kembang janin secara optimal dengan USG resolusi tinggi dan konsultasi ramah keluarga.',
+  'Layanan USG kehamilan dilengkapi fasilitas monitor jernih, dokumentasi cetak hasil pemeriksaan, serta penjelasan mendalam terkait kesehatan ibu dan janin dari tim bidan tersertifikasi.',
+  'Khusus ibu hamil trimester 1, 2, dan 3. Dianjurkan melakukan reservasi jadwal terlebih dahulu.',
+  'static',
+  '/promo/usg-kandungan.webp',
+  'Pemeriksaan USG kandungan ibu hamil di Klinik Amanah',
+  'Konsultasi WhatsApp',
+  'https://wa.me/6281392456664?text=Halo%20Klinik%20Amanah,%20saya%20ingin%20jadwalkan%20layanan%20USG%20Kandungan',
+  false,
+  true,
+  true,
+  'once_per_day',
+  3,
+  20,
+  true,
+  false,
+  ARRAY['in_app', 'push']::text[],
+  (SELECT id FROM users WHERE email = 'admin@amanah.com' LIMIT 1),
+  (SELECT id FROM users WHERE email = 'admin@amanah.com' LIMIT 1)
+),
+(
+  (SELECT id FROM clinic_services WHERE code = 'persalinan_24_jam' LIMIT 1),
+  'Layanan Persalinan 24 Jam Ramah Ibu dan Anak',
+  'Siaga 24 jam dengan kamar bersalin privat, persalinan minim trauma, dan bidan siaga penuh.',
+  'Klinik Pratama Amanah Healthcare menghadirkan ruang persalinan privat, nyaman, serta berorientasi pada persalinan ramah trauma (gentle birth) didukung fasilitas resusitasi dan observasi pasca-salin terpadu.',
+  'Siaga 24 jam setiap hari termasuk hari libur nasional.',
+  'static',
+  '/promo/persalinan-24-jam.webp',
+  'Fasilitas ruang persalinan nyaman dan bersih Klinik Amanah',
+  'Pelajari Selengkapnya',
+  '/layanan',
+  true,
+  false,
+  true,
+  'once_per_day',
+  3,
+  5,
+  true,
+  false,
+  ARRAY['in_app', 'push']::text[],
+  (SELECT id FROM users WHERE email = 'admin@amanah.com' LIMIT 1),
+  (SELECT id FROM users WHERE email = 'admin@amanah.com' LIMIT 1)
+);

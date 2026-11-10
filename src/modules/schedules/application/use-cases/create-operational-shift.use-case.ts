@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, Logger } from '@nestjs/common';
 import { type AuthenticatedUser, isAdminUser } from '../../../../common/auth';
 import { DomainForbiddenException } from '../../../../common/exceptions';
 import {
@@ -12,6 +12,7 @@ export class CreateOperationalShiftUseCase {
   private readonly logger = new Logger(CreateOperationalShiftUseCase.name);
 
   constructor(
+    @Inject(forwardRef(() => DrizzleAdminScheduleConfigurationRepository))
     private readonly configRepo: DrizzleAdminScheduleConfigurationRepository,
   ) {}
 

@@ -15,6 +15,7 @@ import {
   childImmunizationIntakes,
   clinicalEncounters,
   clinicalIntakeForms,
+  clinicFacilities,
   clinicRooms,
   clinicServiceCategoryMappings,
   clinicServiceComplaints,
@@ -62,6 +63,7 @@ import {
   staffInvitations,
   staffLeaveRequests,
   staffProfiles,
+  supportFaqs,
   supportTicketAttachments,
   supportTicketMessages,
   supportTickets,
@@ -263,6 +265,8 @@ export const clinicServicesRelations = relations(
     }),
     clinicServiceComplaints: many(clinicServiceComplaints),
     categoryMappings: many(clinicServiceCategoryMappings),
+    facilities: many(clinicFacilities),
+    faqs: many(supportFaqs),
     appointments: many(appointments),
     queueTickets: many(queueTickets),
     clinicalEncounters: many(clinicalEncounters),
@@ -279,6 +283,31 @@ export const serviceCategoriesRelations = relations(
     clinicServices: many(clinicServices),
     serviceMappings: many(clinicServiceCategoryMappings),
     unitMappings: many(clinicUnitCategoryMappings),
+    faqs: many(supportFaqs),
+  }),
+);
+
+export const clinicFacilitiesRelations = relations(
+  clinicFacilities,
+  ({ one }) => ({
+    service: one(clinicServices, {
+      fields: [clinicFacilities.serviceId],
+      references: [clinicServices.id],
+    }),
+  }),
+);
+
+export const supportFaqsRelations = relations(
+  supportFaqs,
+  ({ one }) => ({
+    service: one(clinicServices, {
+      fields: [supportFaqs.serviceId],
+      references: [clinicServices.id],
+    }),
+    serviceCategory: one(serviceCategories, {
+      fields: [supportFaqs.categoryId],
+      references: [serviceCategories.id],
+    }),
   }),
 );
 

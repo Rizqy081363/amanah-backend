@@ -20,9 +20,9 @@ import {
   CHAT_SENDER_ROLE,
   type ChatSenderRole,
 } from '../../domain/constants/chat-lifecycle.constants';
-import {
+import { CHAT_REPOSITORY } from '../../domain/repositories/chat.repository.interface';
+import type {
   AdminConversationQueryParams,
-  CHAT_REPOSITORY,
   ChatCandidateUser,
   ChatRepositoryInterface,
   MessageQueryParams,
@@ -65,14 +65,14 @@ export class ChatService {
 
     // Idempotensi tamu: cegah pembuatan percakapan baru jika tamu dengan email sama sudah memiliki percakapan terbuka
     const existingByEmail =
-      await this.chatRepo.findOpenConversationByGuestEmail(normalizedEmail);
+      await this.chatRepo.findConversationByGuestEmail(normalizedEmail);
     if (existingByEmail) {
       return existingByEmail;
     }
 
     if (params.guestId) {
       const existingByGuestId =
-        await this.chatRepo.findOpenConversationByGuestId(params.guestId);
+        await this.chatRepo.findConversationByGuestId(params.guestId);
       if (existingByGuestId) {
         return existingByGuestId;
       }
@@ -91,10 +91,10 @@ export class ChatService {
     guestId?: string,
   ): Promise<ConversationEntity | null> {
     if (userId) {
-      return this.chatRepo.findOpenConversationByUserId(userId);
+      return this.chatRepo.findConversationByUserId(userId);
     }
     if (guestId) {
-      return this.chatRepo.findOpenConversationByGuestId(guestId);
+      return this.chatRepo.findConversationByGuestId(guestId);
     }
     return null;
   }
@@ -130,12 +130,21 @@ export class ChatService {
     }
 
     if (caller?.audience !== CHAT_SENDER_ROLE.INTERNAL) {
-      if (conversation.userId && caller?.userId !== conversation.userId) {
+      const isOwnerUser = Boolean(
+        conversation.userId && caller?.userId && caller.userId === conversation.userId,
+      );
+      const isOwnerGuest = Boolean(
+        conversation.guestId && caller?.guestId && caller.guestId === conversation.guestId,
+      );
+      if (!isOwnerUser && !isOwnerGuest) {
         throw new ForbiddenException('Access denied to this conversation');
       }
-      if (conversation.guestId && caller?.guestId !== conversation.guestId) {
-        throw new ForbiddenException('Access denied to this conversation');
-      }
+    }
+
+    if (caller?.audience === CHAT_SENDER_ROLE.INTERNAL) {
+      void this.chatRepo.markAdminConversationAsRead(conversationId);
+    } else if (caller?.audience === CHAT_SENDER_ROLE.EXTERNAL) {
+      void this.chatRepo.markCustomerConversationAsRead(conversationId);
     }
 
     return this.chatRepo.findMessagesByConversationId(conversationId, params);
@@ -155,12 +164,6 @@ export class ChatService {
       );
     }
 
-    if (conversation.status === 'closed') {
-      throw new BadRequestException(
-        'Cannot send message to a closed conversation',
-      );
-    }
-
     const trimmedBody = body?.trim() || '';
     if (!trimmedBody) {
       throw new BadRequestException(
@@ -173,14 +176,14 @@ export class ChatService {
       );
     }
 
-    if (conversation.userId) {
-      if (!caller?.userId || caller.userId !== conversation.userId) {
-        throw new ForbiddenException('Access denied to this conversation');
-      }
-    } else if (conversation.guestId) {
-      if (!caller?.guestId || caller.guestId !== conversation.guestId) {
-        throw new ForbiddenException('Access denied to this conversation');
-      }
+    const isOwnerUser = Boolean(
+      conversation.userId && caller?.userId && caller.userId === conversation.userId,
+    );
+    const isOwnerGuest = Boolean(
+      conversation.guestId && caller?.guestId && caller.guestId === conversation.guestId,
+    );
+    if (!isOwnerUser && !isOwnerGuest) {
+      throw new ForbiddenException('Access denied to this conversation');
     }
 
     const senderName =
@@ -254,12 +257,6 @@ export class ChatService {
       );
     }
 
-    if (conversation.status === 'closed') {
-      throw new BadRequestException(
-        'Cannot send message to a closed conversation',
-      );
-    }
-
     const trimmedBody = body?.trim() || '';
     if (!trimmedBody) {
       throw new BadRequestException(
@@ -328,47 +325,29 @@ export class ChatService {
     return message;
   }
 
-  async closeConversation(conversationId: string): Promise<ConversationEntity> {
-    const conversation =
-      await this.chatRepo.findConversationById(conversationId);
-    if (!conversation) {
-      throw new NotFoundException(
-        `Conversation with ID ${conversationId} not found`,
-      );
-    }
-
-    const closed = await this.chatRepo.closeConversation(conversationId);
-
-    // Notify real-time participants
-    if (this.realtimeGateway) {
-      const payload = { conversationId, status: 'closed' };
-      if (conversation.userId) {
-        await this.realtimeGateway.emitToUser(
-          conversation.userId,
-          'chat:conversation_closed',
-          payload,
-        );
-      } else if (conversation.guestId) {
-        await this.realtimeGateway.emitToUser(
-          conversation.guestId,
-          'chat:conversation_closed',
-          payload,
-        );
-      }
-      await this.realtimeGateway.emitToRoom?.(
-        REALTIME_ROOMS.clinic,
-        'chat:conversation_closed',
-        payload,
-      );
-    }
-
-    return closed;
-  }
-
   async getAdminConversations(
     params: AdminConversationQueryParams,
   ): Promise<PaginatedResult<ConversationEntity>> {
-    return this.chatRepo.findAdminConversations(params);
+    const result = await this.chatRepo.findAdminConversations(params);
+    if (this.realtimeGateway) {
+      result.items = result.items.map((conv) => {
+        const isOnline = conv.userId
+          ? (this.realtimeGateway?.isUserOnline?.(conv.userId) ?? false)
+          : false;
+        return new ConversationEntity({
+          ...conv,
+          isOnline,
+        });
+      });
+    }
+    return result;
+  }
+
+  async getAdminUnreadSummary(): Promise<{
+    totalUnread: number;
+    awaitingReplyCount: number;
+  }> {
+    return this.chatRepo.countAdminUnreadSummary();
   }
 
   async getChatCandidates(
@@ -383,11 +362,64 @@ export class ChatService {
     targetUserId: string,
   ): Promise<ConversationEntity> {
     const existing =
-      await this.chatRepo.findOpenConversationByUserId(targetUserId);
+      await this.chatRepo.findConversationByUserId(targetUserId);
     if (existing) {
       return existing;
     }
     return this.chatRepo.createConversation({ userId: targetUserId });
+  }
+
+  async markAdminConversationAsRead(
+    conversationId: string,
+  ): Promise<{ success: boolean }> {
+    const conversation =
+      await this.chatRepo.findConversationById(conversationId);
+    if (!conversation) {
+      throw new NotFoundException(
+        `Conversation with ID ${conversationId} not found`,
+      );
+    }
+    await this.chatRepo.markAdminConversationAsRead(conversationId);
+    if (this.realtimeGateway) {
+      try {
+        await this.realtimeGateway.emitToRoom?.(
+          REALTIME_ROOMS.clinic,
+          'chat:conversation_read',
+          { conversationId, readerRole: CHAT_SENDER_ROLE.INTERNAL },
+        );
+      } catch (err) {
+        this.logger.warn(`Failed to broadcast conversation read event: ${err}`);
+      }
+    }
+    return { success: true };
+  }
+
+  async markCustomerConversationAsRead(
+    conversationId: string,
+    caller?: { userId?: string; guestId?: string },
+  ): Promise<{ success: boolean }> {
+    const conversation =
+      await this.chatRepo.findConversationById(conversationId);
+    if (!conversation) {
+      throw new NotFoundException(
+        `Conversation with ID ${conversationId} not found`,
+      );
+    }
+    const isOwnerUser = Boolean(
+      conversation.userId &&
+        caller?.userId &&
+        caller.userId === conversation.userId,
+    );
+    const isOwnerGuest = Boolean(
+      conversation.guestId &&
+        caller?.guestId &&
+        caller.guestId === conversation.guestId,
+    );
+    if (!isOwnerUser && !isOwnerGuest) {
+      throw new ForbiddenException('Access denied to this conversation');
+    }
+    await this.chatRepo.markCustomerConversationAsRead(conversationId);
+    return { success: true };
   }
 
   isAdminOnline(): boolean {

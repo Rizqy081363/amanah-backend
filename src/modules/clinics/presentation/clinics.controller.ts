@@ -1,20 +1,29 @@
-import { Controller, Get, Param } from '@nestjs/common';
+import { Controller, Get, Param, Query } from '@nestjs/common';
 import {
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
+  ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
 import { Public } from '../../../common/auth/public.decorator';
 import { HttpCache } from '../../../common/decorators/http-cache.decorator';
+import { ClinicFacilitiesService } from '../application/clinic-facilities.service';
 import { ClinicsService } from '../application/clinics.service';
+import { SupportFaqsService } from '../application/support-faqs.service';
+import { ClinicFacilityResponseDto } from './dto/clinic-facility.dto';
 import { ServiceCatalogResponseDto } from './dto/service-catalog.dto';
+import { SupportFaqResponseDto } from './dto/support-faq.dto';
 
 @ApiTags('Clinics (Poliklinik & Layanan)')
 @Controller({ path: 'clinics', version: '1' })
 export class ClinicsController {
-  constructor(private readonly clinicsService: ClinicsService) {}
+  constructor(
+    private readonly clinicsService: ClinicsService,
+    private readonly clinicFacilitiesService: ClinicFacilitiesService,
+    private readonly supportFaqsService: SupportFaqsService,
+  ) {}
 
   @Public()
   @Get()
@@ -59,6 +68,46 @@ export class ClinicsController {
   @HttpCache({ ttlSeconds: 300, tags: ['clinics', 'catalog'] })
   async getServiceCatalog(): Promise<ServiceCatalogResponseDto> {
     return this.clinicsService.getCatalog();
+  }
+
+  @Public()
+  @Get('facilities')
+  @ApiOperation({
+    summary: 'Mendapatkan daftar fasilitas unggulan aktif klinik',
+    description:
+      'Endpoint publik untuk carousel fasilitas di landing page, menampilkan apotek, ruang bersalin, ruang tunggu, dll.',
+  })
+  @ApiOkResponse({
+    description: 'Daftar fasilitas unggulan berhasil diambil',
+    type: [ClinicFacilityResponseDto],
+  })
+  @HttpCache({ ttlSeconds: 300, tags: ['clinics', 'facilities'] })
+  async getFacilities(): Promise<ClinicFacilityResponseDto[]> {
+    return this.clinicFacilitiesService.getPublishedFacilities();
+  }
+
+  @Public()
+  @Get('faqs')
+  @ApiOperation({
+    summary: 'Mendapatkan daftar FAQ publik klinik',
+    description:
+      'Endpoint publik untuk akordeon FAQ landing page, dapat difilter berdasarkan path halaman.',
+  })
+  @ApiQuery({
+    name: 'path',
+    required: false,
+    description: 'Rute halaman penempatan FAQ (misal: /fasilitas, /)',
+    example: '/fasilitas',
+  })
+  @ApiOkResponse({
+    description: 'Daftar FAQ berhasil diambil',
+    type: [SupportFaqResponseDto],
+  })
+  @HttpCache({ ttlSeconds: 300, tags: ['clinics', 'faqs'] })
+  async getFaqs(
+    @Query('path') path?: string,
+  ): Promise<SupportFaqResponseDto[]> {
+    return this.supportFaqsService.getPublishedFaqs(path);
   }
 
   @Public()

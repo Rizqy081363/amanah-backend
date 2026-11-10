@@ -12,3 +12,6 @@ export * from './queue-ticketing.schema';
 export * from './leave-payroll.schema';
 export * from './leave-payroll.relations';
 export * from './export-jobs.schema';
+export * from './promotions.schema';
+export * from './promotions.relations';
+

@@ -141,3 +141,69 @@ export class AppointmentQueueTurnNotReachedError extends AppointmentDomainError 
     );
   }
 }
+
+export class InvalidCheckInQrError extends AppointmentDomainError {
+  constructor(
+    message: string = 'Token QR check-in tidak valid atau tidak ditemukan.',
+  ) {
+    super('INVALID_CHECK_IN_QR', message);
+  }
+}
+
+export class InvalidCheckInCodeError extends AppointmentDomainError {
+  constructor(
+    message: string = 'Kode check-in manual tidak valid atau tidak ditemukan.',
+  ) {
+    super('INVALID_CHECK_IN_CODE', message);
+  }
+}
+
+export class CheckInAlreadyUsedError extends AppointmentDomainError {
+  constructor(
+    message: string = 'Kredensial check-in ini sudah pernah digunakan.',
+  ) {
+    super('CHECK_IN_ALREADY_USED', message);
+  }
+}
+
+export class CheckInExpiredError extends AppointmentDomainError {
+  constructor(message: string = 'Kredensial check-in telah kedaluwarsa.') {
+    super('CHECK_IN_EXPIRED', message);
+  }
+}
+
+export class CheckInWindowTooEarlyError extends AppointmentDomainError {
+  constructor(openTimeStr?: string) {
+    const msg = openTimeStr
+      ? `Waktu check-in untuk janji temu ini belum dibuka. Check-in dibuka mulai pukul ${openTimeStr} WIB.`
+      : 'Waktu check-in untuk janji temu ini belum dibuka.';
+    super('CHECK_IN_WINDOW_TOO_EARLY', msg, { openTimeStr });
+  }
+}
+
+export class CheckInWindowExpiredError extends AppointmentDomainError {
+  constructor(closeTimeStr?: string) {
+    const msg = closeTimeStr
+      ? `Waktu check-in untuk janji temu ini telah berakhir (tutup pukul ${closeTimeStr} WIB).`
+      : 'Waktu check-in untuk janji temu ini telah berakhir.';
+    super('CHECK_IN_WINDOW_EXPIRED', msg, { closeTimeStr });
+  }
+}
+
+export class CheckInNotTodayError extends AppointmentDomainError {
+  constructor(scheduledDate: string) {
+    super(
+      'CHECK_IN_NOT_TODAY',
+      `Check-in hanya dapat dilakukan pada hari pelayanan yang dijadwalkan (${scheduledDate}).`,
+      { scheduledDate },
+    );
+  }
+}
+
+export class CheckInForbiddenError extends AppointmentDomainError {
+  constructor(
+    message: string = 'Anda tidak memiliki izin untuk melakukan check-in janji temu ini.',
+  ) {
+    super('CHECK_IN_FORBIDDEN', message);
+  }
+}

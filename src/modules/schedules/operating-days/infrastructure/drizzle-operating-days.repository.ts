@@ -2,6 +2,7 @@ import { ClinicConfigService } from '@common/clinic-config';
 import { RedisService } from '@common/redis/redis.service';
 import { DRIZZLE_SOURCE } from '@database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '@database/drizzle/drizzle.provider';
+import { CascadeScheduleDeactivationUseCase } from '../../application/use-cases/cascade-schedule-deactivation.use-case';
 import { masterDays } from '@database/schema';
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import { asc, eq } from 'drizzle-orm';
@@ -17,6 +18,8 @@ export class DrizzleOperatingDaysRepository implements OperatingDaysRepository {
     @Inject(DRIZZLE_SOURCE)
     private readonly db: DrizzleDatabase,
     private readonly clinicConfigService: ClinicConfigService,
+    @Optional()
+    private readonly cascadeUseCase?: CascadeScheduleDeactivationUseCase,
     @Optional()
     @Inject(RedisService)
     private readonly redisService?: RedisService,
@@ -92,6 +95,10 @@ export class DrizzleOperatingDaysRepository implements OperatingDaysRepository {
           updatedAt: now,
         })
         .where(eq(masterDays.dow, item.dow));
+
+      if (item.isActive === false && this.cascadeUseCase) {
+        await this.cascadeUseCase.cascadeOperatingDayDeactivation(item.dow, executor);
+      }
     }
 
     if (executor === this.db) {

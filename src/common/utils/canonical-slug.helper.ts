@@ -80,4 +80,30 @@ export class CanonicalSlugHelper {
     const cleanWord = words[0] || 'GEN';
     return cleanWord.slice(0, maxLen).toUpperCase();
   }
+
+  /**
+   * Generates a clean URL slug (kebab-case) from a string.
+   *
+   * Example:
+   * - "Ruang Persalinan 24 Jam" -> "ruang-persalinan-24-jam"
+   * - "Baby Care Center" -> "baby-care-center"
+   */
+  public static toSlug(rawName: string | null | undefined, fallbackPrefix = 'item'): string {
+    if (!rawName || !rawName.trim()) {
+      return `${fallbackPrefix}-${Date.now().toString(36)}`;
+    }
+
+    const normalized = rawName
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-+|-+$/g, '');
+
+    if (!normalized) {
+      return `${fallbackPrefix}-${Date.now().toString(36)}`;
+    }
+
+    return normalized;
+  }
 }

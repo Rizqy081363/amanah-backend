@@ -48,7 +48,6 @@ export class AdminChatController {
   })
   async getConversations(@Query() query: AdminConversationQueryDto) {
     const result = await this.chatService.getAdminConversations({
-      status: query.status,
       awaitingReply: query.awaitingReply,
       search: query.search,
       cursor: query.cursor,
@@ -60,6 +59,16 @@ export class AdminChatController {
       nextCursor: result.nextCursor,
       hasMore: result.hasMore,
     };
+  }
+
+  @Get('unread-count')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions('chat:read')
+  @ApiOperation({
+    summary: 'Mendapatkan ringkasan total pesan belum dibaca dan jumlah tiket menunggu balasan',
+  })
+  async getUnreadCount() {
+    return this.chatService.getAdminUnreadSummary();
   }
 
   @Get('conversations/:id/messages')
@@ -83,6 +92,17 @@ export class AdminChatController {
     };
   }
 
+  @Patch('conversations/:id/read')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions('chat:read')
+  @ApiOperation({
+    summary: 'Menandai percakapan telah dibaca oleh admin (read receipt)',
+  })
+  @ApiParam({ name: 'id', description: 'ID percakapan' })
+  async markAsRead(@Param('id') id: string) {
+    return this.chatService.markAdminConversationAsRead(id);
+  }
+
   @Post('conversations/:id/messages')
   @HttpCode(HttpStatus.CREATED)
   @RequirePermissions('chat:send')
@@ -95,7 +115,8 @@ export class AdminChatController {
     @Body() body: SendMessageDto,
     @CurrentUser() user: any,
   ) {
-    const adminName = user.staff?.fullName ?? user.name;
+    const adminName =
+      user.role?.name || user.staff?.fullName || user.name || 'Admin Klinik';
     return this.chatService.sendAdminMessage(
       id,
       user.id,
@@ -103,17 +124,6 @@ export class AdminChatController {
       body.body,
       body.clientMessageId,
     );
-  }
-
-  @Patch('conversations/:id/close')
-  @HttpCode(HttpStatus.OK)
-  @RequirePermissions('chat:send')
-  @ApiOperation({
-    summary: 'Menutup/menyelesaikan utas percakapan',
-  })
-  @ApiParam({ name: 'id', description: 'ID percakapan' })
-  async closeConversation(@Param('id') id: string) {
-    return this.chatService.closeConversation(id);
   }
 
   @Get('candidates')

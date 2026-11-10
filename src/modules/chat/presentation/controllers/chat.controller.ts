@@ -6,6 +6,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -113,6 +114,24 @@ export class ChatController {
       nextCursor: result.nextCursor,
       hasMore: result.hasMore,
     };
+  }
+
+  @Patch('conversations/:id/read')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(OptionalJwtAuthGuard)
+  @ApiOperation({
+    summary: 'Menandai percakapan telah dibaca oleh pasien/tamu',
+  })
+  @ApiParam({ name: 'id', description: 'ID percakapan' })
+  async markAsRead(
+    @Param('id') id: string,
+    @Query('guestId') guestId?: string,
+    @CurrentUser() user?: any,
+  ) {
+    return this.chatService.markCustomerConversationAsRead(id, {
+      userId: user?.id,
+      guestId,
+    });
   }
 
   @Post('conversations/:id/messages')

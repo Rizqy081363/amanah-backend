@@ -36,6 +36,7 @@ import { Module } from '@nestjs/common';
 import { QueueEngineModule } from '../queue-engine/queue-engine.module';
 import { StaffsModule } from '../staffs/staffs.module';
 import {
+  CascadeScheduleDeactivationUseCase,
   CreateScheduleUseCase,
   DeleteScheduleSessionUseCase,
   GetSchedulesUseCase,
@@ -83,6 +84,7 @@ import {
     DrizzleAdminScheduleMutationRepository,
     DrizzleAdminScheduleConfigurationRepository,
     DrizzleScheduleConfigurationImpactEvaluator,
+    CascadeScheduleDeactivationUseCase,
     CreateScheduleUseCase,
     CreateOperationalShiftUseCase,
     GetSchedulesUseCase,
@@ -97,6 +99,7 @@ import {
   ],
   exports: [
     SCHEDULE_REPOSITORY,
+    CascadeScheduleDeactivationUseCase,
     CreateScheduleUseCase,
     CreateOperationalShiftUseCase,
     GetSchedulesUseCase,

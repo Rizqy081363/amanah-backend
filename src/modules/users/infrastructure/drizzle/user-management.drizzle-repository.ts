@@ -36,6 +36,10 @@ import {
   UserStatus,
 } from '../../../../common/constants';
 import {
+  AUTH_PROVIDER,
+  type AuthProvider,
+} from '../../../../common/constants/auth-providers.constants';
+import {
   UserAffiliationSummary,
   UserDirectoryEntity,
   UserListPaginatedResult,
@@ -148,6 +152,15 @@ export class UserManagementDrizzleRepository
         isPrimary: aff.isPrimary ?? false,
       }));
 
+    const rawAccounts: Array<{ providerId: string }> = rec.authAccounts ?? [];
+    const authProviders: AuthProvider[] = rawAccounts
+      .map((acc) => acc.providerId)
+      .filter((pid): pid is AuthProvider =>
+        pid === AUTH_PROVIDER.GOOGLE || pid === AUTH_PROVIDER.CREDENTIAL,
+      );
+    const hasGoogle = authProviders.includes(AUTH_PROVIDER.GOOGLE);
+    const hasPassword = authProviders.includes(AUTH_PROVIDER.CREDENTIAL);
+
     const effectivePhone =
       rec.phone ||
       staffProfileRec?.phone ||
@@ -171,6 +184,9 @@ export class UserManagementDrizzleRepository
       phoneVerified: rec.phoneVerified,
       twoFactorEnabled: rec.twoFactorEnabled,
       authVersion: rec.authVersion,
+      authProviders,
+      hasGoogle,
+      hasPassword,
       roles: activeRoles,
       primaryRole,
       primaryAudience,
@@ -290,6 +306,11 @@ export class UserManagementDrizzleRepository
             relationshipType: true,
           },
         },
+        authAccounts: {
+          columns: {
+            providerId: true,
+          },
+        },
       },
     });
 
@@ -331,6 +352,11 @@ export class UserManagementDrizzleRepository
             relationshipType: true,
           },
         },
+        authAccounts: {
+          columns: {
+            providerId: true,
+          },
+        },
       },
     });
 
@@ -367,6 +393,11 @@ export class UserManagementDrizzleRepository
             relationshipType: true,
           },
         },
+        authAccounts: {
+          columns: {
+            providerId: true,
+          },
+        },
       },
     });
 
@@ -401,6 +432,11 @@ export class UserManagementDrizzleRepository
           with: {
             patientProfile: true,
             relationshipType: true,
+          },
+        },
+        authAccounts: {
+          columns: {
+            providerId: true,
           },
         },
       },

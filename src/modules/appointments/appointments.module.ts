@@ -27,6 +27,9 @@ import { RevertProposalUseCase } from './application/use-cases/revert-proposal.u
 import { CompleteServiceUseCase } from './application/use-cases/complete-service.use-case';
 import { GenerateCheckInQrUseCase } from './application/use-cases/generate-check-in-qr.use-case';
 import { GetAppointmentListUseCase } from './application/use-cases/get-appointment-list.use-case';
+import { AppointmentCheckInLifecycleService } from './application/services/appointment-check-in-lifecycle.service';
+import { PerformQrCheckInUseCase } from './application/use-cases/perform-qr-check-in.use-case';
+import { PerformManualCheckInUseCase } from './application/use-cases/perform-manual-check-in.use-case';
 import { PerformCheckInUseCase } from './application/use-cases/perform-check-in.use-case';
 import { StartServiceUseCase } from './application/use-cases/start-service.use-case';
 import { SweepLateAppointmentsUseCase } from './application/use-cases/sweep-late-appointments.use-case';
@@ -126,6 +129,9 @@ import { PatientAppointmentHistoryController } from './presentation/patient-appo
     BookAppointmentUseCase,
     GetAppointmentListUseCase,
     GenerateCheckInQrUseCase,
+    AppointmentCheckInLifecycleService,
+    PerformQrCheckInUseCase,
+    PerformManualCheckInUseCase,
     PerformCheckInUseCase,
     AppointmentPoliklinikResolver,
     AppointmentQueueNavigationService,
@@ -164,6 +170,9 @@ import { PatientAppointmentHistoryController } from './presentation/patient-appo
     BookAppointmentUseCase,
     GetAppointmentListUseCase,
     GenerateCheckInQrUseCase,
+    AppointmentCheckInLifecycleService,
+    PerformQrCheckInUseCase,
+    PerformManualCheckInUseCase,
     PerformCheckInUseCase,
     'FIND_APPOINTMENT_BY_ID',
     CandidateAssignmentModule,

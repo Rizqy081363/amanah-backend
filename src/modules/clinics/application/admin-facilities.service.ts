@@ -28,6 +28,7 @@ import {
   clinicalEncounters,
   clinicalIntakeForms,
   clinicRooms,
+  clinicFacilities,
   clinicServiceCategoryMappings,
   clinicServiceComplaints,
   clinicServices,
@@ -44,6 +45,8 @@ import {
   queueTickets,
   religions,
   serviceCategories,
+  supportFaqs,
+  promotions,
   staffProfiles,
 } from '../../../database/schema';
 import {
@@ -2495,6 +2498,67 @@ export class AdminFacilitiesService {
           .delete(occupations)
           .where(inArray(occupations.id, ids));
       }
+    } else if (resource === 'facilities') {
+      if (action === 'activate') {
+        await this.db
+          .update(clinicFacilities)
+          .set({ isPublished: true, updatedAt: now })
+          .where(inArray(clinicFacilities.id, ids));
+      } else if (action === 'deactivate') {
+        await this.db
+          .update(clinicFacilities)
+          .set({ isPublished: false, updatedAt: now })
+          .where(inArray(clinicFacilities.id, ids));
+      } else {
+        // action === 'delete'
+        await this.db
+          .delete(clinicFacilities)
+          .where(inArray(clinicFacilities.id, ids));
+      }
+      try {
+        await this.redisService.deleteByPrefix('clinics:facilities');
+      } catch {}
+    } else if (resource === 'faqs') {
+      if (action === 'activate') {
+        await this.db
+          .update(supportFaqs)
+          .set({ isPublished: true, updatedAt: now })
+          .where(inArray(supportFaqs.id, ids));
+      } else if (action === 'deactivate') {
+        await this.db
+          .update(supportFaqs)
+          .set({ isPublished: false, updatedAt: now })
+          .where(inArray(supportFaqs.id, ids));
+      } else {
+        // action === 'delete'
+        await this.db
+          .delete(supportFaqs)
+          .where(inArray(supportFaqs.id, ids));
+      }
+      try {
+        await this.redisService.deleteByPrefix('clinics:faqs');
+      } catch {}
+    } else if (resource === 'promotions') {
+      if (action === 'activate') {
+        await this.db
+          .update(promotions)
+          .set({ isPublished: true, updatedAt: now })
+          .where(inArray(promotions.id, ids));
+      } else if (action === 'deactivate') {
+        await this.db
+          .update(promotions)
+          .set({ isPublished: false, updatedAt: now })
+          .where(inArray(promotions.id, ids));
+      } else {
+        // action === 'delete' (soft delete / archive)
+        await this.db
+          .update(promotions)
+          .set({ deletedAt: now, updatedAt: now })
+          .where(inArray(promotions.id, ids));
+      }
+      try {
+        await this.redisService.deleteByPrefix('promotions:');
+      } catch {}
     }
 
     await this.invalidateCache();

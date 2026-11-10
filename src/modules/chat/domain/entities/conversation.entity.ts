@@ -1,8 +1,5 @@
-export type ConversationStatus = 'open' | 'closed';
-
 export class ConversationEntity {
   id!: string;
-  status!: ConversationStatus;
   userId?: string | null;
   patientId?: string | null;
   guestId?: string | null;
@@ -18,12 +15,14 @@ export class ConversationEntity {
   lastCustomerMessageAt?: string | null;
   lastAdminMessageAt?: string | null;
   firstAdminReplyAt?: string | null;
+  adminLastReadAt?: string | null;
+  customerLastReadAt?: string | null;
   awaitingReply!: boolean;
   createdAt!: string;
-  closedAt?: string | null;
   updatedAt!: string;
   lastMessagePreview?: string | null;
   unreadCount?: number;
+  isOnline?: boolean;
 
   constructor(partial?: Partial<ConversationEntity>) {
     if (partial) {

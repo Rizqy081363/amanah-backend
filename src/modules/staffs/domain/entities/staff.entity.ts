@@ -1,3 +1,5 @@
+import type { AuthProvider } from '../../../../common/constants/auth-providers.constants';
+
 export interface StaffAddressData {
   provinceCode?: string | null;
   provinceName?: string | null;
@@ -31,10 +33,10 @@ export interface StaffTodayAttendance {
 export class StaffEntity {
   id: string;
   userId: string;
-  poliklinikId: string;
+  poliklinikId?: string | null;
   poliklinikName?: string | null;
   fullName: string;
-  profession: string;
+  profession?: string | null;
   roleId?: string | null;
   roleCode?: string | null;
   roleName?: string | null;
@@ -52,6 +54,9 @@ export class StaffEntity {
   isActive: boolean;
   status?: 'active' | 'inactive' | 'on_leave' | 'pending';
   isPendingVerification?: boolean;
+  authProviders?: AuthProvider[];
+  hasGoogle?: boolean;
+  hasPassword?: boolean;
   invitationId?: string | null;
   address?: StaffAddressData | null;
   leaveInfo?: StaffLeaveInfo | null;

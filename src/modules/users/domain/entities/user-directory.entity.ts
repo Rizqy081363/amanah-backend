@@ -1,4 +1,5 @@
 import { UserStatus } from '../../../../common/constants';
+import type { AuthProvider } from '../../../../common/constants/auth-providers.constants';
 
 export interface UserRoleSummary {
   id: string;
@@ -81,6 +82,9 @@ export class UserDirectoryEntity {
   phoneVerified: boolean;
   twoFactorEnabled: boolean;
   authVersion: number;
+  authProviders?: AuthProvider[];
+  hasGoogle?: boolean;
+  hasPassword?: boolean;
   roles: UserRoleSummary[];
   primaryRole?: UserRoleSummary | null;
   primaryAudience: string;
