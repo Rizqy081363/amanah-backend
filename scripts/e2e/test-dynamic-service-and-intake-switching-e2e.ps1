@@ -91,6 +91,12 @@ try {
     Assert-Test "Database appointment complaint updated" ($dbApt1.complaint -eq "Pemeriksaan USG kandungan trimester 1")
     Assert-Test "Database queue ticket prefix updated to $($pregnancyService.prefix)" ($dbTicket1 -like "$($pregnancyService.prefix)-*")
 
+    # Seed a maternal intake record for this appointment to simulate user filling & saving maternal form
+    $patientId = (Run-DockerSql "SELECT patient_id FROM appointments WHERE id = '$testAptId';").Trim()
+    $insertRaw = Run-DockerSql "INSERT INTO maternal_health_intakes (appointment_id, patient_id, mother_name, mother_nik) VALUES ('$testAptId', '$patientId', 'Ibu Test', '3201019999990001') RETURNING id;"
+    $insertedMaternalId = ($insertRaw -split '\r?\n' | Where-Object { $_ -match '^[0-9a-f-]{36}$' } | Select-Object -First 1).Trim()
+    Assert-Test "Maternal intake record successfully created for test appointment" (-not [string]::IsNullOrWhiteSpace($insertedMaternalId))
+
     # Verify unified intake endpoint returns maternal flow
     $intake1 = Invoke-RestMethod -Uri "$apiUrl/medical-records/intakes/by-appointment/$testAptId" -Method Get -Headers $adminAuth.headers
     Assert-Test "Unified intake endpoint returns flow 'pregnancy'" ($intake1.flow -eq "pregnancy")
@@ -113,12 +119,12 @@ try {
     # Verify in DB
     $dbApt2 = (Run-DockerSql "SELECT json_build_object('serviceId', service_id, 'flow', medical_flow, 'complaint', complaint) FROM appointments WHERE id = '$testAptId';") | ConvertFrom-Json
     $dbTicket2 = (Run-DockerSql "SELECT queue_number FROM queue_tickets WHERE appointment_id = '$testAptId';").Trim()
-    $leftoverMaternal = (Run-DockerSql "SELECT COUNT(*) FROM maternal_health_intakes WHERE appointment_id = '$testAptId';").Trim()
+    $remainingMaternal = (Run-DockerSql "SELECT COUNT(*) FROM maternal_health_intakes WHERE id = '$insertedMaternalId';").Trim()
 
     Assert-Test "Database appointment service restored to regular service" ($dbApt2.serviceId -eq $regularService.id)
     Assert-Test "Database appointment medical_flow cleared to null" ([string]::IsNullOrWhiteSpace($dbApt2.flow))
     Assert-Test "Database queue ticket prefix restored to $($regularService.prefix)" ($dbTicket2 -like "$($regularService.prefix)-*")
-    Assert-Test "Inactive maternal intake records cleanly unlinked from appointment" ($leftoverMaternal -eq "0")
+    Assert-Test "Aborted maternal intake record completely DELETED from database (Zero Bloat)" ($remainingMaternal -eq "0")
 
     # Verify unified intake endpoint now cleanly returns regular flow
     $intake2 = Invoke-RestMethod -Uri "$apiUrl/medical-records/intakes/by-appointment/$testAptId" -Method Get -Headers $adminAuth.headers
