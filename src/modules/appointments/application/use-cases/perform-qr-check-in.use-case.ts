@@ -25,13 +25,19 @@ export class PerformQrCheckInUseCase {
   ): Promise<AppointmentEntity> {
     const rawToken = input.token ? String(input.token).trim() : '';
     if (!rawToken) {
-      throw new InvalidCheckInQrError('Token QR Code check-in wajib disertakan.');
+      throw new InvalidCheckInQrError('Barcode check-in tidak valid atau tidak disertakan.');
     }
 
-    const checkInRecord = await this.checkInRepo.findByToken(rawToken);
+    let checkInRecord = await this.checkInRepo.findByToken(rawToken);
+    if (!checkInRecord && rawToken.length === 6) {
+      checkInRecord = await this.checkInRepo.findByManualCode(
+        rawToken.toUpperCase(),
+      );
+    }
+
     if (!checkInRecord) {
       throw new InvalidCheckInQrError(
-        'Token QR check-in tidak valid atau tidak terdaftar.',
+        'Barcode check-in tidak valid atau tidak terdaftar.',
       );
     }
 

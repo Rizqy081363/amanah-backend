@@ -6,6 +6,7 @@ import { PerformQrCheckInUseCase } from './perform-qr-check-in.use-case';
 export interface PerformCheckInInput {
   token?: string;
   manualCode?: string;
+  method?: 'qr' | 'manual';
   appointmentId?: string;
 }
 
@@ -20,21 +21,26 @@ export class PerformCheckInUseCase {
     input: PerformCheckInInput,
     actorUser?: any,
   ): Promise<AppointmentEntity> {
-    const { token, manualCode } = input;
+    const { token, manualCode, method } = input;
 
-    if (token && typeof token === 'string' && token.trim()) {
-      return this.qrCheckInUseCase.execute({ token: token.trim() }, actorUser);
+    if (method === 'qr' || (token && typeof token === 'string' && token.trim())) {
+      const qrPayload = (token && token.trim()) || (manualCode && manualCode.trim()) || '';
+      return this.qrCheckInUseCase.execute({ token: qrPayload }, actorUser);
     }
 
-    if (manualCode && typeof manualCode === 'string' && manualCode.trim()) {
+    if (
+      method === 'manual' ||
+      (manualCode && typeof manualCode === 'string' && manualCode.trim())
+    ) {
+      const codePayload = (manualCode && manualCode.trim()) || (token && token.trim()) || '';
       return this.manualCheckInUseCase.execute(
-        { manualCode: manualCode.trim() },
+        { manualCode: codePayload },
         actorUser,
       );
     }
 
     throw new BadRequestException(
-      'Token QR atau Kode Verifikasi Manual wajib disertakan untuk melakukan check-in.',
+      'Kredensial check-in (Barcode QR atau Kode Verifikasi) wajib disertakan untuk melakukan check-in.',
     );
   }
 }

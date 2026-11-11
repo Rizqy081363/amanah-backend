@@ -7,6 +7,7 @@ import type {
 export class AppointmentEntity {
   id: string;
   bookingCode?: string | null;
+  medicalRecordNumber?: string | null;
   medicalFlow?: string | null;
   patientId: string;
   patientUserId?: string | null;

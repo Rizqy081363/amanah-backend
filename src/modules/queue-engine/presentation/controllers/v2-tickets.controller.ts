@@ -382,7 +382,7 @@ export class V2TicketsController {
         source: ticket.source || 'online',
       },
       categoryName: category?.name || 'Poliklinik',
-      sessionLabel: session?.code || 'Sesi',
+      sessionLabel: session?.label || session?.code || 'Sesi',
       aheadCount,
       etaRange: etaWindow.displayRange,
       resolvedRoomName: room?.name,

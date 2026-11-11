@@ -1,5 +1,7 @@
 import 'dotenv/config';
+import path from 'node:path';
 import util from 'node:util';
+import express from 'express';
 
 util.inspect.defaultOptions.depth = null;
 util.inspect.defaultOptions.maxArrayLength = null;
@@ -36,13 +38,21 @@ async function bootstrap() {
   useContainer(app.select(AppModule), { fallbackOnErrors: true });
   const configService = app.get(ConfigService<AllConfigType>);
 
+  const expressApp = app.getHttpAdapter().getInstance();
+  const publicDir = path.resolve(process.cwd(), 'public');
+  expressApp.use(
+    '/assets',
+    express.static(path.join(publicDir, 'assets'), {
+      maxAge: '1d',
+    }),
+  );
+
   const trustProxy = configService.get('app.trustProxy', { infer: true });
   if (
     trustProxy !== undefined &&
     trustProxy !== false &&
     trustProxy !== 'false'
   ) {
-    const expressApp = app.getHttpAdapter().getInstance();
     expressApp.set('trust proxy', trustProxy);
   }
 

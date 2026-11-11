@@ -144,7 +144,7 @@ export class AppointmentQueueTurnNotReachedError extends AppointmentDomainError 
 
 export class InvalidCheckInQrError extends AppointmentDomainError {
   constructor(
-    message: string = 'Token QR check-in tidak valid atau tidak ditemukan.',
+    message: string = 'Barcode check-in tidak valid atau tidak ditemukan.',
   ) {
     super('INVALID_CHECK_IN_QR', message);
   }
@@ -152,7 +152,7 @@ export class InvalidCheckInQrError extends AppointmentDomainError {
 
 export class InvalidCheckInCodeError extends AppointmentDomainError {
   constructor(
-    message: string = 'Kode check-in manual tidak valid atau tidak ditemukan.',
+    message: string = 'Kode check-in tidak valid atau tidak ditemukan.',
   ) {
     super('INVALID_CHECK_IN_CODE', message);
   }

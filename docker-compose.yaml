@@ -153,6 +153,7 @@ services:
     volumes:
       - ./data/uploads:/usr/src/app/data/uploads
       - ./config:/usr/src/app/config:ro
+      - ./public:/usr/src/app/public:ro
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:$${APP_PORT:-3001}/health/ready >/dev/null"]
       interval: 10s

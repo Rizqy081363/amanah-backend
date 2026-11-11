@@ -200,6 +200,7 @@ export class AppointmentRecordMapper {
     return {
       id: apt.id,
       bookingCode: apt.bookingCode || null,
+      medicalRecordNumber: apt.patientProfile?.medicalRecordNumber || null,
       medicalFlow: apt.medicalFlow || null,
       patientId: apt.patientId,
       patientUserId,

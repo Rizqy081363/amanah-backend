@@ -126,6 +126,10 @@ export class EnvironmentVariables {
   @IsOptional()
   AUTH_UNIFORM_ERRORS: boolean = false;
 
+  @IsBoolean()
+  @IsOptional()
+  AUTH_COOKIE_SECURE?: boolean;
+
   @IsString()
   @IsOptional()
   DATABASE_TYPE: string = 'postgres';

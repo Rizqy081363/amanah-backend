@@ -170,6 +170,50 @@ describe('PerformCheckIn Use Cases (Clean Architecture QR vs Manual)', () => {
       expect(res.status).toBe('waiting');
     });
 
+    it('delegates to PerformQrCheckInUseCase when method is qr even if value is in manualCode field', async () => {
+      const mockQr = {
+        execute: jest.fn().mockResolvedValue({ id: 'apt-1', status: 'waiting' }),
+      } as any;
+      const mockManual = {
+        execute: jest.fn(),
+      } as any;
+
+      const facade = new PerformCheckInUseCase(mockQr, mockManual);
+      const res = await facade.execute(
+        { manualCode: 'CK1234', method: 'qr' },
+        { id: 'u1' },
+      );
+
+      expect(mockQr.execute).toHaveBeenCalledWith(
+        { token: 'CK1234' },
+        { id: 'u1' },
+      );
+      expect(mockManual.execute).not.toHaveBeenCalled();
+      expect(res.status).toBe('waiting');
+    });
+
+    it('delegates to PerformManualCheckInUseCase when method is manual', async () => {
+      const mockQr = {
+        execute: jest.fn(),
+      } as any;
+      const mockManual = {
+        execute: jest.fn().mockResolvedValue({ id: 'apt-1', status: 'waiting' }),
+      } as any;
+
+      const facade = new PerformCheckInUseCase(mockQr, mockManual);
+      const res = await facade.execute(
+        { manualCode: 'CK9999', method: 'manual' },
+        { id: 'u1' },
+      );
+
+      expect(mockManual.execute).toHaveBeenCalledWith(
+        { manualCode: 'CK9999' },
+        { id: 'u1' },
+      );
+      expect(mockQr.execute).not.toHaveBeenCalled();
+      expect(res.status).toBe('waiting');
+    });
+
     it('throws BadRequestException if neither token nor manualCode is provided', async () => {
       const mockQr = { execute: jest.fn() } as any;
       const mockManual = { execute: jest.fn() } as any;

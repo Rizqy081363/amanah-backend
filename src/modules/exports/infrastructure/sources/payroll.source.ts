@@ -1,12 +1,18 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { isUUID } from 'class-validator';
 import { and, asc, desc, eq, sql } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import type { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
 import {
+  permissions,
+  rolePermissions,
+  roles,
   staffAttendanceRecords,
   staffLeaveRequests,
   staffProfiles,
-} from '../../../../database/schema/amanah.schema';
+  userRoles,
+  users,
+} from '../../../../database/schema';
 import {
   payrollEntries,
   payrollPeriods,
@@ -82,12 +88,22 @@ export class PayrollExportSource implements ExportSource {
     private readonly db: DrizzleDatabase,
   ) {}
 
-  getTitle(_params: Record<string, any>): string {
+  async getTitle(
+    params: Record<string, any>,
+    userId?: string,
+  ): Promise<string> {
+    if (userId) {
+      const scope = await this.resolveActorScope(userId, params.staffProfileId);
+      if (!scope.isClinicWide && scope.staffName) {
+        return `Slip Gaji & Rekapitulasi: ${scope.staffName}`;
+      }
+    }
     return 'Laporan Rekapitulasi Rincian Penggajian dan Insentif';
   }
 
-  getSubtitle(params: Record<string, any>): string {
-    return params.periodName ? `Periode: ${params.periodName}` : '';
+  async getSubtitle(params: Record<string, any>): Promise<string> {
+    const period = await this.resolvePeriod(params.periodId);
+    return period ? `Periode: ${period.periodName}` : '';
   }
 
   getDetailsTitle(): string {
@@ -108,7 +124,7 @@ export class PayrollExportSource implements ExportSource {
         header: 'Kuantitas (Jam)',
         width: 'auto',
         align: 'right',
-        format: 'decimal',
+        format: 'number',
       },
       {
         header: 'Tarif Satuan (Rp)',
@@ -129,19 +145,77 @@ export class PayrollExportSource implements ExportSource {
     return this.getColumnDefs().map((c) => c.header);
   }
 
-  private async resolveStaffProfileId(
+  private async resolveActorScope(
     userId: string,
     explicitStaffId?: string,
-  ): Promise<string | null> {
-    if (explicitStaffId) return explicitStaffId;
+  ): Promise<{
+    staffId: string | null;
+    isClinicWide: boolean;
+    staffName?: string;
+  }> {
+    const userRolePerms = await this.db
+      .select({
+        roleCode: roles.code,
+        permCode: permissions.code,
+      })
+      .from(users)
+      .leftJoin(userRoles, eq(users.id, userRoles.userId))
+      .leftJoin(roles, eq(userRoles.roleId, roles.id))
+      .leftJoin(rolePermissions, eq(roles.id, rolePermissions.roleId))
+      .leftJoin(permissions, eq(rolePermissions.permissionId, permissions.id))
+      .where(eq(users.id, userId));
 
-    const [staff] = await this.db
-      .select({ id: staffProfiles.id })
+    const isPrivileged = userRolePerms.some(
+      (r) =>
+        r.permCode === 'payroll:read' ||
+        r.permCode === 'payroll:manage' ||
+        r.roleCode === 'admin' ||
+        r.permCode === '*',
+    );
+
+    const [ownStaff] = await this.db
+      .select({ id: staffProfiles.id, fullName: staffProfiles.fullName })
       .from(staffProfiles)
       .where(eq(staffProfiles.userId, userId))
       .limit(1);
 
-    return staff?.id ?? null;
+    if (!isPrivileged) {
+      return {
+        staffId: ownStaff?.id ?? null,
+        isClinicWide: false,
+        staffName: ownStaff?.fullName,
+      };
+    }
+
+    if (explicitStaffId) {
+      if (isUUID(explicitStaffId)) {
+        const [targetStaff] = await this.db
+          .select({ id: staffProfiles.id, fullName: staffProfiles.fullName })
+          .from(staffProfiles)
+          .where(eq(staffProfiles.id, explicitStaffId))
+          .limit(1);
+
+        return {
+          staffId: explicitStaffId,
+          isClinicWide: false,
+          staffName: targetStaff?.fullName,
+        };
+      }
+
+      const [found] = await this.db
+        .select({ id: staffProfiles.id, fullName: staffProfiles.fullName })
+        .from(staffProfiles)
+        .where(eq(staffProfiles.staffCode, explicitStaffId))
+        .limit(1);
+
+      return {
+        staffId: found?.id ?? explicitStaffId,
+        isClinicWide: false,
+        staffName: found?.fullName,
+      };
+    }
+
+    return { staffId: null, isClinicWide: true };
   }
 
   private async resolvePeriod(explicitPeriodId?: string): Promise<{
@@ -185,14 +259,14 @@ export class PayrollExportSource implements ExportSource {
     const period = await this.resolvePeriod(params.periodId);
     if (!period) return 0;
 
-    const staffId = await this.resolveStaffProfileId(
-      userId,
-      params.staffProfileId,
-    );
+    const scope = await this.resolveActorScope(userId, params.staffProfileId);
+    if (!scope.isClinicWide && !scope.staffId) {
+      return 0;
+    }
 
     const conditions = [eq(payrollEntries.payrollPeriodId, period.id)];
-    if (staffId) {
-      conditions.push(eq(payrollEntries.staffProfileId, staffId));
+    if (scope.staffId) {
+      conditions.push(eq(payrollEntries.staffProfileId, scope.staffId));
     }
 
     const [result] = await this.db
@@ -211,16 +285,16 @@ export class PayrollExportSource implements ExportSource {
     const period = await this.resolvePeriod(params.periodId);
     if (!period) return;
 
-    const staffId = await this.resolveStaffProfileId(
-      userId,
-      params.staffProfileId,
-    );
+    const scope = await this.resolveActorScope(userId, params.staffProfileId);
+    if (!scope.isClinicWide && !scope.staffId) {
+      return;
+    }
 
     let offset = 0;
     for (;;) {
       const conditions = [eq(payrollEntries.payrollPeriodId, period.id)];
-      if (staffId) {
-        conditions.push(eq(payrollEntries.staffProfileId, staffId));
+      if (scope.staffId) {
+        conditions.push(eq(payrollEntries.staffProfileId, scope.staffId));
       }
 
       const rows = await this.db
@@ -323,10 +397,8 @@ export class PayrollExportSource implements ExportSource {
     const period = await this.resolvePeriod(params.periodId);
     if (!period) return null;
 
-    const staffId = await this.resolveStaffProfileId(
-      userId,
-      params.staffProfileId,
-    );
+    const scope = await this.resolveActorScope(userId, params.staffProfileId);
+    const staffId = scope.staffId;
 
     // Fetch primary staff info
     let targetStaff: any = null;

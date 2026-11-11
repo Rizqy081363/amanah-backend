@@ -31,14 +31,14 @@ export class PerformManualCheckInUseCase {
 
     if (!cleanCode) {
       throw new InvalidCheckInCodeError(
-        'Kode check-in manual wajib disertakan (6 karakter).',
+        'Kode check-in wajib disertakan (6 karakter).',
       );
     }
 
     const checkInRecord = await this.checkInRepo.findByManualCode(cleanCode);
     if (!checkInRecord) {
       throw new InvalidCheckInCodeError(
-        'Kode check-in manual tidak valid atau tidak terdaftar.',
+        'Kode check-in tidak valid atau tidak terdaftar.',
       );
     }
 

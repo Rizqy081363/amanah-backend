@@ -103,6 +103,11 @@ export function registerBetterAuthUserCreatedHook(
   onBetterAuthUserCreated = cb;
 }
 
+const isCookieSecure =
+  env.AUTH_COOKIE_SECURE !== undefined
+    ? env.AUTH_COOKIE_SECURE
+    : env.NODE_ENV === NodeEnvironment.Production;
+
 export const auth = betterAuth({
   appName: 'Amanah Healthcare',
   baseURL: {
@@ -166,6 +171,7 @@ export const auth = betterAuth({
   },
   account: {
     encryptOAuthTokens: true,
+    storeStateStrategy: 'cookie',
     skipStateCookieCheck: true,
     accountLinking: {
       enabled: true,
@@ -196,12 +202,12 @@ export const auth = betterAuth({
   },
   advanced: {
     trustedProxyHeaders: true,
-    useSecureCookies: env.NODE_ENV === NodeEnvironment.Production,
+    useSecureCookies: isCookieSecure,
     disableCSRFCheck: false,
     disableOriginCheck: false,
     defaultCookieAttributes: {
       httpOnly: true,
-      secure: env.NODE_ENV === NodeEnvironment.Production,
+      secure: isCookieSecure,
       sameSite: 'lax',
     },
     database: { generateId: 'uuid' },

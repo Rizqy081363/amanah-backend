@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString } from 'class-validator';
+import { IsIn, IsOptional, IsString } from 'class-validator';
 
 export class PerformCheckInDto {
   @ApiPropertyOptional({
@@ -17,6 +17,15 @@ export class PerformCheckInDto {
   @IsOptional()
   @IsString()
   manualCode?: string;
+
+  @ApiPropertyOptional({
+    description: 'Metode check-in: qr (kamera/scanner) atau manual (input teks)',
+    enum: ['qr', 'manual'],
+    example: 'qr',
+  })
+  @IsOptional()
+  @IsIn(['qr', 'manual'])
+  method?: 'qr' | 'manual';
 
   @ApiPropertyOptional({
     description: 'ID unik janji temu (opsional bila sudah ada token/code)',

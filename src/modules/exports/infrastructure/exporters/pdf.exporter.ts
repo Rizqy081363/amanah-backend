@@ -17,6 +17,16 @@ function formatRupiah(amount: number): string {
   return `Rp${Math.round(amount).toLocaleString('id-ID')}`;
 }
 
+function formatQuantity(val: number): string {
+  if (Number.isInteger(val)) {
+    return val.toLocaleString('id-ID');
+  }
+  return val.toLocaleString('id-ID', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  });
+}
+
 @Injectable()
 export class PdfExporter implements Exporter {
   readonly format: ExportFormat = 'pdf';
@@ -88,19 +98,18 @@ export class PdfExporter implements Exporter {
             if (val !== null && val !== undefined) {
               if (colDef?.format === 'currency' && isNum) {
                 strVal = Math.round(val).toLocaleString('id-ID');
-              } else if (colDef?.format === 'decimal' && isNum) {
-                strVal = val.toFixed(2);
-              } else if (colDef?.format === 'number' && isNum) {
-                strVal = Number.isInteger(val) ? String(val) : val.toFixed(2);
+              } else if (
+                (colDef?.format === 'decimal' || colDef?.format === 'number') &&
+                isNum
+              ) {
+                strVal = formatQuantity(val);
               } else if (isNum) {
                 strVal =
                   colIdx === 0
                     ? String(val)
                     : Number.isInteger(val) && Math.abs(val) >= 1000
                       ? Math.round(val).toLocaleString('id-ID')
-                      : Number.isInteger(val)
-                        ? String(val)
-                        : val.toFixed(2);
+                      : formatQuantity(val);
               } else {
                 strVal = String(val);
               }
@@ -225,7 +234,7 @@ export class PdfExporter implements Exporter {
             color: isDeduction ? '#DC2626' : '#16A34A',
           },
           {
-            text: c.quantityHours > 0 ? c.quantityHours.toFixed(2) : '-',
+            text: c.quantityHours > 0 ? formatQuantity(c.quantityHours) : '-',
             fontSize: 8,
             alignment: 'right',
           },
@@ -328,7 +337,7 @@ export class PdfExporter implements Exporter {
             alignment: 'center',
           },
           {
-            text: `${item.hoursPerDay.toFixed(2)} Jam`,
+            text: `${formatQuantity(item.hoursPerDay)} Jam`,
             fontSize: 7.5,
             alignment: 'right',
           },
@@ -425,7 +434,7 @@ export class PdfExporter implements Exporter {
           { text: item.dayName, fontSize: 7.5, alignment: 'center' },
           { text: item.categoryLabel, fontSize: 7.5 },
           {
-            text: `${item.hours.toFixed(2)} Jam`,
+            text: `${formatQuantity(item.hours)} Jam`,
             fontSize: 7.5,
             alignment: 'right',
           },
