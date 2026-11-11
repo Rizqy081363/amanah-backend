@@ -4,6 +4,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Param,
   Post,
   Query,
   UseGuards,
@@ -34,7 +35,10 @@ import {
   GetAttendanceExportCandidatesUseCase,
   GetDailyAttendanceBffUseCase,
   GetMyAttendanceHistoryUseCase,
+  GetStaffAttendanceMilestonesUseCase,
   ManualAttendanceUseCase,
+  ProcessShiftEndAbsenceUseCase,
+  ReconcileAttendanceOvertimeUseCase,
   RotateQrSessionUseCase,
   ScanAttendanceUseCase,
 } from '../application/use-cases';
@@ -45,6 +49,8 @@ import {
   CheckOutSchema,
   type ManualAttendanceInput,
   ManualAttendanceSchema,
+  type ReconcileOvertimeInput,
+  ReconcileOvertimeSchema,
   type RotateQrInput,
   RotateQrSchema,
   type ScanQrInput,
@@ -70,6 +76,9 @@ export class AttendanceController {
     private readonly getMyAttendanceHistoryUseCase: GetMyAttendanceHistoryUseCase,
     private readonly getDailyAttendanceBffUseCase: GetDailyAttendanceBffUseCase,
     private readonly getAttendanceExportCandidatesUseCase: GetAttendanceExportCandidatesUseCase,
+    private readonly getStaffAttendanceMilestonesUseCase: GetStaffAttendanceMilestonesUseCase,
+    private readonly processShiftEndAbsenceUseCase: ProcessShiftEndAbsenceUseCase,
+    private readonly reconcileAttendanceOvertimeUseCase: ReconcileAttendanceOvertimeUseCase,
   ) {}
 
   @Post('scan')
@@ -269,5 +278,95 @@ export class AttendanceController {
   })
   async getExportCandidates(@Query('month') month?: string) {
     return this.getAttendanceExportCandidatesUseCase.execute(month);
+  }
+
+  @Get('staff/:staffProfileId/milestones')
+  @RequirePermissions(
+    'attendance:read',
+    'attendance:review',
+    'attendance:manage',
+  )
+  @ApiOperation({
+    summary: 'Melihat milestone status sesi dinas staf pada tanggal tertentu',
+    description:
+      'Menampilkan trajektori garis waktu seluruh sesi dinas (shift) yang terpasang pada staf untuk tanggal tertentu.',
+  })
+  @ApiOkResponse({
+    description: 'Daftar milestone sesi dinas staf berhasil diambil',
+  })
+  async getStaffMilestones(
+    @Param('staffProfileId') staffProfileId: string,
+    @Query('date') date?: string,
+  ) {
+    return this.getStaffAttendanceMilestonesUseCase.execute({
+      staffProfileId,
+      date,
+    });
+  }
+
+  @Post('shift-end/sweep')
+  @RequirePermissions('attendance:manage')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Memicu evaluasi akhir shift dan penetapan absensi deterministik',
+    description:
+      'Mengevaluasi shift yang telah berakhir dan mencatat tidak hadir serta potongan gaji bagi staf yang tidak hadir.',
+  })
+  @ApiOkResponse({
+    description: 'Evaluasi akhir shift berhasil diproses',
+  })
+  async triggerShiftEndSweep(
+    @Query('date') qDate?: string,
+    @Query('sessionId') qSessionId?: string,
+    @Query('forceAllShifts') qForce?: string,
+    @Query('deductPayroll') qDeductPayroll?: string,
+    @Body()
+    body?: {
+      targetDate?: string;
+      sessionId?: string;
+      targetTime?: string;
+      forceAllShifts?: boolean;
+      deductPayroll?: boolean;
+    },
+  ) {
+    const targetDate = body?.targetDate || qDate;
+    const sessionId = body?.sessionId || qSessionId;
+    const forceAllShifts =
+      body?.forceAllShifts ?? (qForce === 'true' || qForce === '1');
+    const deductPayroll =
+      body?.deductPayroll ??
+      (qDeductPayroll === 'true' || qDeductPayroll === '1');
+
+    return this.processShiftEndAbsenceUseCase.execute({
+      targetDate,
+      sessionId,
+      targetTime: body?.targetTime,
+      forceAllShifts,
+      deductPayroll,
+    });
+  }
+
+  @Post('reconcile-overtime')
+  @RequirePermissions('attendance:manage')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Rekonsiliasi lembur presensi oleh admin',
+    description:
+      'Memverifikasi apakah kelebihan jam dinas diakui sebagai lembur resmi (ditambahkan ke payroll) atau kelalaian lupa check-out (disesuaikan ke jam normal).',
+  })
+  @ApiOkResponse({
+    description: 'Rekonsiliasi lembur presensi berhasil diproses',
+  })
+  async reconcileOvertime(
+    @Body(zodPipe(ReconcileOvertimeSchema)) body: ReconcileOvertimeInput,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.reconcileAttendanceOvertimeUseCase.execute({
+      attendanceId: body.attendanceId,
+      decision: body.decision,
+      overtimeHours: body.overtimeHours,
+      adminNotes: body.adminNotes,
+      adminUserId: user.id,
+    });
   }
 }

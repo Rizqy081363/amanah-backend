@@ -293,12 +293,12 @@ export class AttendanceEligibilityService {
       targetDate,
     );
 
-    if (!existing || !existing.checkInAt) {
+    if (!existing?.checkInAt) {
       const anyRecordToday = await this.repo.findStaffAttendanceForDate(
         staffId,
         targetDate,
       );
-      if (anyRecordToday && anyRecordToday.checkOutAt) {
+      if (anyRecordToday?.checkOutAt) {
         throw new AttendanceAlreadyCheckedOutException(
           'Presensi pulang dinas sudah tercatat sebelumnya pada tanggal ini. Tidak ada sesi dinas terbuka yang perlu ditutup.',
         );

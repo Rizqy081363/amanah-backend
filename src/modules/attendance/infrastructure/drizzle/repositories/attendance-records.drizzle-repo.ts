@@ -2,7 +2,11 @@ import { Inject, Injectable } from '@nestjs/common';
 import { and, desc, eq, isNotNull, isNull } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../../database/drizzle/drizzle.provider';
-import { staffAttendanceRecords } from '../../../../../database/schema';
+import {
+  sessionDefs,
+  staffAttendanceRecords,
+} from '../../../../../database/schema';
+import { ATTENDANCE_STATUS } from '../../../domain/constants/attendance.constants';
 import { AttendanceEntity } from '../../../domain/entities/attendance.entity';
 import { AttendanceHistoryResultDto } from '../../../domain/repositories/attendance.repository';
 import { AttendanceMapper } from '../mappers/attendance.mapper';
@@ -19,7 +23,7 @@ export class AttendanceRecordsDrizzleRepo {
     attendanceDate: string;
     shift: string;
     status: string;
-    checkInAt: string;
+    checkInAt?: string | null;
     lateMinutes?: number | null;
     recordedMethod: string;
     sessionId?: string | null;
@@ -65,12 +69,12 @@ export class AttendanceRecordsDrizzleRepo {
           replacementOpportunityId: data.replacementOpportunityId,
           recordedBy: data.recordedBy,
           notes: data.notes,
-          updatedAt: data.checkInAt,
+          updatedAt: new Date().toISOString(),
         },
       })
       .returning();
 
-    return AttendanceMapper.toAttendanceEntity(record);
+    return this.attachShiftLabel(record);
   }
 
   async updateAttendanceRecord(
@@ -80,6 +84,7 @@ export class AttendanceRecordsDrizzleRepo {
       validatedDurationHours?: string | null;
       notes?: string | null;
       isEarlyDeparture?: boolean;
+      recordedBy?: string | null;
       updatedAt?: string;
     },
   ): Promise<AttendanceEntity> {
@@ -94,6 +99,9 @@ export class AttendanceRecordsDrizzleRepo {
     if (data.isEarlyDeparture !== undefined) {
       updateValues.isEarlyDeparture = data.isEarlyDeparture;
     }
+    if (data.recordedBy !== undefined) {
+      updateValues.recordedBy = data.recordedBy;
+    }
 
     const [updated] = await this.db
       .update(staffAttendanceRecords)
@@ -101,7 +109,17 @@ export class AttendanceRecordsDrizzleRepo {
       .where(eq(staffAttendanceRecords.id, id))
       .returning();
 
-    return AttendanceMapper.toAttendanceEntity(updated);
+    return this.attachShiftLabel(updated);
+  }
+
+  async findById(id: string): Promise<AttendanceEntity | null> {
+    const [record] = await this.db
+      .select()
+      .from(staffAttendanceRecords)
+      .where(eq(staffAttendanceRecords.id, id))
+      .limit(1);
+
+    return record ? this.attachShiftLabel(record) : null;
   }
 
   async findStaffAttendanceForDate(
@@ -120,9 +138,47 @@ export class AttendanceRecordsDrizzleRepo {
       .orderBy(desc(staffAttendanceRecords.checkInAt))
       .limit(1);
 
-    return records.length > 0
-      ? AttendanceMapper.toAttendanceEntity(records[0])
-      : null;
+    return records.length > 0 ? this.attachShiftLabel(records[0]) : null;
+  }
+
+  async findAttendanceRecordsForStaffAndDate(
+    staffId: string,
+    attendanceDate: string,
+  ): Promise<AttendanceEntity[]> {
+    const [records, allSessionDefs] = await Promise.all([
+      this.db
+        .select()
+        .from(staffAttendanceRecords)
+        .where(
+          and(
+            eq(staffAttendanceRecords.staffProfileId, staffId),
+            eq(staffAttendanceRecords.attendanceDate, attendanceDate),
+          ),
+        ),
+      this.db
+        .select({
+          id: sessionDefs.id,
+          code: sessionDefs.code,
+          label: sessionDefs.label,
+        })
+        .from(sessionDefs),
+    ]);
+
+    const sessionLabelMap = new Map<string, string>();
+    for (const def of allSessionDefs) {
+      if (def.code && def.label) sessionLabelMap.set(def.code, def.label);
+      if (def.id && def.label) sessionLabelMap.set(def.id, def.label);
+    }
+
+    return records.map((r) =>
+      AttendanceMapper.toAttendanceEntity({
+        ...r,
+        shiftLabel:
+          (r.sessionId && sessionLabelMap.get(r.sessionId)) ||
+          (r.shift && sessionLabelMap.get(r.shift)) ||
+          null,
+      }),
+    );
   }
 
   async findStaffAttendanceForDateAndShift(
@@ -143,9 +199,7 @@ export class AttendanceRecordsDrizzleRepo {
       .orderBy(desc(staffAttendanceRecords.checkInAt))
       .limit(1);
 
-    return records.length > 0
-      ? AttendanceMapper.toAttendanceEntity(records[0])
-      : null;
+    return records.length > 0 ? this.attachShiftLabel(records[0]) : null;
   }
 
   async findOpenAttendanceRecord(
@@ -166,36 +220,102 @@ export class AttendanceRecordsDrizzleRepo {
       .orderBy(desc(staffAttendanceRecords.checkInAt))
       .limit(1);
 
-    return records.length > 0
-      ? AttendanceMapper.toAttendanceEntity(records[0])
-      : null;
+    return records.length > 0 ? this.attachShiftLabel(records[0]) : null;
+  }
+
+  private async attachShiftLabel(record: any): Promise<AttendanceEntity> {
+    let shiftLabel: string | null = null;
+    if (record.sessionId) {
+      const def = await this.db
+        .select({ label: sessionDefs.label })
+        .from(sessionDefs)
+        .where(eq(sessionDefs.id, record.sessionId))
+        .limit(1);
+      shiftLabel = def[0]?.label ?? null;
+    } else if (record.shift) {
+      const def = await this.db
+        .select({ label: sessionDefs.label })
+        .from(sessionDefs)
+        .where(eq(sessionDefs.code, record.shift))
+        .limit(1);
+      shiftLabel = def[0]?.label ?? null;
+    }
+
+    return AttendanceMapper.toAttendanceEntity({
+      ...record,
+      shiftLabel,
+    });
   }
 
   async findByStaffId(
     staffId: string,
     limit: number = 30,
   ): Promise<AttendanceEntity[]> {
-    const records = await this.db.query.staffAttendanceRecords.findMany({
-      where: eq(staffAttendanceRecords.staffProfileId, staffId),
-      orderBy: [desc(staffAttendanceRecords.attendanceDate)],
-      limit,
-    });
+    const [records, allSessionDefs] = await Promise.all([
+      this.db.query.staffAttendanceRecords.findMany({
+        where: eq(staffAttendanceRecords.staffProfileId, staffId),
+        orderBy: [desc(staffAttendanceRecords.attendanceDate)],
+        limit,
+      }),
+      this.db
+        .select({
+          id: sessionDefs.id,
+          code: sessionDefs.code,
+          label: sessionDefs.label,
+        })
+        .from(sessionDefs),
+    ]);
 
-    return records.map((r: any) => AttendanceMapper.toAttendanceEntity(r));
+    const sessionLabelMap = new Map<string, string>();
+    for (const def of allSessionDefs) {
+      if (def.code && def.label) sessionLabelMap.set(def.code, def.label);
+      if (def.id && def.label) sessionLabelMap.set(def.id, def.label);
+    }
+
+    return records.map((r: any) =>
+      AttendanceMapper.toAttendanceEntity({
+        ...r,
+        shiftLabel:
+          (r.sessionId && sessionLabelMap.get(r.sessionId)) ||
+          (r.shift && sessionLabelMap.get(r.shift)) ||
+          null,
+      }),
+    );
   }
 
   async findHistoryWithSummaryByStaffId(
     staffId: string,
     limit: number = 30,
   ): Promise<AttendanceHistoryResultDto> {
-    const records = await this.db.query.staffAttendanceRecords.findMany({
-      where: eq(staffAttendanceRecords.staffProfileId, staffId),
-      orderBy: [desc(staffAttendanceRecords.attendanceDate)],
-      limit,
-    });
+    const [records, allSessionDefs] = await Promise.all([
+      this.db.query.staffAttendanceRecords.findMany({
+        where: eq(staffAttendanceRecords.staffProfileId, staffId),
+        orderBy: [desc(staffAttendanceRecords.attendanceDate)],
+        limit,
+      }),
+      this.db
+        .select({
+          id: sessionDefs.id,
+          code: sessionDefs.code,
+          label: sessionDefs.label,
+        })
+        .from(sessionDefs),
+    ]);
+
+    const sessionLabelMap = new Map<string, string>();
+    for (const def of allSessionDefs) {
+      if (def.code && def.label) sessionLabelMap.set(def.code, def.label);
+      if (def.id && def.label) sessionLabelMap.set(def.id, def.label);
+    }
 
     const entities = records.map((r: any) =>
-      AttendanceMapper.toAttendanceEntity(r),
+      AttendanceMapper.toAttendanceEntity({
+        ...r,
+        shiftLabel:
+          (r.sessionId && sessionLabelMap.get(r.sessionId)) ||
+          (r.shift && sessionLabelMap.get(r.shift)) ||
+          null,
+      }),
     );
 
     let totalWorkHours = 0;
@@ -211,16 +331,19 @@ export class AttendanceRecordsDrizzleRepo {
       }
       if (r.validatedDurationHours) {
         const val = parseFloat(r.validatedDurationHours);
-        if (!isNaN(val)) totalWorkHours += val;
+        if (!Number.isNaN(val)) totalWorkHours += val;
       }
       const st = (r.status || '').toLowerCase();
-      if (st === 'present') {
+      if (st === ATTENDANCE_STATUS.PRESENT) {
         hadirCount++;
-      } else if (st === 'late') {
+      } else if (st === ATTENDANCE_STATUS.LATE) {
         telatCount++;
-      } else if (st === 'leave') {
+      } else if (st === ATTENDANCE_STATUS.LEAVE) {
         cutiCount++;
-      } else if (st === 'absent' || st === 'missed') {
+      } else if (
+        st === ATTENDANCE_STATUS.ABSENT ||
+        st === ATTENDANCE_STATUS.MISSED
+      ) {
         missedCount++;
       }
     }

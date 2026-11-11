@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { and, asc, eq, gte, lte, sql } from 'drizzle-orm';
+import { ROLE_AUDIENCE } from '../../../../../common/constants/role-audience.constants';
 import { DRIZZLE_SOURCE } from '../../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../../database/drizzle/drizzle.provider';
 import {
@@ -11,8 +12,11 @@ import {
   staffAttendanceRecords,
   staffProfiles,
 } from '../../../../../database/schema';
-import { ATTENDANCE_STATUSES } from '../../../domain/constants/attendance.constants';
-import { ROLE_AUDIENCE } from '../../../../../common/constants/role-audience.constants';
+import {
+  ATTENDANCE_STATUS,
+  ATTENDANCE_STATUS_LABELS,
+  ATTENDANCE_STATUSES,
+} from '../../../domain/constants/attendance.constants';
 import { AttendanceExportCandidate } from '../../../domain/repositories/attendance.repository';
 
 @Injectable()
@@ -69,8 +73,8 @@ export class AttendanceBffStatsDrizzleRepo {
         presentCount: 0,
         lateCount: 0,
       };
-      if (r.status === 'present') entry.presentCount++;
-      else if (r.status === 'late') entry.lateCount++;
+      if (r.status === ATTENDANCE_STATUS.PRESENT) entry.presentCount++;
+      else if (r.status === ATTENDANCE_STATUS.LATE) entry.lateCount++;
       map.set(r.attendanceDate, entry);
     }
 
@@ -131,7 +135,7 @@ export class AttendanceBffStatsDrizzleRepo {
 
     // 3. Database & System-driven canonical attendance statuses
     const statuses = ATTENDANCE_STATUSES.map((st) => ({
-      label: st,
+      label: ATTENDANCE_STATUS_LABELS[st] || st,
       value: st,
     }));
 

@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { ATTENDANCE_STATUS } from '../../domain/constants/attendance.constants';
 import {
   ATTENDANCE_REPOSITORY,
   AttendanceRepository,
@@ -10,6 +11,9 @@ export interface CalculatedMetrics {
   absentCount: number;
   lateCount: number;
   attendanceRate: number;
+  deltaPresent: number;
+  deltaAbsent: number;
+  deltaRate: number;
   sparklineTotal: Array<{ label: string; value: number }>;
   sparklinePresent: Array<{ label: string; value: number }>;
   sparklineAbsent: Array<{ label: string; value: number }>;
@@ -45,9 +49,9 @@ export class AttendanceMetricsCalculator {
     let lateCount = 0;
 
     for (const rec of attendanceList) {
-      if (rec.status === 'present') {
+      if (rec.status === ATTENDANCE_STATUS.PRESENT) {
         presentCount++;
-      } else if (rec.status === 'late') {
+      } else if (rec.status === ATTENDANCE_STATUS.LATE) {
         presentCount++;
         lateCount++;
       } else {
@@ -115,12 +119,36 @@ export class AttendanceMetricsCalculator {
       sparklineRate.push({ label, value: dayRate });
     }
 
+    const yesterdayObj = new Date(targetObj);
+    yesterdayObj.setDate(yesterdayObj.getDate() - 1);
+    const yesterdayStr = yesterdayObj.toISOString().split('T')[0];
+    const yesterdayCounts = weeklyCounts.get(yesterdayStr);
+
+    let deltaPresent = 0;
+    let deltaAbsent = 0;
+    let deltaRate = 0;
+
+    if (yesterdayCounts) {
+      const yPresent = yesterdayCounts.presentCount + yesterdayCounts.lateCount;
+      const yAbsent = Math.max(0, totalStaffCount - yPresent);
+      const yRate =
+        totalStaffCount > 0
+          ? Math.round((yPresent / totalStaffCount) * 100)
+          : 0;
+      deltaPresent = presentCount - yPresent;
+      deltaAbsent = expectedAbsentCount - yAbsent;
+      deltaRate = attendanceRate - yRate;
+    }
+
     return {
       totalStaffCount,
       presentCount,
       absentCount: expectedAbsentCount,
       lateCount,
       attendanceRate,
+      deltaPresent,
+      deltaAbsent,
+      deltaRate,
       sparklineTotal,
       sparklinePresent,
       sparklineAbsent,

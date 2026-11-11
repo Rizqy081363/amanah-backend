@@ -6,22 +6,26 @@ export class AttendanceMapper {
     return {
       id: r.id,
       staffId: r.staffProfileId,
-      shift: r.shift,
+      attendanceDate: r.attendanceDate,
       status: r.status,
+      recordedMethod: r.recordedMethod,
+      isReplacement: Boolean(r.isReplacement),
+      isEarlyDeparture: Boolean(r.isEarlyDeparture),
+      shift: r.shift ?? null,
+      shiftLabel: r.shiftLabel || null,
       checkInAt: r.checkInAt ? new Date(r.checkInAt) : null,
       checkOutAt: r.checkOutAt ? new Date(r.checkOutAt) : null,
       validatedDurationHours: r.validatedDurationHours
         ? Number(r.validatedDurationHours)
-        : undefined,
-      isReplacement: Boolean(r.isReplacement),
-      isEarlyDeparture: Boolean(r.isEarlyDeparture),
+        : null,
       replacementOpportunityId: r.replacementOpportunityId || null,
       sessionId: r.sessionId || null,
       deviceInfo: r.deviceInfo || null,
-      attendanceDate: r.attendanceDate,
       lateMinutes: r.lateMinutes ?? null,
+      recordedBy: r.recordedBy || null,
       notes: r.notes || null,
       createdAt: new Date(r.createdAt),
+      updatedAt: new Date(r.updatedAt || r.createdAt),
     };
   }
 

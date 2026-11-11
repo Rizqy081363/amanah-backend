@@ -1,5 +1,6 @@
 import {
   ModalFrequency,
+  ModalMode,
   Placement,
   PromoImageType,
   PromoStatus,
@@ -25,6 +26,7 @@ export class PromotionEntity {
   showSection: boolean;
   modalFrequency: ModalFrequency;
   modalDelaySec: number;
+  modalMode: ModalMode;
   priority: number;
   isPublished: boolean;
   startsAt?: string | null;
@@ -81,6 +83,10 @@ export class PromotionEntity {
         alt: this.imageAlt,
       },
       placements,
+      modalMode: this.modalMode || 'card',
+      startsAt: this.startsAt || undefined,
+      endsAt: this.endsAt || undefined,
+      createdAt: this.createdAt,
     };
 
     if (this.ctaLabel && this.ctaUrl) {
@@ -94,6 +100,7 @@ export class PromotionEntity {
       dto.modal = {
         frequency: this.modalFrequency,
         delaySec: this.modalDelaySec,
+        mode: this.modalMode || 'card',
       };
     }
 

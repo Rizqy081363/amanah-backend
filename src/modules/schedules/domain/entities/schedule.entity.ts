@@ -56,6 +56,8 @@ export class ScheduleEntity {
   isRescheduleEligible?: boolean;
   rescheduleIneligibilityReason?: string | null;
   sessionId?: string | null;
+  attendanceStatus?: string | null;
+  attendanceStatusLabel?: string | null;
   version?: string;
 }
 

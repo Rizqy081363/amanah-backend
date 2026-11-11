@@ -27,7 +27,7 @@ export class AttendanceDrizzleRepository implements AttendanceRepository {
     attendanceDate: string;
     shift: string;
     status: string;
-    checkInAt: string;
+    checkInAt?: string | null;
     lateMinutes?: number | null;
     recordedMethod: string;
     sessionId?: string | null;
@@ -47,10 +47,15 @@ export class AttendanceDrizzleRepository implements AttendanceRepository {
       validatedDurationHours?: string | null;
       notes?: string | null;
       isEarlyDeparture?: boolean;
+      recordedBy?: string | null;
       updatedAt?: string;
     },
   ): Promise<AttendanceEntity> {
     return this.recordsRepo.updateAttendanceRecord(id, data);
+  }
+
+  async findById(id: string): Promise<AttendanceEntity | null> {
+    return this.recordsRepo.findById(id);
   }
 
   async findStaffAttendanceForDate(
@@ -58,6 +63,16 @@ export class AttendanceDrizzleRepository implements AttendanceRepository {
     attendanceDate: string,
   ): Promise<AttendanceEntity | null> {
     return this.recordsRepo.findStaffAttendanceForDate(staffId, attendanceDate);
+  }
+
+  async findAttendanceRecordsForStaffAndDate(
+    staffId: string,
+    attendanceDate: string,
+  ): Promise<AttendanceEntity[]> {
+    return this.recordsRepo.findAttendanceRecordsForStaffAndDate(
+      staffId,
+      attendanceDate,
+    );
   }
 
   async findStaffAttendanceForDateAndShift(
@@ -243,5 +258,16 @@ export class AttendanceDrizzleRepository implements AttendanceRepository {
     endDate: string,
   ): Promise<AttendanceExportCandidate[]> {
     return this.bffStatsRepo.getExportCandidates(startDate, endDate);
+  }
+
+  async findAllActiveSessions() {
+    return this.rosterLookupRepo.findAllActiveSessions();
+  }
+
+  async findScheduledStaffForSessionAndDow(sessionId: string, dow: number) {
+    return this.rosterLookupRepo.findScheduledStaffForSessionAndDow(
+      sessionId,
+      dow,
+    );
   }
 }

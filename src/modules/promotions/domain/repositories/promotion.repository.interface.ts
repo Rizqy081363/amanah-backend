@@ -1,6 +1,7 @@
 import { PromotionEntity } from '../entities/promotion.entity';
 import {
   ModalFrequency,
+  ModalMode,
   PromoImageType,
   QueryAdminPromotionsFilter,
 } from '../types/promotion.types';
@@ -23,6 +24,7 @@ export interface CreatePromotionData {
   showSection: boolean;
   modalFrequency: ModalFrequency;
   modalDelaySec: number;
+  modalMode?: ModalMode;
   priority: number;
   isPublished: boolean;
   startsAt?: string | null;

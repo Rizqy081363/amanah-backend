@@ -5,6 +5,8 @@ export type ModalFrequency =
   | 'once_per_day'
   | 'once_per_week';
 
+export type ModalMode = 'card' | 'image_only';
+
 export type PromoStatus =
   | 'draft'
   | 'scheduled'
@@ -43,10 +45,15 @@ export interface PublicPromotion {
     href: string;
   };
   placements: Placement[];
+  modalMode?: ModalMode;
   modal?: {
     frequency: ModalFrequency;
     delaySec: number;
+    mode: ModalMode;
   };
+  startsAt?: string;
+  endsAt?: string;
+  createdAt?: string;
 }
 
 export interface QueryAdminPromotionsFilter {

@@ -64,6 +64,8 @@ export type ScheduleRecordMapperInput = {
   clinicService?: ClinicServiceRecord | null;
   isReplacement?: boolean;
   replacedStaffName?: string | null;
+  attendanceStatus?: string | null;
+  attendanceStatusLabel?: string | null;
 };
 
 const RESCHEDULE_CLOSED_REASON =
@@ -173,6 +175,8 @@ function mapScheduleRecordToEntity(
     practitionerId: record.practitionerId,
     isReplacement: record.isReplacement ?? false,
     replacedStaffName: record.replacedStaffName ?? null,
+    attendanceStatus: record.attendanceStatus ?? null,
+    attendanceStatusLabel: record.attendanceStatusLabel ?? null,
     isRescheduleEligible: isAvailable && !record.isReplacement,
     rescheduleIneligibilityReason: !isAvailable
       ? RESCHEDULE_CLOSED_REASON

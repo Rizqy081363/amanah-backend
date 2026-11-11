@@ -1,4 +1,4 @@
-import { Controller, Get, Res } from '@nestjs/common';
+import { Controller, Get, Param, ParseUUIDPipe, Res } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Response } from 'express';
 import { Public } from '../../../common/auth/public.decorator';
@@ -25,5 +25,26 @@ export class PublicPromotionsController {
       'public, s-maxage=60, stale-while-revalidate=300',
     );
     return this.promotionsService.getLivePublicPromotions();
+  }
+
+  @Public()
+  @Get(':id')
+  @ApiOperation({
+    summary: 'Mendapatkan detail promosi aktif berdasarkan ID untuk website publik',
+    description:
+      'Endpoint publik tanpa otentikasi. Mengembalikan rincian promo berstatus live untuk ditampilkan pada halaman detail.',
+  })
+  @ApiOkResponse({
+    description: 'Detail promosi aktif berhasil diambil',
+  })
+  async getPublicPromotionById(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    res.setHeader(
+      'Cache-Control',
+      'public, s-maxage=60, stale-while-revalidate=300',
+    );
+    return this.promotionsService.getPublicPromotionById(id);
   }
 }

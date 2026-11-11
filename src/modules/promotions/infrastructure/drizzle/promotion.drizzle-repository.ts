@@ -45,6 +45,7 @@ export class PromotionDrizzleRepository implements PromotionRepository {
       showSection: p.showSection,
       modalFrequency: p.modalFrequency,
       modalDelaySec: p.modalDelaySec,
+      modalMode: (p.modalMode as any) || 'card',
       priority: p.priority,
       isPublished: p.isPublished,
       startsAt: p.startsAt,
@@ -238,6 +239,7 @@ export class PromotionDrizzleRepository implements PromotionRepository {
         showSection: data.showSection,
         modalFrequency: data.modalFrequency,
         modalDelaySec: data.modalDelaySec,
+        modalMode: data.modalMode || 'card',
         priority: data.priority,
         isPublished: data.isPublished,
         startsAt: data.startsAt || null,
@@ -276,6 +278,7 @@ export class PromotionDrizzleRepository implements PromotionRepository {
     if (data.showSection !== undefined) updateValues.showSection = data.showSection;
     if (data.modalFrequency !== undefined) updateValues.modalFrequency = data.modalFrequency;
     if (data.modalDelaySec !== undefined) updateValues.modalDelaySec = data.modalDelaySec;
+    if (data.modalMode !== undefined) updateValues.modalMode = data.modalMode;
     if (data.priority !== undefined) updateValues.priority = data.priority;
     if (data.isPublished !== undefined) updateValues.isPublished = data.isPublished;
     if (data.startsAt !== undefined) updateValues.startsAt = data.startsAt || null;

@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, gte, ilike, lte, or, sql } from 'drizzle-orm';
 import { isUUID } from 'class-validator';
+import { and, eq, gte, ilike, lte, or, sql } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../../database/drizzle/drizzle.provider';
 import {
@@ -577,8 +577,9 @@ export class AttendanceRosterLookupDrizzleRepo {
   ): Promise<{
     id: string;
     code: string;
-    defaultStartsAt: string | null;
-    defaultEndsAt?: string | null;
+    label: string;
+    defaultStartsAt: string;
+    defaultEndsAt: string;
   } | null> {
     let timeStr: string;
     if (hourOrTime instanceof Date) {
@@ -602,6 +603,7 @@ export class AttendanceRosterLookupDrizzleRepo {
       .select({
         id: sessionDefs.id,
         code: sessionDefs.code,
+        label: sessionDefs.label,
         defaultStartsAt: sessionDefs.defaultStartsAt,
         defaultEndsAt: sessionDefs.defaultEndsAt,
       })
@@ -630,18 +632,18 @@ export class AttendanceRosterLookupDrizzleRepo {
     return null;
   }
 
-  async resolveSessionDefByCode(
-    sessionCode: string,
-  ): Promise<{
+  async resolveSessionDefByCode(sessionCode: string): Promise<{
     id: string;
     code: string;
-    defaultStartsAt: string | null;
-    defaultEndsAt?: string | null;
+    label: string;
+    defaultStartsAt: string;
+    defaultEndsAt: string;
   } | null> {
     const defs = await this.db
       .select({
         id: sessionDefs.id,
         code: sessionDefs.code,
+        label: sessionDefs.label,
         defaultStartsAt: sessionDefs.defaultStartsAt,
         defaultEndsAt: sessionDefs.defaultEndsAt,
       })
@@ -652,18 +654,18 @@ export class AttendanceRosterLookupDrizzleRepo {
     return defs.length > 0 ? defs[0] : null;
   }
 
-  async resolveSessionDefById(
-    sessionId: string,
-  ): Promise<{
+  async resolveSessionDefById(sessionId: string): Promise<{
     id: string;
     code: string;
-    defaultStartsAt: string | null;
-    defaultEndsAt?: string | null;
+    label: string;
+    defaultStartsAt: string;
+    defaultEndsAt: string;
   } | null> {
     const defs = await this.db
       .select({
         id: sessionDefs.id,
         code: sessionDefs.code,
+        label: sessionDefs.label,
         defaultStartsAt: sessionDefs.defaultStartsAt,
         defaultEndsAt: sessionDefs.defaultEndsAt,
       })
@@ -672,5 +674,155 @@ export class AttendanceRosterLookupDrizzleRepo {
       .limit(1);
 
     return defs.length > 0 ? defs[0] : null;
+  }
+
+  async findAllActiveSessions(): Promise<
+    Array<{
+      id: string;
+      code: string;
+      label: string;
+      defaultStartsAt: string;
+      defaultEndsAt: string;
+      sortOrder: number;
+    }>
+  > {
+    return this.db
+      .select({
+        id: sessionDefs.id,
+        code: sessionDefs.code,
+        label: sessionDefs.label,
+        defaultStartsAt: sessionDefs.defaultStartsAt,
+        defaultEndsAt: sessionDefs.defaultEndsAt,
+        sortOrder: sessionDefs.sortOrder,
+      })
+      .from(sessionDefs)
+      .where(eq(sessionDefs.isActive, true))
+      .orderBy(sessionDefs.sortOrder);
+  }
+
+  async findScheduledStaffForSessionAndDow(
+    sessionId: string,
+    dow: number,
+  ): Promise<
+    Array<{
+      id: string;
+      staffCode: string;
+      fullName: string;
+      userId: string | null;
+      roleId: string | null;
+      practitionerId: string | null;
+    }>
+  > {
+    const weeklyTemplateMatches = await this.db
+      .select({ id: sessionSchedules.id })
+      .from(sessionSchedules)
+      .where(
+        and(
+          eq(sessionSchedules.sessionId, sessionId),
+          eq(sessionSchedules.dow, dow),
+          eq(sessionSchedules.isActive, true),
+        ),
+      )
+      .limit(1);
+
+    const isSessionInWeeklyTemplate = weeklyTemplateMatches.length > 0;
+
+    const allActiveStaff = await this.db
+      .select({
+        id: staffProfiles.id,
+        staffCode: staffProfiles.staffCode,
+        fullName: staffProfiles.fullName,
+        userId: staffProfiles.userId,
+        roleId: staffProfiles.roleId,
+        practitionerId: practitioners.id,
+      })
+      .from(staffProfiles)
+      .leftJoin(
+        practitioners,
+        eq(practitioners.staffProfileId, staffProfiles.id),
+      )
+      .where(eq(staffProfiles.status, 'active'));
+
+    if (allActiveStaff.length === 0) {
+      return [];
+    }
+
+    const [staffOverrides, doctorOverrides] = await Promise.all([
+      this.db
+        .select({
+          staffProfileId: staffRosters.staffProfileId,
+          sessionId: staffRosters.sessionId,
+          isActive: staffRosters.isActive,
+        })
+        .from(staffRosters)
+        .where(and(eq(staffRosters.dow, dow), eq(staffRosters.isActive, true))),
+      this.db
+        .select({
+          staffProfileId: practitioners.staffProfileId,
+          sessionId: doctorAssignments.sessionId,
+          isActive: doctorAssignments.isActive,
+        })
+        .from(doctorAssignments)
+        .innerJoin(
+          practitioners,
+          eq(doctorAssignments.doctorId, practitioners.id),
+        )
+        .where(
+          and(
+            eq(doctorAssignments.dow, dow),
+            eq(doctorAssignments.isActive, true),
+          ),
+        ),
+    ]);
+
+    const staffWithCustomRoster = new Set<string>();
+    const staffAssignedToSession = new Set<string>();
+    for (const r of staffOverrides) {
+      staffWithCustomRoster.add(r.staffProfileId);
+      if (r.sessionId === sessionId) {
+        staffAssignedToSession.add(r.staffProfileId);
+      }
+    }
+
+    const doctorsWithExplicitRoster = new Set<string>();
+    const doctorsAssignedToSession = new Set<string>();
+    for (const d of doctorOverrides) {
+      if (!d.staffProfileId) continue;
+      doctorsWithExplicitRoster.add(d.staffProfileId);
+      if (d.sessionId === sessionId) {
+        doctorsAssignedToSession.add(d.staffProfileId);
+      }
+    }
+
+    const scheduledStaff: Array<{
+      id: string;
+      staffCode: string;
+      fullName: string;
+      userId: string | null;
+      roleId: string | null;
+      practitionerId: string | null;
+    }> = [];
+
+    for (const staff of allActiveStaff) {
+      if (staff.practitionerId) {
+        if (doctorsWithExplicitRoster.has(staff.id)) {
+          if (doctorsAssignedToSession.has(staff.id)) {
+            scheduledStaff.push(staff);
+          }
+        } else if (isSessionInWeeklyTemplate) {
+          scheduledStaff.push(staff);
+        }
+      } else {
+        if (staffWithCustomRoster.has(staff.id)) {
+          if (staffAssignedToSession.has(staff.id)) {
+            scheduledStaff.push(staff);
+          }
+        } else if (isSessionInWeeklyTemplate) {
+          scheduledStaff.push(staff);
+        }
+      }
+    }
+
+    return scheduledStaff;
   }
 }

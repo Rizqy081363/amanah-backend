@@ -136,6 +136,8 @@
     "test:e2e:promotions": "powershell -ExecutionPolicy Bypass -File scripts/e2e/test-promotions-module.ps1",
     "test:e2e:promotions:broadcast": "powershell -ExecutionPolicy Bypass -File scripts/e2e/test-promotions-notification-broadcast.ps1",
     "test:e2e:attendance-varied": "powershell -ExecutionPolicy Bypass -File scripts/e2e/test-attendance-varied-scenarios.ps1",
+    "test:e2e:attendance-milestones": "powershell -ExecutionPolicy Bypass -File scripts/e2e/test-staff-attendance-milestones-and-shift-end.ps1",
+    "test:e2e:attendance-overtime": "powershell -ExecutionPolicy Bypass -File scripts/e2e/test-attendance-overtime-reconciliation-e2e.ps1",
     "test:e2e:phases": "powershell -ExecutionPolicy Bypass -File scripts/e2e/test-phase1-crud.ps1 && powershell -ExecutionPolicy Bypass -File scripts/e2e/test-phase2-queue.ps1 && powershell -ExecutionPolicy Bypass -File scripts/e2e/test-phase3-medical-records.ps1",
     "test:e2e:full-suite": "bun run test:e2e:all && bun run test:e2e:idempotency && bun run test:e2e:problem-details && bun run test:e2e:mobile && bun run test:e2e:swagger && bun run test:e2e:cache && bun run test:e2e:events && bun run test:e2e:pagination && bun run test:e2e:ratelimit && bun run test:e2e:occ && bun run test:e2e:outbox",
     "test:generators:relational": "bash test/generators/run-static.sh relational",

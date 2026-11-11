@@ -7,11 +7,17 @@ import {
   REALTIME_GATEWAY_PORT,
   REALTIME_ROOMS,
 } from '../../../notifications/notifications.constants';
+import { PAYROLL_ENTRY_TYPE } from '../../../payroll/domain/constants/payroll.constants';
 import {
   ATTENDANCE_ACTIONS,
+  ATTENDANCE_STATUS,
   AttendanceAction,
 } from '../../domain/constants/attendance.constants';
 import { AttendanceEntity } from '../../domain/entities/attendance.entity';
+import {
+  ATTENDANCE_REPOSITORY,
+  AttendanceRepository,
+} from '../../domain/repositories/attendance.repository';
 
 export interface AttendanceNotificationStaffInfo {
   fullName: string;
@@ -24,6 +30,7 @@ export interface AttendanceNotificationStaffInfo {
   positionTitle?: string | null;
   avatarUrl?: string | null;
   earnedAmount?: number;
+  shiftLabel?: string | null;
 }
 
 @Injectable()
@@ -31,13 +38,15 @@ export class AttendanceNotificationService {
   private readonly logger = new Logger(AttendanceNotificationService.name);
 
   constructor(
+    private readonly clinicTimeService: ClinicTimeService,
     @Optional()
     private readonly notificationGateway?: NotificationGatewayService,
     @Optional()
     @Inject(REALTIME_GATEWAY_PORT)
     private readonly realtimeGateway?: SocketIoRealtimeGateway,
     @Optional()
-    private readonly clinicTimeService?: ClinicTimeService,
+    @Inject(ATTENDANCE_REPOSITORY)
+    private readonly repo?: AttendanceRepository,
   ) {}
 
   async dispatchNotification(
@@ -63,14 +72,7 @@ export class AttendanceNotificationService {
 
       let formattedTime = '-';
       if (eventDate && !Number.isNaN(eventDate.getTime())) {
-        if (this.clinicTimeService) {
-          formattedTime = `${this.clinicTimeService.formatTime(eventDate)} ${this.clinicTimeService.getTimezoneAbbreviation(eventDate)}`;
-        } else {
-          const hours = String(eventDate.getHours()).padStart(2, '0');
-          const minutes = String(eventDate.getMinutes()).padStart(2, '0');
-          const seconds = String(eventDate.getSeconds()).padStart(2, '0');
-          formattedTime = `${hours}:${minutes}:${seconds} WIB`;
-        }
+        formattedTime = `${this.clinicTimeService.formatTime(eventDate)} ${this.clinicTimeService.getTimezoneAbbreviation(eventDate)}`;
       }
 
       // Canonical domain event payload matching StaffAttendance SSOT
@@ -85,7 +87,7 @@ export class AttendanceNotificationService {
         roleName: staffInfo.roleName || null,
         isClinical: staffInfo.isClinical ?? false,
         kategori: staffInfo.roleName || categoryLabel,
-        tanggal_presensi: record.attendanceDate || '',
+        tanggal_presensi: record.attendanceDate,
         waktu_presensi: formattedTime,
         checkInAt: record.checkInAt ? record.checkInAt.toISOString() : null,
         checkOutAt: record.checkOutAt ? record.checkOutAt.toISOString() : null,
@@ -164,15 +166,15 @@ export class AttendanceNotificationService {
           id: record.id,
           id_staf: staffCode,
           nama_staf: staffName,
-          tanggal: record.attendanceDate || '',
+          tanggal: record.attendanceDate,
           earnedAmount: staffInfo.earnedAmount,
           validatedDurationHours: record.validatedDurationHours
             ? Number(record.validatedDurationHours)
             : 0,
           isReplacement: Boolean(record.isReplacement),
           type: record.isReplacement
-            ? 'replacement_addition'
-            : 'base_scheduled',
+            ? PAYROLL_ENTRY_TYPE.REPLACEMENT_ADDITION
+            : PAYROLL_ENTRY_TYPE.BASE_SCHEDULED,
         };
 
         if (staffUserId) {
@@ -205,8 +207,38 @@ export class AttendanceNotificationService {
         let title = 'Presensi Masuk Berhasil';
         let body = `Presensi dinas ${staffName} (${categoryLabel}) berhasil dicatat.`;
         let priority: 'normal' | 'high' = 'normal';
+        let shiftLabel = staffInfo.shiftLabel || record.shiftLabel;
+        if (!shiftLabel && this.repo) {
+          const sessionDef = record.sessionId
+            ? await this.repo.resolveSessionDefById(record.sessionId)
+            : record.shift
+              ? await this.repo.resolveSessionDefByCode(record.shift)
+              : null;
+          if (sessionDef?.label) {
+            shiftLabel = sessionDef.label;
+          }
+        }
+        const shiftName = shiftLabel || record.shift;
 
-        if (action === ATTENDANCE_ACTIONS.CHECK_OUT) {
+        if (
+          action === ATTENDANCE_ACTIONS.ABSENCE_FINALIZED ||
+          record.status === ATTENDANCE_STATUS.ABSENT
+        ) {
+          title = 'Peringatan: Anda Tercatat Tidak Hadir';
+          body = `Anda tercatat tidak hadir pada Shift ${shiftName} tanggal ${record.attendanceDate}. Honor dinas shift ini tidak dihitung.`;
+          priority = 'high';
+        } else if (action === ATTENDANCE_ACTIONS.RECONCILED) {
+          const isOvertimeApproved =
+            staffInfo.earnedAmount && staffInfo.earnedAmount > 0;
+          if (isOvertimeApproved) {
+            title = 'Rekonsiliasi Lembur Disetujui';
+            body = `Lembur dinas Shift ${shiftName} Anda telah disetujui (${record.validatedDurationHours || 0} jam kerja). Tambahan upah lembur Rp ${staffInfo.earnedAmount?.toLocaleString('id-ID')} telah dicatat.`;
+          } else {
+            title = 'Rekonsiliasi Presensi Selesai';
+            body = `Presensi dinas Shift ${shiftName} Anda telah direkonsiliasi ke jam akhir shift standar (${record.validatedDurationHours || 0} jam kerja).`;
+          }
+          priority = 'normal';
+        } else if (action === ATTENDANCE_ACTIONS.CHECK_OUT) {
           const durationText = ` Durasi kerja: ${record.validatedDurationHours || 0} jam.`;
 
           if (record.isEarlyDeparture) {
@@ -217,10 +249,25 @@ export class AttendanceNotificationService {
             title = 'Presensi Pulang Berhasil';
             body = `Presensi pulang dinas ${staffName} berhasil dicatat.${durationText}`;
           }
-        } else if (record.status === 'late') {
+        } else if (record.status === ATTENDANCE_STATUS.LATE) {
           title = 'Presensi Terlambat Dicatat';
           body = `Presensi dinas ${staffName} dicatat terlambat (${record.lateMinutes || 0} menit).`;
         }
+
+        const adminTitle =
+          action === ATTENDANCE_ACTIONS.ABSENCE_FINALIZED ||
+          record.status === ATTENDANCE_STATUS.ABSENT
+            ? 'Peringatan Ketidakhadiran Staf'
+            : action === ATTENDANCE_ACTIONS.RECONCILED
+              ? `Rekonsiliasi Presensi: ${staffName}`
+              : title;
+        const adminBody =
+          action === ATTENDANCE_ACTIONS.ABSENCE_FINALIZED ||
+          record.status === ATTENDANCE_STATUS.ABSENT
+            ? `Staf ${staffName} (${categoryLabel}) tercatat tidak hadir pada Shift ${shiftName} (${record.attendanceDate}).`
+            : action === ATTENDANCE_ACTIONS.RECONCILED
+              ? `Rekonsiliasi presensi ${staffName} (${categoryLabel}) pada Shift ${shiftName} berhasil diproses.`
+              : body;
 
         // Broadcast notification to clinic administration
         await this.notificationGateway.dispatch({
@@ -233,8 +280,8 @@ export class AttendanceNotificationService {
           },
           category: 'shift',
           content: {
-            title,
-            body,
+            title: adminTitle,
+            body: adminBody,
             actionUrl: `/admin/kehadiran-pegawai?highlight=${record.id}`,
             data: payload,
           },
@@ -262,21 +309,27 @@ export class AttendanceNotificationService {
           });
         }
 
-        // 4. Dedicated Shift Earnings Notification for Check-Out (Realtime Payroll Ledger)
+        // 4. Dedicated Shift Earnings Notification for Check-Out or Approved Overtime (Realtime Payroll Ledger)
         if (
-          isCheckoutAction &&
+          (isCheckoutAction || action === ATTENDANCE_ACTIONS.RECONCILED) &&
           staffInfo.earnedAmount &&
           staffInfo.earnedAmount > 0 &&
           staffUserId
         ) {
           const isReplacement = Boolean(record.isReplacement);
-          const payrollTitle = isReplacement
-            ? 'Upah Pengganti Masuk'
-            : 'Upah Hari Ini Masuk';
+          const payrollTitle =
+            action === ATTENDANCE_ACTIONS.RECONCILED
+              ? 'Tambahan Upah Lembur Masuk'
+              : isReplacement
+                ? 'Upah Pengganti Masuk'
+                : 'Upah Hari Ini Masuk';
           const durationVal = record.validatedDurationHours || 0;
-          const payrollBody = isReplacement
-            ? `Upah dinas pengganti sebesar Rp ${staffInfo.earnedAmount.toLocaleString('id-ID')} (${durationVal} jam dinas) telah masuk ke rekap gaji bulan berjalan.`
-            : `Upah dinas sebesar Rp ${staffInfo.earnedAmount.toLocaleString('id-ID')} (${durationVal} jam kerja) telah masuk ke rekap gaji bulan berjalan.`;
+          const payrollBody =
+            action === ATTENDANCE_ACTIONS.RECONCILED
+              ? `Tambahan upah lembur sebesar Rp ${staffInfo.earnedAmount.toLocaleString('id-ID')} telah disetujui admin dan masuk ke rekap gaji bulan berjalan.`
+              : isReplacement
+                ? `Upah dinas pengganti sebesar Rp ${staffInfo.earnedAmount.toLocaleString('id-ID')} (${durationVal} jam dinas) telah masuk ke rekap gaji bulan berjalan.`
+                : `Upah dinas sebesar Rp ${staffInfo.earnedAmount.toLocaleString('id-ID')} (${durationVal} jam kerja) telah masuk ke rekap gaji bulan berjalan.`;
 
           await this.notificationGateway.dispatch({
             commandId: `payroll-earn-${record.id}-${Date.now()}`,

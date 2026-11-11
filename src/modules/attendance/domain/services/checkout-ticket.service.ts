@@ -1,5 +1,5 @@
-import { Injectable } from '@nestjs/common';
 import * as crypto from 'node:crypto';
+import { Injectable } from '@nestjs/common';
 
 interface CheckoutTicketPayload {
   staffId: string;

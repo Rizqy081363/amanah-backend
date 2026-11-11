@@ -11,6 +11,7 @@ import {
   replacementOpportunities,
   ACTIVE_CLAIMED_REPLACEMENT_STATUSES,
   clinicUnits,
+  staffAttendanceRecords,
 } from '@database/schema';
 import { SHIFT_EXCEPTION_TYPE } from '@modules/appointments/domain/constants/appointment-lifecycle.constants';
 import {
@@ -20,6 +21,12 @@ import {
 import type { SessionShiftType } from '@modules/schedules/domain/factories/schedule-session.factory';
 import { SchedulePersistenceStatus } from '@modules/schedules/domain/schedule-status';
 import { parseTimeToMinutes } from '@modules/schedules/domain/services/shift-duration.helper';
+import {
+  ATTENDANCE_STATUS,
+  ATTENDANCE_STATUS_LABELS,
+  MILESTONE_STATUS,
+  MILESTONE_STATUS_LABELS,
+} from '@modules/attendance/domain/constants/attendance.constants';
 import { ScheduleRecordMapper } from '@modules/schedules/infrastructure/drizzle/mappers/schedule-record.mapper';
 import { PractitionerResolver } from '@modules/schedules/infrastructure/drizzle/resolvers/practitioner.resolver';
 import { Inject, Injectable } from '@nestjs/common';
@@ -282,6 +289,13 @@ export class DoctorMySchedulesQuery {
       }
     }
 
+    await this.attachAttendanceStatus(
+      results,
+      practitioner.staffProfileId || staffId,
+      startDate,
+      endDate,
+    );
+
     if (results.length > 1) {
       this.sortResults(results);
     }
@@ -508,7 +522,81 @@ export class DoctorMySchedulesQuery {
       }
     }
 
+    await this.attachAttendanceStatus(
+      results,
+      staffProfile.id,
+      startDate,
+      endDate,
+    );
+
+    if (results.length > 1) {
+      this.sortResults(results);
+    }
+
     return results;
+  }
+
+  private async attachAttendanceStatus(
+    results: ScheduleEntity[],
+    staffProfileId: string,
+    startDate: string,
+    endDate: string,
+  ): Promise<void> {
+    if (results.length === 0) return;
+
+    const records = await this.db.query.staffAttendanceRecords.findMany({
+      where: and(
+        eq(staffAttendanceRecords.staffProfileId, staffProfileId),
+        gte(staffAttendanceRecords.attendanceDate, startDate),
+        lte(staffAttendanceRecords.attendanceDate, endDate),
+      ),
+    });
+
+    const now = this.clinicTimeService.nowDate();
+    const todayStr = this.clinicTimeService.today();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+    for (const schedule of results) {
+      const matchingRecord = records.find(
+        (rec) =>
+          rec.attendanceDate === schedule.scheduleDate &&
+          ((schedule.sessionId && rec.sessionId === schedule.sessionId) ||
+            rec.shift === schedule.sessionShift ||
+            rec.shift === schedule.session),
+      );
+
+      if (matchingRecord) {
+        const st = matchingRecord.status;
+        schedule.attendanceStatus = st;
+        schedule.attendanceStatusLabel =
+          ATTENDANCE_STATUS_LABELS[st] ||
+          ATTENDANCE_STATUS_LABELS[ATTENDANCE_STATUS.PRESENT];
+      } else {
+        const startMin = parseTimeToMinutes(schedule.startTime);
+        let endMin = parseTimeToMinutes(schedule.endTime);
+        if (endMin <= startMin) endMin = 1440;
+
+        if (
+          schedule.scheduleDate < todayStr ||
+          (schedule.scheduleDate === todayStr && currentMinutes >= endMin)
+        ) {
+          schedule.attendanceStatus = ATTENDANCE_STATUS.ABSENT;
+          schedule.attendanceStatusLabel =
+            ATTENDANCE_STATUS_LABELS[ATTENDANCE_STATUS.ABSENT];
+        } else if (
+          schedule.scheduleDate === todayStr &&
+          currentMinutes >= startMin &&
+          currentMinutes < endMin
+        ) {
+          schedule.attendanceStatus = MILESTONE_STATUS.ONGOING;
+          schedule.attendanceStatusLabel =
+            MILESTONE_STATUS_LABELS[MILESTONE_STATUS.ONGOING];
+        } else {
+          schedule.attendanceStatus = MILESTONE_STATUS.UPCOMING;
+          schedule.attendanceStatusLabel = null;
+        }
+      }
+    }
   }
 
   private sortResults(results: ScheduleEntity[]): void {

@@ -88,6 +88,20 @@ export class ClinicTimeService {
     };
   }
 
+  parseClinicDateTime(date: string, time: string): Date {
+    const normDate = this.normalizeDate(date);
+    const normTime =
+      time.trim().length === 5 ? `${time.trim()}:00` : time.trim();
+    const isoTime =
+      normTime === '24:00:00' || normTime === '24:00'
+        ? '23:59:59'
+        : normTime;
+    const zdt = Temporal.PlainDateTime.from(
+      `${normDate}T${isoTime}`,
+    ).toZonedDateTime(this.timezone);
+    return new Date(zdt.toInstant().epochMilliseconds);
+  }
+
   getTimezone(): string {
     return this.timezone;
   }

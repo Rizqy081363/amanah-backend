@@ -68,6 +68,14 @@ export class PromotionsService {
     return { data };
   }
 
+  async getPublicPromotionById(id: string): Promise<{ data: PublicPromotion }> {
+    const entity = await this.promoRepo.findById(id);
+    if (!entity || entity.deletedAt || entity.computeStatus() !== 'live') {
+      throw new NotFoundException(`Promotion with ID "${id}" was not found or is no longer active.`);
+    }
+    return { data: entity.toPublicDto() };
+  }
+
   async getAdminPromotions(filter: QueryAdminPromotionsFilter) {
     const { items, total } = await this.promoRepo.findAllAdmin(filter);
     const data = items.map((p) => ({
@@ -186,6 +194,7 @@ export class PromotionsService {
       showSection: dto.showSection ?? true,
       modalFrequency: dto.modalFrequency ?? 'once_per_day',
       modalDelaySec: dto.modalDelaySec ?? 3,
+      modalMode: dto.modalMode ?? 'card',
       priority: dto.priority ?? 0,
       isPublished: dto.isPublished ?? false,
       startsAt: dto.startsAt || null,

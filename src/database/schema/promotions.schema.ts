@@ -44,6 +44,7 @@ export const promotions = pgTable(
       .default('once_per_day')
       .notNull(),
     modalDelaySec: smallint('modal_delay_sec').default(3).notNull(),
+    modalMode: varchar('modal_mode', { length: 20 }).default('card').notNull(),
     priority: smallint('priority').default(0).notNull(),
     isPublished: boolean('is_published').default(false).notNull(),
     startsAt: timestamp('starts_at', { withTimezone: true, mode: 'string' }),
@@ -87,6 +88,10 @@ export const promotions = pgTable(
     check(
       'chk_promotions_modal_delay',
       sql`${table.modalDelaySec} BETWEEN 0 AND 30`,
+    ),
+    check(
+      'chk_promotions_modal_mode',
+      sql`${table.modalMode} IN ('card', 'image_only')`,
     ),
     index('idx_promotions_live')
       .using('btree', table.isPublished, table.startsAt, table.endsAt)

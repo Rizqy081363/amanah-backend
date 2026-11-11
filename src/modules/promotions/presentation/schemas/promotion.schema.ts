@@ -34,6 +34,7 @@ export const BasePromotionSchema = z.object({
     .enum(['once_per_session', 'once_per_day', 'once_per_week'])
     .default('once_per_day'),
   modalDelaySec: z.number().int().min(0).max(30).default(3),
+  modalMode: z.enum(['card', 'image_only']).default('card'),
   priority: z.number().int().default(0),
   isPublished: z.boolean().default(false),
   startsAt: z.string().optional().nullable(),

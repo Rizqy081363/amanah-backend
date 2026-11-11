@@ -22,7 +22,11 @@ import {
   payrollPeriods,
 } from '../../../../database/schema/leave-payroll.schema';
 import { calculateSessionNetHours } from '../../../schedules/domain/services/shift-duration.helper';
-import { PAYROLL_PERIOD_STATUS } from '../../domain/constants/payroll.constants';
+import {
+  PAYROLL_ENTRY_TYPE,
+  PAYROLL_PERIOD_STATUS,
+  PAYROLL_SOURCE_TYPE,
+} from '../../domain/constants/payroll.constants';
 import { PayrollEntryEntity } from '../../domain/entities/payroll-entry.entity';
 import { PayrollPeriodEntity } from '../../domain/entities/payroll-period.entity';
 import {
@@ -30,7 +34,9 @@ import {
   PayrollFilterOptions,
   PayrollRepository,
   PayrollSummary,
+  RecordAbsenceDeductionInput,
   RecordAttendanceShiftInput,
+  RecordOvertimeAdditionInput,
 } from '../../domain/repositories/payroll.repository';
 
 function formatHours(h: number): string {
@@ -967,6 +973,270 @@ export class PayrollDrizzleRepository implements PayrollRepository {
       input.attendanceRecordId,
     ]);
     return this.mapEntry(insertedEntry, attMap.get(input.attendanceRecordId));
+  }
+
+  async recordAbsenceDeduction(
+    input: RecordAbsenceDeductionInput,
+  ): Promise<PayrollEntryEntity> {
+    // 1. Locate open active payroll period that covers input.attendanceDate
+    let [activePeriod] = await this.db
+      .select()
+      .from(payrollPeriods)
+      .where(
+        and(
+          lte(payrollPeriods.periodStart, input.attendanceDate),
+          gte(payrollPeriods.periodEnd, input.attendanceDate),
+          ne(payrollPeriods.status, PAYROLL_PERIOD_STATUS.FINALIZED),
+        ),
+      )
+      .limit(1);
+
+    if (!activePeriod) {
+      const [latestOpen] = await this.db
+        .select()
+        .from(payrollPeriods)
+        .where(ne(payrollPeriods.status, PAYROLL_PERIOD_STATUS.FINALIZED))
+        .orderBy(desc(payrollPeriods.periodStart))
+        .limit(1);
+      activePeriod = latestOpen;
+    }
+
+    if (!activePeriod) {
+      const dateObj = new Date(input.attendanceDate);
+      const year = dateObj.getFullYear();
+      const month = dateObj.getMonth();
+      const locale = this.clinicConfigService
+        ? await this.clinicConfigService.getLocale().catch(() => 'id-ID')
+        : 'id-ID';
+      const monthName = new Intl.DateTimeFormat(locale, {
+        month: 'long',
+      }).format(dateObj);
+      const startOfMonth = new Date(year, month, 1).toISOString().split('T')[0];
+      const endOfMonth = new Date(year, month + 1, 0)
+        .toISOString()
+        .split('T')[0];
+      const periodName = `Payroll Periode ${monthName} ${year}`;
+
+      const [created] = await this.db
+        .insert(payrollPeriods)
+        .values({
+          periodStart: startOfMonth,
+          periodEnd: endOfMonth,
+          periodName,
+          status: PAYROLL_PERIOD_STATUS.CALCULATED,
+          calculatedAt: new Date().toISOString(),
+          notes: 'Periode aktif dibuat otomatis oleh sistem presensi',
+        })
+        .returning();
+      activePeriod = created;
+    }
+
+    // 2. Fetch staff profile & active compensation rate
+    const [staff] = await this.db
+      .select({
+        id: staffProfiles.id,
+        roleId: staffProfiles.roleId,
+      })
+      .from(staffProfiles)
+      .where(eq(staffProfiles.id, input.staffProfileId))
+      .limit(1);
+
+    const rates = await this.db
+      .select()
+      .from(compensationRates)
+      .where(eq(compensationRates.isActive, true));
+
+    const rateRow = rates.find(
+      (r) => staff?.roleId && r.roleId === staff.roleId,
+    );
+    const standardHourlyRate = Number(rateRow?.hourlyRate ?? 0);
+    const shiftHours = Number(input.shiftHours || 0);
+    const amount = Number((shiftHours * standardHourlyRate).toFixed(2));
+    const description = `Potongan Tidak Hadir - Shift ${input.shiftLabel || 'Dinas'} (${input.attendanceDate})`;
+
+    // 3. Delete existing entry for this attendance record (idempotency)
+    await this.db
+      .delete(payrollEntries)
+      .where(
+        and(
+          eq(payrollEntries.sourceType, 'attendance'),
+          eq(payrollEntries.sourceId, input.attendanceRecordId),
+        ),
+      );
+
+    // 4. Insert absence deduction entry
+    const [insertedEntry] = await this.db
+      .insert(payrollEntries)
+      .values({
+        payrollPeriodId: activePeriod.id,
+        staffProfileId: input.staffProfileId,
+        practitionerId: input.practitionerId || null,
+        entryType: 'leave_deduction',
+        sourceType: 'attendance',
+        sourceId: input.attendanceRecordId,
+        quantityHours: shiftHours.toFixed(2),
+        hourlyRate: standardHourlyRate.toFixed(2),
+        amount: amount.toFixed(2),
+        description,
+      })
+      .returning();
+
+    const attMap = await this.getAttendanceRecordsMap([
+      input.attendanceRecordId,
+    ]);
+    return this.mapEntry(insertedEntry, attMap.get(input.attendanceRecordId));
+  }
+
+  async recordOvertimeAddition(
+    input: RecordOvertimeAdditionInput,
+  ): Promise<PayrollEntryEntity> {
+    // 1. Locate open active payroll period that covers input.attendanceDate
+    let [activePeriod] = await this.db
+      .select()
+      .from(payrollPeriods)
+      .where(
+        and(
+          lte(payrollPeriods.periodStart, input.attendanceDate),
+          gte(payrollPeriods.periodEnd, input.attendanceDate),
+          ne(payrollPeriods.status, PAYROLL_PERIOD_STATUS.FINALIZED),
+        ),
+      )
+      .limit(1);
+
+    if (!activePeriod) {
+      const [latestOpen] = await this.db
+        .select()
+        .from(payrollPeriods)
+        .where(ne(payrollPeriods.status, PAYROLL_PERIOD_STATUS.FINALIZED))
+        .orderBy(desc(payrollPeriods.periodStart))
+        .limit(1);
+      activePeriod = latestOpen;
+    }
+
+    if (!activePeriod) {
+      const dateObj = new Date(input.attendanceDate);
+      const year = dateObj.getFullYear();
+      const month = dateObj.getMonth();
+      const locale = this.clinicConfigService
+        ? await this.clinicConfigService.getLocale().catch(() => 'id-ID')
+        : 'id-ID';
+      const monthName = new Intl.DateTimeFormat(locale, {
+        month: 'long',
+      }).format(dateObj);
+      const startOfMonth = new Date(year, month, 1).toISOString().split('T')[0];
+      const endOfMonth = new Date(year, month + 1, 0)
+        .toISOString()
+        .split('T')[0];
+      const periodName = `Payroll Periode ${monthName} ${year}`;
+
+      const [created] = await this.db
+        .insert(payrollPeriods)
+        .values({
+          periodStart: startOfMonth,
+          periodEnd: endOfMonth,
+          periodName,
+          status: PAYROLL_PERIOD_STATUS.CALCULATED,
+          calculatedAt: new Date().toISOString(),
+          notes: 'Periode aktif dibuat otomatis oleh sistem presensi',
+        })
+        .returning();
+      activePeriod = created;
+    }
+
+    // 2. Fetch staff profile & active compensation rate
+    const [staff] = await this.db
+      .select({
+        id: staffProfiles.id,
+        roleId: staffProfiles.roleId,
+      })
+      .from(staffProfiles)
+      .where(eq(staffProfiles.id, input.staffProfileId))
+      .limit(1);
+
+    const rates = await this.db
+      .select()
+      .from(compensationRates)
+      .where(eq(compensationRates.isActive, true));
+
+    const rateRow = rates.find(
+      (r) => staff?.roleId && r.roleId === staff.roleId,
+    );
+    const standardHourlyRate = Number(rateRow?.hourlyRate ?? 0);
+    const overtimeHourlyRate = Number(
+      rateRow?.overtimeHourlyRate ?? standardHourlyRate,
+    );
+    const effectiveRate =
+      overtimeHourlyRate > 0 ? overtimeHourlyRate : standardHourlyRate;
+
+    const overtimeHours = Number(input.overtimeHours || 0);
+    const amount = Number((overtimeHours * effectiveRate).toFixed(2));
+    const description = `Tambahan Lembur Terverifikasi (${formatHours(overtimeHours)} @ Rp${effectiveRate.toLocaleString('id-ID')}/jam) - Shift ${input.shiftLabel || 'Dinas'}`;
+
+    // 3. Idempotently delete existing overtime addition for this attendance record
+    await this.db
+      .delete(payrollEntries)
+      .where(
+        and(
+          eq(payrollEntries.sourceType, PAYROLL_SOURCE_TYPE.ATTENDANCE),
+          eq(payrollEntries.sourceId, input.attendanceRecordId),
+          eq(payrollEntries.entryType, PAYROLL_ENTRY_TYPE.OVERTIME_ADDITION),
+        ),
+      );
+
+    // If overtime hours is <= 0, return a zero entry without inserting
+    if (overtimeHours <= 0) {
+      return {
+        id: 'zero-overtime-entry',
+        payrollPeriodId: activePeriod.id,
+        staffProfileId: input.staffProfileId,
+        practitionerId: input.practitionerId || null,
+        entryType: PAYROLL_ENTRY_TYPE.OVERTIME_ADDITION,
+        sourceType: PAYROLL_SOURCE_TYPE.ATTENDANCE,
+        sourceId: input.attendanceRecordId,
+        quantityHours: 0,
+        hourlyRate: effectiveRate,
+        amount: 0,
+        description: null,
+        checkInAt: null,
+        checkOutAt: null,
+        notes: input.notes || null,
+        createdAt: new Date(),
+      };
+    }
+
+    // 4. Insert overtime addition entry
+    const [insertedEntry] = await this.db
+      .insert(payrollEntries)
+      .values({
+        payrollPeriodId: activePeriod.id,
+        staffProfileId: input.staffProfileId,
+        practitionerId: input.practitionerId || null,
+        entryType: PAYROLL_ENTRY_TYPE.OVERTIME_ADDITION,
+        sourceType: PAYROLL_SOURCE_TYPE.ATTENDANCE,
+        sourceId: input.attendanceRecordId,
+        quantityHours: overtimeHours.toFixed(2),
+        hourlyRate: effectiveRate.toFixed(2),
+        amount: amount.toFixed(2),
+        description: input.notes ? `${description} (${input.notes})` : description,
+      })
+      .returning();
+
+    const attMap = await this.getAttendanceRecordsMap([
+      input.attendanceRecordId,
+    ]);
+    return this.mapEntry(insertedEntry, attMap.get(input.attendanceRecordId));
+  }
+
+  async removeOvertimeAddition(attendanceRecordId: string): Promise<void> {
+    await this.db
+      .delete(payrollEntries)
+      .where(
+        and(
+          eq(payrollEntries.sourceType, PAYROLL_SOURCE_TYPE.ATTENDANCE),
+          eq(payrollEntries.sourceId, attendanceRecordId),
+          eq(payrollEntries.entryType, PAYROLL_ENTRY_TYPE.OVERTIME_ADDITION),
+        ),
+      );
   }
 
   async getPayrollFilterOptions(): Promise<PayrollFilterOptions> {

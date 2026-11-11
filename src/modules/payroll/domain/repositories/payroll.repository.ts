@@ -44,6 +44,25 @@ export interface RecordAttendanceShiftInput {
   isReplacement?: boolean;
 }
 
+export interface RecordAbsenceDeductionInput {
+  attendanceRecordId: string;
+  staffProfileId: string;
+  practitionerId?: string | null;
+  attendanceDate: string;
+  shiftHours: number;
+  shiftLabel?: string;
+}
+
+export interface RecordOvertimeAdditionInput {
+  attendanceRecordId: string;
+  staffProfileId: string;
+  practitionerId?: string | null;
+  attendanceDate: string;
+  overtimeHours: number;
+  shiftLabel?: string;
+  notes?: string;
+}
+
 export interface MonthlyPayrollGroup {
   periodId: string;
   periodName: string;
@@ -95,5 +114,12 @@ export interface PayrollRepository {
   recordAttendanceShift(
     input: RecordAttendanceShiftInput,
   ): Promise<PayrollEntryEntity>;
+  recordAbsenceDeduction(
+    input: RecordAbsenceDeductionInput,
+  ): Promise<PayrollEntryEntity>;
+  recordOvertimeAddition(
+    input: RecordOvertimeAdditionInput,
+  ): Promise<PayrollEntryEntity>;
+  removeOvertimeAddition(attendanceRecordId: string): Promise<void>;
   getPayrollFilterOptions(): Promise<PayrollFilterOptions>;
 }

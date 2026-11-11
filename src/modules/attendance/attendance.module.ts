@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
+import { SchedulerModule } from '../../common/scheduler';
 import { PayrollModule } from '../payroll/payroll.module';
+import { ShiftEndAttendanceScheduler } from './application/schedulers/shift-end-attendance.scheduler';
 import { AttendanceMetricsCalculator } from './application/services/attendance-metrics.calculator';
 import { AttendanceNotificationService } from './application/services/attendance-notification.service';
 import {
@@ -7,7 +9,10 @@ import {
   GetAttendanceExportCandidatesUseCase,
   GetDailyAttendanceBffUseCase,
   GetMyAttendanceHistoryUseCase,
+  GetStaffAttendanceMilestonesUseCase,
   ManualAttendanceUseCase,
+  ProcessShiftEndAbsenceUseCase,
+  ReconcileAttendanceOvertimeUseCase,
   RotateQrSessionUseCase,
   ScanAttendanceUseCase,
 } from './application/use-cases';
@@ -25,7 +30,7 @@ import { AttendanceRosterLookupDrizzleRepo } from './infrastructure/drizzle/repo
 import { AttendanceController } from './presentation/attendance.controller';
 
 @Module({
-  imports: [PayrollModule],
+  imports: [PayrollModule, SchedulerModule],
   controllers: [AttendanceController],
   providers: [
     // Sub-repositories
@@ -55,6 +60,11 @@ import { AttendanceController } from './presentation/attendance.controller';
     GetMyAttendanceHistoryUseCase,
     GetDailyAttendanceBffUseCase,
     GetAttendanceExportCandidatesUseCase,
+    GetStaffAttendanceMilestonesUseCase,
+    ProcessShiftEndAbsenceUseCase,
+    ReconcileAttendanceOvertimeUseCase,
+    // Schedulers
+    ShiftEndAttendanceScheduler,
   ],
   exports: [
     ATTENDANCE_REPOSITORY,
@@ -66,6 +76,9 @@ import { AttendanceController } from './presentation/attendance.controller';
     GetMyAttendanceHistoryUseCase,
     GetDailyAttendanceBffUseCase,
     GetAttendanceExportCandidatesUseCase,
+    GetStaffAttendanceMilestonesUseCase,
+    ProcessShiftEndAbsenceUseCase,
+    ReconcileAttendanceOvertimeUseCase,
   ],
 })
 export class AttendanceModule {}

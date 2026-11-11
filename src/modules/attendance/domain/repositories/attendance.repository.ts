@@ -34,6 +34,13 @@ export interface AttendanceExportCandidate {
 export interface AttendanceBFFResponse {
   records: any[];
   total: number;
+  currentShift?: {
+    id: string;
+    code: string;
+    label: string;
+    defaultStartsAt?: string | null;
+    defaultEndsAt?: string | null;
+  } | null;
   summary: {
     total_staf: number;
     staf_hadir: number;
@@ -79,7 +86,7 @@ export interface AttendanceRepository {
     attendanceDate: string;
     shift: string;
     status: string;
-    checkInAt: string;
+    checkInAt?: string | null;
     lateMinutes?: number | null;
     recordedMethod: string;
     sessionId?: string | null;
@@ -97,14 +104,22 @@ export interface AttendanceRepository {
       validatedDurationHours?: string | null;
       notes?: string | null;
       isEarlyDeparture?: boolean;
+      recordedBy?: string | null;
       updatedAt?: string;
     },
   ): Promise<AttendanceEntity>;
+
+  findById(id: string): Promise<AttendanceEntity | null>;
 
   findStaffAttendanceForDate(
     staffId: string,
     attendanceDate: string,
   ): Promise<AttendanceEntity | null>;
+
+  findAttendanceRecordsForStaffAndDate(
+    staffId: string,
+    attendanceDate: string,
+  ): Promise<AttendanceEntity[]>;
 
   findStaffAttendanceForDateAndShift(
     staffId: string,
@@ -257,26 +272,25 @@ export interface AttendanceRepository {
   ): Promise<{
     id: string;
     code: string;
-    defaultStartsAt: string | null;
-    defaultEndsAt?: string | null;
+    label: string;
+    defaultStartsAt: string;
+    defaultEndsAt: string;
   } | null>;
 
-  resolveSessionDefByCode(
-    sessionCode: string,
-  ): Promise<{
+  resolveSessionDefByCode(sessionCode: string): Promise<{
     id: string;
     code: string;
-    defaultStartsAt: string | null;
-    defaultEndsAt?: string | null;
+    label: string;
+    defaultStartsAt: string;
+    defaultEndsAt: string;
   } | null>;
 
-  resolveSessionDefById(
-    sessionId: string,
-  ): Promise<{
+  resolveSessionDefById(sessionId: string): Promise<{
     id: string;
     code: string;
-    defaultStartsAt: string | null;
-    defaultEndsAt?: string | null;
+    label: string;
+    defaultStartsAt: string;
+    defaultEndsAt: string;
   } | null>;
 
   // Master days and historical trends from database
@@ -307,4 +321,29 @@ export interface AttendanceRepository {
     startDate: string,
     endDate: string,
   ): Promise<AttendanceExportCandidate[]>;
+
+  findAllActiveSessions(): Promise<
+    Array<{
+      id: string;
+      code: string;
+      label: string;
+      defaultStartsAt: string;
+      defaultEndsAt: string;
+      sortOrder: number;
+    }>
+  >;
+
+  findScheduledStaffForSessionAndDow(
+    sessionId: string,
+    dow: number,
+  ): Promise<
+    Array<{
+      id: string;
+      staffCode: string;
+      fullName: string;
+      userId: string | null;
+      roleId: string | null;
+      practitionerId: string | null;
+    }>
+  >;
 }
