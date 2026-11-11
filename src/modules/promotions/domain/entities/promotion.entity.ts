@@ -12,6 +12,13 @@ export class PromotionEntity {
   serviceId?: string | null;
   serviceName?: string | null;
   serviceCode?: string | null;
+  targetPageId?: string | null;
+  targetPage?: {
+    id: string;
+    name: string;
+    routePath: string;
+    customAlias?: string | null;
+  } | null;
   title: string;
   summary: string;
   body?: string | null;
@@ -78,6 +85,8 @@ export class PromotionEntity {
       terms: this.terms || undefined,
       serviceId: this.serviceId || undefined,
       serviceName: this.serviceName || undefined,
+      targetPageId: this.targetPageId || undefined,
+      targetPage: this.targetPage || undefined,
       image: {
         src: this.imageValue,
         alt: this.imageAlt,

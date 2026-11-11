@@ -11,7 +11,7 @@ import {
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core';
-import { clinicServices, users } from './amanah.schema';
+import { applicationPages, clinicServices, users } from './amanah.schema';
 
 export const promoImageType = pgEnum('promo_image_type', ['static', 'url']);
 
@@ -26,6 +26,9 @@ export const promotions = pgTable(
   {
     id: uuid('id').defaultRandom().primaryKey().notNull(),
     serviceId: uuid('service_id').references(() => clinicServices.id, {
+      onDelete: 'set null',
+    }),
+    targetPageId: uuid('target_page_id').references(() => applicationPages.id, {
       onDelete: 'set null',
     }),
     title: varchar('title', { length: 80 }).notNull(),
@@ -101,6 +104,8 @@ export const promotions = pgTable(
     index('idx_promotions_service')
       .using('btree', table.serviceId)
       .where(sql`${table.deletedAt} IS NULL`),
+    index('idx_promotions_target_page')
+      .using('btree', table.targetPageId),
     index('idx_promotions_broadcast')
       .using(
         'btree',

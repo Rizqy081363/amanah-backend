@@ -14,13 +14,14 @@ import {
   users,
 } from '../../../../database/schema';
 import {
+  AttendanceStatus,
+  CANONICAL_CLINIC_LOCATION,
+  normalizeStatus,
+} from '../../../attendance/domain/constants/attendance.constants';
+import {
   ExportColumnDef,
   ExportSource,
 } from '../../domain/export-source.interface';
-import {
-  AttendanceStatus,
-  normalizeStatus,
-} from '../../../attendance/domain/constants/attendance.constants';
 
 const EXPORT_STATUS_LABELS: Record<AttendanceStatus, string> = {
   present: 'Hadir',
@@ -324,7 +325,7 @@ export class AttendanceExportSource implements ExportSource {
       row.lateMinutes ? Number(row.lateMinutes) : 0,
       Number(row.validatedDurationHours ?? 0),
       statusLabel,
-      row.locationLabel ?? 'Klinik Utama',
+      row.locationLabel ?? CANONICAL_CLINIC_LOCATION,
     ];
   }
 }

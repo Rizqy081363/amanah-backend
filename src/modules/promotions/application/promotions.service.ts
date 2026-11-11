@@ -180,6 +180,7 @@ export class PromotionsService {
 
     const created = await this.promoRepo.create({
       serviceId: dto.serviceId || null,
+      targetPageId: dto.targetPageId || null,
       title: dto.title.trim(),
       summary: dto.summary.trim(),
       body: dto.body ? dto.body.trim() : null,

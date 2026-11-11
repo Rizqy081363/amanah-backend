@@ -1,11 +1,15 @@
 import { relations } from 'drizzle-orm';
-import { clinicServices, users } from './amanah.schema';
+import { applicationPages, clinicServices, users } from './amanah.schema';
 import { promotions } from './promotions.schema';
 
 export const promotionsRelations = relations(promotions, ({ one }) => ({
   service: one(clinicServices, {
     fields: [promotions.serviceId],
     references: [clinicServices.id],
+  }),
+  targetPage: one(applicationPages, {
+    fields: [promotions.targetPageId],
+    references: [applicationPages.id],
   }),
   createdByUser: one(users, {
     fields: [promotions.createdBy],

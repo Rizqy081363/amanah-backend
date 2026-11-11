@@ -10,6 +10,7 @@ export const PROMOTION_REPOSITORY = 'PROMOTION_REPOSITORY';
 
 export interface CreatePromotionData {
   serviceId?: string | null;
+  targetPageId?: string | null;
   title: string;
   summary: string;
   body?: string | null;

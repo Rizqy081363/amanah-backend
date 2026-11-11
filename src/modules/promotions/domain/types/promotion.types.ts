@@ -36,6 +36,13 @@ export interface PublicPromotion {
   terms?: string;
   serviceId?: string;
   serviceName?: string;
+  targetPageId?: string;
+  targetPage?: {
+    id: string;
+    name: string;
+    routePath: string;
+    customAlias?: string | null;
+  };
   image: {
     src: string;
     alt: string;

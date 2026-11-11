@@ -31,6 +31,7 @@ export interface AttendanceNotificationStaffInfo {
   avatarUrl?: string | null;
   earnedAmount?: number;
   shiftLabel?: string | null;
+  skipAdminBroadcast?: boolean;
 }
 
 @Injectable()
@@ -105,29 +106,31 @@ export class AttendanceNotificationService {
 
       // 1. Scoped Realtime WebSocket Dispatch (Strictly Isolated to Clinic Staff & Admin)
       if (this.realtimeGateway) {
-        // A. Target clinic staff room (Terminal & Clinic Operational Room)
-        void this.realtimeGateway.emitToRoom?.(
-          REALTIME_ROOMS.clinic,
-          'attendance:recorded',
-          payload,
-        );
-        void this.realtimeGateway.emitToRoom?.(
-          REALTIME_ROOMS.clinic,
-          `attendance:${action}`,
-          payload,
-        );
-        if (record.isEarlyDeparture) {
+        // A. Target clinic staff room (Terminal & Clinic Operational Room - skipped during bulk sweep)
+        if (!staffInfo.skipAdminBroadcast) {
           void this.realtimeGateway.emitToRoom?.(
             REALTIME_ROOMS.clinic,
-            'attendance:early_departure',
+            'attendance:recorded',
             payload,
           );
+          void this.realtimeGateway.emitToRoom?.(
+            REALTIME_ROOMS.clinic,
+            `attendance:${action}`,
+            payload,
+          );
+          if (record.isEarlyDeparture) {
+            void this.realtimeGateway.emitToRoom?.(
+              REALTIME_ROOMS.clinic,
+              'attendance:early_departure',
+              payload,
+            );
+          }
+          void this.realtimeGateway.emitToRoom?.(
+            REALTIME_ROOMS.clinic,
+            'attendance:refresh',
+            { date: record.attendanceDate },
+          );
         }
-        void this.realtimeGateway.emitToRoom?.(
-          REALTIME_ROOMS.clinic,
-          'attendance:refresh',
-          { date: record.attendanceDate },
-        );
 
         // B. Target staff user personal room
         if (staffUserId) {
@@ -269,24 +272,26 @@ export class AttendanceNotificationService {
               ? `Rekonsiliasi presensi ${staffName} (${categoryLabel}) pada Shift ${shiftName} berhasil diproses.`
               : body;
 
-        // Broadcast notification to clinic administration
-        await this.notificationGateway.dispatch({
-          commandId: `att-admin-${action}-${record.id}-${Date.now()}`,
-          sourceDomain: NOTIFICATION_SOURCE_DOMAINS.ATTENDANCE,
-          channels: ['in_app'],
-          audience: 'internal',
-          target: {
-            type: 'broadcast',
-          },
-          category: 'shift',
-          content: {
-            title: adminTitle,
-            body: adminBody,
-            actionUrl: `/admin/kehadiran-pegawai?highlight=${record.id}`,
-            data: payload,
-          },
-          priority,
-        });
+        // Broadcast notification to clinic administration (skipped during bulk sweep)
+        if (!staffInfo.skipAdminBroadcast) {
+          await this.notificationGateway.dispatch({
+            commandId: `att-admin-${action}-${record.id}-${Date.now()}`,
+            sourceDomain: NOTIFICATION_SOURCE_DOMAINS.ATTENDANCE,
+            channels: ['in_app'],
+            audience: 'internal',
+            target: {
+              type: 'broadcast',
+            },
+            category: 'shift',
+            content: {
+              title: adminTitle,
+              body: adminBody,
+              actionUrl: `/admin/kehadiran-pegawai?highlight=${record.id}`,
+              data: payload,
+            },
+            priority,
+          });
+        }
 
         // If staff user exists, dispatch personal attendance notification
         if (staffUserId) {
@@ -366,6 +371,74 @@ export class AttendanceNotificationService {
     } catch (err) {
       this.logger.error(
         `Failed to dispatch attendance notification: ${String(err)}`,
+      );
+    }
+  }
+
+  async dispatchAggregateShiftAbsence(params: {
+    shiftLabel: string;
+    shiftCode: string;
+    attendanceDate: string;
+    absentCount: number;
+    absentStaffNames: string[];
+  }): Promise<void> {
+    if (params.absentCount <= 0) return;
+
+    try {
+      const namesPreview =
+        params.absentStaffNames.length <= 3
+          ? params.absentStaffNames.join(', ')
+          : `${params.absentStaffNames.slice(0, 3).join(', ')} dan ${params.absentStaffNames.length - 3} lainnya`;
+
+      const title = `Evaluasi Akhir Shift: ${params.shiftLabel}`;
+      const body = `${params.absentCount} staf tercatat tidak hadir pada Shift ${params.shiftLabel} (${params.attendanceDate}): ${namesPreview}.`;
+
+      // 1. Single aggregate broadcast to clinic administration
+      if (this.notificationGateway) {
+        await this.notificationGateway.dispatch({
+          commandId: `att-admin-sweep-${params.shiftCode}-${params.attendanceDate}-${Date.now()}`,
+          sourceDomain: NOTIFICATION_SOURCE_DOMAINS.ATTENDANCE,
+          channels: ['in_app'],
+          audience: 'internal',
+          target: {
+            type: 'broadcast',
+          },
+          category: 'shift',
+          content: {
+            title,
+            body,
+            actionUrl: `/admin/kehadiran-pegawai?date=${params.attendanceDate}&shift=${params.shiftCode}&status=${ATTENDANCE_STATUS.ABSENT}`,
+            data: {
+              shiftCode: params.shiftCode,
+              shiftLabel: params.shiftLabel,
+              attendanceDate: params.attendanceDate,
+              absentCount: params.absentCount,
+              absentStaffNames: params.absentStaffNames,
+            },
+          },
+          priority: 'normal',
+        });
+      }
+
+      // 2. Single realtime refresh event to clinic operational room
+      if (this.realtimeGateway) {
+        void this.realtimeGateway.emitToRoom?.(
+          REALTIME_ROOMS.clinic,
+          'attendance:refresh',
+          {
+            date: params.attendanceDate,
+            shift: params.shiftCode,
+            totalAbsent: params.absentCount,
+          },
+        );
+      }
+
+      this.logger.log(
+        `[AttendanceEDA] Dispatched aggregate shift absence notification: shift=${params.shiftLabel}, absentCount=${params.absentCount}`,
+      );
+    } catch (err) {
+      this.logger.error(
+        `[AttendanceEDA] Failed to dispatch aggregate shift absence notification: ${String(err)}`,
       );
     }
   }

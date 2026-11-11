@@ -11,6 +11,7 @@ export class AttendanceEntity {
   recordedMethod: AttendanceMethod;
   isReplacement: boolean;
   isEarlyDeparture: boolean;
+  locationLabel?: string | null;
   shift?: string | null;
   shiftLabel?: string | null;
   checkInAt?: Date | null;

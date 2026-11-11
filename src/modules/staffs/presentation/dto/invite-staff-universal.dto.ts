@@ -37,7 +37,7 @@ export class InviteStaffUniversalDto {
 
   @ApiPropertyOptional({
     example: 'd9b04fc2-5f36-4c4b-873b-e0c1f2b6e123',
-    description: 'ID Unit kerja klinik utama (opsional)',
+    description: 'ID Unit kerja klinik (opsional)',
   })
   @IsUUID('4', { message: 'ID Unit kerja harus UUID v4 valid' })
   @IsOptional()

@@ -2,7 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { and, desc, eq, ilike, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import { DRIZZLE_SOURCE } from '../../../../database/drizzle/drizzle.constants';
 import { DrizzleDatabase } from '../../../../database/drizzle/drizzle.provider';
-import { clinicServices } from '../../../../database/schema/amanah.schema';
+import { clinicServices, applicationPages } from '../../../../database/schema/amanah.schema';
 import { promotions } from '../../../../database/schema/promotions.schema';
 import { PromotionEntity } from '../../domain/entities/promotion.entity';
 import {
@@ -22,15 +22,26 @@ export class PromotionDrizzleRepository implements PromotionRepository {
   private mapRecordToEntity(row: {
     promotions: typeof promotions.$inferSelect;
     clinic_services?: typeof clinicServices.$inferSelect | null;
+    application_pages?: typeof applicationPages.$inferSelect | null;
   }): PromotionEntity {
     const p = row.promotions;
     const s = row.clinic_services;
+    const page = row.application_pages;
 
     return new PromotionEntity({
       id: p.id,
       serviceId: p.serviceId,
       serviceName: s?.name || null,
       serviceCode: s?.code || null,
+      targetPageId: p.targetPageId,
+      targetPage: page
+        ? {
+            id: page.id,
+            name: page.name,
+            routePath: page.routePath,
+            customAlias: page.customAlias,
+          }
+        : null,
       title: p.title,
       summary: p.summary,
       body: p.body,
@@ -68,9 +79,11 @@ export class PromotionDrizzleRepository implements PromotionRepository {
       .select({
         promotions,
         clinic_services: clinicServices,
+        application_pages: applicationPages,
       })
       .from(promotions)
       .leftJoin(clinicServices, eq(promotions.serviceId, clinicServices.id))
+      .leftJoin(applicationPages, eq(promotions.targetPageId, applicationPages.id))
       .where(
         and(
           isNull(promotions.deletedAt),
@@ -166,9 +179,11 @@ export class PromotionDrizzleRepository implements PromotionRepository {
       .select({
         promotions,
         clinic_services: clinicServices,
+        application_pages: applicationPages,
       })
       .from(promotions)
       .leftJoin(clinicServices, eq(promotions.serviceId, clinicServices.id))
+      .leftJoin(applicationPages, eq(promotions.targetPageId, applicationPages.id))
       .where(whereClause)
       .orderBy(desc(promotions.priority), desc(promotions.createdAt))
       .limit(limit)
@@ -187,9 +202,11 @@ export class PromotionDrizzleRepository implements PromotionRepository {
       .select({
         promotions,
         clinic_services: clinicServices,
+        application_pages: applicationPages,
       })
       .from(promotions)
       .leftJoin(clinicServices, eq(promotions.serviceId, clinicServices.id))
+      .leftJoin(applicationPages, eq(promotions.targetPageId, applicationPages.id))
       .where(
         and(
           isNull(promotions.deletedAt),
@@ -210,9 +227,11 @@ export class PromotionDrizzleRepository implements PromotionRepository {
       .select({
         promotions,
         clinic_services: clinicServices,
+        application_pages: applicationPages,
       })
       .from(promotions)
       .leftJoin(clinicServices, eq(promotions.serviceId, clinicServices.id))
+      .leftJoin(applicationPages, eq(promotions.targetPageId, applicationPages.id))
       .where(eq(promotions.id, id))
       .limit(1);
 
@@ -225,6 +244,7 @@ export class PromotionDrizzleRepository implements PromotionRepository {
       .insert(promotions)
       .values({
         serviceId: data.serviceId || null,
+        targetPageId: data.targetPageId || null,
         title: data.title,
         summary: data.summary,
         body: data.body || null,
@@ -264,6 +284,7 @@ export class PromotionDrizzleRepository implements PromotionRepository {
     };
 
     if (data.serviceId !== undefined) updateValues.serviceId = data.serviceId || null;
+    if (data.targetPageId !== undefined) updateValues.targetPageId = data.targetPageId || null;
     if (data.title !== undefined) updateValues.title = data.title;
     if (data.summary !== undefined) updateValues.summary = data.summary;
     if (data.body !== undefined) updateValues.body = data.body || null;

@@ -11,6 +11,7 @@ export class AttendanceMapper {
       recordedMethod: r.recordedMethod,
       isReplacement: Boolean(r.isReplacement),
       isEarlyDeparture: Boolean(r.isEarlyDeparture),
+      locationLabel: r.locationLabel || null,
       shift: r.shift ?? null,
       shiftLabel: r.shiftLabel || null,
       checkInAt: r.checkInAt ? new Date(r.checkInAt) : null,

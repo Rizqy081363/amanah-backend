@@ -6,6 +6,8 @@ import {
 
 export type ShiftCode = string;
 
+export const CANONICAL_CLINIC_LOCATION = 'Klinik Pratama Amanah';
+
 export const ATTENDANCE_ACTIONS = {
   CHECK_IN: 'check_in',
   MANUAL_CHECK_IN: 'manual_check_in',

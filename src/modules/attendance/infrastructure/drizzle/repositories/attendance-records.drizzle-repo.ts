@@ -6,7 +6,10 @@ import {
   sessionDefs,
   staffAttendanceRecords,
 } from '../../../../../database/schema';
-import { ATTENDANCE_STATUS } from '../../../domain/constants/attendance.constants';
+import {
+  ATTENDANCE_STATUS,
+  CANONICAL_CLINIC_LOCATION,
+} from '../../../domain/constants/attendance.constants';
 import { AttendanceEntity } from '../../../domain/entities/attendance.entity';
 import { AttendanceHistoryResultDto } from '../../../domain/repositories/attendance.repository';
 import { AttendanceMapper } from '../mappers/attendance.mapper';
@@ -26,6 +29,7 @@ export class AttendanceRecordsDrizzleRepo {
     checkInAt?: string | null;
     lateMinutes?: number | null;
     recordedMethod: string;
+    locationLabel?: string | null;
     sessionId?: string | null;
     qrSessionId?: string | null;
     isReplacement: boolean;
@@ -43,6 +47,7 @@ export class AttendanceRecordsDrizzleRepo {
         checkInAt: data.checkInAt,
         lateMinutes: data.lateMinutes,
         recordedMethod: data.recordedMethod as any,
+        locationLabel: data.locationLabel ?? CANONICAL_CLINIC_LOCATION,
         sessionId: data.sessionId,
         qrSessionId: data.qrSessionId,
         isReplacement: data.isReplacement,
@@ -63,6 +68,7 @@ export class AttendanceRecordsDrizzleRepo {
           validatedDurationHours: '0.00',
           lateMinutes: data.lateMinutes,
           recordedMethod: data.recordedMethod as any,
+          locationLabel: data.locationLabel ?? CANONICAL_CLINIC_LOCATION,
           sessionId: data.sessionId,
           qrSessionId: data.qrSessionId || undefined,
           isReplacement: data.isReplacement,

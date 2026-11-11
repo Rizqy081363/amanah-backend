@@ -89,6 +89,7 @@ export interface AttendanceRepository {
     checkInAt?: string | null;
     lateMinutes?: number | null;
     recordedMethod: string;
+    locationLabel?: string | null;
     sessionId?: string | null;
     qrSessionId?: string | null;
     isReplacement: boolean;

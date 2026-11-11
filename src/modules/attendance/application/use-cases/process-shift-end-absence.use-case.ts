@@ -148,6 +148,8 @@ export class ProcessShiftEndAbsenceUseCase {
         `[ShiftEndAbsenceEngine] Shift "${session.label}" (${session.code}, ${startsAt}-${endsAt}) ended. Evaluating ${scheduledStaff.length} scheduled staff.`,
       );
 
+      const sessionAbsentStaffNames: string[] = [];
+
       for (const staff of scheduledStaff) {
         try {
           // Check if on approved leave
@@ -205,7 +207,7 @@ export class ProcessShiftEndAbsenceUseCase {
             }
           }
 
-          // 5. Real-time & FCM Push Notification strictly isolated to staff.userId
+          // 5. Real-time & FCM Push Notification strictly isolated to staff.userId (Skip individual admin broadcast during sweep)
           await this.notificationService.dispatchNotification(
             absentRecord,
             ATTENDANCE_ACTIONS.ABSENCE_FINALIZED,
@@ -215,6 +217,7 @@ export class ProcessShiftEndAbsenceUseCase {
               userId: staff.userId,
               roleId: staff.roleId,
               shiftLabel: session.label,
+              skipAdminBroadcast: true,
             },
           );
 
@@ -233,6 +236,7 @@ export class ProcessShiftEndAbsenceUseCase {
 
           totalAbsentRecordsCreated++;
           staffMarkedAbsent.push(staff.fullName);
+          sessionAbsentStaffNames.push(staff.fullName);
 
           this.logger.log(
             `[ShiftEndAbsenceEngine] Staf "${staff.fullName}" (${staff.staffCode}) successfully finalized as ABSENT on shift "${session.label}"`,
@@ -242,6 +246,17 @@ export class ProcessShiftEndAbsenceUseCase {
             `[ShiftEndAbsenceEngine] Error processing absence for staff "${staff.fullName}": ${String(staffErr)}`,
           );
         }
+      }
+
+      // 7. Dispatch single aggregate absence notification for this ended shift to clinic administration
+      if (sessionAbsentStaffNames.length > 0) {
+        await this.notificationService.dispatchAggregateShiftAbsence({
+          shiftLabel: session.label,
+          shiftCode: session.code,
+          attendanceDate: targetDate,
+          absentCount: sessionAbsentStaffNames.length,
+          absentStaffNames: sessionAbsentStaffNames,
+        });
       }
     }
 

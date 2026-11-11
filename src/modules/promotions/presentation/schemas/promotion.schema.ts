@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 export const BasePromotionSchema = z.object({
   serviceId: z.string().uuid('ID service harus berupa UUID yang valid').optional().nullable(),
+  targetPageId: z.string().uuid('ID halaman target harus berupa UUID yang valid').optional().nullable(),
   title: z
     .string()
     .trim()

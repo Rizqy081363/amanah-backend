@@ -57,7 +57,7 @@ async function main() {
         image_value: '/promo/pemeriksaan-dokter-umum.webp',
         image_alt: 'Dokter umum memeriksa pasien di ruang konsultasi',
         cta_label: 'Jadwalkan Janji Temu',
-        cta_url: '/booking',
+        cta_url: '/klinik/janji-temu',
         show_banner: true,
         show_modal: false,
         show_section: true,
